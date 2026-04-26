@@ -1,0 +1,325 @@
+import 'dart:io';
+import 'package:copperlauncher_main/core/app_config.dart';
+import 'package:copperlauncher_main/data/local_asset.dart';
+import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
+import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
+import 'package:copperlauncher_main/ui/util/framework/menu_bar.dart';
+import 'package:copperlauncher_main/ui/util/framework/page_skeleton.dart';
+import 'package:copperlauncher_main/ui/util/info/notification.dart';
+import 'package:copperlauncher_main/ui/util/widget/animated_expansion.dart';
+import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
+import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
+import 'package:flutter/material.dart';
+import '../../../feature/images.dart';
+
+class VersionSelectPage extends StatefulWidget {
+  const VersionSelectPage({super.key});
+
+  @override
+  State<StatefulWidget> createState() => _VersionSelectPageState();
+}
+
+//选择版本页面
+class _VersionSelectPageState extends State<VersionSelectPage> {
+  final List<VersionFold> _versionFolds = config.versionOptions.versionFolds;
+
+  static int _index = 0;
+
+  void _deleteVersion(Mindustry version) {
+    final index = _versionFolds[_index].versions.indexWhere(
+      (v) => v == version,
+    );
+    if (index == -1) {
+      debugPrint('没有找到配置信息');
+      return;
+    }
+    final tag = version.tag;
+    showConfirmationPopup(
+      context: context,
+      type: ConfirmationType.warning,
+      title: '确定要删除 [$tag] ？',
+      content: '[$tag] 游戏文件及其独立附属的存档，mod，整合包，蓝图，地图都会被删除！',
+      action: () async {
+        if (version.jarPath == null) {
+          debugPrint('无效文件路径,自动删除配置信息');
+        } else {
+          final file = File(version.jarPath!);
+          if (await file.exists()) {
+            try {
+              await file.delete();
+            } catch (e) {
+              debugPrint('删除失败');
+              debugPrint(e.toString());
+              return;
+            }
+          } else {
+            debugPrint('游戏文件不存在,自动删除配置信息');
+          }
+        }
+
+        setState(() {
+          //不管何种情况版本的配置信息肯定会被删除
+          _versionFolds[_index].versions.removeAt(index);
+          final selectedVersionId = config.versionOptions.selectedVersionId;
+          if (selectedVersionId != null && version.id == selectedVersionId) {
+            config.versionOptions.selectedVersionId = null;
+          }
+        });
+        await config.save();
+        _updateView();
+      },
+    );
+  }
+
+  void _selectVersion(Mindustry version) async {
+    config.versionOptions.selectedVersion = version;
+    Navigator.pop(context);
+    await config.save();
+  }
+
+  void _collectedVersion(Mindustry version) async {
+    //收藏
+    final index = _versionFolds[_index].versions.indexWhere(
+      (v) => v == version,
+    );
+    if (index == -1) return;
+    _versionFolds[_index].versions[index].like =
+        !_versionFolds[_index].versions[index].like!;
+    await config.save();
+    _updateView();
+  }
+
+  void _updateView() {
+    Navigator.pushReplacementNamed(
+      context,
+      '/version_select',
+      arguments: {'lead': '版本选择'},
+    );
+  }
+
+  void _popToVersionSetting(Mindustry version) {
+    //todo 设置
+    final index = _versionFolds[_index].versions.indexWhere(
+      (v) => v == version,
+    );
+    if (index == -1) return;
+    Navigator.pushNamed(
+      context,
+      '/version_setting',
+      arguments: {'lead': '版本设置', 'version': version, 'title': version.tag},
+    );
+  }
+
+  Widget _buildVersionTile(Mindustry version) {
+    final isSelectVersion =
+        version.id == config.versionOptions.selectedVersionId;
+
+    final theme = Theme.of(context);
+
+    return ReboundListTile(
+      margin: EdgeInsets.all(8),
+      borderRadius: BorderRadius.circular(4),
+      leading: Image.asset(
+        version.launcher == LauncherType.copper
+            ? Images.copper
+            : Images.mindustry,
+        scale: 0.8,
+        height: 48,
+      ),
+      title: Text(version.tag ?? '未命名版本', style: theme.textTheme.bodyLarge),
+      subtitle: Text(version.name ?? '未知版本', style: theme.textTheme.bodyMedium),
+      trailing: IconTheme(
+        data: theme.iconTheme,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 4,
+          children: [
+            if (isSelectVersion)
+              Icon(
+                Icons.bookmark_border,
+                color: Colors.yellow.shade700,
+                size: 28,
+              ),
+            ReboundButton(
+              child: Icon(Icons.delete_outline),
+              onTap: () {
+                _deleteVersion(version);
+              },
+            ),
+            ReboundButton(
+              child: Icon(
+                version.like ?? false
+                    ? Icons.favorite
+                    : Icons.favorite_border_rounded,
+                color: version.like ?? false ? Colors.red : null,
+              ),
+              onTap: () {
+                _collectedVersion(version);
+              },
+            ),
+            ReboundButton(
+              child: Icon(Icons.settings),
+              onTap: () {
+                _popToVersionSetting(version);
+              },
+            ),
+          ],
+        ),
+      ),
+      onTap: () {
+        _selectVersion(version);
+      },
+    );
+  }
+
+  Widget _buildVersionViewPage(List<Mindustry> versions) {
+    final List<Widget> likes = [];
+    final List<Widget> mindustrys = [];
+    final List<Widget> coppers = [];
+    final List<Widget> betas = [];
+
+    for (int i = 0; i < versions.length; i++) {
+      final version = versions[i];
+
+      final child = _buildVersionTile(version);
+
+      if (version.like ?? false) likes.add(child);
+
+      if (version.launcher == LauncherType.copper) {
+        coppers.add(child);
+        continue;
+      }
+      if (version.isBe ?? false) {
+        betas.add(child);
+        continue;
+      }
+      mindustrys.add(child);
+    }
+
+    if (likes.isEmpty &&
+        mindustrys.isEmpty &&
+        coppers.isEmpty &&
+        betas.isEmpty) {
+      return _buildEmptyPage();
+    }
+
+    return ListContentPanel(
+      delay: 250,
+      items: [
+        if (likes.isNotEmpty)
+          AnimatedExpansion(
+            initExpanded: true,
+            title: Text('收藏(${likes.length})'),
+            children: likes,
+          ),
+        if (mindustrys.isNotEmpty)
+          AnimatedExpansion(
+            initExpanded: likes.isEmpty,
+            title: Text('原版(${mindustrys.length})'),
+            children: mindustrys,
+          ),
+        if (coppers.isNotEmpty)
+          AnimatedExpansion(
+            title: Text('Copper(${coppers.length})'),
+            children: coppers,
+          ),
+        if (betas.isNotEmpty)
+          AnimatedExpansion(
+            title: Text('预览版(${betas.length})'),
+            children: betas,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyPage() {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.secondaryContainer,
+      borderRadius: BorderRadius.circular(8),
+      elevation: 4,
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          spacing: 4,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('~(～￣▽￣)～', style: theme.textTheme.bodyLarge),
+            Text('没有找到任何游戏版本', style: theme.textTheme.displayMedium),
+
+            Text('可以添加其他游戏目录或者直接下载游戏', style: theme.textTheme.bodyMedium),
+            SizedBox(height: 2),
+            ReboundButton(
+              elevation: 2,
+              hoverElevation: 4,
+              margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              onTap: () {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/download',
+                  (_) => false,
+                );
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 8,
+                children: [
+                  Icon(Icons.download, color: theme.colorScheme.onSurface),
+                  Text(
+                    '下载游戏',
+                    style: TextStyle(color: theme.colorScheme.onSurface),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  SideMenuBar _buildMenuBar() {
+    final List<Widget> items = [];
+    for (int i = 0; i < _versionFolds.length; i++) {
+      final fold = _versionFolds[i];
+      items.add(
+        MenuItem(
+          leading: Icon(Icons.folder_outlined),
+          title: Text(fold.tag),
+          subtitle: Text(fold.path),
+          selected: _index == i,
+          onTap: () {
+            setState(() {
+              _index = i;
+            });
+          },
+        ),
+      );
+    }
+    return SideMenuBar(
+      width: 280,
+      items: [
+        Text(
+          '资源',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w900,
+            fontSize: 20,
+          ),
+        ),
+        ...items,
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PageSkeleton(
+      body: KeyedSubtree(
+        key: ValueKey(_index),
+        child: _buildVersionViewPage(_versionFolds[_index].versions),
+      ),
+      menuBar: _buildMenuBar(),
+    );
+  }
+}

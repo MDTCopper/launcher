@@ -1,118 +1,35 @@
-import 'package:copperlauncher_main/tabbar/about.dart';
-import 'package:copperlauncher_main/tabbar/download.dart';
-import 'package:copperlauncher_main/tabbar/home.dart';
-import 'package:copperlauncher_main/tabbar/setting.dart';
+import 'package:copperlauncher_main/core/app_config.dart';
+import 'package:copperlauncher_main/data/local_asset.dart';
+import 'package:copperlauncher_main/ui/copper_launcher.dart';
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 
-void main() => runApp(MyApp());
-
-class MyApp extends StatelessWidget{
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home:MainPage()
-    );
-  }
+void main() async {
+  await _initialize();
+  runCopperLauncher();
 }
 
-
-
-class MainPage extends StatefulWidget{
-  const MainPage ({super.key});
-
-  @override
-  State<StatefulWidget> createState() =>  _MainPage();
+Future<void> _initialize() async {
+  await initAppConfig();
+  await initDefaultDataPath();
+  await _initWindow();
 }
 
-class _MainPage extends State<MainPage>{
-  int _currentIndex = 0 ;
+Future _initWindow() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // 必须先初始化窗口管理器
+  await windowManager.ensureInitialized();
 
-  final List<Widget> _tabPages = [
-    HomePage(),
-    DownloadPage(),
-    SettingPage(),
-    AboutPage()
-  ];
+  // 配置窗口初始属性
+  WindowOptions windowOptions = WindowOptions(
+    size: Size(960, 544),
+    minimumSize: Size(900, 450),
+    center: true,
+    titleBarStyle: TitleBarStyle.hidden,
+  );
 
-  final List<String> _pageName = ['游戏', '下载', '设置','关于'];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leadingWidth: 180,
-        leading: Row(
-          children: [
-            Container(
-              margin: EdgeInsets.fromLTRB(10, 0, 10, 0),
-              child: Image.asset('assets/images/copper.png'),
-            ),
-            Text('Copper',style: TextStyle(fontSize: 30,color: Colors.white,fontWeight: FontWeight.bold),)
-          ],
-        ),
-        title: Text(_pageName[_currentIndex],style: TextStyle(color: Colors.white),),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            iconSize: 40,
-            color: Colors.orangeAccent,
-            style: ButtonStyle(),
-            icon: Icon(Icons.play_arrow_outlined),
-            tooltip: '游戏',
-            onPressed: (){
-              setState(() {
-                _currentIndex = 0;
-              });
-            },
-          ),
-          IconButton(
-            iconSize: 36,
-            color: Colors.orangeAccent,
-            icon: Icon(Icons.download),
-            onPressed: (){
-              setState(() {
-                _currentIndex = 1;
-              });
-            },
-          ),
-          IconButton(
-            iconSize: 36,
-            color: Colors.orangeAccent,
-            icon: Icon(Icons.settings,),
-            onPressed: (){
-              setState(() {
-                _currentIndex = 2;
-              });
-            },
-          ),
-          IconButton(
-            iconSize:36,
-            color: Colors.orangeAccent,
-            icon: Icon(Icons.info_outline,),
-            onPressed: (){
-              setState(() {
-                _currentIndex = 3;
-              });
-            },
-          ),
-        ],
-        backgroundColor: Colors.black87,
-      ),
-      body: Container(
-        alignment: Alignment.topCenter,
-        color: Colors.black54,
-        child: Container(
-          margin: EdgeInsets.all(5),
-          decoration:BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: _tabPages[_currentIndex],
-        ),
-      ),
-    );
-  }
+  await windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
 }

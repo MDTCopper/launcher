@@ -1,16 +1,7 @@
-# copperlauncher_main
+# Copper Launcher
 
-A new Flutter project.
+一款处于开发中的Mindustry启动器，将适配Windows，Linux和Android三种平台
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+# 主要功能
+- 快捷游戏下载和管理游戏资源功能
+- 社区资源下载
