@@ -2,35 +2,30 @@ import 'dart:convert';
 
 import 'package:async/async.dart';
 import 'package:copperlauncher_main/core/constant/app_constant.dart';
-import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:copperlauncher_main/data/net_asset.dart';
+import 'package:copperlauncher_main/domain/task.dart';
 import 'package:copperlauncher_main/ui/feature/feature_color.dart';
 import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
 import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
 import 'package:copperlauncher_main/ui/util/framework/menu_bar.dart';
 import 'package:copperlauncher_main/ui/util/framework/page_skeleton.dart';
-
 import 'package:copperlauncher_main/ui/util/widget/animated_dropdown_menu.dart';
 import 'package:copperlauncher_main/ui/util/widget/animated_expansion.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
-
 import 'package:copperlauncher_main/util/format/string_cleaner.dart';
 import 'package:copperlauncher_main/util/format/time_since.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:line_icons/line_icons.dart';
-import 'package:path/path.dart' as p;
 import 'package:string_similarity/string_similarity.dart';
 
 import '../../core/app_config.dart';
 import '../../domain/task_manager.dart';
 import '../../util/validate/windows_file_name_validator.dart';
 import '../feature/images.dart';
-import '../util/info/log_list.dart';
-import '../util/info/notification.dart';
 import '../util/widget/future/mod_icon_loader.dart';
 import '../util/widget/pager.dart';
 import '../util/widget/rebound_container.dart';
@@ -279,7 +274,7 @@ class _DownloadMindustryPopupPage extends StatefulWidget {
 class _DownloadMindustryPopupPageState
     extends State<_DownloadMindustryPopupPage> {
   late final MindustryGithubMeta mindustryMeta = widget.mindustryMeta;
-  late String? tag = mindustryMeta.name;
+  late String tag = mindustryMeta.name;
   String? copperVersion;
 
   String? error;
@@ -326,58 +321,7 @@ class _DownloadMindustryPopupPageState
   void startDownload() {
     if (error != null) return;
 
-    //todo 定义下载错误，直白告诉网络错误原因
-    String jarName = 'mindustry';
-
-    if (mindustryMeta.releaseNum != null) {
-      jarName += '-${mindustryMeta.releaseNum}';
-    } else {
-      jarName += '-${DateTime.now().hashCode}';
-    }
-    if (copperVersion != null) {
-      jarName += '-copper-$copperVersion';
-    }
-    jarName += '.jar';
-
-    String path = p.join(p.current, 'versions'); //todo versions路径自定义
-
-    String jarPath = p.join(path, tag, jarName);
-
-    final mindustry = Mindustry(
-      id: DateTime.now().hashCode.toString(),
-      launcher:
-          copperVersion == null ? LauncherType.mindustry : LauncherType.copper,
-      tag: tag,
-      jarPath: jarPath,
-      isBe: mindustryMeta.isBe,
-      path: path,
-      name: mindustryMeta.name,
-      releaseNum: mindustryMeta.releaseNum,
-      addTime: DateTime.now(),
-      isolation: false,
-    );
-
-    NotificationManager.addNotice(
-      icon: Icons.download,
-      title: '下载',
-      content: '正在下载游戏[${mindustry.tag}]',
-    );
-    LogManager.addLog(LogEntry(LogType.info, '正在下载游戏[${mindustry.tag}]'));
-
-    String url =
-        mindustryMeta.assets!
-            .firstWhere((it) => it.name.contains('Mindustry.jar'))
-            .url;
-
-    addTask(
-      DownloadTask(
-        id: DateTime.now().toString(),
-        url: url,
-        path: jarPath,
-        describe: '下载 ${mindustryMeta.name}',
-        mindustry: mindustry,
-      ),
-    );
+    addTask(DownloadMindustryTask(mindustryMeta: mindustryMeta, tag: tag));
     Navigator.of(context).pop();
   }
 
@@ -764,16 +708,6 @@ class _ModPage extends StatefulWidget {
   State<StatefulWidget> createState() => _ModPageState();
 }
 
-extension ToMap<V> on List<V> {
-  Map<K, V> toMap<K>(K Function(V value) keyFrom) {
-    final Map<K, V> map = {};
-    for (final value in this) {
-      map.addEntries({keyFrom.call(value): value}.entries);
-    }
-    return map;
-  }
-}
-
 class _ModPageState extends State<_ModPage> {
   static Map<String, ModOfficialListMeta> previousModMetaMap = {};
   static List<ModOfficialListMeta> modMetas = [];
@@ -980,7 +914,7 @@ class _ModPageState extends State<_ModPage> {
                     (it) => ModOfficialListMeta.fromJson(it),
                   )
                   .toList();
-          previousModMetaMap = list.toMap((it) => it.repo);
+          previousModMetaMap = {for (final it in list) it.repo: it};
         }
 
         return true;

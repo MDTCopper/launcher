@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'package:copperlauncher_main/ui/util/info/task_list.dart';
+
 import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
 import 'package:flutter/material.dart';
+
+import '../../../domain/task.dart';
 import '../../../domain/task_manager.dart';
-import '../../feature/feature_color.dart';
 import '../widget/feature_button.dart';
 
 class TaskDrawerOpener extends StatefulWidget {

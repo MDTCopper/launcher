@@ -1,15 +1,16 @@
-import 'dart:io';
 import 'dart:math';
 
 import 'package:copperlauncher_main/data/local_asset.dart';
+import 'package:copperlauncher_main/data/net_asset.dart';
 import 'package:copperlauncher_main/domain/mindustry_launcher.dart';
+import 'package:copperlauncher_main/domain/task.dart';
+import 'package:copperlauncher_main/domain/task_manager.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_config.dart';
-import '../../domain/task_manager.dart';
 import '../feature/images.dart';
 import '../util/animation/loop_animated_widget/drill_loading.dart';
 import '../util/info/log_list.dart';
@@ -188,7 +189,20 @@ class _LaunchPageState extends State<LaunchPage> {
   }
 
   void _test() {
-    var a = Future(() async {});
+    var a = Future(() async {
+      addTask(
+        DownloadMindustryTask(
+          tag: '',
+          mindustryMeta: MindustryGithubMeta(
+            name: 'name',
+            releaseNum: 'releaseNum',
+            releaseDate: 'releaseDate',
+            assets: [],
+            describe: 'describe',
+          ),
+        ),
+      );
+    });
   }
 
   @override
@@ -198,9 +212,14 @@ class _LaunchPageState extends State<LaunchPage> {
       children: [
         Expanded(
           child: Align(
-            child: ElectricConverter(),
+            // child: ElectricConverter(),
             //屏幕中心
             // child: _CenterField(),
+            child: ReboundIconButton(
+              icon: Icons.add,
+              content: 'a+++',
+              onTap: _test,
+            ),
           ),
         ),
         Padding(
@@ -267,11 +286,11 @@ class _ElectricConverterState extends State<ElectricConverter> {
     if (imaginaryToAngle) {
       modulus = sqrt(imaginary * imaginary + real * real);
       angle = atan(imaginary / real) * 180 / pi;
-      if(real.isNegative){
-        if(angle.isNegative){
-          angle+=180;
-        }else{
-          angle-=180;
+      if (real.isNegative) {
+        if (angle.isNegative) {
+          angle += 180;
+        } else {
+          angle -= 180;
         }
       }
     } else {

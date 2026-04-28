@@ -41,7 +41,9 @@ Future<void> initDefaultDataPath() async {
 abstract class LocalAsset {
   final String? name; //资源原名
   final String? releaseNum;
-  final String? path; //存储路径
+
+  ///存储路径
+  final String? path;
   final String? author;
 
   const LocalAsset({
@@ -52,26 +54,30 @@ abstract class LocalAsset {
   });
 }
 
+///游戏版本将以文件夹的形式存储，文件夹内是版本数据，可能包含游戏本体，不包含的将使用其他文件目录下载游戏本体，这样可以省出不必要的下载
 @JsonSerializable()
 class Mindustry extends LocalAsset {
   final String? id;
-  final String? jarPath; //游戏启动路径
+
+  ///游戏启动路径
+  final String? jarPath;
   final LauncherType? launcher;
   final bool? isBe;
   final DateTime? addTime;
 
-  String? tag; // 玩家标签
+  /// 玩家标签
+  String? tag;
   bool? like = false;
   bool? isolation;
 
+  ///游戏目录路径
   String? get foldPath {
-    //游戏目录路径
     if (path == null) return null;
     return p.join(path!, tag);
   }
 
+  ///游戏数据路径mods,saves,maps,schematics
   String? get dataPath {
-    //游戏数据路径mods,saves,maps,schematics
     final notIsolation = !(isolation ?? false);
     if (notIsolation) return defaultGameDataPath; //默认存储位置
     if (foldPath == null) return null;
@@ -162,7 +168,6 @@ class Mod extends LocalAsset {
   late final bool? hidden;
 
   factory Mod.fromJson(Map<String, dynamic> json) => _$ModFromJson(json);
-
 }
 
 //这个需要后续规范整合包标准

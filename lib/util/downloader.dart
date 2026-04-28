@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
-import 'package:path/path.dart' as p;
 
 import 'math/speed_calculate.dart';
 
@@ -166,6 +165,7 @@ class Downloader {
       }
     }
 
+    // 合并文件
     try {
       await Future.wait(
         chunks.map((it) async => await downloadSingleChunk(it)),
