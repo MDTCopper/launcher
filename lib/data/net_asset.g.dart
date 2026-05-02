@@ -107,7 +107,6 @@ ModGithubMeta _$ModGithubMetaFromJson(
           .map((e) => GithubApiReleaseAsset.fromJson(e as Map<String, dynamic>))
           .toList(),
   describe: json['body'] as String,
-  sourceCodeUrl: json['zipball_url'] as String,
 );
 
 Map<String, dynamic> _$ModGithubMetaToJson(ModGithubMeta instance) =>
@@ -117,5 +116,4 @@ Map<String, dynamic> _$ModGithubMetaToJson(ModGithubMeta instance) =>
       'published_at': instance.releaseDate,
       'assets': instance.assets,
       'body': instance.describe,
-      'zipball_url': instance.sourceCodeUrl,
     };

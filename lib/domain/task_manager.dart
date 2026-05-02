@@ -2,25 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copperlauncher_main/domain/task.dart';
-import 'package:copperlauncher_main/util/downloader.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../core/constant/app_constant.dart';
 
-final dio = Dio(
-  BaseOptions(
-    connectTimeout: const Duration(seconds: 20), //链接超时
-    receiveTimeout: const Duration(seconds: 300), //下载超时
-    headers: {
-      'User-Agent': 'MindustryModDownloader',
-      'Authorization': 'token $githubToken',
-    },
-  ),
-);
-
-final dr = Downloader();
 
 final Map<String, CancelToken> cancelTokens = {};
 

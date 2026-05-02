@@ -1,10 +1,7 @@
 import 'dart:math';
 
 import 'package:copperlauncher_main/data/local_asset.dart';
-import 'package:copperlauncher_main/data/net_asset.dart';
 import 'package:copperlauncher_main/domain/mindustry_launcher.dart';
-import 'package:copperlauncher_main/domain/task.dart';
-import 'package:copperlauncher_main/domain/task_manager.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
@@ -30,6 +27,7 @@ class _LaunchPageState extends State<LaunchPage> {
     if (_selectedVersion == null) {
       return ReboundListTile(
         borderRadius: BorderRadius.circular(8),
+
         onTap: () async {
           await Navigator.pushNamed(
             context,
@@ -43,14 +41,15 @@ class _LaunchPageState extends State<LaunchPage> {
           child: Center(
             child: Text(
               '未选择版本，点击以选择游戏版本',
-              style: TextStyle(color: Colors.white60, fontSize: 30),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontSize: 32),
             ),
           ),
         ),
       );
     }
     return ReboundListTile(
-      backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
       margin: EdgeInsets.all(8),
       elevation: 2,
       hoverElevation: 4,
@@ -190,18 +189,36 @@ class _LaunchPageState extends State<LaunchPage> {
 
   void _test() {
     var a = Future(() async {
-      addTask(
-        DownloadMindustryTask(
-          tag: '',
-          mindustryMeta: MindustryGithubMeta(
-            name: 'name',
-            releaseNum: 'releaseNum',
-            releaseDate: 'releaseDate',
-            assets: [],
-            describe: 'describe',
-          ),
-        ),
-      );
+      print(config.setting.githubToken);
+      // addTask(
+      //   DownloadMindustryTask(
+      //     tag: '我也不知道是哪个版本，我只是来凑数的',
+      //     mindustryMeta: MindustryGithubMeta(
+      //       name: 'name',
+      //       releaseNum: 'releaseNum',
+      //       releaseDate: 'releaseDate',
+      //       assets: [],
+      //       describe: 'describe',
+      //     ),
+      //   ),
+      // );
+      // addTask(
+      //   SimpleTask(
+      //     id: '666',
+      //     type: TaskType.download,
+      //     futureTask: (it) async {
+      //       it.progress = 0.0;
+      //       await Future.delayed(const Duration(seconds: 2));
+      //       for (int i = 0; i < 1000; i++) {
+      //         if (it.status != TaskStatus.process) return;
+      //         final i = Random().nextInt(300) + 20;
+      //         await Future.delayed(Duration(milliseconds: i));
+      //         it.progress = it.progress! + 0.1 * 0.01;
+      //         it.updateDisplay();
+      //       }
+      //     },
+      //   ),
+      // );
     });
   }
 

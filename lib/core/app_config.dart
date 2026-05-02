@@ -12,18 +12,14 @@ late AppConfig config;
 //config就直接更改内部成员，更改完成后需调用save()，同步配置文件
 
 Future<void> initAppConfig() async {
-  try {
-    final File file = File(p.join(p.current, configPath));
-    if (!await file.exists()) {
-      await createAppConfig();
-    }
-    final jsonStr = await file.readAsString();
-    final json = jsonDecode(jsonStr) as Map<String, dynamic>;
-    config = AppConfig.fromJson(json);
-  } catch (e) {
-    debugPrint('配置文件读取失败: $e');
-    rethrow;
+  final File file = File(p.join(p.current, configPath));
+  if (!await file.exists()) {
+    await createAppConfig();
   }
+  final jsonStr = await file.readAsString();
+  final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+  config = AppConfig.fromJson(json);
+
   await config.save();
 }
 
@@ -154,7 +150,7 @@ class VersionOptions {
 
   factory VersionOptions.fromJson(Map<String, dynamic> json) {
     final instance = _$VersionOptionsFromJson(json);
-    late final Mindustry? mindustry;
+    Mindustry? mindustry;
     final versionFolds = instance.versionFolds;
     for (final versionFold in versionFolds) {
       for (final version in versionFold.versions) {

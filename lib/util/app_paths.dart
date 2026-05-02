@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-class AppPaths {
+abstract class AppPaths {
   /// win => C:\Users\ASUS\AppData\Roaming\com.example\Copper\MindustryLauncher
   static Future<Directory> get rootLocal async {
     return Directory(//路径返回
@@ -15,8 +15,8 @@ class AppPaths {
   }
 
   /// win => C:\Users\ASUS\Desktop\copperlauncher_main\versions
-  static Future<Directory> get versions async{
-    return Directory(p.join(p.current,'versions'));
+  static String get versions {
+    return p.join(p.current, 'versions');
   }
 
 }

@@ -1,9 +1,9 @@
 import 'package:copperlauncher_main/data/net_asset.dart';
-import 'package:copperlauncher_main/domain/task_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/constant/app_constant.dart';
+import '../../../../util/downloader.dart';
 
 class ModNetworkIcon extends StatefulWidget {
   final ModOfficialListMeta modMeta;

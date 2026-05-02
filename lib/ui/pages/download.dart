@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:async/async.dart';
 import 'package:copperlauncher_main/core/constant/app_constant.dart';
 import 'package:copperlauncher_main/data/net_asset.dart';
-import 'package:copperlauncher_main/domain/task.dart';
 import 'package:copperlauncher_main/ui/feature/feature_color.dart';
 import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
 import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
@@ -24,6 +23,8 @@ import 'package:string_similarity/string_similarity.dart';
 
 import '../../core/app_config.dart';
 import '../../domain/task_manager.dart';
+import '../../domain/tasks/download_mindustry.dart';
+import '../../util/downloader.dart';
 import '../../util/validate/windows_file_name_validator.dart';
 import '../feature/images.dart';
 import '../util/widget/future/mod_icon_loader.dart';
@@ -128,7 +129,7 @@ class _TextAssetPageState extends State<_TextAssetPage> {
           url: "http://localhost/downloads/Mindustry152.2.jar",
           size: 0,
           downloadCount: 0,
-          name: '',
+          name: 'Mindustry.jar',
         ),
       ],
       describe: '',
@@ -142,7 +143,7 @@ class _TextAssetPageState extends State<_TextAssetPage> {
           url: "http://localhost/downloads/Mindustry152.jar",
           size: 0,
           downloadCount: 0,
-          name: '',
+          name: 'Mindustry.jar',
         ),
       ],
       describe: '',
@@ -156,7 +157,7 @@ class _TextAssetPageState extends State<_TextAssetPage> {
           url: "http://localhost/downloads/mindustry146.jar",
           size: 0,
           downloadCount: 0,
-          name: '',
+          name: 'mindustry.jar',
         ),
       ],
       describe: '',
@@ -170,7 +171,7 @@ class _TextAssetPageState extends State<_TextAssetPage> {
           url: "http://localhost/downloads/mindustry26403.jar",
           size: 0,
           downloadCount: 0,
-          name: '',
+          name: 'mindustry.jar',
         ),
       ],
       describe: '',
@@ -185,7 +186,7 @@ class _TextAssetPageState extends State<_TextAssetPage> {
             url: "http://localhost/downloads/mindustry26403.jar",
             size: 0,
             downloadCount: 0,
-            name: '',
+            name: 'mindustry.jar',
           ),
         ],
         describe: '',
@@ -484,6 +485,8 @@ class _VersionPageState extends State<_VersionPage> {
   static late MindustryGithubMeta _latestBeta;
 
   Future<bool> _fetchVersionAssets() async {
+    if (_versionList.isNotEmpty) return true;
+
     final url = "https://api.github.com/repos/Anuken/Mindustry/releases";
     final betaUrl =
         "https://api.github.com/repos/Anuken/MindustryBuilds/releases";

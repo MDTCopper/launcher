@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:math';
 
+import 'package:copperlauncher_main/util/format/byte_unit.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
@@ -16,6 +18,7 @@ final dio = Dio(
 typedef SpeedUpdateCallback = void Function(double);
 typedef DownloadStatusCallback = void Function(String);
 typedef DownloadEndCallback = void Function(List<String>);
+typedef DownloadChunksCallback = void Function(List<DownloadChunk> chunks);
 
 class Downloader {
   int maxTryTime = 5;
@@ -26,9 +29,12 @@ class Downloader {
     String url,
     String savePath, {
     String? tempPath,
-    int chunkNum = 8,
+    int chunkNum = 16,
     ProgressCallback? onProgress,
     SpeedUpdateCallback? onSpeedUpdate,
+
+    ///传回分块信息
+    DownloadChunksCallback? chunksStatus,
     //DownloadEndCallback? onEnd,
     //Map<String, dynamic>? queryParameters,
     CancelToken? cancelToken,
@@ -39,7 +45,15 @@ class Downloader {
     Options? options,
   }) async {
     final Response headResp = await dio.head(url);
-    final int totalSize = int.parse(headResp.headers.value('content-length')!);
+    final int totalSize = int.parse(
+      headResp.headers.value('content-length') ?? '0',
+    );
+
+    //var headers = gameDownloadHeaders;
+
+    final num = totalSize ~/ (2 * mb);
+
+    chunkNum = min(chunkNum, num);
 
     final chunkSize = totalSize ~/ chunkNum;
 
@@ -49,42 +63,48 @@ class Downloader {
     for (int i = 0; i < chunkNum; i++) {
       final start = i * chunkSize;
       final int end;
-      if (i != chunkNum - 1) {
-        end = (i + 1) * chunkSize - 1;
-      } else {
-        end = totalSize;
-      }
+      final int size;
       final path = '$tempPath$i';
       final file = File(path);
       var receive = 0;
-      if (await file.exists()) {
-        receive = await file.length();
-        if (receive > end - start) {
-          await file.delete();
-          receive = 0;
-        }
+      if (await file.exists()) receive = await file.length();
+
+      if (i != chunkNum - 1) {
+        end = (i + 1) * chunkSize - 1;
+        size = end - start + 1;
+      } else {
+        end = totalSize;
+        size = end - start;
       }
-      final chunk = DownloadChunk(i, start + receive, end, path)
-        ..receive = receive;
+      if (receive > size) {
+        await file.delete();
+        receive = 0;
+      }
+
+      final chunk = DownloadChunk(path, i, start + receive, end, receive, size);
+
+      if (chunk.start >= chunk.end) chunk.status = DownloadChunkStatus.complete;
+
       chunks.add(chunk);
     }
+    chunksStatus?.call(chunks);
 
     Future<bool> checkConnection(DownloadChunk chunk, {int tryTime = 0}) async {
+      if (chunk.status == DownloadChunkStatus.complete) return true;
       chunk.status = DownloadChunkStatus.connection;
+      final h = {'Range': 'bytes=${chunk.start}-${chunk.end}'};
       try {
-        final res = await dio.head(
-          url,
-          options: Options(
-            headers: {'Range': 'bytes=${chunk.start}-${chunk.end}'},
-          ),
-        );
+        print('${chunk.start} - ${chunk.end} 链接中');
+        final res = await dio.head(url, options: Options(headers: h));
         if (res.statusCode == 206) {
+          chunk.status = DownloadChunkStatus.download;
           return true;
         } else {
           throw DioException(requestOptions: RequestOptions());
         }
       } on DioException catch (e) {
         if (CancelToken.isCancel(e)) rethrow;
+        print(e);
         if (tryTime < maxTryTime) {
           await Future.delayed(Duration(milliseconds: 500));
           tryTime++;
@@ -100,7 +120,7 @@ class Downloader {
     );
     final allReady = connectionStatus.every((ok) => ok);
     if (!allReady) {
-      throw Exception('链接服务器时出现问题');
+      throw Exception('部分分块链接服务器时出现问题');
     }
 
     ValueNotifier<int>? sizeNotifier;
@@ -129,8 +149,11 @@ class Downloader {
       //     );
       //   }
       // }
-      chunk.status == DownloadChunkStatus.download;
+      if (chunk.status == DownloadChunkStatus.complete) return;
       final recentReceive = chunk.receive;
+      // final h = headers;
+      // h.addAll({'Range': 'bytes=${chunk.start}-${chunk.end}'});
+      final h = {'Range': 'bytes=${chunk.start}-${chunk.end}'};
       try {
         await dio.download(
           url,
@@ -138,9 +161,7 @@ class Downloader {
           cancelToken: cancelToken,
           deleteOnError: deleteOnError,
           fileAccessMode: fileAccessMode,
-          options: Options(
-            headers: {'Range': 'bytes=${chunk.start}-${chunk.end}'},
-          ),
+          options: Options(headers: h),
           onReceiveProgress: (receive, r) {
             chunk.receive = receive + recentReceive;
             final currentReceive = chunks.fold<int>(
@@ -151,14 +172,14 @@ class Downloader {
             onProgress?.call(currentReceive, totalSize);
           },
         );
-        chunk.status = DownloadChunkStatus.finished;
+        chunk.status = DownloadChunkStatus.complete;
       } on DioException catch (e) {
         if (CancelToken.isCancel(e)) rethrow;
         await Future.delayed(Duration(milliseconds: 500));
         if (tryTime < maxTryTime) {
           tryTime++;
           await downloadSingleChunk(chunk, tryTime: tryTime);
-        }else{
+        } else {
           chunk.status = DownloadChunkStatus.failed;
           throw Exception('分块[${chunk.index}下载尝试次数过多]');
         }
@@ -194,20 +215,22 @@ class Downloader {
 }
 
 class DownloadChunk {
-  DownloadChunk(
+  DownloadChunk(this.path,
     this.index,
     this.start,
     this.end,
-    this.path, {
+    this.receive,
+    this.size, {
     this.status = DownloadChunkStatus.pending,
   });
   final int index;
   final int start;
   final int end;
+  final int size;
   int receive = 0;
   final String path;
   // late final String cdnUrl;
   DownloadChunkStatus status;
 }
 
-enum DownloadChunkStatus { pending, connection, download, finished, failed }
+enum DownloadChunkStatus { pending, connection, download, complete, failed }

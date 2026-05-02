@@ -108,22 +108,19 @@ class ModOfficialListMeta {
 
   @override
   String toString() {
-    return 'ModMeta{name: $name, author:$author}';
+    return 'ModOfficialListMeta{name: $name, author:$author}';
   }
 }
 
 ///模组githubAPI版本元数据
 @JsonSerializable()
 class ModGithubMeta extends GithubApiRelease {
-  @JsonKey(name: 'zipball_url')
-  final String sourceCodeUrl;
   ModGithubMeta({
     required super.name,
     required super.releaseNum,
     required super.releaseDate,
     required super.assets,
     required super.describe,
-    required this.sourceCodeUrl,
   });
   factory ModGithubMeta.fromJson(Map<String, dynamic> json) =>
       _$ModGithubMetaFromJson(json);

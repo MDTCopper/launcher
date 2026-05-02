@@ -24,6 +24,6 @@ Map<String,String> get modDownloadHeaders => {
 };
 
 Map<String,String> get gameDownloadHeaders => {
-  'User-Agent': 'MindustryModDownloader',
+  'User-Agent': 'MindustryDownloader',
   'Authorization': 'token $githubToken',
 };

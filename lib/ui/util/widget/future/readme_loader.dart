@@ -8,7 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../../../../core/constant/app_constant.dart';
-import '../../../../domain/task_manager.dart';
+import '../../../../util/downloader.dart';
 import '../feature_button.dart';
 
 class ModNetReadmeLoader extends StatefulWidget {
