@@ -11,13 +11,14 @@ import 'math/speed_calculate.dart';
 final dio = Dio(
   BaseOptions(
     connectTimeout: const Duration(seconds: 20), //链接超时
-    receiveTimeout: const Duration(seconds: 300), //下载超时
   ),
 );
 
 typedef SpeedUpdateCallback = void Function(double);
 typedef DownloadStatusCallback = void Function(String);
 typedef DownloadEndCallback = void Function(List<String>);
+
+///返回分块列表
 typedef DownloadChunksCallback = void Function(List<DownloadChunk> chunks);
 
 class Downloader {
@@ -32,8 +33,6 @@ class Downloader {
     int chunkNum = 16,
     ProgressCallback? onProgress,
     SpeedUpdateCallback? onSpeedUpdate,
-
-    ///传回分块信息
     DownloadChunksCallback? chunksStatus,
     //DownloadEndCallback? onEnd,
     //Map<String, dynamic>? queryParameters,
@@ -49,9 +48,15 @@ class Downloader {
       headResp.headers.value('content-length') ?? '0',
     );
 
-    //var headers = gameDownloadHeaders;
+    if (totalSize <= 0) throw Exception('该请求无法分块下载');
 
-    final num = totalSize ~/ (2 * mb);
+    final int num;
+
+    if (totalSize < 2 * mb) {
+      num = totalSize ~/ (500 * kb);
+    } else {
+      num = totalSize ~/ (2 * mb);
+    }
 
     chunkNum = min(chunkNum, num);
 
@@ -95,7 +100,11 @@ class Downloader {
       final h = {'Range': 'bytes=${chunk.start}-${chunk.end}'};
       try {
         print('${chunk.start} - ${chunk.end} 链接中');
-        final res = await dio.head(url, options: Options(headers: h));
+        final res = await dio.head(
+          url,
+          options: Options(headers: h),
+          cancelToken: cancelToken,
+        );
         if (res.statusCode == 206) {
           chunk.status = DownloadChunkStatus.download;
           return true;
@@ -133,26 +142,8 @@ class Downloader {
       );
     }
     Future<void> downloadSingleChunk(DownloadChunk chunk, {tryTime = 0}) async {
-      // late final Options op;
-      // if (options == null) {
-      //   op = Options(headers: {'Range': 'bytes=${it.start}-${it.end}'});
-      // } else {
-      //   if (options.headers != null) {
-      //     op = options.copyWith(
-      //       headers:
-      //       options.headers!
-      //         ..addAll({'Range': 'bytes=${it.start}-${it.end}'}),
-      //     );
-      //   } else {
-      //     op = options.copyWith(
-      //       headers: {'Range': 'bytes=${it.start}-${it.end}'},
-      //     );
-      //   }
-      // }
       if (chunk.status == DownloadChunkStatus.complete) return;
       final recentReceive = chunk.receive;
-      // final h = headers;
-      // h.addAll({'Range': 'bytes=${chunk.start}-${chunk.end}'});
       final h = {'Range': 'bytes=${chunk.start}-${chunk.end}'};
       try {
         await dio.download(
@@ -215,7 +206,8 @@ class Downloader {
 }
 
 class DownloadChunk {
-  DownloadChunk(this.path,
+  DownloadChunk(
+    this.path,
     this.index,
     this.start,
     this.end,

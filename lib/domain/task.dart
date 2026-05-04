@@ -58,9 +58,6 @@ abstract class Task implements Listenable {
     return '${(progress! * 100).toStringAsFixed(1)} %';
   }
 
-  ///呈现在信息栏位的组件
-  Widget buildDisplayWidget(BuildContext context);
-
   ///需更新任务呈现信息时调用
   void updateDisplay() {
     for (var it in listeners) {
@@ -83,6 +80,9 @@ abstract class Task implements Listenable {
     runTask();
     updateDisplay();
   }
+
+  ///呈现在信息栏位的组件
+  Widget buildDisplayWidget(BuildContext context);
 
   ///自定义任务内容
   Future<void> runTask();
@@ -161,6 +161,3 @@ class SimpleTask extends Task {
 }
 
 final dr = Downloader();
-
-
-

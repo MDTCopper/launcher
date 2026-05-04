@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:copperlauncher_main/core/app_config.dart';
 import 'package:copperlauncher_main/data/net_asset.dart';
 import 'package:copperlauncher_main/domain/task_manager.dart';
@@ -16,7 +14,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:line_icons/line_icons.dart';
-import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constant/app_constant.dart';
@@ -314,7 +311,7 @@ class _ModDownloadState extends State<ModDownload> {
 
 class _ModDownloadPopupPage extends StatefulWidget {
   final ModOfficialListMeta modListMeta;
-  final ModGithubMeta modMeta;
+  final ModGithubMeta? modMeta;
 
   const _ModDownloadPopupPage(this.modListMeta, this.modMeta);
 
@@ -329,42 +326,40 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
 
   //todo 下载到选择的版本中,如果不是支持版本警告一下,处理一下空存储路径
   void _download() async {
-    if (await _checkModExist()) {
-      print('模组已存在，请检查文件');
-      return;
+    if (modListMeta.hasJava) {
+      addTask(
+        DownloadJavaModTask(
+          modListMeta: modListMeta,
+          modMeta: modMeta!,
+          savePath: version!.modsPath!,
+        ),
+      );
+    } else {
+      addTask(
+        DownloadZipModTask(modListMeta, modMeta, version!.modsPath!),
+      );
     }
 
-    addTask(
-      DownloadJavaModTask(
-        modListMeta: modListMeta,
-        modMeta: modMeta,
-        path: version!.modsPath!,
-      ),
-    );
     if (mounted) Navigator.pop(context);
   }
 
   //mod命名规则：模组名-版本.(jar/zip)
-  Future<bool> _checkModExist() async {
-    if (version?.modsPath == null) return false;
-    var fileName = '${modListMeta.name}-${modMeta.name}';
-    if (modListMeta.hasJava) {
-      fileName += '.jar';
-    } else {
-      fileName += '.zip';
-    }
-    final path = p.join(version!.modsPath!, fileName);
-    final file = File(path);
-    return await file.exists();
-  }
+  // Future<bool> _checkModExist() async {
+  //   if (version?.modsPath == null) return false;
+  //   var fileName = '${modListMeta.name}-${modMeta.name}';
+  //   if (modListMeta.hasJava) {
+  //     fileName += '.jar';
+  //   } else {
+  //     fileName += '.zip';
+  //   }
+  //   final path = p.join(version!.modsPath!, fileName);
+  //   final file = File(path);
+  //   return await file.exists();
+  // }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    final url = modMeta.assets.firstOrNull?.url;
-
-    print(url);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -395,12 +390,13 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
                       },
                     ),
                     Text(
-                      '下载 ${modMeta.name}',
+                      '下载 ${modMeta?.name ?? modListMeta.name}',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: theme.colorScheme.primary,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
