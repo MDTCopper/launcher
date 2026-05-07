@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:open_filex/open_filex.dart';
 
 class FileReader {
+  ///打开对应路径文件夹
   static Future<void> openFolder(String path) async {
     //todo 用win32接口调用，防止反复打开文件夹
     final dir = Directory(path);
@@ -20,6 +21,7 @@ class FileReader {
     }
   }
 
+  ///定位对应路径文件夹
   static Future<void> locatedPath(String path) async {
     final dir = Directory(path);
     if (!(await dir.exists())) {

@@ -106,6 +106,7 @@ class _AppearListView extends State<AppearListView>
 
     for (int i = 0; i < widget.items.length; i++) {
       Widget? item = widget.items[i];
+      if (item == null) continue;
       double begin = delay + interval * i;
       double end = begin + duration;
 

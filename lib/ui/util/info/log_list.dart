@@ -61,6 +61,7 @@ class _LogListState extends State<LogList> {
   @override
   void dispose() {
     LogManager.logNotifier.removeListener(_onChange);
+    controller.dispose();
     super.dispose();
   }
 

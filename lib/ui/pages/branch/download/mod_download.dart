@@ -13,6 +13,7 @@ import 'package:copperlauncher_main/util/format/string_cleaner.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:hjson_dart/hjson_dart.dart';
 import 'package:line_icons/line_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -20,6 +21,14 @@ import '../../../../core/constant/app_constant.dart';
 import '../../../util/widget/feature_button.dart';
 import '../../../util/widget/future/mod_icon_loader.dart';
 
+
+///模组仓库有三种情况：
+///
+/// 1.有构筑资源
+///
+/// 2.有历史源码，但没有构筑资源 => tag拼接 => 没有下载量信息
+///
+/// 3.根本没发布版本 => 提供源码下载方法
 class ModDownload extends StatefulWidget {
   const ModDownload({super.key});
 
@@ -28,23 +37,25 @@ class ModDownload extends StatefulWidget {
 }
 
 class _ModDownloadState extends State<ModDownload> {
-  late ModOfficialListMeta mod;
+  late ModOfficialListMeta modListMeta;
 
   int index = 1;
 
+  int perPage = 25;
+
   static final Map<String, List<ModGithubMeta>> modMetasMap = {};
 
-  List<ModGithubMeta> get metas => modMetasMap[mod.repo] ?? [];
+  List<ModGithubMeta> get metas => modMetasMap[modListMeta.repo] ?? [];
 
   bool endPage = false;
 
   Future<bool> _fetchModMetas({int page = 1}) async {
-    final length = modMetasMap[mod.repo]?.length ?? 0;
+    final length = modMetasMap[modListMeta.repo]?.length ?? 0;
     if (length >= page * 25) return true;
     if (length % 100 != 0) endPage = true;
     if (endPage) return true;
 
-    var repo = 'https://api.github.com/repos/${mod.repo}/releases';
+    var repo = 'https://api.github.com/repos/${modListMeta.repo}/releases';
     try {
       final res = await dio.get<List>(
         '$repo?page=${page ~/ 4 + 1}&per_page=100',
@@ -59,16 +70,73 @@ class _ModDownloadState extends State<ModDownload> {
       if (modMetas.length < 100) endPage = true;
       if (modMetas.isEmpty && index > 1) index--; //发现没有新的内容添加就直接减
       //print(modAssets.length);
-      if (modMetasMap[mod.repo] == null) {
-        modMetasMap[mod.repo] = modMetas;
+      if (modMetasMap[modListMeta.repo] == null) {
+        modMetasMap[modListMeta.repo] = modMetas;
       } else {
-        modMetasMap[mod.repo]!.addAll(modMetas);
+        modMetasMap[modListMeta.repo]!.addAll(modMetas);
       }
       return true;
     } catch (e) {
       print(e);
       return false;
     }
+  }
+
+  //todo https://raw.githubusercontent.com/ {Yuria-Shikibe/NewHorizonMod} / {main/tag_name} / {mod.hjson/.json}
+  //用这个可以访问不同版本的json文件，这样就可以统计各个版本最小游戏版本了，然后可以本地存储一下
+
+  @override
+  void initState() {
+    minGameVersionsCache.clear();
+    super.initState();
+  }
+
+  static final Map<String, Future<String?>> minGameVersionsCache = {};
+
+  Future<String?> _getMinGameVersion(ModGithubMeta mod) async {
+    final url = '$githubRAW/${modListMeta.repo}/${mod.releaseNum}';
+    List<String> jsons;
+    if (modListMeta.hasJava) {
+      jsons = ['hjson', 'json'];
+    } else {
+      jsons = ['json', 'hjson'];
+    }
+    Map<String, dynamic> map = {};
+    for (final json in jsons) {
+      try {
+        print('$url/mod.$json');
+        final res = await dio.get('$url/mod.$json');
+
+        if (res.statusCode != 200) continue;
+        final content = res.data as String;
+        map.addAll(hjsonDecode(content, strict: false) as Map<String, dynamic>);
+        if (map.isNotEmpty) break;
+      } catch (e) {
+        print(e);
+        continue;
+      }
+    }
+
+    if (map.isEmpty) {
+      for (final json in jsons) {
+        try {
+          print('$url/assets/mod.$json');
+          final res = await dio.get('$url/mod.$json');
+
+          if (res.statusCode != 200) continue;
+          final content = res.data as String;
+          map.addAll(
+              hjsonDecode(content, strict: false) as Map<String, dynamic>);
+          if (map.isNotEmpty) break;
+        } catch (e) {
+          print(e);
+          continue;
+        }
+      }
+    }
+
+    final min = map['minGameVersion'];
+    return min == null ? null : 'v$min';
   }
 
   Widget _buildVersionTile(ModGithubMeta mod) {
@@ -78,6 +146,9 @@ class _ModDownloadState extends State<ModDownload> {
         child: Row(children: [Icon(icon), Text(data)]),
       );
     }
+
+    final minGameVersion =
+    minGameVersionsCache[mod.releaseNum] ??= _getMinGameVersion(mod);
 
     return ReboundListTile(
       borderRadius: BorderRadius.circular(4),
@@ -92,6 +163,12 @@ class _ModDownloadState extends State<ModDownload> {
               Icons.arrow_downward,
               mod.assets.first.downloadCount.toString(),
             ),
+          FutureBuilder(
+            future: minGameVersion,
+            builder: (_, s) {
+              return buildOverView(Icons.source_outlined, s.data ?? '...');
+            },
+          ),
         ],
       ),
       onTap: () => _buildDownloadPopup(mod),
@@ -103,9 +180,11 @@ class _ModDownloadState extends State<ModDownload> {
     );
   }
 
-  //todo https://raw.githubusercontent.com/ {Yuria-Shikibe/NewHorizonMod} / {main/tag_name} / {mod.hjson/.json}
-  //用这个可以访问不同版本的json文件，这样就可以统计各个版本最小游戏版本了，然后可以本地存储一下
-  Widget _buildWarningBar() {
+  Widget? _buildWarningBar() {
+    final key = 'warning bar of mod download page enable';
+    var setting = config.setting.getCustomSetting(key, true);
+    if (setting == false) return null;
+
     final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
@@ -138,7 +217,11 @@ class _ModDownloadState extends State<ModDownload> {
             backgroundColor: Colors.transparent,
             pressedScale: 0.75,
             borderRadius: BorderRadius.circular(4),
-            onTap: () {},
+            onTap: () {
+              config.setting.customSetting[key] = false;
+              setState(() {});
+              config.save();
+            },
             child: Icon(Icons.close),
           ),
         ],
@@ -148,10 +231,11 @@ class _ModDownloadState extends State<ModDownload> {
 
   void _showReadme() => showAnimatedDialog(
     context: context,
-    pageBuilder: (_, _, _) => Center(child: ModNetReadmeLoader(mod: mod)),
+    pageBuilder:
+        (_, _, _) => Center(child: ModNetReadmeLoader(mod: modListMeta)),
   );
 
-  void _buildDownloadPopup(ModGithubMeta mod) {
+  void _buildDownloadPopup(ModGithubMeta? mod) {
     showAnimatedDialog(
       context: context,
       barrierDismissible: true,
@@ -159,7 +243,7 @@ class _ModDownloadState extends State<ModDownload> {
       transitionDuration: const Duration(milliseconds: 350),
       animationType: DialogAnimation.leapOut,
       pageBuilder: (context, _, _) {
-        return _ModDownloadPopupPage(this.mod, mod);
+        return _ModDownloadPopupPage(modListMeta, mod);
       },
     );
   }
@@ -173,16 +257,12 @@ class _ModDownloadState extends State<ModDownload> {
     await launchUrl(uri, mode: LaunchMode.inAppWebView);
   }
 
-  //模组无对应资产时，提醒用户无资源，然后提供源码下载方式
-  //模组仓库有三种情况：
-  // 1.有构筑资源
-  // 2.有历史源码，但没有构筑资源 => tag拼接 => 没有下载量信息
-  // 3.根本没发布版本 => 提供源码下载方法
+
 
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
-    mod = args!['mod']!;
+    modListMeta = args!['mod']!;
     final theme = Theme.of(context);
     return ListContentPanel(
       items: [
@@ -192,7 +272,7 @@ class _ModDownloadState extends State<ModDownload> {
               SizedBox(
                 height: 96,
                 width: 96,
-                child: ModNetworkIcon(modMeta: mod, size: 96),
+                child: ModNetworkIcon(modMeta: modListMeta, size: 96),
               ),
               SizedBox(width: 16),
               Expanded(
@@ -203,18 +283,21 @@ class _ModDownloadState extends State<ModDownload> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(mod.name, style: theme.textTheme.displayMedium),
+                        Text(
+                          modListMeta.name,
+                          style: theme.textTheme.displayMedium,
+                        ),
                         SizedBox(width: 16),
                         Icon(Icons.star_border_sharp),
                         SizedBox(width: 4),
                         Text(
-                          mod.stars.toString(),
+                          modListMeta.stars.toString(),
                           style: theme.textTheme.titleLarge?.copyWith(),
                         ),
                         SizedBox(width: 16),
                         Expanded(
                           child: Text(
-                            generalizeText(mod.author),
+                            generalizeText(modListMeta.author),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
                           ),
@@ -222,7 +305,7 @@ class _ModDownloadState extends State<ModDownload> {
                       ],
                     ),
                     Text(
-                      generalizeText(mod.description),
+                      generalizeText(modListMeta.description),
                       style: TextStyle(height: 1.25),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
@@ -244,21 +327,26 @@ class _ModDownloadState extends State<ModDownload> {
                           icon: Icons.file_open_outlined,
                           content: '源码仓库',
                           onTap:
-                              () => _goToUrl('https://github.com/${mod.repo}'),
+                              () =>
+                              _goToUrl(
+                                'https://github.com/${modListMeta.repo}',
+                              ),
                         ),
                         ReboundIconButton(
                           icon: FontAwesomeIcons.github,
                           content: '作者主页',
                           onTap:
                               () => _goToUrl(
-                                'https://github.com/${mod.repo.split('/').first}',
+                                'https://github.com/${modListMeta.repo
+                                    .split('/')
+                                    .first}',
                               ),
                         ),
                         Expanded(child: SizedBox()),
                         ReboundIconButton(
                           icon: Icons.download,
                           content: '最新版本',
-                          onTap: () {},
+                          onTap: () => _buildDownloadPopup(metas.firstOrNull),
                         ),
                       ],
                     ),
@@ -276,14 +364,31 @@ class _ModDownloadState extends State<ModDownload> {
             if (s.connectionState == ConnectionState.waiting) {
               return CircularProgressIndicator();
             }
-            if (metas.isEmpty) return Text('wu');
+            if (metas.isEmpty) {
+              return ContentPanelModule(
+                child: Column(
+                  spacing: 8,
+                  children: [
+                    Text('(*´･д･)?', style: theme.textTheme.titleLarge),
+                    Text(
+                      '该模组没有发布任何版本，可以点击最新版本下载',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    Text(
+                      '!!!  注意：模组可能因处于开发阶段，没有发布任何版本，存在不能正常载入的情况  !!!',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              );
+            }
 
-            int begin = (index - 1) * 25;
+            int begin = (index - 1) * perPage;
             int end;
-            if (metas.length < index * 25) {
+            if (metas.length < index * perPage) {
               end = metas.length;
             } else {
-              end = index * 25;
+              end = index * perPage;
             }
 
             return ContentPanelModule(
@@ -335,9 +440,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
         ),
       );
     } else {
-      addTask(
-        DownloadZipModTask(modListMeta, modMeta, version!.modsPath!),
-      );
+      addTask(DownloadZipModTask(modListMeta, modMeta, version!.modsPath!));
     }
 
     if (mounted) Navigator.pop(context);

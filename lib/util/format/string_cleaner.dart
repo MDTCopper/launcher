@@ -85,6 +85,7 @@ String fixSvgTextScale(String svgString) {
   }
 }
 
+///修复不规范的json格式
 String parseBrokenJson(String json) {
   return json
       .replaceAll(RegExp(r'//.*$', multiLine: true), '')

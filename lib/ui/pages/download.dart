@@ -1047,7 +1047,10 @@ class _ModPageState extends State<_ModPage> {
     );
   }
 
-  Widget _buildWarningBar() {
+  Widget? _buildWarningBar() {
+    final key = 'warning bar of mod page of download page enable';
+    final setting = config.setting.getCustomSetting(key, true);
+    if (setting == false) return null;
     final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
@@ -1080,7 +1083,11 @@ class _ModPageState extends State<_ModPage> {
             backgroundColor: Colors.transparent,
             pressedScale: 0.75,
             borderRadius: BorderRadius.circular(4),
-            onTap: () {},
+            onTap: () {
+              config.setting.customSetting[key] = false;
+              setState(() {});
+              config.save();
+            },
             child: Icon(Icons.close),
           ),
         ],

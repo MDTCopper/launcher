@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:copperlauncher_main/data/local_asset.dart';
+
 import 'package:copperlauncher_main/core/constant/app_constant.dart';
+import 'package:copperlauncher_main/data/local_asset.dart';
+import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:path/path.dart' as p;
 
 part 'app_config.g.dart';
 
@@ -81,10 +82,16 @@ class AppConfig {
 class Setting {
   Setting({required this.githubToken, required this.customSetting});
 
-  final Map<String, dynamic>? customSetting; //这个用来存储一些不太用得着的设置变量，比如某些提示的开关记忆
+  final Map<String, dynamic> customSetting; //这个用来存储一些不太用得着的设置变量，比如某些提示的开关记忆
   final String githubToken;
 
-  void registerNewSetting() {}
+  dynamic getCustomSetting(String key, dynamic defaultSetting) {
+    final setting = customSetting[key];
+    if (setting != null) return setting;
+    customSetting[key] = defaultSetting;
+    config.save();
+    return defaultSetting;
+  }
 
   factory Setting.fromJson(Map<String, dynamic> json) =>
       _$SettingFromJson(json);

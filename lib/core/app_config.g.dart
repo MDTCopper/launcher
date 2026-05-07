@@ -22,7 +22,7 @@ Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
 
 Setting _$SettingFromJson(Map<String, dynamic> json) => Setting(
   githubToken: json['githubToken'] as String,
-  customSetting: json['customSetting'] as Map<String, dynamic>?,
+  customSetting: json['customSetting'] as Map<String, dynamic>,
 );
 
 Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{

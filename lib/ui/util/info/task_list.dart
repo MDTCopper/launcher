@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:copperlauncher_main/ui/util/animation/pixel_slide_transition.dart';
+import 'package:copperlauncher_main/ui/util/widget/desktop_scroll_view.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/task.dart';
@@ -20,6 +22,7 @@ class _TaskListState extends State<TaskList> {
   final _key = GlobalKey<AnimatedListState>();
 
   StreamSubscription<List<Task>>? _taskSubscription;
+  final controller = ScrollController();
 
   @override
   void initState() {
@@ -30,6 +33,7 @@ class _TaskListState extends State<TaskList> {
   @override
   void dispose() {
     _taskSubscription?.cancel();
+    controller.dispose();
     super.dispose();
   }
 
@@ -149,9 +153,10 @@ class _TaskListState extends State<TaskList> {
   Widget build(BuildContext context) {
     final note = _buildNoTaskPage();
 
-    final list = AnimatedList(
+    Widget list = AnimatedList(
       key: _key,
       initialItemCount: _tasks.length,
+      controller: controller,
       padding: EdgeInsets.symmetric(horizontal: 8),
       itemBuilder: (context, index, animation) {
         final task = _tasks[index];
@@ -169,7 +174,9 @@ class _TaskListState extends State<TaskList> {
         );
       },
     );
-
+    if (Platform.isWindows) {
+      list = DesktopScrollViewContainer(controller: controller, child: list);
+    }
     final Widget widget = AnimatedSwitcher(
       duration: Duration(milliseconds: 600),
       child: _tasks.isEmpty ? note : list,

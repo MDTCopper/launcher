@@ -22,7 +22,7 @@ abstract class Task implements Listenable {
 
   Task({DateTime? createTime, String? id}) {
     this.createTime = createTime ?? DateTime.now();
-    this.id = id ?? createTime.hashCode.toString();
+    this.id = id ?? this.createTime.hashCode.toString();
   }
 
   @override
@@ -66,16 +66,19 @@ abstract class Task implements Listenable {
   }
 
   void cancel() {
+    if (status == TaskStatus.cancel) throw Exception('重复取消');
     status = TaskStatus.cancel;
     updateDisplay();
   }
 
   void pause() {
+    if (status == TaskStatus.paused) throw Exception('重复暂停');
     status = TaskStatus.paused;
     updateDisplay();
   }
 
   void start() {
+    if (status == TaskStatus.process) throw Exception('重复启动');
     status = TaskStatus.process;
     runTask();
     updateDisplay();

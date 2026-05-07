@@ -9,12 +9,11 @@ import 'package:hjson_dart/hjson_dart.dart';
 import 'package:mime/mime.dart';
 import 'package:properties/properties.dart';
 import 'package:window_manager/window_manager.dart';
-import '../../../util/format/string_cleaner.dart';
+
 import '../../vars.dart';
 import '../dialog/drag_file_field.dart';
 import '../info/task_drawer_opener.dart';
 import '../route/page_key_provider.dart';
-
 import '../route/page_route_observer.dart';
 import '../widget/feature_button.dart';
 import 'appbar_navigator.dart';
@@ -66,14 +65,10 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
     final b = await f.readAsBytes();
     final arc = ZipDecoder().decodeBytes(b);
 
-    var isJson = true;
-
     final index = arc.files.indexWhere((it) {
       final modMeta = it.name.split('/');
       if (modMeta.length > 2) return false;
-      if (modMeta.contains('mod.json')) return true;
-      if (modMeta.contains('mod.hjson')) {
-        isJson = false;
+      if (modMeta.contains('mod.json') || modMeta.contains('mod.hjson')) {
         return true;
       }
       return false;
@@ -83,12 +78,14 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
 
     var file = arc.files[index];
     var content = utf8.decode(file.content, allowMalformed: true);
-    content = parseBrokenJson(content);
-    if (isJson) {
-      return jsonDecode(content) as Map<String, dynamic>;
-    } else {
-      return hjsonDecode(content) as Map<String, dynamic>;
-    }
+    return hjsonDecode(content, strict: false) as Map<String, dynamic>;
+
+    // content = parseBrokenJson(content);
+    // if (isJson) {
+    //   return jsonDecode(content) as Map<String, dynamic>;
+    // } else {
+    //   return hjsonDecode(content) as Map<String, dynamic>;
+    // }
   }
 
   //todo 存档导入,应该有存档元数据检查 查看有什么

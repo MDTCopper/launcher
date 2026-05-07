@@ -12,6 +12,7 @@ final Map<String, CancelToken> cancelTokens = {};
 
 final taskManager = TaskManager();
 
+///添加任务后自动开始
 void addTask(Task task) => taskManager._addTask(task);
 
 void changeTaskStatus(String taskId, TaskStatus changeTo) =>
@@ -67,6 +68,7 @@ class TaskManager {
     if (progress == 1.0 || (progress == null && tasks.isEmpty)) {
       _timer?.cancel();
       _timer = null;
+
       Future.delayed(const Duration(seconds: 1), () {
         windowManager.setProgressBar(-1);
       });

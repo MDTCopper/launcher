@@ -282,20 +282,23 @@ class DownloadZipModTask extends Task {
 
   ///没有总大小，只能做一个伪进度，根据一些模组的大小
   void _updateProgress(int size) {
-    final total = mb;
+    final total = 2 * mb;
     progress = size / (total + size);
   }
 
   Future<void> _progressMoveTo100() async {
     final p = progress!;
-    Timer.periodic(const Duration(milliseconds: 50), (t) {
-      if (t.tick > 16 * (1.4 - p)) t.cancel();
+
+    final times = (8 + 20 * (1 - p)).ceil();
+
+    for (int i = 0; i < times; i++) {
       final c = CurveTween(
         curve: Curves.fastEaseInToSlowEaseOut,
-      ).transform(t.tick / 16 * (1.4 - p));
+      ).transform(i / times);
       progress = min(1.0, c * (1 - p) + p);
       updateDisplay();
-    });
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
   }
 
   Future<void> _download() async {
@@ -312,7 +315,7 @@ class DownloadZipModTask extends Task {
     LogManager.addLog(LogEntry(LogType.info, '正在下载模组[$modTag]'));
 
     var fileName = modListMeta.name;
-    var url = '$githubCOM/${modListMeta.repo}/archive/refs/tags/';
+    var url = '$githubCOM/${modListMeta.repo}/archive/refs/heads/';
     if (modMeta != null) {
       fileName += '-${modMeta!.releaseNum}';
       url += modMeta!.releaseNum;
@@ -334,7 +337,7 @@ class DownloadZipModTask extends Task {
     url += '.zip';
 
     final path = p.join(savePath, fileName);
-    print('$url=>$path');
+    print('$url => $path');
     file = File(path);
     if (await file.exists()) await file.delete();
     await file.create(recursive: true);
@@ -342,7 +345,10 @@ class DownloadZipModTask extends Task {
     final sizeNotifier = ValueNotifier<int>(0);
     final speedCalculator = SpeedCalculator(
       dataNotifier: sizeNotifier,
-      updateCallback: (s) => speed = s,
+      updateCallback: (s) {
+        speed = s;
+        updateDisplay();
+      },
     );
     try {
       await dio.download(
