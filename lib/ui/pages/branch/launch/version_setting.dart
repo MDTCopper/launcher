@@ -16,7 +16,6 @@ import 'package:copperlauncher_main/util/file_reader.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
 
-
 import '../../../../util/format/byte_unit.dart';
 import '../../../../util/system_info.dart';
 import '../../../feature/images.dart';
@@ -34,15 +33,9 @@ class VersionSettingPage extends StatefulWidget {
 }
 
 class _VersionSettingState extends State<VersionSettingPage> {
-
   static int index = 0;
 
-  late final List<Widget> pages = [
-    _About(),
-    _Setting(),
-    _Mods(),
-    _Package(),
-  ];
+  late final List<Widget> pages = [_About(), _Setting(), _Mods(), _Package()];
 
   void moveTo(int i) => setState(() => index = i);
 
@@ -316,8 +309,9 @@ class _SettingState extends State<_Setting> {
                 value: _mindustry?.isolation ?? false,
                 onChanged: (value) {
                   setState(() {
-                    _mindustry?.isolation = value;onfig.saveAsJson();
-                  }});
+                    _mindustry?.isolation = value;
+                    config.save();
+                  });
                 },
               ),
               OptionSettingBar<String?>(
@@ -442,16 +436,16 @@ class _ModsState extends State<_Mods> {
 
 class _Package extends StatefulWidget {
   @override
-  State<StatefulWidget> createState() =>_PackageState();
-
+  State<StatefulWidget> createState() => _PackageState();
 }
 
-class _PackageState extends State<_Package>{
+class _PackageState extends State<_Package> {
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
-      items: [ContentPanelModule(title: '打包游戏为整合包', child: Text('todo 打包游戏为整合包'))],
+      items: [
+        ContentPanelModule(title: '打包游戏为整合包', child: Text('todo 打包游戏为整合包')),
+      ],
     );
   }
-
 }
