@@ -1,6 +1,7 @@
 import 'package:copperlauncher_main/core/app_config.dart';
 import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:copperlauncher_main/ui/copper_launcher.dart';
+import 'package:copperlauncher_main/util/io/run_time_log.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -11,6 +12,7 @@ void main() async {
 
 Future<void> _initialize() async {
   await initAppConfig();
+  await RunTimeLog.init();
   await initDefaultDataPath();
   await _initWindow();
 }

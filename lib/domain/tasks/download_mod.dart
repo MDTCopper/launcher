@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:copperlauncher_main/core/constant/app_constant.dart';
+import 'package:copperlauncher_main/core/app_constant.dart';
 import 'package:copperlauncher_main/data/net_asset.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';

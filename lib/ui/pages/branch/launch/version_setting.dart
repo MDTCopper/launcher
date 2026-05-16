@@ -316,9 +316,8 @@ class _SettingState extends State<_Setting> {
                 value: _mindustry?.isolation ?? false,
                 onChanged: (value) {
                   setState(() {
-                    _mindustry?.isolation = value;
-                    config.save();
-                  });
+                    _mindustry?.isolation = value;onfig.saveAsJson();
+                  }});
                 },
               ),
               OptionSettingBar<String?>(

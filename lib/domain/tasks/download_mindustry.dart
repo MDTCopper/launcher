@@ -41,7 +41,7 @@ class DownloadMindustryTask extends Task {
     // CancelToken? cancelToken//外部取消token
   }) {
     super.type = TaskType.download;
-    this.path = path ?? AppPaths.versions;
+    this.path = path ?? AppPaths.versionsDir;
   }
 
   @override
@@ -183,7 +183,7 @@ class DownloadMindustryTask extends Task {
     );
     if (foldIndex != -1) {
       config.versionOptions.versionFolds[foldIndex].versions.add(mindustry);
-      config.save();
+      config.saveAsJson();
     } else {
       //todo 新的路径可以询问玩家是否创建，不创建就移入默认文件夹
       debugPrint('无法同步配置文件');

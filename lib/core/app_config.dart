@@ -1,26 +1,41 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:copperlauncher_main/core/constant/app_constant.dart';
+import 'package:copperlauncher_main/core/app_constant.dart';
 import 'package:copperlauncher_main/data/local_asset.dart';
+import 'package:copperlauncher_main/util/io/run_time_log.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
-import 'package:path/path.dart' as p;
+
+import '../util/app_paths.dart';
 
 part 'app_config.g.dart';
 
+/// 用于存储应用的全局配置，更改完成后需调用save()，同步配置文件
 late AppConfig config;
-//config就直接更改内部成员，更改完成后需调用save()，同步配置文件
 
 Future<void> initAppConfig() async {
-  final File file = File(p.join(p.current, configPath));
-  if (!await file.exists()) {
-    await createAppConfig();
-  }
-  final jsonStr = await file.readAsString();
-  final json = jsonDecode(jsonStr) as Map<String, dynamic>;
-  config = AppConfig.fromJson(json);
+  final File file;
 
+  if (kDebugMode) {
+    file = File(AppPaths.configJson);
+    if (!await file.exists()) {
+      await createAppConfig();
+    }
+    final jsonStr = await file.readAsString();
+    final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+    config = AppConfig.fromJson(json);
+  } else {
+    file = File(AppPaths.configBin);
+    if (!await file.exists()) {
+      await createAppConfig();
+    }
+    final encodedData = await file.readAsString();
+    config = AppConfig.fromJson(
+      jsonDecode(utf8.decode(base64Decode(encodedData))),
+    );
+  }
   await config.save();
 }
 
@@ -29,7 +44,7 @@ Future<void> checkGameVersionExists() async {
 }
 
 Future<void> createAppConfig() async {
-  final defaultConfig = AppConfig(
+  final config = AppConfig(
     version: appVersion, // 默认版本号
     setting: Setting(customSetting: {}, githubToken: ''),
     versionOptions: VersionOptions(
@@ -37,12 +52,7 @@ Future<void> createAppConfig() async {
       versionFolds: [], // 初始为空列表 todo 后续做一个版本列表检测
     ),
   );
-  // 写入默认配置到文件
-  final file = File(p.join(p.current, configPath));
-  await file.writeAsString(
-    jsonEncode(defaultConfig.toJson()),
-    flush: true, // 确保写入磁盘
-  );
+  await config.save();
   debugPrint('已创建默认配置文件');
 }
 
@@ -60,12 +70,22 @@ class AppConfig {
 
   factory AppConfig.fromJson(Map<String, dynamic> json) =>
       _$AppConfigFromJson(json);
+
   Map<String, dynamic> toJson() => _$AppConfigToJson(this);
 
+  @override
+  String toString() => jsonEncode(toJson());
+
   Future<void> save() async {
+    if (kDebugMode) await saveAsJson();
+    await saveAsBin();
+  }
+
+  /// 保存配置为JSON文件,debug用
+  Future<void> saveAsJson() async {
     try {
-      final file = File(p.join(p.current, configPath));
-      // 确保父目录存在
+      final file = File(AppPaths.configJson);
+
       await file.parent.create(recursive: true);
 
       final formattedJson = JsonEncoder.withIndent(
@@ -74,6 +94,23 @@ class AppConfig {
       await file.writeAsString(formattedJson, flush: true);
     } catch (e) {
       debugPrint('配置保存失败: $e');
+      RunTimeLog.add(LogType.error, '配置保存失败: $e');
+    }
+  }
+
+  /// 保存配置为二进制文件,防止被意外修改
+  Future<void> saveAsBin() async {
+    try {
+      final file = File(AppPaths.configBin);
+
+      await file.parent.create(recursive: true);
+
+      String encodedData = base64Encode(utf8.encode(toString()));
+
+      await file.writeAsString(encodedData, flush: true);
+    } catch (e) {
+      debugPrint('配置保存失败: $e');
+      RunTimeLog.add(LogType.error, '配置保存失败: $e');
     }
   }
 }
@@ -89,7 +126,7 @@ class Setting {
     final setting = customSetting[key];
     if (setting != null) return setting;
     customSetting[key] = defaultSetting;
-    config.save();
+    config.saveAsJson();
     return defaultSetting;
   }
 

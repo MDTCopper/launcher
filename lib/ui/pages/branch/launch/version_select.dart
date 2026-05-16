@@ -1,15 +1,16 @@
 import 'dart:io';
+
 import 'package:copperlauncher_main/core/app_config.dart';
 import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
 import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
 import 'package:copperlauncher_main/ui/util/framework/menu_bar.dart';
 import 'package:copperlauncher_main/ui/util/framework/page_skeleton.dart';
-import 'package:copperlauncher_main/ui/util/info/notification.dart';
 import 'package:copperlauncher_main/ui/util/widget/animated_expansion.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:flutter/material.dart';
+
 import '../../../feature/images.dart';
 
 class VersionSelectPage extends StatefulWidget {
@@ -65,7 +66,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
             config.versionOptions.selectedVersionId = null;
           }
         });
-        await config.save();
+        await config.saveAsJson();
         _updateView();
       },
     );
@@ -74,7 +75,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
   void _selectVersion(Mindustry version) async {
     config.versionOptions.selectedVersion = version;
     Navigator.pop(context);
-    await config.save();
+    await config.saveAsJson();
   }
 
   void _collectedVersion(Mindustry version) async {
@@ -85,7 +86,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     if (index == -1) return;
     _versionFolds[_index].versions[index].like =
         !_versionFolds[_index].versions[index].like!;
-    await config.save();
+    await config.saveAsJson();
     _updateView();
   }
 

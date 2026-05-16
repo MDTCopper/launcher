@@ -20,9 +20,8 @@ class SpeedCalculator {
     _timer = Timer.periodic(interval, _updateSpeed);
   }
 
-  void _updateSpeed(Timer timer) {
-
-    if(_timeList.length != _dataList.length){
+  void _updateSpeed(Timer _) {
+    if (_timeList.length != _dataList.length) {
       _dataList.clear();
       _timeList.clear();
       speed = 0.0;
@@ -32,30 +31,29 @@ class SpeedCalculator {
 
     final now = DateTime.now();
 
-    _timeList.insert(0,now);
-    _dataList.insert(0,dataNotifier.value);
-
+    _timeList.add(now);
+    _dataList.add(dataNotifier.value);
 
     final length = _timeList.length;
 
-    if (length < 2 ) return;
-    if (length > sampleQuantity){
-      _timeList.removeAt(sampleQuantity);
-      _dataList.removeAt(sampleQuantity);
+    if (length < 2) return;
+    if (length > sampleQuantity) {
+      _timeList.removeAt(0);
+      _dataList.removeAt(0);
     }
 
     double timeDiff = 0.0;
     double dataDiff = 0.0;
 
-    final half = (length/2).floor();
+    final half = (length / 2).floor();
 
     for (int i = 0; i < half; i++) {
-      dataDiff += _dataList[i + half] - _dataList[i];
+      dataDiff += _dataList[i] - _dataList[i + half];
       timeDiff +=
-          _timeList[i + half].difference(_timeList[i]).inMilliseconds / 1000;
+          _timeList[i].difference(_timeList[i + half]).inMilliseconds / 1000;
     }
 
-    speed = dataDiff/timeDiff;
+    speed = dataDiff / timeDiff;
     updateCallback.call(speed);
   }
 

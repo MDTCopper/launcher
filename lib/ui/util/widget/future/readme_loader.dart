@@ -7,8 +7,8 @@ import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import '../../../../core/constant/app_constant.dart';
 import '../../../../util/downloader.dart';
+import '../../../vars.dart';
 import '../feature_button.dart';
 
 class ModNetReadmeLoader extends StatefulWidget {
@@ -49,7 +49,10 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
     if (mod.mainBranchCache != null) {
       try {
         var url = '$repo${mod.mainBranchCache}/README.md';
-        final res = await dio.get(url, options: Options(headers: modDownloadHeaders));
+        final res = await dio.get(
+          url,
+          options: Options(headers: modDownloadHeaders),
+        );
         if (res.statusCode == 200) {
           readmeDataMap[mod.repo] = res.data.toString();
           return res.data.toString();
@@ -62,7 +65,10 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
       try {
         var url = '$repo$m/README.md';
         print(url);
-        final res = await dio.get(url, options: Options(headers: modDownloadHeaders));
+        final res = await dio.get(
+          url,
+          options: Options(headers: modDownloadHeaders),
+        );
 
         if (res.statusCode != 200) continue;
         readmeDataMap[mod.repo] = res.data.toString();
@@ -268,7 +274,10 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
     final uri = widget.uri;
     if (widget.uri.host.contains('img.shields.io')) {
       try {
-        final res = await dio.getUri(uri);
+        final res = await dio.getUri(
+          uri,
+          options: Options(headers: gameDownloadHeaders),
+        );
         if (res.statusCode != 200) return null;
         return SvgPicture.string(
           fixSvgTextScale(res.data),

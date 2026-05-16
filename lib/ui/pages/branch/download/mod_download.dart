@@ -17,9 +17,10 @@ import 'package:hjson_dart/hjson_dart.dart';
 import 'package:line_icons/line_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/constant/app_constant.dart';
+import '../../../../core/app_constant.dart';
 import '../../../util/widget/feature_button.dart';
 import '../../../util/widget/future/mod_icon_loader.dart';
+import '../../../vars.dart';
 
 
 ///模组仓库有三种情况：
@@ -43,14 +44,14 @@ class _ModDownloadState extends State<ModDownload> {
 
   int perPage = 25;
 
-  static final Map<String, List<ModGithubMeta>> modMetasMap = {};
+  static final Map<String, List<ModGithubMeta>> modMetasMapCache = {};
 
-  List<ModGithubMeta> get metas => modMetasMap[modListMeta.repo] ?? [];
+  List<ModGithubMeta> get metas => modMetasMapCache[modListMeta.repo] ?? [];
 
   bool endPage = false;
 
   Future<bool> _fetchModMetas({int page = 1}) async {
-    final length = modMetasMap[modListMeta.repo]?.length ?? 0;
+    final length = modMetasMapCache[modListMeta.repo]?.length ?? 0;
     if (length >= page * 25) return true;
     if (length % 100 != 0) endPage = true;
     if (endPage) return true;
@@ -68,12 +69,12 @@ class _ModDownloadState extends State<ModDownload> {
               .map<ModGithubMeta>((it) => ModGithubMeta.fromJson(it))
               .toList();
       if (modMetas.length < 100) endPage = true;
-      if (modMetas.isEmpty && index > 1) index--; //发现没有新的内容添加就直接减
+      if (modMetas.isEmpty && index > 1) index--; //发现没有新的内容添加就直接减1
       //print(modAssets.length);
-      if (modMetasMap[modListMeta.repo] == null) {
-        modMetasMap[modListMeta.repo] = modMetas;
+      if (modMetasMapCache[modListMeta.repo] == null) {
+        modMetasMapCache[modListMeta.repo] = modMetas;
       } else {
-        modMetasMap[modListMeta.repo]!.addAll(modMetas);
+        modMetasMapCache[modListMeta.repo]!.addAll(modMetas);
       }
       return true;
     } catch (e) {
@@ -220,7 +221,7 @@ class _ModDownloadState extends State<ModDownload> {
             onTap: () {
               config.setting.customSetting[key] = false;
               setState(() {});
-              config.save();
+              config.saveAsJson();
             },
             child: Icon(Icons.close),
           ),

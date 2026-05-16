@@ -36,8 +36,6 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
 
   late final PageRouteObserver _routeObserver;
 
-  final Map<String, Widget> routeMap = Vars.routeMap;
-
   late List<DropItem> files;
 
   Future<Map<String, dynamic>?> _gameMetaFrom(String path) async {
@@ -98,7 +96,8 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
     return file != null;
   }
 
-  //zip,jar,apk,msav,msch
+  //zip,jar,msav,msch
+  //安卓不能实现拖拽，不需要适配apk
   //模组返回Map格式，其实只需要名称与版本，游戏也是
   //地图蓝图尝试用源代码读取内容，名字即可
   void _handleDragFile(DropDoneDetails d) async {
@@ -109,12 +108,6 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
       var type = lookupMimeType(path);
       print(type);
       if (type != null) {
-        //todo 安卓适配
-        if (type.contains('vnd.android.package-archive')) {
-          final meta = await _gameMetaFrom(path);
-          if (meta == null) continue;
-          print(meta);
-        }
         if (type.contains('java-archive')) {
           var meta = await _modMetaFrom(path);
           if (meta != null) {

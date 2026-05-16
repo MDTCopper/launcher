@@ -1,8 +1,8 @@
 import 'package:copperlauncher_main/data/net_asset.dart';
+import 'package:copperlauncher_main/ui/vars.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../core/constant/app_constant.dart';
 import '../../../../util/downloader.dart';
 
 class ModNetworkIcon extends StatefulWidget {
@@ -44,12 +44,7 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
           try {
             final res = await dio.head(
               url,
-              options: Options(
-                headers: {
-                  'User-Agent': 'MindustryModDownloader',
-                  'Authorization': 'token $githubToken',
-                },
-              ),
+              options: Options(headers: modDownloadHeaders),
             );
             if (res.data != null) {
               widget.modMeta.iconUrlCache = url;

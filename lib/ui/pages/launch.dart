@@ -6,7 +6,6 @@ import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
 import 'package:flutter/material.dart';
-import 'package:hjson_dart/hjson_dart.dart';
 
 import '../../core/app_config.dart';
 import '../feature/images.dart';
@@ -188,48 +187,7 @@ class _LaunchPageState extends State<LaunchPage> {
     super.setState(fn);
   }
 
-  void _test() {
-    final raw = '''
-       name: "azimut",
-  displayName: "[[]#d2fffe]Azimut[[]]"
-  subtitle: "[[]#c9c1eb]Death by 20.000 volts[]"
-  "description": "A hybrid mod primarily built around Erekir and its linear progression system. The mod introduces new gameplay mechanics that are tightly integrated into the campaign and accompany you throughout the entire playthrough.
-The mod also has a Discord server — you can find the link in the README file on the GitHub page.
-THIS MOD IS STILL IN DEVELOPMENT!
-At the moment, development is approximately 47% complete and features 9 fully polished sectors.
-////////////////////////////////
-Land on a subcryogenic terra, gradually warming under its star, known as Gelion.
-Your objective is to eliminate enemy forces on the planet, secure rare resources, and continue your expansion across the galaxy.
-Limited space and complex logistics present a serious challenge. Plan your production wisely!
-If you enjoy the mod, consider giving it a star! >~<
-Thanks for playing!
-Specials thanks to: ace1020spawn, Kivet/БОБ, Alpotat, KOSTOLOM, Fate of Adrastus"
-  "author": "DeerCarbonate",
-  "version": "0.32",
-  "minGameVersion": "154",
-  mods: []
-    ''';
-    final json = hjsonDecode(raw, strict: false);
-    print(json);
-    // var a = Future(() async {
-    //   addTask(
-    //     SimpleTask(
-    //       type: TaskType.check,
-    //       futureTask: (it) async {
-    //         it.progress = 0.0;
-    //         await Future.delayed(const Duration(seconds: 2));
-    //         for (int i = 0; i < 1000; i++) {
-    //           if (it.status != TaskStatus.process) return;
-    //           final i = Random().nextInt(300) + 20;
-    //           await Future.delayed(Duration(milliseconds: i));
-    //           it.progress = it.progress! + 0.1 * 0.01;
-    //           it.updateDisplay();
-    //         }
-    //       },
-    //     ),
-    //   );
-    // });
-  }
+  void _test() async {}
 
   @override
   Widget build(BuildContext context) {

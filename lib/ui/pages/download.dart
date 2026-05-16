@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:async/async.dart';
-import 'package:copperlauncher_main/core/constant/app_constant.dart';
+import 'package:copperlauncher_main/core/app_constant.dart';
 import 'package:copperlauncher_main/data/net_asset.dart';
 import 'package:copperlauncher_main/ui/feature/feature_color.dart';
 import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
@@ -30,6 +30,7 @@ import '../feature/images.dart';
 import '../util/widget/future/mod_icon_loader.dart';
 import '../util/widget/pager.dart';
 import '../util/widget/rebound_container.dart';
+import '../vars.dart';
 
 class DownloadPage extends StatefulWidget {
   const DownloadPage({super.key});
@@ -497,12 +498,7 @@ class _VersionPageState extends State<_VersionPage> {
       for (int i = 1; !((i - 1) * 100 > list.length); i++) {
         var response = await dio.get(
           '$url?page=$i&per_page=100',
-          options: Options(
-            headers: {
-              'User-Agent': 'MindustryDownloader',
-              'Authorization': 'token $githubToken',
-            },
-          ),
+          options: Options(headers: gameDownloadHeaders),
         );
         if (response.statusCode == 200) {
           List<dynamic> jsonList = response.data;
@@ -526,12 +522,7 @@ class _VersionPageState extends State<_VersionPage> {
       //只获取最新be，然后提供按版本号下载
       var response = await dio.get(
         '$betaUrl?per_page=1',
-        options: Options(
-          headers: {
-            'User-Agent': 'MindustryDownloader',
-            'Authorization': 'token $githubToken', //测试用令牌
-          },
-        ),
+        options: Options(headers: gameDownloadHeaders),
       );
       if (response.statusCode == 200) {
         List<dynamic> jsonList = response.data;
@@ -751,10 +742,7 @@ class _ModPageState extends State<_ModPage> {
     super.dispose();
   }
 
-  var headers = {
-    'User-Agent': 'MindustryModDownloader',
-    'Authorization': 'token $githubToken',
-  };
+  var headers = modDownloadHeaders;
 
   void _move(int to) => setState(() {
     index = to;
@@ -900,15 +888,7 @@ class _ModPageState extends State<_ModPage> {
           );
         }
         if (previousModMetaMap.isEmpty) {
-          var res = await dio.get(
-            github3MonthsModMetaUrl,
-            // options: Options(
-            //   headers: {
-            //     'User-Agent': 'MindustryModDownloader',
-            //     'Authorization': 'token $githubToken',
-            //   },
-            // ),
-          );
+          var res = await dio.get(github3MonthsModMetaUrl);
           if (res.statusCode != 200) throw Exception('链接失败');
           var jsons = jsonDecode(res.data);
           final List<ModOfficialListMeta> list =
@@ -928,7 +908,7 @@ class _ModPageState extends State<_ModPage> {
           await Future.delayed(const Duration(seconds: 1));
           return await fetch(tryTime: tryTime);
         }
-        return false;
+        rethrow;
       }
     }
 
@@ -1086,7 +1066,7 @@ class _ModPageState extends State<_ModPage> {
             onTap: () {
               config.setting.customSetting[key] = false;
               setState(() {});
-              config.save();
+              config.saveAsJson();
             },
             child: Icon(Icons.close),
           ),
@@ -1095,7 +1075,12 @@ class _ModPageState extends State<_ModPage> {
     );
   }
 
-  Widget _buildFetchFailed() {
+  Widget _buildFetchFailed(Exception e) {
+    if (e is DioException) {
+      print(e);
+      return Text('请检查网络连接');
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1112,6 +1097,32 @@ class _ModPageState extends State<_ModPage> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildResetButton() {
+    final showResetButton =
+        searchString.isNotEmpty || sort != 'default' || versionFilter != 0;
+
+    return AnimatedOpacity(
+      opacity: showResetButton ? 1 : 0,
+      duration: const Duration(milliseconds: 200),
+      child: AnimatedScale(
+        curve: Curves.easeInOutBack,
+        scale: showResetButton ? 1 : 0,
+        duration: const Duration(milliseconds: 300),
+        child: ReboundIconButton(
+          icon: Icons.refresh,
+          content: '重置',
+          onTap: () {
+            setState(() {
+              searchTextController.clear();
+              sort = 'default';
+              versionFilter = 0;
+            });
+          },
+        ),
+      ),
     );
   }
 
@@ -1226,36 +1237,7 @@ class _ModPageState extends State<_ModPage> {
                     ),
                   ),
                   Expanded(child: SizedBox()),
-                  AnimatedOpacity(
-                    opacity:
-                        searchString.isNotEmpty ||
-                                sort != 'default' ||
-                                versionFilter != 0
-                            ? 1
-                            : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: AnimatedScale(
-                      curve: Curves.easeInOutBack,
-                      scale:
-                          searchString.isNotEmpty ||
-                                  sort != 'default' ||
-                                  versionFilter != 0
-                              ? 1
-                              : 0,
-                      duration: const Duration(milliseconds: 300),
-                      child: ReboundIconButton(
-                        icon: Icons.refresh,
-                        content: '重置',
-                        onTap: () {
-                          setState(() {
-                            searchTextController.clear();
-                            sort = 'default';
-                            versionFilter = 0;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
+                  _buildResetButton(),
                 ],
               ),
             ],
@@ -1268,7 +1250,7 @@ class _ModPageState extends State<_ModPage> {
             Widget child;
             final state = snapshot.connectionState;
             if (snapshot.hasError) {
-              child = Text('请重试');
+              child = _buildFetchFailed(snapshot.error as Exception);
             }
             if (state == ConnectionState.waiting) {
               child = Text('获取mod列表');
@@ -1282,9 +1264,6 @@ class _ModPageState extends State<_ModPage> {
                     }
                     final int perPage = 25;
                     final length = s.data!.length;
-                    if (length == 0) {
-                      return _buildFetchFailed();
-                    }
                     int begin = (index - 1) * perPage;
                     int end;
                     if (length < index * perPage) {

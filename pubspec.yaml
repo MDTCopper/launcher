@@ -1,7 +1,7 @@
 name: copperlauncher_main
 description: "A LauncherApp for Mindustry, 这是为Mindustry开发的一款游戏启动器 "
 
-publish_to: 'none'
+publish_to: 'github'
 
 version: 1.0.0+1
 
