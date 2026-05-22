@@ -333,7 +333,6 @@ class _DrillTopPainter extends CustomClipper<Path> {
 
   _DrillTopPainter({required this.color});
 
-  @override
   void paint(Canvas canvas, Size size) {
     Paint paint = Paint();
     Path path = Path();
@@ -348,7 +347,6 @@ class _DrillTopPainter extends CustomClipper<Path> {
     canvas.drawPath(path, paint);
   }
 
-  @override
   bool shouldRepaint(CustomPainter oldDelegate) {
     return true;
   }

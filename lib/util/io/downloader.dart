@@ -6,7 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 
-import 'math/speed_calculate.dart';
+import '../math/speed_calculate.dart';
 
 final dio = Dio(
   BaseOptions(

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:copperlauncher_main/ui/util/framework/page_skeleton.dart';
@@ -13,6 +12,7 @@ import 'package:copperlauncher_main/ui/util/widget/setting_bar/switch_setting_ba
 import 'package:copperlauncher_main/util/format/byte_unit.dart';
 import 'package:copperlauncher_main/util/system_info.dart';
 import 'package:flutter/material.dart';
+
 import '../../core/app_config.dart';
 import '../util/framework/content_panel.dart';
 import '../util/framework/menu_bar.dart';
@@ -109,10 +109,10 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
   void _getRam() async {
     freeRam = await SysInfo.getFreePhysicalMemory();
     totalRam = await SysInfo.getTotalPhysicalMemory();
-    setState(() {});
+    if (mounted) setState(() {});
     _getRamTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       freeRam = await SysInfo.getFreePhysicalMemory();
-      setState(() {});
+      if (mounted) setState(() {});
     });
   }
 
@@ -449,7 +449,6 @@ class OtherSettingPage extends StatefulWidget {
 class _OtherSettingPage extends State<OtherSettingPage> {
   static double maxDownloadSpeed = 0.5;
   static double maxThread = 8;
-  static String githubToken = '';
 
   @override
   Widget build(BuildContext context) {

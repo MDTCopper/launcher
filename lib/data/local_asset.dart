@@ -1,42 +1,9 @@
-import 'dart:io';
-
 import 'package:json_annotation/json_annotation.dart';
 import 'package:path/path.dart' as p;
 
+import '../util/app_paths.dart';
+
 part 'local_asset.g.dart';
-
-String? defaultGameDataPath;
-
-Future<void> initDefaultDataPath() async {
-  if (Platform.isWindows) {
-    final roaming = Platform.environment['APPDATA'];
-    if (roaming != null) {
-      defaultGameDataPath = p.join(
-        Platform.environment['APPDATA']!,
-        'Mindustry',
-      );
-    }
-  } else if (Platform.isAndroid) {
-    //安卓平台默认为/storage/emulated/0/Android/data/io.anuke.mindustry/files/，但安卓平台不能直接读取data
-    defaultGameDataPath =
-        '/storage/emulated/0/Android/data/io.anuke.mindustry/files/';
-  } else if (Platform.isLinux) {
-    final home = Platform.environment['HOME'];
-    if (home != null) {
-      defaultGameDataPath = p.join(
-        Platform.environment['HOME']!,
-        '.local',
-        'share',
-        'Mindustry',
-      );
-    }
-  }
-  if (defaultGameDataPath == null) {
-    throw ('无法获取默认游戏数据存储位置');
-  } else {
-    print('默认数据存储路径:$defaultGameDataPath');
-  }
-}
 
 abstract class LocalAsset {
   final String? name; //资源原名
@@ -56,71 +23,62 @@ abstract class LocalAsset {
 
 ///游戏版本将以文件夹的形式存储，文件夹内是版本数据，可能包含游戏本体，不包含的将使用其他文件目录下载游戏本体，这样可以省出不必要的下载
 @JsonSerializable()
-class Mindustry extends LocalAsset {
-  final String? id;
+class Mindustry {
+  final String id;
+
+  ///资源原名
+  final String name;
+  final String releaseNum;
+
+  ///存储路径
+  final String path;
 
   ///游戏启动路径
-  final String? jarPath;
-  final LauncherType? launcher;
-  final bool? isBe;
-  final DateTime? addTime;
+  final String jarPath;
+  final LauncherType launcher;
+  final bool isBe;
+  final DateTime addTime;
 
-  /// 玩家标签
-  String? tag;
-  bool? like = false;
-  bool? isolation;
+  /// 玩家给游戏版本的标签
+  String tag;
+  bool like = false;
+  bool isolation;
+
+  ///返回游戏版本号 (double)
+  double get releaseDouble => double.parse(releaseNum.substring(1));
 
   ///游戏目录路径
-  String? get foldPath {
-    if (path == null) return null;
-    return p.join(path!, tag);
-  }
+  String get foldPath => p.join(path, tag);
 
   ///游戏数据路径mods,saves,maps,schematics
-  String? get dataPath {
-    final notIsolation = !(isolation ?? false);
-    if (notIsolation) return defaultGameDataPath; //默认存储位置
-    if (foldPath == null) return null;
-    return p.join(foldPath!, 'data');
+  String get dataPath {
+    if (isolation) return p.join(foldPath, 'data');
+    return AppPaths.defaultGameData!; //默认存储位置
   }
 
-  String? get modsPath {
-    if (dataPath == null) return null;
-    return p.join(dataPath!, 'mods');
-  }
+  String get modsPath => p.join(dataPath, 'mods');
 
-  String? get savesPath {
-    if (dataPath == null) return null;
-    return p.join(dataPath!, 'saves');
-  }
+  String get savesPath => p.join(dataPath, 'saves');
 
-  String? get schematicsPath {
-    if (dataPath == null) return null;
-    return p.join(dataPath!, 'schematics');
-  }
+  String get schematicsPath => p.join(dataPath, 'schematics');
 
-  String? get mapsPath {
-    if (dataPath == null) return null;
-    return p.join(dataPath!, 'maps');
-  }
+  String get mapsPath => p.join(dataPath, 'maps');
 
-  String? get crashesPath {
-    if (defaultGameDataPath == null) return null;
-    return p.join(defaultGameDataPath!, 'crashes');
-  }
+  ///无论是否隔离，游戏崩溃日志都存储在默认游戏数据目录下crashes文件夹
+  String get crashesPath => p.join(AppPaths.defaultGameData!, 'crashes');
 
   Mindustry({
     required this.id,
     required this.tag,
-    required super.name,
-    required super.releaseNum,
-    required super.path,
+    required this.name,
+    required this.releaseNum,
+    required this.path,
     required this.jarPath,
     required this.launcher,
     required this.isBe,
     required this.isolation,
     required this.addTime,
-  }) : super(author: 'anuken');
+  });
 
   factory Mindustry.fromJson(Map<String, dynamic> json) =>
       _$MindustryFromJson(json);

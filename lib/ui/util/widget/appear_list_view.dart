@@ -87,7 +87,7 @@ class _AppearListView extends State<AppearListView>
   @override
   void dispose() {
     controller.dispose();
-    if (widget.scrollController != null) {
+    if (widget.scrollController == null) {
       scrollController.dispose();
     }
     super.dispose();

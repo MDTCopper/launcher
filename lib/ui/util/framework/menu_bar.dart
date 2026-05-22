@@ -1,4 +1,3 @@
-import 'package:copperlauncher_main/ui/feature/feature_color.dart';
 import 'package:flutter/material.dart';
 
 import '../widget/appear_list_view.dart';
@@ -68,7 +67,7 @@ class MenuItem extends StatefulWidget {
 
   //交互颜色
   final double elevation;
-  final Color? hoverColor; //todo 缺少Inherited判断
+  final Color? hoverColor;
   final Color? splashColor;
   final Color? highlightColor;
   final Color? shadowColor;

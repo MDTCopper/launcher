@@ -12,7 +12,7 @@ import '../util/app_paths.dart';
 
 part 'app_config.g.dart';
 
-/// 用于存储应用的全局配置，更改完成后需调用save()，同步配置文件
+/// 用于存储应用的全局配置，更改完成后需调用[save]，同步配置文件
 late AppConfig config;
 
 Future<void> initAppConfig() async {
@@ -94,7 +94,7 @@ class AppConfig {
       await file.writeAsString(formattedJson, flush: true);
     } catch (e) {
       debugPrint('配置保存失败: $e');
-      RunTimeLog.add(LogType.error, '配置保存失败: $e');
+      RunTimeLog.add(RunTimeLogLogType.error, '配置保存失败: $e');
     }
   }
 
@@ -110,7 +110,7 @@ class AppConfig {
       await file.writeAsString(encodedData, flush: true);
     } catch (e) {
       debugPrint('配置保存失败: $e');
-      RunTimeLog.add(LogType.error, '配置保存失败: $e');
+      RunTimeLog.add(RunTimeLogLogType.error, '配置保存失败: $e');
     }
   }
 }
@@ -123,11 +123,8 @@ class Setting {
   final String githubToken;
 
   dynamic getCustomSetting(String key, dynamic defaultSetting) {
-    final setting = customSetting[key];
-    if (setting != null) return setting;
-    customSetting[key] = defaultSetting;
-    config.saveAsJson();
-    return defaultSetting;
+    final setting = customSetting[key] ??= defaultSetting;
+    return setting;
   }
 
   factory Setting.fromJson(Map<String, dynamic> json) =>

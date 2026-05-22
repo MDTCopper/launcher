@@ -12,7 +12,7 @@ import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/option_setting_bar.dart';
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/switch_setting_bar.dart';
-import 'package:copperlauncher_main/util/file_reader.dart';
+import 'package:copperlauncher_main/util/io/file_reader.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
 
@@ -142,28 +142,28 @@ class _AboutState extends State<_About> {
                     icon: Icons.save,
                     content: '存档文件夹',
                     onTap: () {
-                      _openFolder(_mindustry!.savesPath!);
+                      _openFolder(_mindustry!.savesPath);
                     },
                   ),
                   ReboundIconButton(
                     icon: Icons.map_outlined,
                     content: '地图文件夹',
                     onTap: () {
-                      _openFolder(_mindustry!.mapsPath!);
+                      _openFolder(_mindustry!.mapsPath);
                     },
                   ),
                   ReboundIconButton(
                     icon: Icons.paste,
                     content: '蓝图文件夹',
                     onTap: () {
-                      _openFolder(_mindustry!.schematicsPath!);
+                      _openFolder(_mindustry!.schematicsPath);
                     },
                   ),
                   ReboundIconButton(
                     icon: LineIcons.puzzlePiece,
                     content: '模组文件夹',
                     onTap: () {
-                      _openFolder(_mindustry!.modsPath!);
+                      _openFolder(_mindustry!.modsPath);
                     },
                   ),
                 ],

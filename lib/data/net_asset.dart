@@ -2,11 +2,13 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'net_asset.g.dart';
 
+///api.github返回格式
 @JsonSerializable()
 class GithubApiRelease {
-  //api.github返回格式
   final String name;
   @JsonKey(name: 'tag_name')
+
+  ///tag
   final String releaseNum;
   @JsonKey(name: 'published_at')
   final String releaseDate;
@@ -42,7 +44,6 @@ class GithubApiReleaseAsset {
   factory GithubApiReleaseAsset.fromJson(Map<String, dynamic> json) =>
       _$GithubApiReleaseAssetFromJson(json);
 }
-
 
 ///游戏版本元数据
 @JsonSerializable()
@@ -122,6 +123,8 @@ class ModGithubMeta extends GithubApiRelease {
     required super.assets,
     required super.describe,
   });
+
+
   factory ModGithubMeta.fromJson(Map<String, dynamic> json) =>
       _$ModGithubMetaFromJson(json);
 }

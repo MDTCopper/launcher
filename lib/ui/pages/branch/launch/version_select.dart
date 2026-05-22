@@ -66,7 +66,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
             config.versionOptions.selectedVersionId = null;
           }
         });
-        await config.saveAsJson();
+        await config.save();
         _updateView();
       },
     );
@@ -75,7 +75,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
   void _selectVersion(Mindustry version) async {
     config.versionOptions.selectedVersion = version;
     Navigator.pop(context);
-    await config.saveAsJson();
+    await config.save();
   }
 
   void _collectedVersion(Mindustry version) async {
@@ -86,7 +86,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     if (index == -1) return;
     _versionFolds[_index].versions[index].like =
         !_versionFolds[_index].versions[index].like!;
-    await config.saveAsJson();
+    await config.save();
     _updateView();
   }
 

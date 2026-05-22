@@ -11,8 +11,8 @@ import 'package:path/path.dart' as p;
 import '../../ui/util/info/log_list.dart';
 import '../../ui/util/info/notification.dart';
 import '../../ui/util/widget/feature_button.dart';
-import '../../util/downloader.dart';
 import '../../util/format/byte_unit.dart';
+import '../../util/io/downloader.dart';
 import '../../util/math/speed_calculate.dart';
 import '../task.dart';
 
@@ -78,7 +78,9 @@ class DownloadJavaModTask extends Task {
       final jar = modMeta.assets.where((it) => it.name.contains('.jar'));
 
       final url = jar.firstOrNull?.url;
-      if (url == null) throw Exception('模组元数据提供的url为空,元数据: ${modMeta.assets}');
+      if (url == null) {
+        throw Exception('url为空:模组元数据提供的url为空,元数据urls: ${modMeta.assets}');
+      }
       await dr.download(
         url,
         file.path,
@@ -139,9 +141,17 @@ class DownloadJavaModTask extends Task {
     } catch (e) {
       status = TaskStatus.failed;
 
-      addLog(LogEntry(LogType.error, '未知错误:$e'));
-      addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
-
+      if (e.toString().contains('url为空')) {
+        addLog(LogEntry(LogType.error, '模组元数据提供的下载链接为空，可能是模组未编译java并发布'));
+        addNotice(
+          icon: Icons.error_outline,
+          title: '错误',
+          content: '模组元数据提供的下载链接为空，可能是模组未编译java并发布',
+        );
+      } else {
+        addLog(LogEntry(LogType.error, '未知错误:$e'));
+        addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
+      }
       await file.delete();
       rethrow;
     } finally {

@@ -1,20 +1,54 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:open_filex/open_filex.dart';
 
+import '../app_paths.dart';
+
 class FileReader {
+  // Cache to track recently opened folder paths with timestamps
+  static final Map<String, DateTime> _recentlyOpenedPaths = <String, DateTime>{
+  };
+  static const Duration _cacheDuration = Duration(
+      seconds: 3); // Clear cache after 3 seconds
+
+  ///检查指定路径的文件夹是否已经在资源管理器中打开
+  static bool _isFolderRecentlyOpened(String path) {
+    final normalizedPath = path.toLowerCase();
+    final currentTime = DateTime.now();
+
+    if (_recentlyOpenedPaths.containsKey(normalizedPath)) {
+      final lastOpened = _recentlyOpenedPaths[normalizedPath]!;
+      if (currentTime.difference(lastOpened) < _cacheDuration) {
+        return true; // Folder was opened recently
+      } else {
+        // Remove expired entry
+        _recentlyOpenedPaths.remove(normalizedPath);
+      }
+    }
+    return false;
+  }
+
   ///打开对应路径文件夹
   static Future<void> openFolder(String path) async {
-    //todo 用win32接口调用，防止反复打开文件夹
+    //todo win32接口防止重复打开文件夹
     final dir = Directory(path);
 
     if (!(await dir.exists())) {
-      throw Exception("路径不存在：$path");
+      throw Exception("路径不存在：\\$path");
     }
 
     try {
       if (Platform.isWindows) {
+        if (_isFolderRecentlyOpened(path)) {
+          print("文件夹最近已打开：\\$path");
+          return;
+        }
+        
         await _runWinExplorer(["/open,", dir.path]);
+
+        _recentlyOpenedPaths[path.toLowerCase()] = DateTime.now();
       }
     } catch (e) {
       rethrow;
@@ -37,6 +71,20 @@ class FileReader {
     } catch (e) {
       rethrow;
     }
+  }
+
+  ///选择文件夹,默认初始目录为CopperLauncher目录
+  static Future<String?> selectDirectory({
+    String? initialDirectory,
+    String? confirmButtonText,
+    // bool? canCreateDirectories,
+  }) async {
+    initialDirectory ??= AppPaths.copperLauncher;
+    return await getDirectoryPath(
+      initialDirectory: initialDirectory,
+      confirmButtonText: confirmButtonText,
+      // canCreateDirectories: canCreateDirectories,
+    );
   }
 
   static Future<void> _runWinExplorer(List<String> arguments) async {

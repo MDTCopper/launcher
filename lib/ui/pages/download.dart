@@ -13,18 +13,18 @@ import 'package:copperlauncher_main/ui/util/widget/animated_expansion.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
+import 'package:copperlauncher_main/ui/util/widget/rebound_checkbox.dart';
 import 'package:copperlauncher_main/util/format/string_cleaner.dart';
 import 'package:copperlauncher_main/util/format/time_since.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:line_icons/line_icons.dart';
 import 'package:string_similarity/string_similarity.dart';
 
 import '../../core/app_config.dart';
 import '../../domain/task_manager.dart';
 import '../../domain/tasks/download_mindustry.dart';
-import '../../util/downloader.dart';
+import '../../util/io/downloader.dart';
 import '../../util/validate/windows_file_name_validator.dart';
 import '../feature/images.dart';
 import '../util/widget/future/mod_icon_loader.dart';
@@ -483,6 +483,8 @@ class _VersionPage extends StatefulWidget {
 
 class _VersionPageState extends State<_VersionPage> {
   static final List<MindustryGithubMeta> _versionList = [];
+  static final Map<double, int> _minModGameVersionMap = {};
+  static final Map<double, int> _minJavaModGameVersionMap = {};
   static late MindustryGithubMeta _latestBeta;
 
   Future<bool> _fetchVersionAssets() async {
@@ -685,12 +687,79 @@ class _VersionPageState extends State<_VersionPage> {
           }
         }
 
-        // Center(child: Text(_officialVersionList.length.toString()))
         return AnimatedSwitcher(
-          duration: Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 300),
           child: widget,
         );
       },
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ReboundButton(
+          child: Icon(Icons.download, size: 40),
+          onTap: () async {
+            print('fetch minGameVersion');
+
+            var depth = 0;
+            for (final version in _versionList) {
+              // depth++;
+              // if (depth > 2) break;
+
+              final num = double.parse(version.releaseNum.substring(1));
+
+              if (num < 100) break;
+
+              if (_minJavaModGameVersionMap.containsKey(num)) continue;
+              if (_minModGameVersionMap.containsKey(num)) continue;
+
+              print(version.releaseNum);
+              dio
+                  .get(
+                    '$githubRAW/Anuken/Mindustry/${version.releaseNum}/core/src/mindustry/Vars.java',
+                  )
+                  .then((value) {
+                    if (value.statusCode == 200) {
+                      final str = value.data as String;
+                      var index = str.lastIndexOf('minModGameVersion = ');
+                      if (index != -1) {
+                        final len = 'minModGameVersion = '.length;
+                        final minGameVersion = str.substring(
+                          index + len,
+                          index + len + 3,
+                        );
+                        _minModGameVersionMap[double.parse(
+                          version.releaseNum.substring(1),
+                        )] = int.parse(minGameVersion);
+                      }
+                      index = str.lastIndexOf('minJavaModGameVersion = ');
+                      if (index != -1) {
+                        final len = 'minJavaModGameVersion = '.length;
+                        final minGameVersion = str.substring(
+                          index + len,
+                          index + len + 3,
+                        );
+                        _minJavaModGameVersionMap[double.parse(
+                          version.releaseNum.substring(1),
+                        )] = int.parse(minGameVersion);
+                      }
+                    }
+                  });
+              await Future.delayed(const Duration(milliseconds: 400));
+            }
+          },
+        ),
+        ReboundButton(
+          child: Icon(Icons.print, size: 40),
+          onTap: () {
+            print(_minModGameVersionMap);
+            print('----------------');
+            print(_minJavaModGameVersionMap);
+          },
+        ),
+        Expanded(child: child),
+      ],
     );
 
     return child;
@@ -708,13 +777,19 @@ class _ModPageState extends State<_ModPage> {
   static int index = 1;
   static bool order = true;
   static String sort = 'default';
-  static String searchString = '';
 
   late bool conditionChange;
+
+  static String searchString = '';
   late final TextEditingController searchTextController;
 
-  static double versionFilter = 0;
-  late final TextEditingController versionTextController;
+  late final ScrollController _controller;
+
+  static double version = 9999;
+
+  static Set<double> versionSet = {};
+
+  static Set<String> modTypeSet = {};
 
   @override
   void initState() {
@@ -725,34 +800,60 @@ class _ModPageState extends State<_ModPage> {
         searchString = searchTextController.text;
         conditionChange = true;
       });
-    versionTextController = TextEditingController(
-      text: versionFilter.toString(),
-    )..addListener(() {
-      versionFilter =
-          versionTextController.text.isEmpty
-              ? 0
-              : double.parse(versionTextController.text);
-      conditionChange = true;
-    });
+    _controller = ScrollController();
   }
 
   @override
   void dispose() {
+    _controller.dispose();
     _fetchModMetasOperation?.cancel();
     super.dispose();
   }
 
   var headers = modDownloadHeaders;
 
-  void _move(int to) => setState(() {
-    index = to;
-  });
+  void _move(int to) async {
+    _controller
+        .animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.ease,
+        )
+        .then((_) {});
+    setState(() {
+      index = to;
+    });
+  }
 
   List<ModOfficialListMeta> get filteredMods {
     //todo 做一个列表，选择版本筛选就会筛掉不能运行的模组
+    final minGameVersion = minModGameVersionMap[version] ?? 136;
+
+    final minJavaGameVersion = minJavaModGameVersionMap[version] ?? 136;
+
     final l = modMetas.toList();
     return l.where((it) {
-      return double.parse(it.minGameVersion) >= versionFilter;
+      final isJava = it.hasJava;
+      final modMin = double.parse(it.minGameVersion);
+
+      final bool support;
+
+      if (isJava) {
+        support = modMin >= minJavaGameVersion && modMin <= version;
+      } else {
+        support = modMin >= minGameVersion && modMin <= version;
+      }
+
+      final type =
+          it.hasJava
+              ? 'java'
+              : it.hasScripts
+              ? 'js'
+              : 'json';
+
+      final typeFilter = modTypeSet.isEmpty || modTypeSet.contains(type);
+
+      return support && typeFilter;
     }).toList();
   }
 
@@ -858,6 +959,7 @@ class _ModPageState extends State<_ModPage> {
   CancelableOperation<bool>? _fetchModMetasOperation;
   var _refreshModMetas = true;
   Future<bool> _fetchModMetas() async {
+    // await Future.delayed(const Duration(seconds: 1));
     if (!_refreshModMetas && _fetchModMetasOperation != null) {
       return await _fetchModMetasOperation!.value;
     }
@@ -865,18 +967,9 @@ class _ModPageState extends State<_ModPage> {
     _fetchModMetasOperation?.cancel();
 
     Future<bool> fetch({int tryTime = 0}) async {
-      // if (modMetas.isNotEmpty && previousModMetas.isNotEmpty) return true;
       try {
         if (modMetas.isEmpty) {
-          var res = await dio.get(
-            githubModMetaUrl,
-            // options: Options(
-            //   headers: {
-            //     'User-Agent': 'MindustryModDownloader',
-            //     'Authorization': 'token $githubToken',
-            //   },
-            // ),
-          );
+          var res = await dio.get(githubModMetaUrl);
           if (res.statusCode != 200) throw Exception('链接失败');
           List<dynamic> jsons = jsonDecode(res.data);
           modMetas.addAll(
@@ -914,6 +1007,282 @@ class _ModPageState extends State<_ModPage> {
 
     _fetchModMetasOperation = CancelableOperation<bool>.fromFuture(fetch());
     return await _fetchModMetasOperation!.value;
+  }
+
+  /// ===========================
+  ///            UI
+  /// ===========================
+
+  Widget _buildHeadBar() {
+    final theme = Theme.of(context);
+
+    Widget buildResetButton() {
+      final showResetButton =
+          searchString.isNotEmpty || sort != 'default' || version != 0;
+
+      return AnimatedScale(
+        curve: Curves.easeInOutBack,
+        scale: showResetButton ? 1 : 0,
+        duration: const Duration(milliseconds: 300),
+        child: AnimatedOpacity(
+          opacity: showResetButton ? 1 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: ReboundIconButton(
+            icon: Icons.refresh,
+            content: '重置',
+            onTap: () {
+              setState(() {
+                searchTextController.clear();
+                sort = 'default';
+                version = 9999;
+                modTypeSet.clear();
+              });
+            },
+          ),
+        ),
+      );
+    }
+
+    var selectedVersion = double.tryParse(
+      config.versionOptions.selectedVersion?.releaseNum.substring(1) ?? '',
+    );
+
+    Widget buildModTypeOptions() {
+      return Row(
+        children: [
+          Text('模组类型'),
+          SizedBox(width: 16),
+          Container(
+            padding: EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              border: Border.fromBorderSide(
+                theme.inputDecorationTheme.border?.borderSide ?? BorderSide(),
+              ),
+            ),
+            child: Row(
+              spacing: 4,
+              children: [
+                ReboundCheckbox(
+                  label: '不限',
+                  value: modTypeSet.isEmpty,
+                  onChange: (v) {
+                    if (modTypeSet.isEmpty) return;
+                    setState(() {
+                      modTypeSet.clear();
+                    });
+                  },
+                ),
+                SizedBox(),
+                SizedBox(
+                  width: 1,
+                  height: 18,
+                  child: ColoredBox(color: theme.colorScheme.primary),
+                ),
+                SizedBox(),
+                ReboundCheckbox(
+                  label: 'Copper',
+                  value: modTypeSet.contains('copper'),
+                  onChange: (v) {
+                    setState(() {
+                      if (v == true) {
+                        modTypeSet.add('copper');
+                      } else {
+                        modTypeSet.remove('copper');
+                      }
+                    });
+                  },
+                ),
+                ReboundCheckbox(
+                  label: 'Java',
+                  value: modTypeSet.contains('java'),
+                  onChange: (v) {
+                    setState(() {
+                      if (v == true) {
+                        modTypeSet.add('java');
+                      } else {
+                        modTypeSet.remove('java');
+                      }
+                    });
+                  },
+                ),
+                ReboundCheckbox(
+                  label: 'JavaScript',
+                  value: modTypeSet.contains('js'),
+                  onChange: (v) {
+                    setState(() {
+                      if (v == true) {
+                        modTypeSet.add('js');
+                      } else {
+                        modTypeSet.remove('js');
+                      }
+                    });
+                  },
+                ),
+                ReboundCheckbox(
+                  label: 'Json',
+                  value: modTypeSet.contains('json'),
+                  onChange: (v) {
+                    setState(() {
+                      if (v == true) {
+                        modTypeSet.add('json');
+                      } else {
+                        modTypeSet.remove('json');
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ContentPanelModule(
+      title: '搜索',
+      child: Column(
+        spacing: 8,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedTextField(
+                  label: '模组名称',
+                  controller: searchTextController,
+                ),
+              ),
+              SizedBox(width: 20),
+              buildResetButton(),
+              ReboundIconButton(
+                icon: Icons.search,
+                content: '搜索',
+                onTap: () => setState(() {}),
+              ),
+            ],
+          ),
+          Row(
+            spacing: 32,
+            children: [
+              SizedBox(
+                width: 180,
+                child: Row(
+                  spacing: 16,
+                  children: [
+                    Text('游戏版本'),
+                    Expanded(
+                      child: AnimatedDropdownMenu<double>(
+                        initialValue: version,
+                        onSelect: (v) {
+                          setState(() {
+                            version = v;
+                            conditionChange = true;
+                          });
+                        },
+                        options: [
+                          DropdownOption(value: 9999, label: '不限'),
+                          if (selectedVersion != null)
+                            DropdownOption(
+                              value: selectedVersion,
+                              label: '当前版本',
+                            ),
+                          DropdownOption(value: 157.4, label: 'v154+'),
+                          DropdownOption(value: 154.0, label: 'v147+'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 200,
+                child: Row(
+                  spacing: 16,
+                  children: [
+                    Text('排序'),
+                    Expanded(
+                      child: AnimatedDropdownMenu(
+                        initialValue: sort,
+                        onSelect: (s) {
+                          setState(() {
+                            sort = s;
+                            conditionChange = true;
+                          });
+                        },
+                        options: [
+                          DropdownOption(value: 'default', label: '默认'),
+                          DropdownOption(value: 'stars', label: '星星'),
+                          DropdownOption(value: 'updateTime', label: '更新时间'),
+                          DropdownOption(value: 'hot', label: '热度'),
+                        ],
+                      ),
+                    ),
+                    ReboundButton(
+                      child: AnimatedRotation(
+                        turns: order ? 0.0 : 0.5,
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeInOutBack,
+                        child: Icon(Icons.arrow_downward),
+                      ),
+                      onTap: () => setState(() => order = !order),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          buildModTypeOptions(),
+        ],
+      ),
+    );
+  }
+
+  Widget? _buildWarningBar() {
+    final key = 'warning bar of mod page of download page enable';
+    final setting = config.setting.getCustomSetting(key, true);
+    if (setting == false) return null;
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withAlpha(40),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.primary.withAlpha(100),
+          width: 2,
+        ),
+      ),
+      padding: EdgeInsets.all(4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '国内访问github受限，请优先选择国内镜像资源；'
+              '如有条件，可以到设置中添加网络代理',
+              maxLines: 2,
+            ),
+          ),
+          ReboundContainer(
+            backgroundColor: Colors.transparent,
+            pressedScale: 0.75,
+            borderRadius: BorderRadius.circular(4),
+            onTap: () {},
+            child: Icon(Icons.arrow_outward_outlined),
+          ),
+          SizedBox(width: 4),
+          ReboundContainer(
+            backgroundColor: Colors.transparent,
+            pressedScale: 0.75,
+            borderRadius: BorderRadius.circular(4),
+            onTap: () {
+              config.setting.customSetting[key] = false;
+              setState(() {});
+              config.save();
+            },
+            child: Icon(Icons.close),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildModTile(ModOfficialListMeta mod) {
@@ -1027,279 +1396,119 @@ class _ModPageState extends State<_ModPage> {
     );
   }
 
-  Widget? _buildWarningBar() {
-    final key = 'warning bar of mod page of download page enable';
-    final setting = config.setting.getCustomSetting(key, true);
-    if (setting == false) return null;
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withAlpha(40),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.primary.withAlpha(100),
-          width: 2,
-        ),
-      ),
-      padding: EdgeInsets.all(4),
-      child: Row(
+  Widget _buildList() {
+    Widget buildFetchFailed() {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Text(
-              '国内访问github受限，请优先选择国内镜像资源；'
-              '如有条件，可以到设置中添加网络代理',
-              maxLines: 2,
-            ),
-          ),
-          ReboundContainer(
-            backgroundColor: Colors.transparent,
-            pressedScale: 0.75,
-            borderRadius: BorderRadius.circular(4),
-            onTap: () {},
-            child: Icon(Icons.arrow_outward_outlined),
-          ),
-          SizedBox(width: 4),
-          ReboundContainer(
-            backgroundColor: Colors.transparent,
-            pressedScale: 0.75,
-            borderRadius: BorderRadius.circular(4),
-            onTap: () {
-              config.setting.customSetting[key] = false;
-              setState(() {});
-              config.saveAsJson();
-            },
-            child: Icon(Icons.close),
+          SizedBox(),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('模组列表获取失败，请检查网络后重试'),
+              ReboundIconButton(
+                icon: Icons.refresh,
+                content: '重试',
+                onTap: () => setState(() => _refreshModMetas = true),
+              ),
+            ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFetchFailed(Exception e) {
-    if (e is DioException) {
-      print(e);
-      return Text('请检查网络连接');
+      );
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('模组列表获取失败，请检查网络后重试'),
-            ReboundIconButton(
-              icon: Icons.refresh,
-              content: '重试',
-              onTap: () => setState(() => _refreshModMetas = true),
+    Widget buildLoading() {
+      return CircularProgressIndicator();
+    }
+
+    return FutureBuilder<bool>(
+      future: _fetchModMetas(),
+      builder: (context, snapshot) {
+        Widget child;
+
+        final state = snapshot.connectionState;
+        if (snapshot.hasError) child = buildFetchFailed();
+        if (state == ConnectionState.waiting) {
+          child = buildLoading();
+        } else if (modMetas.isEmpty) {
+          child = buildFetchFailed();
+        } else {
+          child = ContentPanelModule(
+            child: FutureBuilder(
+              future: sortedMods,
+              builder: (_, s) {
+                if (s.connectionState == ConnectionState.waiting) {
+                  return SizedBox();
+                }
+
+                final length = s.data!.length;
+
+                final int perPage = 25;
+                int begin = (index - 1) * perPage;
+                int end;
+                if (length < index * perPage) {
+                  end = length;
+                } else {
+                  end = index * perPage;
+                }
+
+                int endIndex =
+                    length ~/ perPage + (length % perPage == 0 ? 0 : 1);
+                return Column(
+                  spacing: 8,
+                  children: [
+                    for (int i = begin; i < end; i++) _buildModTile(s.data![i]),
+                    Pager(
+                      index,
+                      endPage: index == endIndex,
+                      endIndex: endIndex,
+                      onDown: () => _move(--index),
+                      onUp: () => _move(++index),
+                      goHome: () => _move(1),
+                      goEnd: () => _move(endIndex),
+                    ),
+                  ],
+                );
+              },
             ),
-          ],
-        ),
-      ],
-    );
-  }
+          );
+        }
 
-  Widget _buildResetButton() {
-    final showResetButton =
-        searchString.isNotEmpty || sort != 'default' || versionFilter != 0;
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          switchOutCurve: Curves.ease,
+          switchInCurve: Curves.ease,
+          transitionBuilder: (child, animation) {
+            final opacity = CurvedAnimation(
+              parent: animation,
+              curve: Interval(0.4, 1.0),
+            );
 
-    return AnimatedOpacity(
-      opacity: showResetButton ? 1 : 0,
-      duration: const Duration(milliseconds: 200),
-      child: AnimatedScale(
-        curve: Curves.easeInOutBack,
-        scale: showResetButton ? 1 : 0,
-        duration: const Duration(milliseconds: 300),
-        child: ReboundIconButton(
-          icon: Icons.refresh,
-          content: '重置',
-          onTap: () {
-            setState(() {
-              searchTextController.clear();
-              sort = 'default';
-              versionFilter = 0;
-            });
+            final scale = Tween(begin: 0.6, end: 1.0).animate(animation);
+
+            return FadeTransition(
+              opacity: opacity,
+              child: ScaleTransition(
+                alignment: Alignment.topCenter,
+                scale: scale,
+                child: child,
+              ),
+            );
           },
-        ),
-      ),
+          layoutBuilder: (child, animation) {
+            return Align(alignment: Alignment.topCenter, child: child);
+          },
+          child: child,
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return ListContentPanel(
-      items: [
-        ContentPanelModule(
-          title: '搜索',
-          child: Column(
-            spacing: 8,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedTextField(
-                      label: '模组名称',
-                      controller: searchTextController,
-                    ),
-                  ),
-                  SizedBox(width: 20),
-                  ReboundIconButton(
-                    icon: Icons.search,
-                    content: '搜索',
-                    onTap: () => setState(() {}),
-                  ),
-                ],
-              ),
-              Row(
-                spacing: 32,
-                children: [
-                  // SizedBox(
-                  //   width: 200,
-                  //   child: Row(
-                  //     spacing: 16,
-                  //     children: [
-                  //       Text('加载器'),
-                  //       Expanded(
-                  //         child: AnimatedDropdownMenu(
-                  //           options: [
-                  //             DropdownOption(
-                  //               value: 'mindustry',
-                  //               label: 'mindustry',
-                  //             ),
-                  //             DropdownOption(value: 'copper', label: 'copper'),
-                  //           ],
-                  //         ),
-                  //       ),
-                  //     ],
-                  //   ),
-                  // ),
-                  SizedBox(
-                    width: 180,
-                    child: Row(
-                      spacing: 16,
-                      children: [
-                        Text('游戏版本'),
-                        Expanded(
-                          //todo 可输入选择框
-                          child: OutlinedTextField(
-                            controller: versionTextController,
-                            inputFormatters: [
-                              FilteringTextInputFormatter(
-                                RegExp(r'^\d+\.?\d*$'),
-                                allow: true,
-                              ),
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    width: 200,
-                    child: Row(
-                      spacing: 16,
-                      children: [
-                        Text('排序'),
-                        Expanded(
-                          child: AnimatedDropdownMenu(
-                            initialValue: sort,
-                            onSelect: (s) {
-                              setState(() {
-                                sort = s;
-                                conditionChange = true;
-                              });
-                            },
-                            options: [
-                              DropdownOption(value: 'default', label: '默认'),
-                              DropdownOption(value: 'stars', label: '星星'),
-                              DropdownOption(
-                                value: 'updateTime',
-                                label: '更新时间',
-                              ),
-                              DropdownOption(value: 'hot', label: '热度'),
-                            ],
-                          ),
-                        ),
-                        ReboundButton(
-                          child: AnimatedRotation(
-                            turns: order ? 0.0 : 0.5,
-                            duration: const Duration(milliseconds: 400),
-                            curve: Curves.easeInOutBack,
-                            child: Icon(Icons.arrow_downward),
-                          ),
-                          onTap: () => setState(() => order = !order),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(child: SizedBox()),
-                  _buildResetButton(),
-                ],
-              ),
-            ],
-          ),
-        ),
-        _buildWarningBar(),
-        FutureBuilder<bool>(
-          future: _fetchModMetas(),
-          builder: (context, snapshot) {
-            Widget child;
-            final state = snapshot.connectionState;
-            if (snapshot.hasError) {
-              child = _buildFetchFailed(snapshot.error as Exception);
-            }
-            if (state == ConnectionState.waiting) {
-              child = Text('获取mod列表');
-            } else {
-              child = ContentPanelModule(
-                child: FutureBuilder(
-                  future: sortedMods,
-                  builder: (_, s) {
-                    if (s.connectionState == ConnectionState.waiting) {
-                      return SizedBox();
-                    }
-                    final int perPage = 25;
-                    final length = s.data!.length;
-                    int begin = (index - 1) * perPage;
-                    int end;
-                    if (length < index * perPage) {
-                      end = length;
-                    } else {
-                      end = index * perPage;
-                    }
-
-                    int endIndex =
-                        length ~/ perPage + (length % perPage == 0 ? 0 : 1);
-                    return Column(
-                      spacing: 8,
-                      children: [
-                        for (int i = begin; i < end; i++)
-                          _buildModTile(s.data![i]),
-                        Pager(
-                          index,
-                          onDown: () => _move(--index),
-                          onUp: () => _move(++index),
-                          goHome: () => _move(1),
-                          endIndex: endIndex,
-                          goEnd: () => _move(endIndex),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              );
-            }
-            return AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: child,
-            );
-          },
-        ),
-      ],
+      controller: _controller,
+      items: [_buildHeadBar(), _buildWarningBar(), _buildList()],
     );
   }
 }

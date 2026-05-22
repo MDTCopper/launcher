@@ -10,7 +10,7 @@ abstract class RunTimeLog {
   static late File file;
 
   static Future<void> init() async {
-    final logDir = Directory(AppPaths.logsDir);
+    final logDir = Directory(AppPaths.logs);
     await logDir.create(recursive: true);
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.log';
     file = File(p.join(logDir.path, fileName));
@@ -25,7 +25,7 @@ abstract class RunTimeLog {
     );
   }
 
-  static Future<void> add(LogType type, String message) async {
+  static Future<void> add(RunTimeLogLogType type, String message) async {
     await file.writeAsString(
       '${DateTime.now().toIso8601String()} [${type.name}] $message\n',
     );
@@ -36,4 +36,4 @@ abstract class RunTimeLog {
   }
 }
 
-enum LogType { info, error, warning, debug }
+enum RunTimeLogLogType { info, error, warning, debug }

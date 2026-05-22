@@ -7,7 +7,7 @@ import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import '../../../../util/downloader.dart';
+import '../../../../util/io/downloader.dart';
 import '../../../vars.dart';
 import '../feature_button.dart';
 

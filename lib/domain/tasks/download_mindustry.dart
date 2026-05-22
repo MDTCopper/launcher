@@ -11,8 +11,8 @@ import '../../ui/util/info/log_list.dart';
 import '../../ui/util/info/notification.dart';
 import '../../ui/util/widget/feature_button.dart';
 import '../../util/app_paths.dart';
-import '../../util/downloader.dart';
 import '../../util/format/byte_unit.dart';
+import '../../util/io/downloader.dart';
 import '../task.dart';
 
 ///官方渠道下载，path路径默认为 [项目//version]
@@ -41,7 +41,7 @@ class DownloadMindustryTask extends Task {
     // CancelToken? cancelToken//外部取消token
   }) {
     super.type = TaskType.download;
-    this.path = path ?? AppPaths.versionsDir;
+    this.path = path ?? AppPaths.versions;
   }
 
   @override

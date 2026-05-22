@@ -1,10 +1,36 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:flutter/material.dart' show Icons;
 
 import '../ui/util/info/log_list.dart';
 import '../ui/util/info/notification.dart';
+
+class WindowSize {
+  final int width;
+  final int height;
+
+  WindowSize(this.width, this.height);
+}
+
+class Memory {
+  late final int num;
+
+  int get kb => num ~/ 1024;
+
+  int get mb => kb ~/ 1024;
+
+  int get gb => mb ~/ 1024;
+
+  Memory({int? bytes, int? kb, int? mb, int? gb}) {
+    num =
+        (bytes ?? 0) +
+        (kb ?? 0) * 1024 +
+        (mb ?? 0) * 1024 * 1024 +
+        (gb ?? 0) * 1024 * 1024 * 1024;
+  }
+}
 
 class MindustryLauncher {
   Process? _jarProcess; // 存储 Jar 进程
@@ -12,10 +38,12 @@ class MindustryLauncher {
   Stream<String>? get logStream => _logController?.stream;
 
   // 校验 Java 环境是否可用
-  Future<bool> _checkJavaEnv() async {
+  Future<bool> _checkJavaEnv({String? javaExecutable}) async {
     try {
+      final javaCmd = javaExecutable ?? 'java';
+
       // 执行 java -version 命令，验证 Java 是否可调用
-      final process = await Process.start('java', [
+      final process = await Process.start(javaCmd, [
         '-version',
       ], runInShell: true);
 
@@ -33,36 +61,73 @@ class MindustryLauncher {
     }
   }
 
-  Future<bool> startMindustryJar({
-    List<String>? extraArgs1 = const [],
-    required String jarPath,
-    List<String>? extraArgs2 = const [],
+  Future<bool> start(
+    Mindustry mindustry, {
+    WindowSize? windowSize,
+    int? maxMemory,
+    String? javaExecutable,
+    List<String>? extraArgs = const [],
   }) async {
-    // 先校验 Java 环境,'-Dwidth=1280', '-Dheight=720',
-    final isJavaAvailable = await _checkJavaEnv();
+    // 先校验 Java 环境
+    final isJavaAvailable = await _checkJavaEnv(javaExecutable: javaExecutable);
     if (!isJavaAvailable) {
       print('错误：未检测到 Java 环境，请先安装并配置 Java');
       return false;
     }
 
     // 校验 Jar 文件是否存在
-    final jarFile = File(jarPath);
+    final jarFile = File(mindustry.jarPath);
     if (!await jarFile.exists()) {
-      print('错误：mindustry.jar 不存在，路径：$jarPath');
+      print('错误：mindustry.jar 不存在，路径：${mindustry.jarPath}');
       return false;
     }
 
     try {
       // 初始化日志控制器
-      if(_logController == null || _logController!.isClosed){
+      if (_logController == null || _logController!.isClosed) {
         _logController = StreamController<String>.broadcast();
       }
 
+      // 构建 Java 启动命令，包含内存、窗口大小、隔离模式等参数
+      final args = <String>[];
 
-      // 构建 Java 启动命令：java -jar mindustry.jar [额外参数]'-Dmindustry.data.dir=C:/Users/ASUS/Desktop/copperlauncher_main/versions/saves',
-      final args = [...?extraArgs1,'-jar', jarPath,...?extraArgs2];
+      // 添加内存设置 (如果提供了最大内存参数)
+      if (maxMemory != null && maxMemory > 0) {
+        args.add('-Xmx${maxMemory}m');
+      } else {
+        // 默认内存设置，可以根据需要调整
+        args.add('-Xmx512m');
+      }
+
+      // 根据是否隔离添加数据目录参数
+      if (mindustry.isolation) {
+        // 隔离模式下，使用版本特定的数据目录
+        args.add('-Dmindustry.data.dir=${mindustry.dataPath}');
+      }
+
+      // TODO: 安卓相关参数待处理
+      // 可能需要添加安卓相关的JVM参数或环境变量
+
+      // 添加额外的自定义参数
+      if (extraArgs != null && extraArgs.isNotEmpty) {
+        args.addAll(extraArgs);
+      }
+
+      // 添加核心启动参数
+      args.add('-jar');
+      args.add(mindustry.jarPath);
+
+      args.addAll(
+        _buildMindustryArgs(
+          windowSize: windowSize,
+          fullScreen: windowSize == null,
+        ),
+      );
+
+      final javaCmd = javaExecutable ?? 'java';
+
       _jarProcess = await Process.start(
-        'java', // 调用系统 java 命令
+        javaCmd, // 使用指定的 Java 可执行文件
         args,
         runInShell: true, // 支持路径含空格
         workingDirectory: jarFile.parent.path, // 以 Jar 所在目录为工作目录（避免资源路径问题）
@@ -77,15 +142,27 @@ class MindustryLauncher {
 
       // 监听进程退出（释放资源）
       _jarProcess?.exitCode.then((code) {
-        print('Mindustry Jar 进程退出，退出码：$code');
-        _logController?.close();
-        _jarProcess = null;
-        NotificationManager.addNotice(
-          icon: Icons.info_outline,
-          title: '退出',
-          content: '正常游戏退出，退出码：$code',
-        );
-        LogManager.addLog(LogEntry(LogType.success, '正常游戏退出，退出码：$code'));
+        if (code == 0) {
+          print('Mindustry Jar 进程退出，退出码：$code');
+          _logController?.close();
+          _jarProcess = null;
+          NotificationManager.addNotice(
+            icon: Icons.info_outline,
+            title: '退出',
+            content: '正常游戏退出，退出码：$code',
+          );
+          LogManager.addLog(LogEntry(LogType.success, '正常游戏退出，退出码：$code'));
+        } else if (code == 1) {
+          print('游戏异常退出，退出码：$code');
+          _logController?.close();
+          _jarProcess = null;
+          NotificationManager.addNotice(
+            icon: Icons.error_outline,
+            title: '退出',
+            content: '游戏异常退出，退出码：$code',
+          );
+          LogManager.addLog(LogEntry(LogType.error, '游戏异常退出，退出码：$code'));
+        }
       });
 
       return true;
@@ -134,10 +211,29 @@ class MindustryLauncher {
     }
   }
 
+  List<String> _buildMindustryArgs({WindowSize? windowSize, bool? fullScreen}) {
+    final args = <String>[];
+
+    if (windowSize != null) {
+      args.add('-width');
+      args.add('${windowSize.width}');
+      args.add('-height');
+      args.add('${windowSize.height}');
+    }
+    if (fullScreen != null) {
+      args.add('-maximized');
+      args.add(fullScreen.toString().toLowerCase());
+    }
+
+    ///Mindustry在桌面端测试移动端界面参数
+    // args.add('-testMobile');
+    return args;
+  }
+
   // 释放资源（页面销毁时调用）
   void dispose() {
     _logController?.close();
-    _logController=null;
+    _logController = null;
     _jarProcess?.kill();
   }
 }

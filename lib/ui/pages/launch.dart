@@ -1,10 +1,12 @@
 import 'dart:math';
 
+import 'package:copperlauncher_main/core/app_constant.dart';
 import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:copperlauncher_main/domain/mindustry_launcher.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
+import 'package:copperlauncher_main/util/io/downloader.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_config.dart';
@@ -12,6 +14,7 @@ import '../feature/images.dart';
 import '../util/animation/loop_animated_widget/drill_loading.dart';
 import '../util/info/log_list.dart';
 import '../util/info/notification.dart';
+import '../util/widget/rebound_checkbox.dart';
 
 class LaunchPage extends StatefulWidget {
   const LaunchPage({super.key});
@@ -156,10 +159,7 @@ class _LaunchPageState extends State<LaunchPage> {
             }
           }
 
-          final s = await mindustryLauncher.startMindustryJar(
-            extraArgs1: isolation,
-            jarPath: _selectedVersion!.jarPath ?? '',
-          );
+          final s = await mindustryLauncher.start(_selectedVersion!);
 
           if (s) {
             NotificationManager.addNotice(
@@ -187,7 +187,23 @@ class _LaunchPageState extends State<LaunchPage> {
     super.setState(fn);
   }
 
-  void _test() async {}
+  var t = false;
+
+  //todo标记
+  void _test() async {
+    //todo 获取各个版本的最小模组版本
+    final response = await dio.get(
+        '$githubRAW/Anuken/Mindustry/v152/core/src/mindustry/Vars.java');
+    final responseText = response.data as String;
+    var index = responseText.indexOf('minModGameVersion =');
+
+    print(responseText.substring(index + 20, index + 23));
+
+    index = responseText.indexOf('minJavaModGameVersion =');
+    print(responseText.substring(index + 24, index + 27));
+
+    // final minModGameVersion = double.parse(responseText.substring(index + 43, index + 46));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -199,10 +215,22 @@ class _LaunchPageState extends State<LaunchPage> {
             // child: ElectricConverter(),
             //屏幕中心
             // child: _CenterField(),
-            child: ReboundIconButton(
-              icon: Icons.add,
-              content: 'a+++',
-              onTap: _test,
+            child: Column(
+              children: [
+                ReboundIconButton(
+                  icon: Icons.add,
+                  content: 'a+++',
+                  onTap: _test,
+                ),
+                ReboundCheckbox(
+                  value: t,
+                  onChange: (value) {
+                    setState(() {
+                      t = value;
+                    });
+                  },
+                ),
+              ],
             ),
           ),
         ),
@@ -394,9 +422,7 @@ class _BeginState extends State<_Begin> {
             content: '正在启动游戏',
           );
           LogManager.addLog(LogEntry(LogType.info, '正在启动游戏'));
-          final s = await _mindustryLauncher.startMindustryJar(
-            jarPath: _selectedVersion!.jarPath ?? '',
-          );
+          final s = await _mindustryLauncher.start(_selectedVersion!);
           if (s) {
             NotificationManager.addNotice(
               icon: Icons.info_outline,

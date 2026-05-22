@@ -1,15 +1,18 @@
 import 'package:copperlauncher_main/core/app_config.dart';
+import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:copperlauncher_main/data/net_asset.dart';
 import 'package:copperlauncher_main/domain/task_manager.dart';
 import 'package:copperlauncher_main/domain/tasks/download_mod.dart';
+import 'package:copperlauncher_main/ui/feature/images.dart';
 import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
 import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/future/readme_loader.dart';
 import 'package:copperlauncher_main/ui/util/widget/pager.dart';
 import 'package:copperlauncher_main/ui/util/widget/rebound_container.dart';
-import 'package:copperlauncher_main/util/downloader.dart';
 import 'package:copperlauncher_main/util/format/string_cleaner.dart';
+import 'package:copperlauncher_main/util/io/downloader.dart';
+import 'package:copperlauncher_main/util/io/file_reader.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -21,7 +24,6 @@ import '../../../../core/app_constant.dart';
 import '../../../util/widget/feature_button.dart';
 import '../../../util/widget/future/mod_icon_loader.dart';
 import '../../../vars.dart';
-
 
 ///模组仓库有三种情况：
 ///
@@ -39,6 +41,7 @@ class ModDownload extends StatefulWidget {
 
 class _ModDownloadState extends State<ModDownload> {
   late ModOfficialListMeta modListMeta;
+  final selectedVersion = config.versionOptions.selectedVersion;
 
   int index = 1;
 
@@ -86,11 +89,11 @@ class _ModDownloadState extends State<ModDownload> {
   //todo https://raw.githubusercontent.com/ {Yuria-Shikibe/NewHorizonMod} / {main/tag_name} / {mod.hjson/.json}
   //用这个可以访问不同版本的json文件，这样就可以统计各个版本最小游戏版本了，然后可以本地存储一下
 
-  @override
-  void initState() {
-    minGameVersionsCache.clear();
-    super.initState();
-  }
+  // @override
+  // void initState() {
+  //   minGameVersionsCache.clear();
+  //   super.initState();
+  // }
 
   static final Map<String, Future<String?>> minGameVersionsCache = {};
 
@@ -127,7 +130,8 @@ class _ModDownloadState extends State<ModDownload> {
           if (res.statusCode != 200) continue;
           final content = res.data as String;
           map.addAll(
-              hjsonDecode(content, strict: false) as Map<String, dynamic>);
+            hjsonDecode(content, strict: false) as Map<String, dynamic>,
+          );
           if (map.isNotEmpty) break;
         } catch (e) {
           print(e);
@@ -149,7 +153,31 @@ class _ModDownloadState extends State<ModDownload> {
     }
 
     final minGameVersion =
-    minGameVersionsCache[mod.releaseNum] ??= _getMinGameVersion(mod);
+        minGameVersionsCache[mod.releaseNum] ??= _getMinGameVersion(mod);
+
+    final trailing =
+        modListMeta.hasJava
+            ? Row(
+              spacing: 8,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ReboundIconButton(
+                  icon: Icons.folder_outlined,
+                  content: '下载源码',
+                  onTap: () => _buildDownloadPopup(mod, downloadSource: true),
+                ),
+                ReboundIconButton(
+                  icon: Icons.outbond_outlined,
+                  content: '版本详情',
+                  onTap: () {},
+                ),
+              ],
+            )
+            : ReboundIconButton(
+              icon: Icons.outbond_outlined,
+              content: '版本详情',
+              onTap: () {},
+            );
 
     return ReboundListTile(
       borderRadius: BorderRadius.circular(4),
@@ -167,17 +195,54 @@ class _ModDownloadState extends State<ModDownload> {
           FutureBuilder(
             future: minGameVersion,
             builder: (_, s) {
-              return buildOverView(Icons.source_outlined, s.data ?? '...');
+              if (s.connectionState == ConnectionState.waiting) {
+                return buildOverView(Icons.source_outlined, '...');
+              }
+              if (s.hasData) {
+                final version = selectedVersion;
+                if (version == null) {
+                  return buildOverView(Icons.source_outlined, s.data!);
+                }
+
+                bool? support;
+                final modMin = double.parse(s.data!.substring(1));
+                if (modListMeta.hasJava) {
+                  final minGameVersion =
+                      minJavaModGameVersionMap[version.releaseDouble];
+                  if (minGameVersion != null) {
+                    support =
+                        modMin >= minGameVersion &&
+                        modMin <= version.releaseDouble;
+                  }
+                } else {
+                  final minGameVersion =
+                      minModGameVersionMap[version.releaseDouble];
+                  if (minGameVersion != null) {
+                    support =
+                        modMin >= minGameVersion &&
+                        modMin <= version.releaseDouble;
+                  }
+                }
+
+                if (support == true) {
+                  return buildOverView(Icons.check_outlined, '支持 (${s.data!})');
+                } else if (support == false) {
+                  return buildOverView(
+                    Icons.close_outlined,
+                    '可能不支持 (${s.data!})',
+                  );
+                } else {
+                  return buildOverView(Icons.info_outlined, s.data!);
+                }
+              } else {
+                return buildOverView(Icons.source_outlined, 'XXX');
+              }
             },
           ),
         ],
       ),
       onTap: () => _buildDownloadPopup(mod),
-      trailing: ReboundIconButton(
-        icon: Icons.outbond_outlined,
-        content: '版本详情',
-        onTap: () {},
-      ),
+      trailing: trailing,
     );
   }
 
@@ -221,7 +286,7 @@ class _ModDownloadState extends State<ModDownload> {
             onTap: () {
               config.setting.customSetting[key] = false;
               setState(() {});
-              config.saveAsJson();
+              config.save();
             },
             child: Icon(Icons.close),
           ),
@@ -236,15 +301,15 @@ class _ModDownloadState extends State<ModDownload> {
         (_, _, _) => Center(child: ModNetReadmeLoader(mod: modListMeta)),
   );
 
-  void _buildDownloadPopup(ModGithubMeta? mod) {
+  void _buildDownloadPopup(ModGithubMeta? mod, {bool downloadSource = false}) {
     showAnimatedDialog(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: '',
-      transitionDuration: const Duration(milliseconds: 350),
-      animationType: DialogAnimation.leapOut,
       pageBuilder: (context, _, _) {
-        return _ModDownloadPopupPage(modListMeta, mod);
+        return _ModDownloadPopupPage(
+          modListMeta,
+          mod,
+          downloadSource: downloadSource,
+        );
       },
     );
   }
@@ -257,8 +322,6 @@ class _ModDownloadState extends State<ModDownload> {
     final uri = Uri.parse(url);
     await launchUrl(uri, mode: LaunchMode.inAppWebView);
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -328,8 +391,7 @@ class _ModDownloadState extends State<ModDownload> {
                           icon: Icons.file_open_outlined,
                           content: '源码仓库',
                           onTap:
-                              () =>
-                              _goToUrl(
+                              () => _goToUrl(
                                 'https://github.com/${modListMeta.repo}',
                               ),
                         ),
@@ -338,9 +400,7 @@ class _ModDownloadState extends State<ModDownload> {
                           content: '作者主页',
                           onTap:
                               () => _goToUrl(
-                                'https://github.com/${modListMeta.repo
-                                    .split('/')
-                                    .first}',
+                                'https://github.com/${modListMeta.repo.split('/').first}',
                               ),
                         ),
                         Expanded(child: SizedBox()),
@@ -362,17 +422,18 @@ class _ModDownloadState extends State<ModDownload> {
         FutureBuilder<bool>(
           future: _fetchModMetas(page: index),
           builder: (_, s) {
+            Widget child;
+
             if (s.connectionState == ConnectionState.waiting) {
-              return CircularProgressIndicator();
-            }
-            if (metas.isEmpty) {
-              return ContentPanelModule(
+              child = CircularProgressIndicator();
+            } else if (metas.isEmpty) {
+              child = ContentPanelModule(
                 child: Column(
                   spacing: 8,
                   children: [
                     Text('(*´･д･)?', style: theme.textTheme.titleLarge),
                     Text(
-                      '该模组没有发布任何版本，可以点击最新版本下载',
+                      '该模组没有发布任何版本，可以点击最新版本下载源码',
                       style: theme.textTheme.bodyLarge,
                     ),
                     Text(
@@ -382,31 +443,60 @@ class _ModDownloadState extends State<ModDownload> {
                   ],
                 ),
               );
-            }
-
-            int begin = (index - 1) * perPage;
-            int end;
-            if (metas.length < index * perPage) {
-              end = metas.length;
             } else {
-              end = index * perPage;
+              int begin = (index - 1) * perPage;
+              int end;
+              if (metas.length < index * perPage) {
+                end = metas.length;
+              } else {
+                end = index * perPage;
+              }
+              child = ContentPanelModule(
+                title: '版本列表',
+                child: Column(
+                  spacing: 8,
+                  children: [
+                    for (int i = begin; i < end; i++)
+                      _buildVersionTile(metas[i]),
+                    Pager(
+                      index,
+                      endPage: endPage,
+                      onDown: () => _move(--index),
+                      onUp: () => _move(++index),
+                      goHome: () => _move(1),
+                    ),
+                  ],
+                ),
+              );
             }
 
-            return ContentPanelModule(
-              title: '版本列表',
-              child: Column(
-                spacing: 8,
-                children: [
-                  for (int i = begin; i < end; i++) _buildVersionTile(metas[i]),
-                  Pager(
-                    index,
-                    endPage: endPage,
-                    onDown: () => _move(--index),
-                    onUp: () => _move(++index),
-                    goHome: () => _move(1),
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchOutCurve: Curves.ease,
+              switchInCurve: Curves.ease,
+              transitionBuilder: (child, animation) {
+                final opacity = CurvedAnimation(
+                  parent: animation,
+                  curve: Interval(0.4, 1.0),
+                );
+
+                final scale = Tween(begin: 0.6, end: 1.0).animate(
+                  CurvedAnimation(parent: animation, curve: Interval(0.0, 1.0)),
+                );
+
+                return FadeTransition(
+                  opacity: opacity,
+                  child: ScaleTransition(
+                    alignment: Alignment.topCenter,
+                    scale: scale,
+                    child: child,
                   ),
-                ],
-              ),
+                );
+              },
+              layoutBuilder: (child, animation) {
+                return Align(alignment: Alignment.topCenter, child: child);
+              },
+              child: child,
             );
           },
         ),
@@ -416,10 +506,15 @@ class _ModDownloadState extends State<ModDownload> {
 }
 
 class _ModDownloadPopupPage extends StatefulWidget {
+  final bool downloadSource;
   final ModOfficialListMeta modListMeta;
   final ModGithubMeta? modMeta;
 
-  const _ModDownloadPopupPage(this.modListMeta, this.modMeta);
+  const _ModDownloadPopupPage(
+    this.modListMeta,
+    this.modMeta, {
+    this.downloadSource = false,
+  });
 
   @override
   State<StatefulWidget> createState() => _ModDownloadPopupPageState();
@@ -429,10 +524,11 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   late final modListMeta = widget.modListMeta;
   late final modMeta = widget.modMeta;
   final version = config.versionOptions.selectedVersion;
+  String? otherSavePath;
 
   //todo 下载到选择的版本中,如果不是支持版本警告一下,处理一下空存储路径
   void _download() async {
-    if (modListMeta.hasJava) {
+    if (modListMeta.hasJava && !widget.downloadSource) {
       addTask(
         DownloadJavaModTask(
           modListMeta: modListMeta,
@@ -447,19 +543,123 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     if (mounted) Navigator.pop(context);
   }
 
-  //mod命名规则：模组名-版本.(jar/zip)
-  // Future<bool> _checkModExist() async {
-  //   if (version?.modsPath == null) return false;
-  //   var fileName = '${modListMeta.name}-${modMeta.name}';
-  //   if (modListMeta.hasJava) {
-  //     fileName += '.jar';
-  //   } else {
-  //     fileName += '.zip';
-  //   }
-  //   final path = p.join(version!.modsPath!, fileName);
-  //   final file = File(path);
-  //   return await file.exists();
-  // }
+  Widget _buildVersionTile() {
+    final theme = Theme.of(context);
+    if (version == null) return Text('未选中任何版本，将下载至默认路径下');
+
+    return Column(
+      spacing: 8,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('将下载到当前选中的版本', style: theme.textTheme.bodyLarge),
+        // Expanded(child: SizedBox()),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 8,
+            children: [
+              Image.asset(
+                version!.launcher == LauncherType.copper
+                    ? Images.copper
+                    : Images.mindustry,
+                scale: 1.5,
+              ),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+
+                children: [
+                  Text(
+                    version!.tag ?? '',
+                    style: theme.textTheme.bodyLarge,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    version!.releaseNum ?? '',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPathTile() {
+    final theme = Theme.of(context);
+
+    final savePath = otherSavePath ?? version!.modsPath;
+
+    return Column(
+      spacing: 8,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('存储路径', style: theme.textTheme.bodyLarge),
+        Row(
+          spacing: 8,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  savePath,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            if (otherSavePath != null)
+              ReboundButton(
+                child: Icon(Icons.delete),
+                onTap:
+                    () => setState(() {
+                      otherSavePath = null;
+                    }),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTile() {
+    final theme = Theme.of(context);
+
+    if (otherSavePath != null) return _buildPathTile();
+
+    return Column(
+      spacing: 8,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildVersionTile(),
+        if (!(version?.isolation ?? false))
+          Text(
+            '当前版本未隔离,将下载至默认路径,建议到设置中开启隔离模式',
+            style: theme.textTheme.bodySmall,
+          ),
+        _buildPathTile(),
+      ],
+    );
+  }
+
+  void _chooseOtherSavePath() async {
+    otherSavePath = await FileReader.selectDirectory(
+      initialDirectory: version?.modsPath,
+    );
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -467,6 +667,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
+
       children: [
         Material(
           color: Colors.transparent,
@@ -504,9 +705,41 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
                     ),
                   ],
                 ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.fastEaseInToSlowEaseOut,
+                  child: AnimatedSwitcher(
+                    duration: Duration(milliseconds: 400),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeOut,
+                    transitionBuilder: (child, animation) {
+                      final opacity = CurvedAnimation(
+                        parent: animation,
+                        curve: Interval(0.7, 1.0),
+                        reverseCurve: Interval(0.7, 1.0),
+                      );
 
-                Text('将下载至当前版本 [${version?.tag}]'),
-                Text('存储路径: ${version?.modsPath}'),
+                      return FadeTransition(opacity: opacity, child: child);
+                    },
+                    child: KeyedSubtree(
+                      key: ValueKey(otherSavePath ?? ''),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        child: _buildTile(),
+                      ),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: ReboundIconButton(
+                    icon: Icons.file_open_outlined,
+                    content: '选择其他路径',
+                    onTap: () => _chooseOtherSavePath(),
+                  ),
+                ),
               ],
             ),
           ),
