@@ -147,8 +147,17 @@ class _ModDownloadState extends State<ModDownload> {
   Widget _buildVersionTile(ModGithubMeta mod) {
     Widget buildOverView(IconData icon, String data) {
       return ConstrainedBox(
-        constraints: BoxConstraints(minWidth: 90),
-        child: Row(children: [Icon(icon), Text(data)]),
+        constraints: BoxConstraints(minWidth: 110),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: 140),
+              child: Text(data, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
       );
     }
 
@@ -181,7 +190,7 @@ class _ModDownloadState extends State<ModDownload> {
 
     return ReboundListTile(
       borderRadius: BorderRadius.circular(4),
-      title: Text(mod.name),
+      title: Text(mod.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Row(
         spacing: 8,
         children: [
@@ -533,11 +542,17 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
         DownloadJavaModTask(
           modListMeta: modListMeta,
           modMeta: modMeta!,
-          savePath: version!.modsPath!,
+          savePath: version?.modsPath ?? otherSavePath!,
         ),
       );
     } else {
-      addTask(DownloadZipModTask(modListMeta, modMeta, version!.modsPath!));
+      addTask(
+        DownloadZipModTask(
+          modListMeta,
+          modMeta,
+          version?.modsPath ?? otherSavePath!,
+        ),
+      );
     }
 
     if (mounted) Navigator.pop(context);
@@ -575,14 +590,11 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
 
                 children: [
                   Text(
-                    version!.tag ?? '',
+                    version!.tag,
                     style: theme.textTheme.bodyLarge,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    version!.releaseNum ?? '',
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  Text(version!.releaseNum, style: theme.textTheme.bodySmall),
                 ],
               ),
             ],
@@ -595,7 +607,11 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   Widget _buildPathTile() {
     final theme = Theme.of(context);
 
-    final savePath = otherSavePath ?? version!.modsPath;
+    final savePath = otherSavePath ?? version?.modsPath;
+
+    if (savePath == null) {
+      return Text('未选中任何版本,请先选择版本或自定义存储路径');
+    }
 
     return Column(
       spacing: 8,
@@ -637,7 +653,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   Widget _buildTile() {
     final theme = Theme.of(context);
 
-    if (otherSavePath != null) return _buildPathTile();
+    if (otherSavePath != null || version == null) return _buildPathTile();
 
     return Column(
       spacing: 8,
@@ -694,15 +710,19 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
                         Navigator.of(context).pop();
                       },
                     ),
-                    Text(
-                      '下载 ${modMeta?.name ?? modListMeta.name}',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary,
+                    Expanded(
+                      child: Text(
+                        '下载 ${modMeta?.name ?? modListMeta.name}',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
+                    SizedBox(width: 8),
                   ],
                 ),
                 AnimatedSize(

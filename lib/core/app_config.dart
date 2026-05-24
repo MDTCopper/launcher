@@ -132,12 +132,12 @@ class Setting {
   Map<String, dynamic> toJson() => _$SettingToJson(this);
 }
 
-enum VersionIsolation { none, onlyBe, onlyCopper, all }
+enum VersionIsolation { be, copper, mindustry }
 
 enum GameWindowSizeSet { gameDefault, maximize, custom, fullScreen }
 
 class LaunchOptions {
-  VersionIsolation? versionIsolation;
+  Set<VersionIsolation>? versionIsolationSet;
   GameWindowSizeSet? gameWindowSizeSet;
   Size? customWindowSize;
   JavaOptions? javaOptions;

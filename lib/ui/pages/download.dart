@@ -474,6 +474,12 @@ class _DownloadMindustryPopupPageState
   }
 }
 
+//==================================
+
+//            版本页面
+
+//==================================
+
 class _VersionPage extends StatefulWidget {
   const _VersionPage();
 
@@ -766,6 +772,12 @@ class _VersionPageState extends State<_VersionPage> {
   }
 }
 
+//==================================
+
+//            模组页面
+
+//==================================
+
 class _ModPage extends StatefulWidget {
   @override
   State<StatefulWidget> createState() => _ModPageState();
@@ -813,13 +825,12 @@ class _ModPageState extends State<_ModPage> {
   var headers = modDownloadHeaders;
 
   void _move(int to) async {
-    _controller
-        .animateTo(
-          0.0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.ease,
-        )
-        .then((_) {});
+    _controller.animateTo(
+      0.0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.ease,
+    );
+    await Future.delayed(const Duration(milliseconds: 250));
     setState(() {
       index = to;
     });
@@ -1009,36 +1020,54 @@ class _ModPageState extends State<_ModPage> {
     return await _fetchModMetasOperation!.value;
   }
 
-  /// ===========================
-  ///            UI
-  /// ===========================
+  // ===========================
+  //            UI
+  // ===========================
 
   Widget _buildHeadBar() {
     final theme = Theme.of(context);
 
     Widget buildResetButton() {
       final showResetButton =
-          searchString.isNotEmpty || sort != 'default' || version != 0;
+          searchString.isNotEmpty ||
+          sort != 'default' ||
+          version != 9999 ||
+          modTypeSet.isNotEmpty;
 
-      return AnimatedScale(
-        curve: Curves.easeInOutBack,
-        scale: showResetButton ? 1 : 0,
+      return AnimatedSize(
         duration: const Duration(milliseconds: 300),
-        child: AnimatedOpacity(
-          opacity: showResetButton ? 1 : 0,
-          duration: const Duration(milliseconds: 200),
-          child: ReboundIconButton(
-            icon: Icons.refresh,
-            content: '重置',
-            onTap: () {
-              setState(() {
-                searchTextController.clear();
-                sort = 'default';
-                version = 9999;
-                modTypeSet.clear();
-              });
-            },
-          ),
+        curve: Curves.ease,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          switchInCurve: Curves.ease,
+          switchOutCurve: Curves.ease,
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(scale: animation, child: child),
+            );
+          },
+          child:
+              showResetButton
+                  ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ReboundIconButton(
+                        icon: Icons.refresh,
+                        content: '重置',
+                        onTap: () {
+                          setState(() {
+                            searchTextController.clear();
+                            sort = 'default';
+                            version = 9999;
+                            modTypeSet.clear();
+                          });
+                        },
+                      ),
+                      SizedBox(width: 8),
+                    ],
+                  )
+                  : null,
         ),
       );
     }
@@ -1152,7 +1181,7 @@ class _ModPageState extends State<_ModPage> {
                   controller: searchTextController,
                 ),
               ),
-              SizedBox(width: 20),
+              SizedBox(width: 16),
               buildResetButton(),
               ReboundIconButton(
                 icon: Icons.search,
@@ -1397,6 +1426,8 @@ class _ModPageState extends State<_ModPage> {
   }
 
   Widget _buildList() {
+    final theme = Theme.of(context);
+
     Widget buildFetchFailed() {
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -1442,6 +1473,16 @@ class _ModPageState extends State<_ModPage> {
                 }
 
                 final length = s.data!.length;
+
+                if (length == 0) {
+                  return Column(
+                    spacing: 8,
+                    children: [
+                      Text('( ´ﾟДﾟ`)', style: theme.textTheme.titleLarge),
+                      Text('没有找到任何模组...'),
+                    ],
+                  );
+                }
 
                 final int perPage = 25;
                 int begin = (index - 1) * perPage;

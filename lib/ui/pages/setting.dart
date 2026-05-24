@@ -6,6 +6,8 @@ import 'package:copperlauncher_main/ui/util/widget/animated_dropdown_menu.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
 import 'package:copperlauncher_main/ui/util/widget/percent_bar.dart';
+import 'package:copperlauncher_main/ui/util/widget/rebound_checkbox.dart';
+import 'package:copperlauncher_main/ui/util/widget/setting_bar/checkbox_setting_bar.dart';
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/input_setting_bar.dart';
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/option_setting_bar.dart';
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/switch_setting_bar.dart';
@@ -31,6 +33,7 @@ class _SettingState extends State<SettingPage> {
 
   final List<Widget> pageList = [
     LaunchSettingPage(),
+    InnerSettingPage(),
     PersonalizationSettingPage(),
     OtherSettingPage(),
   ];
@@ -58,19 +61,29 @@ class _SettingState extends State<SettingPage> {
           ),
           MenuItem(
             selected: index == 1,
-            onTap: () {
-              setState(() {
-                index = 1;
-              });
-            },
-            leading: Icon(Icons.format_paint_outlined),
-            title: Text('个性化'),
+            onTap:
+                () =>
+                setState(() {
+                  index = 1;
+                }),
+            leading: Icon(Icons.gamepad),
+            title: Text('游戏内'),
           ),
           MenuItem(
             selected: index == 2,
             onTap: () {
               setState(() {
                 index = 2;
+              });
+            },
+            leading: Icon(Icons.format_paint_outlined),
+            title: Text('个性化'),
+          ),
+          MenuItem(
+            selected: index == 3,
+            onTap: () {
+              setState(() {
+                index = 3;
               });
             },
             leading: Icon(Icons.menu),
@@ -90,7 +103,7 @@ class LaunchSettingPage extends StatefulWidget {
 }
 
 class _LaunchSettingPageState extends State<LaunchSettingPage> {
-  static VersionIsolation versionIsolation = VersionIsolation.none;
+  static Set<VersionIsolation> versionIsolationSet = {};
   static String javaSelect = 'auto';
   static GameWindowSizeSet gameWindowSizeSet = GameWindowSizeSet.gameDefault;
   static double ram = 0.4;
@@ -144,6 +157,185 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     super.dispose();
   }
 
+  Widget _buildDefaultVersionIsolationSettingBar() {
+    final theme = Theme.of(context);
+    return CheckboxSettingBar(
+      title: '游戏默认隔离设置',
+      options: [
+        ReboundCheckbox(
+          value: versionIsolationSet.isEmpty,
+          label: '无隔离',
+          onChange: (value) {
+            setState(() {
+              if (value) {
+                versionIsolationSet.clear();
+              } else {
+                versionIsolationSet.addAll(VersionIsolation.values);
+              }
+            });
+          },
+        ),
+        SizedBox(
+          width: 1,
+          height: 16,
+          child: ColoredBox(color: theme.colorScheme.secondary),
+        ),
+        ReboundCheckbox(
+          value: versionIsolationSet.contains(VersionIsolation.be),
+          label: '测试版',
+          onChange: (value) {
+            setState(() {
+              if (value) {
+                versionIsolationSet.add(VersionIsolation.be);
+              } else {
+                versionIsolationSet.remove(VersionIsolation.be);
+              }
+            });
+          },
+        ),
+        ReboundCheckbox(
+          value: versionIsolationSet.contains(VersionIsolation.mindustry),
+          label: '正式版',
+          onChange: (value) {
+            setState(() {
+              if (value) {
+                versionIsolationSet.add(VersionIsolation.mindustry);
+              } else {
+                versionIsolationSet.remove(VersionIsolation.mindustry);
+              }
+            });
+          },
+        ),
+        ReboundCheckbox(
+          value: versionIsolationSet.contains(VersionIsolation.copper),
+          label: 'Copper',
+          onChange: (value) {
+            setState(() {
+              if (value) {
+                versionIsolationSet.add(VersionIsolation.copper);
+              } else {
+                versionIsolationSet.remove(VersionIsolation.copper);
+              }
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGameWindowSizeSettingBar() {
+    final customSetting =
+    gameWindowSizeSet != GameWindowSizeSet.custom
+        ? SizedBox()
+        : Column(
+      children: [
+        SizedBox(height: 8),
+        Row(
+          children: [
+            SizedBox(width: 150),
+            Text('自定义窗口大小'),
+            SizedBox(width: 16),
+            Expanded(
+              child: Row(
+                spacing: 4,
+                children: [
+                  Expanded(child: OutlinedTextField()),
+                  Icon(
+                    Icons.close,
+                    color: Theme
+                        .of(context)
+                        .colorScheme
+                        .onSurface,
+                  ),
+                  Expanded(child: OutlinedTextField()),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    return Column(
+      children: [
+        OptionSettingBar<GameWindowSizeSet>(
+          title: '游戏窗口大小',
+          initialValue: gameWindowSizeSet,
+          onSelect: (value) {
+            setState(() {
+              gameWindowSizeSet = value;
+            });
+          },
+          options: [
+            DropdownOption<GameWindowSizeSet>(
+              value: GameWindowSizeSet.gameDefault,
+              label: '游戏默认',
+            ),
+            DropdownOption<GameWindowSizeSet>(
+              value: GameWindowSizeSet.maximize,
+              label: '最大化',
+            ),
+            DropdownOption<GameWindowSizeSet>(
+              value: GameWindowSizeSet.fullScreen,
+              label: '全屏',
+            ),
+            DropdownOption<GameWindowSizeSet>(
+              value: GameWindowSizeSet.custom,
+              label: '自定义',
+            ),
+          ],
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.ease,
+          alignment: Alignment.topCenter,
+          child: customSetting,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildJavaSettingBar() {
+    return Column(
+      spacing: 8,
+      children: [
+        OptionSettingBar<String>(
+          title: '游戏java',
+          initialValue: javaSelect,
+          onSelect: (value) {
+            setState(() {
+              javaSelect = value;
+            });
+          },
+          options: [
+            DropdownOption<String>(value: 'auto', label: '自动选择合适的java'),
+            DropdownOption<String>(value: 'v8', label: 'v8'),
+            DropdownOption<String>(value: 'v9', label: 'v9'),
+            DropdownOption<String>(value: 'v21', label: 'v21'),
+          ],
+        ),
+
+        Row(
+          mainAxisSize: MainAxisSize.max,
+          mainAxisAlignment: MainAxisAlignment.end,
+          spacing: 16,
+          children: [
+            ReboundIconButton(
+              icon: Icons.folder_copy_outlined,
+              content: '手动添加',
+              onTap: () {},
+            ),
+            ReboundIconButton(
+              icon: Icons.search,
+              content: '自动搜索',
+              onTap: () {},
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
@@ -153,122 +345,12 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           child: Column(
             spacing: 8,
             children: [
-              OptionSettingBar<VersionIsolation>(
-                title: '默认版本隔离设置',
-                initialValue: versionIsolation,
-                onSelect: (value) {
-                  setState(() {
-                    versionIsolation = value;
-                  });
-                },
-                options: [
-                  DropdownOption<VersionIsolation>(
-                    value: VersionIsolation.none,
-                    label: '关闭隔离',
-                  ),
-                  DropdownOption<VersionIsolation>(
-                    value: VersionIsolation.onlyBe,
-                    label: '隔离非正式版',
-                  ),
-                  DropdownOption<VersionIsolation>(
-                    value: VersionIsolation.onlyCopper,
-                    label: '隔离CopperMod加载器',
-                  ),
-                  DropdownOption<VersionIsolation>(
-                    value: VersionIsolation.all,
-                    label: '隔离所有版本',
-                  ),
-                ],
-              ),
-              OptionSettingBar<GameWindowSizeSet>(
-                title: '游戏窗口大小',
-                initialValue: gameWindowSizeSet,
-                onSelect: (value) {
-                  setState(() {
-                    gameWindowSizeSet = value;
-                  });
-                },
-                options: [
-                  DropdownOption<GameWindowSizeSet>(
-                    value: GameWindowSizeSet.gameDefault,
-                    label: '游戏默认',
-                  ),
-                  DropdownOption<GameWindowSizeSet>(
-                    value: GameWindowSizeSet.maximize,
-                    label: '最大化',
-                  ),
-                  DropdownOption<GameWindowSizeSet>(
-                    value: GameWindowSizeSet.fullScreen,
-                    label: '全屏',
-                  ),
-                  DropdownOption<GameWindowSizeSet>(
-                    value: GameWindowSizeSet.custom,
-                    label: '自定义',
-                  ),
-                ],
-              ),
+              _buildDefaultVersionIsolationSettingBar(),
+
+              _buildGameWindowSizeSettingBar(),
+
+              _buildJavaSettingBar()
               //if (gameWindowSizeSet == GameWindowSizeSet.custom)
-              AnimatedSize(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.fastOutSlowIn,
-                alignment: Alignment.topCenter,
-                child:
-                    gameWindowSizeSet != GameWindowSizeSet.custom
-                        ? SizedBox()
-                        : Row(
-                          children: [
-                            SizedBox(width: 150),
-                            Text('自定义窗口大小'),
-                            SizedBox(width: 16),
-                            Expanded(
-                              child: Row(
-                                spacing: 4,
-                                children: [
-                                  Expanded(child: OutlinedTextField()),
-                                  Icon(
-                                    Icons.close,
-                                    color:
-                                        Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                  Expanded(child: OutlinedTextField()),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-              ),
-              OptionSettingBar<String>(
-                title: '游戏java',
-                initialValue: javaSelect,
-                onSelect: (value) {
-                  setState(() {
-                    javaSelect = value;
-                  });
-                },
-                options: [
-                  DropdownOption<String>(value: 'auto', label: '自动选择合适的java'),
-                  DropdownOption<String>(value: 'v8', label: 'v8'),
-                  DropdownOption<String>(value: 'v9', label: 'v9'),
-                  DropdownOption<String>(value: 'v21', label: 'v21'),
-                ],
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.max,
-                mainAxisAlignment: MainAxisAlignment.start,
-                spacing: 16,
-                children: [
-                  ReboundIconButton(
-                    icon: Icons.folder_copy_outlined,
-                    content: '手动添加',
-                    onTap: () {},
-                  ),
-                  ReboundIconButton(
-                    icon: Icons.search,
-                    content: '自动搜索',
-                    onTap: () {},
-                  ),
-                ],
-              ),
             ],
           ),
         ),
@@ -370,6 +452,20 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
         SizedBox(height: 8),
       ],
     );
+  }
+}
+
+class InnerSettingPage extends StatefulWidget {
+  const InnerSettingPage({super.key});
+
+  @override
+  State<StatefulWidget> createState() => _InnerSettingPageState();
+}
+
+class _InnerSettingPageState extends State<InnerSettingPage> {
+  @override
+  Widget build(BuildContext context) {
+    return ListContentPanel(items: [Text('todo 游戏内设置')]);
   }
 }
 
@@ -475,9 +571,7 @@ class _OtherSettingPage extends State<OtherSettingPage> {
               ),
               // InputSettingBar(title: '自定义系统代理'),
               InputSettingBar(title: 'github访问Token'),
-              OptionSettingBar(title: '资源获取优先级', options: [
-
-              ]),
+              OptionSettingBar(title: '资源获取优先级', options: []),
             ],
           ),
         ),
@@ -486,7 +580,7 @@ class _OtherSettingPage extends State<OtherSettingPage> {
           child: Column(
             children: [
               Text('todo 存储'),
-              InputSettingBar(title: '默认存储路径'),
+              InputSettingBar(title: '默认存储路径')
             ],
           ),
         ),

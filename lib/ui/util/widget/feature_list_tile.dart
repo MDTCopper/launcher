@@ -1,7 +1,7 @@
 import 'package:copperlauncher_main/ui/util/widget/rebound_container.dart';
 import 'package:flutter/material.dart';
 
-class ReboundListTile extends StatelessWidget {
+class ReboundListTile extends StatefulWidget {
   final bool enable; //todo 暂时搁置：禁用变灰
 
   final Color? backgroundColor;
@@ -63,22 +63,45 @@ class ReboundListTile extends StatelessWidget {
   });
 
   @override
+  State<StatefulWidget> createState() {
+    // TODO: implement createState
+    return _ReboundListTileState();
+  }
+}
+
+class _ReboundListTileState extends State<ReboundListTile> {
+  final trailingKey = GlobalKey();
+
+  Size? trailingSize;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      setState(() {
+        trailingSize = trailingKey.currentContext?.size;
+      });
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final backgroundColor = this.backgroundColor??theme.colorScheme.secondaryContainer;
+    final backgroundColor =
+        widget.backgroundColor ?? theme.colorScheme.secondaryContainer;
 
-    final titleStyle = this.titleStyle ?? theme.textTheme.bodyLarge;
-    final subtitleStyle = this.subtitleStyle ?? theme.textTheme.bodySmall;
+    final titleStyle = widget.titleStyle ?? theme.textTheme.bodyLarge;
+    final subtitleStyle = widget.subtitleStyle ?? theme.textTheme.bodySmall;
     final iconThemeData =
-        this.iconThemeData ??
+        widget.iconThemeData ??
         IconThemeData(color: theme.textTheme.bodySmall?.color, size: 18);
 
-    late Widget? title = this.title;
+    Widget? title = widget.title;
     if (title != null && titleStyle != null) {
       title = DefaultTextStyle(style: titleStyle, child: title);
     }
-    late Widget? subtitle = this.subtitle;
+    Widget? subtitle = widget.subtitle;
     if (subtitle != null && subtitleStyle != null) {
       subtitle = DefaultTextStyle(style: subtitleStyle, child: subtitle);
     }
@@ -88,35 +111,47 @@ class ReboundListTile extends StatelessWidget {
       child: IconTheme(
         data: iconThemeData,
         child: ReboundContainer(
-          pressedScale: pressedScale,
+          pressedScale: widget.pressedScale,
           backgroundColor: backgroundColor,
-          padding: padding,
-          margin: margin,
-          borderRadius: borderRadius,
-          shapeBorder: shapeBorder,
-          elevation: elevation,
-          hoverElevation: hoverElevation,
-          onTap: onTap,
-          onLongTap: onLongTap,
+          padding: widget.padding,
+          margin: widget.margin,
+          borderRadius: widget.borderRadius,
+          shapeBorder: widget.shapeBorder,
+          elevation: widget.elevation,
+          hoverElevation: widget.hoverElevation,
+          onTap: widget.onTap,
+          onLongTap: widget.onLongTap,
           surfaceChild:
-              trailing == null
+              widget.trailing == null
                   ? null
-                  : Align(alignment: Alignment.centerRight, child: trailing!),
+                  : Align(
+                    alignment: Alignment.centerRight,
+                    child: UnconstrainedBox(
+                      key: trailingKey,
+                      child: widget.trailing,
+                    ),
+                  ),
           child: Row(
-            spacing: itemSpacing,
+            spacing: widget.itemSpacing,
             children: [
-              if (leading != null) leading!,
+              if (widget.leading != null) widget.leading!,
               if (title != null || subtitle != null)
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if(title!=null)
-                      title,
-                      if(subtitle!=null)
-                      subtitle,
+                      if (title != null) title,
+                      if (subtitle != null) subtitle,
                     ],
+                  ),
+                ),
+              if (widget.trailing != null)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(
+                    width: trailingSize?.width,
+                    height: trailingSize?.height,
                   ),
                 ),
             ],

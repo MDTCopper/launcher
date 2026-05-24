@@ -92,14 +92,6 @@ class _ReboundCheckboxState extends State<ReboundCheckbox>
             ),
           );
         },
-        // child: Row(
-        //   spacing: 4,
-        //   mainAxisSize: MainAxisSize.min,
-        //   children: [
-        //     if (widget.icon != null) Icon(widget.icon!),
-        //     if (widget.label != null) Text(widget.label!),
-        //   ],
-        // ),
       ),
     );
   }
