@@ -20,12 +20,12 @@ Mindustry _$MindustryFromJson(Map<String, dynamic> json) => Mindustry(
 )..like = json['like'] as bool;
 
 Map<String, dynamic> _$MindustryToJson(Mindustry instance) => <String, dynamic>{
+  'id': instance.id,
   'name': instance.name,
   'releaseNum': instance.releaseNum,
   'path': instance.path,
-  'id': instance.id,
   'jarPath': instance.jarPath,
-  'launcher': _$LauncherTypeEnumMap[instance.launcher],
+  'launcher': _$LauncherTypeEnumMap[instance.launcher]!,
   'isBe': instance.isBe,
   'addTime': instance.addTime.toIso8601String(),
   'tag': instance.tag,

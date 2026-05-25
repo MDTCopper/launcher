@@ -16,6 +16,7 @@ import 'package:copperlauncher_main/util/system_info.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_config.dart';
+import '../../util/format/ram_rank_list.dart';
 import '../util/framework/content_panel.dart';
 import '../util/framework/menu_bar.dart';
 import '../util/widget/setting_bar/segment_setting_bar.dart';
@@ -62,8 +63,7 @@ class _SettingState extends State<SettingPage> {
           MenuItem(
             selected: index == 1,
             onTap:
-                () =>
-                setState(() {
+                () => setState(() {
                   index = 1;
                 }),
             leading: Icon(Icons.gamepad),
@@ -103,34 +103,38 @@ class LaunchSettingPage extends StatefulWidget {
 }
 
 class _LaunchSettingPageState extends State<LaunchSettingPage> {
-  static Set<VersionIsolation> versionIsolationSet = {};
-  static String javaSelect = 'auto';
-  static GameWindowSizeSet gameWindowSizeSet = GameWindowSizeSet.gameDefault;
-  static double ram = 0.4;
+  final launchOptions = config.setting.launchOptions;
+  late final versionIsolationSet = launchOptions.versionIsolationSet;
+  late var javaSelect = launchOptions.javaOptions.selectedJava;
+  late var gameWindowSizeSet = launchOptions.gameWindowSizeSet;
+  late var ram = launchOptions.ram;
+  late var autoRam = launchOptions.autoRam;
 
-  static bool autoRam = false;
-  static bool useGoodGPU = true;
+  late bool useGoodGPU = launchOptions.javaOptions.useBetterGPU;
 
   void _searchJava() {}
 
   void _addJava() {}
 
-  int freeRam = 1;
-  int totalRam = 1;
+  Memory freeRam = Memory(gb: 1024);
+  Memory totalRam = Memory(gb: 1024);
 
   late Timer _getRamTimer;
   void _getRam() async {
-    freeRam = await SysInfo.getFreePhysicalMemory();
-    totalRam = await SysInfo.getTotalPhysicalMemory();
+    final free = await SysInfo.getFreePhysicalMemory();
+    freeRam = Memory(bytes: free);
+    final total = await SysInfo.getTotalPhysicalMemory();
+    totalRam = Memory(bytes: total);
     if (mounted) setState(() {});
     _getRamTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      freeRam = await SysInfo.getFreePhysicalMemory();
+      final free = await SysInfo.getFreePhysicalMemory();
+      freeRam = Memory(bytes: free);
       if (mounted) setState(() {});
     });
   }
 
   String _formatRam(double ram) {
-    return (ram / gb).toStringAsFixed(1);
+    return (ram).toStringAsFixed(1);
   }
 
   void _routeToVersionSetting() {
@@ -225,36 +229,33 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
 
   Widget _buildGameWindowSizeSettingBar() {
     final customSetting =
-    gameWindowSizeSet != GameWindowSizeSet.custom
-        ? SizedBox()
-        : Column(
-      children: [
-        SizedBox(height: 8),
-        Row(
-          children: [
-            SizedBox(width: 150),
-            Text('自定义窗口大小'),
-            SizedBox(width: 16),
-            Expanded(
-              child: Row(
-                spacing: 4,
-                children: [
-                  Expanded(child: OutlinedTextField()),
-                  Icon(
-                    Icons.close,
-                    color: Theme
-                        .of(context)
-                        .colorScheme
-                        .onSurface,
-                  ),
-                  Expanded(child: OutlinedTextField()),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+        gameWindowSizeSet != GameWindowSizeSet.custom
+            ? SizedBox()
+            : Column(
+              children: [
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    SizedBox(width: 150),
+                    Text('自定义窗口大小'),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Row(
+                        spacing: 4,
+                        children: [
+                          Expanded(child: OutlinedTextField()),
+                          Icon(
+                            Icons.close,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                          Expanded(child: OutlinedTextField()),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
 
     return Column(
       children: [
@@ -336,6 +337,37 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     );
   }
 
+  Timer? saveTimer;
+
+  Widget _buildRamSettingBar() {
+    var divisions =
+        ramRankList.indexWhere((element) => element >= totalRam.inGB) - 1;
+
+    if (divisions == -1) divisions = ramRankList.length;
+
+    final ramRank = ramRankList.indexWhere((element) => element >= ram.inGB);
+
+    final ramValue = ramRank / divisions;
+
+    return SliderSettingBar(
+      title: '内存 ${(ram.inGB).toStringAsFixed(1)}GB',
+      label: '${(ram.inGB).toStringAsFixed(1)}GB',
+      divisions: divisions,
+      onChanged: (value) {
+        setState(() {
+          final rank = (value * divisions).toInt();
+          ram = Memory(bytes: (ramRankList[rank] * gb).toInt());
+          saveTimer?.cancel();
+          saveTimer = Timer(const Duration(seconds: 1), () {
+            launchOptions.ram = ram;
+            config.save();
+          });
+        });
+      },
+      value: ramValue,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
@@ -349,7 +381,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
 
               _buildGameWindowSizeSettingBar(),
 
-              _buildJavaSettingBar()
+              _buildJavaSettingBar(),
               //if (gameWindowSizeSet == GameWindowSizeSet.custom)
             ],
           ),
@@ -372,39 +404,28 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.fastOutSlowIn,
                 alignment: Alignment.topCenter,
-                child:
-                    autoRam
-                        ? SizedBox()
-                        : SliderSettingBar(
-                          title:
-                              '内存 ${(freeRam * ram / gb).toStringAsFixed(1)}GB',
-                          label: '${(freeRam * ram / gb).toStringAsFixed(1)}GB',
-                          onChanged: (value) {
-                            setState(() {
-                              ram = value;
-                            });
-                          },
-                          value: ram,
-                        ),
+                child: autoRam ? SizedBox() : _buildRamSettingBar(),
               ),
               PercentBar(
-                total: totalRam.toDouble(),
+                total: totalRam.bytes.toDouble(),
                 dataList: [
-                  PercentBarData(value: (totalRam - freeRam).toDouble()),
-                  PercentBarData(value: freeRam * min(ram, 1.0)),
+                  PercentBarData(value: (totalRam - freeRam).bytes.toDouble()),
+                  PercentBarData(
+                    value: min(ram.bytes.toDouble(), freeRam.bytes.toDouble()),
+                  ),
                 ],
               ),
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '当前占用   ${_formatRam((totalRam - freeRam).toDouble())} / ${_formatRam(totalRam.toDouble())} GB (${((1 - freeRam / totalRam) * 100).toStringAsFixed(1)}%)', //todo内存占比描述和不均匀分配内存滑块
+                  '当前占用   ${_formatRam((totalRam - freeRam).inGB)} '
+                  '/ ${_formatRam(totalRam.inGB)} GB '
+                  '(${((1 - freeRam.bytes / totalRam.bytes) * 100).toStringAsFixed(1)}%)', //todo内存占比描述和不均匀分配内存滑块
                 ),
               ),
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
-                  '将为游戏分配   ${_formatRam(freeRam * min(ram, 1.0))}GB',
-                ),
+                child: Text('将为游戏分配   ${_formatRam(ram.inGB)}GB'),
               ),
             ],
           ),
@@ -578,10 +599,7 @@ class _OtherSettingPage extends State<OtherSettingPage> {
         ContentPanelModule(
           title: '存储',
           child: Column(
-            children: [
-              Text('todo 存储'),
-              InputSettingBar(title: '默认存储路径')
-            ],
+            children: [Text('todo 存储'), InputSettingBar(title: '默认存储路径')],
           ),
         ),
         ContentPanelModule(

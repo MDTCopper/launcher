@@ -4,33 +4,13 @@ import 'dart:io';
 import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:flutter/material.dart' show Icons;
 
+import '../core/app_config.dart';
 import '../ui/util/info/log_list.dart';
 import '../ui/util/info/notification.dart';
 
-class WindowSize {
-  final int width;
-  final int height;
 
-  WindowSize(this.width, this.height);
-}
 
-class Memory {
-  late final int num;
 
-  int get kb => num ~/ 1024;
-
-  int get mb => kb ~/ 1024;
-
-  int get gb => mb ~/ 1024;
-
-  Memory({int? bytes, int? kb, int? mb, int? gb}) {
-    num =
-        (bytes ?? 0) +
-        (kb ?? 0) * 1024 +
-        (mb ?? 0) * 1024 * 1024 +
-        (gb ?? 0) * 1024 * 1024 * 1024;
-  }
-}
 
 class MindustryLauncher {
   Process? _jarProcess; // 存储 Jar 进程

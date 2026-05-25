@@ -3,12 +3,14 @@ import 'dart:io';
 
 import 'package:copperlauncher_main/core/app_constant.dart';
 import 'package:copperlauncher_main/data/local_asset.dart';
+import 'package:copperlauncher_main/util/format/byte_unit.dart';
 import 'package:copperlauncher_main/util/io/run_time_log.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 import '../util/app_paths.dart';
+import '../util/io/token_encryptor.dart';
 
 part 'app_config.g.dart';
 
@@ -46,27 +48,27 @@ Future<void> checkGameVersionExists() async {
 Future<void> createAppConfig() async {
   final config = AppConfig(
     version: appVersion, // 默认版本号
-    setting: Setting(customSetting: {}, githubToken: ''),
-    versionOptions: VersionOptions(
-      selectedVersionId: null,
-      versionFolds: [], // 初始为空列表 todo 后续做一个版本列表检测
-    ),
   );
   await config.save();
   debugPrint('已创建默认配置文件');
 }
 
+/// 应用配置类，存储的对象设置用late final然后在构造函数中进行默认赋值
 @JsonSerializable()
 class AppConfig {
-  String version;
-  Setting setting;
-  VersionOptions versionOptions;
+  String version = appVersion;
+
+  late final Setting setting;
+  late final VersionOptions versionOptions;
 
   AppConfig({
     required this.version,
-    required this.setting,
-    required this.versionOptions,
-  });
+    Setting? setting,
+    VersionOptions? versionOptions,
+  }) {
+    this.setting = setting ?? Setting.fromJson({});
+    this.versionOptions = versionOptions ?? VersionOptions.fromJson({});
+  }
 
   factory AppConfig.fromJson(Map<String, dynamic> json) =>
       _$AppConfigFromJson(json);
@@ -117,40 +119,164 @@ class AppConfig {
 
 @JsonSerializable()
 class Setting {
-  Setting({required this.githubToken, required this.customSetting});
+  late final LaunchOptions launchOptions;
 
-  final Map<String, dynamic> customSetting; //这个用来存储一些不太用得着的设置变量，比如某些提示的开关记忆
-  final String githubToken;
+  ///加密存储
+  @JsonKey(defaultValue: '')
+  late String githubToken;
+
+  @JsonKey(defaultValue: {})
+  final Map<String, dynamic> customSetting; //这个用来存储一些不太用得着置变量，比如某些提示的开关记忆
+
+  Setting({
+    required this.githubToken,
+    required this.customSetting,
+    LaunchOptions? launchOptions,
+  }) {
+    this.launchOptions = launchOptions ?? LaunchOptions.fromJson({});
+  }
 
   dynamic getCustomSetting(String key, dynamic defaultSetting) {
     final setting = customSetting[key] ??= defaultSetting;
     return setting;
   }
 
-  factory Setting.fromJson(Map<String, dynamic> json) =>
-      _$SettingFromJson(json);
-  Map<String, dynamic> toJson() => _$SettingToJson(this);
+  factory Setting.fromJson(Map<String, dynamic> json) {
+    final token = TokenEncryptor.decryptIfNeeded(json['githubToken']);
+    json['githubToken'] = token;
+    return _$SettingFromJson(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    final json = _$SettingToJson(this);
+    json['githubToken'] = TokenEncryptor.encryptIfNeeded(json['githubToken']);
+    return json;
+  }
 }
 
 enum VersionIsolation { be, copper, mindustry }
 
 enum GameWindowSizeSet { gameDefault, maximize, custom, fullScreen }
 
-class LaunchOptions {
-  Set<VersionIsolation>? versionIsolationSet;
-  GameWindowSizeSet? gameWindowSizeSet;
-  Size? customWindowSize;
-  JavaOptions? javaOptions;
-  int? ramSize;
-  bool? autoRam;
+@JsonSerializable()
+class WindowSize {
+  @JsonKey(defaultValue: 1920)
+  final int width;
+  @JsonKey(defaultValue: 1080)
+  final int height;
+
+  WindowSize(this.width, this.height);
+
+  factory WindowSize.fromJson(Map<String, dynamic> json) =>
+      _$WindowSizeFromJson(json);
+
+  Map<String, dynamic> toJson() => _$WindowSizeToJson(this);
 }
 
+class Memory {
+  final int n;
+
+  int get bytes => n;
+
+  int get kb => n ~/ 1024;
+
+  double get inKB => n / 1024;
+
+  int get mb => n ~/ 1024 ~/ 1024;
+
+  double get inMB => inKB / 1024;
+
+  int get gb => n ~/ 1024 ~/ 1024 ~/ 1024;
+
+  double get inGB => inMB / 1024;
+
+  Memory operator +(Memory other) => Memory(bytes: other.n + n);
+
+  Memory operator -(Memory other) => Memory(bytes: n - other.n);
+
+  Memory operator *(num other) => Memory(bytes: (n * other).toInt());
+
+  Memory operator /(num other) => Memory(bytes: (n / other).toInt());
+
+  Memory operator ~/(num other) => Memory(bytes: n ~/ other);
+
+  const Memory({int? bytes, int? kb, int? mb, int? gb})
+    : n =
+          (bytes ?? 0) +
+          (kb ?? 0) * 1024 +
+          (mb ?? 0) * 1024 * 1024 +
+          (gb ?? 0) * 1024 * 1024 * 1024;
+}
+
+@JsonSerializable()
+class LaunchOptions {
+  late WindowSize customWindowSize;
+
+  late final JavaOptions javaOptions;
+
+  @JsonKey(defaultValue: {})
+  final Set<VersionIsolation> versionIsolationSet;
+
+  @JsonKey(defaultValue: GameWindowSizeSet.gameDefault)
+  GameWindowSizeSet gameWindowSizeSet;
+
+  @JsonKey(includeToJson: false, includeFromJson: false)
+  Memory get ram => Memory(bytes: ramSize);
+
+  set ram(Memory value) => ramSize = value.bytes;
+
+  @JsonKey(defaultValue: gb)
+  int ramSize;
+
+  @JsonKey(defaultValue: true)
+  bool autoRam;
+
+  LaunchOptions({
+    required this.versionIsolationSet,
+    required this.gameWindowSizeSet,
+    WindowSize? customWindowSize,
+    JavaOptions? javaOptions,
+    required this.ramSize,
+    required this.autoRam,
+  }) {
+    this.customWindowSize = customWindowSize ?? WindowSize.fromJson({});
+    this.javaOptions = javaOptions ?? JavaOptions.fromJson({});
+  }
+
+  factory LaunchOptions.fromJson(Map<String, dynamic> json) {
+    final instance = _$LaunchOptionsFromJson(json);
+    return instance;
+  }
+
+  Map<String, dynamic> toJson() => _$LaunchOptionsToJson(this);
+}
+
+@JsonSerializable()
 class JavaOptions {
-  Map<String, String>? javas; // {版本:java路径}
-  String? selectedJava; //选中的java版本
-  String? jvmParameter; //jvm参数
-  bool? useBetterGPU;
-  JavaOptions({this.javas});
+  ///{ 版本 : java路径 }
+  @JsonKey(defaultValue: {})
+  Map<String, String>? javas;
+
+  @JsonKey(defaultValue: '')
+  String selectedJava;
+
+  @JsonKey(defaultValue: '')
+  String jvmParameter;
+
+  @JsonKey(defaultValue: true)
+  bool useBetterGPU;
+
+  JavaOptions({
+    required this.javas,
+    required this.selectedJava,
+    required this.jvmParameter,
+    required this.useBetterGPU,
+  });
+
+  factory JavaOptions.fromJson(Map<String, dynamic> json) =>
+      _$JavaOptionsFromJson(json);
+
+  Map<String, dynamic> toJson() => _$JavaOptionsToJson(this);
 }
 
 class PersonalizationOptions {
@@ -163,7 +289,26 @@ class DownloadOptions {}
 @JsonSerializable()
 class VersionOptions {
   String? selectedVersionId;
-  final List<VersionFold> versionFolds;
+
+  late final List<VersionFold> versionFolds;
+
+  @JsonKey(includeFromJson: false)
+  Mindustry? _selectedVersion; //选中版本,直接引用
+
+  VersionOptions({
+    required this.selectedVersionId,
+    required List<VersionFold>? versionFolds,
+  }) {
+    this.versionFolds =
+        versionFolds ??
+        [VersionFold(tag: '默认文件夹', path: AppPaths.versions, versions: [])];
+  }
+
+  set selectedVersion(Mindustry? mindustry) {
+    if (mindustry == null) _selectedVersion == null;
+    _selectedVersion = findVersion(mindustry!);
+    selectedVersionId = _selectedVersion?.id;
+  }
 
   Mindustry? findVersion(Mindustry mindustry) {
     for (final versionFold in versionFolds) {
@@ -176,18 +321,7 @@ class VersionOptions {
   }
 
   @JsonKey(includeFromJson: false)
-  Mindustry? _selectedVersion; //选中版本,直接引用
-
-  set selectedVersion(Mindustry? mindustry) {
-    if (mindustry == null) _selectedVersion == null;
-    _selectedVersion = findVersion(mindustry!);
-    selectedVersionId = _selectedVersion?.id;
-  }
-
-  @JsonKey(includeFromJson: false)
   Mindustry? get selectedVersion => _selectedVersion;
-
-  VersionOptions({required this.selectedVersionId, required this.versionFolds});
 
   factory VersionOptions.fromJson(Map<String, dynamic> json) {
     final instance = _$VersionOptionsFromJson(json);
@@ -210,8 +344,8 @@ class VersionOptions {
 
 @JsonSerializable()
 class VersionFold {
-  String tag;
-  final String path;
+  late String tag;
+  late final String path;
   final List<Mindustry> versions;
 
   VersionFold({required this.tag, required this.path, required this.versions});

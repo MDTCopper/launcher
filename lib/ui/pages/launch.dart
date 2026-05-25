@@ -1,12 +1,10 @@
 import 'dart:math';
 
-import 'package:copperlauncher_main/core/app_constant.dart';
 import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:copperlauncher_main/domain/mindustry_launcher.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
-import 'package:copperlauncher_main/util/io/downloader.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_config.dart';
@@ -191,18 +189,7 @@ class _LaunchPageState extends State<LaunchPage> {
 
   //todo标记
   void _test() async {
-    //todo 获取各个版本的最小模组版本
-    final response = await dio.get(
-        '$githubRAW/Anuken/Mindustry/v152/core/src/mindustry/Vars.java');
-    final responseText = response.data as String;
-    var index = responseText.indexOf('minModGameVersion =');
-
-    print(responseText.substring(index + 20, index + 23));
-
-    index = responseText.indexOf('minJavaModGameVersion =');
-    print(responseText.substring(index + 24, index + 27));
-
-    // final minModGameVersion = double.parse(responseText.substring(index + 43, index + 46));
+    print(config.setting.githubToken);
   }
 
   @override

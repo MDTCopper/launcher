@@ -44,7 +44,7 @@ abstract class AppPaths {
   /// [*\copperlauncher_main]
   static String get copperLauncher => p.current;
 
-  /// [*\copperlauncher_main\versions\]
+  /// 默认版本文件夹路径 [*\copperlauncher_main\versions\]
   static String get versions => p.join(copperLauncher, 'versions');
 
   /// [*\copperlauncher_main\logs\]
