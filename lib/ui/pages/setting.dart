@@ -14,6 +14,7 @@ import 'package:copperlauncher_main/ui/util/widget/setting_bar/switch_setting_ba
 import 'package:copperlauncher_main/util/format/byte_unit.dart';
 import 'package:copperlauncher_main/util/system_info.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/app_config.dart';
 import '../../util/format/ram_rank_list.dart';
@@ -103,32 +104,38 @@ class LaunchSettingPage extends StatefulWidget {
 }
 
 class _LaunchSettingPageState extends State<LaunchSettingPage> {
-  final launchOptions = config.setting.launchOptions;
-  late final versionIsolationSet = launchOptions.versionIsolationSet;
-  late var javaSelect = launchOptions.javaOptions.selectedJava;
-  late var gameWindowSizeSet = launchOptions.gameWindowSizeSet;
-  late var ram = launchOptions.ram;
-  late var autoRam = launchOptions.autoRam;
+  LaunchOptions get launchOptions => config.setting.launchOptions;
 
-  late bool useGoodGPU = launchOptions.javaOptions.useBetterGPU;
+  Set<VersionIsolation> get versionIsolationSet =>
+      launchOptions.versionIsolationSet;
 
-  void _searchJava() {}
+  GameWindowSizeSet get gameWindowSizeSet => launchOptions.gameWindowSizeSet;
 
-  void _addJava() {}
+  WindowSize get customWindowSize => launchOptions.customWindowSize;
 
-  Memory freeRam = Memory(gb: 1024);
-  Memory totalRam = Memory(gb: 1024);
+  String get javaSelect => launchOptions.javaOptions.selectedJava;
 
-  late Timer _getRamTimer;
+  Memory get memory => launchOptions.memory;
+
+  bool get autoMemory => launchOptions.autoMemory;
+
+  bool get useGoodGPU => launchOptions.javaOptions.useBetterGPU;
+
+  late final TextEditingController widthController;
+  late final TextEditingController heightController;
+  Memory freeMemory = Memory(gb: 128);
+  Memory totalMemory = Memory(gb: 128);
+
+  late Timer _getMemoryTimer;
   void _getRam() async {
     final free = await SysInfo.getFreePhysicalMemory();
-    freeRam = Memory(bytes: free);
+    freeMemory = Memory(bytes: free);
     final total = await SysInfo.getTotalPhysicalMemory();
-    totalRam = Memory(bytes: total);
+    totalMemory = Memory(bytes: total);
     if (mounted) setState(() {});
-    _getRamTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+    _getMemoryTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       final free = await SysInfo.getFreePhysicalMemory();
-      freeRam = Memory(bytes: free);
+      freeMemory = Memory(bytes: free);
       if (mounted) setState(() {});
     });
   }
@@ -149,15 +156,26 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     );
   }
 
+  void _searchJava() {}
+
+  void _addJava() {}
+
   @override
   void initState() {
     super.initState();
     _getRam();
+    final size = launchOptions.customWindowSize;
+    widthController = TextEditingController(text: '${size.width}')
+      ..addListener(() => setState(() {}));
+    heightController = TextEditingController(text: '${size.height}')
+      ..addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
-    _getRamTimer.cancel();
+    _getMemoryTimer.cancel();
+    widthController.dispose();
+    heightController.dispose();
     super.dispose();
   }
 
@@ -172,10 +190,13 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           onChange: (value) {
             setState(() {
               if (value) {
-                versionIsolationSet.clear();
+                launchOptions.versionIsolationSet.clear();
               } else {
-                versionIsolationSet.addAll(VersionIsolation.values);
+                launchOptions.versionIsolationSet.addAll(
+                  VersionIsolation.values,
+                );
               }
+              config.save();
             });
           },
         ),
@@ -190,36 +211,49 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           onChange: (value) {
             setState(() {
               if (value) {
-                versionIsolationSet.add(VersionIsolation.be);
+                launchOptions.versionIsolationSet.add(VersionIsolation.be);
               } else {
-                versionIsolationSet.remove(VersionIsolation.be);
+                launchOptions.versionIsolationSet.remove(VersionIsolation.be);
               }
+              config.save();
             });
           },
         ),
         ReboundCheckbox(
-          value: versionIsolationSet.contains(VersionIsolation.mindustry),
+          value: launchOptions.versionIsolationSet.contains(
+            VersionIsolation.mindustry,
+          ),
           label: '正式版',
           onChange: (value) {
             setState(() {
               if (value) {
-                versionIsolationSet.add(VersionIsolation.mindustry);
+                launchOptions.versionIsolationSet.add(
+                  VersionIsolation.mindustry,
+                );
               } else {
-                versionIsolationSet.remove(VersionIsolation.mindustry);
+                launchOptions.versionIsolationSet.remove(
+                  VersionIsolation.mindustry,
+                );
               }
+              config.save();
             });
           },
         ),
         ReboundCheckbox(
-          value: versionIsolationSet.contains(VersionIsolation.copper),
+          value: launchOptions.versionIsolationSet.contains(
+            VersionIsolation.copper,
+          ),
           label: 'Copper',
           onChange: (value) {
             setState(() {
               if (value) {
-                versionIsolationSet.add(VersionIsolation.copper);
+                launchOptions.versionIsolationSet.add(VersionIsolation.copper);
               } else {
-                versionIsolationSet.remove(VersionIsolation.copper);
+                launchOptions.versionIsolationSet.remove(
+                  VersionIsolation.copper,
+                );
               }
+              config.save();
             });
           },
         ),
@@ -228,34 +262,95 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
   }
 
   Widget _buildGameWindowSizeSettingBar() {
-    final customSetting =
-        gameWindowSizeSet != GameWindowSizeSet.custom
-            ? SizedBox()
-            : Column(
-              children: [
-                SizedBox(height: 8),
-                Row(
+    Widget buildCustomWinSizeSetting() {
+      if (gameWindowSizeSet != GameWindowSizeSet.custom) {
+        return SizedBox();
+      }
+      final width = int.tryParse(widthController.text) ?? 0;
+      final height = int.tryParse(heightController.text) ?? 0;
+      final showB =
+          width != customWindowSize.width || height != customWindowSize.height;
+      Widget buildButton() {
+        if (!showB) return SizedBox();
+        return Row(
+          spacing: 8,
+          children: [
+            SizedBox(width: 8),
+            ReboundIconButton(
+              icon: Icons.check,
+              margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              content: '保存',
+              onTap: () {
+                setState(() {
+                  if (width <= 320 || height <= 160) {
+                    return; //todo 窗口过小警告
+                  }
+                  final winSize = WindowSize(width, height);
+                  launchOptions.customWindowSize = winSize;
+                  config.save();
+                });
+              },
+            ),
+            ReboundIconButton(
+              icon: Icons.close,
+              margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              content: '取消',
+              onTap: () {
+                setState(() {
+                  widthController.text = customWindowSize.width.toString();
+                  heightController.text = customWindowSize.height.toString();
+                });
+              },
+            ),
+          ],
+        );
+      }
+
+      return Column(
+        children: [
+          SizedBox(height: 8),
+          Row(
+            children: [
+              SizedBox(width: 150, child: Text('自定义窗口大小')),
+              Expanded(
+                child: Row(
+                  spacing: 4,
                   children: [
-                    SizedBox(width: 150),
-                    Text('自定义窗口大小'),
-                    SizedBox(width: 16),
                     Expanded(
-                      child: Row(
-                        spacing: 4,
-                        children: [
-                          Expanded(child: OutlinedTextField()),
-                          Icon(
-                            Icons.close,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                          Expanded(child: OutlinedTextField()),
+                      child: OutlinedTextField(
+                        controller: widthController,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(5),
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.close,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    Expanded(
+                      child: OutlinedTextField(
+                        controller: heightController,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(5),
+                          FilteringTextInputFormatter.digitsOnly,
                         ],
                       ),
                     ),
                   ],
                 ),
-              ],
-            );
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.ease,
+                child: buildButton(),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
 
     return Column(
       children: [
@@ -264,7 +359,8 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           initialValue: gameWindowSizeSet,
           onSelect: (value) {
             setState(() {
-              gameWindowSizeSet = value;
+              launchOptions.gameWindowSizeSet = value;
+              config.save();
             });
           },
           options: [
@@ -290,7 +386,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           duration: const Duration(milliseconds: 200),
           curve: Curves.ease,
           alignment: Alignment.topCenter,
-          child: customSetting,
+          child: buildCustomWinSizeSetting(),
         ),
       ],
     );
@@ -305,7 +401,8 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           initialValue: javaSelect,
           onSelect: (value) {
             setState(() {
-              javaSelect = value;
+              launchOptions.javaOptions.selectedJava = value;
+              config.save();
             });
           },
           options: [
@@ -337,34 +434,89 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     );
   }
 
+  Widget _buildAutoMemorySettingBar() {
+    return SwitchSettingBar(
+      title: '内存自动分配',
+      value: autoMemory,
+      onChanged: (value) {
+        setState(() {
+          launchOptions.autoMemory = value;
+          config.save();
+        });
+      },
+    );
+  }
+
   Timer? saveTimer;
 
-  Widget _buildRamSettingBar() {
+  Widget _buildMemorySettingBar() {
     var divisions =
-        ramRankList.indexWhere((element) => element >= totalRam.inGB) - 1;
+        memoryRankList.indexWhere((element) => element >= totalMemory.inGB) - 1;
 
-    if (divisions == -1) divisions = ramRankList.length;
+    if (divisions < 0) divisions = memoryRankList.length;
 
-    final ramRank = ramRankList.indexWhere((element) => element >= ram.inGB);
+    final memoryRank = memoryRankList.indexWhere(
+      (element) => element >= memory.inGB,
+    );
 
-    final ramValue = ramRank / divisions;
+    final memoryValue = memoryRank / divisions;
 
     return SliderSettingBar(
-      title: '内存 ${(ram.inGB).toStringAsFixed(1)}GB',
-      label: '${(ram.inGB).toStringAsFixed(1)}GB',
+      title: '内存 ${(memory.inGB).toStringAsFixed(1)}GB',
+      label: '${(memory.inGB).toStringAsFixed(1)}GB',
       divisions: divisions,
       onChanged: (value) {
         setState(() {
           final rank = (value * divisions).toInt();
-          ram = Memory(bytes: (ramRankList[rank] * gb).toInt());
+          launchOptions.memory = Memory(
+            bytes: (memoryRankList[rank] * gb).toInt(),
+          );
           saveTimer?.cancel();
           saveTimer = Timer(const Duration(seconds: 1), () {
-            launchOptions.ram = ram;
             config.save();
           });
         });
       },
-      value: ramValue,
+      value: memoryValue,
+    );
+  }
+
+  Widget _buildMemoryInfo() {
+    final free = _formatRam(freeMemory.inGB);
+    final total = _formatRam(totalMemory.inGB);
+    final used = _formatRam((totalMemory - freeMemory).inGB);
+    final allocation = _formatRam(memory.inGB);
+    final occupy = ((1 - freeMemory.bytes / totalMemory.bytes) * 100)
+        .toStringAsFixed(1);
+
+    return Column(
+      spacing: 8,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PercentBar(
+          total: totalMemory.bytes.toDouble(),
+          dataList: [
+            PercentBarData(value: (totalMemory - freeMemory).bytes.toDouble()),
+            PercentBarData(
+              value: min(memory.bytes.toDouble(), freeMemory.bytes.toDouble()),
+            ),
+          ],
+        ),
+
+        Row(
+          children: [
+            Text('当前占用  $used / $total GB ($occupy%)'),
+            Expanded(child: SizedBox()),
+            AnimatedOpacity(
+              opacity: memory > freeMemory ? 1 : 0,
+              curve: Curves.ease,
+              duration: const Duration(milliseconds: 200),
+              child: Text('( 当前可用内存仅 $free GB )'),
+            ),
+          ],
+        ),
+        Text('将为游戏分配   $allocation GB '),
+      ],
     );
   }
 
@@ -391,42 +543,14 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           child: Column(
             spacing: 8,
             children: [
-              SwitchSettingBar(
-                title: '内存自动分配',
-                value: autoRam,
-                onChanged: (value) {
-                  setState(() {
-                    autoRam = value;
-                  });
-                },
-              ),
+              _buildAutoMemorySettingBar(),
               AnimatedSize(
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.fastOutSlowIn,
                 alignment: Alignment.topCenter,
-                child: autoRam ? SizedBox() : _buildRamSettingBar(),
+                child: autoMemory ? SizedBox() : _buildMemorySettingBar(),
               ),
-              PercentBar(
-                total: totalRam.bytes.toDouble(),
-                dataList: [
-                  PercentBarData(value: (totalRam - freeRam).bytes.toDouble()),
-                  PercentBarData(
-                    value: min(ram.bytes.toDouble(), freeRam.bytes.toDouble()),
-                  ),
-                ],
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '当前占用   ${_formatRam((totalRam - freeRam).inGB)} '
-                  '/ ${_formatRam(totalRam.inGB)} GB '
-                  '(${((1 - freeRam.bytes / totalRam.bytes) * 100).toStringAsFixed(1)}%)', //todo内存占比描述和不均匀分配内存滑块
-                ),
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text('将为游戏分配   ${_formatRam(ram.inGB)}GB'),
-              ),
+              _buildMemoryInfo(),
             ],
           ),
         ),
@@ -440,7 +564,8 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
                 value: useGoodGPU,
                 onChanged: (value) {
                   setState(() {
-                    useGoodGPU = value;
+                    launchOptions.javaOptions.useBetterGPU = value;
+                    config.save();
                   });
                 },
               ),
@@ -449,27 +574,28 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           ),
         ),
         SizedBox(height: 8),
-        ReboundButton(
-          margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          borderRadius: BorderRadius.circular(16),
-          pressedScale: 0.9,
-          elevation: 2,
-          hoverElevation: 4,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 8,
-            children: [
-              Icon(Icons.swap_vert, size: 48),
-              Text(
-                '转到单独版本设置',
-                style: Theme.of(context).textTheme.displayMedium,
-              ),
-            ],
+        if (config.versionOptions.selectedVersion != null)
+          ReboundButton(
+            margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            borderRadius: BorderRadius.circular(16),
+            pressedScale: 0.9,
+            elevation: 2,
+            hoverElevation: 4,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 8,
+              children: [
+                Icon(Icons.swap_vert, size: 48),
+                Text(
+                  '转到单独版本设置',
+                  style: Theme.of(context).textTheme.displayMedium,
+                ),
+              ],
+            ),
+            onTap: () {
+              _routeToVersionSetting();
+            },
           ),
-          onTap: () {
-            _routeToVersionSetting();
-          },
-        ),
         SizedBox(height: 8),
       ],
     );

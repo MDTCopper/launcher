@@ -76,8 +76,8 @@ LaunchOptions _$LaunchOptionsFromJson(Map<String, dynamic> json) =>
               : JavaOptions.fromJson(
                 json['javaOptions'] as Map<String, dynamic>,
               ),
-      ramSize: (json['ramSize'] as num?)?.toInt() ?? 1073741824,
-      autoRam: json['autoRam'] as bool? ?? true,
+      memorySize: (json['memorySize'] as num?)?.toInt() ?? 1073741824,
+      autoMemory: json['autoMemory'] as bool? ?? true,
     );
 
 Map<String, dynamic> _$LaunchOptionsToJson(
@@ -90,8 +90,8 @@ Map<String, dynamic> _$LaunchOptionsToJson(
           .map((e) => _$VersionIsolationEnumMap[e]!)
           .toList(),
   'gameWindowSizeSet': _$GameWindowSizeSetEnumMap[instance.gameWindowSizeSet]!,
-  'ramSize': instance.ramSize,
-  'autoRam': instance.autoRam,
+  'memorySize': instance.memorySize,
+  'autoMemory': instance.autoMemory,
 };
 
 const _$VersionIsolationEnumMap = {

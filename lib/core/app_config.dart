@@ -206,6 +206,14 @@ class Memory {
           (kb ?? 0) * 1024 +
           (mb ?? 0) * 1024 * 1024 +
           (gb ?? 0) * 1024 * 1024 * 1024;
+
+  bool operator >(Memory o) => n > o.n;
+
+  bool operator >=(Memory o) => n >= o.n;
+
+  bool operator <(Memory o) => n < o.n;
+
+  bool operator <=(Memory o) => n <= o.n;
 }
 
 @JsonSerializable()
@@ -221,23 +229,23 @@ class LaunchOptions {
   GameWindowSizeSet gameWindowSizeSet;
 
   @JsonKey(includeToJson: false, includeFromJson: false)
-  Memory get ram => Memory(bytes: ramSize);
+  Memory get memory => Memory(bytes: memorySize);
 
-  set ram(Memory value) => ramSize = value.bytes;
+  set memory(Memory value) => memorySize = value.bytes;
 
-  @JsonKey(defaultValue: gb)
-  int ramSize;
+  @JsonKey(defaultValue: 1 * gb)
+  int memorySize;
 
   @JsonKey(defaultValue: true)
-  bool autoRam;
+  bool autoMemory;
 
   LaunchOptions({
     required this.versionIsolationSet,
     required this.gameWindowSizeSet,
     WindowSize? customWindowSize,
     JavaOptions? javaOptions,
-    required this.ramSize,
-    required this.autoRam,
+    required this.memorySize,
+    required this.autoMemory,
   }) {
     this.customWindowSize = customWindowSize ?? WindowSize.fromJson({});
     this.javaOptions = javaOptions ?? JavaOptions.fromJson({});

@@ -1,5 +1,4 @@
 import 'package:copperlauncher_main/ui/util/widget/rebound_container.dart';
-
 import 'package:flutter/material.dart';
 
 class ReboundButton extends ReboundContainer {
@@ -30,16 +29,18 @@ class ReboundIconButton extends StatelessWidget {
     required this.icon,
     required this.content,
     required this.onTap,
+    this.margin = const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
   });
 
   final IconData icon;
   final String content;
   final VoidCallback onTap;
+  final EdgeInsetsGeometry? margin;
 
   @override
   Widget build(BuildContext context) {
     return ReboundButton(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: margin,
       onTap: onTap,
       child: Row(
         spacing: 4,
@@ -50,8 +51,6 @@ class ReboundIconButton extends StatelessWidget {
     );
   }
 }
-
-
 
 class SegmentedReboundButton<T> extends StatefulWidget {
   const SegmentedReboundButton({
@@ -88,7 +87,6 @@ class _SegmentedReboundButtonState<T> extends State<SegmentedReboundButton<T>> {
 
   @override
   Widget build(BuildContext context) {
-
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(4),

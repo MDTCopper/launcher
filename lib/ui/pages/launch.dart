@@ -189,6 +189,8 @@ class _LaunchPageState extends State<LaunchPage> {
 
   //todo标记
   void _test() async {
+    config.setting.githubToken = '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';
+    config.save();
     print(config.setting.githubToken);
   }
 

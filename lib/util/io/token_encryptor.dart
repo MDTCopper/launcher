@@ -31,38 +31,38 @@ class TokenEncryptor {
     machineInfo.add(SysInfo.operatingSystemName);
     machineInfo.add(SysInfo.operatingSystemVersion);
 
-    if (Platform.isWindows) {
-      try {
-        final result = Process.runSync('wmic', ['csproduct', 'get', 'UUID']);
-        final output = result.stdout.toString().trim();
-        final lines = output.split('\n');
-        if (lines.length > 1) {
-          machineInfo.add(lines[1].trim());
-        }
-      } catch (_) {}
-    } else if (Platform.isLinux) {
-      try {
-        final machineIdFile = File('/etc/machine-id');
-        if (machineIdFile.existsSync()) {
-          machineInfo.add(machineIdFile.readAsStringSync().trim());
-        }
-      } catch (_) {}
-    } else if (Platform.isMacOS) {
-      try {
-        final result = Process.runSync('ioreg', [
-          '-rd1',
-          '-c',
-          'IOPlatformExpertDevice',
-        ]);
-        final output = result.stdout.toString();
-        final uuidMatch = RegExp(
-          r'"IOPlatformUUID" = "([^"]+)"',
-        ).firstMatch(output);
-        if (uuidMatch != null) {
-          machineInfo.add(uuidMatch.group(1)!);
-        }
-      } catch (_) {}
-    }
+    // if (Platform.isWindows) {
+    //   try {
+    //     final result = Process.runSync('wmic', ['csproduct', 'get', 'UUID']);
+    //     final output = result.stdout.toString().trim();
+    //     final lines = output.split('\n');
+    //     if (lines.length > 1) {
+    //       machineInfo.add(lines[1].trim());
+    //     }
+    //   } catch (_) {}
+    // } else if (Platform.isLinux) {
+    //   try {
+    //     final machineIdFile = File('/etc/machine-id');
+    //     if (machineIdFile.existsSync()) {
+    //       machineInfo.add(machineIdFile.readAsStringSync().trim());
+    //     }
+    //   } catch (_) {}
+    // } else if (Platform.isMacOS) {
+    //   try {
+    //     final result = Process.runSync('ioreg', [
+    //       '-rd1',
+    //       '-c',
+    //       'IOPlatformExpertDevice',
+    //     ]);
+    //     final output = result.stdout.toString();
+    //     final uuidMatch = RegExp(
+    //       r'"IOPlatformUUID" = "([^"]+)"',
+    //     ).firstMatch(output);
+    //     if (uuidMatch != null) {
+    //       machineInfo.add(uuidMatch.group(1)!);
+    //     }
+    //   } catch (_) {}
+    // }
 
     final combined = machineInfo.join('|');
     final hash = sha256.convert(utf8.encode(combined));
