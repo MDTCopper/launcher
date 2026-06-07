@@ -1,95 +1,73 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart';
-import 'package:system_info2/system_info2.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class TokenEncryptor {
   static late final Encrypter _encrypter;
   static late final IV _iv;
-  static late final String _machineId;
 
-  static void init() {
-    _machineId = _generateMachineId();
+  static const _storage = FlutterSecureStorage();
+  static const _keyStorageKey = 'copper_aes_key';
+  static const _ivStorageKey = 'copper_aes_iv';
 
-    final keyBytes = utf8.encode('copperlauncher_$_machineId');
-    final keyDigest = sha256.convert(keyBytes);
-    final key = Key(Uint8List.fromList(keyDigest.bytes));
+  /// 初始化加密器。从 OS 安全存储加载 AES key，首次运行时自动生成。
+  /// 必须在应用启动时调用，且需 await 完成后再使用其他方法。
+  static Future<void> init() async {
+    String? keyBase64 = await _storage.read(key: _keyStorageKey);
+    String? ivBase64 = await _storage.read(key: _ivStorageKey);
 
-    final ivBytes = utf8.encode('iv_$_machineId');
-    _iv = IV(Uint8List.fromList(ivBytes).sublist(0, 16));
+    if (keyBase64 == null || ivBase64 == null) {
+      // 首次运行：生成随机 key + IV 并持久化到安全存储
+      final key = _generateRandomKey();
+      final iv = _generateRandomIV();
 
-    _encrypter = Encrypter(AES(key, mode: AESMode.cbc));
+      keyBase64 = base64.encode(key.bytes);
+      ivBase64 = base64.encode(iv.bytes);
+
+      await _storage.write(key: _keyStorageKey, value: keyBase64);
+      await _storage.write(key: _ivStorageKey, value: ivBase64);
+    }
+
+    final keyBytes = base64.decode(keyBase64);
+    final ivBytes = base64.decode(ivBase64);
+
+    _encrypter =
+        Encrypter(AES(Key(Uint8List.fromList(keyBytes)), mode: AESMode.cbc));
+    _iv = IV(Uint8List.fromList(ivBytes));
   }
 
-  static String _generateMachineId() {
-    final machineInfo = <String>[];
-
-    machineInfo.add(Platform.localHostname);
-    machineInfo.add(SysInfo.operatingSystemName);
-    machineInfo.add(SysInfo.operatingSystemVersion);
-
-    // if (Platform.isWindows) {
-    //   try {
-    //     final result = Process.runSync('wmic', ['csproduct', 'get', 'UUID']);
-    //     final output = result.stdout.toString().trim();
-    //     final lines = output.split('\n');
-    //     if (lines.length > 1) {
-    //       machineInfo.add(lines[1].trim());
-    //     }
-    //   } catch (_) {}
-    // } else if (Platform.isLinux) {
-    //   try {
-    //     final machineIdFile = File('/etc/machine-id');
-    //     if (machineIdFile.existsSync()) {
-    //       machineInfo.add(machineIdFile.readAsStringSync().trim());
-    //     }
-    //   } catch (_) {}
-    // } else if (Platform.isMacOS) {
-    //   try {
-    //     final result = Process.runSync('ioreg', [
-    //       '-rd1',
-    //       '-c',
-    //       'IOPlatformExpertDevice',
-    //     ]);
-    //     final output = result.stdout.toString();
-    //     final uuidMatch = RegExp(
-    //       r'"IOPlatformUUID" = "([^"]+)"',
-    //     ).firstMatch(output);
-    //     if (uuidMatch != null) {
-    //       machineInfo.add(uuidMatch.group(1)!);
-    //     }
-    //   } catch (_) {}
-    // }
-
-    final combined = machineInfo.join('|');
-    final hash = sha256.convert(utf8.encode(combined));
-    return hash.toString().substring(0, 16);
+  /// 生成随机 AES-256 key（32 字节）
+  static Key _generateRandomKey() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(32, (_) => random.nextInt(256));
+    return Key(Uint8List.fromList(bytes));
   }
 
-  /// 加密token
+  /// 生成随机 IV（16 字节，CBC 模式要求）
+  static IV _generateRandomIV() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    return IV(Uint8List.fromList(bytes));
+  }
+
+  // ---- 公共 API ----
+
+  /// 加密 token
   static String encryptToken(String token) {
-    try {
-      final encrypted = _encrypter.encrypt(token, iv: _iv);
-      return encrypted.base64;
-    } catch (e) {
-      throw Exception('Token encryption failed: $e');
-    }
+    final encrypted = _encrypter.encrypt(token, iv: _iv);
+    return encrypted.base64;
   }
 
-  /// 解密token
+  /// 解密 token
   static String decryptToken(String encryptedToken) {
-    try {
-      final encrypted = Encrypted.fromBase64(encryptedToken);
-      final decrypted = _encrypter.decrypt(encrypted, iv: _iv);
-      return decrypted;
-    } catch (e) {
-      throw Exception('Token decryption failed: $e');
-    }
+    final encrypted = Encrypted.fromBase64(encryptedToken);
+    return _encrypter.decrypt(encrypted, iv: _iv);
   }
 
+  /// 判断是否是已加密的 token（base64 且长度是 16 的倍数）
   static bool isEncrypted(String token) {
     try {
       final decoded = base64.decode(token);
@@ -99,12 +77,14 @@ class TokenEncryptor {
     }
   }
 
+  /// 按需加密：如果未加密则加密，已加密则原样返回
   static String encryptIfNeeded(String token) {
     if (token.isEmpty) return token;
     if (isEncrypted(token)) return token;
     return encryptToken(token);
   }
 
+  /// 按需解密：如果是密文则解密，明文则原样返回
   static String decryptIfNeeded(String token) {
     if (token.isEmpty) return token;
     if (!isEncrypted(token)) return token;

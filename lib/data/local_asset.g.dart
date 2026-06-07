@@ -6,18 +6,25 @@ part of 'local_asset.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Mindustry _$MindustryFromJson(Map<String, dynamic> json) => Mindustry(
-  id: json['id'] as String,
-  tag: json['tag'] as String,
-  name: json['name'] as String,
-  releaseNum: json['releaseNum'] as String,
-  path: json['path'] as String,
-  jarPath: json['jarPath'] as String,
-  launcher: $enumDecode(_$LauncherTypeEnumMap, json['launcher']),
-  isBe: json['isBe'] as bool,
-  isolation: json['isolation'] as bool,
-  addTime: DateTime.parse(json['addTime'] as String),
-)..like = json['like'] as bool;
+Mindustry _$MindustryFromJson(Map<String, dynamic> json) =>
+    Mindustry(
+        id: json['id'] as String,
+        tag: json['tag'] as String,
+        name: json['name'] as String,
+        releaseNum: json['releaseNum'] as String,
+        path: json['path'] as String,
+        jarPath: json['jarPath'] as String,
+        launcher: $enumDecode(_$LauncherTypeEnumMap, json['launcher']),
+        isBe: json['isBe'] as bool,
+        isolation: json['isolation'] as bool,
+        addTime: DateTime.parse(json['addTime'] as String),
+        java: json['java'] as String?,
+        jvmParameter: json['jvmParameter'] as String?,
+        useBetterGPU: json['useBetterGPU'] as bool?,
+        memorySize: (json['memorySize'] as num?)?.toInt(),
+      )
+      ..like = json['like'] as bool
+      ..autoMemory = json['autoMemory'] as bool?;
 
 Map<String, dynamic> _$MindustryToJson(Mindustry instance) => <String, dynamic>{
   'id': instance.id,
@@ -31,6 +38,11 @@ Map<String, dynamic> _$MindustryToJson(Mindustry instance) => <String, dynamic>{
   'tag': instance.tag,
   'like': instance.like,
   'isolation': instance.isolation,
+  'java': instance.java,
+  'memorySize': instance.memorySize,
+  'autoMemory': instance.autoMemory,
+  'useBetterGPU': instance.useBetterGPU,
+  'jvmParameter': instance.jvmParameter,
 };
 
 const _$LauncherTypeEnumMap = {

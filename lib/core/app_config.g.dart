@@ -107,13 +107,25 @@ const _$GameWindowSizeSetEnumMap = {
   GameWindowSizeSet.fullScreen: 'fullScreen',
 };
 
+JavaInfo _$JavaInfoFromJson(Map<String, dynamic> json) => JavaInfo(
+  path: json['path'] as String,
+  version: (json['version'] as num?)?.toInt(),
+  isValid: json['isValid'] as bool? ?? true,
+);
+
+Map<String, dynamic> _$JavaInfoToJson(JavaInfo instance) => <String, dynamic>{
+  'path': instance.path,
+  'version': instance.version,
+  'isValid': instance.isValid,
+};
+
 JavaOptions _$JavaOptionsFromJson(Map<String, dynamic> json) => JavaOptions(
   javas:
-      (json['javas'] as Map<String, dynamic>?)?.map(
-        (k, e) => MapEntry(k, e as String),
-      ) ??
-      {},
-  selectedJava: json['selectedJava'] as String? ?? '',
+      (json['javas'] as List<dynamic>?)
+          ?.map((e) => JavaInfo.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      [],
+  selectedJava: json['selectedJava'] as String? ?? 'auto',
   jvmParameter: json['jvmParameter'] as String? ?? '',
   useBetterGPU: json['useBetterGPU'] as bool? ?? true,
 );

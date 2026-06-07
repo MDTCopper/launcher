@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:copperlauncher_main/core/app_config.dart';
 import 'package:path/path.dart' as path;
 
 class JavaFinder {
@@ -105,7 +107,7 @@ class JavaFinder {
     if (depth <= 0) return foundPaths;
 
     try {
-      await for (final entity in dir.list()) {
+      await for (final entity in dir.list(followLinks: false)) {
         if (entity is Directory) {
           // 检查当前目录是否可能是 Java 安装目录
           final dirName = path.basename(entity.path).toLowerCase();
@@ -141,18 +143,37 @@ class JavaFinder {
   }
 
   /// 检查给定的 Java 可执行文件是否有效
+  ///
+  /// 在运行前会进行多重安全校验：
+  /// 1. 文件必须存在
+  /// 2. 文件名必须是 java / java.exe（防止非 Java 程序被意外执行）
+  /// 3. 不使用 `runInShell`，避免路径被 shell 解释为命令
+  /// 4. 设置超时，防止非 Java 程序挂起
   static Future<bool> isValidJavaExecutable(String javaPath) async {
+    final file = File(javaPath);
+    if (!await file.exists()) {
+      return false;
+    }
+
+    final fileName = path.basename(javaPath).toLowerCase();
+    if (fileName != 'java' && fileName != 'java.exe') {
+      return false;
+    }
+
     try {
       final process = await Process.run(javaPath, [
         '-version',
-      ], runInShell: true);
+      ], runInShell: false).timeout(const Duration(seconds: 10));
 
-      // Java -version 输出到 stderr，所以我们检查两个输出流
+      /// Java -version 输出到 stderr，所以我们检查两个输出流
       final output = process.stdout.toString() + process.stderr.toString();
 
       return output.contains('java version') ||
           output.contains('openjdk version') ||
+          output.contains('openjdk') || // 覆盖某些精简输出（如 "openjdk 21.0.1"）
           process.exitCode == 0;
+    } on TimeoutException {
+      return false;
     } catch (e) {
       return false;
     }
@@ -248,60 +269,96 @@ class JavaFinder {
   }
 
   /// 扩展路径模式（处理通配符）
+  ///
+  /// 支持三种通配符形式：
+  /// - `*` 作为独立路径段，匹配任意目录名
+  /// - `prefix*` 匹配以 prefix 开头的目录名
+  /// - `*suffix` 匹配以 suffix 结尾的目录名
+  /// - 递归处理路径中的多个通配符段
   static List<String> _expandPathPattern(String pathPattern) {
+    // 展开 ~ 为实际 home 目录（macOS/Linux）
+    final resolved = _resolveHome(pathPattern);
+    final separator = Platform.isWindows ? '\\' : '/';
+    final parts = resolved.split(separator);
+
+    return _expandParts(parts, 0, separator);
+  }
+
+  /// 递归展开路径段，从 [startIndex] 开始处理通配符
+  static List<String> _expandParts(List<String> parts,
+      int startIndex,
+      String separator,) {
+    // 找到下一个包含 '*' 的段
+    int wildcardIndex = -1;
+    for (int i = startIndex; i < parts.length; i++) {
+      if (parts[i].contains('*')) {
+        wildcardIndex = i;
+        break;
+      }
+    }
+
+    if (wildcardIndex == -1) {
+      // 没有更多通配符，直接返回拼接后的路径
+      final resultPath = parts.join(separator);
+      // 验证目录存在
+      try {
+        if (Directory(resultPath).existsSync()) {
+          return [resultPath];
+        }
+      } catch (_) {}
+      return [];
+    }
+
+    final wildcardSegment = parts[wildcardIndex];
+    final parentParts = parts.sublist(0, wildcardIndex);
+    final parentPath = parentParts.join(separator);
+
     final List<String> results = [];
 
-    if (pathPattern.contains('*')) {
-      // 分割路径并找到通配符的位置
-      final parts =
-          Platform.isWindows ? pathPattern.split('\\') : pathPattern.split('/');
+    try {
+      final parentDir = Directory(parentPath);
+      if (!parentDir.existsSync()) return [];
 
-      int wildcardIndex = -1;
-      for (int i = 0; i < parts.length; i++) {
-        if (parts[i] == '*') {
-          wildcardIndex = i;
-          break;
+      final entities = parentDir.listSync(followLinks: false);
+
+      for (final entity in entities) {
+        if (entity is! Directory) continue;
+
+        final dirName = path.basename(entity.path);
+
+        // 将通配符段转换为正则来匹配目录名
+        final escaped = wildcardSegment.replaceAll('*', r'__STAR__');
+        final escapedRegex = RegExp.escape(escaped).replaceAll(
+            '__STAR__', r'.*');
+        final regex = RegExp('^$escapedRegex\$', caseSensitive: false);
+
+        if (regex.hasMatch(dirName)) {
+          // 替换当前通配符段
+          final newParts = [...parts];
+          newParts[wildcardIndex] = dirName;
+
+          // 递归处理剩余的通配符段
+          results.addAll(_expandParts(newParts, wildcardIndex + 1, separator));
         }
       }
-
-      if (wildcardIndex != -1) {
-        // 构建父目录路径
-        final parentParts = parts.sublist(0, wildcardIndex);
-        final parentPath =
-            Platform.isWindows ? parentParts.join('\\') : parentParts.join('/');
-
-        try {
-          final parentDir = Directory(parentPath);
-          if (parentDir.existsSync()) {
-            final entities = parentDir.listSync();
-
-            for (final entity in entities) {
-              if (entity is Directory) {
-                // 替换通配符部分并构建完整路径
-                final newPathParts = [...parts];
-                newPathParts[wildcardIndex] = path.basename(entity.path);
-
-                final resultPath =
-                    Platform.isWindows
-                        ? newPathParts.join('\\')
-                        : newPathParts.join('/');
-
-                if (Directory(resultPath).existsSync()) {
-                  results.add(resultPath);
-                }
-              }
-            }
-          }
-        } catch (e) {
-          // 如果访问目录时出错，则跳过
-        }
-      }
-    } else {
-      // 如果没有通配符，直接添加路径
-      results.add(pathPattern);
+    } catch (e) {
+      // 权限不足等，跳过
     }
 
     return results;
+  }
+
+  /// 展开路径中的 `~` 为实际 home 目录（macOS / Linux）
+  static String _resolveHome(String pathPattern) {
+    if (pathPattern.startsWith('~')) {
+      final home = Platform.environment['HOME'] ??
+          Platform.environment['USERPROFILE'] ??
+          '';
+      if (home.isNotEmpty) {
+        return path.join(home, pathPattern.substring(1));
+      }
+    }
+    return pathPattern;
   }
 
   /// 获取适用于当前操作系统的 Java 可执行文件名
@@ -309,13 +366,24 @@ class JavaFinder {
     return Platform.isWindows ? 'java.exe' : 'java';
   }
 
-  /// 在环境 PATH 中查找 Java 可执行文件
+  /// 在环境 PATH / JAVA_HOME 中查找 Java 可执行文件
   static Future<String?> findJavaInEnvironment() async {
+    // 优先检查 JAVA_HOME 环境变量（Linux/macOS 常用）
+    final javaHome = Platform.environment['JAVA_HOME'];
+    if (javaHome != null && javaHome.isNotEmpty) {
+      final javaPath = path.join(javaHome, 'bin', _getJavaExecutableName());
+      if (await isValidJavaExecutable(javaPath)) {
+        return javaPath;
+      }
+    }
+
     try {
-      // 首先尝试通过 Process.run 方式查找
-      final result = await Process.run(Platform.isWindows ? 'where' : 'which', [
-        'java',
-      ], runInShell: true);
+      // 通过 where/which 在 PATH 中查找（系统工具，安全）
+      final result = await Process.run(
+        Platform.isWindows ? 'where' : 'which',
+        ['java'],
+        runInShell: false,
+      ).timeout(const Duration(seconds: 10));
 
       if (result.exitCode == 0) {
         String javaPath =
@@ -405,9 +473,23 @@ class JavaFinder {
   /// 获取 Java 可执行文件的版本
   static Future<int?> getJavaVersion(String javaPath) async {
     try {
-      final process = await Process.run(javaPath, [
-        '-version',
-      ], runInShell: true);
+      // 前置安全校验：文件存在 + 文件名必须是 java / java.exe
+      final file = File(javaPath);
+      if (!await file.exists()) {
+        return null;
+      }
+      final fileName = path.basename(javaPath).toLowerCase();
+      if (fileName != 'java' && fileName != 'java.exe') {
+        return null;
+      }
+
+      final process = await Process.run(
+        javaPath,
+        ['-version'],
+        runInShell: false, // 直接执行，不经过 shell
+      ).timeout(
+        const Duration(seconds: 10), // 10 秒超时
+      );
 
       // Java 版本信息通过 stderr 输出
       final output = process.stderr.toString();
@@ -437,6 +519,8 @@ class JavaFinder {
           }
         }
       }
+    } on TimeoutException {
+      return null;
     } catch (e) {
       // 如果获取版本失败，返回 null
     }
@@ -444,22 +528,34 @@ class JavaFinder {
     return null;
   }
 
-  /// 获取 Java 安装信息（包括版本和路径）
-  static Future<List<Map<String, dynamic>>> getJavaInstallationsInfo({
+  /// 获取 Java 安装信息（包括版本和路径），返回结构化的 [JavaInfo] 列表
+  static Future<List<JavaInfo>> getJavaInstallationsInfo({
     bool deepScan = false,
   }) async {
     final installations = await findAllJavaExecutables(deepScan: deepScan);
-    final infoList = <Map<String, dynamic>>[];
+    final infoList = <JavaInfo>[];
 
     for (final javaPath in installations) {
       final version = await getJavaVersion(javaPath);
-      infoList.add({
-        'path': javaPath,
-        'version': version,
-        'isValid': await isValidJavaExecutable(javaPath),
-      });
+      infoList.add(JavaInfo(
+        path: javaPath,
+        version: version,
+        isValid: true, // findAllJavaExecutables 已通过 isValidJavaExecutable 校验
+      ));
     }
 
     return infoList;
+  }
+
+  /// 根据给定的路径获取 [JavaInfo]。如果不是有效的 Java，返回 null。
+  static Future<JavaInfo?> getJavaInfoFromPath(String javaPath) async {
+    if (!await isValidJavaExecutable(javaPath)) return null;
+
+    final version = await getJavaVersion(javaPath);
+    return JavaInfo(
+      path: javaPath,
+      version: version,
+      isValid: true,
+    );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:copperlauncher_main/core/app_config.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:path/path.dart' as p;
 
@@ -44,6 +45,24 @@ class Mindustry {
   bool like = false;
   bool isolation;
 
+  String? java;
+
+  @JsonKey(includeToJson: false, includeFromJson: false)
+  Memory? get memory {
+    if (memorySize == null) return null;
+    return Memory(bytes: memorySize);
+  }
+
+  set memory(Memory? value) => memorySize = value?.bytes;
+
+  int? memorySize;
+
+  bool? autoMemory;
+
+  bool? useBetterGPU;
+
+  String? jvmParameter;
+
   ///返回游戏版本号 (double)
   double get releaseDouble => double.parse(releaseNum.substring(1));
 
@@ -78,6 +97,10 @@ class Mindustry {
     required this.isBe,
     required this.isolation,
     required this.addTime,
+    this.java,
+    this.jvmParameter,
+    this.useBetterGPU,
+    this.memorySize,
   });
 
   factory Mindustry.fromJson(Map<String, dynamic> json) =>

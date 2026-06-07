@@ -87,6 +87,21 @@ class FileReader {
     );
   }
 
+  static Future<String?> selectFile({
+    String? initialDirectory,
+    String? confirmButtonText,
+    List<XTypeGroup> acceptedTypeGroups = const <XTypeGroup>[],
+  }) async {
+    initialDirectory ??= AppPaths.copperLauncher;
+    final file = await openFile(
+        initialDirectory: initialDirectory,
+        confirmButtonText: confirmButtonText,
+        acceptedTypeGroups: acceptedTypeGroups
+    );
+    return file?.path;
+  }
+
+
   static Future<void> _runWinExplorer(List<String> arguments) async {
     await Process.run("explorer.exe", arguments, runInShell: true);
   }

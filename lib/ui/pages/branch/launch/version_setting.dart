@@ -17,13 +17,16 @@ import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
 
 import '../../../../util/format/byte_unit.dart';
+import '../../../../util/format/ram_rank_list.dart';
 import '../../../../util/system_info.dart';
 import '../../../feature/images.dart';
 import '../../../util/widget/percent_bar.dart';
+import '../../../util/widget/rebound_checkbox.dart';
+import '../../../util/widget/setting_bar/checkbox_setting_bar.dart';
 import '../../../util/widget/setting_bar/input_setting_bar.dart';
 import '../../../util/widget/setting_bar/slider_setting_bar.dart';
 
-late Mindustry? _mindustry;
+late Mindustry _mindustry;
 
 class VersionSettingPage extends StatefulWidget {
   const VersionSettingPage({super.key});
@@ -85,28 +88,15 @@ class _About extends StatefulWidget {
 class _AboutState extends State<_About> {
   Future<void> _openFolder(String folderPath) async {
     if (!(await Directory(folderPath).exists())) {
-      folderPath = _mindustry!.dataPath!;
+      folderPath = _mindustry.dataPath;
       if (!(await Directory(folderPath).exists())) {
-        folderPath = _mindustry!.foldPath!;
+        folderPath = _mindustry.foldPath;
       }
     }
     FileReader.openFolder(folderPath);
   }
 
   void _changeVersionTag() {}
-
-  Widget _buildIconButton(IconData icon, String content, VoidCallback onTap) {
-    return ReboundButton(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      onTap: onTap,
-      child: Row(
-        spacing: 4,
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [Icon(icon), Text(content)],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,14 +110,14 @@ class _AboutState extends State<_About> {
           itemSpacing: 8,
           elevation: 4,
           leading: Image.asset(
-            _mindustry?.launcher == LauncherType.copper
+            _mindustry.launcher == LauncherType.copper
                 ? Images.copper
                 : Images.mindustry,
             height: 64,
             fit: BoxFit.fitHeight,
           ),
-          title: Text(_mindustry?.tag ?? 'null'),
-          subtitle: Text(_mindustry?.releaseNum ?? 'null'),
+          title: Text(_mindustry.tag),
+          subtitle: Text(_mindustry.releaseNum),
           onTap: _changeVersionTag, //todo 修改版本名称
         ),
         ContentPanelModule(
@@ -142,28 +132,28 @@ class _AboutState extends State<_About> {
                     icon: Icons.save,
                     content: '存档文件夹',
                     onTap: () {
-                      _openFolder(_mindustry!.savesPath);
+                      _openFolder(_mindustry.savesPath);
                     },
                   ),
                   ReboundIconButton(
                     icon: Icons.map_outlined,
                     content: '地图文件夹',
                     onTap: () {
-                      _openFolder(_mindustry!.mapsPath);
+                      _openFolder(_mindustry.mapsPath);
                     },
                   ),
                   ReboundIconButton(
                     icon: Icons.paste,
                     content: '蓝图文件夹',
                     onTap: () {
-                      _openFolder(_mindustry!.schematicsPath);
+                      _openFolder(_mindustry.schematicsPath);
                     },
                   ),
                   ReboundIconButton(
                     icon: LineIcons.puzzlePiece,
                     content: '模组文件夹',
                     onTap: () {
-                      _openFolder(_mindustry!.modsPath);
+                      _openFolder(_mindustry.modsPath);
                     },
                   ),
                 ],
@@ -261,26 +251,55 @@ class _Setting extends StatefulWidget {
 }
 
 class _SettingState extends State<_Setting> {
-  bool? useGreatGPU;
-  static double ram = 0.4;
+  LaunchOptions get launchOptions => config.setting.launchOptions;
 
-  static bool? autoRam;
-  String _formatRam(double ram) {
-    return (ram / gb).toStringAsFixed(1);
+  bool get isolation => _mindustry.isolation;
+
+  JavaOptions get javaOptions => launchOptions.javaOptions;
+
+  String? get javaSelect {
+    final java = _mindustry.java;
+    final exist = javas.any((it) => it.path == java);
+    if (exist) {
+      return java;
+    } else {
+      _mindustry.java = null;
+      return null;
+    }
   }
 
-  int freeRam = 1;
-  int totalRam = 1;
+  List<JavaInfo> get javas => javaOptions.javas;
 
-  late Timer _getRamTimer;
+  Memory get memory {
+    if (autoMemory == null) return launchOptions.memory;
+    return _mindustry.memory ??= launchOptions.memory;
+  }
+
+  bool? get autoMemory => _mindustry.autoMemory;
+
+  bool? get useGoodGPU => _mindustry.useBetterGPU;
+
+  String? get jvmParameter => _mindustry.jvmParameter;
+
+  static Memory freeMemory = Memory(gb: 128);
+  static Memory totalMemory = Memory(gb: 128);
+
+  late Timer _getMemoryTimer;
   void _getRam() async {
-    freeRam = await SysInfo.getFreePhysicalMemory();
-    totalRam = await SysInfo.getTotalPhysicalMemory();
-    setState(() {});
-    _getRamTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      freeRam = await SysInfo.getFreePhysicalMemory();
-      setState(() {});
+    final free = await SysInfo.getFreePhysicalMemory();
+    freeMemory = Memory(bytes: free);
+    final total = await SysInfo.getTotalPhysicalMemory();
+    totalMemory = Memory(bytes: total);
+    if (mounted) setState(() {});
+    _getMemoryTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      final free = await SysInfo.getFreePhysicalMemory();
+      freeMemory = Memory(bytes: free);
+      if (mounted) setState(() {});
     });
+  }
+
+  String _formatRam(double ram) {
+    return (ram).toStringAsFixed(1);
   }
 
   @override
@@ -291,43 +310,189 @@ class _SettingState extends State<_Setting> {
 
   @override
   void dispose() {
-    _getRamTimer.cancel();
+    _getMemoryTimer.cancel();
     super.dispose();
+  }
+
+  Widget _buildIsolationSettingBar() {
+    return SwitchSettingBar(
+      title: '游戏存档隔离',
+      value: isolation,
+      onChanged: (value) {
+        _mindustry.isolation = value;
+        config.save();
+      },
+    );
+  }
+
+  Widget _buildJavaSettingBar() {
+    final list = [];
+
+    final js =
+        javas.toList()..sort((a, b) {
+          if (a.version == null || b.version == null) return 0;
+          return (b.version ?? 0) - (a.version ?? 0);
+        });
+
+    for (var it in js) {
+      if (!it.isValid) continue;
+
+      final label = it.version == null ? '未知版本' : 'Java ${it.version}';
+
+      list.add(
+        DropdownOption<String>(
+          value: it.path,
+          label: '$label ( "${it.path}" )',
+        ),
+      );
+    }
+
+    return Column(
+      spacing: 8,
+      children: [
+        OptionSettingBar<String?>(
+          title: '游戏Java',
+          initialValue: javaSelect,
+          hintText: '跟随系统',
+          onSelect: (value) {
+            setState(() {
+              _mindustry.java = value;
+              config.save();
+            });
+          },
+          options: [
+            DropdownOption<String?>(value: null, label: '跟随系统'),
+            ...list,
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAutoMemorySettingBar() {
+    return CheckboxSettingBar(
+      title: '内存分配',
+      options: [
+        ReboundCheckbox(
+          value: autoMemory == null,
+          label: '跟随全局',
+          onChange: (_) {
+            setState(() {
+              _mindustry.autoMemory = null;
+              config.save();
+            });
+          },
+        ),
+
+        ReboundCheckbox(
+          value: autoMemory == true,
+          label: '自动分配',
+          onChange: (_) {
+            setState(() {
+              _mindustry.autoMemory = true;
+              config.save();
+            });
+          },
+        ),
+        ReboundCheckbox(
+          value: autoMemory == false,
+          label: '自定义',
+          onChange: (_) {
+            setState(() {
+              _mindustry.autoMemory = false;
+              config.save();
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Timer? saveTimer;
+
+  Widget _buildMemorySettingBar() {
+    var divisions =
+        memoryRankList.indexWhere((element) => element >= totalMemory.inGB) - 1;
+
+    if (divisions < 0) divisions = memoryRankList.length;
+
+    final memoryRank = memoryRankList.indexWhere(
+      (element) => element >= memory.inGB,
+    );
+
+    final memoryValue = memoryRank / divisions;
+
+    return SliderSettingBar(
+      title: '内存 ${(memory.inGB).toStringAsFixed(1)}GB',
+      label: '${(memory.inGB).toStringAsFixed(1)}GB',
+      divisions: divisions,
+      onChanged: (value) {
+        setState(() {
+          final rank = (value * divisions).round();
+          _mindustry.memory = Memory(
+            bytes: (memoryRankList[rank] * gb).toInt(),
+          );
+          saveTimer?.cancel();
+          saveTimer = Timer(const Duration(seconds: 1), () {
+            config.save();
+          });
+        });
+      },
+      value: memoryValue,
+    );
+  }
+
+  Widget _buildMemoryInfo() {
+    final free = _formatRam(freeMemory.inGB);
+    final total = _formatRam(totalMemory.inGB);
+    final used = _formatRam((totalMemory - freeMemory).inGB);
+    final allocation = _formatRam(memory.inGB);
+    final occupy = ((1 - freeMemory.bytes / totalMemory.bytes) * 100)
+        .toStringAsFixed(1);
+
+    return Column(
+      spacing: 8,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PercentBar(
+          total: totalMemory.bytes.toDouble(),
+          dataList: [
+            PercentBarData(value: (totalMemory - freeMemory).bytes.toDouble()),
+            PercentBarData(
+              value: min(memory.bytes.toDouble(), freeMemory.bytes.toDouble()),
+            ),
+          ],
+        ),
+
+        Row(
+          children: [
+            Text('当前占用  $used / $total GB ($occupy%)'),
+            Expanded(child: SizedBox()),
+            AnimatedOpacity(
+              opacity: memory > freeMemory ? 1 : 0,
+              curve: Curves.ease,
+              duration: const Duration(milliseconds: 200),
+              child: Text('( 当前可用内存仅 $free GB )'),
+            ),
+          ],
+        ),
+        Text('将为游戏分配   $allocation GB '),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop =
+        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
     return ListContentPanel(
       items: [
         ContentPanelModule(
           title: '启动选项',
           child: Column(
             spacing: 8,
-            children: [
-              SwitchSettingBar(
-                title: '版本隔离',
-                value: _mindustry?.isolation ?? false,
-                onChanged: (value) {
-                  setState(() {
-                    _mindustry?.isolation = value;
-                    config.save();
-                  });
-                },
-              ),
-              OptionSettingBar<String?>(
-                title: '游戏java',
-                initialValue: null,
-                hintText: '跟随全局',
-                options: [
-                  DropdownOption<String?>(value: null, label: '跟随全局'),
-                  DropdownOption<String?>(value: 'auto', label: '自动选择合适的java'),
-                  DropdownOption<String?>(value: 'v8', label: 'v8'),
-                  DropdownOption<String?>(value: 'v9', label: 'v9'),
-                  DropdownOption<String?>(value: 'v21', label: 'v21'),
-                ],
-                onSelect: (value) {},
-              ),
-            ],
+            children: [_buildIsolationSettingBar(), _buildJavaSettingBar()],
           ),
         ),
         ContentPanelModule(
@@ -335,59 +500,17 @@ class _SettingState extends State<_Setting> {
           child: Column(
             spacing: 8,
             children: [
-              OptionSettingBar<bool?>(
-                title: '内存分配',
-                initialValue: autoRam,
-                hintText: '跟随全局',
-                options: [
-                  DropdownOption<bool?>(value: null, label: '跟随全局'),
-                  DropdownOption<bool?>(value: true, label: '自动分配'),
-                  DropdownOption<bool?>(value: false, label: '自定义'),
-                ],
-                onSelect: (value) {
-                  setState(() {
-                    autoRam = value;
-                  });
-                },
-              ),
+              _buildAutoMemorySettingBar(),
               AnimatedSize(
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.fastOutSlowIn,
                 alignment: Alignment.topCenter,
                 child:
-                    autoRam ?? true
+                    (autoMemory ?? true)
                         ? SizedBox()
-                        : SliderSettingBar(
-                          title:
-                              '内存 ${(freeRam * ram / gb).toStringAsFixed(1)}GB',
-                          label: '${(freeRam * ram / gb).toStringAsFixed(1)}GB',
-                          onChanged: (value) {
-                            setState(() {
-                              ram = value;
-                            });
-                          },
-                          value: ram,
-                        ),
+                        : _buildMemorySettingBar(),
               ),
-              PercentBar(
-                total: totalRam.toDouble(),
-                dataList: [
-                  PercentBarData(value: (totalRam - freeRam).toDouble()),
-                  PercentBarData(value: freeRam * min(ram, 1.0)),
-                ],
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '当前占用   ${_formatRam((totalRam - freeRam).toDouble())} / ${_formatRam(totalRam.toDouble())} GB (${((1 - freeRam / totalRam) * 100).toStringAsFixed(1)}%)', //todo内存占比描述和不均匀分配内存滑块
-                ),
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '将为游戏分配   ${_formatRam(freeRam * min(ram, 1.0))}GB',
-                ),
-              ),
+              _buildMemoryInfo(),
             ],
           ),
         ),
@@ -396,20 +519,40 @@ class _SettingState extends State<_Setting> {
           child: Column(
             spacing: 8,
             children: [
-              OptionSettingBar<bool?>(
+              CheckboxSettingBar(
                 title: '使用高性能显卡',
-                initialValue: useGreatGPU,
-                hintText: '跟随全局',
                 options: [
-                  DropdownOption<bool?>(value: null, label: '跟随全局'),
-                  DropdownOption<bool?>(value: true, label: '开'),
-                  DropdownOption<bool?>(value: false, label: '关'),
+                  ReboundCheckbox(
+                    value: useGoodGPU == null,
+                    label: '跟随全局',
+                    onChange: (_) {
+                      setState(() {
+                        _mindustry.useBetterGPU = null;
+                        config.save();
+                      });
+                    },
+                  ),
+                  ReboundCheckbox(
+                    value: useGoodGPU == false,
+                    label: '关闭',
+                    onChange: (_) {
+                      setState(() {
+                        _mindustry.useBetterGPU = false;
+                        config.save();
+                      });
+                    },
+                  ),
+                  ReboundCheckbox(
+                    value: useGoodGPU == true,
+                    label: '开启',
+                    onChange: (_) {
+                      setState(() {
+                        _mindustry.useBetterGPU = true;
+                        config.save();
+                      });
+                    },
+                  ),
                 ],
-                onSelect: (value) {
-                  setState(() {
-                    useGreatGPU = value;
-                  });
-                },
               ),
               InputSettingBar(title: 'jvm虚拟机参数'),
             ],

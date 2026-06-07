@@ -1,18 +1,16 @@
-import 'dart:math';
-
 import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:copperlauncher_main/domain/mindustry_launcher.dart';
+import 'package:copperlauncher_main/domain/task_manager.dart';
+import 'package:copperlauncher_main/domain/tasks/launch_mindustry_task.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_config.dart';
+import '../../util/test.dart';
 import '../feature/images.dart';
-import '../util/animation/loop_animated_widget/drill_loading.dart';
 import '../util/info/log_list.dart';
 import '../util/info/notification.dart';
-import '../util/widget/rebound_checkbox.dart';
 
 class LaunchPage extends StatefulWidget {
   const LaunchPage({super.key});
@@ -72,7 +70,7 @@ class _LaunchPageState extends State<LaunchPage> {
         height: 64,
       ),
       title: Text(
-        _selectedVersion!.tag ?? '该版本未命名',
+        _selectedVersion!.tag,
         style: TextStyle(
           color: Theme.of(context).colorScheme.secondary,
           fontWeight: FontWeight.w900,
@@ -80,7 +78,7 @@ class _LaunchPageState extends State<LaunchPage> {
         ),
       ),
       subtitle: Text(
-        _selectedVersion!.name ?? '未知版本',
+        _selectedVersion!.name,
         style: TextStyle(
           color: Theme.of(context).colorScheme.primary,
           fontWeight: FontWeight.w900,
@@ -110,7 +108,6 @@ class _LaunchPageState extends State<LaunchPage> {
   }
 
   Widget _buildLaunchButton() {
-    final mindustryLauncher = MindustryLauncher();
     if (_selectedVersion == null) return SizedBox();
 
     return SizedBox(
@@ -141,39 +138,7 @@ class _LaunchPageState extends State<LaunchPage> {
           ],
         ),
         onTap: () async {
-          NotificationManager.addNotice(
-            icon: Icons.rocket_launch_outlined,
-            title: '启动',
-            content: '正在启动\r\n[${_selectedVersion!.name}]',
-          );
-          LogManager.addLog(LogEntry(LogType.info, '正在启动游戏'));
-
-          List<String>? isolation;
-          if (_selectedVersion?.isolation ?? false) {
-            if (_selectedVersion!.dataPath != null) {
-              isolation = [
-                '-Dmindustry.data.dir=${_selectedVersion!.dataPath}',
-              ];
-            }
-          }
-
-          final s = await mindustryLauncher.start(_selectedVersion!);
-
-          if (s) {
-            NotificationManager.addNotice(
-              icon: Icons.info_outline,
-              title: '启动',
-              content: '游戏启动成功',
-            );
-            LogManager.addLog(LogEntry(LogType.success, '游戏启动成功'));
-          } else {
-            NotificationManager.addNotice(
-              icon: Icons.info_outline,
-              title: '失败',
-              content: '游戏启动失败',
-            );
-            LogManager.addLog(LogEntry(LogType.success, '游戏启动失败'));
-          }
+          addTask(LaunchMindustryTask(_selectedVersion!));
         },
       ),
     );
@@ -185,15 +150,6 @@ class _LaunchPageState extends State<LaunchPage> {
     super.setState(fn);
   }
 
-  var t = false;
-
-  //todo标记
-  void _test() async {
-    config.setting.githubToken = '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';
-    config.save();
-    print(config.setting.githubToken);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -201,173 +157,24 @@ class _LaunchPageState extends State<LaunchPage> {
       children: [
         Expanded(
           child: Align(
-            // child: ElectricConverter(),
             //屏幕中心
-            // child: _CenterField(),
-            child: Column(
-              children: [
-                ReboundIconButton(
-                  icon: Icons.add,
-                  content: 'a+++',
-                  onTap: _test,
-                ),
-                ReboundCheckbox(
-                  value: t,
-                  onChange: (value) {
-                    setState(() {
-                      t = value;
-                    });
-                  },
-                ),
-              ],
-            ),
+            child: Test(),
           ),
         ),
         Padding(
           padding: EdgeInsets.all(8),
           child: Row(
             //下方操作条
-            spacing: 8,
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Expanded(child: _buildVersionTile()), //
+              SizedBox(width: 8),
               _buildLaunchButton(),
             ],
           ),
         ),
       ],
     );
-  }
-}
-
-class ElectricConverter extends StatefulWidget {
-  const ElectricConverter({super.key});
-
-  @override
-  State<StatefulWidget> createState() => _ElectricConverterState();
-}
-
-class _ElectricConverterState extends State<ElectricConverter> {
-  bool imaginaryToAngle = true;
-
-  double imaginary = 6;
-  double real = 8;
-  double modulus = 0.0;
-  double angle = 0.0;
-
-  late final TextEditingController controller1;
-  late final TextEditingController controller2;
-
-  @override
-  void initState() {
-    super.initState();
-    controller1 = TextEditingController(text: real.toString())..addListener(() {
-      setState(() {
-        if (imaginaryToAngle) {
-          real = double.parse(controller1.text);
-        } else {
-          modulus = double.parse(controller1.text);
-        }
-      });
-    });
-    controller2 = TextEditingController(text: imaginary.toString())
-      ..addListener(() {
-        setState(() {
-          if (imaginaryToAngle) {
-            imaginary = double.parse(controller2.text);
-          } else {
-            angle = double.parse(controller2.text);
-          }
-        });
-      });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (imaginaryToAngle) {
-      modulus = sqrt(imaginary * imaginary + real * real);
-      angle = atan(imaginary / real) * 180 / pi;
-      if (real.isNegative) {
-        if (angle.isNegative) {
-          angle += 180;
-        } else {
-          angle -= 180;
-        }
-      }
-    } else {
-      real = cos(angle * pi / 180) * modulus;
-      imaginary = sin(angle * pi / 180) * modulus;
-    }
-
-    return Material(
-      borderRadius: BorderRadius.circular(16),
-      elevation: 8,
-      child: Container(
-        margin: EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          spacing: 8,
-          children: [
-            ReboundIconButton(
-              icon: Icons.refresh,
-              content: imaginaryToAngle ? '代数式转为极坐标' : '极坐标转为代数式',
-              onTap: () {
-                imaginaryToAngle = !imaginaryToAngle;
-                if (imaginaryToAngle) {
-                  controller1.text = real.toStringAsFixed(3);
-                  controller2.text = imaginary.toStringAsFixed(3);
-                } else {
-                  controller1.text = modulus.toStringAsFixed(3);
-                  controller2.text = angle.toStringAsFixed(3);
-                }
-              },
-            ),
-            SizedBox(
-              width: 200,
-              child: Row(
-                spacing: 8,
-                children: [
-                  Expanded(child: OutlinedTextField(controller: controller1)),
-                  Text(imaginaryToAngle ? '+' : '∠'),
-                  Expanded(child: OutlinedTextField(controller: controller2)),
-                  Text(imaginaryToAngle ? 'j' : '°'),
-                ],
-              ),
-            ),
-            Text(
-              imaginaryToAngle
-                  ? '${modulus.toStringAsFixed(3)}∠${angle.toStringAsFixed(3)}'
-                  : '${real.toStringAsFixed(3)}${imaginary.isNegative ? '' : '+'}${imaginary.toStringAsFixed(3)}j',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CenterField extends StatefulWidget {
-  @override
-  State<StatefulWidget> createState() => _CenterFieldState();
-}
-
-class _CenterFieldState extends State<_CenterField> {
-  String? file;
-  bool isDrop = false;
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  double value = 0.4;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Stack(alignment: Alignment.center, children: [DrillLoading()]);
   }
 }
 

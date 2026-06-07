@@ -259,13 +259,48 @@ class LaunchOptions {
   Map<String, dynamic> toJson() => _$LaunchOptionsToJson(this);
 }
 
+/// Java 运行时信息，存储 JavaFinder 查找到的 Java 安装信息
+@JsonSerializable()
+class JavaInfo {
+  /// Java 可执行文件的完整路径
+  final String path;
+
+  /// Java 主版本号（如 8, 11, 17, 21），无法获取时为 null
+  final int? version;
+
+  /// 是否为有效的 Java 可执行文件
+  @JsonKey(defaultValue: true)
+  final bool isValid;
+
+  const JavaInfo({required this.path, this.version, this.isValid = true});
+
+  factory JavaInfo.fromJson(Map<String, dynamic> json) =>
+      _$JavaInfoFromJson(json);
+
+  Map<String, dynamic> toJson() => _$JavaInfoToJson(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (other is JavaInfo) {
+      return other.version == version || other.path == path;
+    }
+    return false;
+  }
+
+  @override
+  int get hashCode => version.hashCode + path.hashCode;
+
+  @override
+  String toString() => 'Java[$version , Path $path]';
+}
+
 @JsonSerializable()
 class JavaOptions {
   ///{ 版本 : java路径 }
-  @JsonKey(defaultValue: {})
-  Map<String, String>? javas;
+  @JsonKey(defaultValue: [])
+  List<JavaInfo> javas;
 
-  @JsonKey(defaultValue: '')
+  @JsonKey(defaultValue: 'auto')
   String selectedJava;
 
   @JsonKey(defaultValue: '')

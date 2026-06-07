@@ -14,7 +14,8 @@ void main() async {
 }
 
 Future<void> _initialize() async {
-  TokenEncryptor.init();
+  WidgetsFlutterBinding.ensureInitialized();
+  await TokenEncryptor.init();
   await initAppConfig();
   await RunTimeLog.init();
   await AppPaths.initDefaultDataPath();
@@ -24,7 +25,6 @@ Future<void> _initialize() async {
 }
 
 Future _initWindow() async {
-  WidgetsFlutterBinding.ensureInitialized();
   // 必须先初始化窗口管理器
   await windowManager.ensureInitialized();
 
