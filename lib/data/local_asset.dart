@@ -86,6 +86,8 @@ class Mindustry {
   ///无论是否隔离，游戏崩溃日志都存储在默认游戏数据目录下crashes文件夹
   String get crashesPath => p.join(AppPaths.defaultGameData!, 'crashes');
 
+  String get settingPath => p.join(dataPath, 'settings.bin');
+
   Mindustry({
     required this.id,
     required this.tag,

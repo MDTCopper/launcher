@@ -997,7 +997,7 @@ class _ModPageState extends State<_ModPage> {
           var jsons = jsonDecode(res.data);
           final List<ModOfficialListMeta> list =
               jsons
-                  .map<ModOfficialListMeta>(
+                  .setting<ModOfficialListMeta>(
                     (it) => ModOfficialListMeta.fromJson(it),
                   )
                   .toList();

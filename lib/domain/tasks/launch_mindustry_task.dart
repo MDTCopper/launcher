@@ -5,6 +5,7 @@ import 'package:copperlauncher_main/domain/task.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:flutter/material.dart';
 
+import '../../data/mindustry_settings.dart';
 import '../../ui/util/info/log_list.dart';
 import '../../ui/util/info/notification.dart';
 
@@ -37,6 +38,13 @@ class LaunchMindustryTask extends Task {
 
   @override
   void pause() => cancel();
+
+  Future<void> _overrideSettings() async {
+    final settingPath = mindustry.settingPath;
+    final setting = MindustrySettings.fromFile(settingPath);
+    setting.applyPatch(config.setting.mindustrySettings);
+    await setting.saveAsync();
+  }
 
   void _launch() async {
     NotificationManager.addNotice(
@@ -94,6 +102,9 @@ class LaunchMindustryTask extends Task {
             launchOption.javaOptions.jvmParameter)
         .split(' ');
 
+    if (config.setting.mindustrySettingsOverride) {
+      await _overrideSettings();
+    }
     await launcher.start(
       mindustry,
       fullScreen: full,

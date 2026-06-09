@@ -29,16 +29,26 @@ Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
 Setting _$SettingFromJson(Map<String, dynamic> json) => Setting(
   githubToken: json['githubToken'] as String? ?? '',
   customSetting: json['customSetting'] as Map<String, dynamic>? ?? {},
+  mindustrySettingsOverride:
+      json['mindustrySettingsOverride'] as bool? ?? false,
   launchOptions:
       json['launchOptions'] == null
           ? null
           : LaunchOptions.fromJson(
             json['launchOptions'] as Map<String, dynamic>,
           ),
+  mindustrySettings:
+      json['mindustrySettings'] == null
+          ? null
+          : MindustrySettingsPatch.fromJson(
+            json['mindustrySettings'] as Map<String, dynamic>,
+          ),
 );
 
 Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
   'launchOptions': instance.launchOptions,
+  'mindustrySettings': instance.mindustrySettings,
+  'mindustrySettingsOverride': instance.mindustrySettingsOverride,
   'githubToken': instance.githubToken,
   'customSetting': instance.customSetting,
 };

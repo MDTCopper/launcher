@@ -7,9 +7,11 @@ class SliderSettingBar extends StatelessWidget {
     this.label,
     required this.value,
     this.onChanged,
+    this.onChangeStart,
+    this.onChangeEnd,
     this.wide = 150,
-    this.min = 0.0 ,
-    this.max =1.0,
+    this.min = 0.0,
+    this.max = 1.0,
     this.divisions = 50,
   });
 
@@ -17,6 +19,8 @@ class SliderSettingBar extends StatelessWidget {
   final String? label;
   final double? wide;
   final void Function(double)? onChanged;
+  final void Function(double)? onChangeStart;
+  final void Function(double)? onChangeEnd;
   final double value;
   final int divisions;
   final double min;
@@ -33,6 +37,8 @@ class SliderSettingBar extends StatelessWidget {
             divisions: divisions,
             label: label,
             onChanged: onChanged,
+            onChangeStart: onChangeStart,
+            onChangeEnd: onChangeEnd,
             min: min,
             max: max,
             padding: EdgeInsets.symmetric(vertical: 8),

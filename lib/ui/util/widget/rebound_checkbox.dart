@@ -8,12 +8,21 @@ class ReboundCheckbox extends StatefulWidget {
     this.icon,
     this.label,
     this.onChange,
+    this.itemColor,
+    this.itemActiveColor,
+    this.backgroundColor,
+    this.backgroundActiveColor,
   });
 
   final String? label;
   final IconData? icon;
   final bool value;
   final ValueChanged<bool>? onChange;
+
+  final Color? itemColor;
+  final Color? itemActiveColor;
+  final Color? backgroundColor;
+  final Color? backgroundActiveColor;
 
   @override
   State<StatefulWidget> createState() => _ReboundCheckboxState();
@@ -49,10 +58,13 @@ class _ReboundCheckboxState extends State<ReboundCheckbox>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final itemColor = theme.colorScheme.onSurface;
-    final itemActiveColor = theme.colorScheme.secondaryContainer;
-    final backgroundColor = theme.colorScheme.secondaryContainer;
-    final backgroundActiveColor = theme.colorScheme.primary;
+    final itemColor = widget.itemColor ?? theme.colorScheme.onSurface;
+    final itemActiveColor =
+        widget.itemActiveColor ?? theme.colorScheme.secondaryContainer;
+    final backgroundColor =
+        widget.backgroundColor ?? theme.colorScheme.secondaryContainer;
+    final backgroundActiveColor =
+        widget.backgroundActiveColor ?? theme.colorScheme.primary;
 
     return ConstrainedBox(
       constraints: BoxConstraints(minWidth: 20, minHeight: 20),

@@ -319,8 +319,10 @@ class _SettingState extends State<_Setting> {
       title: '游戏存档隔离',
       value: isolation,
       onChanged: (value) {
-        _mindustry.isolation = value;
-        config.save();
+        setState(() {
+          _mindustry.isolation = value;
+          config.save();
+        });
       },
     );
   }

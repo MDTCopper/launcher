@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:copperlauncher_main/core/app_constant.dart';
 import 'package:copperlauncher_main/data/local_asset.dart';
+import 'package:copperlauncher_main/data/mindustry_settings.dart';
 import 'package:copperlauncher_main/util/format/byte_unit.dart';
 import 'package:copperlauncher_main/util/io/run_time_log.dart';
 import 'package:flutter/foundation.dart';
@@ -78,9 +80,14 @@ class AppConfig {
   @override
   String toString() => jsonEncode(toJson());
 
+  Timer? _saveTimer;
+
   Future<void> save() async {
-    if (kDebugMode) await saveAsJson();
-    await saveAsBin();
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(seconds: 1), () async {
+      if (kDebugMode) await saveAsJson();
+      await saveAsBin();
+    });
   }
 
   /// 保存配置为JSON文件,debug用
@@ -121,6 +128,10 @@ class AppConfig {
 class Setting {
   late final LaunchOptions launchOptions;
 
+  late final MindustrySettingsPatch mindustrySettings;
+  @JsonKey(defaultValue: false)
+  bool mindustrySettingsOverride;
+
   ///加密存储
   @JsonKey(defaultValue: '')
   late String githubToken;
@@ -131,9 +142,12 @@ class Setting {
   Setting({
     required this.githubToken,
     required this.customSetting,
+    required this.mindustrySettingsOverride,
     LaunchOptions? launchOptions,
+    MindustrySettingsPatch? mindustrySettings,
   }) {
     this.launchOptions = launchOptions ?? LaunchOptions.fromJson({});
+    this.mindustrySettings = mindustrySettings ?? MindustrySettingsPatch();
   }
 
   dynamic getCustomSetting(String key, dynamic defaultSetting) {
