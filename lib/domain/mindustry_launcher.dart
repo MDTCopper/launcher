@@ -35,7 +35,6 @@ class MindustryLauncher {
   Future<bool> start(
     Mindustry mindustry, {
     WindowSize? windowSize,
-    bool? fullScreen,
     bool? maximize,
     Memory? maxMemory,
     String? javaExecutable,

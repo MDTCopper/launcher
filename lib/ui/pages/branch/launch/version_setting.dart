@@ -12,7 +12,7 @@ import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/option_setting_bar.dart';
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/switch_setting_bar.dart';
-import 'package:copperlauncher_main/util/io/file_reader.dart';
+import 'package:copperlauncher_main/util/io/path_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
 
@@ -93,7 +93,7 @@ class _AboutState extends State<_About> {
         folderPath = _mindustry.foldPath;
       }
     }
-    FileReader.openFolder(folderPath);
+    PathSelector.openFolder(folderPath);
   }
 
   void _changeVersionTag() {}

@@ -39,13 +39,6 @@ class LaunchMindustryTask extends Task {
   @override
   void pause() => cancel();
 
-  Future<void> _overrideSettings() async {
-    final settingPath = mindustry.settingPath;
-    final setting = MindustrySettings.fromFile(settingPath);
-    setting.applyPatch(config.setting.mindustrySettings);
-    await setting.saveAsync();
-  }
-
   void _launch() async {
     NotificationManager.addNotice(
       icon: Icons.rocket_launch_outlined,
@@ -55,29 +48,34 @@ class LaunchMindustryTask extends Task {
     LogManager.addLog(LogEntry(LogType.info, '正在启动游戏'));
 
     final launchOption = config.setting.launchOptions;
-    WindowSize? winSize;
 
-    //todo 全屏参数
-    bool? full;
+    final settingPath = mindustry.settingPath;
+    final setting = MindustrySettings.fromFile(settingPath);
+
+    //窗口大小和最大化在jvm的启动参数
+    WindowSize? winSize;
     bool? maximize;
     switch (launchOption.gameWindowSizeSet) {
+      case GameWindowSizeSet.fullScreen:
+        setting.fullscreen = true;
+        break;
       case GameWindowSizeSet.gameDefault:
         break;
       case GameWindowSizeSet.maximize:
         maximize = true;
+        setting.fullscreen = false;
         break;
       case GameWindowSizeSet.custom:
         winSize = launchOption.customWindowSize;
-        break;
-      case GameWindowSizeSet.fullScreen:
-        full = true;
+        setting.fullscreen = false;
         break;
     }
 
     final Memory? maxMemory;
-    final gameAuto = mindustry.autoMemory;
-    if (gameAuto != null) {
-      maxMemory = gameAuto ? null : mindustry.memory;
+    final versionAuto = mindustry.autoMemory;
+
+    if (versionAuto != null) {
+      maxMemory = versionAuto ? null : mindustry.memory;
     } else {
       maxMemory = launchOption.autoMemory ? null : launchOption.memory;
     }
@@ -103,11 +101,12 @@ class LaunchMindustryTask extends Task {
         .split(' ');
 
     if (config.setting.mindustrySettingsOverride) {
-      await _overrideSettings();
+      setting.applyPatch(config.setting.mindustrySettings);
     }
+
+    await setting.saveAsync();
     await launcher.start(
       mindustry,
-      fullScreen: full,
       maximize: maximize,
       windowSize: winSize,
       maxMemory: maxMemory,
@@ -115,6 +114,8 @@ class LaunchMindustryTask extends Task {
       extraArgs: args,
     );
 
+    //todo 后续可以尝试做一个脱离
+    //监听游戏状态
     launcher.logStream!.listen((log) {
       if (log.contains('Total time to load')) {
         final index = log.indexOf(':');

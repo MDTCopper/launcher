@@ -1,8 +1,9 @@
 import 'dart:ui';
 
-import 'package:copperlauncher_main/ui/feature/feature_color.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:flutter/material.dart';
+
+import '../route/page_key_provider.dart';
 
 enum DialogAnimation { fade, slide, popup, leapOut }
 
@@ -185,12 +186,17 @@ Future<T?> showConfirmationPopup<T extends Object?>({
                   children: [
                     ReboundButton(
                       backgroundColor:
-                          warning ? theme.colorScheme.error : theme.colorScheme.secondaryContainer,
+                          warning
+                              ? theme.colorScheme.error
+                              : theme.colorScheme.secondaryContainer,
                       margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                       hoverElevation: 4,
                       child: Text(
                         '确定',
-                        style: TextStyle(color: theme.colorScheme.onError, fontSize: 18),
+                        style: TextStyle(
+                          color: theme.colorScheme.onError,
+                          fontSize: 18,
+                        ),
                       ),
                       onTap: () {
                         action.call();
@@ -203,13 +209,66 @@ Future<T?> showConfirmationPopup<T extends Object?>({
                       hoverElevation: 4,
                       child: Text(
                         '取消',
-                        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 18),
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 18,
+                        ),
                       ),
                       onTap: () => Navigator.pop(context),
                     ),
                   ],
                 ),
               ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Future<T?> showDefaultDialogPopup<T extends Object?>({
+  required Widget Function(BuildContext, Animation<double>, Animation<double>)
+  pageBuilder,
+  BoxConstraints? constraints,
+  EdgeInsetsGeometry? padding,
+  (double? width, double? height)? boxRate,
+}) {
+  final key = PageKeyProvider.globalKey;
+  final context = key.currentContext;
+  if (context == null) throw Exception('未能找到全局context');
+  final theme = Theme.of(context);
+
+  final size = MediaQuery.of(context).size;
+
+  final width = (boxRate?.$1 ?? 0.6) * size.width;
+  final height = (boxRate?.$2 ?? 0.6) * size.height;
+
+  final c = constraints ?? BoxConstraints(maxWidth: width, maxHeight: height);
+
+  return showAnimatedDialog<T>(
+    context: context,
+    pageBuilder: (context, a1, a2) {
+      return Center(
+        child: Material(
+          elevation: 8,
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: EdgeInsets.all(16),
+
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(8),
+              border: Border(
+                top: BorderSide(color: Colors.white38, width: 1.5),
+                left: BorderSide(color: Colors.white38, width: 0.75),
+                right: BorderSide(color: Colors.white38, width: 0.75),
+              ),
+            ),
+            child: ConstrainedBox(
+              constraints: c,
+              child: pageBuilder.call(context, a1, a2),
             ),
           ),
         ),

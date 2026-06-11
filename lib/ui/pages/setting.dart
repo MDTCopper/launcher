@@ -14,11 +14,12 @@ import 'package:copperlauncher_main/ui/util/widget/setting_bar/input_setting_bar
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/option_setting_bar.dart';
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/switch_setting_bar.dart';
 import 'package:copperlauncher_main/util/format/byte_unit.dart';
-import 'package:copperlauncher_main/util/io/file_reader.dart';
 import 'package:copperlauncher_main/util/io/java_finder.dart';
+import 'package:copperlauncher_main/util/io/path_selector.dart';
 import 'package:copperlauncher_main/util/system_info.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:line_icons/line_icons.dart';
 
 import '../../core/app_config.dart';
 import '../../data/mindustry_settings.dart';
@@ -201,7 +202,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
   }
 
   void _addJava() async {
-    final javaPath = await FileReader.selectFile();
+    final javaPath = await PathSelector.selectFile();
     if (javaPath == null) return;
     final version = await JavaFinder.getJavaVersion(javaPath);
     if (version == null) {
@@ -449,11 +450,10 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
               value: GameWindowSizeSet.maximize,
               label: '最大化',
             ),
-            //todo 游戏内设置参数
-            // DropdownOption<GameWindowSizeSet>(
-            //   value: GameWindowSizeSet.fullScreen,
-            //   label: '全屏',
-            // ),
+            DropdownOption<GameWindowSizeSet>(
+              value: GameWindowSizeSet.fullScreen,
+              label: '全屏',
+            ),
             DropdownOption<GameWindowSizeSet>(
               value: GameWindowSizeSet.custom,
               label: '自定义',
@@ -515,6 +515,12 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           mainAxisAlignment: MainAxisAlignment.end,
           spacing: 16,
           children: [
+            if (javaOptions.javas.isEmpty)
+              ReboundIconButton(
+                icon: LineIcons.java,
+                content: '下载Java',
+                onTap: () {},
+              ),
             ReboundIconButton(
               icon: Icons.folder_copy_outlined,
               content: '手动添加',
@@ -544,7 +550,6 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     );
   }
 
-  Timer? saveTimer;
   Widget _buildMemorySettingBar() {
     var divisions =
         memoryRankList.indexWhere((element) => element >= totalMemory.inGB) - 1;
@@ -567,10 +572,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           launchOptions.memory = Memory(
             bytes: (memoryRankList[rank] * gb).toInt(),
           );
-          saveTimer?.cancel();
-          saveTimer = Timer(const Duration(seconds: 1), () {
-            config.save();
-          });
+          config.save();
         });
       },
       value: memoryValue,

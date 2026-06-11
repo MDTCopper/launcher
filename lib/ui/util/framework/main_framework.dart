@@ -1,15 +1,16 @@
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:archive/archive.dart';
+import 'package:copperlauncher_main/ui/feature/images.dart';
+import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
 import 'package:copperlauncher_main/ui/util/framework/info_drawer.dart';
+import 'package:copperlauncher_main/ui/util/widget/appear_list_view.dart';
+import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
+import 'package:copperlauncher_main/util/io/file_reader.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
-import 'package:hjson_dart/hjson_dart.dart';
-import 'package:mime/mime.dart';
-import 'package:properties/properties.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../../util/format/string_cleaner.dart';
 import '../../vars.dart';
 import '../dialog/drag_file_field.dart';
 import '../info/task_drawer_opener.dart';
@@ -38,102 +39,120 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
 
   late List<DropItem> files;
 
-  Future<Map<String, dynamic>?> _gameMetaFrom(String path) async {
-    //这里后续要对手机端做特殊化
-    final f = File(path);
-    if (!await f.exists()) return null;
-    final b = await f.readAsBytes();
-    final arc = ZipDecoder().decodeBytes(b);
-    var file = arc.findFile('version.properties');
-    if (file != null) {
-      final p = Properties.fromString(utf8.decode(file.content));
-      //print(jsonDecode(p.toJSON()));
-      return jsonDecode(p.toJSON());
-    }
-    file = arc.findFile('assets/version.properties');
-    if (file == null) return null;
-    final p = Properties.fromString(utf8.decode(file.content));
-    return jsonDecode(p.toJSON());
-  }
-
-  ///找到元数据返回json格式
-  Future<Map<String, dynamic>?> _modMetaFrom(String path) async {
-    final f = File(path);
-    if (!await f.exists()) return null;
-    final b = await f.readAsBytes();
-    final arc = ZipDecoder().decodeBytes(b);
-
-    final index = arc.files.indexWhere((it) {
-      final modMeta = it.name.split('/');
-      if (modMeta.length > 2) return false;
-      if (modMeta.contains('mod.json') || modMeta.contains('mod.hjson')) {
-        return true;
-      }
-      return false;
-    });
-
-    if (index == -1) return null;
-
-    var file = arc.files[index];
-    var content = utf8.decode(file.content, allowMalformed: true);
-    return hjsonDecode(content, strict: false) as Map<String, dynamic>;
-
-    // content = parseBrokenJson(content);
-    // if (isJson) {
-    //   return jsonDecode(content) as Map<String, dynamic>;
-    // } else {
-    //   return hjsonDecode(content) as Map<String, dynamic>;
-    // }
-  }
-
-  //todo 存档导入,应该有存档元数据检查 查看有什么
-  Future<bool> _checkSaveMetaFrom(String path) async {
-    final f = File(path);
-    if (!await f.exists()) return false;
-    final b = await f.readAsBytes();
-    final arc = ZipDecoder().decodeBytes(b);
-    var file = arc.findFile('setting.bin');
-    return file != null;
-  }
-
   //zip,jar,msav,msch
   //安卓不能实现拖拽，不需要适配apk
   //模组返回Map格式，其实只需要名称与版本，游戏也是
   //地图蓝图尝试用源代码读取内容，名字即可
   void _handleDragFile(DropDoneDetails d) async {
-    final List<Map<String, String>> importList = [];
+    final List<FileReader> importList = [];
 
     for (var file in d.files) {
-      final path = file.path;
-      var type = lookupMimeType(path);
-      print(type);
-      if (type != null) {
-        if (type.contains('java-archive')) {
-          var meta = await _modMetaFrom(path);
-          if (meta != null) {
-            print(meta..remove('description'));
-          } else {
-            meta = await _gameMetaFrom(path);
-            if (meta == null) continue;
-            print(meta..remove('description'));
-          }
-        }
-        if (type.contains('zip')) {
-          var meta = await _modMetaFrom(path);
-          if (meta == null) continue;
-          print(meta..remove('description'));
-        }
-      } else {
-        if (path.contains('.msav')) {
-          print('地图');
-        } else if (path.contains('.msch')) {
-          print('蓝图');
-        }
-      }
+      final reader = await FileReader.fromPath(file.path);
+      if (reader.type == null) continue;
+      importList.add(reader);
     }
+    _importPagePop(importList);
   }
 
-  void _importPagePop(List<Map<String, String>> importList) {}
+  void _importPagePop(List<FileReader> importList) {
+    importList.sort((a, b) {
+      if (a.type == ResourceType.mindustry) return -1;
+      if (b.type == ResourceType.mindustry) return 1;
+      if (a.type == ResourceType.mod) return -1;
+      if (b.type == ResourceType.mod) return 1;
+      if (a.type == ResourceType.mapSave) return -1;
+      if (b.type == ResourceType.mapSave) return 1;
+      if (a.type == ResourceType.schematic) return -1;
+      if (b.type == ResourceType.schematic) return 1;
+      return 0;
+    });
+    showDefaultDialogPopup(
+      pageBuilder: (context, _, _) {
+        return Column(
+          children: [
+            ReboundIconButton(
+              icon: Icons.arrow_back,
+              content: '导入外部资源',
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            Expanded(
+              child: AppearListView(
+                delay: 300,
+                offset: Offset(-0.1, 0.0),
+                items:
+                    importList.map((it) {
+                      final type = it.type;
+                      switch (type) {
+                        case null:
+                          return SizedBox();
+                        case ResourceType.mindustry:
+                          final m = it.mindustry!;
+                          return ReboundListTile(
+                            leading: Image.asset(Images.mindustry),
+                            title: Text('Mindustry v${m.version}'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('build ${m.build}  (${m.type})'),
+                                Text('${m.path}'),
+                              ],
+                            ),
+                            onTap: () {},
+                          );
+                        case ResourceType.mod:
+                          final mod = it.mod!;
+                          return ReboundListTile(
+                            leading: Icon(Icons.add_box_outlined, size: 64),
+                            title: Text(
+                              '模组  ${generalizeText(mod.name)}  |  作者  ${generalizeText(mod.author)}}',
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '版本  ${mod.version}   |   minGameVersion ${mod.minGameVersion}',
+                                ),
+                                Text('${mod.path}'),
+                              ],
+                            ),
+                            onTap: () {},
+                          );
+                        case ResourceType.mapSave:
+                          final m = it.mapSave!;
+                          return ReboundListTile(
+                            leading: Icon(Icons.map_outlined, size: 64),
+                            title: Text(
+                              '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
+                            ),
+                            subtitle: Text('${m.path}'),
+                            onTap: () {},
+                          );
+                        case ResourceType.schematic:
+                          final m = it.schematic!;
+                          return ReboundListTile(
+                            leading: Icon(Icons.paste, size: 64),
+                            title: Text(
+                              '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
+                            ),
+                            subtitle: Text('${m.path}'),
+                            onTap: () {},
+                          );
+                        case ResourceType.settings:
+                          // TODO: Handle this case.
+                          throw UnimplementedError();
+                      }
+                    }).toList(),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   void _updateRoute(Route newRoute) {
     if (_appbarKey.currentState == null) return;
@@ -254,7 +273,7 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
 
             return PageRouteBuilder(
               settings: setting,
-              pageBuilder: (_, _, _) => page, //todo 后续优化动画可以从这里下手，直接传入动画变量
+              pageBuilder: (_, _, _) => page,
               transitionDuration: const Duration(milliseconds: 400),
               reverseTransitionDuration: const Duration(milliseconds: 400),
               transitionsBuilder: (_, animation1, animation2, child) {

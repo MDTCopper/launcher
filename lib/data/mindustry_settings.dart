@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:copperlauncher_main/util/settings_bin_codec.dart';
+import 'package:copperlauncher_main/util/io/mindustry_save_file/settings_bin_codec.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'mindustry_settings.g.dart';

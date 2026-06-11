@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:copperlauncher_main/util/ubjson_codec.dart';
+import 'package:copperlauncher_main/util/io/mindustry_save_file/ubjson_codec.dart';
 
 /// arc 框架 Settings 二进制格式编解码器。
 ///

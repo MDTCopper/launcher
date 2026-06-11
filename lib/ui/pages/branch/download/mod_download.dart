@@ -12,7 +12,7 @@ import 'package:copperlauncher_main/ui/util/widget/pager.dart';
 import 'package:copperlauncher_main/ui/util/widget/rebound_container.dart';
 import 'package:copperlauncher_main/util/format/string_cleaner.dart';
 import 'package:copperlauncher_main/util/io/downloader.dart';
-import 'package:copperlauncher_main/util/io/file_reader.dart';
+import 'package:copperlauncher_main/util/io/path_selector.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -671,7 +671,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   }
 
   void _chooseOtherSavePath() async {
-    otherSavePath = await FileReader.selectDirectory(
+    otherSavePath = await PathSelector.selectDirectory(
       initialDirectory: version?.modsPath,
     );
     if (mounted) setState(() {});
