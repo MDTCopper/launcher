@@ -47,3 +47,4 @@ app.*.map.json
 /lib/abandon_mystery_code/
 /lib/test/
 
+/.deepcode/
