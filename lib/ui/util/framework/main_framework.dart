@@ -5,6 +5,7 @@ import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
 import 'package:copperlauncher_main/ui/util/framework/info_drawer.dart';
 import 'package:copperlauncher_main/ui/util/widget/appear_list_view.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
+import 'package:copperlauncher_main/ui/util/widget/resource_importer.dart';
 import 'package:copperlauncher_main/util/io/file_reader.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
@@ -44,14 +45,7 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
   //模组返回Map格式，其实只需要名称与版本，游戏也是
   //地图蓝图尝试用源代码读取内容，名字即可
   void _handleDragFile(DropDoneDetails d) async {
-    final List<FileReader> importList = [];
-
-    for (var file in d.files) {
-      final reader = await FileReader.fromPath(file.path);
-      if (reader.type == null) continue;
-      importList.add(reader);
-    }
-    _importPagePop(importList);
+    await showResourceImporter(d.files.map((it) => it.path).toList());
   }
 
   void _importPagePop(List<FileReader> importList) {

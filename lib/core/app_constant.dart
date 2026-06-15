@@ -1,3 +1,5 @@
+import '../util/math/range.dart';
+
 const appVersion = '0.0.1a';
 
 ///https://api.github.com
@@ -22,67 +24,30 @@ const githubModMetaUrl = '$githubRAW/Anuken/MindustryMods/master/mods.json';
 const github3MonthsModMetaUrl =
     '$githubRAW/Anuken/MindustryMods/@{3months}/mods.json';
 
-final minJavaModGameVersionMap = <double, double>{
-  157.4: 154,
-  157.3: 154,
-  157.2: 154,
-  157.1: 154,
-  157.0: 154,
-  156.2: 154,
-  156.1: 154,
-  156.0: 154,
-  155.4: 154,
-  155.3: 154,
-  155.2: 154,
-  155.1: 154,
-  155.0: 154,
-  154.3: 154,
-  154.2: 154,
+///在146之前，不论是怎么类型的模组，都是一样的
+///
+///146-136=> 136
+///
+///135-105=> 105
+///
+///105-97 => 97 (这个版本往前就没有加载模组功能，可以说是远古版了)
+///
 
-  154.0: 147,
-  153.0: 147,
-  152.2: 147,
-  152.1: 147,
-  152.0: 147,
-  151.1: 147,
-  151.0: 147,
-  150.1: 147,
-  150.0: 147,
-  149.0: 147,
-  148.0: 147,
-  147.1: 147,
-  147.0: 147,
-};
+final minModGameVersionModifier = RangeModifier(0, [
+  RangeRuler(97, 104.9, 97),
+  RangeRuler(105, 135.9, 105),
+  RangeRuler(136, 158.9, 136),
+  RangeRuler(158, double.infinity, 999),
+]);
 
-final minModGameVersionMap = <double, double>{
-  157.4: 136,
-  157.3: 136,
-  157.2: 136,
-  157.1: 136,
-  157.0: 136,
-  156.2: 136,
-  156.1: 136,
-  156.0: 136,
-  155.4: 136,
-  155.3: 136,
-  155.2: 136,
-  155.1: 136,
-  155.0: 136,
-  154.3: 136,
-  154.2: 136,
-  154.0: 136,
-  153.0: 136,
-  152.2: 136,
-  152.1: 136,
-  152.0: 136,
-  151.1: 136,
-  151.0: 136,
-  150.1: 136,
-  150.0: 136,
-  149.0: 136,
-  148.0: 136,
-  147.1: 136,
-  147.0: 136,
-};
+final minJavaModGameVersionModifier = RangeModifier(0, [
+  RangeRuler(97, 105, 97),
+  RangeRuler(105, 136, 105),
+  RangeRuler(136, 147, 136),
+  RangeRuler(147, 154, 147),
+  RangeRuler(154, double.infinity, 154),
+]);
 
 // const minCopperModGameVersionMap = <String, double>{};
+//147往后才能进行存档隔离
+//142往后才支持控制窗口状态

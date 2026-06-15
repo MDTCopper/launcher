@@ -104,7 +104,9 @@ class LaunchMindustryTask extends Task {
       setting.applyPatch(config.setting.mindustrySettings);
     }
 
-    await setting.saveAsync();
+    if (setting.data.isNotEmpty) {
+      await setting.saveAsync();
+    }
     await launcher.start(
       mindustry,
       maximize: maximize,

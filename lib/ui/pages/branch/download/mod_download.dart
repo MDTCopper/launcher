@@ -213,27 +213,25 @@ class _ModDownloadState extends State<ModDownload> {
                   return buildOverView(Icons.source_outlined, s.data!);
                 }
 
-                bool? support;
+                bool support;
                 final modMin = double.parse(s.data!.substring(1));
                 if (modListMeta.hasJava) {
-                  final minGameVersion =
-                      minJavaModGameVersionMap[version.releaseDouble];
-                  if (minGameVersion != null) {
-                    support =
-                        modMin >= minGameVersion &&
-                        modMin <= version.releaseDouble;
-                  }
+                  final minGameVersion = minJavaModGameVersionModifier.resultOf(
+                    version.releaseDouble,
+                  );
+                  support =
+                      modMin >= minGameVersion &&
+                      modMin <= version.releaseDouble;
                 } else {
-                  final minGameVersion =
-                      minModGameVersionMap[version.releaseDouble];
-                  if (minGameVersion != null) {
-                    support =
-                        modMin >= minGameVersion &&
-                        modMin <= version.releaseDouble;
-                  }
+                  final minGameVersion = minModGameVersionModifier.resultOf(
+                    version.releaseDouble,
+                  );
+                  support =
+                      modMin >= minGameVersion &&
+                      modMin <= version.releaseDouble;
                 }
 
-                if (support == true) {
+                if (support) {
                   return buildOverView(Icons.check_outlined, '支持 (${s.data!})');
                 } else if (support == false) {
                   return buildOverView(

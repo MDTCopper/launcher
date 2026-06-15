@@ -57,6 +57,13 @@ class Mindustry {
   ///返回游戏版本号 (double)
   double get releaseDouble => double.parse(releaseNum.substring(1));
 
+  ///返回游戏版本号 (int)
+  int get releaseInt =>
+      int.parse(releaseNum
+          .substring(1)
+          .split('.')
+          .first);
+
   ///游戏目录路径
   String get foldPath => p.join(path, tag);
 
@@ -144,7 +151,7 @@ class MindustryMeta {
   @JsonKey(name: 'modifier')
   final String type;
 
-  factory MindustryMeta.fromJson(Map<String, dynamic> json) =>
+  factory MindustryMeta.fromJson(Map<String, dynamic> json,) =>
       _$MindustryMetaFromJson(json);
 
   Map<String, dynamic> toJson() => _$MindustryMetaToJson(this);
@@ -188,13 +195,17 @@ class Mod {
 
   final bool? hidden;
 
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  late final Uint8List? icon;
+
   @JsonKey(defaultValue: [])
   final List<dynamic> dependencies;
 
-  factory Mod.fromJson(Map<String, dynamic> json) {
+  factory Mod.fromJson(Map<String, dynamic> json, {Uint8List? icon}) {
     json['minGameVersion'] = json['minGameVersion'].toString();
     json['hidden'] = bool.tryParse(json['hidden'].toString());
-    return _$ModFromJson(json);
+    return _$ModFromJson(json)
+      ..icon = icon;
   }
 
   Map<String, dynamic> toJson() => _$ModToJson(this);

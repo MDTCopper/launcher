@@ -284,7 +284,7 @@ class _SettingState extends State<_Setting> {
   static Memory freeMemory = Memory(gb: 128);
   static Memory totalMemory = Memory(gb: 128);
 
-  late Timer _getMemoryTimer;
+  Timer? _getMemoryTimer;
   void _getRam() async {
     final free = await SysInfo.getFreePhysicalMemory();
     freeMemory = Memory(bytes: free);
@@ -310,7 +310,7 @@ class _SettingState extends State<_Setting> {
 
   @override
   void dispose() {
-    _getMemoryTimer.cancel();
+    _getMemoryTimer?.cancel();
     super.dispose();
   }
 

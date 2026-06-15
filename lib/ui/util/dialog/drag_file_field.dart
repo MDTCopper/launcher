@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:copperlauncher_main/ui/util/widget/resource_importer.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 
@@ -32,6 +33,7 @@ class _DragFileFieldState extends State<DragFileField> {
   final _filterKey = GlobalKey<_DragFileFilterState>();
 
   void _showDragFileFilter() {
+    if (isImporting) return;
     _filterKey.currentState?.controller.forward();
     if (_overlayEntry != null) return;
     _overlayEntry = OverlayEntry(

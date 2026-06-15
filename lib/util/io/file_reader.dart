@@ -70,12 +70,16 @@ class FileReader {
   /// 解析出的元数据。
   final Map<String, dynamic>? meta;
 
+  /// Mod 的 icon.png 图片字节
+  final Uint8List? modIcon;
+
   FileReader._({
     required this.path,
     required this.fileName,
     required this.type,
     required this.fileFormat,
     required this.meta,
+    this.modIcon,
   }) {
     meta?['path'] = path;
   }
@@ -144,14 +148,15 @@ class FileReader {
 
     // 检查 ZIP/JAR
     if (_isZip(header)) {
-      final modMeta = _tryModMeta(bytes);
-      if (modMeta != null) {
+      final modResult = _tryModMeta(bytes);
+      if (modResult != null) {
         return FileReader._(
           path: path,
           fileName: fileName,
           type: ResourceType.mod,
           fileFormat: FileFormat.zip,
-          meta: modMeta,
+          meta: modResult.meta,
+          modIcon: modResult.icon,
         );
       }
 
@@ -287,8 +292,10 @@ class FileReader {
     }
   }
 
-  /// 从 ZIP 中解析 mod 元数据（查找 mod.json 或 mod.hjson）。
-  static Map<String, dynamic>? _tryModMeta(Uint8List bytes) {
+  /// 返回 `(meta, icon)` —— meta 为 mod 元数据，icon 为 icon.png 原始字节。
+  static ({Map<String, dynamic> meta, Uint8List? icon})? _tryModMeta(
+    Uint8List bytes,
+  ) {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
       final modFile = archive.files.cast<ArchiveFile?>().firstWhere((f) {
@@ -308,18 +315,32 @@ class FileReader {
       final map = hjsonDecode(content, strict: false) as Map<String, dynamic>;
       map['type'] = 'mod';
 
-      // 检测 Java mod：有 META-INF/ 目录，或有 .class 文件，或 mod.json 中有 main 字段
+      // 提取 icon.png 图片字节
+      Uint8List? iconBytes;
+      final iconFile = archive.files.cast<ArchiveFile?>().firstWhere(
+        (f) =>
+            f != null &&
+            f.name.split('/').last == 'icon.png' &&
+            f.name.split('/').length <= 2,
+        orElse: () => null,
+      );
+      if (iconFile != null) {
+        iconBytes = Uint8List.fromList(iconFile.content as List<int>);
+      }
+      map['icon'] = iconBytes;
+
+      // 检测 Java mod: 有 META-INF/ 目录，或有 .class 文件，或 mod.json 中有 main 字段
       final isJava =
           archive.files.cast<ArchiveFile?>().any((f) {
             if (f == null) return false;
             final name = f.name;
             return name.startsWith('META-INF/') || name.endsWith('.class');
-          }) &&
+          }) ||
           map.containsKey('main');
 
       if (isJava) map['java'] = true;
 
-      return map;
+      return (meta: map, icon: iconBytes);
     } catch (_) {
       return null;
     }
@@ -348,20 +369,20 @@ class FileReader {
 
   // ── 类型化 getter ──
 
-  /// 转为 [MapSave]，仅在 type 为 mapSave 时有效。
   MapSave? get mapSave =>
       type == ResourceType.mapSave && meta != null
           ? MapSave.fromJson(meta!)
           : null;
 
-  /// 转为 [Schematic]，仅在 type 为 schematic 时有效。
   Schematic? get schematic =>
       type == ResourceType.schematic && meta != null
           ? Schematic.fromJson(meta!)
           : null;
 
   Mod? get mod =>
-      type == ResourceType.mod && meta != null ? Mod.fromJson(meta!) : null;
+      type == ResourceType.mod && meta != null
+          ? Mod.fromJson(meta!, icon: modIcon)
+          : null;
 
   MindustryMeta? get mindustry =>
       type == ResourceType.mindustry && meta != null

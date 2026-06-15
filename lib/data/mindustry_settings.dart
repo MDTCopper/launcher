@@ -59,7 +59,7 @@ class MindustrySettings {
       final bytes = file.readAsBytesSync();
       return MindustrySettings.fromBytes(bytes, path);
     } catch (_) {
-      rethrow;
+      return MindustrySettings._({}, path);
     }
   }
 
@@ -187,6 +187,10 @@ class MindustrySettings {
   void saveTo(String path) {
     _filePath = path;
     final bytes = SettingsBinCodec.encode(_data);
+    final file = File(path);
+    if (!file.existsSync()) {
+      file.createSync(recursive: true);
+    }
     File(path).writeAsBytesSync(bytes);
   }
 
@@ -202,6 +206,10 @@ class MindustrySettings {
   Future<void> saveToAsync(String path) async {
     _filePath = path;
     final bytes = SettingsBinCodec.encode(_data);
+    final file = File(path);
+    if (!(await file.exists())) {
+      await file.create(recursive: true);
+    }
     await File(path).writeAsBytes(bytes);
   }
 
@@ -233,12 +241,12 @@ class MindustrySettings {
   }
 
   // ═══════════════════════════════════════════
-  // 常用设置成员变量（驼峰命名）
+  // 常用设置成员变量
   // ═══════════════════════════════════════════
 
   // ── 游戏设置 ──
 
-  /// 自动保存间隔（秒）。
+  /// 自动保存间隔
   int get saveInterval => _data['saveinterval'] as int? ?? 60;
 
   set saveInterval(int v) => _data['saveinterval'] = v;

@@ -797,7 +797,8 @@ class _ModPageState extends State<_ModPage> {
 
   late final ScrollController _controller;
 
-  static double version = 9999;
+  ///不限版本 = -1 , 当前所选版本 = -2
+  static int version = -1;
 
   static Set<double> versionSet = {};
 
@@ -813,6 +814,10 @@ class _ModPageState extends State<_ModPage> {
         conditionChange = true;
       });
     _controller = ScrollController();
+
+    if (version == -2 && config.versionOptions.selectedVersion == null) {
+      version = -1;
+    }
   }
 
   @override
@@ -837,22 +842,39 @@ class _ModPageState extends State<_ModPage> {
   }
 
   List<ModOfficialListMeta> get filteredMods {
-    //todo 做一个列表，选择版本筛选就会筛掉不能运行的模组
-    final minGameVersion = minModGameVersionMap[version] ?? 136;
+    final int v;
 
-    final minJavaGameVersion = minJavaModGameVersionMap[version] ?? 136;
+    if (version == -2) {
+      v = int.parse(
+        config.versionOptions.selectedVersion!.releaseNum
+            .substring(1)
+            .split('.')
+            .first,
+      );
+    } else {
+      v = version;
+    }
+
+    final minGameVersion = minModGameVersionModifier.resultOf(v);
+
+    final minJavaGameVersion = minJavaModGameVersionModifier.resultOf(v);
 
     final l = modMetas.toList();
     return l.where((it) {
       final isJava = it.hasJava;
       final modMin = double.parse(it.minGameVersion);
 
-      final bool support;
+      bool support;
 
-      if (isJava) {
-        support = modMin >= minJavaGameVersion && modMin <= version;
+      //不限版本，不过滤
+      if (version == -1) {
+        support = true;
       } else {
-        support = modMin >= minGameVersion && modMin <= version;
+        if (isJava) {
+          support = modMin >= minJavaGameVersion && modMin <= v;
+        } else {
+          support = modMin >= minGameVersion && modMin <= v;
+        }
       }
 
       final type =
@@ -994,10 +1016,10 @@ class _ModPageState extends State<_ModPage> {
         if (previousModMetaMap.isEmpty) {
           var res = await dio.get(github3MonthsModMetaUrl);
           if (res.statusCode != 200) throw Exception('链接失败');
-          var jsons = jsonDecode(res.data);
+          List<dynamic> jsons = jsonDecode(res.data);
           final List<ModOfficialListMeta> list =
               jsons
-                  .setting<ModOfficialListMeta>(
+                  .map<ModOfficialListMeta>(
                     (it) => ModOfficialListMeta.fromJson(it),
                   )
                   .toList();
@@ -1007,7 +1029,7 @@ class _ModPageState extends State<_ModPage> {
         return true;
       } catch (e) {
         if (tryTime < 5) {
-          print(tryTime);
+          print('$tryTime , $e');
           tryTime++;
           await Future.delayed(const Duration(seconds: 1));
           return await fetch(tryTime: tryTime);
@@ -1031,7 +1053,7 @@ class _ModPageState extends State<_ModPage> {
       final showResetButton =
           searchString.isNotEmpty ||
           sort != 'default' ||
-          version != 9999 ||
+          version != -1 ||
           modTypeSet.isNotEmpty;
 
       return AnimatedSize(
@@ -1059,7 +1081,7 @@ class _ModPageState extends State<_ModPage> {
                           setState(() {
                             searchTextController.clear();
                             sort = 'default';
-                            version = 9999;
+                            version = -1;
                             modTypeSet.clear();
                           });
                         },
@@ -1200,7 +1222,7 @@ class _ModPageState extends State<_ModPage> {
                   children: [
                     Text('游戏版本'),
                     Expanded(
-                      child: AnimatedDropdownMenu<double>(
+                      child: AnimatedDropdownMenu<int>(
                         initialValue: version,
                         onSelect: (v) {
                           setState(() {
@@ -1209,14 +1231,11 @@ class _ModPageState extends State<_ModPage> {
                           });
                         },
                         options: [
-                          DropdownOption(value: 9999, label: '不限'),
+                          DropdownOption(value: -1, label: '不限'),
                           if (selectedVersion != null)
-                            DropdownOption(
-                              value: selectedVersion,
-                              label: '当前版本',
-                            ),
-                          DropdownOption(value: 157.4, label: 'v154+'),
-                          DropdownOption(value: 154.0, label: 'v147+'),
+                            DropdownOption(value: -2, label: '当前版本'),
+                          DropdownOption(value: 154, label: 'v154+'),
+                          DropdownOption(value: 147, label: 'v147+'),
                         ],
                       ),
                     ),
