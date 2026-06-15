@@ -10,7 +10,7 @@ class Range<T extends num> {
     this.max, {
     this.minType = BoundaryType.inclusive,
     this.maxType = BoundaryType.exclusive,
-  });
+  }) : assert(min < max, 'min < max');
 
   final T min;
   final T max;
@@ -47,13 +47,41 @@ class Range<T extends num> {
 
 /// [T] 为范围的泛型(num子类)，[R]为对应值的泛型
 class RangeRuler<T extends num, R> extends Range<T> {
-  RangeRuler(super.min, super.max, this.result);
+  RangeRuler(super.min, super.max, this.result, {super.minType, super.maxType});
 
-  static RangeRuler<int, int> fromJson(Map<String, dynamic> json) {
-    final min = json['min'] ?? 0;
-    final max = json['max'] ?? 0;
-    final result = json['value'] ?? 0;
-    return RangeRuler<int, int>(min, max, result);
+  static RangeRuler<num, num> fromJson(String json) {
+    json = json.replaceAll(' ', '');
+    if (!json.startsWith('Range')) {
+      throw Exception('头格式应为 Range , 如 Range[ 20 , 30 ) => 50');
+    }
+
+    json = json.split('Range').last;
+    final parts = json.split('=>');
+
+    final maxBoundary =
+        parts.first.endsWith(')')
+            ? BoundaryType.exclusive
+            : BoundaryType.inclusive;
+    final minBoundary =
+        parts.first.startsWith('(')
+            ? BoundaryType.exclusive
+            : BoundaryType.inclusive;
+
+    final range = parts.first.split(',');
+
+    final min = num.tryParse(range.first.substring(1)) ?? 0;
+    final max =
+        num.tryParse(range.last.substring(0, range.last.length - 1)) ?? 0;
+
+    final result = num.tryParse(parts.last) ?? 0;
+
+    return RangeRuler<num, num>(
+      min,
+      max,
+      result,
+      minType: minBoundary,
+      maxType: maxBoundary,
+    );
   }
 
   final R result;
@@ -69,12 +97,16 @@ class RangeRuler<T extends num, R> extends Range<T> {
   @override
   int get hashCode => super.hashCode + result.hashCode;
 
-  Map<String, dynamic> toJson() {
-    return {'min': min, 'max': max, 'result': result};
+  /// [20,30)=>50
+  String toJson() {
+    final minBoundary = minType == BoundaryType.inclusive ? '[' : '(';
+    final maxBoundary = maxType == BoundaryType.inclusive ? ']' : ')';
+    return 'Range $minBoundary ${min as num} , ${max as num} $maxBoundary => ${result as num}';
+
+    // return {'min': min, 'max': max, 'result': result};
   }
 }
 
-//todo 开区间和闭区间
 class RangeModifier<T extends num, R> {
   RangeModifier(this.defaultResult, this.rulers);
 
@@ -104,11 +136,12 @@ class RangeModifier<T extends num, R> {
     return list;
   }
 
-  static RangeModifier<int, int> fromJson(Map<String, dynamic> json) {
-    final rulers = json['rulers'].map((it) => RangeRuler.fromJson(it)).toList();
-    return RangeModifier<int, int>(
+  static RangeModifier<num, num> fromJson(Map<String, dynamic> json) {
+    final rulers = json['rulers'] as List<String>;
+
+    return RangeModifier<num, num>(
       json['default'] ?? 0,
-      rulers as List<RangeRuler<int, int>>? ?? [],
+      rulers.map((it) => RangeRuler.fromJson(it)).toList(),
     );
   }
 

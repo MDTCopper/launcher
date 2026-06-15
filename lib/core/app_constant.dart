@@ -34,10 +34,9 @@ const github3MonthsModMetaUrl =
 ///
 
 final minModGameVersionModifier = RangeModifier(0, [
-  RangeRuler(97, 104.9, 97),
-  RangeRuler(105, 135.9, 105),
-  RangeRuler(136, 158.9, 136),
-  RangeRuler(158, double.infinity, 999),
+  RangeRuler(97, 105, 97),
+  RangeRuler(105, 136, 105),
+  RangeRuler(136, double.infinity, 136),
 ]);
 
 final minJavaModGameVersionModifier = RangeModifier(0, [
