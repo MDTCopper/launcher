@@ -1,62 +1,29 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:open_filex/open_filex.dart';
 
 import '../app_paths.dart';
+import 'process_controller.dart';
 
 class PathSelector {
-  // Cache to track recently opened folder paths with timestamps
-  static final Map<String, DateTime> _recentlyOpenedPaths =
-      <String, DateTime>{};
-  static const Duration _cacheDuration = Duration(
-    seconds: 3,
-  ); // Clear cache after 3 seconds
-
-  ///检查指定路径的文件夹是否已经在资源管理器中打开
-  static bool _isFolderRecentlyOpened(String path) {
-    final normalizedPath = path.toLowerCase();
-    final currentTime = DateTime.now();
-
-    if (_recentlyOpenedPaths.containsKey(normalizedPath)) {
-      final lastOpened = _recentlyOpenedPaths[normalizedPath]!;
-      if (currentTime.difference(lastOpened) < _cacheDuration) {
-        return true; // Folder was opened recently
-      } else {
-        // Remove expired entry
-        _recentlyOpenedPaths.remove(normalizedPath);
-      }
-    }
-    return false;
-  }
-
-  ///打开对应路径文件夹
+  ///打开对应路径文件夹（Win32 防重复打开：已有同路径窗口则激活，否则新建）
   static Future<void> openFolder(String path) async {
-    //todo win32接口防止重复打开文件夹
     final dir = Directory(path);
-
     if (!(await dir.exists())) {
       throw Exception("路径不存在：\\$path");
     }
 
     try {
       if (Platform.isWindows) {
-        if (_isFolderRecentlyOpened(path)) {
-          print("文件夹最近已打开：\\$path");
-          return;
-        }
-
-        await _runWinExplorer(["/open,", dir.path]);
-
-        _recentlyOpenedPaths[path.toLowerCase()] = DateTime.now();
+        WindowProcessController.openExplorer(dir.path);
       }
     } catch (e) {
       rethrow;
     }
   }
 
-  ///定位对应路径文件夹
+  ///在资源管理器中定位选中文件/文件夹
   static Future<void> locatedPath(String path) async {
     final dir = Directory(path);
     if (!(await dir.exists())) {
@@ -65,7 +32,7 @@ class PathSelector {
 
     try {
       if (Platform.isWindows) {
-        await _runWinExplorer(["/select,", dir.path]);
+        WindowProcessController.locateFile(dir.path);
       } else if (Platform.isAndroid) {
         _locateFileOnAndroid(path);
       }
@@ -100,10 +67,6 @@ class PathSelector {
       acceptedTypeGroups: acceptedTypeGroups,
     );
     return file?.path;
-  }
-
-  static Future<void> _runWinExplorer(List<String> arguments) async {
-    await Process.run("explorer.exe", arguments, runInShell: true);
   }
 
   //todo 安卓端文件定位
