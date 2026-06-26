@@ -139,11 +139,11 @@ class _AppearListView extends State<AppearListView>
       children: [
         DesktopScrollViewContainer(
           controller: scrollController,
-          child: ListView(
+          child: SingleChildScrollView(
             physics: widget.physics,
             controller: scrollController,
             padding: widget.padding,
-            children: [Column(spacing: 8, children: items)],
+            child: Column(spacing: 8, children: items),
           ),
         ),
         // SingleChildScrollView(

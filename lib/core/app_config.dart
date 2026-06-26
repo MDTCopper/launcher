@@ -83,6 +83,11 @@ class AppConfig {
   Timer? _saveTimer;
 
   Future<void> save() async {
+    //计时器活跃就跳过这次的保存，等待计时器的延迟保存
+    if (_saveTimer == null || !_saveTimer!.isActive) {
+      if (kDebugMode) await saveAsJson();
+      await saveAsBin();
+    }
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(seconds: 1), () async {
       if (kDebugMode) await saveAsJson();
@@ -139,15 +144,20 @@ class Setting {
   @JsonKey(defaultValue: {})
   final Map<String, dynamic> customSetting; //这个用来存储一些不太用得着置变量，比如某些提示的开关记忆
 
+  late final PersonalizationOptions personalizationOptions;
+
   Setting({
     required this.githubToken,
     required this.customSetting,
     required this.mindustrySettingsOverride,
     LaunchOptions? launchOptions,
     MindustrySettingsPatch? mindustrySettings,
+    PersonalizationOptions? personalizationOptions,
   }) {
     this.launchOptions = launchOptions ?? LaunchOptions.fromJson({});
     this.mindustrySettings = mindustrySettings ?? MindustrySettingsPatch();
+    this.personalizationOptions =
+        personalizationOptions ?? PersonalizationOptions.fromJson({});
   }
 
   dynamic getCustomSetting(String key, dynamic defaultSetting) {
@@ -336,9 +346,22 @@ class JavaOptions {
   Map<String, dynamic> toJson() => _$JavaOptionsToJson(this);
 }
 
+enum ThemeColor { copper, tai, tu, suGang }
+
+@JsonSerializable()
 class PersonalizationOptions {
-  //final themeColor;
-  ThemeMode? themeMode; //空即为跟随系统
+  @JsonKey(defaultValue: ThemeMode.system)
+  ThemeMode themeMode;
+
+  @JsonKey(defaultValue: ThemeColor.copper)
+  ThemeColor themeColor;
+
+  PersonalizationOptions({required this.themeMode, required this.themeColor});
+
+  factory PersonalizationOptions.fromJson(Map<String, dynamic> json) =>
+      _$PersonalizationOptionsFromJson(json);
+
+  Map<String, dynamic> toJson() => _$PersonalizationOptionsToJson(this);
 }
 
 class DownloadOptions {}

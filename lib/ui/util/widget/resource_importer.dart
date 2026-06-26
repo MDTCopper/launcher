@@ -1,5 +1,5 @@
+import 'package:copperlauncher_main/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
-import 'package:copperlauncher_main/ui/util/widget/rebound_checkbox.dart';
 import 'package:flutter/material.dart';
 
 import '../../../util/format/string_cleaner.dart';

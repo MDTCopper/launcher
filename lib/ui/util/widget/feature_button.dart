@@ -1,4 +1,4 @@
-import 'package:copperlauncher_main/ui/util/widget/rebound_container.dart';
+import 'package:copperlauncher_main/ui/components/rebound/rebound_container.dart';
 import 'package:flutter/material.dart';
 
 class ReboundButton extends ReboundContainer {

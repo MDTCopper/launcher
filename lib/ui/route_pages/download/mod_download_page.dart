@@ -3,13 +3,13 @@ import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:copperlauncher_main/data/net_asset.dart';
 import 'package:copperlauncher_main/domain/task_manager.dart';
 import 'package:copperlauncher_main/domain/tasks/download_mod.dart';
+import 'package:copperlauncher_main/ui/components/rebound/rebound_container.dart';
 import 'package:copperlauncher_main/ui/feature/images.dart';
 import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
 import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:copperlauncher_main/ui/util/widget/future/readme_loader.dart';
 import 'package:copperlauncher_main/ui/util/widget/pager.dart';
-import 'package:copperlauncher_main/ui/util/widget/rebound_container.dart';
 import 'package:copperlauncher_main/util/format/string_cleaner.dart';
 import 'package:copperlauncher_main/util/io/downloader.dart';
 import 'package:copperlauncher_main/util/io/path_selector.dart';
@@ -20,10 +20,10 @@ import 'package:hjson_dart/hjson_dart.dart';
 import 'package:line_icons/line_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/app_constant.dart';
-import '../../../util/widget/feature_button.dart';
-import '../../../util/widget/future/mod_icon_loader.dart';
-import '../../../vars.dart';
+import '../../../core/app_constant.dart';
+import '../../util/widget/feature_button.dart';
+import '../../util/widget/future/mod_icon_loader.dart';
+import '../../vars.dart';
 
 ///模组仓库有三种情况：
 ///
@@ -32,14 +32,14 @@ import '../../../vars.dart';
 /// 2.有历史源码，但没有构筑资源 => tag拼接 => 没有下载量信息
 ///
 /// 3.根本没发布版本 => 提供源码下载方法
-class ModDownload extends StatefulWidget {
-  const ModDownload({super.key});
+class ModDownloadPage extends StatefulWidget {
+  const ModDownloadPage({super.key});
 
   @override
-  State<StatefulWidget> createState() => _ModDownloadState();
+  State<StatefulWidget> createState() => _ModDownloadPageState();
 }
 
-class _ModDownloadState extends State<ModDownload> {
+class _ModDownloadPageState extends State<ModDownloadPage> {
   late ModOfficialListMeta modListMeta;
   final selectedVersion = config.versionOptions.selectedVersion;
 

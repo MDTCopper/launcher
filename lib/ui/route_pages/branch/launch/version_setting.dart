@@ -4,9 +4,9 @@ import 'dart:math';
 
 import 'package:copperlauncher_main/core/app_config.dart';
 import 'package:copperlauncher_main/data/local_asset.dart';
+import 'package:copperlauncher_main/ui/shell/navigation_rail.dart';
 import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
-import 'package:copperlauncher_main/ui/util/framework/menu_bar.dart';
-import 'package:copperlauncher_main/ui/util/framework/page_skeleton.dart';
+import 'package:copperlauncher_main/ui/util/route/sub_route_register.dart';
 import 'package:copperlauncher_main/ui/util/widget/animated_dropdown_menu.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
@@ -19,14 +19,17 @@ import 'package:line_icons/line_icons.dart';
 import '../../../../util/format/byte_unit.dart';
 import '../../../../util/format/ram_rank_list.dart';
 import '../../../../util/system_info.dart';
+import '../../../components/rebound/rebound_checkbox.dart';
 import '../../../feature/images.dart';
 import '../../../util/widget/percent_bar.dart';
-import '../../../util/widget/rebound_checkbox.dart';
 import '../../../util/widget/setting_bar/checkbox_setting_bar.dart';
 import '../../../util/widget/setting_bar/input_setting_bar.dart';
 import '../../../util/widget/setting_bar/slider_setting_bar.dart';
 
 late Mindustry _mindustry;
+
+////version_setting
+const versionSettingPageRouteKey = '/version_setting';
 
 class VersionSettingPage extends StatefulWidget {
   const VersionSettingPage({super.key});
@@ -35,48 +38,56 @@ class VersionSettingPage extends StatefulWidget {
   State<StatefulWidget> createState() => _VersionSettingState();
 }
 
-class _VersionSettingState extends State<VersionSettingPage> {
+class _VersionSettingState extends State<VersionSettingPage> with SubRoute {
   static int index = 0;
 
   late final List<Widget> pages = [_About(), _Setting(), _Mods(), _Package()];
 
-  void moveTo(int i) => setState(() => index = i);
+  void moveTo(int i) {
+    if (mounted) setState(() => index = i);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    register(versionSettingPageRouteKey, [
+      SubRailSection<int>(
+        label: '版本设置',
+        items: [
+          SubRailItem<int>(
+            label: '概况',
+            icon: Icons.view_in_ar,
+            onTap: () => moveTo(0),
+            selected: (_) => index == 0,
+          ),
+          SubRailItem<int>(
+            label: '设置',
+            icon: Icons.settings,
+            onTap: () => moveTo(1),
+            selected: (_) => index == 1,
+          ),
+          SubRailItem<int>(
+            label: '模组',
+            icon: LineIcons.puzzlePiece,
+            onTap: () => moveTo(2),
+            selected: (_) => index == 2,
+          ),
+          SubRailItem<int>(
+            label: '资源打包',
+            icon: Icons.outbox_sharp,
+            onTap: () => moveTo(3),
+            selected: (_) => index == 3,
+          ),
+        ],
+      ),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
     _mindustry = args?['version'];
-    return PageSkeleton(
-      body: pages[index],
-      menuBar: SideMenuBar(
-        items: [
-          MenuItem(
-            leading: Icon(Icons.view_in_ar),
-            title: Text('概况'),
-            selected: index == 0,
-            onTap: () => moveTo(0),
-          ),
-          MenuItem(
-            leading: Icon(Icons.settings),
-            title: Text('设置'),
-            selected: index == 1,
-            onTap: () => moveTo(1),
-          ),
-          MenuItem(
-            leading: Icon(LineIcons.puzzlePiece, fontWeight: FontWeight.w500),
-            title: Text('模组'),
-            selected: index == 2,
-            onTap: () => moveTo(2),
-          ),
-          MenuItem(
-            leading: Icon(Icons.outbox_sharp),
-            title: Text('资源打包'),
-            selected: index == 3,
-            onTap: () => moveTo(3),
-          ),
-        ],
-      ),
-    );
+    return pages[index];
   }
 }
 
@@ -485,9 +496,6 @@ class _SettingState extends State<_Setting> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-
     return ListContentPanel(
       items: [
         ContentPanelModule(

@@ -234,7 +234,7 @@ Future<T?> showDefaultDialogPopup<T extends Object?>({
   EdgeInsetsGeometry? padding,
   (double? width, double? height)? boxRate,
 }) {
-  final key = PageKeyProvider.globalKey;
+  final key = PageKeyProvider.themeKey;
   final context = key.currentContext;
   if (context == null) throw Exception('未能找到全局context');
   final theme = Theme.of(context);

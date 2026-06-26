@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+
 import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
@@ -57,7 +58,7 @@ class NotificationManager {
     VoidCallback? onTap,
     Duration duration = const Duration(seconds: 3),
   }) async {
-    context ??= PageKeyProvider.globalKey.currentContext;
+    context ??= PageKeyProvider.shellKey.currentContext;
     await _show(context!).then((_) {
       _globalKey.currentState!.addItem(icon, title, content, onTap, duration);
     });
@@ -69,7 +70,7 @@ class NotificationManager {
     VoidCallback? onTap,
     Duration duration = const Duration(seconds: 3),
   }) async {
-    context ??= PageKeyProvider.globalKey.currentContext;
+    context ??= PageKeyProvider.shellKey.currentContext;
     await _show(context!).then((_) {
       _globalKey.currentState!.addItemWidget(widget, onTap, duration);
     });
@@ -103,14 +104,14 @@ class _NotificationWidgetState extends State<NotificationWidget> {
 
   final List<NotificationItem> _itemList = [];
 
-  void addItem(//todo 通知类型
+  void addItem(
+    //todo 通知类型
     IconData? icon,
     String? title,
     String? content,
     VoidCallback? onTap,
     Duration duration,
   ) {
-
     final theme = Theme.of(context);
     Widget widget = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,19 +120,17 @@ class _NotificationWidgetState extends State<NotificationWidget> {
           mainAxisSize: MainAxisSize.min,
           spacing: 8,
           children: [
-            Icon(icon,size: 28),
+            Icon(icon, size: 28),
             if (title != null)
               Text(
                 title,
-                style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.primary),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
               ),
           ],
         ),
-        if (content != null)
-          Text(
-            content,
-            style: theme.textTheme.bodyMedium,
-          ),
+        if (content != null) Text(content, style: theme.textTheme.bodyMedium),
       ],
     );
 
@@ -146,7 +145,7 @@ class _NotificationWidgetState extends State<NotificationWidget> {
         child: widget,
       ),
     );
-    
+
     widget = Align(
       alignment: Alignment.centerLeft,
       child: Padding(

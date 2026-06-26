@@ -43,6 +43,12 @@ Setting _$SettingFromJson(Map<String, dynamic> json) => Setting(
           : MindustrySettingsPatch.fromJson(
             json['mindustrySettings'] as Map<String, dynamic>,
           ),
+  personalizationOptions:
+      json['personalizationOptions'] == null
+          ? null
+          : PersonalizationOptions.fromJson(
+            json['personalizationOptions'] as Map<String, dynamic>,
+          ),
 );
 
 Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
@@ -51,6 +57,7 @@ Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
   'mindustrySettingsOverride': instance.mindustrySettingsOverride,
   'githubToken': instance.githubToken,
   'customSetting': instance.customSetting,
+  'personalizationOptions': instance.personalizationOptions,
 };
 
 WindowSize _$WindowSizeFromJson(Map<String, dynamic> json) => WindowSize(
@@ -147,6 +154,37 @@ Map<String, dynamic> _$JavaOptionsToJson(JavaOptions instance) =>
       'jvmParameter': instance.jvmParameter,
       'useBetterGPU': instance.useBetterGPU,
     };
+
+PersonalizationOptions _$PersonalizationOptionsFromJson(
+  Map<String, dynamic> json,
+) => PersonalizationOptions(
+  themeMode:
+      $enumDecodeNullable(_$ThemeModeEnumMap, json['themeMode']) ??
+      ThemeMode.system,
+  themeColor:
+      $enumDecodeNullable(_$ThemeColorEnumMap, json['color']) ??
+      ThemeColor.copper,
+);
+
+Map<String, dynamic> _$PersonalizationOptionsToJson(
+  PersonalizationOptions instance,
+) => <String, dynamic>{
+  'themeMode': _$ThemeModeEnumMap[instance.themeMode]!,
+  'color': _$ThemeColorEnumMap[instance.themeColor]!,
+};
+
+const _$ThemeModeEnumMap = {
+  ThemeMode.system: 'system',
+  ThemeMode.light: 'light',
+  ThemeMode.dark: 'dark',
+};
+
+const _$ThemeColorEnumMap = {
+  ThemeColor.copper: 'copper',
+  ThemeColor.tai: 'tai',
+  ThemeColor.tu: 'tu',
+  ThemeColor.suGang: 'suGang',
+};
 
 VersionOptions _$VersionOptionsFromJson(Map<String, dynamic> json) =>
     VersionOptions(

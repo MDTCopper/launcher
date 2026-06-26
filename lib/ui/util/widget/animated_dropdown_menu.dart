@@ -362,7 +362,7 @@ class _AnimatedDropdownMenuState<T> extends State<AnimatedDropdownMenu<T>>
           },
         );
         Overlay.of(
-          PageKeyProvider.globalKey.currentState!.context,
+          PageKeyProvider.themeKey.currentState!.context,
         ).insert(_overlayEntry!); //因为嵌套路由，这里必须要用key来传递根context
       }
       expandedController.forward();

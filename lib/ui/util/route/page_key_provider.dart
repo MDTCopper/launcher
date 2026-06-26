@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
-import '../framework/main_framework.dart';
+
+import '../../copper_launcher.dart';
+import '../../shell/app_shell.dart';
 
 class PageKeyProvider {
+  PageKeyProvider._();
 
-  static final _globalKey = GlobalKey<MainFrameWorkState>();
-  static GlobalKey<MainFrameWorkState> get globalKey => _globalKey;
+  static final _themeKey = GlobalKey<CopperLauncherState>();
 
-  static final _innerKey = GlobalKey<NavigatorState>();
-  static GlobalKey<NavigatorState> get innerKey => _innerKey;
+  static GlobalKey<CopperLauncherState> get themeKey => _themeKey;
 
+  static final _shellKey = GlobalKey<AppShellState>();
+
+  static GlobalKey<AppShellState> get shellKey => _shellKey;
+
+  static final _navigatorKey = GlobalKey<NavigatorState>();
+
+  static GlobalKey<NavigatorState> get navigatorKey => _navigatorKey;
 }

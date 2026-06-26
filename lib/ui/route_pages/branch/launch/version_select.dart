@@ -4,27 +4,50 @@ import 'package:copperlauncher_main/core/app_config.dart';
 import 'package:copperlauncher_main/data/local_asset.dart';
 import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
 import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
-import 'package:copperlauncher_main/ui/util/framework/menu_bar.dart';
-import 'package:copperlauncher_main/ui/util/framework/page_skeleton.dart';
+import 'package:copperlauncher_main/ui/util/route/sub_route_register.dart';
 import 'package:copperlauncher_main/ui/util/widget/animated_expansion.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:flutter/material.dart';
 
 import '../../../feature/images.dart';
+import '../../../shell/navigation_rail.dart';
+
+////version_select
+const versionSelectPageRouteKey = '/version_select';
 
 class VersionSelectPage extends StatefulWidget {
   const VersionSelectPage({super.key});
-
   @override
   State<StatefulWidget> createState() => _VersionSelectPageState();
 }
 
 //选择版本页面
-class _VersionSelectPageState extends State<VersionSelectPage> {
+class _VersionSelectPageState extends State<VersionSelectPage> with SubRoute {
   final List<VersionFold> _versionFolds = config.versionOptions.versionFolds;
 
   static int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    register(versionSelectPageRouteKey, [
+      SubRailSection(
+        label: '版本管理',
+        items: [
+          for (int i = 0; i < _versionFolds.length; i++)
+            SubRailItem(
+              label: _versionFolds[i].tag,
+              icon: Icons.folder_outlined,
+              onTap: () {
+                if (mounted) setState(() => _index = i);
+              },
+              selected: (_) => i == _index,
+            ),
+        ],
+      ),
+    ]);
+  }
 
   void _deleteVersion(Mindustry version) {
     final index = _versionFolds[_index].versions.indexWhere(
@@ -41,21 +64,17 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
       title: '确定要删除 [$tag] ？',
       content: '[$tag] 游戏文件及其独立附属的存档，mod，整合包，蓝图，地图都会被删除！',
       action: () async {
-        if (version.jarPath == null) {
-          debugPrint('无效文件路径,自动删除配置信息');
-        } else {
-          final file = File(version.jarPath!);
-          if (await file.exists()) {
-            try {
-              await file.delete();
-            } catch (e) {
-              debugPrint('删除失败');
-              debugPrint(e.toString());
-              return;
-            }
-          } else {
-            debugPrint('游戏文件不存在,自动删除配置信息');
+        final file = File(version.jarPath);
+        if (await file.exists()) {
+          try {
+            await file.delete();
+          } catch (e) {
+            debugPrint('删除失败');
+            debugPrint(e.toString());
+            return;
           }
+        } else {
+          debugPrint('游戏文件不存在,自动删除配置信息');
         }
 
         setState(() {
@@ -85,7 +104,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     );
     if (index == -1) return;
     _versionFolds[_index].versions[index].like =
-        !_versionFolds[_index].versions[index].like!;
+        !_versionFolds[_index].versions[index].like;
     await config.save();
     _updateView();
   }
@@ -99,7 +118,6 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
   }
 
   void _popToVersionSetting(Mindustry version) {
-    //todo 设置
     final index = _versionFolds[_index].versions.indexWhere(
       (v) => v == version,
     );
@@ -127,8 +145,8 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
         scale: 0.8,
         height: 48,
       ),
-      title: Text(version.tag ?? '未命名版本', style: theme.textTheme.bodyLarge),
-      subtitle: Text(version.name ?? '未知版本', style: theme.textTheme.bodyMedium),
+      title: Text(version.tag, style: theme.textTheme.bodyLarge),
+      subtitle: Text(version.name, style: theme.textTheme.bodyMedium),
       trailing: IconTheme(
         data: theme.iconTheme,
         child: Row(
@@ -149,10 +167,8 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
             ),
             ReboundButton(
               child: Icon(
-                version.like ?? false
-                    ? Icons.favorite
-                    : Icons.favorite_border_rounded,
-                color: version.like ?? false ? Colors.red : null,
+                version.like ? Icons.favorite : Icons.favorite_border_rounded,
+                color: version.like ? Colors.red : null,
               ),
               onTap: () {
                 _collectedVersion(version);
@@ -184,13 +200,13 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
 
       final child = _buildVersionTile(version);
 
-      if (version.like ?? false) likes.add(child);
+      if (version.like) likes.add(child);
 
       if (version.launcher == LauncherType.copper) {
         coppers.add(child);
         continue;
       }
-      if (version.isBe ?? false) {
+      if (version.isBe) {
         betas.add(child);
         continue;
       }
@@ -279,48 +295,8 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     );
   }
 
-  SideMenuBar _buildMenuBar() {
-    final List<Widget> items = [];
-    for (int i = 0; i < _versionFolds.length; i++) {
-      final fold = _versionFolds[i];
-      items.add(
-        MenuItem(
-          leading: Icon(Icons.folder_outlined),
-          title: Text(fold.tag),
-          subtitle: Text(fold.path),
-          selected: _index == i,
-          onTap: () {
-            setState(() {
-              _index = i;
-            });
-          },
-        ),
-      );
-    }
-    return SideMenuBar(
-      width: 280,
-      items: [
-        Text(
-          '资源',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.primary,
-            fontWeight: FontWeight.w900,
-            fontSize: 20,
-          ),
-        ),
-        ...items,
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return PageSkeleton(
-      body: KeyedSubtree(
-        key: ValueKey(_index),
-        child: _buildVersionViewPage(_versionFolds[_index].versions),
-      ),
-      menuBar: _buildMenuBar(),
-    );
+    return _buildVersionViewPage(_versionFolds[_index].versions);
   }
 }

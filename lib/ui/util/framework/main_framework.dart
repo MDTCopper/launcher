@@ -29,7 +29,7 @@ class MainFrameWork extends StatefulWidget {
 
 class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
   static final _appbarKey = GlobalKey<AppbarNavigationBarState>();
-  static final _navigatorKey = PageKeyProvider.innerKey;
+  static final _navigatorKey = PageKeyProvider.navigatorKey;
 
   String get route {
     if (_appbarKey.currentState == null) return '/';

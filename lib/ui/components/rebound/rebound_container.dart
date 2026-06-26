@@ -1,18 +1,17 @@
+import 'package:copperlauncher_main/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
-
-import '../../feature/feature_curve.dart';
 
 class ReboundContainer extends StatefulWidget {
   final double? pressedScale;
-  final Duration? duration; //回弹持续时间
+  final Duration? duration; // 回弹持续时间
   final Widget? child;
-  final Widget? surfaceChild; //组件非响应区
+  final Widget? surfaceChild; // 非响应区
 
   final VoidCallback? onTap;
   final GestureLongPressCallback? onLongTap;
 
   final BorderRadius? borderRadius;
-  final ShapeBorder? shapeBorder; //高亮覆盖层修饰
+  final ShapeBorder? shapeBorder; // 高亮覆盖层修饰
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
 
@@ -20,9 +19,12 @@ class ReboundContainer extends StatefulWidget {
   final double elevation;
   final Color? hoverColor;
   final Color? splashColor;
-  final Color? highlightColor; //todo 缺少Inherited颜色传递
+  final Color? highlightColor;
   final Color? backgroundColor;
   final Color? shadowColor;
+
+  /// 悬浮色渐变时长，默认 200ms
+  final Duration hoverDuration;
 
   const ReboundContainer({
     super.key,
@@ -35,15 +37,16 @@ class ReboundContainer extends StatefulWidget {
     this.shapeBorder,
     this.borderRadius,
 
-    this.hoverColor ,//= const Color.fromARGB(30, 255, 255, 255)
-    this.splashColor ,//= const Color.fromARGB(30, 255, 255, 255),
-    this.highlightColor ,//= const Color.fromARGB(30, 255, 255, 255),
+    this.hoverColor,
+    this.splashColor,
+    this.highlightColor,
     this.backgroundColor,
-    this.shadowColor ,
+    this.shadowColor,
     this.hoverElevation = 0.0,
     this.elevation = 0.0,
     this.padding = const EdgeInsets.all(0),
     this.margin = const EdgeInsets.all(0),
+    this.hoverDuration = const Duration(milliseconds: 300),
   });
 
   @override
@@ -52,8 +55,8 @@ class ReboundContainer extends StatefulWidget {
 
 class _ReboundContainer extends State<ReboundContainer>
     with SingleTickerProviderStateMixin {
-  late final AnimationController controller;
-  late final Animation<double> scale;
+  late final AnimationController _pressController;
+  late final Animation<double> _pressScale;
 
   bool isPressed = false;
   bool isHover = false;
@@ -66,19 +69,36 @@ class _ReboundContainer extends State<ReboundContainer>
 
   @override
   void initState() {
-    if (widget.hoverElevation > 0.0) {
-      onHover = (hover) {
-        setState(() {
-          isHover = hover;
-        });
-      };
-    }
+    super.initState();
+
+    // 按压回弹
+    _pressController = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+    )..addStatusListener((state) {
+      if (!isPressed && !state.isAnimating) {
+        _pressController.reverse();
+      }
+    });
+    _pressScale = Tween(
+      begin: 1.0,
+      end: widget.pressedScale,
+    ).animate(CurvedAnimation(parent: _pressController, curve: Curves.ease));
+
+    // 悬浮监听
+    onHover = (hover) {
+      setState(() {
+        isHover = hover;
+      });
+    };
+
+    // 按压
     if (widget.onTap != null) {
       onTapDown = (_) {
         setState(() {
           isPressed = true;
-          if (!controller.isForwardOrCompleted) {
-            controller.forward();
+          if (!_pressController.isForwardOrCompleted) {
+            _pressController.forward();
           }
         });
       };
@@ -86,8 +106,8 @@ class _ReboundContainer extends State<ReboundContainer>
       onTapUp = (_) {
         setState(() {
           isPressed = false;
-          if (!controller.isAnimating) {
-            controller.reverse();
+          if (!_pressController.isAnimating) {
+            _pressController.reverse();
           }
         });
         widget.onTap?.call();
@@ -96,56 +116,61 @@ class _ReboundContainer extends State<ReboundContainer>
       onTapCancel = () {
         setState(() {
           isPressed = false;
-          if (!controller.isAnimating) {
-            controller.reverse();
+          if (!_pressController.isAnimating) {
+            _pressController.reverse();
           }
         });
       };
     }
+
     if (widget.onLongTap != null) {
       onLongTap = () {
         setState(() {
           isPressed = false;
-          if (!controller.isForwardOrCompleted) {
-            controller.forward();
+          if (!_pressController.isForwardOrCompleted) {
+            _pressController.forward();
           }
         });
         widget.onLongTap?.call();
       };
     }
-
-    controller = AnimationController(vsync: this, duration: widget.duration)
-      ..addStatusListener((state) {
-        if (!isPressed && !state.isAnimating) {
-          controller.reverse();
-        }
-      });
-    scale = Tween(begin: 1.0, end: widget.pressedScale).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: FeatureCurves.reboundIn,
-        reverseCurve: FeatureCurves.reboundOut,
-      ),
-    );
-    super.initState();
   }
 
   @override
   void dispose() {
-    controller.dispose();
+    _pressController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-
     final theme = Theme.of(context);
+    final baseColor =
+        widget.backgroundColor ?? AppColors.of(context).cardBackground;
+    theme.colorScheme.secondaryContainer;
+
+    final hoverColor = widget.hoverColor ?? AppColors.of(context).splash;
+
+    final light = theme.brightness == Brightness.light;
+
+    final double elevation;
+
+    //亮色情况下触发elevation
+    if (light) {
+      if (isHover && !isPressed) {
+        elevation = widget.hoverElevation;
+      } else {
+        elevation = widget.elevation;
+      }
+    } else {
+      elevation = 0.0;
+    }
 
     return Padding(
       padding: widget.padding!,
       child: ScaleTransition(
         alignment: Alignment.center,
-        scale: scale,
+        scale: _pressScale,
         child: Stack(
           alignment: Alignment.center,
           fit: StackFit.passthrough,
@@ -153,19 +178,15 @@ class _ReboundContainer extends State<ReboundContainer>
             Material(
               borderRadius: widget.borderRadius,
               shape: widget.shapeBorder,
-              color: widget.backgroundColor??Theme.of(context).colorScheme.secondaryContainer,
+              color: baseColor,
               shadowColor: widget.shadowColor,
-              elevation:
-                  isHover && !isPressed
-                      ? widget.hoverElevation
-                      : widget.elevation,
+              elevation: elevation,
               child: InkWell(
-                //todo 可以用WidgetStatesController优化代码
                 autofocus: true,
                 borderRadius: widget.borderRadius,
                 customBorder: widget.shapeBorder,
                 focusColor: Colors.transparent,
-                hoverColor: widget.hoverColor,
+                hoverColor: Colors.transparent,
                 highlightColor: widget.highlightColor,
                 splashColor: widget.splashColor,
                 onTapDown: onTapDown,
@@ -177,6 +198,24 @@ class _ReboundContainer extends State<ReboundContainer>
             ),
             if (widget.surfaceChild != null)
               Padding(padding: widget.margin!, child: widget.surfaceChild!),
+
+            //todo 墨水层实现脱离，用MaterialInkController操控墨水
+            // 悬浮叠加层 —— 用动画控制透明度，暗色模式也能看见
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedContainer(
+                  duration: widget.hoverDuration,
+                  curve: Curves.ease,
+                  decoration: BoxDecoration(
+                    color:
+                        isHover
+                            ? hoverColor.withAlpha(30)
+                            : hoverColor.withAlpha(0),
+                    borderRadius: widget.borderRadius,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

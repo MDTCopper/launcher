@@ -6,11 +6,10 @@ import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
 import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/app_config.dart';
-import '../../util/test.dart';
-import '../feature/images.dart';
-import '../util/info/log_list.dart';
-import '../util/info/notification.dart';
+import '../../../core/app_config.dart';
+import '../../feature/images.dart';
+import '../../util/info/log_list.dart';
+import '../../util/info/notification.dart';
 
 class LaunchPage extends StatefulWidget {
   const LaunchPage({super.key});
@@ -31,7 +30,7 @@ class _LaunchPageState extends State<LaunchPage> {
           await Navigator.pushNamed(
             context,
             '/version_select',
-            arguments: {'lead': '版本选择'},
+            arguments: {'lead': '版本选择', 'routes': []},
           );
           setState(() {});
         },
@@ -158,7 +157,7 @@ class _LaunchPageState extends State<LaunchPage> {
         Expanded(
           child: Align(
             //屏幕中心
-            child: Test(),
+            // child: Test(),
           ),
         ),
         Padding(
