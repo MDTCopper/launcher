@@ -7,4 +7,10 @@ mixin SubRoute {
     if (state == null) throw Exception('未找到shell');
     state.registerSubRoute(key, sections);
   }
+
+  void registerKey(String key) {
+    final state = PageKeyProvider.shellKey.currentState;
+    if (state == null) throw Exception('未找到shell');
+    state.registerSubRouteKey(key);
+  }
 }

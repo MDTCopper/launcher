@@ -49,7 +49,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> with SubRoute {
     ]);
   }
 
-  void _deleteVersion(Mindustry version) {
+  void _delete(Mindustry version) {
     final index = _versionFolds[_index].versions.indexWhere(
       (v) => v == version,
     );
@@ -91,14 +91,14 @@ class _VersionSelectPageState extends State<VersionSelectPage> with SubRoute {
     );
   }
 
-  void _selectVersion(Mindustry version) async {
+  void _select(Mindustry version) async {
     config.versionOptions.selectedVersion = version;
     Navigator.pop(context);
     await config.save();
   }
 
-  void _collectedVersion(Mindustry version) async {
-    //收藏
+  //收藏
+  void _collect(Mindustry version) async {
     final index = _versionFolds[_index].versions.indexWhere(
       (v) => v == version,
     );
@@ -117,7 +117,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> with SubRoute {
     );
   }
 
-  void _popToVersionSetting(Mindustry version) {
+  void _popToSettingOf(Mindustry version) {
     final index = _versionFolds[_index].versions.indexWhere(
       (v) => v == version,
     );
@@ -161,31 +161,23 @@ class _VersionSelectPageState extends State<VersionSelectPage> with SubRoute {
               ),
             ReboundButton(
               child: Icon(Icons.delete_outline),
-              onTap: () {
-                _deleteVersion(version);
-              },
+              onTap: () => _delete(version),
             ),
             ReboundButton(
               child: Icon(
                 version.like ? Icons.favorite : Icons.favorite_border_rounded,
                 color: version.like ? Colors.red : null,
               ),
-              onTap: () {
-                _collectedVersion(version);
-              },
+              onTap: () => _collect(version),
             ),
             ReboundButton(
               child: Icon(Icons.settings),
-              onTap: () {
-                _popToVersionSetting(version);
-              },
+              onTap: () => _popToSettingOf(version),
             ),
           ],
         ),
       ),
-      onTap: () {
-        _selectVersion(version);
-      },
+      onTap: () => _select(version),
     );
   }
 

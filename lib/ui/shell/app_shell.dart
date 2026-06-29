@@ -32,6 +32,8 @@ class AppShellState extends State<AppShell> {
 
   // ── 导航配置 ──
 
+  bool get canPop => _navigatorKey.currentState?.canPop() == true;
+
   String _currentRootRoute = '/';
   static const _rootSections = [
     RailSection(
@@ -106,6 +108,9 @@ class AppShellState extends State<AppShell> {
 
   bool _showSubRoute = false;
 
+  //用key将子路由绑定到一起，这样就不需要每个子页面的每个路由都注册一次
+  String _subRouteBindKey = '';
+
   //临时子路由列表，子路由切换页面用switcher
   //或进行路由，需要在路由前标记路由key
   static final Map<String, List<SubRailSection>> _subSections = {};
@@ -114,8 +119,15 @@ class AppShellState extends State<AppShell> {
   void registerSubRoute(String key, List<SubRailSection> sections) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
+        _subRouteBindKey = key;
         _subSections[key] = sections;
       });
+    });
+  }
+
+  void registerSubRouteKey(String key) {
+    setState(() {
+      _subRouteBindKey = key;
     });
   }
 
@@ -178,8 +190,6 @@ class AppShellState extends State<AppShell> {
     final colors = AppColors.of(context);
     final isDesktop =
         Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-
-    final canPop = _navigatorKey.currentState?.canPop() == true;
 
     return Container(
       height: 40,
@@ -269,13 +279,25 @@ class AppShellState extends State<AppShell> {
     );
   }
 
+  DateTime? _lastPopTime;
+
+  Widget _buildNavigator() {
+    Widget child = Navigator(
+      key: PageKeyProvider.navigatorKey,
+      initialRoute: '/',
+      observers: [_RouteWatcher(_onRouteChanged)],
+      onGenerateRoute: _buildRoute,
+    );
+    return child;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final isDesktop =
         Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
-    final shell = Scaffold(
+    Widget shell = Scaffold(
       endDrawer: Drawer(
         backgroundColor: colors.interactive,
         width: MediaQuery.of(context).size.width * 0.40,
@@ -294,7 +316,8 @@ class AppShellState extends State<AppShell> {
             sections: _rootSections,
             onNavigate: _onRootNavigate,
 
-            subSections: _showSubRoute ? _subSections[_currentRoute] ?? [] : [],
+            subSections:
+                _showSubRoute ? _subSections[_subRouteBindKey] ?? [] : [],
             onSubNavigate: _onSubNavigate,
           ),
 
@@ -344,14 +367,7 @@ class AppShellState extends State<AppShell> {
                 Column(
                   children: [
                     _buildTopbar(),
-                    Expanded(
-                      child: Navigator(
-                        key: PageKeyProvider.navigatorKey,
-                        initialRoute: '/',
-                        observers: [_RouteWatcher(_onRouteChanged)],
-                        onGenerateRoute: _buildRoute,
-                      ),
-                    ),
+                    Expanded(child: _buildNavigator()),
                   ],
                 ),
               ],
@@ -364,6 +380,27 @@ class AppShellState extends State<AppShell> {
     if (isDesktop) {
       return DragFileField(onDragDone: _handleDragFile, child: shell);
     }
+    // if (true || Platform.isAndroid) {
+    //   shell = PopScope(
+    //     canPop: false,
+    //     onPopInvokedWithResult: (didPop, _) {
+    //
+    //       if (didPop) return;
+    //       print('pop2');
+    //
+    //       final now = DateTime.now();
+    //
+    //       if (_lastPopTime == null ||
+    //           _lastPopTime!.difference(now) > const Duration(seconds: 1)) {
+    //         _lastPopTime = now;
+    //         addNotice(content: '再按一次返回');
+    //       } else {
+    //         _navigatorKey.currentState?.pop();
+    //       }
+    //     },
+    //     child: shell,
+    //   );
+    // }
     return shell;
   }
 
@@ -412,9 +449,9 @@ class AppShellState extends State<AppShell> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-// 路由监听器（替代旧的 PageRouteObserver）
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
+// 路由监听器
+// ════════════════════════════════════════════
 
 typedef _RouteCallback = void Function(String? name, dynamic args);
 

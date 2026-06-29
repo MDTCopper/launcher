@@ -1,4 +1,3 @@
-import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
 import 'package:flutter/material.dart';
 
 //todo 自定义组件接口
@@ -361,9 +360,7 @@ class _AnimatedDropdownMenuState<T> extends State<AnimatedDropdownMenu<T>>
             );
           },
         );
-        Overlay.of(
-          PageKeyProvider.themeKey.currentState!.context,
-        ).insert(_overlayEntry!); //因为嵌套路由，这里必须要用key来传递根context
+        Overlay.of(context).insert(_overlayEntry!);
       }
       expandedController.forward();
     }
@@ -446,9 +443,13 @@ class _AnimatedDropdownMenuState<T> extends State<AnimatedDropdownMenu<T>>
                         child: Text(
                           label,
                           key: ValueKey(label),
-                          style: selectValue!=null?TextStyle():theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.textTheme.bodyMedium?.color?.withAlpha(185),
-                          ),
+                          style:
+                              selectValue != null
+                                  ? TextStyle()
+                                  : theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.textTheme.bodyMedium?.color
+                                        ?.withAlpha(185),
+                                  ),
                         ),
                       ),
                     ),

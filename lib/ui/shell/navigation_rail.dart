@@ -388,7 +388,7 @@ class NavigationRailState extends State<NavigationRail> {
                     'v0.0.1a',
                     style: textTheme.bodySmall,
                     maxLines: 1,
-                    overflow: TextOverflow.fade,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 AnimatedRotation(
