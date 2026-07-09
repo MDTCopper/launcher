@@ -38,6 +38,19 @@ class _GameSettingPageState extends State<GameSettingPage> {
   static int _maxMagnification = 100;
   static int _minMagnification = 100;
 
+  @override
+  void dispose() {
+    print('_GameSettingPageState dispose');
+
+    super.dispose();
+  }
+
+  @override
+  initState(){
+    super.initState();
+    print('_GameSettingPageState init');
+  }
+
   // ── 通用控件 ──
 
   Widget _buildOverrideIcon(bool value, void Function(bool)? onChange) {

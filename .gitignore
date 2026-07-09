@@ -6,12 +6,13 @@
 .DS_Store
 .atom/
 .build/
-.deepcode/
 .buildlog/
 .history
 .svn/
 .swiftpm/
 migrate_working_dir/
+
+
 
 # IntelliJ related
 *.iml
@@ -22,7 +23,7 @@ migrate_working_dir/
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
-#.vscode/
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -44,7 +45,17 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+#ai
+.deepcode/
+
+# copperlauncher
+versions/
+logs/
+.test/
+config.*
 /lib/abandon_mystery_code/
 /lib/test/
-/.deepcode/
 
+#不需要开发iOS端
+ios/

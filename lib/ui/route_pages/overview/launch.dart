@@ -194,6 +194,11 @@ class _BeginState extends State<_Begin> {
     super.setState(fn);
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   void _launch() async {}
 
   @override

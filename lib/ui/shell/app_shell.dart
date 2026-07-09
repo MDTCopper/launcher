@@ -5,6 +5,7 @@ import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
 import 'package:copperlauncher_main/ui/util/switcher_transition_builder.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
+import 'package:go_router/go_router.dart';
 import 'package:line_icons/line_icons.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -42,6 +43,7 @@ class AppShellState extends State<AppShell> {
         RailItem(label: '启动', icon: Icons.play_arrow_outlined, route: '/'),
       ],
     ),
+
     RailSection(
       label: '资源',
       items: [
@@ -106,14 +108,52 @@ class AppShellState extends State<AppShell> {
 
   // ── 临时子路由配置 ──
 
+  late final routeWatcher = _RouteWatcher(
+    _onRouteChanged,
+    onPop: () {},
+    onPush: () {},
+  );
+
   bool _showSubRoute = false;
 
   //用key将子路由绑定到一起，这样就不需要每个子页面的每个路由都注册一次
+  //todo 到时候使用[currentSubNavigator]
   String _subRouteBindKey = '';
 
   //临时子路由列表，子路由切换页面用switcher
   //或进行路由，需要在路由前标记路由key
   static final Map<String, List<SubRailSection>> _subSections = {};
+
+  static final List<String> _subNavigatorKeyStack = [];
+
+  //显示最后的导航器的key
+  static String get currentSubNavigatorKey =>
+      _subNavigatorKeyStack.lastWhere((it) => it.isNotEmpty, orElse: () => '');
+
+  static List<SubRailSection> get currentSubNavigator =>
+      _subSections[currentSubNavigatorKey] ?? [];
+
+  void registerNavigator(String key, List<SubRailSection> sections) {
+    //将导航器压入栈内
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      setState(() {
+        _subNavigatorKeyStack.add(key);
+        _subSections[key] = sections;
+      });
+    });
+  }
+
+  void unregisterNavigator(String key) {
+    if (currentSubNavigatorKey == key) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _subNavigatorKeyStack.remove(currentSubNavigatorKey);
+        });
+      });
+    }
+  }
+
+  ///////////////
 
   //如果子页面有路由选项,子路由注册后刷新一遍导航栏
   void registerSubRoute(String key, List<SubRailSection> sections) {
@@ -166,6 +206,7 @@ class AppShellState extends State<AppShell> {
       if (isRoot) {
         _currentRootRoute = name;
         _showSubRoute = false;
+        _subNavigatorKeyStack.clear();
       } else {
         _showSubRoute = true;
       }
@@ -279,13 +320,14 @@ class AppShellState extends State<AppShell> {
     );
   }
 
+  //todo安卓端退出程序
   DateTime? _lastPopTime;
 
   Widget _buildNavigator() {
     Widget child = Navigator(
       key: PageKeyProvider.navigatorKey,
       initialRoute: '/',
-      observers: [_RouteWatcher(_onRouteChanged)],
+      observers: [routeWatcher],
       onGenerateRoute: _buildRoute,
     );
     return child;
@@ -319,6 +361,7 @@ class AppShellState extends State<AppShell> {
             subSections:
                 _showSubRoute ? _subSections[_subRouteBindKey] ?? [] : [],
             onSubNavigate: _onSubNavigate,
+            subNavigator: SizedBox(),
           ),
 
           VerticalDivider(width: 1, thickness: 1, color: colors.border),
@@ -438,6 +481,14 @@ class AppShellState extends State<AppShell> {
           ),
         );
 
+        child = SlideTransition(
+          position: Tween<Offset>(
+            begin: Offset.zero,
+            end: const Offset(0.0, 0.06),
+          ).animate(curvedExit),
+          child: child,
+        );
+
         child = FadeTransition(
           opacity: Tween<double>(begin: 1.0, end: 0.0).animate(curvedExit),
           child: child,
@@ -445,6 +496,30 @@ class AppShellState extends State<AppShell> {
 
         return child;
       },
+    );
+  }
+
+  void buildGoRoute() {
+    GoRouter(
+      routes: [
+        ShellRoute(
+          builder: (_, state, child) {
+            state.uri.pathSegments;
+            return SizedBox();
+          },
+          routes: [
+            //路由
+            GoRoute(
+              path: 'setting',
+
+              builder: (context, state) {
+                state.name;
+                return SizedBox();
+              },
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -455,13 +530,18 @@ class AppShellState extends State<AppShell> {
 
 typedef _RouteCallback = void Function(String? name, dynamic args);
 
-class _RouteWatcher extends NavigatorObserver {
+class _RouteWatcher extends RouteObserver {
   final _RouteCallback onChanged;
+  final VoidCallback onPop;
+  final VoidCallback onPush;
 
-  _RouteWatcher(this.onChanged);
+  _RouteWatcher(this.onChanged, {required this.onPop, required this.onPush});
 
   @override
-  void didPush(Route route, Route? previousRoute) => _notify(route);
+  void didPush(Route route, Route? previousRoute) {
+    onPush();
+    _notify(route);
+  }
 
   @override
   void didReplace({Route? newRoute, Route? oldRoute}) {
@@ -470,6 +550,7 @@ class _RouteWatcher extends NavigatorObserver {
 
   @override
   void didPop(Route route, Route? previousRoute) {
+    onPop();
     if (previousRoute != null) _notify(previousRoute);
   }
 

@@ -32,10 +32,6 @@ class RailSection {
   const RailSection({required this.label, required this.items});
 }
 
-/// 左侧导航栏。
-///
-/// 参考图风格的垂直导航：分组标题 + 带编号/图标的条目。
-/// 选中态用 [AppColors.interactive] 做背景高亮。
 class NavigationRail extends StatefulWidget {
   final String currentRoute;
 
@@ -48,6 +44,7 @@ class NavigationRail extends StatefulWidget {
   //子路由
   final List<SubRailSection> subSections;
   final void Function(String? route, Object? arg) onSubNavigate;
+  final Widget subNavigator;
 
   final double width;
   final double collapseWidth;
@@ -65,6 +62,7 @@ class NavigationRail extends StatefulWidget {
 
     this.width = 148,
     this.collapseWidth = 64,
+    required this.subNavigator,
   });
 
   @override

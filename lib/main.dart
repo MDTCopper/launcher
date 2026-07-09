@@ -29,7 +29,7 @@ Future _initWindow() async {
   await windowManager.ensureInitialized();
 
   // 配置窗口初始属性
-  WindowOptions windowOptions = WindowOptions(
+  const windowOptions = WindowOptions(
     size: Size(960, 544),
     minimumSize: Size(900, 450),
     center: true,
