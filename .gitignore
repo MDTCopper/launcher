@@ -46,7 +46,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-#ai
+# ai
 .deepcode/
 
 # copperlauncher
@@ -57,5 +57,6 @@ config.*
 /lib/abandon_mystery_code/
 /lib/test/
 
-#不需要开发iOS端
+#不需要开发iOS 和 Web端
 ios/
+web/
