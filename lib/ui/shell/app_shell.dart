@@ -251,26 +251,23 @@ class AppShellState extends State<AppShell> {
               SizedBox(width: 4),
               AnimatedOpacitySize(
                 duration: const Duration(milliseconds: 300),
-                child:
-                    canPop
-                        ? ReboundButton(
-                          child: Icon(Icons.keyboard_arrow_left),
-                          onTap: () {
-                            if (canPop) {
-                              _navigatorKey.currentState?.pop();
-                            }
-                          },
-                        )
-                        : null,
+                child: canPop
+                    ? ReboundButton(
+                        child: Icon(Icons.keyboard_arrow_left),
+                        onTap: () {
+                          if (canPop) {
+                            _navigatorKey.currentState?.pop();
+                          }
+                        },
+                      )
+                    : null,
               ),
 
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 transitionBuilder: SwitcherBuilders.fadeSlide(Offset(0.0, 1.0)),
                 layoutBuilder: (child, children) {
-                  return Stack(
-                    children: [if (child != null) child, ...children],
-                  );
+                  return Stack(children: [?child, ...children]);
                 },
                 child: Padding(
                   key: ValueKey(_pageName),
@@ -358,8 +355,9 @@ class AppShellState extends State<AppShell> {
             sections: _rootSections,
             onNavigate: _onRootNavigate,
 
-            subSections:
-                _showSubRoute ? _subSections[_subRouteBindKey] ?? [] : [],
+            subSections: _showSubRoute
+                ? _subSections[_subRouteBindKey] ?? []
+                : [],
             onSubNavigate: _onSubNavigate,
             subNavigator: SizedBox(),
           ),
@@ -469,7 +467,6 @@ class AppShellState extends State<AppShell> {
           curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
           reverseCurve: const Interval(0.0, 0.6, curve: Curves.easeInBack),
         );
-
         child = FadeTransition(
           opacity: curvedEnter,
           child: SlideTransition(

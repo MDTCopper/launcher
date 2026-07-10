@@ -5,6 +5,13 @@ import 'package:path_provider/path_provider.dart';
 
 abstract class AppPaths {
   static String? _defaultGameDataPath;
+  static late String applicationSupportPath;
+
+  static Future<void> init() async {
+    final appSupportDir = await getApplicationSupportDirectory();
+    applicationSupportPath = appSupportDir.path;
+    await initDefaultDataPath();
+  }
 
   static Future<void> initDefaultDataPath() async {
     if (Platform.isWindows) {
@@ -42,7 +49,11 @@ abstract class AppPaths {
   }
 
   /// [*\copperlauncher_main]
-  static String get copperLauncher => p.current;
+  /// android => [/data/user/0/com.example.copperlauncher_main/files]
+  static String get copperLauncher {
+    if (Platform.isAndroid) return applicationSupportPath;
+    return p.current;
+  }
 
   /// 默认版本文件夹路径 [*\copperlauncher_main\versions\]
   static String get versions => p.join(copperLauncher, 'versions');

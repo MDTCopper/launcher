@@ -6,6 +6,7 @@ import 'package:copperlauncher_main/util/app_paths.dart';
 import 'package:copperlauncher_main/util/io/run_time_log.dart';
 import 'package:copperlauncher_main/util/io/token_encryptor.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
 void main() async {
@@ -15,16 +16,24 @@ void main() async {
 
 Future<void> _initialize() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppPaths.init();
   await TokenEncryptor.init();
   await initAppConfig();
   await RunTimeLog.init();
-  await AppPaths.initDefaultDataPath();
+  await _initViewPool();
+}
+
+Future _initViewPool() async {
   if (Platform.isWindows) {
-    await _initWindow();
+    await _initWindows();
+  } else if (Platform.isAndroid) {
+    await _initAndroidView();
+  } else {
+    // TODO: 其他平台的初始化逻辑
   }
 }
 
-Future _initWindow() async {
+Future<void> _initWindows() async {
   // 必须先初始化窗口管理器
   await windowManager.ensureInitialized();
 
@@ -40,4 +49,14 @@ Future _initWindow() async {
     await windowManager.show();
     await windowManager.focus();
   });
+}
+
+Future<void> _initAndroidView() async {
+  // 设置屏幕方向为横屏
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+  //隐藏状态栏和导航栏
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 }

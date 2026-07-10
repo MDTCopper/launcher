@@ -62,7 +62,7 @@ class _LaunchPageState extends State<LaunchPage> {
         setState(() {});
       },
       leading: Image.asset(
-        _selectedVersion!.launcher == LauncherType.copper
+        _selectedVersion!.launcher == .copper
             ? Images.copper
             : Images.mindustry,
         scale: 0.66,
@@ -221,7 +221,7 @@ class _BeginState extends State<_Begin> {
             title: '启动',
             content: '正在启动游戏',
           );
-          LogManager.addLog(LogEntry(LogType.info, '正在启动游戏'));
+          LogManager.addLog(LogEntry(.info, '正在启动游戏'));
           final s = await _mindustryLauncher.start(_selectedVersion!);
           if (s) {
             NotificationManager.addNotice(
@@ -229,18 +229,18 @@ class _BeginState extends State<_Begin> {
               title: '启动',
               content: '游戏启动成功',
             );
-            LogManager.addLog(LogEntry(LogType.success, '游戏启动成功'));
+            LogManager.addLog(LogEntry(.success, '游戏启动成功'));
           } else {
             NotificationManager.addNotice(
               icon: Icons.info_outline,
               title: '失败',
               content: '游戏启动失败',
             );
-            LogManager.addLog(LogEntry(LogType.success, '游戏启动失败'));
+            LogManager.addLog(LogEntry(.success, '游戏启动失败'));
           }
         },
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: .center,
           spacing: 16,
           children: [
             Icon(Icons.play_arrow, size: 50, color: Colors.white),
