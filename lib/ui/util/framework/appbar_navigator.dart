@@ -131,21 +131,20 @@ class AppbarNavigationBarState extends State<AppbarNavigationBar>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
-        children:
-            widget.options!.map<AppbarNavigatorItem>((option) {
-              return AppbarNavigatorItem(
-                selected: currentRootRoute == option.route,
-                name: option.name,
-                icon: option.icon,
-                onTap: () {
-                  setState(() {
-                    _navigator?.pushReplacementNamed(option.route);
-                    _updateRootRoute(option.route);
-                    option.onTap?.call();
-                  });
-                },
-              );
-            }).toList(),
+        children: widget.options!.map<AppbarNavigatorItem>((option) {
+          return AppbarNavigatorItem(
+            selected: currentRootRoute == option.route,
+            name: option.name,
+            icon: option.icon,
+            onTap: () {
+              setState(() {
+                _navigator?.pushReplacementNamed(option.route);
+                _updateRootRoute(option.route);
+                option.onTap?.call();
+              });
+            },
+          );
+        }).toList(),
       ),
     );
   }
@@ -162,7 +161,10 @@ class AppbarNavigationBarState extends State<AppbarNavigationBar>
         ReboundButton(
           backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
           hoverElevation: 4.0,
-          child: Icon(Icons.arrow_back, color: Theme.of(context).appBarTheme.iconTheme?.color),
+          child: Icon(
+            Icons.arrow_back,
+            color: Theme.of(context).appBarTheme.iconTheme?.color,
+          ),
           onTap: () {
             _navigator?.pop();
           },
@@ -216,16 +218,14 @@ class AppbarNavigationBarState extends State<AppbarNavigationBar>
           curve: Interval(0.4, 1.0, curve: Curves.easeOut),
           reverseCurve: Interval(0.4, 1.0, curve: Curves.easeIn),
         );
-        final position = Tween<Offset>(
-          begin: Offset(-0.3, 0.0),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(
-            parent: animation,
-            curve: Interval(0.4, 1.0, curve: Curves.easeOutBack),
-            reverseCurve: Interval(0.4, 1.0, curve: Curves.easeIn),
-          ),
-        );
+        final position =
+            Tween<Offset>(begin: Offset(-0.3, 0.0), end: Offset.zero).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Interval(0.4, 1.0, curve: Curves.easeOutBack),
+                reverseCurve: Interval(0.4, 1.0, curve: Curves.easeIn),
+              ),
+            );
         return FadeTransition(
           opacity: opacity,
           child: SlideTransition(position: position, child: child),
@@ -246,7 +246,7 @@ class AppbarNavigationBarState extends State<AppbarNavigationBar>
     //todo 到时候判断平台
 
     return Container(
-      width: double.infinity,
+      width: .infinity,
       height: widget.preferredSize.height,
       padding: widget.padding,
       decoration: BoxDecoration(
@@ -256,8 +256,8 @@ class AppbarNavigationBarState extends State<AppbarNavigationBar>
         ],
       ),
       child: Stack(
-        alignment: Alignment.center,
-        fit: StackFit.passthrough,
+        alignment: .center,
+        fit: .passthrough,
         children: [
           GestureDetector(onPanStart: (_) => windowManager.startDragging()),
           Positioned(left: 0, child: _buildLeading()),
@@ -266,8 +266,8 @@ class AppbarNavigationBarState extends State<AppbarNavigationBar>
             Positioned(
               right: 0,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: .end,
+                mainAxisSize: .min,
                 children: widget.action!,
               ),
             ),
@@ -307,8 +307,9 @@ class _AppbarNavigatorItemState extends State<AppbarNavigatorItem>
       theme.toolbarTextStyle?.color ?? Theme.of(context).colorScheme.onPrimary;
   late final Color _backgroundColor =
       theme.backgroundColor ?? Theme.of(context).colorScheme.primary;
-  late final Color _backgroundActiveColor =
-      Theme.of(context).colorScheme.primaryContainer;
+  late final Color _backgroundActiveColor = Theme.of(
+    context,
+  ).colorScheme.primaryContainer;
 
   //late final Animation<double> _sizeFactor;
   //late final Animation<Color?> _backgroundColor;
@@ -354,27 +355,26 @@ class _AppbarNavigatorItemState extends State<AppbarNavigatorItem>
                 ),
               );
 
-              final backgroundColor = ColorTween(
-                begin: _backgroundColor,
-                end: _backgroundActiveColor,
-              ).animate(
-                CurvedAnimation(
-                  parent: _controller,
-                  curve: Curves.easeOutBack,
-                  reverseCurve: Curves.easeIn,
-                ),
-              );
+              final backgroundColor =
+                  ColorTween(
+                    begin: _backgroundColor,
+                    end: _backgroundActiveColor,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: _controller,
+                      curve: Curves.easeOutBack,
+                      reverseCurve: Curves.easeIn,
+                    ),
+                  );
 
-              final itemColor = ColorTween(
-                begin: _itemColor,
-                end: _itemActiveColor,
-              ).animate(
-                CurvedAnimation(
-                  parent: _controller,
-                  curve: Curves.easeOutBack,
-                  reverseCurve: Curves.easeIn,
-                ),
-              );
+              final itemColor =
+                  ColorTween(begin: _itemColor, end: _itemActiveColor).animate(
+                    CurvedAnimation(
+                      parent: _controller,
+                      curve: Curves.easeOutBack,
+                      reverseCurve: Curves.easeIn,
+                    ),
+                  );
 
               return ReboundContainer(
                 pressedScale: 0.75,

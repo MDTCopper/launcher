@@ -241,11 +241,12 @@ class AppShellState extends State<AppShell> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onPanStart: (_) => windowManager.startDragging(),
+          if (isDesktop)
+            Positioned.fill(
+              child: GestureDetector(
+                onPanStart: (_) => windowManager.startDragging(),
+              ),
             ),
-          ),
           Row(
             children: [
               SizedBox(width: 4),
