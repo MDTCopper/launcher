@@ -1,3 +1,4 @@
+import 'package:copperlauncher_main/core/app_config.dart';
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/input_setting_bar.dart';
 import 'package:copperlauncher_main/ui/util/widget/setting_bar/option_setting_bar.dart';
 import 'package:flutter/material.dart';
@@ -13,8 +14,20 @@ class OtherSettingPage extends StatefulWidget {
 }
 
 class _OtherSettingPage extends State<OtherSettingPage> {
+  Setting get setting => config.setting;
+
   static double maxDownloadSpeed = 0.5;
   static double maxThread = 8;
+
+  String get githubTokenCache => githubTokenController.text;
+  late final TextEditingController githubTokenController;
+
+  @override
+  void initState() {
+    super.initState();
+    githubTokenController = TextEditingController(text: setting.githubToken)
+      ..addListener(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +53,16 @@ class _OtherSettingPage extends State<OtherSettingPage> {
                 divisions: 15,
               ),
               // InputSettingBar(title: '自定义系统代理'),
-              InputSettingBar(title: 'github访问Token'),
+              InputSettingBar(
+                title: 'github访问Token',
+                controller: githubTokenController,
+                onEditingComplete: () {
+                  setState(() {
+                    setting.githubToken = githubTokenCache;
+                    config.save();
+                  });
+                },
+              ),
               OptionSettingBar(title: '资源获取优先级', options: []),
             ],
           ),
@@ -48,7 +70,10 @@ class _OtherSettingPage extends State<OtherSettingPage> {
         ContentPanelModule(
           title: '存储',
           child: Column(
-            children: [Text('todo 存储'), InputSettingBar(title: '默认存储路径')],
+            children: [
+              Text('todo 存储'),
+              InputSettingBar(title: '默认存储路径'),
+            ],
           ),
         ),
         ContentPanelModule(

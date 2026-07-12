@@ -16,6 +16,7 @@ void main() async {
 
 Future<void> _initialize() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isIOS) throw Exception('IOS平台不支持');
   await AppPaths.init();
   await TokenEncryptor.init();
   await initAppConfig();
@@ -24,12 +25,10 @@ Future<void> _initialize() async {
 }
 
 Future _initViewPool() async {
-  if (Platform.isWindows) {
-    await _initWindows();
-  } else if (Platform.isAndroid) {
+  if (Platform.isAndroid) {
     await _initAndroidView();
   } else {
-    // TODO: 其他平台的初始化逻辑
+    await _initWindows();
   }
 }
 

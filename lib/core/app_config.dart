@@ -146,6 +146,8 @@ class Setting {
 
   late final PersonalizationOptions personalizationOptions;
 
+  late final DownloadOptions downloadOptions;
+
   Setting({
     required this.githubToken,
     required this.customSetting,
@@ -153,11 +155,13 @@ class Setting {
     LaunchOptions? launchOptions,
     MindustrySettingsPatch? mindustrySettings,
     PersonalizationOptions? personalizationOptions,
+    DownloadOptions? downloadOptions,
   }) {
     this.launchOptions = launchOptions ?? LaunchOptions.fromJson({});
     this.mindustrySettings = mindustrySettings ?? MindustrySettingsPatch();
     this.personalizationOptions =
         personalizationOptions ?? PersonalizationOptions.fromJson({});
+    this.downloadOptions = downloadOptions ?? DownloadOptions.fromJson({});
   }
 
   dynamic getCustomSetting(String key, dynamic defaultSetting) {
@@ -367,7 +371,28 @@ class PersonalizationOptions {
   Map<String, dynamic> toJson() => _$PersonalizationOptionsToJson(this);
 }
 
-class DownloadOptions {}
+@JsonSerializable()
+class DownloadOptions {
+  DownloadOptions({
+    required this.downloadPath,
+    required this.speedLimitBytes,
+    required this.maxTread,
+  });
+
+  @JsonKey(defaultValue: '')
+  String downloadPath;
+  @JsonKey(defaultValue: 2 * mb)
+  int speedLimitBytes;
+  @JsonKey(defaultValue: 8)
+  int maxTread;
+
+  Memory get speedLimit => Memory(bytes: speedLimitBytes);
+
+  factory DownloadOptions.fromJson(Map<String, dynamic> json) =>
+      _$DownloadOptionsFromJson(json);
+
+  Map<String, dynamic> toJson() => _$DownloadOptionsToJson(this);
+}
 
 @JsonSerializable()
 class VersionOptions {

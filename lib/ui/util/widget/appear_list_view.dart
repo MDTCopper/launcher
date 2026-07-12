@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:copperlauncher_main/ui/theme/app_colors.dart';
 import 'package:copperlauncher_main/ui/util/widget/desktop_scroll_view.dart';
 import 'package:flutter/material.dart';
 
@@ -5,10 +8,7 @@ import '../../feature/feature_curve.dart';
 import 'feature_button.dart';
 
 typedef ListItemAnimatedBuilder =
-    Widget Function(
-      Widget? child,
-      Animation<double> animation,
-    );
+    Widget Function(Widget? child, Animation<double> animation);
 
 class AppearListView extends StatefulWidget {
   final List<Widget?> items;
@@ -66,20 +66,19 @@ class _AppearListView extends State<AppearListView>
     );
     controller.forward();
 
-    scrollController =
-        widget.scrollController ?? ScrollController()
-          ..addListener(() {
-            if (showUpButton == false && scrollController.offset > 1200) {
-              setState(() {
-                showUpButton = true;
-              });
-            }
-            if (showUpButton == true && scrollController.offset < 600) {
-              setState(() {
-                showUpButton = false;
-              });
-            }
+    scrollController = widget.scrollController ?? ScrollController()
+      ..addListener(() {
+        if (showUpButton == false && scrollController.offset > 1200) {
+          setState(() {
+            showUpButton = true;
           });
+        }
+        if (showUpButton == true && scrollController.offset < 600) {
+          setState(() {
+            showUpButton = false;
+          });
+        }
+      });
 
     super.initState();
   }
@@ -97,6 +96,9 @@ class _AppearListView extends State<AppearListView>
   Widget build(BuildContext context) {
     if (widget.items.isEmpty) return ListView();
 
+    final color = AppColors.of(context);
+    final isDesktop = !Platform.isAndroid;
+
     List<Widget> items = [];
 
     double delay = widget.delay / _duration;
@@ -110,15 +112,13 @@ class _AppearListView extends State<AppearListView>
       double begin = delay + interval * i;
       double end = begin + duration;
 
-      final position = Tween<Offset>(
-        begin: widget.offset,
-        end: Offset.zero,
-      ).animate(
-        CurvedAnimation(
-          parent: controller,
-          curve: Interval(begin, end, curve: FeatureCurves.reboundIn),
-        ),
-      );
+      final position = Tween<Offset>(begin: widget.offset, end: Offset.zero)
+          .animate(
+            CurvedAnimation(
+              parent: controller,
+              curve: Interval(begin, end, curve: FeatureCurves.reboundIn),
+            ),
+          );
 
       final opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
@@ -135,24 +135,27 @@ class _AppearListView extends State<AppearListView>
       items.add(animationItem);
     }
 
+    Widget child = SingleChildScrollView(
+      physics: widget.physics,
+      controller: scrollController,
+      padding: widget.padding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: widget.itemSpacing,
+        children: items,
+      ),
+    );
+
+    if (isDesktop) {
+      child = DesktopScrollViewContainer(
+        controller: scrollController,
+        child: child,
+      );
+    }
+
     return Stack(
       children: [
-        DesktopScrollViewContainer(
-          controller: scrollController,
-          child: SingleChildScrollView(
-            physics: widget.physics,
-            controller: scrollController,
-            padding: widget.padding,
-            child: Column(spacing: 8, children: items),
-          ),
-        ),
-        // SingleChildScrollView(
-        //   physics: widget.physics,
-        //   controller: scrollController,
-        //   padding: widget.padding,
-        //   child: Column(spacing: 8, children: items),
-        // ),
-
+        child,
         Positioned(
           left: 40,
           bottom: 20,
@@ -168,7 +171,7 @@ class _AppearListView extends State<AppearListView>
                 hoverElevation: 4.0,
                 elevation: 1.0,
                 borderRadius: const BorderRadius.all(Radius.circular(50)),
-                backgroundColor: Colors.white,
+                backgroundColor: color.cardBackground,
                 onTap: () {
                   setState(() {
                     scrollController.animateTo(

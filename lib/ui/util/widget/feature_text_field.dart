@@ -83,6 +83,7 @@ class OutlinedTextField extends StatefulWidget {
     this.enable,
     this.error,
     this.decoration,
+    this.onEditingComplete,
   });
 
   final String? label;
@@ -98,6 +99,7 @@ class OutlinedTextField extends StatefulWidget {
   final Duration? errorAnimationDuration;
   final FocusNode? focusNode;
   final bool? enable;
+  final VoidCallback? onEditingComplete;
 
   @override
   State<StatefulWidget> createState() => _OutlinedTextFieldState();
@@ -181,8 +183,9 @@ class _OutlinedTextFieldState extends State<OutlinedTextField>
       duration:
           widget.borderAnimationDuration ?? const Duration(milliseconds: 150),
     );
-    if(widget.error !=null){//若有错误直接进行动画
-      widgetStatesController.update(WidgetState.error,true);
+    if (widget.error != null) {
+      //若有错误直接进行动画
+      widgetStatesController.update(WidgetState.error, true);
       lastStates = widgetStatesController.value;
       _animationController.forward();
     }
@@ -272,8 +275,6 @@ class _OutlinedTextFieldState extends State<OutlinedTextField>
     );
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -303,11 +304,10 @@ class _OutlinedTextFieldState extends State<OutlinedTextField>
                 final states = widgetStatesController.value;
                 final border = borders.resolve(states);
 
-                final fillColor =
-                    ColorTween(
-                      begin: fillColors.resolve(lastStates),
-                      end: fillColors.resolve(states),
-                    ).animate(_animationController).value;
+                final fillColor = ColorTween(
+                  begin: fillColors.resolve(lastStates),
+                  end: fillColors.resolve(states),
+                ).animate(_animationController).value;
 
                 final inputDecoration = decoration.copyWith(
                   hoverColor: Colors.transparent,
@@ -327,6 +327,7 @@ class _OutlinedTextFieldState extends State<OutlinedTextField>
                   inputFormatters: widget.inputFormatters,
                   style: theme.textTheme.bodyMedium,
                   decoration: inputDecoration,
+                  onEditingComplete: widget.onEditingComplete,
                 );
               },
             ),

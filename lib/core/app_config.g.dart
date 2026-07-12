@@ -8,16 +8,12 @@ part of 'app_config.dart';
 
 AppConfig _$AppConfigFromJson(Map<String, dynamic> json) => AppConfig(
   version: json['version'] as String,
-  setting:
-      json['setting'] == null
-          ? null
-          : Setting.fromJson(json['setting'] as Map<String, dynamic>),
-  versionOptions:
-      json['versionOptions'] == null
-          ? null
-          : VersionOptions.fromJson(
-            json['versionOptions'] as Map<String, dynamic>,
-          ),
+  setting: json['setting'] == null
+      ? null
+      : Setting.fromJson(json['setting'] as Map<String, dynamic>),
+  versionOptions: json['versionOptions'] == null
+      ? null
+      : VersionOptions.fromJson(json['versionOptions'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
@@ -31,24 +27,24 @@ Setting _$SettingFromJson(Map<String, dynamic> json) => Setting(
   customSetting: json['customSetting'] as Map<String, dynamic>? ?? {},
   mindustrySettingsOverride:
       json['mindustrySettingsOverride'] as bool? ?? false,
-  launchOptions:
-      json['launchOptions'] == null
-          ? null
-          : LaunchOptions.fromJson(
-            json['launchOptions'] as Map<String, dynamic>,
-          ),
-  mindustrySettings:
-      json['mindustrySettings'] == null
-          ? null
-          : MindustrySettingsPatch.fromJson(
-            json['mindustrySettings'] as Map<String, dynamic>,
-          ),
-  personalizationOptions:
-      json['personalizationOptions'] == null
-          ? null
-          : PersonalizationOptions.fromJson(
-            json['personalizationOptions'] as Map<String, dynamic>,
-          ),
+  launchOptions: json['launchOptions'] == null
+      ? null
+      : LaunchOptions.fromJson(json['launchOptions'] as Map<String, dynamic>),
+  mindustrySettings: json['mindustrySettings'] == null
+      ? null
+      : MindustrySettingsPatch.fromJson(
+          json['mindustrySettings'] as Map<String, dynamic>,
+        ),
+  personalizationOptions: json['personalizationOptions'] == null
+      ? null
+      : PersonalizationOptions.fromJson(
+          json['personalizationOptions'] as Map<String, dynamic>,
+        ),
+  downloadOptions: json['downloadOptions'] == null
+      ? null
+      : DownloadOptions.fromJson(
+          json['downloadOptions'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
@@ -58,6 +54,7 @@ Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
   'githubToken': instance.githubToken,
   'customSetting': instance.customSetting,
   'personalizationOptions': instance.personalizationOptions,
+  'downloadOptions': instance.downloadOptions,
 };
 
 WindowSize _$WindowSizeFromJson(Map<String, dynamic> json) => WindowSize(
@@ -81,18 +78,14 @@ LaunchOptions _$LaunchOptionsFromJson(Map<String, dynamic> json) =>
             json['gameWindowSizeSet'],
           ) ??
           GameWindowSizeSet.gameDefault,
-      customWindowSize:
-          json['customWindowSize'] == null
-              ? null
-              : WindowSize.fromJson(
-                json['customWindowSize'] as Map<String, dynamic>,
-              ),
-      javaOptions:
-          json['javaOptions'] == null
-              ? null
-              : JavaOptions.fromJson(
-                json['javaOptions'] as Map<String, dynamic>,
-              ),
+      customWindowSize: json['customWindowSize'] == null
+          ? null
+          : WindowSize.fromJson(
+              json['customWindowSize'] as Map<String, dynamic>,
+            ),
+      javaOptions: json['javaOptions'] == null
+          ? null
+          : JavaOptions.fromJson(json['javaOptions'] as Map<String, dynamic>),
       memorySize: (json['memorySize'] as num?)?.toInt() ?? 1073741824,
       autoMemory: json['autoMemory'] as bool? ?? true,
     );
@@ -102,10 +95,9 @@ Map<String, dynamic> _$LaunchOptionsToJson(
 ) => <String, dynamic>{
   'customWindowSize': instance.customWindowSize,
   'javaOptions': instance.javaOptions,
-  'versionIsolationSet':
-      instance.versionIsolationSet
-          .map((e) => _$VersionIsolationEnumMap[e]!)
-          .toList(),
+  'versionIsolationSet': instance.versionIsolationSet
+      .map((e) => _$VersionIsolationEnumMap[e]!)
+      .toList(),
   'gameWindowSizeSet': _$GameWindowSizeSetEnumMap[instance.gameWindowSizeSet]!,
   'memorySize': instance.memorySize,
   'autoMemory': instance.autoMemory,
@@ -162,7 +154,7 @@ PersonalizationOptions _$PersonalizationOptionsFromJson(
       $enumDecodeNullable(_$ThemeModeEnumMap, json['themeMode']) ??
       ThemeMode.system,
   themeColor:
-      $enumDecodeNullable(_$ThemeColorEnumMap, json['color']) ??
+      $enumDecodeNullable(_$ThemeColorEnumMap, json['themeColor']) ??
       ThemeColor.copper,
 );
 
@@ -170,7 +162,7 @@ Map<String, dynamic> _$PersonalizationOptionsToJson(
   PersonalizationOptions instance,
 ) => <String, dynamic>{
   'themeMode': _$ThemeModeEnumMap[instance.themeMode]!,
-  'color': _$ThemeColorEnumMap[instance.themeColor]!,
+  'themeColor': _$ThemeColorEnumMap[instance.themeColor]!,
 };
 
 const _$ThemeModeEnumMap = {
@@ -186,13 +178,26 @@ const _$ThemeColorEnumMap = {
   ThemeColor.suGang: 'suGang',
 };
 
+DownloadOptions _$DownloadOptionsFromJson(Map<String, dynamic> json) =>
+    DownloadOptions(
+      downloadPath: json['downloadPath'] as String? ?? '',
+      speedLimitBytes: (json['speedLimitBytes'] as num?)?.toInt() ?? 2097152,
+      maxTread: (json['maxTread'] as num?)?.toInt() ?? 8,
+    );
+
+Map<String, dynamic> _$DownloadOptionsToJson(DownloadOptions instance) =>
+    <String, dynamic>{
+      'downloadPath': instance.downloadPath,
+      'speedLimitBytes': instance.speedLimitBytes,
+      'maxTread': instance.maxTread,
+    };
+
 VersionOptions _$VersionOptionsFromJson(Map<String, dynamic> json) =>
     VersionOptions(
       selectedVersionId: json['selectedVersionId'] as String?,
-      versionFolds:
-          (json['versionFolds'] as List<dynamic>?)
-              ?.map((e) => VersionFold.fromJson(e as Map<String, dynamic>))
-              .toList(),
+      versionFolds: (json['versionFolds'] as List<dynamic>?)
+          ?.map((e) => VersionFold.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
 
 Map<String, dynamic> _$VersionOptionsToJson(VersionOptions instance) =>
@@ -204,10 +209,9 @@ Map<String, dynamic> _$VersionOptionsToJson(VersionOptions instance) =>
 VersionFold _$VersionFoldFromJson(Map<String, dynamic> json) => VersionFold(
   tag: json['tag'] as String,
   path: json['path'] as String,
-  versions:
-      (json['versions'] as List<dynamic>)
-          .map((e) => Mindustry.fromJson(e as Map<String, dynamic>))
-          .toList(),
+  versions: (json['versions'] as List<dynamic>)
+      .map((e) => Mindustry.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$VersionFoldToJson(VersionFold instance) =>
