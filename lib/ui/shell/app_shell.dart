@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:copperlauncher_main/ui/util/animation/animated_opacity_size.dart';
 import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
 import 'package:copperlauncher_main/ui/util/switcher_transition_builder.dart';
+import 'package:copperlauncher_main/util/io/os.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
 import 'package:go_router/go_router.dart';
@@ -197,7 +198,7 @@ class AppShellState extends State<AppShell> {
         lead = args['lead'] ?? lead;
         title = args['title'];
       }
-      final display = title != null ? '$lead › $title' : lead;
+      final display = title != null ? '$lead -> $title' : lead;
 
       _pageName = display;
 
@@ -229,8 +230,6 @@ class AppShellState extends State<AppShell> {
   //面包屑
   Widget _buildTopbar() {
     final colors = AppColors.of(context);
-    final isDesktop =
-        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
     return Container(
       height: 40,

@@ -24,16 +24,14 @@ matchAnimation(DialogAnimation animationType) {
       };
     case DialogAnimation.leapOut:
       return (context, animation1, animation2, child) {
-        final position = Tween<Offset>(
-          begin: Offset(0.0, 0.15),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(
-            parent: animation1,
-            curve: Curves.easeOutBack,
-            //reverseCurve: Curves.easeIn,
-          ),
-        );
+        final position =
+            Tween<Offset>(begin: Offset(0.0, 0.15), end: Offset.zero).animate(
+              CurvedAnimation(
+                parent: animation1,
+                curve: Curves.easeOutBack,
+                //reverseCurve: Curves.easeIn,
+              ),
+            );
 
         final opacity = CurvedAnimation(
           parent: animation1,
@@ -157,19 +155,17 @@ Future<T?> showConfirmationPopup<T extends Object?>({
                     Icon(
                       Icons.info_outline,
                       size: 32,
-                      color:
-                          warning
-                              ? theme.colorScheme.error
-                              : theme.colorScheme.onSurface,
+                      color: warning
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.onSurface,
                     ),
                     Text(
                       title ?? '确认',
-                      style:
-                          warning
-                              ? theme.textTheme.titleLarge?.copyWith(
-                                color: theme.colorScheme.error,
-                              )
-                              : theme.textTheme.titleLarge,
+                      style: warning
+                          ? theme.textTheme.titleLarge?.copyWith(
+                              color: theme.colorScheme.error,
+                            )
+                          : theme.textTheme.titleLarge,
                     ),
                     Expanded(child: SizedBox()),
                     ReboundButton(
@@ -185,10 +181,9 @@ Future<T?> showConfirmationPopup<T extends Object?>({
                   spacing: 8,
                   children: [
                     ReboundButton(
-                      backgroundColor:
-                          warning
-                              ? theme.colorScheme.error
-                              : theme.colorScheme.secondaryContainer,
+                      backgroundColor: warning
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.secondaryContainer,
                       margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                       hoverElevation: 4,
                       child: Text(

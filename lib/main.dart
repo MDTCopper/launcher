@@ -33,10 +33,8 @@ Future _initViewPool() async {
 }
 
 Future<void> _initWindows() async {
-  // 必须先初始化窗口管理器
   await windowManager.ensureInitialized();
 
-  // 配置窗口初始属性
   const windowOptions = WindowOptions(
     size: Size(960, 544),
     minimumSize: Size(900, 450),

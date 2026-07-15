@@ -34,8 +34,9 @@ class TokenEncryptor {
     final keyBytes = base64.decode(keyBase64);
     final ivBytes = base64.decode(ivBase64);
 
-    _encrypter =
-        Encrypter(AES(Key(Uint8List.fromList(keyBytes)), mode: AESMode.cbc));
+    _encrypter = Encrypter(
+      AES(Key(Uint8List.fromList(keyBytes)), mode: AESMode.cbc),
+    );
     _iv = IV(Uint8List.fromList(ivBytes));
   }
 
@@ -46,14 +47,12 @@ class TokenEncryptor {
     return Key(Uint8List.fromList(bytes));
   }
 
-  /// 生成随机 IV（16 字节，CBC 模式要求）
+  /// 生成随机 IV
   static IV _generateRandomIV() {
     final random = Random.secure();
     final bytes = List<int>.generate(16, (_) => random.nextInt(256));
     return IV(Uint8List.fromList(bytes));
   }
-
-  // ---- 公共 API ----
 
   /// 加密 token
   static String encryptToken(String token) {
@@ -67,7 +66,6 @@ class TokenEncryptor {
     return _encrypter.decrypt(encrypted, iv: _iv);
   }
 
-  /// 判断是否是已加密的 token（base64 且长度是 16 的倍数）
   static bool isEncrypted(String token) {
     try {
       final decoded = base64.decode(token);
