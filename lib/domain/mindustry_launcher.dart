@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:copperlauncher_main/data/local_asset.dart';
+import 'package:copper_launcher/data/local_asset.dart';
 
 import '../core/app_config.dart';
 
@@ -19,8 +19,9 @@ class MindustryLauncher {
       final process = await Process.start(javaCmd, ['-version']);
 
       // 捕获错误流（java -version 输出在 stderr，非 stdout）
-      final errorOutput =
-          await process.stderr.transform(systemEncoding.decoder).join();
+      final errorOutput = await process.stderr
+          .transform(systemEncoding.decoder)
+          .join();
       await process.exitCode;
 
       // 若输出含 "java version" 或 "openjdk version"，说明 Java 可用

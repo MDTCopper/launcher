@@ -1,14 +1,14 @@
 import 'dart:io';
 
-import 'package:copperlauncher_main/core/app_config.dart';
-import 'package:copperlauncher_main/data/local_asset.dart';
-import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
-import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
-import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
-import 'package:copperlauncher_main/ui/util/route/sub_route_register.dart';
-import 'package:copperlauncher_main/ui/util/widget/animated_expansion.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/ui/util/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/util/framework/content_panel.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
+import 'package:copper_launcher/ui/util/route/sub_route_register.dart';
+import 'package:copper_launcher/ui/util/widget/animated_expansion.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
 import 'package:flutter/material.dart';
 
 import '../../../feature/images.dart';

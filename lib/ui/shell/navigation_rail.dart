@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:copperlauncher_main/ui/feature/images.dart';
-import 'package:copperlauncher_main/ui/util/animation/animated_opacity_size.dart';
-import 'package:copperlauncher_main/ui/util/widget/desktop_scroll_view.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/feature/images.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
+import 'package:copper_launcher/ui/util/widget/desktop_scroll_view.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -80,38 +80,38 @@ class NavigationRailState extends State<NavigationRail> {
   @override
   void initState() {
     super.initState();
-    controller =
-        ScrollController()..addListener(() {
-          if (controller.offset == 0.0) {
-            if (showTopFade) {
-              setState(() {
-                showTopFade = false;
-              });
-            }
-          } else {
-            if (!showTopFade) {
-              setState(() {
-                showTopFade = true;
-              });
-            }
-          }
-
-          if (controller.offset == controller.position.maxScrollExtent) {
-            if (showBottomFade) {
-              setState(() {
-                showBottomFade = false;
-              });
-            }
-          } else {
+    controller = ScrollController()
+      ..addListener(() {
+        if (controller.offset == 0.0) {
+          if (showTopFade) {
             setState(() {
-              if (!showBottomFade) {
-                setState(() {
-                  showBottomFade = true;
-                });
-              }
+              showTopFade = false;
             });
           }
-        });
+        } else {
+          if (!showTopFade) {
+            setState(() {
+              showTopFade = true;
+            });
+          }
+        }
+
+        if (controller.offset == controller.position.maxScrollExtent) {
+          if (showBottomFade) {
+            setState(() {
+              showBottomFade = false;
+            });
+          }
+        } else {
+          setState(() {
+            if (!showBottomFade) {
+              setState(() {
+                showBottomFade = true;
+              });
+            }
+          });
+        }
+      });
   }
 
   @override
@@ -148,10 +148,9 @@ class NavigationRailState extends State<NavigationRail> {
           curve: Curves.ease,
           alignment: Alignment.centerLeft,
           height: 40,
-          margin:
-              collapse
-                  ? const EdgeInsets.only(left: 20)
-                  : const EdgeInsets.only(left: 12),
+          margin: collapse
+              ? const EdgeInsets.only(left: 20)
+              : const EdgeInsets.only(left: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -281,10 +280,9 @@ class NavigationRailState extends State<NavigationRail> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 400),
               curve: Curves.ease,
-              color:
-                  widget.subSections.isEmpty
-                      ? colors.cardBackground.withAlpha(0)
-                      : colors.cardBackground.withAlpha(210),
+              color: widget.subSections.isEmpty
+                  ? colors.cardBackground.withAlpha(0)
+                  : colors.cardBackground.withAlpha(210),
             ),
           ),
         ),
@@ -338,10 +336,9 @@ class NavigationRailState extends State<NavigationRail> {
         );
 
         final position = Tween<Offset>(
-          begin:
-              animation.isForwardOrCompleted
-                  ? Offset(1.0, 0.0)
-                  : Offset(-1.0, 0.0),
+          begin: animation.isForwardOrCompleted
+              ? Offset(1.0, 0.0)
+              : Offset(-1.0, 0.0),
           end: Offset(0.0, 0.0),
         ).animate(CurvedAnimation(parent: animation, curve: Curves.easeInOut));
 
@@ -397,10 +394,9 @@ class NavigationRailState extends State<NavigationRail> {
                     padding: const EdgeInsets.all(4),
                     margin: const EdgeInsets.all(0),
                     child: Icon(Icons.keyboard_arrow_right),
-                    onTap:
-                        () => setState(() {
-                          collapse = !collapse;
-                        }),
+                    onTap: () => setState(() {
+                      collapse = !collapse;
+                    }),
                   ),
                 ),
               ],
@@ -426,10 +422,9 @@ class _SectionHeader extends StatelessWidget {
     return AnimatedPadding(
       duration: const Duration(milliseconds: 300),
       curve: Curves.ease,
-      padding:
-          collapse
-              ? const EdgeInsets.fromLTRB(10, 8, 0, 8)
-              : const EdgeInsets.fromLTRB(4, 12, 0, 4),
+      padding: collapse
+          ? const EdgeInsets.fromLTRB(10, 8, 0, 8)
+          : const EdgeInsets.fromLTRB(4, 12, 0, 4),
       child: Text(
         label,
         style: TextStyle(
@@ -525,10 +520,9 @@ class _RailTileState extends State<_RailTile>
               margin: const EdgeInsets.symmetric(vertical: 2),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
-                color:
-                    _hovering && !widget.selected
-                        ? c.interactive.withAlpha(15)
-                        : bgColor.value,
+                color: _hovering && !widget.selected
+                    ? c.interactive.withAlpha(15)
+                    : bgColor.value,
               ),
 
               child: Row(
@@ -555,10 +549,9 @@ class _RailTileState extends State<_RailTile>
                       widget.item.label,
                       style: t.titleMedium?.copyWith(
                         color: textColor.value,
-                        fontWeight:
-                            widget.selected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+                        fontWeight: widget.selected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -684,10 +677,9 @@ class _SubRailTileState extends State<_SubRailTile>
               margin: const EdgeInsets.symmetric(vertical: 2),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
-                color:
-                    _hovering && !widget.selected
-                        ? c.interactive.withAlpha(15)
-                        : bgColor.value,
+                color: _hovering && !widget.selected
+                    ? c.interactive.withAlpha(15)
+                    : bgColor.value,
               ),
 
               child: Row(
@@ -714,10 +706,9 @@ class _SubRailTileState extends State<_SubRailTile>
                       widget.item.label,
                       style: t.titleMedium?.copyWith(
                         color: textColor.value,
-                        fontWeight:
-                            widget.selected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+                        fontWeight: widget.selected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),

@@ -1,6 +1,6 @@
 import 'dart:ffi';
 
-import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
+import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
 import 'package:flutter/cupertino.dart';
 
 typedef InputSettingBarCallBack = void Function(String);

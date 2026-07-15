@@ -1,9 +1,9 @@
-import 'package:copperlauncher_main/data/local_asset.dart';
-import 'package:copperlauncher_main/domain/mindustry_launcher.dart';
-import 'package:copperlauncher_main/domain/task_manager.dart';
-import 'package:copperlauncher_main/domain/tasks/launch_mindustry_task.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/domain/mindustry_launcher.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_config.dart';

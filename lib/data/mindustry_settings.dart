@@ -1,17 +1,17 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:copperlauncher_main/util/io/mindustry_save_file/settings_bin_codec.dart';
+import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'mindustry_settings.g.dart';
 
 /// Mindustry settings.bin 数据类。
 ///
-/// 提供对 [settings.bin] 文件的读写、键值对存取、
+/// 提供对 settings.bin 文件的读写、键值对存取、
 /// 以及常用设置项的成员变量直接访问。
 ///
-/// **成员命名**: Dart 驼峰（如 [uiScale]），内部 `_data` 键保持 Mindustry 原始键名（如 `"uiscale"`）。
+/// **成员命名**: Dart 驼峰（如 [uiScale]），内部 `_data` 键保持 Mindustry 原始键名
 ///
 /// 用法：
 /// ```dart
@@ -34,7 +34,7 @@ part 'mindustry_settings.g.dart';
 /// defaults.saveTo('path/to/settings.bin');
 /// ```
 class MindustrySettings {
-  /// 内部存储所有键值对。键名为 Mindustry 原始格式（如 `"uiscale"`）。
+  /// 内部存储所有键值对。键名为 Mindustry 原始格式
   final Map<String, dynamic> _data;
 
   /// 来源文件路径（用于 [save]）。
@@ -44,12 +44,12 @@ class MindustrySettings {
   // 构造函数
   // ─────────────────────────────────────────
 
-  /// 从 Map 构建（内部使用）。
+  /// 从 Map 构建
   MindustrySettings._(this._data, [this._filePath]);
 
-  /// 从 [settings.bin] 文件路径加载。
+  /// 从 settings.bin 文件路径加载
   ///
-  /// 如果文件不存在或读取失败，返回空实例（getter 使用默认值）。
+  /// 如果文件不存在或读取失败，返回空实例
   factory MindustrySettings.fromFile(String path) {
     try {
       final file = File(path);
@@ -151,29 +151,22 @@ class MindustrySettings {
   // 原始数据访问
   // ─────────────────────────────────────────
 
-  /// 获取内部 Map（只读参考）。键名为 Mindustry 原始格式。
+  /// 内部 Map,键名为 Mindustry 原始格式。
   Map<String, dynamic> get data => _data;
 
-  /// 获取所有键。
   Iterable<String> get keys => _data.keys;
-
-  /// 按键获取值。
   dynamic operator [](String key) => _data[key];
-
-  /// 按键设置值。
   void operator []=(String key, dynamic value) => _data[key] = value;
 
-  /// 判断键是否存在。
   bool containsKey(String key) => _data.containsKey(key);
 
-  /// 删除键。
   void remove(String key) => _data.remove(key);
 
   // ─────────────────────────────────────────
   // 持久化
   // ─────────────────────────────────────────
 
-  /// 保存到原始来源路径。
+  /// 保存到原始来源路径
   ///
   /// 若未设置路径（非文件加载），抛出 [StateError]。
   void save() {
@@ -183,7 +176,6 @@ class MindustrySettings {
     saveTo(_filePath!);
   }
 
-  /// 保存到指定路径。
   void saveTo(String path) {
     _filePath = path;
     final bytes = SettingsBinCodec.encode(_data);
@@ -194,7 +186,6 @@ class MindustrySettings {
     File(path).writeAsBytesSync(bytes);
   }
 
-  /// 异步保存到原始来源路径。
   Future<void> saveAsync() async {
     if (_filePath == null) {
       throw StateError('未设置文件路径，请使用 saveToAsync(path)');
@@ -202,7 +193,6 @@ class MindustrySettings {
     await saveToAsync(_filePath!);
   }
 
-  /// 异步保存到指定路径。
   Future<void> saveToAsync(String path) async {
     _filePath = path;
     final bytes = SettingsBinCodec.encode(_data);
@@ -217,13 +207,12 @@ class MindustrySettings {
   // 便捷工厂
   // ─────────────────────────────────────────
 
-  /// 从 Uint8List 字节加载。
+  /// 从 Uint8List 字节加载
   factory MindustrySettings.fromBytes(Uint8List bytes, [String? path]) {
     final decoded = SettingsBinCodec.decode(bytes);
     return MindustrySettings._(decoded, path);
   }
 
-  /// 复制当前实例。
   MindustrySettings copy() {
     return MindustrySettings._(Map<String, dynamic>.from(_data), _filePath);
   }

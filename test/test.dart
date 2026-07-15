@@ -4,22 +4,22 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:archive/archive.dart';
-import 'package:copperlauncher_main/core/app_config.dart';
-import 'package:copperlauncher_main/core/app_constant.dart';
-import 'package:copperlauncher_main/data/local_asset.dart';
-import 'package:copperlauncher_main/ui/util/animation/animated_opacity_size.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
-import 'package:copperlauncher_main/util/format/byte_unit.dart';
-import 'package:copperlauncher_main/util/io/file_reader.dart';
-import 'package:copperlauncher_main/util/io/http_helper.dart';
-import 'package:copperlauncher_main/util/io/process_controller.dart';
-import 'package:copperlauncher_main/util/io/process_launcher.dart';
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/util/format/byte_unit.dart';
+import 'package:copper_launcher/util/io/file_reader.dart';
+import 'package:copper_launcher/util/io/http_helper.dart';
+import 'package:copper_launcher/util/io/process_controller.dart';
+import 'package:copper_launcher/util/io/process_launcher.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:copperlauncher_main/data/mindustry_settings.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
+import 'package:copper_launcher/data/mindustry_settings.dart';
+import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
 
 class Test extends StatefulWidget {
   const Test({super.key});
@@ -94,15 +94,16 @@ class _ElectricConverterState extends State<ElectricConverter> {
   @override
   void initState() {
     super.initState();
-    controller1 = TextEditingController(text: real.toString())..addListener(() {
-      setState(() {
-        if (imaginaryToAngle) {
-          real = double.parse(controller1.text);
-        } else {
-          modulus = double.parse(controller1.text);
-        }
+    controller1 = TextEditingController(text: real.toString())
+      ..addListener(() {
+        setState(() {
+          if (imaginaryToAngle) {
+            real = double.parse(controller1.text);
+          } else {
+            modulus = double.parse(controller1.text);
+          }
+        });
       });
-    });
     controller2 = TextEditingController(text: imaginary.toString())
       ..addListener(() {
         setState(() {
@@ -394,35 +395,34 @@ class _DownloadSpeedTestWidgetState extends State<DownloadSpeedTestWidget> {
                 SizedBox(
                   height: 14,
                   child: Row(
-                    children:
-                        _chunks.map((c) {
-                          Color color;
-                          switch (c.status) {
-                            case HttpChunkStatus.complete:
-                              color = Colors.green;
-                              break;
-                            case HttpChunkStatus.downloading:
-                              color = Colors.blue;
-                              break;
-                            case HttpChunkStatus.connecting:
-                              color = Colors.orange;
-                              break;
-                            case HttpChunkStatus.failed:
-                              color = Colors.red;
-                              break;
-                            case HttpChunkStatus.pending:
-                              color = Colors.grey;
-                          }
-                          return Expanded(
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 1),
-                              decoration: BoxDecoration(
-                                color: color,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                    children: _chunks.map((c) {
+                      Color color;
+                      switch (c.status) {
+                        case HttpChunkStatus.complete:
+                          color = Colors.green;
+                          break;
+                        case HttpChunkStatus.downloading:
+                          color = Colors.blue;
+                          break;
+                        case HttpChunkStatus.connecting:
+                          color = Colors.orange;
+                          break;
+                        case HttpChunkStatus.failed:
+                          color = Colors.red;
+                          break;
+                        case HttpChunkStatus.pending:
+                          color = Colors.grey;
+                      }
+                      return Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 1),
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
               // Stats
@@ -713,9 +713,8 @@ class _WindowProcessControllerTestState
             ),
             const SizedBox(width: 8),
             ElevatedButton(
-              onPressed:
-                  () =>
-                      WindowProcessController.openExplorer(_explorerCtrl.text),
+              onPressed: () =>
+                  WindowProcessController.openExplorer(_explorerCtrl.text),
               child: const Text('打开资源管理器'),
             ),
           ],

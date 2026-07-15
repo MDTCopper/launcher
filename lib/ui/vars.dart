@@ -1,13 +1,13 @@
-import 'package:copperlauncher_main/ui/route_pages/branch/launch/version_select.dart';
-import 'package:copperlauncher_main/ui/route_pages/branch/launch/version_setting.dart';
-import 'package:copperlauncher_main/ui/route_pages/download/mindustry_download_page.dart';
-import 'package:copperlauncher_main/ui/route_pages/download/mod_download_page.dart';
-import 'package:copperlauncher_main/ui/route_pages/download/mod_view_page.dart';
-import 'package:copperlauncher_main/ui/route_pages/overview/launch.dart';
-import 'package:copperlauncher_main/ui/route_pages/setting/game_setting_page.dart';
-import 'package:copperlauncher_main/ui/route_pages/setting/launch_setting_page.dart';
-import 'package:copperlauncher_main/ui/route_pages/setting/other_setting_page.dart';
-import 'package:copperlauncher_main/ui/route_pages/setting/personalization_setting_page.dart';
+import 'package:copper_launcher/ui/route_pages/branch/launch/version_select.dart';
+import 'package:copper_launcher/ui/route_pages/branch/launch/version_setting.dart';
+import 'package:copper_launcher/ui/route_pages/download/mindustry_download_page.dart';
+import 'package:copper_launcher/ui/route_pages/download/mod_download_page.dart';
+import 'package:copper_launcher/ui/route_pages/download/mod_view_page.dart';
+import 'package:copper_launcher/ui/route_pages/overview/launch.dart';
+import 'package:copper_launcher/ui/route_pages/setting/game_setting_page.dart';
+import 'package:copper_launcher/ui/route_pages/setting/launch_setting_page.dart';
+import 'package:copper_launcher/ui/route_pages/setting/other_setting_page.dart';
+import 'package:copper_launcher/ui/route_pages/setting/personalization_setting_page.dart';
 import 'package:flutter/cupertino.dart';
 
 import '../core/app_config.dart';

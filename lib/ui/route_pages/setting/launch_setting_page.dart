@@ -2,20 +2,20 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:copperlauncher_main/ui/components/rebound/rebound_checkbox.dart';
-import 'package:copperlauncher_main/ui/util/info/notification.dart';
-import 'package:copperlauncher_main/ui/util/widget/animated_dropdown_menu.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
-import 'package:copperlauncher_main/ui/util/widget/percent_bar.dart';
-import 'package:copperlauncher_main/ui/util/widget/setting_bar/checkbox_setting_bar.dart';
-import 'package:copperlauncher_main/ui/util/widget/setting_bar/input_setting_bar.dart';
-import 'package:copperlauncher_main/ui/util/widget/setting_bar/option_setting_bar.dart';
-import 'package:copperlauncher_main/ui/util/widget/setting_bar/switch_setting_bar.dart';
-import 'package:copperlauncher_main/util/format/byte_unit.dart';
-import 'package:copperlauncher_main/util/io/java_finder.dart';
-import 'package:copperlauncher_main/util/io/path_selector.dart';
-import 'package:copperlauncher_main/util/system_info.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
+import 'package:copper_launcher/ui/util/info/notification.dart';
+import 'package:copper_launcher/ui/util/widget/animated_dropdown_menu.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
+import 'package:copper_launcher/ui/util/widget/percent_bar.dart';
+import 'package:copper_launcher/ui/util/widget/setting_bar/checkbox_setting_bar.dart';
+import 'package:copper_launcher/ui/util/widget/setting_bar/input_setting_bar.dart';
+import 'package:copper_launcher/ui/util/widget/setting_bar/option_setting_bar.dart';
+import 'package:copper_launcher/ui/util/widget/setting_bar/switch_setting_bar.dart';
+import 'package:copper_launcher/util/format/byte_unit.dart';
+import 'package:copper_launcher/util/io/java_finder.dart';
+import 'package:copper_launcher/util/io/path_selector.dart';
+import 'package:copper_launcher/util/system_info.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:line_icons/line_icons.dart';
@@ -400,11 +400,11 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
   Widget _buildJavaSettingBar() {
     final list = [];
 
-    final js =
-        javas.toList()..sort((a, b) {
-          if (a.version == null || b.version == null) return 0;
-          return (b.version ?? 0) - (a.version ?? 0);
-        });
+    final js = javas.toList()
+      ..sort((a, b) {
+        if (a.version == null || b.version == null) return 0;
+        return (b.version ?? 0) - (a.version ?? 0);
+      });
 
     for (var it in js) {
       if (!it.isValid) continue;

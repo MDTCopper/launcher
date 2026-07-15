@@ -3,9 +3,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
-import 'package:copperlauncher_main/data/local_asset.dart';
-import 'package:copperlauncher_main/util/io/mindustry_save_file/save_file_codec.dart';
-import 'package:copperlauncher_main/util/io/mindustry_save_file/settings_bin_codec.dart';
+import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/util/io/mindustry_save_file/save_file_codec.dart';
+import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
 import 'package:hjson_dart/hjson_dart.dart';
 import 'package:path/path.dart' as p;
 import 'package:properties/properties.dart';
@@ -369,25 +369,21 @@ class FileReader {
 
   // ── 类型化 getter ──
 
-  MapSave? get mapSave =>
-      type == ResourceType.mapSave && meta != null
-          ? MapSave.fromJson(meta!)
-          : null;
+  MapSave? get mapSave => type == ResourceType.mapSave && meta != null
+      ? MapSave.fromJson(meta!)
+      : null;
 
-  Schematic? get schematic =>
-      type == ResourceType.schematic && meta != null
-          ? Schematic.fromJson(meta!)
-          : null;
+  Schematic? get schematic => type == ResourceType.schematic && meta != null
+      ? Schematic.fromJson(meta!)
+      : null;
 
-  Mod? get mod =>
-      type == ResourceType.mod && meta != null
-          ? Mod.fromJson(meta!, icon: modIcon)
-          : null;
+  Mod? get mod => type == ResourceType.mod && meta != null
+      ? Mod.fromJson(meta!, icon: modIcon)
+      : null;
 
-  MindustryMeta? get mindustry =>
-      type == ResourceType.mindustry && meta != null
-          ? MindustryMeta.fromJson(meta!)
-          : null;
+  MindustryMeta? get mindustry => type == ResourceType.mindustry && meta != null
+      ? MindustryMeta.fromJson(meta!)
+      : null;
 
   @override
   String toString() =>

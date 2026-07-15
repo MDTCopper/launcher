@@ -1,4 +1,4 @@
-import 'package:copperlauncher_main/ui/components/rebound/rebound_container.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:flutter/material.dart';
 
 class ReboundButton extends ReboundContainer {
@@ -98,21 +98,20 @@ class _SegmentedReboundButtonState<T> extends State<SegmentedReboundButton<T>> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: 4,
-        children:
-            widget.segments.map<Widget>((it) {
-              return SegmentedReboundSingleButton<T>(
-                selected: widget.selected.contains(it.value),
-                onTap: () => _onTap(it.value),
-                child: Row(
-                  spacing: 4,
-                  children: [
-                    if (it.icon != null) it.icon!,
-                    if (it.content != null) Text(it.content!),
-                    if (it.label != null) it.label!,
-                  ],
-                ),
-              );
-            }).toList(),
+        children: widget.segments.map<Widget>((it) {
+          return SegmentedReboundSingleButton<T>(
+            selected: widget.selected.contains(it.value),
+            onTap: () => _onTap(it.value),
+            child: Row(
+              spacing: 4,
+              children: [
+                if (it.icon != null) it.icon!,
+                if (it.content != null) Text(it.content!),
+                if (it.label != null) it.label!,
+              ],
+            ),
+          );
+        }).toList(),
       ),
     );
   }

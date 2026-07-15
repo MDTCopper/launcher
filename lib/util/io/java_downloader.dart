@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:copperlauncher_main/util/io/http_helper.dart';
+import 'package:copper_launcher/util/io/http_helper.dart';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as path;
 
@@ -117,10 +117,9 @@ class JavaDownloader {
 
     onStatus?.call('正在下载Java ${info.version}...');
 
-    final archiveName =
-        Platform.isWindows
-            ? 'java-$version-temp.zip'
-            : 'java-$version-temp.tar.gz';
+    final archiveName = Platform.isWindows
+        ? 'java-$version-temp.zip'
+        : 'java-$version-temp.tar.gz';
     final archivePath = path.join(installDir, archiveName);
     final extractDir = path.join(installDir, 'jdk-$version');
 
@@ -221,10 +220,9 @@ class JavaDownloader {
   ) async {
     // javaHomePath 是 java.exe 的路径，需要取其上层 bin 的上级目录作为 JAVA_HOME
     final javaExeName = Platform.isWindows ? 'java.exe' : 'java';
-    final javaHome =
-        javaHomePath.endsWith(javaExeName)
-            ? path.dirname(path.dirname(javaHomePath))
-            : javaHomePath;
+    final javaHome = javaHomePath.endsWith(javaExeName)
+        ? path.dirname(path.dirname(javaHomePath))
+        : javaHomePath;
 
     final result = EnvironmentConfigResult();
 
@@ -251,10 +249,9 @@ class JavaDownloader {
 
       if (!existingPath.toLowerCase().contains(binDir.toLowerCase())) {
         try {
-          final newPath =
-              existingPath.endsWith(';')
-                  ? '$existingPath$binDir'
-                  : '$existingPath;$binDir';
+          final newPath = existingPath.endsWith(';')
+              ? '$existingPath$binDir'
+              : '$existingPath;$binDir';
           await Process.run('setx', [
             'PATH',
             newPath,
@@ -324,8 +321,8 @@ class JavaDownloader {
 
   static String _getArchString() {
     if (Platform.isWindows) {
-      final arch =
-          Platform.environment['PROCESSOR_ARCHITECTURE']?.toLowerCase();
+      final arch = Platform.environment['PROCESSOR_ARCHITECTURE']
+          ?.toLowerCase();
       if (arch == 'arm64') return 'aarch64';
       return 'x64';
     }

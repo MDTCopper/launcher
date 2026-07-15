@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:copperlauncher_main/ui/util/animation/animated_opacity_size.dart';
-import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
-import 'package:copperlauncher_main/ui/util/switcher_transition_builder.dart';
-import 'package:copperlauncher_main/util/io/os.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
+import 'package:copper_launcher/ui/util/switcher_transition_builder.dart';
+import 'package:copper_launcher/util/io/os.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
 import 'package:go_router/go_router.dart';

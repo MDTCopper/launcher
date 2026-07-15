@@ -1,7 +1,7 @@
-import 'package:copperlauncher_main/core/app_config.dart';
-import 'package:copperlauncher_main/ui/shell/app_shell.dart';
-import 'package:copperlauncher_main/ui/theme/app_theme.dart';
-import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/ui/shell/app_shell.dart';
+import 'package:copper_launcher/ui/theme/app_theme.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:flutter/material.dart';
 
 void runCopperLauncher() {

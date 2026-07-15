@@ -1,8 +1,8 @@
-import 'package:copperlauncher_main/core/app_config.dart';
-import 'package:copperlauncher_main/data/local_asset.dart';
-import 'package:copperlauncher_main/domain/mindustry_launcher.dart';
-import 'package:copperlauncher_main/domain/task.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/domain/mindustry_launcher.dart';
+import 'package:copper_launcher/domain/task.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/mindustry_settings.dart';
@@ -96,9 +96,10 @@ class LaunchMindustryTask extends Task {
       }
     }
 
-    final List<String> args = (mindustry.jvmParameter ??
-            launchOption.javaOptions.jvmParameter)
-        .split(' ');
+    final List<String> args =
+        (mindustry.jvmParameter ?? launchOption.javaOptions.jvmParameter).split(
+          ' ',
+        );
 
     if (config.setting.mindustrySettingsOverride) {
       setting.applyPatch(config.setting.mindustrySettings);

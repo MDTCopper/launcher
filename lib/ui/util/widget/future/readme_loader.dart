@@ -1,6 +1,6 @@
-import 'package:copperlauncher_main/data/net_asset.dart';
-import 'package:copperlauncher_main/ui/util/widget/desktop_scroll_view.dart';
-import 'package:copperlauncher_main/util/format/string_cleaner.dart';
+import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/ui/util/widget/desktop_scroll_view.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
@@ -108,15 +108,13 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
                     builder: (c) {
                       final url = c.attributes['src'] ?? '';
 
-                      final width =
-                          c.attributes['width'] != null
-                              ? double.parse(c.attributes['width']!)
-                              : null;
+                      final width = c.attributes['width'] != null
+                          ? double.parse(c.attributes['width']!)
+                          : null;
 
-                      final height =
-                          c.attributes['height'] != null
-                              ? double.parse(c.attributes['height']!)
-                              : null;
+                      final height = c.attributes['height'] != null
+                          ? double.parse(c.attributes['height']!)
+                          : null;
 
                       return ConstrainedBox(
                         constraints: BoxConstraints(

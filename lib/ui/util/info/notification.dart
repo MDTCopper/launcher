@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -203,15 +203,13 @@ class _NotificationWidgetState extends State<NotificationWidget> {
   }
 
   Widget _buildRemoveAnimation(Widget? child, Animation<double> animation) {
-    final position = Tween<Offset>(
-      begin: Offset(-0.4, 0.0),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: animation,
-        curve: Interval(0.6, 1.0, curve: Curves.easeIn),
-      ),
-    );
+    final position = Tween<Offset>(begin: Offset(-0.4, 0.0), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: Interval(0.6, 1.0, curve: Curves.easeIn),
+          ),
+        );
 
     final opacity = CurvedAnimation(
       parent: animation,
@@ -262,12 +260,10 @@ class _NotificationWidgetState extends State<NotificationWidget> {
         initialItemCount: _itemList.length,
         physics: NeverScrollableScrollPhysics(),
         itemBuilder: (context, index, animation) {
-          Animation<Offset> position = Tween<Offset>(
-            begin: Offset(-0.4, 0.0),
-            end: Offset.zero,
-          ).animate(
-            CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
-          );
+          Animation<Offset> position =
+              Tween<Offset>(begin: Offset(-0.4, 0.0), end: Offset.zero).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+              );
 
           return FadeTransition(
             opacity: animation,

@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:ffi';
 
-import 'package:copperlauncher_main/ui/route_pages/branch/launch/version_select.dart';
-import 'package:copperlauncher_main/ui/route_pages/branch/launch/version_setting.dart';
-import 'package:copperlauncher_main/ui/route_pages/download/mindustry_download_page.dart';
-import 'package:copperlauncher_main/ui/route_pages/download/mod_download_page.dart';
-import 'package:copperlauncher_main/ui/route_pages/download/mod_view_page.dart';
+import 'package:copper_launcher/ui/route_pages/branch/launch/version_select.dart';
+import 'package:copper_launcher/ui/route_pages/branch/launch/version_setting.dart';
+import 'package:copper_launcher/ui/route_pages/download/mindustry_download_page.dart';
+import 'package:copper_launcher/ui/route_pages/download/mod_download_page.dart';
+import 'package:copper_launcher/ui/route_pages/download/mod_view_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:line_icons/line_icons.dart';
@@ -50,8 +50,8 @@ final List<RouteSection> appRoutes = [
           RouteItem(
             route: '/launch/version_selected',
             name: '版本选择',
-            hide:  true,
-            redirect: (_,_)=>'/launch/version_selected/:fold',
+            hide: true,
+            redirect: (_, _) => '/launch/version_selected/:fold',
             children: [
 
             ]

@@ -1,5 +1,5 @@
-import 'package:copperlauncher_main/ui/components/rebound/rebound_checkbox.dart';
-import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
+import 'package:copper_launcher/ui/util/dialog/custom_animated_dialog.dart';
 import 'package:flutter/material.dart';
 
 import '../../../util/format/string_cleaner.dart';
@@ -89,86 +89,85 @@ class ResourceImporterState extends State<ResourceImporter> {
               delay: 300,
               appearDuration: const Duration(milliseconds: 350),
               offset: Offset(-0.1, 0.0),
-              items:
-                  importList.map((it) {
-                    final type = it.type;
-                    switch (type) {
-                      case null:
-                        return SizedBox();
-                      case ResourceType.mindustry:
-                        final m = it.mindustry!;
-                        return ReboundListTile(
-                          leading: Image.asset(Images.mindustry),
-                          title: Text('Mindustry v${m.version}'),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('build ${m.build}  (${m.type})'),
-                              Text('${m.path}'),
-                            ],
-                          ),
-                          trailing: ReboundCheckChangeBox(value: test),
-                          onTap: () {
-                            setState(() {
-                              test = !test;
-                            });
-                          },
-                        );
-                      case ResourceType.mod:
-                        final mod = it.mod!;
+              items: importList.map((it) {
+                final type = it.type;
+                switch (type) {
+                  case null:
+                    return SizedBox();
+                  case ResourceType.mindustry:
+                    final m = it.mindustry!;
+                    return ReboundListTile(
+                      leading: Image.asset(Images.mindustry),
+                      title: Text('Mindustry v${m.version}'),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('build ${m.build}  (${m.type})'),
+                          Text('${m.path}'),
+                        ],
+                      ),
+                      trailing: ReboundCheckChangeBox(value: test),
+                      onTap: () {
+                        setState(() {
+                          test = !test;
+                        });
+                      },
+                    );
+                  case ResourceType.mod:
+                    final mod = it.mod!;
 
-                        Widget leading;
-                        final icon = mod.icon;
-                        if (icon == null) {
-                          leading = Icon(Icons.question_mark, size: 64);
-                        } else {
-                          leading = Image.memory(icon, height: 64, width: 64);
-                        }
-
-                        return ReboundListTile(
-                          leading: leading,
-                          title: Text(
-                            '模组  ${generalizeText(mod.name)}  |  作者  ${generalizeText(mod.author)}',
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '版本  ${mod.version}   |   minGameVersion ${mod.minGameVersion}',
-                              ),
-                              Text('${mod.path}'),
-                            ],
-                          ),
-
-                          onTap: () {},
-                        );
-                      case ResourceType.mapSave:
-                        final m = it.mapSave!;
-                        return ReboundListTile(
-                          leading: Icon(Icons.map_outlined, size: 64),
-                          title: Text(
-                            '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
-                          ),
-                          subtitle: Text('${m.path}'),
-                          onTap: () {},
-                        );
-                      case ResourceType.schematic:
-                        final m = it.schematic!;
-                        return ReboundListTile(
-                          leading: Icon(Icons.paste, size: 64),
-                          title: Text(
-                            '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
-                          ),
-                          subtitle: Text('${m.path}'),
-                          onTap: () {},
-                        );
-                      case ResourceType.settings:
-                        // TODO: Handle this case.
-                        throw UnimplementedError();
+                    Widget leading;
+                    final icon = mod.icon;
+                    if (icon == null) {
+                      leading = Icon(Icons.question_mark, size: 64);
+                    } else {
+                      leading = Image.memory(icon, height: 64, width: 64);
                     }
-                  }).toList(),
+
+                    return ReboundListTile(
+                      leading: leading,
+                      title: Text(
+                        '模组  ${generalizeText(mod.name)}  |  作者  ${generalizeText(mod.author)}',
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '版本  ${mod.version}   |   minGameVersion ${mod.minGameVersion}',
+                          ),
+                          Text('${mod.path}'),
+                        ],
+                      ),
+
+                      onTap: () {},
+                    );
+                  case ResourceType.mapSave:
+                    final m = it.mapSave!;
+                    return ReboundListTile(
+                      leading: Icon(Icons.map_outlined, size: 64),
+                      title: Text(
+                        '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
+                      ),
+                      subtitle: Text('${m.path}'),
+                      onTap: () {},
+                    );
+                  case ResourceType.schematic:
+                    final m = it.schematic!;
+                    return ReboundListTile(
+                      leading: Icon(Icons.paste, size: 64),
+                      title: Text(
+                        '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
+                      ),
+                      subtitle: Text('${m.path}'),
+                      onTap: () {},
+                    );
+                  case ResourceType.settings:
+                    // TODO: Handle this case.
+                    throw UnimplementedError();
+                }
+              }).toList(),
             ),
           ),
       ],

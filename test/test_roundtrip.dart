@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:copperlauncher_main/util/io/mindustry_save_file/settings_bin_codec.dart';
+import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
 
 void main() {
   final path = r'C:\Users\ASUS\AppData\Roaming\Mindustry\settings.bin';

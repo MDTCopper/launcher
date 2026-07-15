@@ -1,16 +1,16 @@
 import 'dart:convert';
 
 import 'package:async/async.dart';
-import 'package:copperlauncher_main/core/app_constant.dart';
-import 'package:copperlauncher_main/data/net_asset.dart';
-import 'package:copperlauncher_main/ui/components/rebound/rebound_checkbox.dart';
-import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
-import 'package:copperlauncher_main/ui/util/widget/animated_dropdown_menu.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
-import 'package:copperlauncher_main/util/format/string_cleaner.dart';
-import 'package:copperlauncher_main/util/format/time_since.dart';
+import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
+import 'package:copper_launcher/ui/util/framework/content_panel.dart';
+import 'package:copper_launcher/ui/util/widget/animated_dropdown_menu.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/format/time_since.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
 import 'package:string_similarity/string_similarity.dart';
@@ -122,12 +122,11 @@ class _ModViewPageState extends State<ModViewPage> {
         }
       }
 
-      final type =
-          it.hasJava
-              ? 'java'
-              : it.hasScripts
-              ? 'js'
-              : 'json';
+      final type = it.hasJava
+          ? 'java'
+          : it.hasScripts
+          ? 'js'
+          : 'json';
 
       final typeFilter = modTypeSet.isEmpty || modTypeSet.contains(type);
 
@@ -199,10 +198,9 @@ class _ModViewPageState extends State<ModViewPage> {
 
       final random = randomWeight == 0 ? 0 : mod.hashCode % 10 / 10;
 
-      double hot =
-          mod.starsDifferenceCache == null
-              ? 0.0
-              : mod.starsDifferenceCache! / (mod.starsDifferenceCache! + 10);
+      double hot = mod.starsDifferenceCache == null
+          ? 0.0
+          : mod.starsDifferenceCache! / (mod.starsDifferenceCache! + 10);
       if (hotWeight != 0.0 && hot == 0.0) {
         final previousMeta = previousModMetaMap[mod.repo];
         if (previousMeta != null) {
@@ -264,12 +262,11 @@ class _ModViewPageState extends State<ModViewPage> {
           var res = await dio.get(github3MonthsModMetaUrl);
           if (res.statusCode != 200) throw Exception('链接失败');
           List<dynamic> jsons = jsonDecode(res.data);
-          final List<ModOfficialListMeta> list =
-              jsons
-                  .map<ModOfficialListMeta>(
-                    (it) => ModOfficialListMeta.fromJson(it),
-                  )
-                  .toList();
+          final List<ModOfficialListMeta> list = jsons
+              .map<ModOfficialListMeta>(
+                (it) => ModOfficialListMeta.fromJson(it),
+              )
+              .toList();
           previousModMetaMap = {for (final it in list) it.repo: it};
         }
 
@@ -316,27 +313,26 @@ class _ModViewPageState extends State<ModViewPage> {
               child: ScaleTransition(scale: animation, child: child),
             );
           },
-          child:
-              showResetButton
-                  ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ReboundIconButton(
-                        icon: Icons.refresh,
-                        content: '重置',
-                        onTap: () {
-                          setState(() {
-                            searchTextController.clear();
-                            sort = 'default';
-                            version = -1;
-                            modTypeSet.clear();
-                          });
-                        },
-                      ),
-                      SizedBox(width: 8),
-                    ],
-                  )
-                  : null,
+          child: showResetButton
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ReboundIconButton(
+                      icon: Icons.refresh,
+                      content: '重置',
+                      onTap: () {
+                        setState(() {
+                          searchTextController.clear();
+                          sort = 'default';
+                          version = -1;
+                          modTypeSet.clear();
+                        });
+                      },
+                    ),
+                    SizedBox(width: 8),
+                  ],
+                )
+              : null,
         ),
       );
     }

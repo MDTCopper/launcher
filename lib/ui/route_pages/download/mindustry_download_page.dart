@@ -1,11 +1,11 @@
-import 'package:copperlauncher_main/core/app_constant.dart';
-import 'package:copperlauncher_main/data/net_asset.dart';
-import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
-import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
-import 'package:copperlauncher_main/ui/util/widget/animated_expansion.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_text_field.dart';
+import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/ui/util/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/util/framework/content_panel.dart';
+import 'package:copper_launcher/ui/util/widget/animated_expansion.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
@@ -82,8 +82,10 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     }
   }
 
-  Widget _buildVersionList(String title,
-      List<MindustryGithubMeta> versionList,) {
+  Widget _buildVersionList(
+    String title,
+    List<MindustryGithubMeta> versionList,
+  ) {
     List<Widget> versions = [];
 
     for (var version in versionList) {
@@ -271,7 +273,9 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
                         );
                         _minModGameVersionMap[double.parse(
                           version.releaseNum.substring(1),
-                        )] = int.parse(minGameVersion);
+                        )] = int.parse(
+                          minGameVersion,
+                        );
                       }
                       index = str.lastIndexOf('minJavaModGameVersion = ');
                       if (index != -1) {
@@ -282,7 +286,9 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
                         );
                         _minJavaModGameVersionMap[double.parse(
                           version.releaseNum.substring(1),
-                        )] = int.parse(minGameVersion);
+                        )] = int.parse(
+                          minGameVersion,
+                        );
                       }
                     }
                   });
@@ -305,7 +311,6 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     return child;
   }
 }
-
 
 class _DownloadMindustryPopupPage extends StatefulWidget {
   final MindustryGithubMeta mindustryMeta;
@@ -331,13 +336,14 @@ class _DownloadMindustryPopupPageState
   @override
   void initState() {
     error = check(tag);
-    textEditingController = TextEditingController(text: tag)..addListener(() {
-      tag = textEditingController.text;
-      final text = textEditingController.text;
-      setState(() {
-        error = check(text);
+    textEditingController = TextEditingController(text: tag)
+      ..addListener(() {
+        tag = textEditingController.text;
+        final text = textEditingController.text;
+        setState(() {
+          error = check(text);
+        });
       });
-    });
     super.initState();
   }
 
@@ -457,13 +463,9 @@ class _DownloadMindustryPopupPageState
                               ),
                               trailing: AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 200),
-                                child:
-                                    copperVersion == 'Copper v0.${i + 1}.0'
-                                        ? Icon(
-                                          Icons.check_box_outlined,
-                                          size: 28,
-                                        )
-                                        : null,
+                                child: copperVersion == 'Copper v0.${i + 1}.0'
+                                    ? Icon(Icons.check_box_outlined, size: 28)
+                                    : null,
                               ),
                               onTap: () {
                                 setState(() {
@@ -668,4 +670,3 @@ class _TextAssetPageState extends State<_TextAssetPage> {
     return ListContentPanel(items: [_buildVersionList('mindustry', list)]);
   }
 }
-

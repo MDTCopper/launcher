@@ -1,4 +1,4 @@
-import 'package:copperlauncher_main/ui/components/rebound/rebound_container.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:flutter/material.dart';
 
 class ReboundListTile extends StatefulWidget {
@@ -121,16 +121,15 @@ class _ReboundListTileState extends State<ReboundListTile> {
           hoverElevation: widget.hoverElevation,
           onTap: widget.onTap,
           onLongTap: widget.onLongTap,
-          surfaceChild:
-              widget.trailing == null
-                  ? null
-                  : Align(
-                    alignment: Alignment.centerRight,
-                    child: UnconstrainedBox(
-                      key: trailingKey,
-                      child: widget.trailing,
-                    ),
+          surfaceChild: widget.trailing == null
+              ? null
+              : Align(
+                  alignment: Alignment.centerRight,
+                  child: UnconstrainedBox(
+                    key: trailingKey,
+                    child: widget.trailing,
                   ),
+                ),
           child: Row(
             spacing: widget.itemSpacing,
             children: [

@@ -48,23 +48,23 @@ abstract class AppPaths {
     );
   }
 
-  /// [*\copperlauncher_main]
-  /// android => [/data/user/0/com.example.copperlauncher_main/files]
+  /// [*\copper_launcher]
+  /// android => [/data/user/0/com.example.copper_launcher/files]
   static String get copperLauncher {
     if (Platform.isAndroid) return applicationSupportPath;
     return p.current;
   }
 
-  /// 默认版本文件夹路径 [*\copperlauncher_main\versions\]
+  /// 默认版本文件夹路径 [*\copper_launcher\versions\]
   static String get versions => p.join(copperLauncher, 'versions');
 
-  /// [*\copperlauncher_main\logs\]
+  /// [*\copper_launcher\logs\]
   static String get logs => p.join(copperLauncher, 'logs');
 
-  /// [*\copperlauncher_main\config.json]
+  /// [*\copper_launcher\config.json]
   static String get configJson => p.join(copperLauncher, 'config.json');
 
-  /// [*\copperlauncher_main\config.bin]
+  /// [*\copper_launcher\config.bin]
   static String get configBin => p.join(copperLauncher, 'config.bin');
 
   /// win => [C:\Users\\{username}\AppData\Roaming\Mindustry\]

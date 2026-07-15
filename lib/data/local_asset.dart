@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:copperlauncher_main/core/app_config.dart';
-import 'package:copperlauncher_main/util/io/mindustry_save_file/save_file_codec.dart';
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/util/io/mindustry_save_file/save_file_codec.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:path/path.dart' as p;
 
@@ -58,11 +58,7 @@ class Mindustry {
   double get releaseDouble => double.parse(releaseNum.substring(1));
 
   ///返回游戏版本号 (int)
-  int get releaseInt =>
-      int.parse(releaseNum
-          .substring(1)
-          .split('.')
-          .first);
+  int get releaseInt => int.parse(releaseNum.substring(1).split('.').first);
 
   ///游戏目录路径
   String get foldPath => p.join(path, tag);
@@ -151,7 +147,7 @@ class MindustryMeta {
   @JsonKey(name: 'modifier')
   final String type;
 
-  factory MindustryMeta.fromJson(Map<String, dynamic> json,) =>
+  factory MindustryMeta.fromJson(Map<String, dynamic> json) =>
       _$MindustryMetaFromJson(json);
 
   Map<String, dynamic> toJson() => _$MindustryMetaToJson(this);
@@ -204,8 +200,7 @@ class Mod {
   factory Mod.fromJson(Map<String, dynamic> json, {Uint8List? icon}) {
     json['minGameVersion'] = json['minGameVersion'].toString();
     json['hidden'] = bool.tryParse(json['hidden'].toString());
-    return _$ModFromJson(json)
-      ..icon = icon;
+    return _$ModFromJson(json)..icon = icon;
   }
 
   Map<String, dynamic> toJson() => _$ModToJson(this);

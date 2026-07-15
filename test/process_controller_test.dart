@@ -5,7 +5,7 @@
 // ============================================================
 
 import 'dart:io';
-import 'package:copperlauncher_main/util/io/process_controller.dart';
+import 'package:copper_launcher/util/io/process_controller.dart';
 
 void main() async {
   print('=== WindowProcessController 测试 ===\n');

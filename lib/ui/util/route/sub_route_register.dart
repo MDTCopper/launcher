@@ -1,5 +1,5 @@
-import 'package:copperlauncher_main/ui/shell/navigation_rail.dart';
-import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
+import 'package:copper_launcher/ui/shell/navigation_rail.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:flutter/cupertino.dart';
 
 mixin SubRoute {

@@ -1,18 +1,18 @@
-import 'package:copperlauncher_main/core/app_config.dart';
-import 'package:copperlauncher_main/data/local_asset.dart';
-import 'package:copperlauncher_main/data/net_asset.dart';
-import 'package:copperlauncher_main/domain/task_manager.dart';
-import 'package:copperlauncher_main/domain/tasks/download_mod.dart';
-import 'package:copperlauncher_main/ui/components/rebound/rebound_container.dart';
-import 'package:copperlauncher_main/ui/feature/images.dart';
-import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
-import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
-import 'package:copperlauncher_main/ui/util/widget/future/readme_loader.dart';
-import 'package:copperlauncher_main/ui/util/widget/pager.dart';
-import 'package:copperlauncher_main/util/format/string_cleaner.dart';
-import 'package:copperlauncher_main/util/io/downloader.dart';
-import 'package:copperlauncher_main/util/io/path_selector.dart';
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/download_mod.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
+import 'package:copper_launcher/ui/feature/images.dart';
+import 'package:copper_launcher/ui/util/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/util/framework/content_panel.dart';
+import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/util/widget/future/readme_loader.dart';
+import 'package:copper_launcher/ui/util/widget/pager.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/io/downloader.dart';
+import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -67,10 +67,9 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       );
       //print('$repo?page=${page ~/ 4 + 1}&per_page=100');
 
-      final modMetas =
-          res.data!
-              .map<ModGithubMeta>((it) => ModGithubMeta.fromJson(it))
-              .toList();
+      final modMetas = res.data!
+          .map<ModGithubMeta>((it) => ModGithubMeta.fromJson(it))
+          .toList();
       if (modMetas.length < 100) endPage = true;
       if (modMetas.isEmpty && index > 1) index--; //发现没有新的内容添加就直接减1
       //print(modAssets.length);
@@ -161,32 +160,31 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       );
     }
 
-    final minGameVersion =
-        minGameVersionsCache[mod.releaseNum] ??= _getMinGameVersion(mod);
+    final minGameVersion = minGameVersionsCache[mod.releaseNum] ??=
+        _getMinGameVersion(mod);
 
-    final trailing =
-        modListMeta.hasJava
-            ? Row(
-              spacing: 8,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ReboundIconButton(
-                  icon: Icons.folder_outlined,
-                  content: '下载源码',
-                  onTap: () => _buildDownloadPopup(mod, downloadSource: true),
-                ),
-                ReboundIconButton(
-                  icon: Icons.outbond_outlined,
-                  content: '版本详情',
-                  onTap: () {},
-                ),
-              ],
-            )
-            : ReboundIconButton(
-              icon: Icons.outbond_outlined,
-              content: '版本详情',
-              onTap: () {},
-            );
+    final trailing = modListMeta.hasJava
+        ? Row(
+            spacing: 8,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              ReboundIconButton(
+                icon: Icons.folder_outlined,
+                content: '下载源码',
+                onTap: () => _buildDownloadPopup(mod, downloadSource: true),
+              ),
+              ReboundIconButton(
+                icon: Icons.outbond_outlined,
+                content: '版本详情',
+                onTap: () {},
+              ),
+            ],
+          )
+        : ReboundIconButton(
+            icon: Icons.outbond_outlined,
+            content: '版本详情',
+            onTap: () {},
+          );
 
     return ReboundListTile(
       borderRadius: BorderRadius.circular(4),
@@ -304,8 +302,8 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
   void _showReadme() => showAnimatedDialog(
     context: context,
-    pageBuilder:
-        (_, _, _) => Center(child: ModNetReadmeLoader(mod: modListMeta)),
+    pageBuilder: (_, _, _) =>
+        Center(child: ModNetReadmeLoader(mod: modListMeta)),
   );
 
   void _buildDownloadPopup(ModGithubMeta? mod, {bool downloadSource = false}) {
@@ -397,18 +395,16 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                         ReboundIconButton(
                           icon: Icons.file_open_outlined,
                           content: '源码仓库',
-                          onTap:
-                              () => _goToUrl(
-                                'https://github.com/${modListMeta.repo}',
-                              ),
+                          onTap: () => _goToUrl(
+                            'https://github.com/${modListMeta.repo}',
+                          ),
                         ),
                         ReboundIconButton(
                           icon: FontAwesomeIcons.github,
                           content: '作者主页',
-                          onTap:
-                              () => _goToUrl(
-                                'https://github.com/${modListMeta.repo.split('/').first}',
-                              ),
+                          onTap: () => _goToUrl(
+                            'https://github.com/${modListMeta.repo.split('/').first}',
+                          ),
                         ),
                         Expanded(child: SizedBox()),
                         ReboundIconButton(
@@ -637,10 +633,9 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
             if (otherSavePath != null)
               ReboundButton(
                 child: Icon(Icons.delete),
-                onTap:
-                    () => setState(() {
-                      otherSavePath = null;
-                    }),
+                onTap: () => setState(() {
+                  otherSavePath = null;
+                }),
               ),
           ],
         ),

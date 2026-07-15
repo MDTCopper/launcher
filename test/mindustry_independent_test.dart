@@ -4,7 +4,7 @@
 // ============================================================
 
 import 'dart:io';
-import 'package:copperlauncher_main/util/io/process_launcher.dart';
+import 'package:copper_launcher/util/io/process_launcher.dart';
 
 void main() async {
   print('=== Mindustry 独立模式测试 (ProcessLauncher) ===\n');

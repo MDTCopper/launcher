@@ -1,10 +1,10 @@
 import 'dart:io';
 
-import 'package:copperlauncher_main/core/app_config.dart';
-import 'package:copperlauncher_main/ui/copper_launcher.dart';
-import 'package:copperlauncher_main/util/app_paths.dart';
-import 'package:copperlauncher_main/util/io/run_time_log.dart';
-import 'package:copperlauncher_main/util/io/token_encryptor.dart';
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/ui/copper_launcher.dart';
+import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/util/io/run_time_log.dart';
+import 'package:copper_launcher/util/io/token_encryptor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';

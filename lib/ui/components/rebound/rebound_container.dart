@@ -1,4 +1,4 @@
-import 'package:copperlauncher_main/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 class ReboundContainer extends StatefulWidget {
@@ -72,14 +72,13 @@ class _ReboundContainer extends State<ReboundContainer>
     super.initState();
 
     // 按压回弹
-    _pressController = AnimationController(
-      vsync: this,
-      duration: widget.duration,
-    )..addStatusListener((state) {
-      if (!isPressed && !state.isAnimating) {
-        _pressController.reverse();
-      }
-    });
+    _pressController =
+        AnimationController(vsync: this, duration: widget.duration)
+          ..addStatusListener((state) {
+            if (!isPressed && !state.isAnimating) {
+              _pressController.reverse();
+            }
+          });
     _pressScale = Tween(
       begin: 1.0,
       end: widget.pressedScale,
@@ -207,10 +206,9 @@ class _ReboundContainer extends State<ReboundContainer>
                   duration: widget.hoverDuration,
                   curve: Curves.ease,
                   decoration: BoxDecoration(
-                    color:
-                        isHover
-                            ? hoverColor.withAlpha(30)
-                            : hoverColor.withAlpha(0),
+                    color: isHover
+                        ? hoverColor.withAlpha(30)
+                        : hoverColor.withAlpha(0),
                     borderRadius: widget.borderRadius,
                   ),
                 ),

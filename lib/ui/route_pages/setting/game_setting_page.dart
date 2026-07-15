@@ -1,8 +1,8 @@
 import 'dart:io';
 
-import 'package:copperlauncher_main/ui/components/rebound/rebound_checkbox.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
-import 'package:copperlauncher_main/ui/util/widget/setting_bar/switch_setting_bar.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/util/widget/setting_bar/switch_setting_bar.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_config.dart';
@@ -46,7 +46,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
   }
 
   @override
-  initState(){
+  initState() {
     super.initState();
     print('_GameSettingPageState init');
   }
@@ -169,17 +169,16 @@ class _GameSettingPageState extends State<GameSettingPage> {
             divisions: divisions,
             min: 0.0,
             label: label,
-            onChanged:
-                override
-                    ? (v) => setState(() {
-                      final raw = v * (max - min) + min;
-                      final stepped = ((raw - min) / step).round() * step + min;
-                      final newVal = stepped.clamp(min, max);
-                      setField(newVal);
-                      setCache(newVal);
-                      config.save();
-                    })
-                    : null,
+            onChanged: override
+                ? (v) => setState(() {
+                    final raw = v * (max - min) + min;
+                    final stepped = ((raw - min) / step).round() * step + min;
+                    final newVal = stepped.clamp(min, max);
+                    setField(newVal);
+                    setCache(newVal);
+                    config.save();
+                  })
+                : null,
           ),
         ),
         SizedBox(width: 8),
@@ -764,13 +763,12 @@ class _GameSettingPageState extends State<GameSettingPage> {
             DropdownMenuItem(value: 'ja', child: Text('日本語')),
             DropdownMenuItem(value: 'ko', child: Text('한국어')),
           ],
-          onChanged:
-              override
-                  ? (v) => setState(() {
-                    settings.locale = v;
-                    config.save();
-                  })
-                  : null,
+          onChanged: override
+              ? (v) => setState(() {
+                  settings.locale = v;
+                  config.save();
+                })
+              : null,
         ),
         SizedBox(width: 8),
         _buildOverrideIcon(
@@ -814,11 +812,10 @@ class _GameSettingPageState extends State<GameSettingPage> {
                 wide: 200,
                 title: '启动时覆盖游戏内部设置',
                 value: settingsOverride,
-                onChanged:
-                    (v) => setState(() {
-                      config.setting.mindustrySettingsOverride = v;
-                      config.save();
-                    }),
+                onChanged: (v) => setState(() {
+                  config.setting.mindustrySettingsOverride = v;
+                  config.save();
+                }),
               ),
               Row(
                 spacing: 8,

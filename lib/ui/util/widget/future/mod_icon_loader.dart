@@ -1,5 +1,5 @@
-import 'package:copperlauncher_main/data/net_asset.dart';
-import 'package:copperlauncher_main/ui/vars.dart';
+import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/ui/vars.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 

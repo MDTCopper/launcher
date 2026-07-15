@@ -1,6 +1,6 @@
-import 'package:copperlauncher_main/core/app_config.dart';
-import 'package:copperlauncher_main/ui/util/widget/setting_bar/input_setting_bar.dart';
-import 'package:copperlauncher_main/ui/util/widget/setting_bar/option_setting_bar.dart';
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/ui/util/widget/setting_bar/input_setting_bar.dart';
+import 'package:copper_launcher/ui/util/widget/setting_bar/option_setting_bar.dart';
 import 'package:flutter/material.dart';
 
 import '../../util/framework/content_panel.dart';

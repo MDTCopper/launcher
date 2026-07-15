@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:copperlauncher_main/domain/task.dart';
+import 'package:copper_launcher/domain/task.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:window_manager/window_manager.dart';
-
-
 
 final Map<String, CancelToken> cancelTokens = {};
 
@@ -32,10 +30,9 @@ class TaskManager {
 
   double? get totalProcessProgress {
     double? progress;
-    final tasks =
-        _tasks.values.where((task) {
-          return [TaskStatus.process].contains(task.status);
-        }).toList();
+    final tasks = _tasks.values.where((task) {
+      return [TaskStatus.process].contains(task.status);
+    }).toList();
     int measurableTasks = 0;
     for (final task in tasks) {
       if (task.progress != null) {

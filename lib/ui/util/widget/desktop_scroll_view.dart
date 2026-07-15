@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:copperlauncher_main/ui/util/mixin/stateful_mixin.dart';
+import 'package:copper_launcher/ui/util/mixin/stateful_mixin.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -307,16 +307,14 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
             onEnter: (_) => statesController.update(WidgetState.hovered, true),
             onExit: (_) => statesController.update(WidgetState.hovered, false),
             child: GestureDetector(
-              onVerticalDragStart:
-                  (details) => _handleDragStart(
-                    details,
-                    thumbOffset,
-                    thumbHeight,
-                    viewportHeight,
-                  ),
-              onVerticalDragUpdate:
-                  (details) =>
-                      _handleDragUpdate(details, thumbHeight, viewportHeight),
+              onVerticalDragStart: (details) => _handleDragStart(
+                details,
+                thumbOffset,
+                thumbHeight,
+                viewportHeight,
+              ),
+              onVerticalDragUpdate: (details) =>
+                  _handleDragUpdate(details, thumbHeight, viewportHeight),
               onVerticalDragEnd: (_) => _handleDragEnd(),
               behavior: HitTestBehavior.translucent,
               child: FadeTransition(
@@ -328,10 +326,9 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
                   decoration: BoxDecoration(
                     color: trackColor,
                     borderRadius: radius,
-                    border:
-                        trackBorderColor == null
-                            ? null
-                            : Border.all(color: trackBorderColor),
+                    border: trackBorderColor == null
+                        ? null
+                        : Border.all(color: trackBorderColor),
                   ),
                   child: Align(
                     alignment: Alignment.topCenter,

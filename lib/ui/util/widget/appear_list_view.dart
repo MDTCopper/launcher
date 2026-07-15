@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:copperlauncher_main/ui/theme/app_colors.dart';
-import 'package:copperlauncher_main/ui/util/widget/desktop_scroll_view.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/util/widget/desktop_scroll_view.dart';
 import 'package:flutter/material.dart';
 
 import '../../feature/feature_curve.dart';

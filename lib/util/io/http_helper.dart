@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:copperlauncher_main/util/format/byte_unit.dart';
+import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
@@ -440,8 +440,9 @@ class HttpHelper {
     final file = File(savePath);
     await file.parent.create(recursive: true);
 
-    final rateLimiter =
-        speedLimit != null && speedLimit > 0 ? _RateLimiter(speedLimit) : null;
+    final rateLimiter = speedLimit != null && speedLimit > 0
+        ? _RateLimiter(speedLimit)
+        : null;
 
     final state = HttpDownloadState(
       total: totalSize,
@@ -592,33 +593,35 @@ class HttpHelper {
     final periodicTimer = Timer.periodic(const Duration(milliseconds: 100), (
       _,
     ) {
-      state.chunks =
-          chunks
-              .map(
-                (c) => HttpChunkInfo(
-                  index: c.index,
-                  start: c.start,
-                  end: c.end,
-                  size: c.size,
-                  received: c.received,
-                  status: c.status,
-                ),
-              )
-              .toList();
+      state.chunks = chunks
+          .map(
+            (c) => HttpChunkInfo(
+              index: c.index,
+              start: c.start,
+              end: c.end,
+              size: c.size,
+              received: c.received,
+              status: c.status,
+            ),
+          )
+          .toList();
       onStatus?.call(state);
     });
 
     // 共享限速器 —— 所有分块共用，控制总速率
-    final rateLimiter =
-        speedLimit != null && speedLimit > 0 ? _RateLimiter(speedLimit) : null;
+    final rateLimiter = speedLimit != null && speedLimit > 0
+        ? _RateLimiter(speedLimit)
+        : null;
 
     void refreshChunkStats() {
       state.downloaded = chunks.fold<int>(0, (s, c) => s + c.received);
       if (state.total > 0) state.progress = state.downloaded / state.total;
-      state.completedChunks =
-          chunks.where((c) => c.status == HttpChunkStatus.complete).length;
-      state.connectingChunks =
-          chunks.where((c) => c.status == HttpChunkStatus.connecting).length;
+      state.completedChunks = chunks
+          .where((c) => c.status == HttpChunkStatus.complete)
+          .length;
+      state.connectingChunks = chunks
+          .where((c) => c.status == HttpChunkStatus.connecting)
+          .length;
     }
 
     onStatus?.call(state);

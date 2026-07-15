@@ -1,4 +1,4 @@
-import 'package:copperlauncher_main/ui/util/framework/menu_bar.dart';
+import 'package:copper_launcher/ui/util/framework/menu_bar.dart';
 import 'package:flutter/cupertino.dart';
 
 class PageSkeleton extends StatelessWidget {

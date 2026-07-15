@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:copperlauncher_main/util/io/mindustry_save_file/settings_bin_codec.dart';
+import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
 
 void main() {
   final path = r'C:\Users\ASUS\AppData\Roaming\Mindustry\settings.bin';
@@ -16,7 +16,9 @@ void main() {
   print('File size: ${bytes.length} bytes');
 
   // 检查前几个字节
-  print('First 10 bytes: ${bytes.sublist(0, 10).map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}');
+  print(
+    'First 10 bytes: ${bytes.sublist(0, 10).map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}',
+  );
 
   try {
     final stopwatch = Stopwatch()..start();
@@ -33,15 +35,25 @@ void main() {
     for (int i = 0; i < 20 && i < keys.length; i++) {
       final key = keys[i];
       final value = decoded[key];
-      final valueStr = value is Uint8List ? '<binary: ${value.length} bytes>' : value.toString();
+      final valueStr = value is Uint8List
+          ? '<binary: ${value.length} bytes>'
+          : value.toString();
       final shortKey = key.length > 60 ? '${key.substring(0, 57)}...' : key;
       print('  [$i] $shortKey = $valueStr');
     }
 
     // 查找已知的Mindustry设置项
     final knownKeys = [
-      'uiscale', 'screenshake', 'vsync', 'fullscreen', 'fpscap',
-      'musicvol', 'sfxvol', 'saveinterval', 'locale', 'lastBuild',
+      'uiscale',
+      'screenshake',
+      'vsync',
+      'fullscreen',
+      'fpscap',
+      'musicvol',
+      'sfxvol',
+      'saveinterval',
+      'locale',
+      'lastBuild',
     ];
     print('\nKnown Mindustry settings:');
     for (final k in knownKeys) {
@@ -55,14 +67,20 @@ void main() {
     // 统计类型
     int boolCount = 0, intCount = 0, strCount = 0, binCount = 0, otherCount = 0;
     for (final v in decoded.values) {
-      if (v is bool) boolCount++;
-      else if (v is int) intCount++;
-      else if (v is String) strCount++;
-      else if (v is Uint8List || v is Map || v is List) binCount++;
-      else otherCount++;
+      if (v is bool)
+        boolCount++;
+      else if (v is int)
+        intCount++;
+      else if (v is String)
+        strCount++;
+      else if (v is Uint8List || v is Map || v is List)
+        binCount++;
+      else
+        otherCount++;
     }
-    print('\nTypes: bool=$boolCount, int=$intCount, string=$strCount, binary=${binCount}, other=$otherCount');
-
+    print(
+      '\nTypes: bool=$boolCount, int=$intCount, string=$strCount, binary=${binCount}, other=$otherCount',
+    );
   } catch (e, stack) {
     print('\n=== Decode FAILED ===');
     print('Error: $e');

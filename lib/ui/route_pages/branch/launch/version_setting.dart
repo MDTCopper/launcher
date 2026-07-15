@@ -2,17 +2,17 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:copperlauncher_main/core/app_config.dart';
-import 'package:copperlauncher_main/data/local_asset.dart';
-import 'package:copperlauncher_main/ui/shell/navigation_rail.dart';
-import 'package:copperlauncher_main/ui/util/framework/content_panel.dart';
-import 'package:copperlauncher_main/ui/util/route/sub_route_register.dart';
-import 'package:copperlauncher_main/ui/util/widget/animated_dropdown_menu.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
-import 'package:copperlauncher_main/ui/util/widget/setting_bar/option_setting_bar.dart';
-import 'package:copperlauncher_main/ui/util/widget/setting_bar/switch_setting_bar.dart';
-import 'package:copperlauncher_main/util/io/path_selector.dart';
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/ui/shell/navigation_rail.dart';
+import 'package:copper_launcher/ui/util/framework/content_panel.dart';
+import 'package:copper_launcher/ui/util/route/sub_route_register.dart';
+import 'package:copper_launcher/ui/util/widget/animated_dropdown_menu.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/util/widget/setting_bar/option_setting_bar.dart';
+import 'package:copper_launcher/ui/util/widget/setting_bar/switch_setting_bar.dart';
+import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
 
@@ -81,9 +81,7 @@ class _VersionSettingState extends State<VersionSettingPage> with SubRoute {
         ],
       ),
     ]);
-
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -343,11 +341,11 @@ class _SettingState extends State<_Setting> {
   Widget _buildJavaSettingBar() {
     final list = [];
 
-    final js =
-        javas.toList()..sort((a, b) {
-          if (a.version == null || b.version == null) return 0;
-          return (b.version ?? 0) - (a.version ?? 0);
-        });
+    final js = javas.toList()
+      ..sort((a, b) {
+        if (a.version == null || b.version == null) return 0;
+        return (b.version ?? 0) - (a.version ?? 0);
+      });
 
     for (var it in js) {
       if (!it.isValid) continue;
@@ -517,10 +515,9 @@ class _SettingState extends State<_Setting> {
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.fastOutSlowIn,
                 alignment: Alignment.topCenter,
-                child:
-                    (autoMemory ?? true)
-                        ? SizedBox()
-                        : _buildMemorySettingBar(),
+                child: (autoMemory ?? true)
+                    ? SizedBox()
+                    : _buildMemorySettingBar(),
               ),
               _buildMemoryInfo(),
             ],

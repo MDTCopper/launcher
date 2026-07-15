@@ -1,4 +1,4 @@
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:flutter/material.dart';
 
 class Pager extends StatelessWidget {
@@ -35,19 +35,25 @@ class Pager extends StatelessWidget {
     }
 
     final goHomeButton = index > 2 && goHome != null
-        ? ReboundButton(onTap: goHome, child: Icon(Icons.keyboard_double_arrow_left),)
+        ? ReboundButton(
+            onTap: goHome,
+            child: Icon(Icons.keyboard_double_arrow_left),
+          )
         : null;
     final onDownButton = index != 1
-        ? ReboundButton(onTap: onDown, child: Icon(Icons.keyboard_arrow_left),)
+        ? ReboundButton(onTap: onDown, child: Icon(Icons.keyboard_arrow_left))
         : null;
     final onUpButton = !(endPage ?? false)
-        ? ReboundButton(onTap: onUp, child: Icon(Icons.keyboard_arrow_right),)
+        ? ReboundButton(onTap: onUp, child: Icon(Icons.keyboard_arrow_right))
         : null;
     final goEndButton = endIndex != null && index != endIndex
-        ? ReboundButton(onTap: goEnd, child: Icon(Icons.keyboard_double_arrow_right),)
+        ? ReboundButton(
+            onTap: goEnd,
+            child: Icon(Icons.keyboard_double_arrow_right),
+          )
         : null;
 
-    SizedBox occupyBox(Widget? child)=> SizedBox(width: 32,child: child);
+    SizedBox occupyBox(Widget? child) => SizedBox(width: 32, child: child);
 
     return Container(
       decoration: BoxDecoration(

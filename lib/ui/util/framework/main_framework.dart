@@ -1,12 +1,12 @@
 import 'dart:io';
 
-import 'package:copperlauncher_main/ui/feature/images.dart';
-import 'package:copperlauncher_main/ui/util/dialog/custom_animated_dialog.dart';
-import 'package:copperlauncher_main/ui/util/framework/info_drawer.dart';
-import 'package:copperlauncher_main/ui/util/widget/appear_list_view.dart';
-import 'package:copperlauncher_main/ui/util/widget/feature_list_tile.dart';
-import 'package:copperlauncher_main/ui/util/widget/resource_importer.dart';
-import 'package:copperlauncher_main/util/io/file_reader.dart';
+import 'package:copper_launcher/ui/feature/images.dart';
+import 'package:copper_launcher/ui/util/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/util/framework/info_drawer.dart';
+import 'package:copper_launcher/ui/util/widget/appear_list_view.dart';
+import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/util/widget/resource_importer.dart';
+import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
@@ -75,71 +75,70 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
               child: AppearListView(
                 delay: 300,
                 offset: Offset(-0.1, 0.0),
-                items:
-                    importList.map((it) {
-                      final type = it.type;
-                      switch (type) {
-                        case null:
-                          return SizedBox();
-                        case ResourceType.mindustry:
-                          final m = it.mindustry!;
-                          return ReboundListTile(
-                            leading: Image.asset(Images.mindustry),
-                            title: Text('Mindustry v${m.version}'),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('build ${m.build}  (${m.type})'),
-                                Text('${m.path}'),
-                              ],
+                items: importList.map((it) {
+                  final type = it.type;
+                  switch (type) {
+                    case null:
+                      return SizedBox();
+                    case ResourceType.mindustry:
+                      final m = it.mindustry!;
+                      return ReboundListTile(
+                        leading: Image.asset(Images.mindustry),
+                        title: Text('Mindustry v${m.version}'),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('build ${m.build}  (${m.type})'),
+                            Text('${m.path}'),
+                          ],
+                        ),
+                        onTap: () {},
+                      );
+                    case ResourceType.mod:
+                      final mod = it.mod!;
+                      return ReboundListTile(
+                        leading: Icon(Icons.add_box_outlined, size: 64),
+                        title: Text(
+                          '模组  ${generalizeText(mod.name)}  |  作者  ${generalizeText(mod.author)}}',
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '版本  ${mod.version}   |   minGameVersion ${mod.minGameVersion}',
                             ),
-                            onTap: () {},
-                          );
-                        case ResourceType.mod:
-                          final mod = it.mod!;
-                          return ReboundListTile(
-                            leading: Icon(Icons.add_box_outlined, size: 64),
-                            title: Text(
-                              '模组  ${generalizeText(mod.name)}  |  作者  ${generalizeText(mod.author)}}',
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '版本  ${mod.version}   |   minGameVersion ${mod.minGameVersion}',
-                                ),
-                                Text('${mod.path}'),
-                              ],
-                            ),
-                            onTap: () {},
-                          );
-                        case ResourceType.mapSave:
-                          final m = it.mapSave!;
-                          return ReboundListTile(
-                            leading: Icon(Icons.map_outlined, size: 64),
-                            title: Text(
-                              '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
-                            ),
-                            subtitle: Text('${m.path}'),
-                            onTap: () {},
-                          );
-                        case ResourceType.schematic:
-                          final m = it.schematic!;
-                          return ReboundListTile(
-                            leading: Icon(Icons.paste, size: 64),
-                            title: Text(
-                              '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
-                            ),
-                            subtitle: Text('${m.path}'),
-                            onTap: () {},
-                          );
-                        case ResourceType.settings:
-                          // TODO: Handle this case.
-                          throw UnimplementedError();
-                      }
-                    }).toList(),
+                            Text('${mod.path}'),
+                          ],
+                        ),
+                        onTap: () {},
+                      );
+                    case ResourceType.mapSave:
+                      final m = it.mapSave!;
+                      return ReboundListTile(
+                        leading: Icon(Icons.map_outlined, size: 64),
+                        title: Text(
+                          '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
+                        ),
+                        subtitle: Text('${m.path}'),
+                        onTap: () {},
+                      );
+                    case ResourceType.schematic:
+                      final m = it.schematic!;
+                      return ReboundListTile(
+                        leading: Icon(Icons.paste, size: 64),
+                        title: Text(
+                          '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
+                        ),
+                        subtitle: Text('${m.path}'),
+                        onTap: () {},
+                      );
+                    case ResourceType.settings:
+                      // TODO: Handle this case.
+                      throw UnimplementedError();
+                  }
+                }).toList(),
               ),
             ),
           ],
@@ -271,16 +270,14 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
               transitionDuration: const Duration(milliseconds: 400),
               reverseTransitionDuration: const Duration(milliseconds: 400),
               transitionsBuilder: (_, animation1, animation2, child) {
-                Animation<Offset> position1 = Tween(
-                  begin: Offset(0.0, 0.1),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: animation1,
-                    curve: Interval(0.4, 1.0, curve: Curves.easeOutBack),
-                    reverseCurve: Interval(0.4, 1.0, curve: Curves.easeIn),
-                  ),
-                );
+                Animation<Offset> position1 =
+                    Tween(begin: Offset(0.0, 0.1), end: Offset.zero).animate(
+                      CurvedAnimation(
+                        parent: animation1,
+                        curve: Interval(0.4, 1.0, curve: Curves.easeOutBack),
+                        reverseCurve: Interval(0.4, 1.0, curve: Curves.easeIn),
+                      ),
+                    );
 
                 Animation<double> fade1 = CurvedAnimation(
                   parent: animation1,
@@ -293,16 +290,18 @@ class MainFrameWorkState extends State<MainFrameWork> with RouteAware {
                   child: FadeTransition(opacity: fade1, child: child),
                 );
 
-                Animation<Offset> position2 = Tween(
-                  begin: Offset.zero,
-                  end: Offset(0.0, 0.1),
-                ).animate(
-                  CurvedAnimation(
-                    parent: animation2,
-                    curve: Interval(0.0, 0.6, curve: Curves.easeOut),
-                    reverseCurve: Interval(0.0, 0.6, curve: Curves.easeInBack),
-                  ),
-                );
+                Animation<Offset> position2 =
+                    Tween(begin: Offset.zero, end: Offset(0.0, 0.1)).animate(
+                      CurvedAnimation(
+                        parent: animation2,
+                        curve: Interval(0.0, 0.6, curve: Curves.easeOut),
+                        reverseCurve: Interval(
+                          0.0,
+                          0.6,
+                          curve: Curves.easeInBack,
+                        ),
+                      ),
+                    );
 
                 Animation<double> fade2 = Tween(begin: 1.0, end: 0.0).animate(
                   CurvedAnimation(

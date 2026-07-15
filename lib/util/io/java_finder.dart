@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:copperlauncher_main/core/app_config.dart';
+import 'package:copper_launcher/core/app_config.dart';
 import 'package:path/path.dart' as path;
 
 class JavaFinder {
@@ -44,7 +44,8 @@ class JavaFinder {
 
       final output = process.stdout.toString() + process.stderr.toString();
 
-      final isValid = output.contains('java version') ||
+      final isValid =
+          output.contains('java version') ||
           output.contains('openjdk version') ||
           output.contains('openjdk') ||
           process.exitCode == 0;
@@ -181,15 +182,12 @@ class JavaFinder {
     }
 
     try {
-      final result = await Process.run(
-        Platform.isWindows ? 'where' : 'which',
-        ['java'],
-        runInShell: false,
-      ).timeout(const Duration(seconds: 10));
+      final result = await Process.run(Platform.isWindows ? 'where' : 'which', [
+        'java',
+      ], runInShell: false).timeout(const Duration(seconds: 10));
 
       if (result.exitCode == 0) {
-        String javaPath =
-        result.stdout.toString().trim().split('\n')[0];
+        String javaPath = result.stdout.toString().trim().split('\n')[0];
 
         if (javaPath.isNotEmpty && javaPath != 'java') {
           javaPath = path.normalize(javaPath);
@@ -240,10 +238,7 @@ class JavaFinder {
         try {
           final expandedPaths = _expandPathPattern(rawPath);
           for (final expandedPath in expandedPaths) {
-            final javaExe = path.join(
-              expandedPath,
-              _getJavaExecutableName(),
-            );
+            final javaExe = path.join(expandedPath, _getJavaExecutableName());
             if (await _validateAndGetVersion(javaExe) != null) {
               return javaExe;
             }
@@ -326,10 +321,7 @@ class JavaFinder {
         try {
           final expandedPaths = _expandPathPattern(rawPath);
           for (final expandedPath in expandedPaths) {
-            final javaExe = path.join(
-              expandedPath,
-              _getJavaExecutableName(),
-            );
+            final javaExe = path.join(expandedPath, _getJavaExecutableName());
             final version = await _validateAndGetVersion(javaExe);
             if (version != null && versionMatches(version)) {
               return javaExe;
@@ -455,8 +447,13 @@ class JavaFinder {
   }
 
   static const _javaDirPatterns = [
-    'java', 'jdk', 'jre', 'openjdk',
-    'corretto', 'zulu', 'temurin',
+    'java',
+    'jdk',
+    'jre',
+    'openjdk',
+    'corretto',
+    'zulu',
+    'temurin',
   ];
 
   static bool _isJavaRelatedDir(String dirName) {
@@ -468,8 +465,7 @@ class JavaFinder {
   }
 
   /// 递归搜索给定目录下的所有可能的 Java 安装
-  static Future<List<String>> _searchRecursive(Directory dir,
-      int depth,) async {
+  static Future<List<String>> _searchRecursive(Directory dir, int depth) async {
     final List<String> foundPaths = [];
     if (depth <= 0) return foundPaths;
 
@@ -481,10 +477,7 @@ class JavaFinder {
         if (_isJavaRelatedDir(path.basename(entity.path))) {
           final binDir = Directory(path.join(entity.path, 'bin'));
           if (binDir.existsSync()) {
-            final javaExe = path.join(
-              binDir.path,
-              _getJavaExecutableName(),
-            );
+            final javaExe = path.join(binDir.path, _getJavaExecutableName());
             if (File(javaExe).existsSync() &&
                 await _validateAndGetVersion(javaExe) != null) {
               foundPaths.add(javaExe);
@@ -502,9 +495,11 @@ class JavaFinder {
   }
 
   /// 递归搜索时提前返回第一个满足版本要求的 Java
-  static Future<String?> _searchRecursiveForBest(Directory dir,
-      int depth,
-      bool Function(int) versionMatches,) async {
+  static Future<String?> _searchRecursiveForBest(
+    Directory dir,
+    int depth,
+    bool Function(int) versionMatches,
+  ) async {
     if (depth <= 0) return null;
 
     try {
@@ -515,10 +510,7 @@ class JavaFinder {
         if (_isJavaRelatedDir(path.basename(entity.path))) {
           final binDir = Directory(path.join(entity.path, 'bin'));
           if (binDir.existsSync()) {
-            final javaExe = path.join(
-              binDir.path,
-              _getJavaExecutableName(),
-            );
+            final javaExe = path.join(binDir.path, _getJavaExecutableName());
             if (File(javaExe).existsSync()) {
               final version = await _validateAndGetVersion(javaExe);
               if (version != null && versionMatches(version)) {
@@ -556,9 +548,11 @@ class JavaFinder {
     return result;
   }
 
-  static List<String> _expandParts(List<String> parts,
-      int startIndex,
-      String separator,) {
+  static List<String> _expandParts(
+    List<String> parts,
+    int startIndex,
+    String separator,
+  ) {
     int wildcardIndex = -1;
     for (int i = startIndex; i < parts.length; i++) {
       if (parts[i].contains('*')) {
@@ -588,10 +582,7 @@ class JavaFinder {
 
       // 预编译通配符正则
       final escaped = wildcardSegment.replaceAll('*', r'__STAR__');
-      final escapedRegex = RegExp.escape(escaped).replaceAll(
-        '__STAR__',
-        r'.*',
-      );
+      final escapedRegex = RegExp.escape(escaped).replaceAll('__STAR__', r'.*');
       final regex = RegExp('^$escapedRegex\$', caseSensitive: false);
 
       final entities = parentDir.listSync(followLinks: false);
@@ -614,7 +605,8 @@ class JavaFinder {
 
   static String _resolveHome(String pathPattern) {
     if (pathPattern.startsWith('~')) {
-      final home = Platform.environment['HOME'] ??
+      final home =
+          Platform.environment['HOME'] ??
           Platform.environment['USERPROFILE'] ??
           '';
       if (home.isNotEmpty) {
@@ -633,11 +625,9 @@ class JavaFinder {
 
     for (final javaPath in installations) {
       final version = _versionCache[javaPath];
-      infoList.add(JavaInfo(
-        path: javaPath,
-        version: version,
-        isValid: version != null,
-      ));
+      infoList.add(
+        JavaInfo(path: javaPath, version: version, isValid: version != null),
+      );
     }
 
     return infoList;
@@ -648,10 +638,6 @@ class JavaFinder {
     final version = await _validateAndGetVersion(javaPath);
     if (version == null) return null;
 
-    return JavaInfo(
-      path: javaPath,
-      version: version,
-      isValid: true,
-    );
+    return JavaInfo(path: javaPath, version: version, isValid: true);
   }
 }

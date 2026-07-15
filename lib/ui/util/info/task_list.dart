@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:copperlauncher_main/ui/util/animation/pixel_slide_transition.dart';
-import 'package:copperlauncher_main/ui/util/widget/desktop_scroll_view.dart';
+import 'package:copper_launcher/ui/util/animation/pixel_slide_transition.dart';
+import 'package:copper_launcher/ui/util/widget/desktop_scroll_view.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/task.dart';
@@ -91,15 +91,13 @@ class _TaskListState extends State<TaskList> {
       curve: Interval(0.0, 0.4, curve: Curves.easeIn),
     );
 
-    final position = Tween<Offset>(
-      begin: Offset(0.8, 0.0),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: animation,
-        curve: Interval(0.3, 0.9, curve: Curves.easeIn),
-      ),
-    );
+    final position = Tween<Offset>(begin: Offset(0.8, 0.0), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: Interval(0.3, 0.9, curve: Curves.easeIn),
+          ),
+        );
 
     final opacity = CurvedAnimation(
       parent: animation,
@@ -161,12 +159,10 @@ class _TaskListState extends State<TaskList> {
       itemBuilder: (context, index, animation) {
         final task = _tasks[index];
 
-        final position = Tween<Offset>(
-          begin: Offset(0.3, 0.0),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
-        );
+        final position =
+            Tween<Offset>(begin: Offset(0.3, 0.0), end: Offset.zero).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+            );
 
         return FadeTransition(
           opacity: animation,
@@ -181,16 +177,14 @@ class _TaskListState extends State<TaskList> {
       duration: Duration(milliseconds: 600),
       child: _tasks.isEmpty ? note : list,
       transitionBuilder: (child, animation) {
-        final position = Tween<Offset>(
-          begin: Offset(0.0, 40.0),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(
-            parent: animation,
-            curve: Interval(0.6, 1.0, curve: Curves.easeOutBack),
-            reverseCurve: Interval(0.0, 0.4, curve: Curves.easeInBack),
-          ),
-        );
+        final position =
+            Tween<Offset>(begin: Offset(0.0, 40.0), end: Offset.zero).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Interval(0.6, 1.0, curve: Curves.easeOutBack),
+                reverseCurve: Interval(0.0, 0.4, curve: Curves.easeInBack),
+              ),
+            );
 
         final opacity = CurvedAnimation(
           parent: animation,

@@ -1,4 +1,4 @@
-import 'package:copperlauncher_main/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:flutter/material.dart';
 
 class ReboundCheckbox extends StatefulWidget {
@@ -201,10 +201,9 @@ class _ReboundCheckChangeBoxState extends State<ReboundCheckChangeBox>
           return ReboundButton(
             backgroundColor: backgroundColorTween.value,
             elevation: 2,
-            onTap:
-                widget.onChange == null
-                    ? null
-                    : () => widget.onChange?.call(!widget.value),
+            onTap: widget.onChange == null
+                ? null
+                : () => widget.onChange?.call(!widget.value),
             child: Row(
               spacing: 4,
               mainAxisSize: MainAxisSize.min,

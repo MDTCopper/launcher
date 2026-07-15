@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:copperlauncher_main/core/app_constant.dart';
-import 'package:copperlauncher_main/data/net_asset.dart';
+import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/data/net_asset.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -200,14 +200,13 @@ class DownloadJavaModTask extends Task {
       return Text('链接中...');
     }
 
-    final connectedCount =
-        chunks
-            .where(
-              (it) =>
-                  it.status == DownloadChunkStatus.download ||
-                  it.status == DownloadChunkStatus.complete,
-            )
-            .length;
+    final connectedCount = chunks
+        .where(
+          (it) =>
+              it.status == DownloadChunkStatus.download ||
+              it.status == DownloadChunkStatus.complete,
+        )
+        .length;
 
     if (connectedCount == chunks.length) {
       String str = '共${chunks.length}个分块：\n';

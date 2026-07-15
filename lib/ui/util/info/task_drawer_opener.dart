@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:copperlauncher_main/ui/util/animation/animated_opacity_size.dart';
-import 'package:copperlauncher_main/ui/util/route/page_key_provider.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/task.dart';
@@ -55,29 +55,28 @@ class _TaskDrawerOpenerState extends State<TaskDrawerOpener> {
       mainAxisSize: MainAxisSize.min,
       children: [
         AnimatedOpacitySize(
-          child:
-              _taskNum != 0
-                  ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(width: 8),
-                      Text(
-                        '${_taskNum == 0 ? 1 : _taskNum} 项任务',
-                        style: theme.labelMedium,
-                        overflow: TextOverflow.ellipsis,
+          child: _taskNum != 0
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(width: 8),
+                    Text(
+                      '${_taskNum == 0 ? 1 : _taskNum} 项任务',
+                      style: theme.labelMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(width: 8),
+                    SizedBox(
+                      width: 100,
+                      height: 8,
+                      child: LinearProgressIndicator(
+                        borderRadius: BorderRadius.circular(4),
+                        value: _taskNum == 0 ? 1.0 : progress,
                       ),
-                      SizedBox(width: 8),
-                      SizedBox(
-                        width: 100,
-                        height: 8,
-                        child: LinearProgressIndicator(
-                          borderRadius: BorderRadius.circular(4),
-                          value: _taskNum == 0 ? 1.0 : progress,
-                        ),
-                      ),
-                    ],
-                  )
-                  : null,
+                    ),
+                  ],
+                )
+              : null,
         ),
         SizedBox(width: 8),
         ReboundButton(
