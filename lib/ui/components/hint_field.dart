@@ -181,7 +181,7 @@ class HintField extends StatefulWidget {
     this.waitDuration = const Duration(milliseconds: 500),
     this.waitResetDuration,
     this.animationDuration = const Duration(milliseconds: 200),
-    this.showAnimation = HintAnimation.slide,
+    this.showAnimation = HintAnimation.scale,
     this.hideAnimation,
     this.gap = 4.0,
     this.screenPadding = const EdgeInsets.all(8.0),
