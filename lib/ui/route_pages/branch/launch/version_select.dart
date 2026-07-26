@@ -24,8 +24,7 @@ class VersionSelectPage extends StatefulWidget {
 }
 
 //选择版本页面
-class _VersionSelectPageState extends State<VersionSelectPage>
-    with SubRoute, RouteAware {
+class _VersionSelectPageState extends State<VersionSelectPage> {
   final List<VersionFold> _versionFolds = config.versionOptions.versionFolds;
 
   static int _index = 0;
@@ -33,30 +32,22 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   @override
   void initState() {
     super.initState();
-    register(versionSelectPageRouteKey, [
-      SubRailSection(
-        label: '版本管理',
-        items: [
-          for (int i = 0; i < _versionFolds.length; i++)
-            SubRailItem(
-              label: _versionFolds[i].tag,
-              icon: Icons.folder_outlined,
-              onTap: () {
-                if (mounted) setState(() => _index = i);
-              },
-              selected: (_) => i == _index,
-            ),
-        ],
-      ),
-    ]);
-  }
-
-  @override
-  void dispose() {
-    final key = PageKeyProvider.shellKey;
-    key.currentState?.routeWatcher.unsubscribe(this);
-    print('object');
-    super.dispose();
+    // register(versionSelectPageRouteKey, [
+    //   SubRailSection(
+    //     label: '版本管理',
+    //     items: [
+    //       for (int i = 0; i < _versionFolds.length; i++)
+    //         SubRailItem(
+    //           label: _versionFolds[i].tag,
+    //           icon: Icons.folder_outlined,
+    //           onTap: () {
+    //             if (mounted) setState(() => _index = i);
+    //           },
+    //           selected: (_) => i == _index,
+    //         ),
+    //     ],
+    //   ),
+    // ]);
   }
 
   void _delete(Mindustry version) {

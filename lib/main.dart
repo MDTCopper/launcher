@@ -15,13 +15,18 @@ void main() async {
 }
 
 Future<void> _initialize() async {
+  _checkPlatform();
   WidgetsFlutterBinding.ensureInitialized();
-  if (Platform.isIOS) throw Exception('IOS平台不支持');
   await AppPaths.init();
   await TokenEncryptor.init();
   await initAppConfig();
   await RunTimeLog.init();
   await _initViewPool();
+}
+
+void _checkPlatform() {
+  if (Platform.isFuchsia) throw Exception('不支持');
+  if (Platform.isIOS) throw Exception('IOS平台不支持');
 }
 
 Future _initViewPool() async {
@@ -36,8 +41,9 @@ Future<void> _initWindows() async {
   await windowManager.ensureInitialized();
 
   const windowOptions = WindowOptions(
-    size: Size(960, 544),
-    minimumSize: Size(900, 450),
+    size: Size(880, 495),
+    // 移动端尺寸 Size(800, 360),
+    minimumSize: Size(800, 450),
     center: true,
     titleBarStyle: TitleBarStyle.hidden,
   );

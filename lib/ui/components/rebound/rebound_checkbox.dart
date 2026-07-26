@@ -43,6 +43,12 @@ class _ReboundCheckboxState extends State<ReboundCheckbox>
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(covariant ReboundCheckbox oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.value != oldWidget.value) {
@@ -151,6 +157,12 @@ class _ReboundCheckChangeBoxState extends State<ReboundCheckChangeBox>
       duration: const Duration(milliseconds: 300),
     );
     if (widget.value) _controller.animateTo(1.0);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override

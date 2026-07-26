@@ -156,11 +156,15 @@ PersonalizationOptions _$PersonalizationOptionsFromJson(
   themeColor:
       $enumDecodeNullable(_$ThemeColorEnumMap, json['themeColor']) ??
       ThemeColor.copper,
+  navigationCollapse: json['navigationCollapse'] as bool? ?? false,
+  subNavigationCollapse: json['subNavigationCollapse'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$PersonalizationOptionsToJson(
   PersonalizationOptions instance,
 ) => <String, dynamic>{
+  'navigationCollapse': instance.navigationCollapse,
+  'subNavigationCollapse': instance.subNavigationCollapse,
   'themeMode': _$ThemeModeEnumMap[instance.themeMode]!,
   'themeColor': _$ThemeColorEnumMap[instance.themeColor]!,
 };

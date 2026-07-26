@@ -357,13 +357,23 @@ enum ThemeColor { copper, tai, tu, suGang }
 
 @JsonSerializable()
 class PersonalizationOptions {
+  @JsonKey(defaultValue: false)
+  bool navigationCollapse;
+  @JsonKey(defaultValue: false)
+  bool subNavigationCollapse;
+
   @JsonKey(defaultValue: ThemeMode.system)
   ThemeMode themeMode;
 
   @JsonKey(defaultValue: ThemeColor.copper)
   ThemeColor themeColor;
 
-  PersonalizationOptions({required this.themeMode, required this.themeColor});
+  PersonalizationOptions({
+    required this.themeMode,
+    required this.themeColor,
+    required this.navigationCollapse,
+    required this.subNavigationCollapse,
+  });
 
   factory PersonalizationOptions.fromJson(Map<String, dynamic> json) =>
       _$PersonalizationOptionsFromJson(json);

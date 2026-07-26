@@ -1,19 +1,26 @@
 import 'dart:async';
+
 import 'dart:io';
 import 'dart:math';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/ui/shell/navigation_rail.dart';
+import 'package:copper_launcher/ui/components/hint_field.dart';
+import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
+
+import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/framework/content_panel.dart';
-import 'package:copper_launcher/ui/util/route/sub_route_register.dart';
+
 import 'package:copper_launcher/ui/util/widget/animated_dropdown_menu.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
 import 'package:copper_launcher/ui/util/widget/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/util/widget/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
+import 'package:copper_launcher/util/math/range.dart';
 import 'package:flutter/material.dart';
+
 import 'package:line_icons/line_icons.dart';
 
 import '../../../../util/format/byte_unit.dart';
@@ -38,56 +45,299 @@ class VersionSettingPage extends StatefulWidget {
   State<StatefulWidget> createState() => _VersionSettingState();
 }
 
-class _VersionSettingState extends State<VersionSettingPage> with SubRoute {
-  static int index = 0;
+class _VersionSettingState extends State<VersionSettingPage> {
+  static int _index = 0;
+
+  bool get collapse =>
+      config.setting.personalizationOptions.subNavigationCollapse;
+  set collapse(bool value) {
+    config.setting.personalizationOptions.subNavigationCollapse = value;
+    config.save();
+  }
 
   late final List<Widget> pages = [_About(), _Setting(), _Mods(), _Package()];
 
   void moveTo(int i) {
-    if (mounted) setState(() => index = i);
+    if (mounted) setState(() => _index = i);
   }
 
   @override
-  void initState() {
-    super.initState();
-    register(versionSettingPageRouteKey, [
-      SubRailSection<int>(
-        label: '版本设置',
-        items: [
-          SubRailItem<int>(
-            label: '概况',
-            icon: Icons.view_in_ar,
-            onTap: () => moveTo(0),
-            selected: (_) => index == 0,
-          ),
-          SubRailItem<int>(
-            label: '设置',
-            icon: Icons.settings,
-            onTap: () => moveTo(1),
-            selected: (_) => index == 1,
-          ),
-          SubRailItem<int>(
-            label: '模组',
-            icon: LineIcons.puzzlePiece,
-            onTap: () => moveTo(2),
-            selected: (_) => index == 2,
-          ),
-          SubRailItem<int>(
-            label: '资源打包',
-            icon: Icons.outbox_sharp,
-            onTap: () => moveTo(3),
-            selected: (_) => index == 3,
-          ),
-        ],
-      ),
-    ]);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments as Map?;
+    _mindustry = args?['version'];
+
+    if (args?['index'] is int) {
+      final index = args?['index'];
+      final r = Range(0, pages.length);
+      if (r.contains(index)) {
+        _index = index;
+      } else {
+        debugPrint('页面参数index需要在 ${r.toString()} 内');
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments as Map?;
-    _mindustry = args?['version'];
-    return pages[index];
+    final colors = AppColors.of(context);
+
+    return Row(
+      children: [
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            transitionBuilder: (c, a) {
+              final Animation<Offset> position;
+              if (a.isForwardOrCompleted) {
+                position = Tween(
+                  begin: Offset(0.033, 0.0),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(parent: a, curve: Curves.ease));
+              } else {
+                position = Tween(
+                  begin: Offset.zero,
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(parent: a, curve: Curves.ease));
+              }
+              c = SlideTransition(position: position, child: c);
+              return FadeTransition(opacity: a, child: c);
+            },
+            child: pages[_index],
+          ),
+        ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.ease,
+          width: collapse ? 57 : 137,
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            border: Border(left: BorderSide(color: colors.border)),
+          ),
+          child: Column(
+            spacing: 8,
+            children: [
+              HintField(
+                gap: 12,
+                hint: '概况',
+                preferPosition: .left,
+                child: NavigationTile(
+                  icon: Icon(Icons.view_in_ar),
+                  tag: '概况',
+                  onTap: () => moveTo(0),
+                  selected: _index == 0,
+                  collapse: collapse,
+                ),
+              ),
+              HintField(
+                hint: '概况',
+                preferPosition: .left,
+                gap: 12,
+                child: NavigationTile(
+                  icon: Icon(Icons.view_in_ar),
+                  tag: '概况',
+                  onTap: () => moveTo(0),
+                  selected: _index == 0,
+                  collapse: collapse,
+                ),
+              ),
+
+              NavigationTile(
+                icon: Icon(Icons.settings),
+                tag: '设置',
+                onTap: () => moveTo(1),
+                selected: _index == 1,
+                collapse: collapse,
+              ),
+              NavigationTile(
+                icon: Icon(LineIcons.puzzlePiece),
+                tag: '模组',
+                onTap: () => moveTo(2),
+                selected: _index == 2,
+                collapse: collapse,
+              ),
+              NavigationTile(
+                icon: Icon(Icons.outbox_outlined),
+                tag: '资源打包',
+
+                onTap: () => moveTo(3),
+                selected: _index == 3,
+                collapse: collapse,
+              ),
+              Expanded(child: SizedBox()),
+              AnimatedAlign(
+                duration: const Duration(milliseconds: 200),
+                alignment: collapse ? .center : .centerLeft,
+                curve: Curves.ease,
+                child: ReboundButton(
+                  backgroundColor: Colors.transparent,
+                  onTap: () {
+                    setState(() {
+                      collapse = !collapse;
+                    });
+                  },
+                  child: AnimatedRotation(
+                    turns: collapse ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.ease,
+                    child: Icon(Icons.keyboard_arrow_left_rounded),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class SubNavigatoionRail extends StatefulWidget {
+  const SubNavigatoionRail({super.key});
+
+  @override
+  State<StatefulWidget> createState() => SubNavigatoionRailState();
+}
+
+class SubNavigatoionRailState extends State<SubNavigatoionRail> {
+  @override
+  Widget build(BuildContext context) {
+    return Container();
+  }
+}
+
+class SubNavigatoionRailItem extends StatefulWidget {
+  final Widget leading;
+  final Widget title;
+  final Widget? subTitle;
+  final VoidCallback onTap;
+  final bool selected;
+  final bool collapse;
+
+  const SubNavigatoionRailItem({
+    super.key,
+    required this.onTap,
+    required this.selected,
+    this.collapse = false,
+    required this.leading,
+    required this.title,
+    this.subTitle,
+  });
+
+  @override
+  State<StatefulWidget> createState() => SubNavigatoionRailItemState();
+}
+
+class SubNavigatoionRailItemState extends State<SubNavigatoionRailItem>
+    with TickerProviderStateMixin {
+  late final AnimationController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    if (widget.selected) controller.animateTo(1.0);
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant SubNavigatoionRailItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selected) {
+      controller.forward();
+    } else {
+      controller.reverse();
+    }
+  }
+
+  Widget _buildTile() {
+    final theme = Theme.of(context);
+
+    Widget child;
+    if (widget.subTitle != null) {
+      child = Column(
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
+        children: [
+          widget.title,
+          DefaultTextStyle(
+            style: theme.textTheme.labelSmall ?? TextStyle(),
+            maxLines: 1,
+            overflow: .ellipsis,
+            child: widget.subTitle!,
+          ),
+        ],
+      );
+    } else {
+      child = widget.title;
+    }
+
+    return child;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppColors.of(context);
+    final theme = Theme.of(context);
+    final backgroundColorT = ColorTween(
+      begin: color.interactive.withAlpha(0),
+      end: color.interactive.withAlpha(45),
+    ).animate(controller);
+    final itemColorT = ColorTween(
+      begin: color.textPrimary,
+      end: color.interactive,
+    ).animate(controller);
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        final itemColor = itemColorT.value;
+        final backgroundColor = backgroundColorT.value;
+        return ReboundButton(
+          pressedScale: 0.9,
+          margin: EdgeInsets.all(8),
+          backgroundColor: backgroundColor,
+          onTap: widget.onTap,
+          child: IconTheme(
+            data: IconTheme.of(context).copyWith(color: itemColor),
+            child: DefaultTextStyle(
+              maxLines: 1,
+              style: theme.textTheme.labelLarge!.copyWith(
+                color: itemColor,
+                overflow: .ellipsis,
+                fontWeight: controller.isForwardOrCompleted
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+              ),
+              child: child!,
+            ),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          widget.leading,
+          Expanded(
+            child: Padding(
+              padding: EdgeInsetsGeometry.only(left: 8),
+              child: AnimatedOpacitySize(
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.ease,
+                child: widget.collapse ? null : _buildTile(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -134,9 +384,9 @@ class _AboutState extends State<_About> {
         ContentPanelModule(
           title: '快捷方式',
           child: Column(
-            spacing: 8,
+            crossAxisAlignment: .stretch,
             children: [
-              Row(
+              Wrap(
                 spacing: 16,
                 children: [
                   ReboundIconButton(
@@ -167,11 +417,6 @@ class _AboutState extends State<_About> {
                       _openFolder(_mindustry.modsPath);
                     },
                   ),
-                ],
-              ),
-              Row(
-                spacing: 16,
-                children: [
                   ReboundIconButton(
                     icon: Icons.file_copy,
                     content: '导出崩溃日志',
@@ -186,6 +431,19 @@ class _AboutState extends State<_About> {
               ),
             ],
           ),
+
+          // Row(
+          //   spacing: 16,
+          //   children: [
+
+          //   ],
+          // ),
+          // Row(
+          //   spacing: 16,
+          //   children: [
+
+          //   ],
+          // ),
         ),
         ContentPanelModule(
           title: '导入资源',

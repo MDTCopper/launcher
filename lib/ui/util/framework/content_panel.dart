@@ -1,3 +1,4 @@
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 import '../widget/appear_grid_view.dart';
@@ -41,6 +42,7 @@ class ContentPanelModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+
     return Material(
       //给item套上一层壳，表示一层分类
       elevation: 4.0,

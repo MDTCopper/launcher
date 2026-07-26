@@ -128,8 +128,10 @@ class AppShellState extends State<AppShell> {
   static final List<String> _subNavigatorKeyStack = [];
 
   //显示最后的导航器的key
-  static String get currentSubNavigatorKey =>
-      _subNavigatorKeyStack.lastWhere((it) => it.isNotEmpty, orElse: () => '');
+  static String get currentSubNavigatorKey => _subNavigatorKeyStack.lastWhere(
+    (it) => it.isNotEmpty,
+    orElse: () => 'null',
+  );
 
   static List<SubRailSection> get currentSubNavigator =>
       _subSections[currentSubNavigatorKey] ?? [];
@@ -253,12 +255,13 @@ class AppShellState extends State<AppShell> {
                 duration: const Duration(milliseconds: 300),
                 child: canPop
                     ? ReboundButton(
-                        child: Icon(Icons.keyboard_arrow_left),
+                        backgroundColor: Colors.transparent,
                         onTap: () {
                           if (canPop) {
                             _navigatorKey.currentState?.pop();
                           }
                         },
+                        child: Icon(Icons.keyboard_arrow_left),
                       )
                     : null,
               ),

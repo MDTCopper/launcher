@@ -60,8 +60,8 @@ class NavigationRail extends StatefulWidget {
     required this.subSections,
     required this.onSubNavigate,
 
-    this.width = 148,
-    this.collapseWidth = 64,
+    this.width = 147,
+    this.collapseWidth = 57,
     required this.subNavigator,
   });
 
@@ -184,10 +184,11 @@ class NavigationRailState extends State<NavigationRail> {
       controller: controller,
       children: [_buildSubRouteView(), _buildRootRouteView()],
     );
-    //给view加边缘渐变
+
     child = Stack(
       children: [
         child,
+        //view边缘渐变
         Positioned(
           top: 0,
           left: 0,
@@ -528,17 +529,17 @@ class _RailTileState extends State<_RailTile>
               child: Row(
                 children: [
                   // 选中指示条
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 80),
-                    curve: Curves.ease,
-                    width: 3,
-                    height: widget.selected ? 20 : 0,
-                    margin: const EdgeInsets.only(left: 0),
-                    decoration: BoxDecoration(
-                      color: indicatorColor.value,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+                  // AnimatedContainer(
+                  //   duration: const Duration(milliseconds: 80),
+                  //   curve: Curves.ease,
+                  //   width: 3,
+                  //   height: widget.selected ? 20 : 0,
+                  //   margin: const EdgeInsets.only(left: 0),
+                  //   decoration: BoxDecoration(
+                  //     color: indicatorColor.value,
+                  //     borderRadius: BorderRadius.circular(2),
+                  //   ),
+                  // ),
                   const SizedBox(width: 8),
                   // 图标
                   Icon(widget.item.icon, color: textColor.value),
@@ -685,17 +686,17 @@ class _SubRailTileState extends State<_SubRailTile>
               child: Row(
                 children: [
                   // 选中指示条
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 80),
-                    curve: Curves.ease,
-                    width: 3,
-                    height: widget.selected ? 20 : 0,
-                    margin: const EdgeInsets.only(left: 0),
-                    decoration: BoxDecoration(
-                      color: indicatorColor.value,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+                  // AnimatedContainer(
+                  //   duration: const Duration(milliseconds: 80),
+                  //   curve: Curves.ease,
+                  //   width: 3,
+                  //   height: widget.selected ? 20 : 0,
+                  //   margin: const EdgeInsets.only(left: 0),
+                  //   decoration: BoxDecoration(
+                  //     color: indicatorColor.value,
+                  //     borderRadius: BorderRadius.circular(2),
+                  //   ),
+                  // ),
                   const SizedBox(width: 8),
                   // 图标
                   Icon(widget.item.icon, color: textColor.value),

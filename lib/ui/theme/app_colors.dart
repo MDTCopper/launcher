@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'palette.dart';
 
-///主题颜色类型，铜色，钛蓝色，钍粉色，塑钢绿
+///主题颜色类型，黄铜，钛蓝，钍粉，塑钢绿
 ///配合暗色和亮色各两套
 
 /// Widget 通过 [AppColors.of(context)] 获取，颜色
@@ -129,8 +129,8 @@ class AppColors extends ThemeExtension<AppColors> {
     // 文字
     textPrimary: Palette.darkTextPrimary,
     textSecondary: Palette.darkTextSecondary,
-    textOnInteractive: Palette.white,
-    textHint: Palette.neutral500,
+    textOnInteractive: Palette.neutral100,
+    textHint: Palette.neutral400,
 
     // 交互
     interactive: Palette.copper600,
@@ -212,18 +212,30 @@ class AppColors extends ThemeExtension<AppColors> {
       pageBackground: Color.lerp(pageBackground, other.pageBackground, t)!,
       cardBackground: Color.lerp(cardBackground, other.cardBackground, t)!,
       inputBackground: Color.lerp(inputBackground, other.inputBackground, t)!,
-      elevatedBackground:
-          Color.lerp(elevatedBackground, other.elevatedBackground, t)!,
+      elevatedBackground: Color.lerp(
+        elevatedBackground,
+        other.elevatedBackground,
+        t,
+      )!,
       textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
-      textOnInteractive:
-          Color.lerp(textOnInteractive, other.textOnInteractive, t)!,
+      textOnInteractive: Color.lerp(
+        textOnInteractive,
+        other.textOnInteractive,
+        t,
+      )!,
       textHint: Color.lerp(textHint, other.textHint, t)!,
       interactive: Color.lerp(interactive, other.interactive, t)!,
-      interactiveHover:
-          Color.lerp(interactiveHover, other.interactiveHover, t)!,
-      interactivePressed:
-          Color.lerp(interactivePressed, other.interactivePressed, t)!,
+      interactiveHover: Color.lerp(
+        interactiveHover,
+        other.interactiveHover,
+        t,
+      )!,
+      interactivePressed: Color.lerp(
+        interactivePressed,
+        other.interactivePressed,
+        t,
+      )!,
       splash: Color.lerp(splash, other.splash, t)!,
       border: Color.lerp(border, other.border, t)!,
       borderFocus: Color.lerp(borderFocus, other.borderFocus, t)!,
@@ -233,8 +245,11 @@ class AppColors extends ThemeExtension<AppColors> {
       scrollbarThumb: Color.lerp(scrollbarThumb, other.scrollbarThumb, t)!,
       barrier: Color.lerp(barrier, other.barrier, t)!,
       indicator: Color.lerp(indicator, other.indicator, t)!,
-      indicatorBackground:
-          Color.lerp(indicatorBackground, other.indicatorBackground, t)!,
+      indicatorBackground: Color.lerp(
+        indicatorBackground,
+        other.indicatorBackground,
+        t,
+      )!,
     );
   }
 }

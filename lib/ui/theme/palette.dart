@@ -48,7 +48,12 @@ abstract class Palette {
   static const Color darkElevated = Color(0xFF252525); // 悬浮 / 选中浮层
   static const Color darkBorder = Color(0xFF2A2A2A); // 边框（暗色）
   static const Color darkTextPrimary = Color(0xFFE8E8E8); // 主文字（暗色）
-  static const Color darkTextSecondary = Color(0xFF9E9E9E); // 次文字（暗色）
+  static const Color darkTextSecondary = Color.fromARGB(
+    255,
+    209,
+    209,
+    209,
+  ); // 次文字（暗色）
 
   // ═══════════════════════════════════════════════════════════
   // 语义色

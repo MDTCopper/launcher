@@ -31,10 +31,12 @@ class SideMenuBar extends StatelessWidget {
         color: Theme.of(context).colorScheme.secondaryContainer,
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).cardTheme.shadowColor??Theme.of(context).shadowColor,
-            spreadRadius:0.5,
+            color:
+                Theme.of(context).cardTheme.shadowColor ??
+                Theme.of(context).shadowColor,
+            spreadRadius: 0.5,
             blurRadius: 0.5,
-            offset: Offset(0.0,1.5),
+            offset: Offset(0.0, 1.5),
           ),
         ],
       ),
@@ -163,13 +165,12 @@ class _MenuItemState extends State<MenuItem>
       };
     }
 
-    onLongTap =
-        widget.onLongTap == null
-            ? null
-            : () {
-              setState(() {});
-              widget.onLongTap?.call();
-            };
+    onLongTap = widget.onLongTap == null
+        ? null
+        : () {
+            setState(() {});
+            widget.onLongTap?.call();
+          };
 
     controller = AnimationController(vsync: this, duration: widget.duration);
 
@@ -211,30 +212,25 @@ class _MenuItemState extends State<MenuItem>
         animation: controller,
         builder: (context, child) {
           Color color = itemColor.value;
-
-          TextStyle titleTextStyle = DefaultTextStyle.of(
-            context,
-          ).style.copyWith(
-            overflow: TextOverflow.ellipsis,
-            fontSize: 16,
-            fontWeight:
-                controller.isForwardOrCompleted
+          TextStyle titleTextStyle = DefaultTextStyle.of(context).style
+              .copyWith(
+                overflow: TextOverflow.ellipsis,
+                fontSize: 16,
+                fontWeight: controller.isForwardOrCompleted
                     ? FontWeight.w900
                     : FontWeight.bold,
-            color: color,
-          );
+                color: color,
+              );
 
-          TextStyle subtitleTextStyle = DefaultTextStyle.of(
-            context,
-          ).style.copyWith(
-            overflow: TextOverflow.ellipsis,
-            fontSize: 12,
-            fontWeight:
-                controller.isForwardOrCompleted
+          TextStyle subtitleTextStyle = DefaultTextStyle.of(context).style
+              .copyWith(
+                overflow: TextOverflow.ellipsis,
+                fontSize: 12,
+                fontWeight: controller.isForwardOrCompleted
                     ? FontWeight.w900
                     : FontWeight.bold,
-            color: color.withAlpha(170),
-          );
+                color: color.withAlpha(170),
+              );
 
           Widget content = DefaultTextStyle(
             style: TextStyle(overflow: TextOverflow.ellipsis),

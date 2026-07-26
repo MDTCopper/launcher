@@ -156,8 +156,14 @@ class _LaunchPageState extends State<LaunchPage> {
       children: [
         Expanded(
           child: Align(
-            //屏幕中心
-            // child: Test(),
+            child: ReboundButton(
+              onTap: () {
+                final height = MediaQuery.of(context).size.height;
+                final width = MediaQuery.of(context).size.width;
+                print('height: $height, width: $width');
+              },
+              // child: SizedBox(width: 400, height: 400),
+            ),
           ),
         ),
         Padding(

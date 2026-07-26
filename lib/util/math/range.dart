@@ -19,10 +19,12 @@ class Range<T extends num> {
   final BoundaryType maxType;
 
   bool contains(T value) {
-    bool minCheck =
-        minType == BoundaryType.inclusive ? value >= min : value > min;
-    bool maxCheck =
-        maxType == BoundaryType.inclusive ? value <= max : value < max;
+    bool minCheck = minType == BoundaryType.inclusive
+        ? value >= min
+        : value > min;
+    bool maxCheck = maxType == BoundaryType.inclusive
+        ? value <= max
+        : value < max;
     return minCheck && maxCheck;
   }
 
@@ -30,7 +32,9 @@ class Range<T extends num> {
 
   @override
   String toString() {
-    return 'Range[$min , $max]';
+    final minBoundary = minType == BoundaryType.inclusive ? '[' : '(';
+    final maxBoundary = maxType == BoundaryType.inclusive ? ']' : ')';
+    return 'Range $minBoundary ${min as num} , ${max as num} $maxBoundary';
   }
 
   @override
@@ -58,14 +62,12 @@ class RangeRuler<T extends num, R> extends Range<T> {
     json = json.split('Range').last;
     final parts = json.split('=>');
 
-    final maxBoundary =
-        parts.first.endsWith(')')
-            ? BoundaryType.exclusive
-            : BoundaryType.inclusive;
-    final minBoundary =
-        parts.first.startsWith('(')
-            ? BoundaryType.exclusive
-            : BoundaryType.inclusive;
+    final maxBoundary = parts.first.endsWith(')')
+        ? BoundaryType.exclusive
+        : BoundaryType.inclusive;
+    final minBoundary = parts.first.startsWith('(')
+        ? BoundaryType.exclusive
+        : BoundaryType.inclusive;
 
     final range = parts.first.split(',');
 
@@ -102,9 +104,10 @@ class RangeRuler<T extends num, R> extends Range<T> {
     final minBoundary = minType == BoundaryType.inclusive ? '[' : '(';
     final maxBoundary = maxType == BoundaryType.inclusive ? ']' : ')';
     return 'Range $minBoundary ${min as num} , ${max as num} $maxBoundary => ${result as num}';
-
-    // return {'min': min, 'max': max, 'result': result};
   }
+
+  @override
+  String toString() => toJson();
 }
 
 class RangeModifier<T extends num, R> {
