@@ -137,7 +137,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     final theme = Theme.of(context);
 
     return ReboundListTile(
-      margin: EdgeInsets.all(8),
+      padding: EdgeInsets.all(8),
       borderRadius: BorderRadius.circular(4),
       leading: Image.asset(
         version.launcher == LauncherType.copper

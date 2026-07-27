@@ -105,7 +105,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
       );
 
       final Widget widget = ReboundListTile(
-        margin: EdgeInsets.all(8),
+        padding: EdgeInsets.all(8),
         borderRadius: BorderRadius.circular(4),
         leading: Image.asset('assets/images/logo.png', width: 48),
         title: Text(version.name),
@@ -144,7 +144,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
             children: [
               ReboundListTile(
                 pressedScale: 0.98,
-                margin: EdgeInsets.all(8),
+                padding: EdgeInsets.all(8),
                 borderRadius: BorderRadius.circular(4),
                 leading: Image.asset('assets/images/logo.png', width: 48),
                 title: Text(_versionList.first.name),
@@ -161,7 +161,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
               ),
               ReboundListTile(
                 pressedScale: 0.98,
-                margin: EdgeInsets.all(8),
+                padding: EdgeInsets.all(8),
                 borderRadius: BorderRadius.circular(4),
                 leading: Image.asset('assets/images/logo.png', width: 48),
                 title: Text(_latestBeta.name),
@@ -637,7 +637,7 @@ class _TextAssetPageState extends State<_TextAssetPage> {
       );
 
       final Widget widget = ReboundListTile(
-        margin: EdgeInsets.all(8),
+        padding: EdgeInsets.all(8),
         borderRadius: BorderRadius.circular(4),
         leading: Image.asset('assets/images/logo.png', width: 48),
         title: Text(version.name, style: theme.textTheme.bodyLarge),

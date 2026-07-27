@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 // HintPosition
 // ---------------------------------------------------------------------------
 
-/// 提示框相对于组件的方位。
 enum HintPosition { top, bottom, left, right, auto }
 
 // ---------------------------------------------------------------------------
@@ -18,17 +17,7 @@ enum HintPosition { top, bottom, left, right, auto }
 ///
 /// 内置预设：[HintAnimation.fade]、[HintAnimation.scale]、[HintAnimation.slide]。
 /// [scale] 和 [slide] 会根据提示框的[实际方位][HintPosition]自适应锚点和方向。
-///
-/// 自定义动画：
-/// ```dart
-/// HintAnimation(
-///   (context, animation, child, position) {
-///     return FadeTransition(opacity: animation, child: child);
-///   },
-/// )
-/// ```
 class HintAnimation {
-  /// [animation] 已包好 easeOutCubic / easeInCubic 曲线。
   final Widget Function(
     BuildContext context,
     Animation<double> animation,
@@ -41,49 +30,44 @@ class HintAnimation {
 
   // ---- 预设 ----
 
-  /// 纯淡入淡出。
   static const fade = HintAnimation(_fadeBuilder);
-
-  /// 缩放 + 淡入淡出。锚点根据提示框方位自适应。
   static const scale = HintAnimation(_scaleBuilder);
-
-  /// 滑动 + 淡入淡出。方向根据提示框方位自适应。
   static const slide = HintAnimation(_slideBuilder);
 
   static Widget _fadeBuilder(
-    BuildContext context,
-    Animation<double> animation,
-    Widget child,
-    HintPosition position,
+    BuildContext c,
+    Animation<double> a,
+    Widget w,
+    HintPosition p,
   ) {
-    return FadeTransition(opacity: animation, child: child);
+    return FadeTransition(opacity: a, child: w);
   }
 
   static Widget _scaleBuilder(
-    BuildContext context,
-    Animation<double> animation,
-    Widget child,
-    HintPosition position,
+    BuildContext c,
+    Animation<double> a,
+    Widget w,
+    HintPosition p,
   ) {
     return ScaleTransition(
-      scale: animation,
-      alignment: _scaleAlignment(position),
-      child: FadeTransition(opacity: animation, child: child),
+      scale: a,
+      alignment: _scaleAlignment(p),
+      child: FadeTransition(opacity: a, child: w),
     );
   }
 
   static Widget _slideBuilder(
-    BuildContext context,
-    Animation<double> animation,
-    Widget child,
-    HintPosition position,
+    BuildContext c,
+    Animation<double> a,
+    Widget w,
+    HintPosition p,
   ) {
     return SlideTransition(
       position: Tween<Offset>(
-        begin: _slideOffset(position),
+        begin: _slideOffset(p),
         end: Offset.zero,
-      ).animate(animation),
-      child: FadeTransition(opacity: animation, child: child),
+      ).animate(a),
+      child: FadeTransition(opacity: a, child: w),
     );
   }
 
@@ -122,51 +106,33 @@ class HintAnimation {
 // HintField
 // ---------------------------------------------------------------------------
 
-/// 给任意组件附加悬浮提示框。
-///
-/// 支持纯文本 [hint] 和自定义组件 [hintWidget]。
-///
-/// 触发方式：桌面端鼠标悬停 / 移动端长按。
 class HintField extends StatefulWidget {
   final Widget child;
 
   final String? hint;
   final Widget? hintWidget;
 
-  /// 优先显示方位（[HintPosition.auto] 时依次尝试 top → bottom → left → right）。
   final HintPosition preferPosition;
-
-  /// 长按触发后的自动消失时长。hover 模式忽略。
   final Duration showDuration;
-
-  /// hover / 长按后到提示框出现前的等待时长。
   final Duration waitDuration;
 
-  /// 提示框消失后，等待时间重置间隔。在此间隔内悬停另一个组件，跳过 [waitDuration]。
-  /// `null` 时默认等于 [waitDuration]
   final Duration? waitResetDuration;
-
-  /// 入场 / 退场动画时长
   final Duration animationDuration;
-
-  /// 入场动画
   final HintAnimation showAnimation;
-
-  /// 退场动画。`null` 时默认与 [showAnimation] 相同。
   final HintAnimation? hideAnimation;
 
-  /// 提示框与子组件的间距
   final double gap;
-
-  /// 提示框距屏幕边缘的最小安全距离
   final EdgeInsets screenPadding;
 
-  //纯文本模式专用样式
+  /// 提示框最大宽度。`null` 时默认为屏幕宽度的 1/3。
+  final double? maxWidth;
+
+  // ---- 纯文本模式专用样式 ----
   final EdgeInsets padding;
   final BoxDecoration? decoration;
   final TextStyle? textStyle;
 
-  // 静态协调
+  // ---- 静态协调 ----
   static HintFieldState? _activeHint;
   static DateTime? _lastShowTime;
   static DateTime? _lastDismissTime;
@@ -176,6 +142,7 @@ class HintField extends StatefulWidget {
     required this.child,
     this.hint,
     this.hintWidget,
+
     this.preferPosition = HintPosition.auto,
     this.showDuration = const Duration(seconds: 2),
     this.waitDuration = const Duration(milliseconds: 500),
@@ -185,6 +152,7 @@ class HintField extends StatefulWidget {
     this.hideAnimation,
     this.gap = 4.0,
     this.screenPadding = const EdgeInsets.all(8.0),
+    this.maxWidth,
     this.padding = const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
     this.decoration,
     this.textStyle,
@@ -209,9 +177,24 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
   bool _isLongPressing = false;
   bool _isShowing = false;
 
-  // ------------------------------------------------------------------
-  // Dispose
-  // ------------------------------------------------------------------
+  // 缓存的文本尺寸，避免重复用 TextPainter 测量。
+  Size? _cachedTextSize;
+
+  @override
+  void didUpdateWidget(HintField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.hint != oldWidget.hint ||
+        widget.textStyle != oldWidget.textStyle ||
+        widget.maxWidth != oldWidget.maxWidth ||
+        widget.padding != oldWidget.padding) {
+      _cachedTextSize = null;
+    }
+  }
+
+  double _effectiveMaxWidth() {
+    if (widget.maxWidth != null) return widget.maxWidth!;
+    return MediaQuery.of(context).size.width / 3;
+  }
 
   @override
   void dispose() {
@@ -249,27 +232,18 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
   }
 
   // ------------------------------------------------------------------
-  // Mouse (desktop)
+  // Triggers
   // ------------------------------------------------------------------
 
-  void _onMouseEnter(PointerEvent event) {
-    _requestShow();
-  }
+  void _onMouseEnter(PointerEvent event) => _requestShow();
+  void _onMouseExit(PointerEvent event) => _dismiss();
 
-  void _onMouseExit(PointerEvent event) {
-    _dismiss();
-  }
-
-  // ------------------------------------------------------------------
-  // Long press (mobile)
-  // ------------------------------------------------------------------
-
-  void _onLongPressStart(LongPressStartDetails details) {
+  void _onLongPressStart(LongPressStartDetails d) {
     _isLongPressing = true;
     _requestShow();
   }
 
-  void _onLongPressEnd(LongPressEndDetails details) {
+  void _onLongPressEnd(LongPressEndDetails d) {
     _isLongPressing = false;
     _dismiss();
   }
@@ -284,6 +258,7 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
   // ------------------------------------------------------------------
 
   void _requestShow() {
+    if (widget.hint == null && widget.hintWidget == null) return;
     if (HintField._activeHint != null && HintField._activeHint != this) {
       HintField._activeHint!._dismiss(immediate: true);
     }
@@ -293,7 +268,7 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
     HintField._activeHint = this;
 
     final Duration resetWindow =
-        widget.waitResetDuration ?? widget.waitDuration;
+        widget.waitResetDuration ?? widget.animationDuration;
     final DateTime? lastEvent =
         HintField._lastDismissTime ?? HintField._lastShowTime;
     final bool skipWait =
@@ -301,17 +276,31 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
 
     _waitTimer?.cancel();
     if (skipWait) {
-      _show();
+      _prepareAndShow();
     } else {
-      _waitTimer = Timer(widget.waitDuration, _show);
+      _waitTimer = Timer(widget.waitDuration, _prepareAndShow);
     }
   }
 
-  void _show() {
+  /// 测量 hint 尺寸，选最佳方位，然后显示。
+  Future<void> _prepareAndShow() async {
+    if (!mounted || _isShowing) return;
+
+    final Size hintSize;
+    if (widget.hintWidget != null) {
+      hintSize = await _measureOffstage();
+      if (!mounted || _isShowing) return;
+    } else {
+      hintSize = _measureText();
+    }
+
+    _showAt(hintSize);
+  }
+
+  void _showAt(Size hintSize) {
     if (!mounted || _isShowing) return;
 
     _removeOverlay();
-
     _isShowing = true;
     HintField._lastShowTime = DateTime.now();
 
@@ -320,7 +309,9 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
       duration: widget.animationDuration,
     );
 
-    _overlayEntry = OverlayEntry(builder: _buildOverlay);
+    _overlayEntry = OverlayEntry(
+      builder: (ctx) => _buildOverlay(ctx, hintSize),
+    );
     Overlay.of(context).insert(_overlayEntry!);
     _animationController!.forward();
 
@@ -369,56 +360,168 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
   }
 
   // ------------------------------------------------------------------
+  // Measurement
+  // ------------------------------------------------------------------
+
+  /// 用 TextPainter 测纯文本 hint 的实际尺寸（含 padding）。
+  Size _measureText() {
+    if (_cachedTextSize != null) return _cachedTextSize!;
+
+    final style =
+        widget.textStyle ??
+        Theme.of(context).textTheme.labelMedium ??
+        const TextStyle(fontSize: 13);
+
+    final textPainter = TextPainter(
+      text: TextSpan(text: widget.hint, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: null,
+    );
+    textPainter.layout(maxWidth: _effectiveMaxWidth());
+
+    final size = Size(
+      textPainter.width + widget.padding.horizontal,
+      textPainter.height + widget.padding.vertical,
+    );
+    _cachedTextSize = size;
+    return size;
+  }
+
+  /// 用 Offstage Overlay 测量自定义 Widget 的实际尺寸。
+  Future<Size> _measureOffstage() async {
+    final GlobalKey key = GlobalKey();
+    final OverlayEntry measureEntry = OverlayEntry(
+      builder: (_) => Offstage(
+        child: UnconstrainedBox(
+          child: Container(
+            key: key,
+            constraints: BoxConstraints(maxWidth: _effectiveMaxWidth()),
+            child: widget.hintWidget,
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(measureEntry);
+    await WidgetsBinding.instance.endOfFrame;
+    final Size size = key.currentContext?.size ?? const Size(48, 24);
+    measureEntry.remove();
+    return size;
+  }
+
+  // ------------------------------------------------------------------
   // Position helpers
   // ------------------------------------------------------------------
 
-  static List<HintPosition> _positionCandidates(HintPosition prefer) {
-    const all = [
-      HintPosition.top,
-      HintPosition.bottom,
-      HintPosition.left,
-      HintPosition.right,
-    ];
-    if (prefer == HintPosition.auto) return all;
-    return [prefer, ...all.where((p) => p != prefer)];
+  /// 按 preferPosition 和组件位置生成尝试顺序。
+  /// 移动端 auto 模式会根据组件在屏幕中的位置智能排列优先方向。
+  List<HintPosition> _positionCandidates(
+    HintPosition prefer,
+    double childCenterX,
+    double childCenterY,
+    double screenW,
+    double screenH,
+  ) {
+    const all = [HintPosition.top, HintPosition.bottom, HintPosition.left, HintPosition.right];
+    if (prefer != HintPosition.auto) {
+      return [prefer, ...all.where((p) => p != prefer)];
+    }
+
+    // 桌面端 auto 保持简单顺序。
+    if (isDesktop) return all;
+
+    // --- 移动端 auto：根据组件相对屏幕中心的偏移决定优先级 ---
+    final double cx = screenW / 2;
+    final double cy = screenH / 2;
+    final double rx = (childCenterX - cx) / cx; // -1..1
+    final double ry = (childCenterY - cy) / cy;
+
+    final double absRx = rx.abs();
+    final double absRy = ry.abs();
+
+    // 各方向可用空间。
+    final double topSpace = childCenterY - widget.screenPadding.top;
+    final double bottomSpace = screenH - childCenterY - widget.screenPadding.bottom;
+    final double leftSpace = childCenterX - widget.screenPadding.left;
+    final double rightSpace = screenW - childCenterX - widget.screenPadding.right;
+
+    if (absRy > absRx) {
+      // 垂直偏移更大 → 先垂直方向（上/下），再水平（左/右）。
+      final v = topSpace >= bottomSpace
+          ? [HintPosition.top, HintPosition.bottom]
+          : [HintPosition.bottom, HintPosition.top];
+      final h = leftSpace >= rightSpace
+          ? [HintPosition.left, HintPosition.right]
+          : [HintPosition.right, HintPosition.left];
+      return [...v, ...h];
+    } else if (absRx > absRy) {
+      // 水平偏移更大 → 先水平方向，再垂直。
+      final h = leftSpace >= rightSpace
+          ? [HintPosition.left, HintPosition.right]
+          : [HintPosition.right, HintPosition.left];
+      final v = topSpace >= bottomSpace
+          ? [HintPosition.top, HintPosition.bottom]
+          : [HintPosition.bottom, HintPosition.top];
+      return [...h, ...v];
+    } else {
+      // 偏移相等 → 默认：上 → 左 → 下 → 右。
+      return [HintPosition.top, HintPosition.left, HintPosition.bottom, HintPosition.right];
+    }
   }
 
+  /// 检查 hint 在指定方位是否放得下（同时检查水平和垂直）。
   bool _fitsAt(
     HintPosition pos,
     double childTop,
     double childBottom,
     double childLeft,
     double childRight,
-    double hintEstimate,
+    double childCenterX,
+    double childCenterY,
+    Size hintSize,
     double screenW,
     double screenH,
   ) {
+    final double hintW = hintSize.width;
+    final double hintH = hintSize.height;
+    final double padL = widget.screenPadding.left;
+    final double padT = widget.screenPadding.top;
+    final double padR = widget.screenPadding.right;
+    final double padB = widget.screenPadding.bottom;
+
+    double left, top;
+
     switch (pos) {
       case HintPosition.top:
-        return childTop >= hintEstimate + widget.gap + widget.screenPadding.top;
+        top = childTop - hintH - widget.gap;
+        left = childCenterX - hintW / 2;
       case HintPosition.bottom:
-        return childBottom + hintEstimate + widget.gap <=
-            screenH - widget.screenPadding.bottom;
+        top = childBottom + widget.gap;
+        left = childCenterX - hintW / 2;
       case HintPosition.left:
-        return childLeft >=
-            hintEstimate + widget.gap + widget.screenPadding.left;
+        top = childCenterY - hintH / 2;
+        left = childLeft - hintW - widget.gap;
       case HintPosition.right:
-        return childRight + hintEstimate + widget.gap <=
-            screenW - widget.screenPadding.right;
+        top = childCenterY - hintH / 2;
+        left = childRight + widget.gap;
       default:
         return false;
     }
+
+    return left >= padL &&
+        top >= padT &&
+        left + hintW <= screenW - padR &&
+        top + hintH <= screenH - padB;
   }
 
   // ------------------------------------------------------------------
-  // Overlay content
+  // Overlay
   // ------------------------------------------------------------------
 
-  Widget _buildOverlay(BuildContext context) {
+  Widget _buildOverlay(BuildContext context, Size hintSize) {
     final Widget content = widget.hintWidget ?? _buildTextHint();
 
-    const double hintEstimate = 48.0;
-
+    // 获取子组件屏幕位置。
     final RenderBox? childBox = this.context.findRenderObject() as RenderBox?;
     final double screenW = MediaQuery.of(context).size.width;
     final double screenH = MediaQuery.of(context).size.height;
@@ -430,8 +533,12 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
       childLeft = pos.dx;
       childRight = pos.dx + childBox.size.width;
     }
+    final double childCenterX = childLeft + (childRight - childLeft) / 2;
+    final double childCenterY = childTop + (childBottom - childTop) / 2;
 
-    final candidates = _positionCandidates(widget.preferPosition);
+    // 按真实尺寸选最佳方位。
+    final candidates = _positionCandidates(
+      widget.preferPosition, childCenterX, childCenterY, screenW, screenH);
     HintPosition actualPos = candidates.first;
     for (final pos in candidates) {
       if (_fitsAt(
@@ -440,7 +547,9 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
         childBottom,
         childLeft,
         childRight,
-        hintEstimate,
+        childCenterX,
+        childCenterY,
+        hintSize,
         screenW,
         screenH,
       )) {
@@ -476,7 +585,6 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
         offset = Offset(0, -widget.gap);
     }
 
-    // 入场动画曲线。
     final Animation<double> showCurve = CurvedAnimation(
       parent: _animationController!,
       curve: Curves.easeOutCubic,
@@ -515,19 +623,24 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
     final color = AppColors.of(context);
     final theme = Theme.of(context);
 
-    return Container(
+    Widget hint = Container(
       padding: widget.padding,
       decoration:
           widget.decoration ??
           BoxDecoration(
             color: color.cardBackground.withAlpha(185),
-            borderRadius: BorderRadius.all(Radius.circular(4)),
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
             border: Border.all(color: color.border),
           ),
       child: Text(
         widget.hint!,
         style: widget.textStyle ?? theme.textTheme.labelMedium,
       ),
+    );
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: _effectiveMaxWidth()),
+      child: hint,
     );
   }
 }

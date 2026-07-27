@@ -2,6 +2,7 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
+import 'package:copper_launcher/ui/components/hint_field.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
 import 'package:flutter/material.dart';
@@ -48,7 +49,7 @@ class _LaunchPageState extends State<LaunchPage> {
       );
     }
     return ReboundListTile(
-      margin: EdgeInsets.all(8),
+      padding: EdgeInsets.all(8),
       elevation: 2,
       hoverElevation: 4,
       borderRadius: BorderRadius.circular(8),
@@ -156,13 +157,17 @@ class _LaunchPageState extends State<LaunchPage> {
       children: [
         Expanded(
           child: Align(
-            child: ReboundButton(
-              onTap: () {
-                final height = MediaQuery.of(context).size.height;
-                final width = MediaQuery.of(context).size.width;
-                print('height: $height, width: $width');
-              },
-              // child: SizedBox(width: 400, height: 400),
+            alignment: .centerRight,
+            child: HintField(
+              hint: 'hint',
+              child: ReboundButton(
+                onTap: () {
+                  final height = MediaQuery.of(context).size.height;
+                  final width = MediaQuery.of(context).size.width;
+                  print('height: $height, width: $width');
+                },
+                child: SizedBox(width: 40, height: 40),
+              ),
             ),
           ),
         ),
@@ -296,7 +301,7 @@ class _VersionSelectState extends State<_VersionSelect>
     } else {
       final mindustry = config.versionOptions.findVersion(selectedVersion!);
       child = ReboundListTile(
-        margin: EdgeInsets.all(8),
+        padding: EdgeInsets.all(8),
         borderRadius: BorderRadius.circular(8),
         onLongTap: () {},
         onTap: () async {

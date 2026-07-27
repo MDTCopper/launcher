@@ -392,8 +392,7 @@ class NavigationRailState extends State<NavigationRail> {
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.ease,
                   child: ReboundButton(
-                    padding: const EdgeInsets.all(4),
-                    margin: const EdgeInsets.all(0),
+                    margin: const EdgeInsets.all(4),
                     child: Icon(Icons.keyboard_arrow_right),
                     onTap: () => setState(() {
                       collapse = !collapse;

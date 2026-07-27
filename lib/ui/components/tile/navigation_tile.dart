@@ -1,3 +1,4 @@
+import 'package:copper_launcher/ui/components/hint_field.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
@@ -94,14 +95,14 @@ class NavigationTileState extends State<NavigationTile>
       end: color.interactive,
     ).animate(controller);
 
-    return AnimatedBuilder(
+    Widget child = AnimatedBuilder(
       animation: controller,
       builder: (context, child) {
         final itemColor = itemColorT.value;
         final backgroundColor = backgroundColorT.value;
         return ReboundButton(
           pressedScale: 0.9,
-          margin: EdgeInsets.all(8),
+          padding: EdgeInsets.all(8),
           backgroundColor: backgroundColor,
           onTap: widget.onTap,
           child: IconTheme(
@@ -136,5 +137,12 @@ class NavigationTileState extends State<NavigationTile>
         ],
       ),
     );
+
+    child = HintField(
+      hint: widget.collapse ? widget.hint ?? widget.tag : null,
+      child: child,
+    );
+
+    return child;
   }
 }

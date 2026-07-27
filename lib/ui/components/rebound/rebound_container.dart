@@ -36,7 +36,6 @@ class ReboundContainer extends StatefulWidget {
     this.onLongTap,
     this.shapeBorder,
     this.borderRadius,
-
     this.hoverColor,
     this.splashColor,
     this.highlightColor,
@@ -44,8 +43,8 @@ class ReboundContainer extends StatefulWidget {
     this.shadowColor,
     this.hoverElevation = 0.0,
     this.elevation = 0.0,
-    this.padding = const EdgeInsets.all(0),
-    this.margin = const EdgeInsets.all(0),
+    this.padding,
+    this.margin,
     this.hoverDuration = const Duration(milliseconds: 300),
   });
 
@@ -165,58 +164,69 @@ class _ReboundContainer extends State<ReboundContainer>
       elevation = 0.0;
     }
 
-    return Padding(
-      padding: widget.padding!,
-      child: ScaleTransition(
-        alignment: Alignment.center,
-        scale: _pressScale,
-        child: Stack(
-          alignment: Alignment.center,
-          fit: StackFit.passthrough,
-          children: [
-            Material(
-              borderRadius: widget.borderRadius,
-              shape: widget.shapeBorder,
-              color: baseColor,
-              shadowColor: widget.shadowColor,
-              elevation: elevation,
-              child: InkWell(
-                autofocus: true,
-                borderRadius: widget.borderRadius,
-                customBorder: widget.shapeBorder,
-                focusColor: Colors.transparent,
-                hoverColor: Colors.transparent,
-                highlightColor: widget.highlightColor,
-                splashColor: widget.splashColor,
-                onTapDown: onTapDown,
-                onTapUp: onTapUp,
-                onTapCancel: onTapCancel,
-                onHover: onHover,
-                child: Padding(padding: widget.margin!, child: widget.child),
-              ),
-            ),
-            if (widget.surfaceChild != null)
-              Padding(padding: widget.margin!, child: widget.surfaceChild!),
+    Widget? child = widget.child;
+    var surfaceChild = widget.surfaceChild;
+    if (widget.padding != null) {
+      child = Padding(padding: widget.padding!, child: widget.child);
+      surfaceChild = Padding(
+        padding: widget.padding!,
+        child: widget.surfaceChild,
+      );
+    }
 
-            //todo 墨水层实现脱离，用MaterialInkController操控墨水
-            // 悬浮叠加层 —— 用动画控制透明度，暗色模式也能看见
-            Positioned.fill(
-              child: IgnorePointer(
-                child: AnimatedContainer(
-                  duration: widget.hoverDuration,
-                  curve: Curves.ease,
-                  decoration: BoxDecoration(
-                    color: isHover
-                        ? hoverColor.withAlpha(30)
-                        : hoverColor.withAlpha(0),
-                    borderRadius: widget.borderRadius,
-                  ),
+    child = ScaleTransition(
+      alignment: Alignment.center,
+      scale: _pressScale,
+      child: Stack(
+        alignment: Alignment.center,
+        fit: StackFit.passthrough,
+        children: [
+          Material(
+            borderRadius: widget.borderRadius,
+            shape: widget.shapeBorder,
+            color: baseColor,
+            shadowColor: widget.shadowColor,
+            elevation: elevation,
+            child: InkWell(
+              autofocus: true,
+              borderRadius: widget.borderRadius,
+              customBorder: widget.shapeBorder,
+              focusColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              highlightColor: widget.highlightColor,
+              splashColor: widget.splashColor,
+              onTapDown: onTapDown,
+              onTapUp: onTapUp,
+              onTapCancel: onTapCancel,
+              onHover: onHover,
+              child: child,
+            ),
+          ),
+          ?surfaceChild,
+          //todo 墨水层实现脱离，用MaterialInkController操控墨水
+          // 悬浮叠加层 —— 用动画控制透明度，暗色模式也能看见
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedContainer(
+                duration: widget.hoverDuration,
+                curve: Curves.ease,
+                decoration: BoxDecoration(
+                  color: isHover
+                      ? hoverColor.withAlpha(30)
+                      : hoverColor.withAlpha(0),
+                  borderRadius: widget.borderRadius,
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+
+    if (widget.margin != null) {
+      child = Padding(padding: widget.margin!, child: child);
+    }
+
+    return child;
   }
 }

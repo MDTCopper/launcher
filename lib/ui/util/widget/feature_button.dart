@@ -11,8 +11,8 @@ class ReboundButton extends ReboundContainer {
     super.onLongTap,
     super.borderRadius = const BorderRadius.all(Radius.circular(4)),
     super.shapeBorder,
-    super.padding,
-    super.margin = const EdgeInsets.all(4),
+    super.padding = const EdgeInsets.all(4),
+    super.margin,
     super.hoverColor,
     super.splashColor,
     super.highlightColor,
@@ -29,18 +29,18 @@ class ReboundIconButton extends StatelessWidget {
     required this.icon,
     required this.content,
     required this.onTap,
-    this.margin = const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
   });
 
   final IconData icon;
   final String content;
   final VoidCallback onTap;
-  final EdgeInsetsGeometry? margin;
+  final EdgeInsetsGeometry? padding;
 
   @override
   Widget build(BuildContext context) {
     return ReboundButton(
-      margin: margin,
+      padding: padding,
       onTap: onTap,
       child: Row(
         spacing: 4,
@@ -205,7 +205,7 @@ class _SegmentedReboundSingleButtonState<T>
 
         return ReboundContainer(
           pressedScale: 0.8,
-          margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           hoverElevation: 2,
           elevation: 1,
           backgroundColor: backgroundT.value,

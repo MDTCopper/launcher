@@ -5,6 +5,7 @@ import 'package:copper_launcher/ui/copper_launcher.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/run_time_log.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
@@ -25,7 +26,7 @@ Future<void> _initialize() async {
 }
 
 void _checkPlatform() {
-  if (Platform.isFuchsia) throw Exception('不支持');
+  if (kIsWeb) throw Exception('Web不支持');
   if (Platform.isIOS) throw Exception('IOS平台不支持');
 }
 

@@ -49,7 +49,7 @@ abstract class AppPaths {
   }
 
   /// [*\copper_launcher]
-  /// android => [/data/user/0/com.copper.launcher/files]
+  /// android => [/data/user/0/io.github.copper.launcher/files]
   static String get copperLauncher {
     if (Platform.isAndroid) return applicationSupportPath;
     return p.current;

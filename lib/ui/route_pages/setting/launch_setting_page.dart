@@ -271,7 +271,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
               SizedBox(width: 8),
               ReboundIconButton(
                 icon: Icons.check,
-                margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                 content: '保存',
                 onTap: () {
                   setState(() {
@@ -286,7 +286,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
               ),
               ReboundIconButton(
                 icon: Icons.close,
-                margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                 content: '取消',
                 onTap: () {
                   setState(() {

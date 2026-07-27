@@ -18,8 +18,8 @@ class ReboundListTile extends StatefulWidget {
   final Duration duration; //回弹持续时间
 
   //装饰
-  final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
+  final EdgeInsetsGeometry? padding;
   final BorderRadius? borderRadius;
   final ShapeBorder? shapeBorder;
   final double itemSpacing;
@@ -47,8 +47,8 @@ class ReboundListTile extends StatefulWidget {
     this.onTap,
     this.onLongTap,
 
-    this.padding = const EdgeInsets.all(0),
-    this.margin = const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+    this.margin = const EdgeInsets.all(0),
+    this.padding = const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
     this.borderRadius,
     this.shapeBorder,
     this.hoverElevation = 4.0,
@@ -139,10 +139,7 @@ class _ReboundListTileState extends State<ReboundListTile> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (title != null) title,
-                      if (subtitle != null) subtitle,
-                    ],
+                    children: [?title, ?subtitle],
                   ),
                 ),
               if (widget.trailing != null)

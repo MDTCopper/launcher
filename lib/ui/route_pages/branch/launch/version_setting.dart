@@ -116,32 +116,15 @@ class _VersionSettingState extends State<VersionSettingPage> {
           ),
           child: Column(
             spacing: 8,
+            crossAxisAlignment: .start,
             children: [
-              HintField(
-                gap: 12,
-                hint: '概况',
-                preferPosition: .left,
-                child: NavigationTile(
-                  icon: Icon(Icons.view_in_ar),
-                  tag: '概况',
-                  onTap: () => moveTo(0),
-                  selected: _index == 0,
-                  collapse: collapse,
-                ),
+              NavigationTile(
+                icon: Icon(Icons.view_in_ar),
+                tag: '概况',
+                onTap: () => moveTo(0),
+                selected: _index == 0,
+                collapse: collapse,
               ),
-              HintField(
-                hint: '概况',
-                preferPosition: .left,
-                gap: 12,
-                child: NavigationTile(
-                  icon: Icon(Icons.view_in_ar),
-                  tag: '概况',
-                  onTap: () => moveTo(0),
-                  selected: _index == 0,
-                  collapse: collapse,
-                ),
-              ),
-
               NavigationTile(
                 icon: Icon(Icons.settings),
                 tag: '设置',
@@ -159,29 +142,25 @@ class _VersionSettingState extends State<VersionSettingPage> {
               NavigationTile(
                 icon: Icon(Icons.outbox_outlined),
                 tag: '资源打包',
-
                 onTap: () => moveTo(3),
                 selected: _index == 3,
                 collapse: collapse,
               ),
               Expanded(child: SizedBox()),
-              AnimatedAlign(
-                duration: const Duration(milliseconds: 200),
-                alignment: collapse ? .center : .centerLeft,
-                curve: Curves.ease,
-                child: ReboundButton(
-                  backgroundColor: Colors.transparent,
-                  onTap: () {
-                    setState(() {
-                      collapse = !collapse;
-                    });
-                  },
-                  child: AnimatedRotation(
-                    turns: collapse ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.ease,
-                    child: Icon(Icons.keyboard_arrow_left_rounded),
-                  ),
+              ReboundButton(
+                padding: EdgeInsets.all(4),
+                backgroundColor: Colors.transparent,
+                hoverElevation: 0,
+                onTap: () {
+                  setState(() {
+                    collapse = !collapse;
+                  });
+                },
+                child: AnimatedRotation(
+                  turns: collapse ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.ease,
+                  child: Icon(Icons.keyboard_arrow_left_rounded),
                 ),
               ),
             ],
@@ -367,7 +346,7 @@ class _AboutState extends State<_About> {
       items: [
         ReboundListTile(
           borderRadius: BorderRadius.circular(4),
-          margin: EdgeInsets.all(8),
+          padding: EdgeInsets.all(8),
           itemSpacing: 8,
           elevation: 4,
           leading: Image.asset(
