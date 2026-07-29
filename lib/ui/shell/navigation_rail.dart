@@ -1,9 +1,11 @@
-import 'dart:io';
-
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
-import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
+import 'package:copper_launcher/ui/util/switcher_builder.dart';
 import 'package:copper_launcher/ui/util/widget/desktop_scroll_view.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/vars.dart';
+import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -20,7 +22,6 @@ class RailItem {
     required this.label,
     required this.icon,
     required this.route,
-
     this.onTap,
   });
 }
@@ -32,37 +33,31 @@ class RailSection {
   const RailSection({required this.label, required this.items});
 }
 
+///与AppShell高度耦合，本质就是它的附属组件
 class NavigationRail extends StatefulWidget {
+  final GlobalKey<NavigatorState> navigatorKey;
+
   final String currentRoute;
 
-  //主路由
-  ///主要为了标记跟路由
   final String currentRootRoute;
   final List<RailSection> sections;
-  final void Function(String route, Object arg) onNavigate;
 
-  //子路由
-  final List<SubRailSection> subSections;
-  final void Function(String? route, Object? arg) onSubNavigate;
-  final Widget subNavigator;
+  final void Function(String route, Object arg) onNavigate;
 
   final double width;
   final double collapseWidth;
 
   const NavigationRail({
     super.key,
+    required this.navigatorKey,
     required this.currentRoute,
 
     required this.currentRootRoute,
     required this.sections,
     required this.onNavigate,
 
-    required this.subSections,
-    required this.onSubNavigate,
-
-    this.width = 147,
-    this.collapseWidth = 57,
-    required this.subNavigator,
+    this.width = 140,
+    this.collapseWidth = 56,
   });
 
   @override
@@ -71,6 +66,8 @@ class NavigationRail extends StatefulWidget {
 
 class NavigationRailState extends State<NavigationRail> {
   late final ScrollController controller;
+
+  bool get canPop => widget.navigatorKey.currentState?.canPop() ?? false;
 
   bool collapse = false;
 
@@ -115,18 +112,6 @@ class NavigationRailState extends State<NavigationRail> {
   }
 
   @override
-  void didUpdateWidget(covariant NavigationRail oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.subSections.isNotEmpty && oldWidget.subSections.isEmpty) {
-      controller.animateTo(
-        0.0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.ease,
-      );
-    }
-  }
-
-  @override
   void dispose() {
     controller.dispose();
     super.dispose();
@@ -137,40 +122,98 @@ class NavigationRailState extends State<NavigationRail> {
     final colors = AppColors.of(context);
     final textTheme = Theme.of(context).textTheme;
     return Stack(
+      alignment: .centerLeft,
       children: [
         Positioned.fill(
           child: GestureDetector(
             onPanStart: (_) => windowManager.startDragging(),
           ),
         ),
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.ease,
-          alignment: Alignment.centerLeft,
-          height: 40,
-          margin: collapse
-              ? const EdgeInsets.only(left: 20)
-              : const EdgeInsets.only(left: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Image.asset(Images.copper, width: 24, height: 24),
-              SizedBox(width: 8),
 
-              Expanded(
-                child: Text(
-                  'Copper',
-                  style: textTheme.titleLarge?.copyWith(
-                    color: colors.interactive,
-                    fontWeight: FontWeight.w900,
-                    overflow: TextOverflow.ellipsis,
+        Container(
+          height: 40,
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          alignment: .centerLeft,
+          child: AnimatedSwitcher(
+            duration: animationDuration,
+            transitionBuilder: SwitcherBuilders.slideOver(),
+            layoutBuilder: (currentChild, previousChildren) {
+              return Stack(
+                alignment: .centerLeft,
+                children: [...previousChildren, ?currentChild],
+              );
+            },
+            child: canPop
+                ? _buildBackButton()
+                : Row(
+                    children: [
+                      AnimatedSize(
+                        duration: animationDuration,
+                        curve: Curves.ease,
+                        child: SizedBox(width: collapse ? 4 : 0),
+                      ),
+                      Image.asset(Images.copper, width: 24, height: 24),
+                      Expanded(
+                        child: AnimatedOpacity(
+                          duration: animationDuration,
+                          curve: Curves.ease,
+                          opacity: collapse ? 0.0 : 1.0,
+                          child: Padding(
+                            padding: EdgeInsetsGeometry.only(left: 8),
+                            child: Text(
+                              'Copper',
+                              style: textTheme.titleLarge?.copyWith(
+                                color: colors.interactive,
+                                fontWeight: FontWeight.w900,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ),
-            ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildBackButton() {
+    final colors = AppColors.of(context);
+    final textTheme = Theme.of(context).textTheme;
+
+    return ReboundButton(
+      pressedScale: collapse ? 0.8 : 0.9,
+      borderRadius: BorderRadius.circular(4),
+      backgroundColor: Colors.transparent,
+      onTap: () {
+        if (canPop) {
+          widget.navigatorKey.currentState?.pop();
+        }
+      },
+      child: Row(
+        crossAxisAlignment: .start,
+        children: [
+          Icon(Icons.arrow_back, color: colors.textSecondary),
+          Expanded(
+            child: AnimatedOpacity(
+              duration: animationDuration,
+              curve: Curves.ease,
+              opacity: collapse ? 0.0 : 1.0,
+              child: Padding(
+                padding: EdgeInsetsGeometry.only(left: 8),
+                child: Text(
+                  '返回',
+                  style: textTheme.bodyMedium,
+                  maxLines: 1,
+                  overflow: .ellipsis,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -178,11 +221,10 @@ class NavigationRailState extends State<NavigationRail> {
   Widget _buildMenuView() {
     final colors = Theme.of(context).extension<AppColors>()!;
 
-    Widget child = ListView(
+    Widget child = SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(8, 0, 8, 0),
-      shrinkWrap: true,
       controller: controller,
-      children: [_buildSubRouteView(), _buildRootRouteView()],
+      child: _buildRootRouteView(),
     );
 
     child = Stack(
@@ -236,8 +278,6 @@ class NavigationRailState extends State<NavigationRail> {
       ],
     );
 
-    final isDesktop =
-        Platform.isMacOS || Platform.isWindows || Platform.isLinux;
     if (isDesktop) {
       child = DesktopScrollViewContainer(controller: controller, child: child);
     }
@@ -246,7 +286,6 @@ class NavigationRailState extends State<NavigationRail> {
   }
 
   Widget _buildRootRouteView() {
-    final colors = AppColors.of(context);
     final sections = widget.sections;
     final currentRoute = widget.currentRootRoute;
     final onNavigate = widget.onNavigate;
@@ -255,9 +294,12 @@ class NavigationRailState extends State<NavigationRail> {
       return [
         _SectionHeader(label: section.label, collapse: collapse),
         ...section.items.map<Widget>(
-          (item) => _RailTile(
-            item: item,
+          (item) => NavigationTile(
+            icon: Icon(item.icon),
+            content: item.label,
+            collapse: collapse,
             selected: currentRoute == item.route,
+            hintPosition: .right,
             onTap: () {
               item.onTap?.call();
               onNavigate(item.route, {'lead': item.label});
@@ -268,103 +310,18 @@ class NavigationRailState extends State<NavigationRail> {
     }
 
     Widget child = Column(
+      spacing: 8,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [for (final section in sections) ...buildSection(section)],
-    );
-
-    child = Stack(
-      fit: StackFit.passthrough,
-      children: [
-        child,
-        Positioned.fill(
-          child: IgnorePointer(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.ease,
-              color: widget.subSections.isEmpty
-                  ? colors.cardBackground.withAlpha(0)
-                  : colors.cardBackground.withAlpha(210),
-            ),
-          ),
-        ),
-      ],
     );
 
     return child;
   }
 
-  Widget _buildSubRouteView() {
-    final colors = AppColors.of(context);
-
-    final sections = widget.subSections;
-
-    final currentRoute = widget.currentRoute;
-
-    final onNavigate = widget.onSubNavigate;
-
-    List<Widget> buildSection(SubRailSection section) {
-      return [
-        _SectionHeader(label: section.label, collapse: collapse),
-        ...section.items.map<Widget>(
-          (item) => _SubRailTile(
-            item: item,
-            selected: item.selected(currentRoute),
-            onTap: () {
-              item.onTap?.call();
-              onNavigate(item.route, {'lead': item.label});
-            },
-          ),
-        ),
-      ];
-    }
-
-    Widget child = Column(
-      key: ValueKey(currentRoute),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final section in sections) ...buildSection(section),
-        SizedBox(height: 4),
-        Divider(color: colors.border, indent: 12, endIndent: 12, thickness: 2),
-      ],
-    );
-
-    child = AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      transitionBuilder: (child, animation) {
-        final opacity = CurvedAnimation(
-          parent: animation,
-          curve: Interval(0.4, 1.0),
-        );
-
-        final position = Tween<Offset>(
-          begin: animation.isForwardOrCompleted
-              ? Offset(1.0, 0.0)
-              : Offset(-1.0, 0.0),
-          end: Offset(0.0, 0.0),
-        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeInOut));
-
-        return FadeTransition(
-          opacity: opacity,
-          child: SlideTransition(position: position, child: child),
-        );
-      },
-      layoutBuilder: (c, ch) {
-        return Stack(children: [...ch, if (c != null) c]);
-      },
-      child: child,
-    );
-
-    return AnimatedOpacitySize(
-      duration: const Duration(milliseconds: 300),
-      alignment: Alignment.topCenter,
-      child: widget.subSections.isEmpty ? null : child,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.ease,
@@ -375,31 +332,35 @@ class NavigationRailState extends State<NavigationRail> {
           children: [
             _buildLogo(),
             Expanded(child: _buildMenuView()),
-            SizedBox(height: 4),
-            Row(
-              children: [
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'v0.0.1a',
-                    style: textTheme.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            Padding(
+              padding: EdgeInsetsGeometry.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              child: Row(
+                crossAxisAlignment: .end,
+                children: [
+                  Expanded(
+                    child: Text(
+                      config.version,
+                      maxLines: 1,
+                      overflow: .ellipsis,
+                      style: theme.textTheme.labelSmall,
+                    ),
                   ),
-                ),
-                AnimatedRotation(
-                  turns: collapse ? 0.5 : 0.0,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.ease,
-                  child: ReboundButton(
-                    margin: const EdgeInsets.all(4),
-                    child: Icon(Icons.keyboard_arrow_right),
+                  ReboundButton(
                     onTap: () => setState(() {
                       collapse = !collapse;
                     }),
+                    child: AnimatedRotation(
+                      turns: collapse ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.ease,
+                      child: Icon(Icons.keyboard_arrow_right),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -408,7 +369,7 @@ class NavigationRailState extends State<NavigationRail> {
   }
 }
 
-/// 分组标题（不可点击）。
+/// 分组标题
 class _SectionHeader extends StatelessWidget {
   final String label;
 
@@ -423,8 +384,8 @@ class _SectionHeader extends StatelessWidget {
       duration: const Duration(milliseconds: 300),
       curve: Curves.ease,
       padding: collapse
-          ? const EdgeInsets.fromLTRB(10, 8, 0, 8)
-          : const EdgeInsets.fromLTRB(4, 12, 0, 4),
+          ? const EdgeInsets.fromLTRB(6, 0, 0, 2)
+          : const EdgeInsets.fromLTRB(2, 2, 0, 0),
       child: Text(
         label,
         style: TextStyle(
@@ -435,290 +396,6 @@ class _SectionHeader extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
       ),
-    );
-  }
-}
-
-/// 单个导航条目（可点击，有选中态）。
-class _RailTile extends StatefulWidget {
-  final RailItem item;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _RailTile({
-    required this.item,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  State<_RailTile> createState() => _RailTileState();
-}
-
-class _RailTileState extends State<_RailTile>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  bool _hovering = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 250),
-    );
-    if (widget.selected) {
-      _controller.animateTo(1.0);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _RailTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.selected != oldWidget.selected) {
-      widget.selected ? _controller.forward() : _controller.reverse();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.of(context);
-    final t = Theme.of(context).textTheme;
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (_, _) {
-        final bgColor = ColorTween(
-          begin: Colors.transparent,
-          end: c.interactive.withAlpha(30),
-        ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-        final textColor = ColorTween(
-          begin: c.textPrimary,
-          end: c.interactive,
-        ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-        final indicatorColor = ColorTween(
-          begin: Colors.transparent,
-          end: c.interactive,
-        ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-        return MouseRegion(
-          onEnter: (_) => setState(() => _hovering = true),
-          onExit: (_) => setState(() => _hovering = false),
-          child: GestureDetector(
-            onTap: widget.onTap,
-            child: AnimatedContainer(
-              height: 40,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.ease,
-              margin: const EdgeInsets.symmetric(vertical: 2),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                color: _hovering && !widget.selected
-                    ? c.interactive.withAlpha(15)
-                    : bgColor.value,
-              ),
-
-              child: Row(
-                children: [
-                  // 选中指示条
-                  // AnimatedContainer(
-                  //   duration: const Duration(milliseconds: 80),
-                  //   curve: Curves.ease,
-                  //   width: 3,
-                  //   height: widget.selected ? 20 : 0,
-                  //   margin: const EdgeInsets.only(left: 0),
-                  //   decoration: BoxDecoration(
-                  //     color: indicatorColor.value,
-                  //     borderRadius: BorderRadius.circular(2),
-                  //   ),
-                  // ),
-                  const SizedBox(width: 8),
-                  // 图标
-                  Icon(widget.item.icon, color: textColor.value),
-                  const SizedBox(width: 8),
-                  // 标签
-                  Expanded(
-                    child: Text(
-                      widget.item.label,
-                      style: t.titleMedium?.copyWith(
-                        color: textColor.value,
-                        fontWeight: widget.selected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-//todo 这里用ReboundButton替代，但整体不变
-//子路由，赋予更多自由度，但是总体保持一致
-
-/// 子路由有两种形式
-/// - [route]纯粹的路由转换
-/// - [onTap]控制页面内的参数变化来改变页面内容
-class SubRailItem<T> {
-  final String label;
-  final IconData icon;
-  final String? route;
-  final VoidCallback? onTap;
-
-  ///决定触发选择效果的条件，由对应的路由页提供
-  final bool Function(String? route) selected;
-
-  const SubRailItem({
-    required this.label,
-    required this.icon,
-    this.route,
-    required this.selected,
-    this.onTap,
-  });
-}
-
-class SubRailSection<T> {
-  final String label;
-  final List<SubRailItem<T>> items;
-
-  const SubRailSection({required this.label, required this.items});
-}
-
-class _SubRailTile extends StatefulWidget {
-  final SubRailItem item;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _SubRailTile({
-    required this.item,
-    required this.onTap,
-    required this.selected,
-  });
-
-  @override
-  State<StatefulWidget> createState() => _SubRailTileState();
-}
-
-class _SubRailTileState extends State<_SubRailTile>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  bool _hovering = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 250),
-    );
-    if (widget.selected) {
-      _controller.animateTo(1.0);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _SubRailTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.selected != oldWidget.selected) {
-      widget.selected ? _controller.forward() : _controller.reverse();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.of(context);
-    final t = Theme.of(context).textTheme;
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (_, _) {
-        final bgColor = ColorTween(
-          begin: Colors.transparent,
-          end: c.interactive.withAlpha(30),
-        ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-        final textColor = ColorTween(
-          begin: c.textPrimary,
-          end: c.interactive,
-        ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-        final indicatorColor = ColorTween(
-          begin: Colors.transparent,
-          end: c.interactive,
-        ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-        return MouseRegion(
-          onEnter: (_) => setState(() => _hovering = true),
-          onExit: (_) => setState(() => _hovering = false),
-          child: GestureDetector(
-            onTap: widget.onTap,
-            child: AnimatedContainer(
-              height: 40,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.ease,
-              margin: const EdgeInsets.symmetric(vertical: 2),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                color: _hovering && !widget.selected
-                    ? c.interactive.withAlpha(15)
-                    : bgColor.value,
-              ),
-
-              child: Row(
-                children: [
-                  // 选中指示条
-                  // AnimatedContainer(
-                  //   duration: const Duration(milliseconds: 80),
-                  //   curve: Curves.ease,
-                  //   width: 3,
-                  //   height: widget.selected ? 20 : 0,
-                  //   margin: const EdgeInsets.only(left: 0),
-                  //   decoration: BoxDecoration(
-                  //     color: indicatorColor.value,
-                  //     borderRadius: BorderRadius.circular(2),
-                  //   ),
-                  // ),
-                  const SizedBox(width: 8),
-                  // 图标
-                  Icon(widget.item.icon, color: textColor.value),
-                  const SizedBox(width: 8),
-                  // 标签
-                  Expanded(
-                    child: Text(
-                      widget.item.label,
-                      style: t.titleMedium?.copyWith(
-                        color: textColor.value,
-                        fontWeight: widget.selected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

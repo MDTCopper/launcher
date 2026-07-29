@@ -6,22 +6,24 @@ import 'package:flutter/material.dart';
 
 class NavigationTile extends StatefulWidget {
   final Icon icon;
-  final String tag;
+  final String content;
   final String? lable;
   final String? hint;
   final VoidCallback onTap;
   final bool selected;
   final bool collapse;
+  final HintPosition hintPosition;
 
   const NavigationTile({
     super.key,
     required this.icon,
-    required this.tag,
+    required this.content,
     this.lable,
     this.hint,
     required this.onTap,
-    required this.selected,
+    this.selected = false,
     this.collapse = false,
+    this.hintPosition = .auto,
   });
   @override
   State<StatefulWidget> createState() => NavigationTileState();
@@ -66,7 +68,7 @@ class NavigationTileState extends State<NavigationTile>
         mainAxisSize: .min,
         crossAxisAlignment: .start,
         children: [
-          Text(widget.tag),
+          Text(widget.content),
           DefaultTextStyle(
             style: theme.textTheme.labelSmall ?? TextStyle(),
             maxLines: 1,
@@ -76,7 +78,7 @@ class NavigationTileState extends State<NavigationTile>
         ],
       );
     } else {
-      child = Text(widget.tag);
+      child = Text(widget.content);
     }
 
     return child;
@@ -103,6 +105,7 @@ class NavigationTileState extends State<NavigationTile>
         return ReboundButton(
           pressedScale: 0.9,
           padding: EdgeInsets.all(8),
+          borderRadius: BorderRadius.circular(8),
           backgroundColor: backgroundColor,
           onTap: widget.onTap,
           child: IconTheme(
@@ -139,7 +142,7 @@ class NavigationTileState extends State<NavigationTile>
     );
 
     child = HintField(
-      hint: widget.collapse ? widget.hint ?? widget.tag : null,
+      hint: widget.collapse ? widget.hint ?? widget.content : null,
       child: child,
     );
 

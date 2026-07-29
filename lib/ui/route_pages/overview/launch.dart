@@ -164,6 +164,7 @@ class _LaunchPageState extends State<LaunchPage> {
                 onTap: () {
                   final height = MediaQuery.of(context).size.height;
                   final width = MediaQuery.of(context).size.width;
+
                   print('height: $height, width: $width');
                 },
                 child: SizedBox(width: 40, height: 40),

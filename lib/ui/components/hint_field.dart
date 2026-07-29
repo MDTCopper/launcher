@@ -109,27 +109,53 @@ class HintAnimation {
 class HintField extends StatefulWidget {
   final Widget child;
 
+  /// 纯文本提示内容，与 [hintWidget] 二选一
   final String? hint;
+
+  /// 自定义组件提示，与 [hint] 二选一，同时提供时优先使用。
   final Widget? hintWidget;
 
+  /// 优先显示方位。[HintPosition.auto] 时桌面端依次尝试上→下→左→右，
+  /// 移动端根据组件相对屏幕中心的位置智能排序。
   final HintPosition preferPosition;
+
+  /// 长按触发后自动消失的时长。hover 模式忽略，移出即消失。
   final Duration showDuration;
+
+  /// 悬停 / 长按后，提示框出现前的等待时长。
   final Duration waitDuration;
 
+  /// 提示框消失后，等待重置间隔。在此间隔内悬停另一个组件可跳过 [waitDuration]。
+  /// `null` 时默认等于 [animationDuration]。
   final Duration? waitResetDuration;
+
+  /// 入场 / 退场动画的播放时长。
   final Duration animationDuration;
+
+  /// 入场动画。内置 [HintAnimation.fade]、[HintAnimation.scale]、[HintAnimation.slide]。
   final HintAnimation showAnimation;
+
+  /// 退场动画。`null` 时默认与 [showAnimation] 相同。
   final HintAnimation? hideAnimation;
 
+  /// 提示框与子组件的间距（像素）。
   final double gap;
+
+  /// 提示框距屏幕四边的最小安全距离，防止贴边。
   final EdgeInsets screenPadding;
 
-  /// 提示框最大宽度。`null` 时默认为屏幕宽度的 1/3。
+  /// 提示框最大宽度。`null` 时默认为屏幕宽度的 1/3，文本超出自动换行。
   final double? maxWidth;
 
   // ---- 纯文本模式专用样式 ----
+
+  /// 纯文本提示的内边距。
   final EdgeInsets padding;
+
+  /// 纯文本提示的容器装饰。`null` 时使用默认样式。
   final BoxDecoration? decoration;
+
+  /// 纯文本提示的文字样式。`null` 时使用主题的 [TextTheme.labelMedium]。
   final TextStyle? textStyle;
 
   // ---- 静态协调 ----
@@ -142,10 +168,9 @@ class HintField extends StatefulWidget {
     required this.child,
     this.hint,
     this.hintWidget,
-
     this.preferPosition = HintPosition.auto,
     this.showDuration = const Duration(seconds: 2),
-    this.waitDuration = const Duration(milliseconds: 500),
+    this.waitDuration = const Duration(milliseconds: 800),
     this.waitResetDuration,
     this.animationDuration = const Duration(milliseconds: 200),
     this.showAnimation = HintAnimation.scale,
@@ -324,9 +349,12 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
   void _dismiss({bool immediate = false}) {
     _waitTimer?.cancel();
     _dismissTimer?.cancel();
+    final bool wasVisible = _overlayEntry != null;
     _isShowing = false;
 
-    HintField._lastDismissTime = DateTime.now();
+    if (wasVisible) {
+      HintField._lastDismissTime = DateTime.now();
+    }
 
     if (HintField._activeHint == this) {
       HintField._activeHint = null;
@@ -422,7 +450,12 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
     double screenW,
     double screenH,
   ) {
-    const all = [HintPosition.top, HintPosition.bottom, HintPosition.left, HintPosition.right];
+    const all = [
+      HintPosition.top,
+      HintPosition.bottom,
+      HintPosition.left,
+      HintPosition.right,
+    ];
     if (prefer != HintPosition.auto) {
       return [prefer, ...all.where((p) => p != prefer)];
     }
@@ -431,19 +464,19 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
     if (isDesktop) return all;
 
     // --- 移动端 auto：根据组件相对屏幕中心的偏移决定优先级 ---
-    final double cx = screenW / 2;
-    final double cy = screenH / 2;
-    final double rx = (childCenterX - cx) / cx; // -1..1
-    final double ry = (childCenterY - cy) / cy;
+    final cx = screenW / 2;
+    final cy = screenH / 2;
+    final rx = (childCenterX - cx) / cx; // -1..1
+    final ry = (childCenterY - cy) / cy;
 
-    final double absRx = rx.abs();
-    final double absRy = ry.abs();
+    final absRx = rx.abs();
+    final absRy = ry.abs();
 
     // 各方向可用空间。
-    final double topSpace = childCenterY - widget.screenPadding.top;
-    final double bottomSpace = screenH - childCenterY - widget.screenPadding.bottom;
-    final double leftSpace = childCenterX - widget.screenPadding.left;
-    final double rightSpace = screenW - childCenterX - widget.screenPadding.right;
+    final topSpace = childCenterY - widget.screenPadding.top;
+    final bottomSpace = screenH - childCenterY - widget.screenPadding.bottom;
+    final leftSpace = childCenterX - widget.screenPadding.left;
+    final rightSpace = screenW - childCenterX - widget.screenPadding.right;
 
     if (absRy > absRx) {
       // 垂直偏移更大 → 先垂直方向（上/下），再水平（左/右）。
@@ -465,7 +498,12 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
       return [...h, ...v];
     } else {
       // 偏移相等 → 默认：上 → 左 → 下 → 右。
-      return [HintPosition.top, HintPosition.left, HintPosition.bottom, HintPosition.right];
+      return [
+        HintPosition.top,
+        HintPosition.left,
+        HintPosition.bottom,
+        HintPosition.right,
+      ];
     }
   }
 
@@ -482,12 +520,12 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
     double screenW,
     double screenH,
   ) {
-    final double hintW = hintSize.width;
-    final double hintH = hintSize.height;
-    final double padL = widget.screenPadding.left;
-    final double padT = widget.screenPadding.top;
-    final double padR = widget.screenPadding.right;
-    final double padB = widget.screenPadding.bottom;
+    final hintW = hintSize.width;
+    final hintH = hintSize.height;
+    final padL = widget.screenPadding.left;
+    final padT = widget.screenPadding.top;
+    final padR = widget.screenPadding.right;
+    final padB = widget.screenPadding.bottom;
 
     double left, top;
 
@@ -538,7 +576,12 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
 
     // 按真实尺寸选最佳方位。
     final candidates = _positionCandidates(
-      widget.preferPosition, childCenterX, childCenterY, screenW, screenH);
+      widget.preferPosition,
+      childCenterX,
+      childCenterY,
+      screenW,
+      screenH,
+    );
     HintPosition actualPos = candidates.first;
     for (final pos in candidates) {
       if (_fitsAt(
@@ -593,12 +636,6 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
 
     return Stack(
       children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: () => _dismiss(),
-          ),
-        ),
         CompositedTransformFollower(
           link: _layerLink,
           targetAnchor: targetAnchor,

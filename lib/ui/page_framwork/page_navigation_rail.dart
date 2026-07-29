@@ -1,8 +1,6 @@
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-class PageNavigationRailItem {}
-
 class PageNavigationRail extends StatefulWidget {
   final bool collapse;
 
@@ -10,9 +8,8 @@ class PageNavigationRail extends StatefulWidget {
 
   final double collapseWidth;
 
+  ///放入NavigationTile，也可放其他的
   final List<Widget> items;
-
-  final bool showCollapseButton;
 
   const PageNavigationRail({
     super.key,
@@ -20,7 +17,6 @@ class PageNavigationRail extends StatefulWidget {
     required this.width,
     this.collapseWidth = 57,
     required this.items,
-    this.showCollapseButton = true,
   });
 
   @override
@@ -28,9 +24,25 @@ class PageNavigationRail extends StatefulWidget {
 }
 
 class _PageNavigationRailState extends State<PageNavigationRail> {
+  bool get collapse => widget.collapse;
+
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    throw UnimplementedError();
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.ease,
+      width: collapse ? 57 : 137,
+      padding: EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: colors.border)),
+      ),
+      child: Column(
+        spacing: 8,
+        crossAxisAlignment: .start,
+        children: widget.items,
+      ),
+    );
   }
 }

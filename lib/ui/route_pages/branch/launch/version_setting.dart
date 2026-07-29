@@ -120,28 +120,28 @@ class _VersionSettingState extends State<VersionSettingPage> {
             children: [
               NavigationTile(
                 icon: Icon(Icons.view_in_ar),
-                tag: '概况',
+                content: '概况',
                 onTap: () => moveTo(0),
                 selected: _index == 0,
                 collapse: collapse,
               ),
               NavigationTile(
                 icon: Icon(Icons.settings),
-                tag: '设置',
+                content: '设置',
                 onTap: () => moveTo(1),
                 selected: _index == 1,
                 collapse: collapse,
               ),
               NavigationTile(
                 icon: Icon(LineIcons.puzzlePiece),
-                tag: '模组',
+                content: '模组',
                 onTap: () => moveTo(2),
                 selected: _index == 2,
                 collapse: collapse,
               ),
               NavigationTile(
                 icon: Icon(Icons.outbox_outlined),
-                tag: '资源打包',
+                content: '资源打包',
                 onTap: () => moveTo(3),
                 selected: _index == 3,
                 collapse: collapse,
@@ -149,6 +149,7 @@ class _VersionSettingState extends State<VersionSettingPage> {
               Expanded(child: SizedBox()),
               ReboundButton(
                 padding: EdgeInsets.all(4),
+                margin: EdgeInsets.symmetric(horizontal: 4),
                 backgroundColor: Colors.transparent,
                 hoverElevation: 0,
                 onTap: () {

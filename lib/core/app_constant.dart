@@ -50,3 +50,5 @@ final minJavaModGameVersionModifier = RangeModifier(0, [
 // const minCopperModGameVersionMap = <String, double>{};
 //147往后才能进行存档隔离
 //142往后才支持控制窗口状态
+
+const kDefaultAnimationDuration = Duration(milliseconds: 300);

@@ -2,12 +2,10 @@ import 'dart:io';
 
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
-import 'package:copper_launcher/ui/util/switcher_transition_builder.dart';
+import 'package:copper_launcher/ui/util/switcher_builder.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
-import 'package:go_router/go_router.dart';
-import 'package:line_icons/line_icons.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../theme/app_colors.dart';
@@ -41,30 +39,36 @@ class AppShellState extends State<AppShell> {
     RailSection(
       label: '概览',
       items: [
-        RailItem(label: '启动', icon: Icons.play_arrow_outlined, route: '/'),
+        RailItem(label: '主页', icon: Icons.home_filled, route: '/'),
+        RailItem(label: '账户', icon: Icons.person_outline, route: '/user'),
       ],
     ),
 
     RailSection(
-      label: '资源',
+      label: '发现',
       items: [
         RailItem(
           label: 'Mindustry',
           icon: Icons.view_in_ar,
           route: '/mindustry_download',
         ),
-        RailItem(label: '模组', icon: LineIcons.puzzlePiece, route: '/mod_view'),
         RailItem(
-          label: '整合包',
-          icon: Icons.token_outlined,
-          route: '/package_view',
+          label: '社区资源',
+          icon: Icons.local_fire_department_outlined,
+          route: '/community_resources',
         ),
-        RailItem(
-          label: '蓝图',
-          icon: Icons.paste_outlined,
-          route: '/blueprint_view',
-        ),
-        RailItem(label: '地图', icon: Icons.map_outlined, route: '/map_view'),
+        // RailItem(label: '模组', icon: LineIcons.puzzlePiece, route: '/mod_view'),
+        // RailItem(
+        //   label: '整合包',
+        //   icon: Icons.token_outlined,
+        //   route: '/package_view',
+        // ),
+        // RailItem(
+        //   label: '蓝图',
+        //   icon: Icons.paste_outlined,
+        //   route: '/blueprint_view',
+        // ),
+        // RailItem(label: '地图', icon: Icons.map_outlined, route: '/map_view'),
       ],
     ),
     RailSection(
@@ -75,28 +79,30 @@ class AppShellState extends State<AppShell> {
           icon: Icons.rocket_launch_outlined,
           route: '/launch_setting',
         ),
-        RailItem(label: '游戏内设置', icon: Icons.settings, route: '/game_setting'),
-        RailItem(
-          label: '个性化',
-          icon: Icons.format_paint_outlined,
-          route: '/personalized_setting',
-        ),
-        RailItem(label: '其他', icon: Icons.more_horiz, route: '/other_setting'),
+        RailItem(label: '更多', icon: Icons.menu, route: '/launch_setting'),
+
+        // RailItem(label: '游戏内设置', icon: Icons.settings, route: '/game_setting'),
+        // RailItem(
+        //   label: '个性化',
+        //   icon: Icons.format_paint_outlined,
+        //   route: '/personalized_setting',
+        // ),
+        // RailItem(label: '其他', icon: Icons.more_horiz, route: '/other_setting'),
       ],
     ),
-    RailSection(
-      label: '更多',
-      items: [
-        RailItem(label: '神秘小工具', icon: Icons.widgets_outlined, route: '/tool'),
-        RailItem(label: '帮助', icon: Icons.help_outline, route: '/help'),
-        RailItem(label: '关于', icon: Icons.info_outline, route: '/about'),
-      ],
-    ),
+    // RailSection(
+    //   label: '更多',
+    //   items: [
+    //     RailItem(label: '神秘小工具', icon: Icons.widgets_outlined, route: '/tool'),
+    //     RailItem(label: '帮助', icon: Icons.help_outline, route: '/help'),
+    //     RailItem(label: '关于', icon: Icons.info_outline, route: '/about'),
+    //   ],
+    // ),
   ];
 
   //导航栏根路由切换
   void _onRootNavigate(String route, Object? arg) {
-    if (route == _currentRootRoute) return;
+    if (route == _currentRoute) return;
 
     _currentRootRoute = route;
     // 清空子路由栈，回到根页面
@@ -107,83 +113,9 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  // ── 临时子路由配置 ──
+  late final routeWatcher = _RouteWatcher(_onRouteChanged);
 
-  late final routeWatcher = _RouteWatcher(
-    _onRouteChanged,
-    onPop: () {},
-    onPush: () {},
-  );
-
-  bool _showSubRoute = false;
-
-  //用key将子路由绑定到一起，这样就不需要每个子页面的每个路由都注册一次
-  //todo 到时候使用[currentSubNavigator]
-  String _subRouteBindKey = '';
-
-  //临时子路由列表，子路由切换页面用switcher
-  //或进行路由，需要在路由前标记路由key
-  static final Map<String, List<SubRailSection>> _subSections = {};
-
-  static final List<String> _subNavigatorKeyStack = [];
-
-  //显示最后的导航器的key
-  static String get currentSubNavigatorKey => _subNavigatorKeyStack.lastWhere(
-    (it) => it.isNotEmpty,
-    orElse: () => 'null',
-  );
-
-  static List<SubRailSection> get currentSubNavigator =>
-      _subSections[currentSubNavigatorKey] ?? [];
-
-  void registerNavigator(String key, List<SubRailSection> sections) {
-    //将导航器压入栈内
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        _subNavigatorKeyStack.add(key);
-        _subSections[key] = sections;
-      });
-    });
-  }
-
-  void unregisterNavigator(String key) {
-    if (currentSubNavigatorKey == key) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        setState(() {
-          _subNavigatorKeyStack.remove(currentSubNavigatorKey);
-        });
-      });
-    }
-  }
-
-  ///////////////
-
-  //如果子页面有路由选项,子路由注册后刷新一遍导航栏
-  void registerSubRoute(String key, List<SubRailSection> sections) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        _subRouteBindKey = key;
-        _subSections[key] = sections;
-      });
-    });
-  }
-
-  void registerSubRouteKey(String key) {
-    setState(() {
-      _subRouteBindKey = key;
-    });
-  }
-
-  //子页路由回调，主要用于子页路由更新时更新导航栏状态和进行子路由
-  void _onSubNavigate(String? route, Object? arg) {
-    if (route != null) {
-      _navigatorKey.currentState?.pushReplacementNamed(route, arguments: arg);
-    } else {
-      setState(() {});
-    }
-  }
-
-  // ── 路由监听（更新导航栏高亮和面包屑） ──
+  // ── 路由监听 更新导航栏高亮和面包屑 ──
 
   void _onRouteChanged(String? name, dynamic args) {
     if (name == null) return;
@@ -208,10 +140,6 @@ class AppShellState extends State<AppShell> {
 
       if (isRoot) {
         _currentRootRoute = name;
-        _showSubRoute = false;
-        _subNavigatorKeyStack.clear();
-      } else {
-        _showSubRoute = true;
       }
 
       //无奈之举，在启动时，args肯定是空的，启动页的名字就会变成/
@@ -251,21 +179,6 @@ class AppShellState extends State<AppShell> {
           Row(
             children: [
               SizedBox(width: 4),
-              AnimatedOpacitySize(
-                duration: const Duration(milliseconds: 300),
-                child: canPop
-                    ? ReboundButton(
-                        backgroundColor: Colors.transparent,
-                        onTap: () {
-                          if (canPop) {
-                            _navigatorKey.currentState?.pop();
-                          }
-                        },
-                        child: Icon(Icons.keyboard_arrow_left),
-                      )
-                    : null,
-              ),
-
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 transitionBuilder: SwitcherBuilders.fadeSlide(Offset(0.0, 1.0)),
@@ -343,7 +256,7 @@ class AppShellState extends State<AppShell> {
     Widget shell = Scaffold(
       endDrawer: Drawer(
         backgroundColor: colors.interactive,
-        width: MediaQuery.of(context).size.width * 0.40,
+        width: MediaQuery.of(context).size.width * 0.50,
         elevation: 2,
         shadowColor: Colors.black,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -351,19 +264,13 @@ class AppShellState extends State<AppShell> {
       ),
       body: Row(
         children: [
-          // ── 左侧导航（含 Logo + 拖拽） ──
+          // ── 左侧导航 ──
           NavigationRail(
+            navigatorKey: _navigatorKey,
             currentRoute: _currentRoute,
             currentRootRoute: _currentRootRoute,
-
             sections: _rootSections,
             onNavigate: _onRootNavigate,
-
-            subSections: _showSubRoute
-                ? _subSections[_subRouteBindKey] ?? []
-                : [],
-            onSubNavigate: _onSubNavigate,
-            subNavigator: SizedBox(),
           ),
 
           VerticalDivider(width: 1, thickness: 1, color: colors.border),
@@ -499,30 +406,6 @@ class AppShellState extends State<AppShell> {
       },
     );
   }
-
-  void buildGoRoute() {
-    GoRouter(
-      routes: [
-        ShellRoute(
-          builder: (_, state, child) {
-            state.uri.pathSegments;
-            return SizedBox();
-          },
-          routes: [
-            //路由
-            GoRoute(
-              path: 'setting',
-
-              builder: (context, state) {
-                state.name;
-                return SizedBox();
-              },
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 }
 
 // ════════════════════════════════════════════
@@ -533,14 +416,11 @@ typedef _RouteCallback = void Function(String? name, dynamic args);
 
 class _RouteWatcher extends RouteObserver {
   final _RouteCallback onChanged;
-  final VoidCallback onPop;
-  final VoidCallback onPush;
 
-  _RouteWatcher(this.onChanged, {required this.onPop, required this.onPush});
+  _RouteWatcher(this.onChanged);
 
   @override
   void didPush(Route route, Route? previousRoute) {
-    onPush();
     _notify(route);
   }
 
@@ -551,7 +431,6 @@ class _RouteWatcher extends RouteObserver {
 
   @override
   void didPop(Route route, Route? previousRoute) {
-    onPop();
     if (previousRoute != null) _notify(previousRoute);
   }
 

@@ -1,3 +1,4 @@
+import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/ui/route_pages/branch/launch/version_select.dart';
 import 'package:copper_launcher/ui/route_pages/branch/launch/version_setting.dart';
 import 'package:copper_launcher/ui/route_pages/download/mindustry_download_page.dart';
@@ -52,3 +53,9 @@ Map<String, String> get gameDownloadHeaders => {
   'User-Agent': 'MindustryDownloader',
   'Authorization': 'token $githubToken',
 };
+
+//动画倍率
+double get animationMultiplier => 1.0;
+
+Duration get animationDuration =>
+    kDefaultAnimationDuration * animationMultiplier;
