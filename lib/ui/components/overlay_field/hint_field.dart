@@ -1,7 +1,10 @@
 import 'dart:async';
+
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
+
+import 'popup_overlay.dart';
 
 // ---------------------------------------------------------------------------
 // HintPosition
@@ -191,28 +194,24 @@ class HintField extends StatefulWidget {
 // State
 // ---------------------------------------------------------------------------
 
-class HintFieldState extends State<HintField> with TickerProviderStateMixin {
-  final LayerLink _layerLink = LayerLink();
+class HintFieldState extends State<HintField> {
+  final PopupOverlayController _popupController = PopupOverlayController();
 
-  OverlayEntry? _overlayEntry;
-  AnimationController? _animationController;
+  /// 实际显示方位，由环绕定位在布局阶段确定，供动画接口使用。
+  final ValueNotifier<HintPosition?> _actualPosition = ValueNotifier(null);
+
   Timer? _waitTimer;
   Timer? _dismissTimer;
 
+  bool _disposed = false;
   bool _isLongPressing = false;
   bool _isShowing = false;
-
-  // 缓存的文本尺寸，避免重复用 TextPainter 测量。
-  Size? _cachedTextSize;
 
   @override
   void didUpdateWidget(HintField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.hint != oldWidget.hint ||
-        widget.textStyle != oldWidget.textStyle ||
-        widget.maxWidth != oldWidget.maxWidth ||
-        widget.padding != oldWidget.padding) {
-      _cachedTextSize = null;
+    if (widget.hint != oldWidget.hint) {
+      // 文本变化时无需预测量（尺寸由布局管道提供），仅触发重建
     }
   }
 
@@ -223,9 +222,11 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _disposed = true;
     _dismiss(immediate: true);
     _waitTimer?.cancel();
     _dismissTimer?.cancel();
+    _actualPosition.dispose();
     super.dispose();
   }
 
@@ -253,7 +254,65 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
       );
     }
 
-    return CompositedTransformTarget(link: _layerLink, child: child);
+    return PopupOverlay(
+      controller: _popupController,
+      animation: _buildHintAnimation,
+      positionDelegate: _HintPositionDelegate(
+        preferPosition: widget.preferPosition,
+        gap: widget.gap,
+        onPositioned: (pos) => _actualPosition.value = pos,
+      ),
+      // 提示框不拦截点击、不响应 Esc（与原行为一致）
+      dismissOnTapOutside: false,
+      dismissOnEsc: false,
+      screenPadding: widget.screenPadding,
+      animationDuration: widget.animationDuration,
+      overlayChildBuilder: _buildHintOverlayChild, // (context, anchorRect)
+      child: child,
+    );
+  }
+
+  Widget _buildHintOverlayChild(BuildContext context, Rect anchorRect) {
+    final Widget content = widget.hintWidget ?? _buildTextHint();
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: _effectiveMaxWidth()),
+      child: content,
+    );
+  }
+
+  Widget _buildTextHint() {
+    final color = AppColors.of(context);
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: widget.padding,
+      decoration:
+          widget.decoration ??
+          BoxDecoration(
+            color: color.cardBackground.withAlpha(185),
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
+            border: Border.all(color: color.border),
+          ),
+      child: Text(
+        widget.hint!,
+        style: widget.textStyle ?? theme.textTheme.labelMedium,
+      ),
+    );
+  }
+
+  /// 动画适配：把 PopupOverlay 的动画流转接给 [HintAnimation]，
+  /// 实际方位由环绕定位在布局阶段确定后传入。
+  Widget _buildHintAnimation(
+    BuildContext context,
+    Animation<double> animation,
+    Widget child,
+    PopupOverlayPlacement? placement,
+  ) {
+    final pos = _actualPosition.value ?? HintPosition.auto;
+    final anim = _isShowing
+        ? widget.showAnimation
+        : (widget.hideAnimation ?? widget.showAnimation);
+    return anim.builder(context, animation, child, pos);
   }
 
   // ------------------------------------------------------------------
@@ -301,44 +360,19 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
 
     _waitTimer?.cancel();
     if (skipWait) {
-      _prepareAndShow();
+      _show();
     } else {
-      _waitTimer = Timer(widget.waitDuration, _prepareAndShow);
+      _waitTimer = Timer(widget.waitDuration, _show);
     }
   }
 
-  /// 测量 hint 尺寸，选最佳方位，然后显示。
-  Future<void> _prepareAndShow() async {
+  void _show() {
     if (!mounted || _isShowing) return;
 
-    final Size hintSize;
-    if (widget.hintWidget != null) {
-      hintSize = await _measureOffstage();
-      if (!mounted || _isShowing) return;
-    } else {
-      hintSize = _measureText();
-    }
-
-    _showAt(hintSize);
-  }
-
-  void _showAt(Size hintSize) {
-    if (!mounted || _isShowing) return;
-
-    _removeOverlay();
     _isShowing = true;
     HintField._lastShowTime = DateTime.now();
-
-    _animationController = AnimationController(
-      vsync: this,
-      duration: widget.animationDuration,
-    );
-
-    _overlayEntry = OverlayEntry(
-      builder: (ctx) => _buildOverlay(ctx, hintSize),
-    );
-    Overlay.of(context).insert(_overlayEntry!);
-    _animationController!.forward();
+    if (mounted) setState(() {});
+    _popupController.open();
 
     if (_isLongPressing) {
       _dismissTimer?.cancel();
@@ -349,8 +383,9 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
   void _dismiss({bool immediate = false}) {
     _waitTimer?.cancel();
     _dismissTimer?.cancel();
-    final bool wasVisible = _overlayEntry != null;
+    final bool wasVisible = _isShowing;
     _isShowing = false;
+    if (mounted && !_disposed) setState(() {});
 
     if (wasVisible) {
       HintField._lastDismissTime = DateTime.now();
@@ -360,95 +395,97 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
       HintField._activeHint = null;
     }
 
-    if (_overlayEntry == null) {
-      _animationController?.dispose();
-      _animationController = null;
-      return;
+    _popupController.dismiss();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 环绕定位策略：围绕锚点四边选择最合适的方位
+// ---------------------------------------------------------------------------
+
+class _HintPositionDelegate extends PopupOverlayPositionDelegate {
+  final HintPosition preferPosition;
+  final double gap;
+  final ValueChanged<HintPosition> onPositioned;
+
+  const _HintPositionDelegate({
+    required this.preferPosition,
+    required this.gap,
+    required this.onPositioned,
+  });
+
+  @override
+  Offset getPosition({
+    required Rect anchorRect,
+    required Offset? position,
+    required Size overlaySize,
+    required Size childSize,
+    required EdgeInsets padding,
+  }) {
+    final screenW = overlaySize.width;
+    final screenH = overlaySize.height;
+    final childTop = anchorRect.top;
+    final childBottom = anchorRect.bottom;
+    final childLeft = anchorRect.left;
+    final childRight = anchorRect.right;
+    final childCenterX = anchorRect.center.dx;
+    final childCenterY = anchorRect.center.dy;
+
+    final candidates = _positionCandidates(
+      preferPosition,
+      childCenterX,
+      childCenterY,
+      screenW,
+      screenH,
+      padding,
+    );
+
+    for (final pos in candidates) {
+      final offset = _positionFor(
+        pos,
+        childTop,
+        childBottom,
+        childLeft,
+        childRight,
+        childCenterX,
+        childCenterY,
+        childSize,
+      );
+      if (_fitsAt(offset, childSize, screenW, screenH, padding)) {
+        onPositioned(pos);
+        return offset;
+      }
     }
 
-    if (immediate || _animationController == null) {
-      _removeOverlay();
-      return;
-    }
-
-    _animationController!.stop();
-    _animationController!.reverse().then(
-      (_) => _removeOverlay(),
-      onError: (_) => _removeOverlay(),
-    );
-  }
-
-  void _removeOverlay() {
-    _isShowing = false;
-    _animationController?.stop();
-    _animationController?.dispose();
-    _animationController = null;
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-  }
-
-  // ------------------------------------------------------------------
-  // Measurement
-  // ------------------------------------------------------------------
-
-  /// 用 TextPainter 测纯文本 hint 的实际尺寸（含 padding）。
-  Size _measureText() {
-    if (_cachedTextSize != null) return _cachedTextSize!;
-
-    final style =
-        widget.textStyle ??
-        Theme.of(context).textTheme.labelMedium ??
-        const TextStyle(fontSize: 13);
-
-    final textPainter = TextPainter(
-      text: TextSpan(text: widget.hint, style: style),
-      textDirection: TextDirection.ltr,
-      maxLines: null,
-    );
-    textPainter.layout(maxWidth: _effectiveMaxWidth());
-
-    final size = Size(
-      textPainter.width + widget.padding.horizontal,
-      textPainter.height + widget.padding.vertical,
-    );
-    _cachedTextSize = size;
-    return size;
-  }
-
-  /// 用 Offstage Overlay 测量自定义 Widget 的实际尺寸。
-  Future<Size> _measureOffstage() async {
-    final GlobalKey key = GlobalKey();
-    final OverlayEntry measureEntry = OverlayEntry(
-      builder: (_) => Offstage(
-        child: UnconstrainedBox(
-          child: Container(
-            key: key,
-            constraints: BoxConstraints(maxWidth: _effectiveMaxWidth()),
-            child: widget.hintWidget,
-          ),
-        ),
+    // 兜底：取第一个候选方位，靠 clamp 保证不越界
+    final fallback = candidates.first;
+    onPositioned(fallback);
+    return _clamp(
+      _positionFor(
+        fallback,
+        childTop,
+        childBottom,
+        childLeft,
+        childRight,
+        childCenterX,
+        childCenterY,
+        childSize,
       ),
+      childSize,
+      screenW,
+      screenH,
+      padding,
     );
-
-    Overlay.of(context).insert(measureEntry);
-    await WidgetsBinding.instance.endOfFrame;
-    final Size size = key.currentContext?.size ?? const Size(48, 24);
-    measureEntry.remove();
-    return size;
   }
-
-  // ------------------------------------------------------------------
-  // Position helpers
-  // ------------------------------------------------------------------
 
   /// 按 preferPosition 和组件位置生成尝试顺序。
-  /// 移动端 auto 模式会根据组件在屏幕中的位置智能排列优先方向。
   List<HintPosition> _positionCandidates(
     HintPosition prefer,
     double childCenterX,
     double childCenterY,
     double screenW,
     double screenH,
+    EdgeInsets padding,
   ) {
     const all = [
       HintPosition.top,
@@ -472,14 +509,12 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
     final absRx = rx.abs();
     final absRy = ry.abs();
 
-    // 各方向可用空间。
-    final topSpace = childCenterY - widget.screenPadding.top;
-    final bottomSpace = screenH - childCenterY - widget.screenPadding.bottom;
-    final leftSpace = childCenterX - widget.screenPadding.left;
-    final rightSpace = screenW - childCenterX - widget.screenPadding.right;
+    final topSpace = childCenterY - padding.top;
+    final bottomSpace = screenH - childCenterY - padding.bottom;
+    final leftSpace = childCenterX - padding.left;
+    final rightSpace = screenW - childCenterX - padding.right;
 
     if (absRy > absRx) {
-      // 垂直偏移更大 → 先垂直方向（上/下），再水平（左/右）。
       final v = topSpace >= bottomSpace
           ? [HintPosition.top, HintPosition.bottom]
           : [HintPosition.bottom, HintPosition.top];
@@ -488,7 +523,6 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
           : [HintPosition.right, HintPosition.left];
       return [...v, ...h];
     } else if (absRx > absRy) {
-      // 水平偏移更大 → 先水平方向，再垂直。
       final h = leftSpace >= rightSpace
           ? [HintPosition.left, HintPosition.right]
           : [HintPosition.right, HintPosition.left];
@@ -497,7 +531,6 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
           : [HintPosition.bottom, HintPosition.top];
       return [...h, ...v];
     } else {
-      // 偏移相等 → 默认：上 → 左 → 下 → 右。
       return [
         HintPosition.top,
         HintPosition.left,
@@ -507,8 +540,7 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
     }
   }
 
-  /// 检查 hint 在指定方位是否放得下（同时检查水平和垂直）。
-  bool _fitsAt(
+  Offset _positionFor(
     HintPosition pos,
     double childTop,
     double childBottom,
@@ -517,167 +549,57 @@ class HintFieldState extends State<HintField> with TickerProviderStateMixin {
     double childCenterX,
     double childCenterY,
     Size hintSize,
-    double screenW,
-    double screenH,
   ) {
     final hintW = hintSize.width;
     final hintH = hintSize.height;
-    final padL = widget.screenPadding.left;
-    final padT = widget.screenPadding.top;
-    final padR = widget.screenPadding.right;
-    final padB = widget.screenPadding.bottom;
-
-    double left, top;
 
     switch (pos) {
       case HintPosition.top:
-        top = childTop - hintH - widget.gap;
-        left = childCenterX - hintW / 2;
+        return Offset(childCenterX - hintW / 2, childTop - hintH - gap);
       case HintPosition.bottom:
-        top = childBottom + widget.gap;
-        left = childCenterX - hintW / 2;
+        return Offset(childCenterX - hintW / 2, childBottom + gap);
       case HintPosition.left:
-        top = childCenterY - hintH / 2;
-        left = childLeft - hintW - widget.gap;
+        return Offset(childLeft - hintW - gap, childCenterY - hintH / 2);
       case HintPosition.right:
-        top = childCenterY - hintH / 2;
-        left = childRight + widget.gap;
-      default:
-        return false;
-    }
-
-    return left >= padL &&
-        top >= padT &&
-        left + hintW <= screenW - padR &&
-        top + hintH <= screenH - padB;
-  }
-
-  // ------------------------------------------------------------------
-  // Overlay
-  // ------------------------------------------------------------------
-
-  Widget _buildOverlay(BuildContext context, Size hintSize) {
-    final Widget content = widget.hintWidget ?? _buildTextHint();
-
-    // 获取子组件屏幕位置。
-    final RenderBox? childBox = this.context.findRenderObject() as RenderBox?;
-    final double screenW = MediaQuery.of(context).size.width;
-    final double screenH = MediaQuery.of(context).size.height;
-    double childTop = 0, childBottom = 0, childLeft = 0, childRight = 0;
-    if (childBox != null && childBox.attached) {
-      final Offset pos = childBox.localToGlobal(Offset.zero);
-      childTop = pos.dy;
-      childBottom = pos.dy + childBox.size.height;
-      childLeft = pos.dx;
-      childRight = pos.dx + childBox.size.width;
-    }
-    final double childCenterX = childLeft + (childRight - childLeft) / 2;
-    final double childCenterY = childTop + (childBottom - childTop) / 2;
-
-    // 按真实尺寸选最佳方位。
-    final candidates = _positionCandidates(
-      widget.preferPosition,
-      childCenterX,
-      childCenterY,
-      screenW,
-      screenH,
-    );
-    HintPosition actualPos = candidates.first;
-    for (final pos in candidates) {
-      if (_fitsAt(
-        pos,
-        childTop,
-        childBottom,
-        childLeft,
-        childRight,
-        childCenterX,
-        childCenterY,
-        hintSize,
-        screenW,
-        screenH,
-      )) {
-        actualPos = pos;
-        break;
-      }
-    }
-
-    final Alignment targetAnchor;
-    final Alignment followerAnchor;
-    final Offset offset;
-
-    switch (actualPos) {
-      case HintPosition.top:
-        targetAnchor = Alignment.topCenter;
-        followerAnchor = Alignment.bottomCenter;
-        offset = Offset(0, -widget.gap);
-      case HintPosition.bottom:
-        targetAnchor = Alignment.bottomCenter;
-        followerAnchor = Alignment.topCenter;
-        offset = Offset(0, widget.gap);
-      case HintPosition.left:
-        targetAnchor = Alignment.centerLeft;
-        followerAnchor = Alignment.centerRight;
-        offset = Offset(-widget.gap, 0);
-      case HintPosition.right:
-        targetAnchor = Alignment.centerRight;
-        followerAnchor = Alignment.centerLeft;
-        offset = Offset(widget.gap, 0);
+        return Offset(childRight + gap, childCenterY - hintH / 2);
       case HintPosition.auto:
-        targetAnchor = Alignment.topCenter;
-        followerAnchor = Alignment.bottomCenter;
-        offset = Offset(0, -widget.gap);
+        return Offset.zero;
     }
+  }
 
-    final Animation<double> showCurve = CurvedAnimation(
-      parent: _animationController!,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
+  bool _fitsAt(
+    Offset offset,
+    Size hintSize,
+    double screenW,
+    double screenH,
+    EdgeInsets padding,
+  ) {
+    return offset.dx >= padding.left &&
+        offset.dy >= padding.top &&
+        offset.dx + hintSize.width <= screenW - padding.right &&
+        offset.dy + hintSize.height <= screenH - padding.bottom;
+  }
 
-    return Stack(
-      children: [
-        CompositedTransformFollower(
-          link: _layerLink,
-          targetAnchor: targetAnchor,
-          followerAnchor: followerAnchor,
-          offset: offset,
-          child: AnimatedBuilder(
-            animation: showCurve,
-            builder: (context, child) {
-              final HintAnimation anim = _isShowing
-                  ? widget.showAnimation
-                  : (widget.hideAnimation ?? widget.showAnimation);
-              return anim.builder(context, showCurve, child!, actualPos);
-            },
-            child: content,
-          ),
-        ),
-      ],
+  Offset _clamp(
+    Offset offset,
+    Size hintSize,
+    double screenW,
+    double screenH,
+    EdgeInsets padding,
+  ) {
+    final maxLeft = (screenW - padding.right - hintSize.width)
+        .clamp(padding.left, double.infinity);
+    final maxTop = (screenH - padding.bottom - hintSize.height)
+        .clamp(padding.top, double.infinity);
+    return Offset(
+      offset.dx.clamp(padding.left, maxLeft),
+      offset.dy.clamp(padding.top, maxTop),
     );
   }
 
-  Widget _buildTextHint() {
-    final color = AppColors.of(context);
-    final theme = Theme.of(context);
-
-    Widget hint = Container(
-      padding: widget.padding,
-      decoration:
-          widget.decoration ??
-          BoxDecoration(
-            color: color.cardBackground.withAlpha(185),
-            borderRadius: const BorderRadius.all(Radius.circular(4)),
-            border: Border.all(color: color.border),
-          ),
-      child: Text(
-        widget.hint!,
-        style: widget.textStyle ?? theme.textTheme.labelMedium,
-      ),
-    );
-
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: _effectiveMaxWidth()),
-      child: hint,
-    );
-  }
+  @override
+  bool shouldReposition(PopupOverlayPositionDelegate oldDelegate) =>
+      oldDelegate is! _HintPositionDelegate ||
+      oldDelegate.preferPosition != preferPosition ||
+      oldDelegate.gap != gap;
 }

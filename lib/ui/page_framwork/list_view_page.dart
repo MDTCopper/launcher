@@ -1,23 +1,25 @@
+import 'package:copper_launcher/ui/page_framwork/page_switcher.dart';
 import 'package:flutter/material.dart';
 
-class ListViewPage extends StatefulWidget {
-  final Widget child;
-  final Widget navigation;
+class MainPageLayout extends StatelessWidget {
+  final Widget page;
+  final Widget navigationRail;
 
-  const ListViewPage({
+  const MainPageLayout({
     super.key,
-    required this.child,
-    required this.navigation,
+    required this.navigationRail,
+    required this.page,
   });
 
   @override
-  State<StatefulWidget> createState() => ListViewPageState();
-}
-
-class ListViewPageState extends State<ListViewPage> {
-  @override
   Widget build(BuildContext context) {
-    // TODO: implement build
-    throw UnimplementedError();
+    Widget child = Row(
+      children: [
+        Expanded(child: PageSwitcher(child: page)),
+        navigationRail,
+      ],
+    );
+
+    return child;
   }
 }

@@ -43,8 +43,8 @@ Future<void> _initWindows() async {
 
   const windowOptions = WindowOptions(
     size: Size(880, 495),
-    // 移动端尺寸 Size(800, 360),
-    minimumSize: Size(800, 450),
+    // 移动端尺寸 Size(760, 360),
+    minimumSize: Size(760, 450),
     center: true,
     titleBarStyle: TitleBarStyle.hidden,
   );

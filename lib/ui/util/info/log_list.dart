@@ -40,8 +40,8 @@ class _LogListState extends State<LogList> {
 
   @override
   void initState() {
-    LogManager.logNotifier.addListener(_onChange);
     super.initState();
+    LogManager.logNotifier.addListener(_onChange);
   }
 
   void _onChange() {
@@ -178,15 +178,16 @@ class _LogListState extends State<LogList> {
               parent: animation,
               curve: Interval(0.3, 1.0),
             );
-            final position = Tween<Offset>(
-              begin: Offset(0.3, 0.0),
-              end: Offset.zero,
-            ).animate(
-              CurvedAnimation(
-                parent: animation,
-                curve: Interval(0.3, 1.0, curve: Curves.easeOutBack),
-              ),
-            );
+            final position =
+                Tween<Offset>(
+                  begin: Offset(0.3, 0.0),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Interval(0.3, 1.0, curve: Curves.easeOutBack),
+                  ),
+                );
             return SizeTransition(
               sizeFactor: sizeFactor,
               child: FadeTransition(
@@ -214,15 +215,13 @@ class _LogListState extends State<LogList> {
           parent: animation,
           curve: Interval(0.3, 1.0),
         );
-        final position = Tween<Offset>(
-          begin: Offset(0.3, 0.0),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(
-            parent: animation,
-            curve: Interval(0.3, 1.0, curve: Curves.easeOutBack),
-          ),
-        );
+        final position =
+            Tween<Offset>(begin: Offset(0.3, 0.0), end: Offset.zero).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Interval(0.3, 1.0, curve: Curves.easeOutBack),
+              ),
+            );
         return SizeTransition(
           sizeFactor: sizeFactor,
           child: FadeTransition(

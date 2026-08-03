@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:flutter/material.dart';
 
-import '../route/page_key_provider.dart';
+import '../util/route/page_key_provider.dart';
 
 enum DialogAnimation { fade, slide, popup, leapOut }
 

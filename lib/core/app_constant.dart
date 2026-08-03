@@ -52,3 +52,5 @@ final minJavaModGameVersionModifier = RangeModifier(0, [
 //142往后才支持控制窗口状态
 
 const kDefaultAnimationDuration = Duration(milliseconds: 300);
+
+const kDefaultAnimationSwitcherDuration = Duration(milliseconds: 200);

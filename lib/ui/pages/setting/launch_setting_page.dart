@@ -4,7 +4,7 @@ import 'dart:math';
 
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/util/info/notification.dart';
-import 'package:copper_launcher/ui/util/widget/animated_dropdown_menu.dart';
+import 'package:copper_launcher/ui/components/overlay_field/dropdown_field.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
 import 'package:copper_launcher/ui/util/widget/percent_bar.dart';

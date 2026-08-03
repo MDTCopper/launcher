@@ -8,8 +8,9 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
 import 'package:window_manager/window_manager.dart';
 
+import '../components/colorful_background.dart';
 import '../theme/app_colors.dart';
-import '../util/dialog/drag_file_field.dart';
+import '../components/overlay_field/drag_file_field.dart';
 import '../util/framework/info_drawer.dart';
 import '../util/info/task_drawer_opener.dart';
 import '../util/widget/feature_button.dart';
@@ -35,7 +36,7 @@ class AppShellState extends State<AppShell> {
   bool get canPop => _navigatorKey.currentState?.canPop() == true;
 
   String _currentRootRoute = '/';
-  static const _rootSections = [
+  static final _sections = [
     RailSection(
       label: '概览',
       items: [
@@ -57,49 +58,14 @@ class AppShellState extends State<AppShell> {
           icon: Icons.local_fire_department_outlined,
           route: '/community_resources',
         ),
-        // RailItem(label: '模组', icon: LineIcons.puzzlePiece, route: '/mod_view'),
-        // RailItem(
-        //   label: '整合包',
-        //   icon: Icons.token_outlined,
-        //   route: '/package_view',
-        // ),
-        // RailItem(
-        //   label: '蓝图',
-        //   icon: Icons.paste_outlined,
-        //   route: '/blueprint_view',
-        // ),
-        // RailItem(label: '地图', icon: Icons.map_outlined, route: '/map_view'),
       ],
     ),
-    RailSection(
-      label: '设置',
-      items: [
-        RailItem(
-          label: '启动项',
-          icon: Icons.rocket_launch_outlined,
-          route: '/launch_setting',
-        ),
-        RailItem(label: '更多', icon: Icons.menu, route: '/launch_setting'),
-
-        // RailItem(label: '游戏内设置', icon: Icons.settings, route: '/game_setting'),
-        // RailItem(
-        //   label: '个性化',
-        //   icon: Icons.format_paint_outlined,
-        //   route: '/personalized_setting',
-        // ),
-        // RailItem(label: '其他', icon: Icons.more_horiz, route: '/other_setting'),
-      ],
-    ),
-    // RailSection(
-    //   label: '更多',
-    //   items: [
-    //     RailItem(label: '神秘小工具', icon: Icons.widgets_outlined, route: '/tool'),
-    //     RailItem(label: '帮助', icon: Icons.help_outline, route: '/help'),
-    //     RailItem(label: '关于', icon: Icons.info_outline, route: '/about'),
-    //   ],
-    // ),
   ];
 
+  static final _items = [
+    RailItem(label: '设置', icon: Icons.settings, route: '/setting'),
+    RailItem(label: '更多', icon: Icons.menu, route: '/more'),
+  ];
   //导航栏根路由切换
   void _onRootNavigate(String route, Object? arg) {
     if (route == _currentRoute) return;
@@ -164,7 +130,8 @@ class AppShellState extends State<AppShell> {
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: colors.cardBackground.withAlpha(120),
+        // 半透明背景，让背景光效透出，形成顶部光渗透效果
+        color: colors.cardBackground.withAlpha(70),
         border: Border(bottom: BorderSide(color: colors.border, width: 1)),
       ),
       child: Stack(
@@ -247,11 +214,13 @@ class AppShellState extends State<AppShell> {
     return child;
   }
 
+  Widget _buildColorfulBackground(Widget child) {
+    return ColorfulBackground(child: child);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final isDesktop =
-        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
     Widget shell = Scaffold(
       endDrawer: Drawer(
@@ -269,7 +238,9 @@ class AppShellState extends State<AppShell> {
             navigatorKey: _navigatorKey,
             currentRoute: _currentRoute,
             currentRootRoute: _currentRootRoute,
-            sections: _rootSections,
+            sections: _sections,
+            itemsAtBottom: _items,
+
             onNavigate: _onRootNavigate,
           ),
 
@@ -277,52 +248,13 @@ class AppShellState extends State<AppShell> {
 
           // ── 右侧内容区 ──
           Expanded(
-            child: Stack(
-              fit: StackFit.loose,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment(0.6, -1.8),
-                      radius: 1.0,
-                      colors: [
-                        colors.interactive.withAlpha(60),
-                        colors.success.withAlpha(0),
-                      ],
-                    ),
-                  ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment(-0.0, -1.6),
-                      radius: 0.8,
-                      colors: [
-                        colors.interactive.withAlpha(60),
-                        colors.error.withAlpha(0),
-                      ],
-                    ),
-                  ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment(-0.4, -1.4),
-                      radius: 0.6,
-                      colors: [
-                        colors.interactive.withAlpha(60),
-                        colors.warning.withAlpha(0),
-                      ],
-                    ),
-                  ),
-                ),
-                Column(
-                  children: [
-                    _buildTopbar(),
-                    Expanded(child: _buildNavigator()),
-                  ],
-                ),
-              ],
+            child: _buildColorfulBackground(
+              Column(
+                children: [
+                  _buildTopbar(),
+                  Expanded(child: _buildNavigator()),
+                ],
+              ),
             ),
           ),
         ],
@@ -332,27 +264,6 @@ class AppShellState extends State<AppShell> {
     if (isDesktop) {
       return DragFileField(onDragDone: _handleDragFile, child: shell);
     }
-    // if (true || Platform.isAndroid) {
-    //   shell = PopScope(
-    //     canPop: false,
-    //     onPopInvokedWithResult: (didPop, _) {
-    //
-    //       if (didPop) return;
-    //       print('pop2');
-    //
-    //       final now = DateTime.now();
-    //
-    //       if (_lastPopTime == null ||
-    //           _lastPopTime!.difference(now) > const Duration(seconds: 1)) {
-    //         _lastPopTime = now;
-    //         addNotice(content: '再按一次返回');
-    //       } else {
-    //         _navigatorKey.currentState?.pop();
-    //       }
-    //     },
-    //     child: shell,
-    //   );
-    // }
     return shell;
   }
 

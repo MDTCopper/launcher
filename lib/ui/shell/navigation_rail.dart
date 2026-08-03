@@ -1,4 +1,6 @@
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/util/switcher_builder.dart';
@@ -27,34 +29,34 @@ class RailItem {
 }
 
 class RailSection {
-  final String label;
+  final String? label;
   final List<RailItem> items;
-
-  const RailSection({required this.label, required this.items});
+  const RailSection({this.label, required this.items});
 }
 
 ///与AppShell高度耦合，本质就是它的附属组件
 class NavigationRail extends StatefulWidget {
   final GlobalKey<NavigatorState> navigatorKey;
-
-  final String currentRoute;
-
-  final String currentRootRoute;
-  final List<RailSection> sections;
-
   final void Function(String route, Object arg) onNavigate;
+  final String currentRoute;
+  final String currentRootRoute;
+
+  final List<RailSection> sections;
+  final List<RailItem> itemsAtBottom;
 
   final double width;
   final double collapseWidth;
 
   const NavigationRail({
     super.key,
+
     required this.navigatorKey,
     required this.currentRoute,
-
     required this.currentRootRoute,
-    required this.sections,
     required this.onNavigate,
+
+    required this.sections,
+    this.itemsAtBottom = const [],
 
     this.width = 140,
     this.collapseWidth = 56,
@@ -65,59 +67,16 @@ class NavigationRail extends StatefulWidget {
 }
 
 class NavigationRailState extends State<NavigationRail> {
-  late final ScrollController controller;
-
   bool get canPop => widget.navigatorKey.currentState?.canPop() ?? false;
 
-  bool collapse = false;
+  bool get collapse => config.setting.personalizationOptions.navigationCollapse;
 
-  bool showTopFade = false;
-  bool showBottomFade = true;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = ScrollController()
-      ..addListener(() {
-        if (controller.offset == 0.0) {
-          if (showTopFade) {
-            setState(() {
-              showTopFade = false;
-            });
-          }
-        } else {
-          if (!showTopFade) {
-            setState(() {
-              showTopFade = true;
-            });
-          }
-        }
-
-        if (controller.offset == controller.position.maxScrollExtent) {
-          if (showBottomFade) {
-            setState(() {
-              showBottomFade = false;
-            });
-          }
-        } else {
-          setState(() {
-            if (!showBottomFade) {
-              setState(() {
-                showBottomFade = true;
-              });
-            }
-          });
-        }
-      });
+  set collapse(bool value) {
+    config.setting.personalizationOptions.navigationCollapse = value;
+    config.save();
   }
 
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  // ── Logo + 拖拽区 ──
+  // ── Logo , 拖拽区 , 返回按钮 ──
   Widget _buildLogo() {
     final colors = AppColors.of(context);
     final textTheme = Theme.of(context).textTheme;
@@ -217,60 +176,37 @@ class NavigationRailState extends State<NavigationRail> {
     );
   }
 
-  // ── 分组 + 条目（可滚动） ──
+  // ── 导航视图  ──
   Widget _buildMenuView() {
     final colors = Theme.of(context).extension<AppColors>()!;
 
-    Widget child = SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(8, 0, 8, 0),
-      controller: controller,
-      child: _buildRootRouteView(),
-    );
-
-    child = Stack(
+    Widget child = Stack(
       children: [
-        child,
-        //view边缘渐变
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: AnimatedOpacity(
-            opacity: showTopFade ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 100),
-            child: Container(
-              height: 20,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: AlignmentGeometry.topCenter,
-                  end: AlignmentGeometry.bottomCenter,
-                  colors: [
-                    colors.cardBackground,
-                    colors.cardBackground.withAlpha(0),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        Column(
+          mainAxisAlignment: .end,
+          children: [
+            Expanded(child: _buildRouteView()),
+            Divider(color: colors.border, indent: 16, endIndent: 16),
+            _buildBottomItems(),
+          ],
         ),
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: AnimatedOpacity(
-            opacity: showBottomFade ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 100),
-            child: Container(
-              height: 20,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: AlignmentGeometry.bottomCenter,
-                  end: AlignmentGeometry.topCenter,
-                  colors: [
-                    colors.cardBackground,
-                    colors.cardBackground.withAlpha(0),
-                  ],
-                ),
+        //禁用遮罩，点击可返回主页
+        Positioned.fill(
+          child: IgnorePointer(
+            ignoring: !canPop,
+            child: GestureDetector(
+              onTap: () {
+                if (canPop) {
+                  widget.navigatorKey.currentState?.popUntil(
+                    (route) => route.isFirst,
+                  );
+                }
+              },
+              child: AnimatedContainer(
+                duration: animationDuration,
+                color: canPop
+                    ? colors.cardBackground.withAlpha(185)
+                    : colors.cardBackground.withAlpha(0),
               ),
             ),
           ),
@@ -278,21 +214,17 @@ class NavigationRailState extends State<NavigationRail> {
       ],
     );
 
-    if (isDesktop) {
-      child = DesktopScrollViewContainer(controller: controller, child: child);
-    }
-
     return child;
   }
 
-  Widget _buildRootRouteView() {
+  Widget _buildRouteView() {
     final sections = widget.sections;
     final currentRoute = widget.currentRootRoute;
     final onNavigate = widget.onNavigate;
 
     List<Widget> buildSection(RailSection section) {
       return [
-        _SectionHeader(label: section.label, collapse: collapse),
+        _SectionHeader(section: section, collapse: collapse),
         ...section.items.map<Widget>(
           (item) => NavigationTile(
             icon: Icon(item.icon),
@@ -310,18 +242,82 @@ class NavigationRailState extends State<NavigationRail> {
     }
 
     Widget child = Column(
-      spacing: 8,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      crossAxisAlignment: .start,
       children: [for (final section in sections) ...buildSection(section)],
+    );
+
+    child = CopperSingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(8, 0, 8, 0),
+      child: child,
     );
 
     return child;
   }
 
+  Widget _buildBottomItems() {
+    final currentRoute = widget.currentRootRoute;
+    final onNavigate = widget.onNavigate;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Column(
+        spacing: 4,
+        crossAxisAlignment: .start,
+        children: [
+          for (final item in widget.itemsAtBottom)
+            NavigationTile(
+              icon: Icon(item.icon),
+              content: item.label,
+              collapse: collapse,
+              selected: currentRoute == item.route,
+              hintPosition: .right,
+              onTap: () {
+                item.onTap?.call();
+                onNavigate(item.route, {'lead': item.label});
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollapseField() {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(8, 0, 8, 8),
+      child: Row(
+        crossAxisAlignment: .end,
+        children: [
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: Text(
+                config.version,
+                maxLines: 1,
+                overflow: .ellipsis,
+                style: theme.textTheme.labelSmall,
+              ),
+            ),
+          ),
+          NavigationCollapseButton(
+            collapse: collapse,
+            onTap: () {
+              setState(() {
+                collapse = !collapse;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final theme = Theme.of(context);
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.ease,
@@ -332,36 +328,7 @@ class NavigationRailState extends State<NavigationRail> {
           children: [
             _buildLogo(),
             Expanded(child: _buildMenuView()),
-            Padding(
-              padding: EdgeInsetsGeometry.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              child: Row(
-                crossAxisAlignment: .end,
-                children: [
-                  Expanded(
-                    child: Text(
-                      config.version,
-                      maxLines: 1,
-                      overflow: .ellipsis,
-                      style: theme.textTheme.labelSmall,
-                    ),
-                  ),
-                  ReboundButton(
-                    onTap: () => setState(() {
-                      collapse = !collapse;
-                    }),
-                    child: AnimatedRotation(
-                      turns: collapse ? 0.5 : 0.0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.ease,
-                      child: Icon(Icons.keyboard_arrow_right),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildCollapseField(),
           ],
         ),
       ),
@@ -371,31 +338,39 @@ class NavigationRailState extends State<NavigationRail> {
 
 /// 分组标题
 class _SectionHeader extends StatelessWidget {
-  final String label;
-
+  final RailSection section;
   final bool collapse;
 
-  const _SectionHeader({required this.label, required this.collapse});
+  const _SectionHeader({required this.section, required this.collapse});
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.ease,
-      padding: collapse
-          ? const EdgeInsets.fromLTRB(6, 0, 0, 2)
-          : const EdgeInsets.fromLTRB(2, 2, 0, 0),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: colors.textHint,
-          letterSpacing: 1.2,
-          overflow: TextOverflow.ellipsis,
+    if (section.label == null) {
+      return Divider(
+        height: 8,
+        color: AppColors.of(context).border,
+        indent: 8,
+        endIndent: 8,
+      );
+    } else {
+      final colors = AppColors.of(context);
+      return AnimatedPadding(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.ease,
+        padding: collapse
+            ? const EdgeInsets.fromLTRB(7, 0, 0, 4)
+            : const EdgeInsets.fromLTRB(2, 4, 0, 0),
+        child: Text(
+          section.label!,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: colors.textHint,
+            letterSpacing: 1.2,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 }

@@ -2,17 +2,23 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/ui/util/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
+import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
+import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
+import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
+import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/framework/content_panel.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/route/sub_route_register.dart';
 import 'package:copper_launcher/ui/util/widget/animated_expansion.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
-import '../../../feature/images.dart';
-import '../../../shell/navigation_rail.dart';
+import '../../feature/images.dart';
+import '../../shell/navigation_rail.dart';
 
 ////version_select
 const versionSelectPageRouteKey = '/version_select';
@@ -29,25 +35,12 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
 
   static int _index = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    // register(versionSelectPageRouteKey, [
-    //   SubRailSection(
-    //     label: '版本管理',
-    //     items: [
-    //       for (int i = 0; i < _versionFolds.length; i++)
-    //         SubRailItem(
-    //           label: _versionFolds[i].tag,
-    //           icon: Icons.folder_outlined,
-    //           onTap: () {
-    //             if (mounted) setState(() => _index = i);
-    //           },
-    //           selected: (_) => i == _index,
-    //         ),
-    //     ],
-    //   ),
-    // ]);
+  bool get collapse =>
+      config.setting.personalizationOptions.subNavigationCollapse;
+
+  set collapse(bool value) {
+    config.setting.personalizationOptions.subNavigationCollapse = value;
+    config.save();
   }
 
   void _delete(Mindustry version) {
@@ -129,6 +122,10 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
       arguments: {'lead': '版本设置', 'version': version, 'title': version.tag},
     );
   }
+
+  void _addNewFold() {}
+
+  void _addNewSort() {}
 
   Widget _buildVersionTile(Mindustry version) {
     final isSelectVersion =
@@ -290,6 +287,48 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
 
   @override
   Widget build(BuildContext context) {
-    return _buildVersionViewPage(_versionFolds[_index].versions);
+    return MainPageLayout(
+      navigationRail: PageNavigationRail(
+        collapseDuration: animationDuration * 1.5,
+        collapse: collapse,
+        width: 230,
+        items: [
+          ..._versionFolds.map((fold) {
+            final index = _versionFolds.indexOf(fold);
+            return NavigationTile(
+              icon: Icon(Icons.folder_outlined),
+              content: '${fold.tag} (${fold.versions.length})',
+              lable: fold.path,
+              selected: index == _index,
+              collapse: collapse,
+              onTap: () {
+                setState(() => _index = index);
+              },
+            );
+          }),
+        ],
+        itemsAtBottom: [
+          NavigationTile(
+            icon: Icon(Icons.create_new_folder_outlined),
+            content: '添加新目录',
+            collapse: collapse,
+            onTap: () {},
+          ),
+          NavigationTile(
+            icon: Icon(Symbols.deployed_code_update),
+            content: '导入本地游戏',
+            collapse: collapse,
+            onTap: () {},
+          ),
+          NavigationCollapseButton(
+            collapse: collapse,
+            onTap: () {
+              setState(() => collapse = !collapse);
+            },
+          ),
+        ],
+      ),
+      page: _buildVersionViewPage(_versionFolds[_index].versions),
+    );
   }
 }

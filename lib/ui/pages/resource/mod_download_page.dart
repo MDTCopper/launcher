@@ -5,7 +5,7 @@ import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/download_mod.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
-import 'package:copper_launcher/ui/util/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/framework/content_panel.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
 import 'package:copper_launcher/ui/util/widget/future/readme_loader.dart';

@@ -2,7 +2,8 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
-import 'package:copper_launcher/ui/components/hint_field.dart';
+import 'package:copper_launcher/ui/components/overlay_field/hint_field.dart';
+import 'package:copper_launcher/ui/components/overlay_field/popup_overlay.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,7 @@ class LaunchPage extends StatefulWidget {
 class _LaunchPageState extends State<LaunchPage> {
   Mindustry? _selectedVersion = config.versionOptions.selectedVersion;
 
+  final controller = PopupOverlayController();
   Widget _buildVersionTile() {
     if (_selectedVersion == null) {
       return ReboundListTile(
@@ -158,17 +160,17 @@ class _LaunchPageState extends State<LaunchPage> {
         Expanded(
           child: Align(
             alignment: .centerRight,
-            child: HintField(
-              hint: 'hint',
+            child: PopupOverlay(
+              controller: controller,
               child: ReboundButton(
                 onTap: () {
-                  final height = MediaQuery.of(context).size.height;
-                  final width = MediaQuery.of(context).size.width;
-
-                  print('height: $height, width: $width');
+                  controller.open();
                 },
                 child: SizedBox(width: 40, height: 40),
               ),
+              overlayChildBuilder: (_, _) {
+                return Container(width: 20, height: 20, color: Colors.red);
+              },
             ),
           ),
         ),
@@ -315,7 +317,7 @@ class _VersionSelectState extends State<_VersionSelect>
         },
         leading: Image.asset(Images.mindustry, fit: BoxFit.fill),
         title: Text(
-          selectedVersion!.tag ?? '该版本未命名',
+          selectedVersion!.tag,
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -323,7 +325,7 @@ class _VersionSelectState extends State<_VersionSelect>
           ),
         ),
         subtitle: Text(
-          selectedVersion!.name ?? '未知版本',
+          selectedVersion!.name,
           style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
         ),
         trailing: ReboundButton(

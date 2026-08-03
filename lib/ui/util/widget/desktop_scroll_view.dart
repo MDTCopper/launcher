@@ -7,7 +7,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 ///桌面端滚动容器，容纳可滚动组件，使之能通过鼠标滚轮顺滑滚动，必须搭配外部滚动控制器与官方提供的可滚动组件联动(适用于离散型滚轮)
+///
 ///由于必须关闭物理效果，无法拖动界面进行滚动，也无法拖动滚动条，也不能通过触摸板滚动
+///
 ///这里就自行构建了一个滚动条，做了基本的主题适配
 class DesktopScrollViewContainer extends StatefulWidget {
   const DesktopScrollViewContainer({

@@ -35,19 +35,20 @@ abstract class SwitcherBuilders {
   ]) {
     Widget function(Widget child, Animation<double> animation) {
       final isForward = animation.isForwardOrCompleted;
+      final Animation<Offset> position;
+      final Animation<double> scale;
       if (!isForward) {
-        final position = Tween<Offset>(
+        position = Tween<Offset>(
           begin: offset,
           end: Offset.zero,
         ).animate(CurvedAnimation(parent: animation, curve: Curves.ease));
-        child = SlideTransition(position: position, child: child);
+        scale = kAlwaysCompleteAnimation;
       } else {
-        final scale = CurvedAnimation(
-          parent: animation,
-          curve: Curves.ease.flipped,
-        );
-        child = ScaleTransition(scale: scale, child: child);
+        position = AlwaysStoppedAnimation(Offset.zero);
+        scale = CurvedAnimation(parent: animation, curve: Curves.ease.flipped);
       }
+      child = SlideTransition(position: position, child: child);
+      child = ScaleTransition(scale: scale, child: child);
       return FadeTransition(opacity: animation, child: child);
     }
 

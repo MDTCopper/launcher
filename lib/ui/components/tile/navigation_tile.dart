@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/hint_field.dart';
+import 'package:copper_launcher/ui/components/overlay_field/hint_field.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
@@ -142,7 +142,7 @@ class NavigationTileState extends State<NavigationTile>
     );
 
     child = HintField(
-      hint: widget.collapse ? widget.hint ?? widget.content : null,
+      hint: widget.collapse ? (widget.hint ?? widget.content) : null,
       child: child,
     );
 
