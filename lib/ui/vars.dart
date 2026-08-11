@@ -1,4 +1,5 @@
 import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/ui/pages/overview/account.dart';
 import 'package:copper_launcher/ui/pages/overview/version_select.dart';
 import 'package:copper_launcher/ui/pages/overview/version_setting.dart';
 import 'package:copper_launcher/ui/pages/mindustry/mindustry_download_page.dart';
@@ -22,6 +23,7 @@ const Map<String, Widget> routeMap = {
   '/': LaunchPage(),
   '/version_select': VersionSelectPage(),
   '/version_setting': VersionSettingPage(),
+  accountPageRouteKey: AccountPage(),
 
   //发现 - Mindustry
   '/mindustry_download': MindustryDownloadPage(),

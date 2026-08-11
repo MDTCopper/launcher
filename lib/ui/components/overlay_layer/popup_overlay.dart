@@ -195,7 +195,7 @@ class PopupOverlayController {
 ///
 /// 动画默认为淡入淡出，可通过 [animation] 注入自定义动画（能感知定位数据）；
 /// 位置策略默认为 [AnchorFlipPositionDelegate]（点锚定 + 翻转），
-/// 可通过 [positionDelegate] 替换（如 HintField 的环绕定位）。
+/// 可通过 [positionDelegate] 替换（如 HintLayer 的环绕定位）。
 class PopupOverlay extends StatefulWidget {
   /// 锚点组件：浮层相对此组件定位，[PopupOverlayController.open] 的 `position`
   /// 即相对此组件左上角的偏移。
@@ -266,25 +266,35 @@ class _PopupOverlayState extends State<PopupOverlay> {
   Rect? _anchorSnapshot;
   Size? _overlaySnapshot;
 
+  /// 布局最大尺寸跟踪（每次打开重置）。
+  final _SizeTracker _sizeTracker = _SizeTracker();
+
   PopupOverlayController get _effectiveController =>
       widget.controller ?? _internalController;
 
   void _open({Offset? position}) {
     _anchorSnapshot = null;
     _overlaySnapshot = null;
+    _sizeTracker.max = null;
     if (mounted) {
       setState(() => _position = position);
     }
     _overlayController.show();
+    // 退场中再次 open（如 hint 快速进出）：中断退场并重新播放入场
+    _animationKey.currentState?.restart();
   }
 
   Future<void> _dismiss() async {
     _anchorSnapshot = null;
     _overlaySnapshot = null;
-    await _animationKey.currentState?.playReverse();
-    _overlayController.hide();
-    _placement.value = null;
-    widget.onClose?.call();
+    final anim = _animationKey.currentState;
+    await anim?.playReverse();
+    // 退场期间被重新打开（动画已重新 forward）→ 不隐藏，保持显示
+    if (mounted && (anim == null || !anim.isReopened)) {
+      _overlayController.hide();
+      _placement.value = null;
+      widget.onClose?.call();
+    }
   }
 
   /// 每次布局回调：锚点被滚动或视图变化时自动关闭浮层，
@@ -353,6 +363,7 @@ class _PopupOverlayState extends State<PopupOverlay> {
                 anchorRect: anchorRect,
                 position: _position,
                 padding: widget.screenPadding,
+                sizeTracker: _sizeTracker,
                 onAnchorChanged: _onAnchorChanged,
                 onPlaced: (placement) {
                   // 布局阶段不能触发通知（ValueListenableBuilder 会 setState），
@@ -398,6 +409,13 @@ class _PopupOverlayState extends State<PopupOverlay> {
 
 /// 内部定位委托：适配 [PopupOverlayPositionDelegate] 到 [SingleChildLayoutDelegate]，
 /// 并在定位完成后产出 [PopupOverlayPlacement]。
+/// 布局尺寸跟踪：记录历次布局的最大 childSize。
+/// 展开动画中 childSize 渐增（如高度展开），定位始终基于最大（完整）尺寸，
+/// 避免动画过程位置漂移（展开结束偏移、收纳时偏移回去）。
+class _SizeTracker {
+  Size? max;
+}
+
 class _PopupOverlayLayout extends SingleChildLayoutDelegate {
   final PopupOverlayPositionDelegate delegate;
   final Rect anchorRect;
@@ -408,12 +426,16 @@ class _PopupOverlayLayout extends SingleChildLayoutDelegate {
   /// 每次布局时回调当前锚点矩形与 overlay 尺寸，用于检测锚点移动。
   final void Function(Rect anchorRect, Size overlaySize)? onAnchorChanged;
 
+  /// 跨布局共享的最大尺寸跟踪（动画尺寸渐增时定位稳定）。
+  final _SizeTracker sizeTracker;
+
   const _PopupOverlayLayout({
     required this.delegate,
     required this.anchorRect,
     required this.position,
     required this.padding,
     required this.onPlaced,
+    required this.sizeTracker,
     this.onAnchorChanged,
   });
 
@@ -432,11 +454,19 @@ class _PopupOverlayLayout extends SingleChildLayoutDelegate {
   @override
   Offset getPositionForChild(Size size, Size childSize) {
     onAnchorChanged?.call(anchorRect, size);
+    // 定位基于最大（完整）尺寸：动画中 childSize 渐增，位置不随动画漂移
+    final prev = sizeTracker.max;
+    if (prev == null ||
+        childSize.height > prev.height ||
+        childSize.width > prev.width) {
+      sizeTracker.max = childSize;
+    }
+    final effective = sizeTracker.max ?? childSize;
     final offset = delegate.getPosition(
       anchorRect: anchorRect,
       position: position,
       overlaySize: size,
-      childSize: childSize,
+      childSize: effective,
       padding: padding,
     );
     onPlaced(
@@ -489,7 +519,7 @@ class _PopupOverlayAnimationState extends State<_PopupOverlayAnimation>
   void initState() {
     super.initState();
     // 入场动画等 placement（布局后的定位数据）就绪后再播放：
-    // - 确保动画接口能拿到正确的锚点信息（如 HintField 的实际方位）
+    // - 确保动画接口能拿到正确的锚点信息（如 HintLayer 的实际方位）
     // - 延迟到 post-frame，避免在 build / 布局期间启动动画
     widget.placement.addListener(_onPlacementReady);
   }
@@ -518,6 +548,19 @@ class _PopupOverlayAnimationState extends State<_PopupOverlayAnimation>
       await _controller.reverse();
     }
   }
+
+  /// 退场 / 入场中重新打开：反转入场——从当前退场位置倒回显示，
+  /// 动画连贯（不从头重放）。placement 未就绪（首次打开）时由
+  /// [_onPlacementReady] 处理。
+  void restart() {
+    if (widget.placement.value == null) return;
+    if (!_controller.isDismissed) {
+      _controller.forward();
+    }
+  }
+
+  /// 退场完成后是否已被重新打开（用于 [_PopupOverlayState._dismiss] 的 hide 保护）。
+  bool get isReopened => _controller.isAnimating;
 
   @override
   Widget build(BuildContext context) {

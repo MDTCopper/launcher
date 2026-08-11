@@ -154,7 +154,7 @@ class NavigationRailState extends State<NavigationRail> {
       child: Row(
         crossAxisAlignment: .start,
         children: [
-          Icon(Icons.arrow_back, color: colors.textSecondary),
+          Icon(Icons.arrow_back, color: colors.itemSecondary),
           Expanded(
             child: AnimatedOpacity(
               duration: animationDuration,
@@ -365,7 +365,7 @@ class _SectionHeader extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: colors.textHint,
+            color: colors.itemHint,
             letterSpacing: 1.2,
             overflow: TextOverflow.ellipsis,
           ),

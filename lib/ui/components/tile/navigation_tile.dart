@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/overlay_field/hint_field.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
@@ -93,7 +93,7 @@ class NavigationTileState extends State<NavigationTile>
       end: color.interactive.withAlpha(45),
     ).animate(controller);
     final itemColorT = ColorTween(
-      begin: color.textPrimary,
+      begin: color.itemPrimary,
       end: color.interactive,
     ).animate(controller);
 
@@ -104,6 +104,8 @@ class NavigationTileState extends State<NavigationTile>
         final backgroundColor = backgroundColorT.value;
         return ReboundButton(
           pressedScale: 0.9,
+          elevation: 0.0,
+          hoverElevation: 0.0,
           padding: EdgeInsets.all(8),
           borderRadius: BorderRadius.circular(8),
           backgroundColor: backgroundColor,
@@ -141,7 +143,7 @@ class NavigationTileState extends State<NavigationTile>
       ),
     );
 
-    child = HintField(
+    child = HintLayer(
       hint: widget.collapse ? (widget.hint ?? widget.content) : null,
       child: child,
     );

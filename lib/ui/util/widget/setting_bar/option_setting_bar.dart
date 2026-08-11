@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:copper_launcher/ui/components/overlay_field/dropdown_field.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 
 class OptionSettingBar<T> extends StatelessWidget {
   final String title;
@@ -33,7 +33,7 @@ class OptionSettingBar<T> extends StatelessWidget {
       children: [
         SizedBox(width: titleWide, child: Text(title)),
         Expanded(
-          child: DropdownField<T>(
+          child: DropdownLayer<T>(
             hintText: hintText??'默认',
             width: buttonWide,
             initialValue: initialValue,

@@ -80,6 +80,9 @@ MindustrySettingsPatch _$MindustrySettingsPatchFromJson(
   ..musicVol = (json['musicVol'] as num?)?.toInt()
   ..sfxVol = (json['sfxVol'] as num?)?.toInt()
   ..ambientVol = (json['ambientVol'] as num?)?.toInt()
+  ..name = json['name'] as String?
+  ..uuid = json['uuid'] as String?
+  ..color0 = (json['color0'] as num?)?.toInt()
   ..locale = json['locale'] as String?
   ..blockSync = json['blockSync'] as bool?
   ..lastBuild = (json['lastBuild'] as num?)?.toInt()
@@ -157,6 +160,9 @@ Map<String, dynamic> _$MindustrySettingsPatchToJson(
   'musicVol': instance.musicVol,
   'sfxVol': instance.sfxVol,
   'ambientVol': instance.ambientVol,
+  'name': instance.name,
+  'uuid': instance.uuid,
+  'color0': instance.color0,
   'locale': instance.locale,
   'blockSync': instance.blockSync,
   'lastBuild': instance.lastBuild,

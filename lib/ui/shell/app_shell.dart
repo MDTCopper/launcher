@@ -10,7 +10,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../components/colorful_background.dart';
 import '../theme/app_colors.dart';
-import '../components/overlay_field/drag_file_field.dart';
+import '../components/overlay_layer/drag_file_field.dart';
 import '../util/framework/info_drawer.dart';
 import '../util/info/task_drawer_opener.dart';
 import '../util/widget/feature_button.dart';
@@ -224,8 +224,8 @@ class AppShellState extends State<AppShell> {
 
     Widget shell = Scaffold(
       endDrawer: Drawer(
-        backgroundColor: colors.interactive,
-        width: MediaQuery.of(context).size.width * 0.50,
+        backgroundColor: colors.cardBackground.withAlpha(185),
+        width: MediaQuery.of(context).size.width * 0.45,
         elevation: 2,
         shadowColor: Colors.black,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

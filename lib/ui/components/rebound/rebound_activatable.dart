@@ -7,6 +7,7 @@ class ReboundActivatableContainer extends StatefulWidget {
   final bool value;
   final Color? backgroundColor;
   final Color? backgroundActiveColor;
+
   final Widget? child;
   final Widget? surfaceChild;
   final VoidCallback onTap;
@@ -76,7 +77,6 @@ class ReboundActivatableContainerState
       animation: controller,
       builder: (_, _) {
         return ReboundContainer(
-          child: widget.child,
           surfaceChild: widget.surfaceChild,
           backgroundColor: bT.value,
           hoverElevation: widget.hoverElevation,
@@ -88,6 +88,7 @@ class ReboundActivatableContainerState
           pressedScale: widget.pressedScale,
           onTap: widget.onTap,
           onLongTap: widget.onLongTap,
+          child: widget.child,
         );
       },
     );

@@ -24,7 +24,7 @@ class PageNavigationRail extends StatelessWidget {
     super.key,
     required this.collapse,
     required this.width,
-    this.collapseWidth = 57,
+    this.collapseWidth = 56,
     required this.items,
     this.itemsAtBottom = const [],
     this.collapseDuration,
@@ -68,9 +68,7 @@ class PageNavigationRail extends StatelessWidget {
       duration: animationDuration,
       curve: Curves.ease,
       width: collapse ? collapseWidth : width,
-      decoration: BoxDecoration(
-        border: Border(left: BorderSide(color: colors.border)),
-      ),
+
       child: child,
     );
   }

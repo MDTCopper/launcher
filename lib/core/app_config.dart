@@ -129,6 +129,39 @@ class AppConfig {
   }
 }
 
+/// 启动器管理的游戏账户，对应 Mindustry settings 中的玩家身份信息。
+///
+/// 启动游戏时，选中的账户会覆盖 settings 的 `name` / `uuid` / `color-0`。
+@JsonSerializable()
+class Account {
+  /// 账户唯一标识（启动器本地生成，用于选中与区分账户）。
+  @JsonKey(defaultValue: '')
+  final String id;
+
+  /// 游戏内玩家名（对应 settings `name`）。
+  @JsonKey(defaultValue: '')
+  String name;
+
+  /// 玩家身份 UUID（对应 settings `uuid`）。
+  @JsonKey(defaultValue: '')
+  String uuid;
+
+  /// 玩家名字颜色（对应 settings `color-0`，arc `rgba8888` 编码 0xRRGGBBAA）。
+  @JsonKey(defaultValue: 0)
+  int color;
+
+  Account({
+    required this.id,
+    required this.name,
+    required this.uuid,
+    this.color = 0,
+  });
+
+  factory Account.fromJson(Map<String, dynamic> json) => _$AccountFromJson(json);
+
+  Map<String, dynamic> toJson() => _$AccountToJson(this);
+}
+
 @JsonSerializable()
 class Setting {
   late final LaunchOptions launchOptions;
@@ -144,6 +177,13 @@ class Setting {
   @JsonKey(defaultValue: {})
   final Map<String, dynamic> customSetting; //这个用来存储一些不太用得着置变量，比如某些提示的开关记忆
 
+  ///已保存的游戏账户列表。
+  late final List<Account> accounts;
+
+  ///当前选中的账户 id，对应 [currentAccount]。
+  @JsonKey(defaultValue: '')
+  String currentAccountId;
+
   late final PersonalizationOptions personalizationOptions;
 
   late final DownloadOptions downloadOptions;
@@ -156,12 +196,28 @@ class Setting {
     MindustrySettingsPatch? mindustrySettings,
     PersonalizationOptions? personalizationOptions,
     DownloadOptions? downloadOptions,
+    List<Account>? accounts,
+    this.currentAccountId = '',
   }) {
     this.launchOptions = launchOptions ?? LaunchOptions.fromJson({});
     this.mindustrySettings = mindustrySettings ?? MindustrySettingsPatch();
     this.personalizationOptions =
         personalizationOptions ?? PersonalizationOptions.fromJson({});
     this.downloadOptions = downloadOptions ?? DownloadOptions.fromJson({});
+    this.accounts = accounts ?? [];
+  }
+
+  ///当前选中的账户；未选择或账户不存在时返回 null。
+  Account? get currentAccount {
+    for (final account in accounts) {
+      if (account.id == currentAccountId) return account;
+    }
+    return null;
+  }
+
+  ///选中 [account] 为当前账户。
+  void selectAccount(Account account) {
+    currentAccountId = account.id;
   }
 
   dynamic getCustomSetting(String key, dynamic defaultSetting) {

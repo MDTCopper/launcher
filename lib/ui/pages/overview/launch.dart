@@ -1,9 +1,10 @@
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
-import 'package:copper_launcher/ui/components/overlay_field/hint_field.dart';
-import 'package:copper_launcher/ui/components/overlay_field/popup_overlay.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
 import 'package:flutter/material.dart';
@@ -160,17 +161,17 @@ class _LaunchPageState extends State<LaunchPage> {
         Expanded(
           child: Align(
             alignment: .centerRight,
-            child: PopupOverlay(
-              controller: controller,
-              child: ReboundButton(
-                onTap: () {
-                  controller.open();
-                },
-                child: SizedBox(width: 40, height: 40),
-              ),
-              overlayChildBuilder: (_, _) {
-                return Container(width: 20, height: 20, color: Colors.red);
+            child: ReboundButton(
+              onTap: () {
+                final setting = MindustrySettings.fromFile(
+                  _selectedVersion!.settingPath,
+                );
+                final modEnables = setting.data.entries.where(
+                  (map) => map.key.contains('mod-'),
+                );
+                print(Map.fromEntries(modEnables));
               },
+              child: SizedBox(width: 40, height: 40),
             ),
           ),
         ),

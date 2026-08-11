@@ -99,51 +99,42 @@ class _AppearListView extends State<AppearListView>
     final color = AppColors.of(context);
     final isDesktop = !Platform.isAndroid;
 
-    List<Widget> items = [];
-
-    double delay = widget.delay / _duration;
-    double interval =
+    final delay = widget.delay / _duration;
+    final interval =
         widget.interval * widget.appearDuration!.inMilliseconds / _duration;
-    double duration = widget.appearDuration!.inMilliseconds / _duration;
+    final duration = widget.appearDuration!.inMilliseconds / _duration;
 
-    for (int i = 0; i < widget.items.length; i++) {
-      Widget? item = widget.items[i];
-      if (item == null) continue;
-      double begin = delay + interval * i;
-      double end = begin + duration;
-
-      final position = Tween<Offset>(begin: widget.offset, end: Offset.zero)
-          .animate(
-            CurvedAnimation(
-              parent: controller,
-              curve: Interval(begin, end, curve: FeatureCurves.reboundIn),
-            ),
-          );
-
-      final opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(
-          parent: controller,
-          curve: Interval(begin, end, curve: FeatureCurves.reboundIn),
-        ),
-      );
-
-      Widget animationItem = FadeTransition(
-        opacity: opacity,
-        child: SlideTransition(position: position, child: item),
-      );
-
-      items.add(animationItem);
-    }
-
-    Widget child = SingleChildScrollView(
-      physics: widget.physics,
+    // 惰性列表：首屏只构建可见 item，滚动到才构建其余。
+    // 错位入场动画由 controller 驱动（每个 item 按 index 错开 Interval）：
+    // - 初始构建的 item：controller 正在播放 → 各自错位入场
+    // - 滚动后才构建的 item：controller 已播放完成（value=1）→
+    //   Interval 对已完成动画取 1 → 直接显示，不播入场动画
+    Widget child = ListView.builder(
       controller: scrollController,
+      physics: widget.physics,
       padding: widget.padding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: widget.itemSpacing,
-        children: items,
-      ),
+      itemCount: widget.items.length,
+      itemBuilder: (context, index) {
+        final item = widget.items[index];
+        final content = item ?? const SizedBox.shrink();
+
+        final begin = delay + interval * index;
+        final end = begin + duration;
+        final curve = Interval(begin, end, curve: FeatureCurves.reboundIn);
+
+        final position = Tween<Offset>(begin: widget.offset, end: Offset.zero)
+            .animate(CurvedAnimation(parent: controller, curve: curve));
+        final opacity = Tween<double>(begin: 0.0, end: 1.0)
+            .animate(CurvedAnimation(parent: controller, curve: curve));
+
+        return Padding(
+          padding: EdgeInsets.only(bottom: widget.itemSpacing),
+          child: FadeTransition(
+            opacity: opacity,
+            child: SlideTransition(position: position, child: content),
+          ),
+        );
+      },
     );
 
     if (isDesktop) {

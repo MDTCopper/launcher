@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:path/path.dart' as p;
 
 import '../core/app_config.dart';
 
@@ -9,6 +10,15 @@ class MindustryLauncher {
   Process? _jarProcess;
   StreamController<String>? _logController;
   Stream<String>? get logStream => _logController?.stream;
+
+  /// 当前启动的游戏数据目录（用于定位 launchid.dat）。
+  String? _dataPath;
+
+  /// 是否为启动器主动停止游戏。
+  ///
+  /// 主动停止且游戏未完全启动时，需清理残留的 launchid.dat 哨兵文件，
+  /// 避免下次启动被 Mindustry 误判为「mod 加载崩溃」而全部禁用 mod。
+  bool _stoppedByLauncher = false;
 
   // 校验 Java 环境是否可用
   Future<bool> _checkJavaEnv({String? javaExecutable}) async {
@@ -100,6 +110,9 @@ class MindustryLauncher {
         workingDirectory: jarFile.parent.path,
       );
 
+      // 记录游戏数据目录，用于退出时清理 launchid.dat
+      _dataPath = mindustry.dataPath;
+
       print('进程 ID：${_jarProcess?.pid}，命令：java ${args.join(' ')}');
 
       // 监听进程日志（stdout + stderr）
@@ -110,6 +123,12 @@ class MindustryLauncher {
         _logController?.add('exit $code');
         _logController?.close();
         _jarProcess = null;
+        // 启动器主动停止且游戏未完全启动（launchid.dat 残留）时删除哨兵，
+        // 避免下次启动被误判为 mod 加载崩溃
+        if (_stoppedByLauncher) {
+          _stoppedByLauncher = false;
+          _removeLaunchSentinelIfAny();
+        }
       });
       return true;
     } catch (e) {
@@ -118,7 +137,6 @@ class MindustryLauncher {
     }
   }
 
-  // 3. 监听 Jar 进程输出日志
   void _listenToJarLogs() {
     if (_jarProcess == null || _logController == null) return;
 
@@ -139,13 +157,13 @@ class MindustryLauncher {
     });
   }
 
-  // 4. 关闭 Jar 进程（可选）
   Future<bool> stopMindustryJar() async {
     if (_jarProcess == null) return true;
 
     try {
-      _jarProcess!.kill(ProcessSignal.sigterm); // 发送终止信号
-      await _jarProcess!.exitCode; // 等待进程退出
+      _stoppedByLauncher = true; // 主动停止：退出后清理残留哨兵
+      _jarProcess!.kill(ProcessSignal.sigterm);
+      await _jarProcess!.exitCode;
       print('Mindustry Jar 进程已关闭');
       _logController?.close();
       _jarProcess = null;
@@ -175,7 +193,7 @@ class MindustryLauncher {
       }
     }
 
-    ///Mindustry在桌面端测试移动端界面参数
+    //Mindustry在桌面端测试移动端界面参数
     // args.add('-testMobile');
     return args;
   }
@@ -183,6 +201,29 @@ class MindustryLauncher {
   void dispose() {
     _logController?.close();
     _logController = null;
-    _jarProcess?.kill();
+    if (_jarProcess != null) {
+      _stoppedByLauncher = true; // 应用关闭强制终止：退出后清理残留哨兵
+      _jarProcess?.kill();
+    }
+  }
+
+  /// 删除残留的 Mindustry 启动哨兵文件 launchid.dat
+  ///
+  /// 该文件由游戏在启动完成（`finishLaunch`）时自行删除；若启动器在游戏
+  /// 完全启动前终止了进程，文件会残留，导致下次启动被 Mindustry 误判为
+  /// 「mod 加载崩溃」而全部禁用 mod
+  /// 游戏自身崩溃退出时不清理，保留原生的崩溃保护机制
+  Future<void> _removeLaunchSentinelIfAny() async {
+    final dataPath = _dataPath;
+    if (dataPath == null) return;
+    final sentinel = File(p.join(dataPath, 'launchid.dat'));
+    try {
+      if (await sentinel.exists()) {
+        await sentinel.delete();
+        print('已删除残留的 launchid.dat（游戏未完全启动即被停止）');
+      }
+    } catch (e) {
+      print('删除 launchid.dat 失败：$e');
+    }
   }
 }

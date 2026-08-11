@@ -72,9 +72,32 @@ abstract class Palette {
   /// 弹窗遮罩
   static const Color barrier = Color(0x80000000);
 
-  /// 铜色悬浮叠加（搭配 copper500 使用）
+  /// 铜色悬浮叠加
   static const Color copperHoverOverlay = Color(0x1EC89958);
 
-  /// 白色悬浮叠加（暗色模式下给卡片加微光）
-  static const Color whiteHoverOverlay = Color(0x0AFFFFFF);
+  /// 白色悬浮叠加（带一点主题铜色，暗色模式下悬浮更协调）
+  static const Color whiteHoverOverlay = Color.fromARGB(18, 194, 166, 134);
+
+  // ═══════════════════════════════════════════════════════════
+  // 滚动条
+  // ═══════════════════════════════════════════════════════════
+
+  /// 亮色槽（neutral300 15%，比滑块更淡，拉开区分度）
+  static const Color scrollbarTrackLight = Color(0x26D0D0D0);
+
+  /// 亮色槽 hover（neutral300 25%）
+  static const Color scrollbarTrackLightHover = Color(0x40D0D0D0);
+
+  /// 暗色槽（白 8%，比滑块暗，拉开区分度）
+  static const Color scrollbarTrackDark = Color(0x14FFFFFF);
+
+  /// 暗色槽 hover（白 15%）
+  static const Color scrollbarTrackDarkHover = Color(0x26FFFFFF);
+
+  // ═══════════════════════════════════════════════════════════
+  // 输入框
+  // ═══════════════════════════════════════════════════════════
+
+  /// 输入框聚焦背景（铜色 8%，略透明主题色）
+  static const Color inputFocusBackground = Color(0x14C8A06E);
 }

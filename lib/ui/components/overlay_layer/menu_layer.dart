@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
@@ -7,7 +9,7 @@ import 'popup_overlay.dart';
 ///
 /// 基于 [PopupOverlay] 实现，默认使用"缩放 + 淡入淡出"动画，
 /// 缩放锚点贴近鼠标 / 锚点位置（根据浮层实际方位自动适配）。
-class MenuField extends StatefulWidget {
+class MenuLayer extends StatefulWidget {
   /// 锚点目标组件：在其上右键 / 长按触发菜单。
   final Widget child;
 
@@ -45,7 +47,7 @@ class MenuField extends StatefulWidget {
   /// 入场 / 退场动画时长。
   final Duration animationDuration;
 
-  const MenuField({
+  const MenuLayer({
     super.key,
     required this.child,
     required this.menuBuilder,
@@ -61,10 +63,10 @@ class MenuField extends StatefulWidget {
   });
 
   @override
-  State<MenuField> createState() => _MenuFieldState();
+  State<MenuLayer> createState() => _MenuLayerState();
 }
 
-class _MenuFieldState extends State<MenuField> {
+class _MenuLayerState extends State<MenuLayer> {
   late final PopupOverlayController _controller =
       widget.controller ?? PopupOverlayController();
 
@@ -73,7 +75,7 @@ class _MenuFieldState extends State<MenuField> {
     return PopupOverlay(
       controller: _controller,
       animation: widget.animation ?? _menuScaleFadeAnimation,
-      positionDelegate: widget.positionDelegate,
+      positionDelegate: widget.positionDelegate ?? const _MenuPositionDelegate(),
       animationDuration: widget.animationDuration,
       screenPadding: widget.screenPadding,
       dismissOnTapOutside: widget.dismissOnTapOutside,
@@ -139,4 +141,73 @@ class _MenuPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 菜单位置策略：按锚点优先级从鼠标位置生长。
+///
+/// 1. 左上（向右下生长，菜单在鼠标右下）
+/// 2. 右上（向左下生长，菜单在鼠标左下）
+/// 3. 左下（向右上生长，菜单在鼠标右上）
+/// 4. 右下（向左上生长，菜单在鼠标左上）
+/// 5/6. 菜单太大（宽或高超屏幕，单侧都放不下）：
+///      垂直中点对齐鼠标，水平优先左中（向右），放不下则右中（向左）
+class _MenuPositionDelegate extends PopupOverlayPositionDelegate {
+  const _MenuPositionDelegate();
+
+  @override
+  Offset getPosition({
+    required Rect anchorRect,
+    required Offset? position,
+    required Size overlaySize,
+    required Size childSize,
+    required EdgeInsets padding,
+  }) {
+    final anchorOrigin = anchorRect.topLeft;
+    // 鼠标在 overlay 中的位置（锚点内偏移，否则锚点右下）
+    final mouse = Offset(
+      (position?.dx ?? anchorRect.width) + anchorOrigin.dx,
+      (position?.dy ?? anchorRect.height) + anchorOrigin.dy,
+    );
+    final w = childSize.width;
+    final h = childSize.height;
+    final right = overlaySize.width - padding.right;
+    final bottom = overlaySize.height - padding.bottom;
+
+    // 1. 左上：向右下生长（显示在鼠标右下）
+    if (mouse.dx + w <= right && mouse.dy + h <= bottom) {
+      return Offset(mouse.dx, mouse.dy);
+    }
+    // 2. 右上：向左下生长（显示在鼠标左下）
+    if (mouse.dx - w >= padding.left && mouse.dy + h <= bottom) {
+      return Offset(mouse.dx - w, mouse.dy);
+    }
+    // 3. 左下：向右上生长（显示在鼠标右上）
+    if (mouse.dx + w <= right && mouse.dy - h >= padding.top) {
+      return Offset(mouse.dx, mouse.dy - h);
+    }
+    // 4. 右下：向左上生长（显示在鼠标左上）
+    if (mouse.dx - w >= padding.left && mouse.dy - h >= padding.top) {
+      return Offset(mouse.dx - w, mouse.dy - h);
+    }
+    // 5/6. 菜单太大（宽或高超屏幕，单侧都放不下）：沉底显示，
+    //      水平优先左中（菜单左边缘 = 鼠标，向右展开），
+    //      右侧放不下则右中（菜单右边缘 = 鼠标，向左展开）
+    var left = mouse.dx;
+    if (left + w > right && mouse.dx - w >= padding.left) {
+      left = mouse.dx - w;
+    }
+    final top = bottom - h; // 沉底：菜单底边对齐屏幕底
+    left = left
+        .clamp(padding.left, math.max(padding.left, right - w))
+        .toDouble();
+    final clampedTop = top
+        .clamp(padding.top, math.max(padding.top, bottom - h))
+        .toDouble();
+
+    return Offset(left, clampedTop);
+  }
+
+  @override
+  bool shouldReposition(PopupOverlayPositionDelegate oldDelegate) =>
+      oldDelegate is! _MenuPositionDelegate;
 }

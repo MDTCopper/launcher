@@ -129,6 +129,7 @@ class SaveData {
 //
 // }
 
+///Mindustry文件元数据
 @JsonSerializable()
 class MindustryMeta {
   MindustryMeta({
@@ -153,7 +154,42 @@ class MindustryMeta {
   Map<String, dynamic> toJson() => _$MindustryMetaToJson(this);
 }
 
-//todo 后续应该
+/// Mod 状态标记，对齐 Mindustry `Mods.ModState`。
+///
+/// settings.bin 只持久化「是否启用」（`mod-<name>-enabled`），
+/// 其余状态（依赖缺失、内容错误等）是游戏加载时的运行时状态。
+enum ModState {
+  /// 启用。
+  enabled('启用'),
+
+  /// 内容加载有错误，但仍可运行（算作启用）
+  contentErrors('内容错误'),
+
+  /// 缺少必需依赖
+  missingDependencies('缺少依赖'),
+
+  /// 依赖不完整（被禁用的依赖不能满足必需依赖）
+  incompleteDependencies('依赖不完整'),
+
+  /// 依赖关系存在循环
+  circularDependencies('循环依赖'),
+
+  /// 不受支持（游戏版本过低等）
+  unsupported('不受支持'),
+
+  /// 已禁用。
+  disabled('已禁用');
+
+  /// 显示名。
+  final String label;
+
+  const ModState(this.label);
+
+  /// 是否视为启用（Mindustry：`enabled` 与 `contentErrors` 都算启用）。
+  bool get isEnabled =>
+      this == ModState.enabled || this == ModState.contentErrors;
+}
+
 @JsonSerializable()
 class Mod {
   Mod({
@@ -196,6 +232,25 @@ class Mod {
 
   @JsonKey(defaultValue: [])
   final List<dynamic> dependencies;
+
+  /// mod 状态标记。
+  ///
+  /// 非持久化运行时字段，由 [applyModStates] 设置；默认 [ModState.enabled]。
+  /// 缺失依赖、循环依赖等运行时状态可在依赖解析后直接赋值。
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  ModState state = ModState.enabled;
+
+  /// 内部名，与 Mindustry settings 键 `mod-<internalName>-enabled` 一致
+  /// （`meta.name` 小写化、空格转 `-`）。
+  String get internalName => name.trim().toLowerCase().replaceAll(' ', '-');
+
+  /// 通过 mod 状态列表（settings 的 `mod-<name>-enabled`）设置状态；
+  /// 列表中缺失该 mod 时视为启用。
+  void applyModStates(Map<String, bool> states) {
+    state = (states[internalName] ?? true)
+        ? ModState.enabled
+        : ModState.disabled;
+  }
 
   factory Mod.fromJson(Map<String, dynamic> json, {Uint8List? icon}) {
     json['minGameVersion'] = json['minGameVersion'].toString();

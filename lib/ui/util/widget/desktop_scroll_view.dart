@@ -17,13 +17,30 @@ class DesktopScrollViewContainer extends StatefulWidget {
     required this.controller,
     required this.child,
 
-    this.scrollDirection = Axis.vertical, //默认垂直方向 todo 横向适配
+    this.scrollDirection = Axis.vertical,
     this.sensitivity = 1.5,
+    this.trackpadSensitivity = 0.33,
+    this.scrollbarAlignment,
+    this.maxVelocity = 2000,
   });
 
   final Widget child;
-  final double sensitivity; //滚动灵敏度
+
+  /// 离散滚轮灵敏度（鼠标滚轮）。
+  final double sensitivity;
+
+  /// 触控板灵敏度（连续手势，独立于滚轮）。
+  final double trackpadSensitivity;
+
   final Axis scrollDirection;
+
+  /// 滚动条位置（默认：垂直滚动条在右侧，水平滚动条在底部）。
+  final AlignmentGeometry? scrollbarAlignment;
+
+  /// 触控板惯性速度上限（px/s），<= 0 表示不限速。
+  /// 速度经 tanh 非线性映射：低速≈真实，高速渐近逼近该值。
+  final double maxVelocity;
+
   final ScrollController controller;
 
   @override
@@ -31,7 +48,7 @@ class DesktopScrollViewContainer extends StatefulWidget {
 }
 
 class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
-    with SingleTickerProviderStateMixin, StatefulMixin {
+    with TickerProviderStateMixin, StatefulMixin {
   static const _kMinThumbHeight = 20.0;
   static const _kFadeDuration = Duration(milliseconds: 300);
   static const _kAutoHideDelay = Duration(seconds: 1);
@@ -42,6 +59,9 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
 
   late final ScrollController _controller = widget.controller;
   late final AnimationController _fadeController;
+
+  /// 触控板惯性模拟控制器（离手速度 → 减速滑行）
+  late final AnimationController _inertiaController;
 
   // 仅用于保持鼠标相对滑块位置
   double _dragStartOffset = 0.0;
@@ -57,6 +77,30 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     return widget.sensitivity;
   }
 
+  bool get _isVertical => widget.scrollDirection == Axis.vertical;
+
+  // ── 滚动条 hover 时的有效灵敏度（窄区域需要更灵敏）──
+
+  bool get _isScrollbarHovered => isHovered;
+
+  /// 滚轮有效灵敏度：滚动条 hover 时 ×2
+  double get _effectiveScrollSensitivity =>
+      _sensitivity * (_isScrollbarHovered ? 2 : 1);
+
+  /// 触控板有效灵敏度：滚动条 hover 时 ×2
+  double get _effectiveTrackpadSensitivity =>
+      widget.trackpadSensitivity * (_isScrollbarHovered ? 2 : 1);
+
+  /// 惯性速度有效上限：滚动条 hover 时 ×2
+  double get _effectiveMaxVelocity =>
+      widget.maxVelocity * (_isScrollbarHovered ? 2 : 1);
+
+  // 主轴滚动增量（垂直取 dy，水平取 dx）
+  double _axisDelta(Offset delta) => _isVertical ? delta.dy : delta.dx;
+
+  // 主轴本地坐标（垂直取 dy，水平取 dx）
+  double _axisLocal(Offset local) => _isVertical ? local.dy : local.dx;
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +108,22 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
       vsync: this,
       duration: _kFadeDuration,
     );
+
+    // 惯性控制器 value 跟随 Simulation 的真实滚动位置（offset 可能远超 0~1），
+    // 必须放开 value 边界，否则被 clamp 到 [0,1] 导致滚动条瞬间回顶
+    _inertiaController =
+        AnimationController(
+            vsync: this,
+            lowerBound: double.negativeInfinity,
+            upperBound: double.infinity,
+          )
+          ..addListener(_onInertia)
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed ||
+                status == AnimationStatus.dismissed) {
+              _targetOffset = _controller.offset;
+            }
+          });
 
     statesController.addListener(_stateUpdate);
 
@@ -110,7 +170,18 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   }
 
   //只要滚动就会更新UI
-  void _onScroll() => setState(_handleOutScroll);
+  void _onScroll() {
+    // 越界检测：offset 超过当前最大偏移时自动回弹（惰性列表 maxScrollExtent
+    // 变化、外部 jumpTo 超限等场景兜底）
+    if (_controller.hasClients) {
+      final position = _controller.position;
+      if (position.pixels > position.maxScrollExtent) {
+        _controller.jumpTo(position.maxScrollExtent);
+        return;
+      }
+    }
+    setState(_handleOutScroll);
+  }
 
   void _showScrollBar() {
     if (!_fadeController.isForwardOrCompleted) {
@@ -143,13 +214,14 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   bool _isInnerScroll = false;
   Timer? _innerScrollTimer;
   void _handleScroll(PointerScrollEvent event) {
+    _stopInertia();
     _isInnerScroll = true;
     _innerScrollTimer?.cancel();
     _innerScrollTimer = Timer(const Duration(milliseconds: 300), () {
       _isInnerScroll = false;
     });
 
-    final delta = event.scrollDelta.dy * _sensitivity;
+    final delta = _axisDelta(event.scrollDelta) * _effectiveScrollSensitivity;
     final minExtent = _controller.position.minScrollExtent;
     final maxExtent = _controller.position.maxScrollExtent;
 
@@ -171,13 +243,127 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     );
   }
 
+  // ── 触控板连续滚动（PanZoom 手势）──
+
+  /// 手势起点的滚动位置（触控板从起点跟随手指，jumpTo 即时跟随）
+  double _panZoomOffset = 0.0;
+
+  /// 最近几次触控板滚动的 (缩放后 delta, 时间秒) 样本，用于估算离手速度
+  final List<(double, double)> _recentPan = [];
+
+  void _handlePanZoomStart(PointerPanZoomStartEvent event) {
+    _stopInertia();
+    _isInnerScroll = true;
+    _recentPan.clear();
+    _panZoomOffset = _controller.offset;
+  }
+
+  void _handlePanZoomUpdate(PointerPanZoomUpdateEvent event) {
+    _isInnerScroll = true;
+    _innerScrollTimer?.cancel();
+    _innerScrollTimer = Timer(const Duration(milliseconds: 300), () {
+      _isInnerScroll = false;
+    });
+
+    // 触控板：沿主轴移动（垂直：手指下滑 → offset 减小；水平：手指右滑 → offset 减小）
+    // 独立于滚轮的 trackpadSensitivity；滚动条 hover 时翻倍
+    final delta = _axisDelta(event.panDelta) * _effectiveTrackpadSensitivity;
+    final minExtent = _controller.position.minScrollExtent;
+    final maxExtent = _controller.position.maxScrollExtent;
+
+    _panZoomOffset = (_panZoomOffset - delta).clamp(minExtent, maxExtent);
+    // 连续手势走 jumpTo，即时跟随无动画延迟
+    _controller.jumpTo(_panZoomOffset);
+
+    // 记录速度样本（缩放后的 delta + 时间秒）
+    _recentPan.add((delta, event.timeStamp.inMicroseconds / 1e6));
+    if (_recentPan.length > 5) _recentPan.removeAt(0);
+
+    if (!isScrolledUnder) {
+      setState(() {
+        _showScrollBar();
+        _resetHideTimer();
+      });
+    }
+  }
+
+  void _handlePanZoomEnd(PointerPanZoomEndEvent event) {
+    _isInnerScroll = false;
+    _targetOffset = _controller.offset;
+
+    // 用最近样本估算离手速度（缩放后 delta 总合 / 时间跨度）
+    double velocity = 0;
+    if (_recentPan.length >= 2) {
+      final first = _recentPan.first;
+      final last = _recentPan.last;
+      final dt = last.$2 - first.$2;
+      if (dt > 0) {
+        double total = 0;
+        for (final sample in _recentPan) {
+          total += sample.$1;
+        }
+        velocity = total / dt;
+      }
+    }
+    _recentPan.clear();
+
+    // 离手惯性：用结束速度模拟减速滑行
+    _startInertia(velocity);
+  }
+
+  /// 停止惯性模拟（新输入介入时调用）。
+  void _stopInertia() {
+    if (_inertiaController.isAnimating) _inertiaController.stop();
+  }
+
+  /// 惯性模拟：离手速度 → ClampingScrollSimulation 减速（到边界拖停）。
+  void _startInertia(double velocityPxPerSecond) {
+    if (!_controller.hasClients) return;
+    final position = _controller.position;
+    final min = position.minScrollExtent;
+    final max = position.maxScrollExtent;
+    if (max <= min) return;
+
+    // 速度映射：低速≈真实、高速渐近上限（tanh），避免超速惯性
+    final mapped = _mapVelocity(velocityPxPerSecond);
+    // 触控板方向：panY 正（手指下滑）→ offset 减小，故取负
+    final v = -mapped;
+    if (v.abs() < 1) return; // 速度太小不启动
+
+    _inertiaController.animateWith(
+      ClampingScrollSimulation(position: position.pixels, velocity: v),
+    );
+  }
+
+  /// 速度映射函数：`vMax * tanh(v / vMax)`（dart:math 无 tanh，用 exp 等价式）。
+  ///
+  /// - 低速（`v << vMax`）≈ 真实速度
+  /// - 高速渐近逼近 [maxVelocity]，不会超速
+  /// - [maxVelocity] <= 0 时不限速
+  double _mapVelocity(double velocity) {
+    final vMax = _effectiveMaxVelocity.abs();
+    if (vMax <= 0) return velocity;
+    final x = velocity / vMax;
+    // tanh(x) = (e^(2x) - 1) / (e^(2x) + 1)；|x| 过大时 exp 溢出，直接趋近 ±1
+    if (x.abs() > 10) return velocity.isNegative ? -vMax : vMax;
+    final e = exp(2 * x);
+    return vMax * (e - 1) / (e + 1);
+  }
+
+  void _onInertia() {
+    if (!_controller.hasClients) return;
+    final min = _controller.position.minScrollExtent;
+    final max = _controller.position.maxScrollExtent;
+    _controller.jumpTo(_inertiaController.value.clamp(min, max));
+  }
+
   void _handleDragStart(
     DragStartDetails details,
     double thumbOffset,
     double thumbHeight,
     double trackHeight,
   ) {
-    final localPos = details.localPosition.dy;
+    final localPos = _axisLocal(details.localPosition);
     final thumbTop = thumbOffset;
     final thumbBottom = thumbTop + thumbHeight;
 
@@ -209,7 +395,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
 
     if (maxScroll <= 0) return;
 
-    final localPos = details.localPosition.dy;
+    final localPos = _axisLocal(details.localPosition);
 
     // 计算滑块新顶部位置（鼠标相对偏移）
     final newThumbTop = (localPos - _dragStartOffset).clamp(
@@ -232,6 +418,11 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
           _handleScroll(event);
         }
       },
+      // 触控板：Flutter 桌面端（macOS 等）把两指平移发成 PanZoom 手势，
+      // 不产生 PointerScrollEvent，需单独处理（连续滚动走 jumpTo 即时跟随）
+      onPointerPanZoomStart: _handlePanZoomStart,
+      onPointerPanZoomUpdate: _handlePanZoomUpdate,
+      onPointerPanZoomEnd: _handlePanZoomEnd,
       child: ScrollConfiguration(
         behavior: const MaterialScrollBehavior().copyWith(
           scrollbars: false,
@@ -257,15 +448,21 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     final theme = Theme.of(context).scrollbarTheme;
     final thumbColor =
         theme.thumbColor?.resolve(states) ?? Colors.grey.shade600;
-    final thickness = theme.thickness?.resolve(states);
+    final thickness = theme.thickness?.resolve(states) ?? 8;
     final radius = BorderRadius.all(theme.radius ?? Radius.circular(8));
     //final trackVisibility = theme.trackVisibility;//默认可视
     final trackColor =
         theme.trackColor?.resolve(states) ?? Colors.grey.shade600.withAlpha(85);
     final trackBorderColor = theme.trackBorderColor?.resolve(states);
 
+    final isVertical = _isVertical;
+    // 滚动条位置：默认垂直在右侧、水平在底部，可覆盖
+    final alignment =
+        widget.scrollbarAlignment ??
+        (isVertical ? Alignment.centerRight : Alignment.bottomCenter);
+
     return Align(
-      alignment: Alignment.topRight,
+      alignment: alignment,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final position = _controller.position;
@@ -277,8 +474,8 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
             return FadeTransition(
               opacity: _fadeController,
               child: Container(
-                width: thickness ?? 8,
-                height: constraints.maxHeight,
+                width: isVertical ? thickness : constraints.maxWidth,
+                height: isVertical ? constraints.maxHeight : thickness,
                 decoration: BoxDecoration(
                   color: thumbColor,
                   borderRadius: radius,
@@ -287,71 +484,131 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
             );
           }
 
-          // 内容总高度 = 滚出 + 可见
-          final viewportHeight = constraints.maxHeight;
-          final contentHeight = maxScroll + viewportHeight;
+          // 主轴尺寸（垂直=高，水平=宽），内容总长 = 滚出 + 可见
+          final mainSize = isVertical
+              ? constraints.maxHeight
+              : constraints.maxWidth;
+          final contentSize = maxScroll + mainSize;
 
-          // 滑块高度按比例缩放不低于最小值
-          final thumbRatio = viewportHeight / contentHeight;
-          final thumbHeight = max(
-            thumbRatio * viewportHeight,
-            _kMinThumbHeight,
-          );
+          // 滑块主轴尺寸按比例缩放不低于最小值
+          final thumbRatio = mainSize / contentSize;
+          final thumbMain = max(thumbRatio * mainSize, _kMinThumbHeight);
 
           final currentScroll = position.pixels;
           final scrollRatio = currentScroll / maxScroll;
 
-          // 滑块当前位置
-          final maxThumbOffset = viewportHeight - thumbHeight;
+          // 滑块主轴位置
+          final maxThumbOffset = mainSize - thumbMain;
           final thumbOffset = scrollRatio * maxThumbOffset;
 
-          return MouseRegion(
-            onEnter: (_) => statesController.update(WidgetState.hovered, true),
-            onExit: (_) => statesController.update(WidgetState.hovered, false),
-            child: GestureDetector(
-              onVerticalDragStart: (details) => _handleDragStart(
-                details,
-                thumbOffset,
-                thumbHeight,
-                viewportHeight,
-              ),
-              onVerticalDragUpdate: (details) =>
-                  _handleDragUpdate(details, thumbHeight, viewportHeight),
-              onVerticalDragEnd: (_) => _handleDragEnd(),
-              behavior: HitTestBehavior.translucent,
-              child: FadeTransition(
-                opacity: _fadeController,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.fastOutSlowIn,
-                  width: thickness ?? 8,
-                  decoration: BoxDecoration(
-                    color: trackColor,
-                    borderRadius: radius,
-                    border: trackBorderColor == null
-                        ? null
-                        : Border.all(color: trackBorderColor),
-                  ),
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: Padding(
-                      padding: EdgeInsets.only(top: thumbOffset),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.fastOutSlowIn,
-                        decoration: BoxDecoration(
-                          color: thumbColor,
-                          borderRadius: radius,
-                        ),
-                        child: SizedBox(
-                          height: thumbHeight,
-                          width: thickness ?? 8,
-                        ),
+          // 拖拽手势按轴选择；用 RawGestureDetector 限定只接受鼠标设备，
+          // 触控板双指（trackpad）不触发拖拽（走 PanZoom 滚动分支），
+          // 避免"轨道跳转 + 反向拖动"的误触
+          final Widget dragArea = RawGestureDetector(
+            behavior: HitTestBehavior.translucent,
+            gestures: {
+              if (isVertical)
+                VerticalDragGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<
+                      VerticalDragGestureRecognizer
+                    >(
+                      () => VerticalDragGestureRecognizer()
+                        ..supportedDevices = {PointerDeviceKind.mouse},
+                      (instance) {
+                        instance
+                          ..onStart = (details) {
+                            _handleDragStart(
+                              details,
+                              thumbOffset,
+                              thumbMain,
+                              mainSize,
+                            );
+                          }
+                          ..onUpdate = (details) {
+                            _handleDragUpdate(details, thumbMain, mainSize);
+                          }
+                          ..onEnd = (_) {
+                            _handleDragEnd();
+                          }
+                          ..onCancel = _handleDragEnd;
+                      }
+                    )
+              else
+                HorizontalDragGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<
+                      HorizontalDragGestureRecognizer
+                    >(
+                      () => HorizontalDragGestureRecognizer()
+                        ..supportedDevices = {PointerDeviceKind.mouse},
+                      (instance) {
+                        instance
+                          ..onStart = (details) {
+                            _handleDragStart(
+                              details,
+                              thumbOffset,
+                              thumbMain,
+                              mainSize,
+                            );
+                          }
+                          ..onUpdate = (details) {
+                            _handleDragUpdate(details, thumbMain, mainSize);
+                          }
+                          ..onEnd = (_) {
+                            _handleDragEnd();
+                          }
+                          ..onCancel = _handleDragEnd;
+                      },
+                    ),
+            },
+            child: FadeTransition(
+              opacity: _fadeController,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.fastOutSlowIn,
+                width: isVertical ? thickness : mainSize,
+                height: isVertical ? mainSize : thickness,
+                decoration: BoxDecoration(
+                  color: trackColor,
+                  borderRadius: radius,
+                  border: trackBorderColor == null
+                      ? null
+                      : Border.all(color: trackBorderColor),
+                ),
+                child: Align(
+                  alignment: isVertical
+                      ? Alignment.topCenter
+                      : Alignment.centerLeft,
+                  child: Padding(
+                    padding: isVertical
+                        ? EdgeInsets.only(top: thumbOffset)
+                        : EdgeInsets.only(left: thumbOffset),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.fastOutSlowIn,
+                      decoration: BoxDecoration(
+                        color: thumbColor,
+                        borderRadius: radius,
+                      ),
+                      child: SizedBox(
+                        width: isVertical ? thickness : thumbMain,
+                        height: isVertical ? thumbMain : thickness,
                       ),
                     ),
                   ),
                 ),
               ),
+            ),
+          );
+
+          return MouseRegion(
+            onEnter: (_) => statesController.update(WidgetState.hovered, true),
+            onExit: (_) => statesController.update(WidgetState.hovered, false),
+            // 滚动条上也支持离散滚轮滚动（滚轮事件在此转发给 _handleScroll）
+            child: Listener(
+              onPointerSignal: (PointerSignalEvent event) {
+                if (event is PointerScrollEvent) _handleScroll(event);
+              },
+              child: dragArea,
             ),
           );
         },
@@ -375,6 +632,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     _autoHideTimer?.cancel();
     _innerScrollTimer?.cancel();
     _fadeController.dispose();
+    _inertiaController.dispose();
     super.dispose();
   }
 }

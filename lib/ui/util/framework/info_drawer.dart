@@ -7,9 +7,7 @@ import 'menu_bar.dart';
 //自定义抽屉
 class InfoDrawer extends Drawer {
   //todo 信息栏抽屉
-  const InfoDrawer({
-    super.key
-  });
+  const InfoDrawer({super.key});
 }
 
 class InfoList extends StatefulWidget {
@@ -48,7 +46,7 @@ class _InfoListState extends State<InfoList>
     position1 = Tween(begin: const Offset(0.0, -1.0), end: Offset.zero).animate(
       CurvedAnimation(
         parent: controller,
-        curve: Interval(0.3, 0.8, curve: Curves.easeOutBack),
+        curve: Interval(0.3, 0.8, curve: Curves.ease),
       ),
     );
 
@@ -59,7 +57,7 @@ class _InfoListState extends State<InfoList>
 
     position2 = CurvedAnimation(
       parent: controller,
-      curve: Interval(0.5, 1.0, curve: Curves.easeOutBack),
+      curve: Interval(0.5, 1.0, curve: Curves.ease),
     );
 
     controller.forward();
@@ -85,14 +83,7 @@ class _InfoListState extends State<InfoList>
                   Row(
                     spacing: 16,
                     children: [
-                      Text(
-                        '状态列表',
-                        style: TextStyle(
-                          color: theme.colorScheme.onSecondary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+                      Text('状态列表', style: theme.textTheme.headlineMedium),
                       Expanded(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -107,7 +98,8 @@ class _InfoListState extends State<InfoList>
                               itemColor: theme.colorScheme.primaryContainer,
                               activeItemColor: theme.colorScheme.primary,
                               backgroundColor: theme.colorScheme.primary,
-                              activeBackgroundColor: theme.colorScheme.primaryContainer,
+                              activeBackgroundColor:
+                                  theme.colorScheme.primaryContainer,
                               leading: Icon(Icons.list_alt),
                               title: Text('任务'),
                               selected: index == 0,
@@ -130,7 +122,8 @@ class _InfoListState extends State<InfoList>
                               itemColor: theme.colorScheme.primaryContainer,
                               activeItemColor: theme.colorScheme.primary,
                               backgroundColor: theme.colorScheme.primary,
-                              activeBackgroundColor: theme.colorScheme.primaryContainer,
+                              activeBackgroundColor:
+                                  theme.colorScheme.primaryContainer,
                               leading: Icon(Icons.watch_later_outlined),
                               title: Text('日志'),
                               selected: index == 1,
@@ -147,57 +140,52 @@ class _InfoListState extends State<InfoList>
                       ),
                     ],
                   ),
-                  Divider(height: 10,thickness: 1,color: Colors.white24,),
+                  Divider(height: 10, thickness: 1, color: Colors.white24),
                 ],
-              )
+              ),
             ),
           ),
         ),
 
         Expanded(
-          child:  FadeTransition(
-              opacity: opacity2,
-              child: MatrixTransition(
-                animation: position2,
-                onTransform: (value) {
-                  return Matrix4.translationValues(
-                    0.0,
-                    -30.0 * (1 - value),
-                    0.0,
+          child: FadeTransition(
+            opacity: opacity2,
+            child: MatrixTransition(
+              animation: position2,
+              onTransform: (value) {
+                return Matrix4.translationValues(0.0, -30.0 * (1 - value), 0.0);
+              },
+              child: AnimatedSwitcher(
+                duration: Duration(milliseconds: 350),
+                transitionBuilder: (child, animation) {
+                  final animation1 = CurvedAnimation(
+                    parent: animation,
+                    curve: Interval(0.4, 1.0, curve: Curves.easeOutBack),
+                    reverseCurve: Interval(0.4, 1.0, curve: Curves.easeOut),
+                  );
+                  return MatrixTransition(
+                    animation: animation1,
+                    onTransform: (value) {
+                      return Matrix4.translationValues(
+                        0.0,
+                        40.0 * (1 - value),
+                        0.0,
+                      );
+                    },
+                    child: FadeTransition(
+                      opacity: CurvedAnimation(
+                        parent: animation,
+                        curve: Interval(0.4, 1.0),
+                      ),
+                      child: child,
+                    ),
                   );
                 },
-                child: AnimatedSwitcher(
-                  duration: Duration(milliseconds: 350),
-                  transitionBuilder: (child, animation) {
-                    final animation1 = CurvedAnimation(
-                      parent: animation,
-                      curve: Interval(0.4, 1.0, curve: Curves.easeOutBack),
-                      reverseCurve: Interval(0.4, 1.0, curve: Curves.easeOut),
-                    );
-                    return MatrixTransition(
-                      animation: animation1,
-                      onTransform: (value) {
-                        return Matrix4.translationValues(
-                          0.0,
-                          40.0 * (1 - value),
-                          0.0,
-                        );
-                      },
-                      child: FadeTransition(
-                        opacity: CurvedAnimation(
-                          parent: animation,
-                          curve: Interval(0.4, 1.0),
-                        ),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: pages[index],
-                ),
+                child: pages[index],
               ),
             ),
           ),
-
+        ),
       ],
     );
   }

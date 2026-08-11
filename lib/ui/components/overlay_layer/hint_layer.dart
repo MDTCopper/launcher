@@ -106,10 +106,10 @@ class HintAnimation {
 }
 
 // ---------------------------------------------------------------------------
-// HintField
+// HintLayer
 // ---------------------------------------------------------------------------
 
-class HintField extends StatefulWidget {
+class HintLayer extends StatefulWidget {
   final Widget child;
 
   /// 纯文本提示内容，与 [hintWidget] 二选一
@@ -162,11 +162,11 @@ class HintField extends StatefulWidget {
   final TextStyle? textStyle;
 
   // ---- 静态协调 ----
-  static HintFieldState? _activeHint;
+  static HintLayerState? _activeHint;
   static DateTime? _lastShowTime;
   static DateTime? _lastDismissTime;
 
-  const HintField({
+  const HintLayer({
     super.key,
     required this.child,
     this.hint,
@@ -187,14 +187,14 @@ class HintField extends StatefulWidget {
   });
 
   @override
-  State<HintField> createState() => HintFieldState();
+  State<HintLayer> createState() => HintLayerState();
 }
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
-class HintFieldState extends State<HintField> {
+class HintLayerState extends State<HintLayer> {
   final PopupOverlayController _popupController = PopupOverlayController();
 
   /// 实际显示方位，由环绕定位在布局阶段确定，供动画接口使用。
@@ -208,7 +208,7 @@ class HintFieldState extends State<HintField> {
   bool _isShowing = false;
 
   @override
-  void didUpdateWidget(HintField oldWidget) {
+  void didUpdateWidget(HintLayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.hint != oldWidget.hint) {
       // 文本变化时无需预测量（尺寸由布局管道提供），仅触发重建
@@ -343,18 +343,18 @@ class HintFieldState extends State<HintField> {
 
   void _requestShow() {
     if (widget.hint == null && widget.hintWidget == null) return;
-    if (HintField._activeHint != null && HintField._activeHint != this) {
-      HintField._activeHint!._dismiss(immediate: true);
+    if (HintLayer._activeHint != null && HintLayer._activeHint != this) {
+      HintLayer._activeHint!._dismiss(immediate: true);
     }
 
     if (_isShowing) return;
 
-    HintField._activeHint = this;
+    HintLayer._activeHint = this;
 
     final Duration resetWindow =
         widget.waitResetDuration ?? widget.animationDuration;
     final DateTime? lastEvent =
-        HintField._lastDismissTime ?? HintField._lastShowTime;
+        HintLayer._lastDismissTime ?? HintLayer._lastShowTime;
     final bool skipWait =
         lastEvent != null && DateTime.now().difference(lastEvent) < resetWindow;
 
@@ -370,7 +370,7 @@ class HintFieldState extends State<HintField> {
     if (!mounted || _isShowing) return;
 
     _isShowing = true;
-    HintField._lastShowTime = DateTime.now();
+    HintLayer._lastShowTime = DateTime.now();
     if (mounted) setState(() {});
     _popupController.open();
 
@@ -388,11 +388,11 @@ class HintFieldState extends State<HintField> {
     if (mounted && !_disposed) setState(() {});
 
     if (wasVisible) {
-      HintField._lastDismissTime = DateTime.now();
+      HintLayer._lastDismissTime = DateTime.now();
     }
 
-    if (HintField._activeHint == this) {
-      HintField._activeHint = null;
+    if (HintLayer._activeHint == this) {
+      HintLayer._activeHint = null;
     }
 
     _popupController.dismiss();

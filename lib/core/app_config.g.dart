@@ -22,6 +22,20 @@ Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
   'versionOptions': instance.versionOptions,
 };
 
+Account _$AccountFromJson(Map<String, dynamic> json) => Account(
+  id: json['id'] as String? ?? '',
+  name: json['name'] as String? ?? '',
+  uuid: json['uuid'] as String? ?? '',
+  color: (json['color'] as num?)?.toInt() ?? 0,
+);
+
+Map<String, dynamic> _$AccountToJson(Account instance) => <String, dynamic>{
+  'id': instance.id,
+  'name': instance.name,
+  'uuid': instance.uuid,
+  'color': instance.color,
+};
+
 Setting _$SettingFromJson(Map<String, dynamic> json) => Setting(
   githubToken: json['githubToken'] as String? ?? '',
   customSetting: json['customSetting'] as Map<String, dynamic>? ?? {},
@@ -45,6 +59,10 @@ Setting _$SettingFromJson(Map<String, dynamic> json) => Setting(
       : DownloadOptions.fromJson(
           json['downloadOptions'] as Map<String, dynamic>,
         ),
+  accounts: (json['accounts'] as List<dynamic>?)
+      ?.map((e) => Account.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  currentAccountId: json['currentAccountId'] as String? ?? '',
 );
 
 Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
@@ -53,6 +71,8 @@ Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
   'mindustrySettingsOverride': instance.mindustrySettingsOverride,
   'githubToken': instance.githubToken,
   'customSetting': instance.customSetting,
+  'accounts': instance.accounts,
+  'currentAccountId': instance.currentAccountId,
   'personalizationOptions': instance.personalizationOptions,
   'downloadOptions': instance.downloadOptions,
 };

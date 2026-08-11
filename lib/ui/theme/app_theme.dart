@@ -44,16 +44,16 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
     colorScheme: ColorScheme(
       brightness: brightness,
       primary: colors.interactive,
-      onPrimary: colors.textOnInteractive,
+      onPrimary: colors.itemOnInteractive,
       primaryContainer: colors.elevatedBackground,
-      secondary: colors.interactiveHover,
-      onSecondary: colors.textOnInteractive,
+      secondary: colors.interactiveLow,
+      onSecondary: colors.itemOnInteractive,
       secondaryContainer: colors.cardBackground,
       surface: colors.cardBackground,
-      onSurface: colors.textPrimary,
+      onSurface: colors.itemPrimary,
       surfaceContainerHighest: colors.elevatedBackground,
       error: colors.error,
-      onError: colors.textOnInteractive,
+      onError: colors.itemOnInteractive,
       outline: colors.border,
     ),
 
@@ -68,19 +68,19 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
       displayLarge: TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.bold,
-        color: colors.textPrimary,
+        color: colors.itemPrimary,
         height: 1.2,
       ),
       displayMedium: TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.bold,
-        color: colors.textPrimary,
+        color: colors.itemPrimary,
         height: 1.2,
       ),
       displaySmall: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.bold,
-        color: colors.textPrimary,
+        color: colors.itemPrimary,
         height: 1.2,
       ),
 
@@ -88,64 +88,64 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
       headlineLarge: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.bold,
-        color: colors.textPrimary,
+        color: colors.itemPrimary,
       ),
       headlineMedium: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.bold,
-        color: colors.textPrimary,
+        color: colors.itemPrimary,
       ),
       headlineSmall: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.bold,
-        color: colors.textPrimary,
+        color: colors.itemPrimary,
       ),
 
       // ── Title: 卡片标题、列表项标题、次级标题 ──
       titleLarge: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w600,
-        color: colors.textPrimary,
+        color: colors.itemPrimary,
       ),
       titleMedium: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w600,
-        color: colors.textPrimary,
+        color: colors.itemPrimary,
       ),
       titleSmall: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: colors.textPrimary,
+        color: colors.itemPrimary,
       ),
 
       // ── Body: 正文、说明、注释 ──
       bodyLarge: TextStyle(
         fontSize: 16,
-        color: colors.textPrimary,
+        color: colors.itemPrimary,
         height: 1.5,
       ),
       bodyMedium: TextStyle(
         fontSize: 14,
-        color: colors.textSecondary,
+        color: colors.itemSecondary,
         height: 1.5,
       ),
-      bodySmall: TextStyle(fontSize: 12, color: colors.textHint, height: 1.4),
+      bodySmall: TextStyle(fontSize: 12, color: colors.itemHint, height: 1.4),
 
       // ── Label: 按钮文字、标签、徽标 ──
       labelLarge: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.bold,
-        color: colors.textOnInteractive,
+        color: colors.itemOnInteractive,
       ),
       labelMedium: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w500,
-        color: colors.textSecondary,
+        color: colors.itemSecondary,
       ),
       labelSmall: TextStyle(
         fontSize: 10,
         fontWeight: FontWeight.w500,
-        color: colors.textHint,
+        color: colors.itemHint,
       ),
     ),
 
@@ -170,15 +170,15 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
     inputDecorationTheme: InputDecorationTheme(
       isDense: true,
       border: OutlineInputBorder(
-        borderSide: BorderSide(color: colors.border),
+        borderSide: BorderSide(color: colors.contentBorder),
         borderRadius: BorderRadius.circular(4),
       ),
       enabledBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: colors.border, width: 2),
+        borderSide: BorderSide(color: colors.contentBorder, width: 2),
         borderRadius: BorderRadius.circular(4),
       ),
       focusedBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: colors.borderFocus, width: 2),
+        borderSide: BorderSide(color: colors.contentBorderFocus, width: 2),
         borderRadius: BorderRadius.circular(12),
       ),
       errorBorder: OutlineInputBorder(
@@ -189,10 +189,8 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
         borderSide: BorderSide(color: colors.error, width: 2),
         borderRadius: BorderRadius.circular(12),
       ),
-      fillColor: colors.inputBackground,
-      filled: true,
-      hintStyle: TextStyle(color: colors.textHint, fontSize: 14),
-      labelStyle: TextStyle(color: colors.textSecondary, fontSize: 14),
+      hintStyle: TextStyle(color: colors.itemHint, fontSize: 14),
+      labelStyle: TextStyle(color: colors.itemSecondary, fontSize: 14),
       contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
     ),
 
@@ -213,14 +211,14 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
       titleTextStyle: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.bold,
-        color: colors.textOnInteractive,
+        color: colors.itemOnInteractive,
       ),
       toolbarTextStyle: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.bold,
-        color: colors.interactiveHover,
+        color: colors.itemOnInteractive,
       ),
-      iconTheme: IconThemeData(color: colors.textOnInteractive),
+      iconTheme: IconThemeData(color: colors.itemOnInteractive),
       systemOverlayStyle: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
@@ -241,8 +239,8 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
     // 进度条
     // ─────────────────────────────────────────────
     progressIndicatorTheme: ProgressIndicatorThemeData(
-      color: colors.interactive,
-      linearTrackColor: colors.interactive.withAlpha(85),
+      color: colors.indicator,
+      linearTrackColor: colors.indicator.withAlpha(85),
     ),
 
     // ─────────────────────────────────────────────
@@ -250,7 +248,26 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
     // ─────────────────────────────────────────────
     scrollbarTheme: ScrollbarThemeData(
       radius: const Radius.circular(8),
-      thumbColor: WidgetStatePropertyAll(colors.scrollbarThumb),
+      // 滑块：hover 微亮 / 按压更亮（暗色）或更暗（亮色）
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.pressed) ||
+            states.contains(WidgetState.dragged)) {
+          return colors.scrollbarThumbPressed;
+        }
+        if (states.contains(WidgetState.hovered)) {
+          return colors.scrollbarThumbHover;
+        }
+        return colors.scrollbarThumb;
+      }),
+      // 槽：hover / 交互时更明显
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.pressed) ||
+            states.contains(WidgetState.dragged)) {
+          return colors.scrollbarTrackHover;
+        }
+        return colors.scrollbarTrack;
+      }),
     ),
 
     // ─────────────────────────────────────────────

@@ -31,7 +31,7 @@ class DropdownOption<T> {
 /// - 菜单尺寸由布局管道提供，无需 Offstage 预测量
 /// - 无需手动管理 OverlayEntry
 /// - 菜单从头部下方展开，超出屏幕自动翻转，带高度展开动画
-class DropdownField<T> extends StatefulWidget {
+class DropdownLayer<T> extends StatefulWidget {
   final List<DropdownOption<T>> options;
   final Widget? child;
   final T? initialValue;
@@ -44,7 +44,7 @@ class DropdownField<T> extends StatefulWidget {
   final Border? border;
   final Border? hoverBorder;
 
-  const DropdownField({
+  const DropdownLayer({
     super.key,
     this.initialValue,
     required this.options,
@@ -60,10 +60,10 @@ class DropdownField<T> extends StatefulWidget {
   });
 
   @override
-  State<StatefulWidget> createState() => _DropdownFieldState<T>();
+  State<StatefulWidget> createState() => _DropdownLayerState<T>();
 }
 
-class _DropdownFieldState<T> extends State<DropdownField<T>>
+class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     with TickerProviderStateMixin {
   final PopupOverlayController _popupController = PopupOverlayController();
 
@@ -103,7 +103,7 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
   }
 
   @override
-  void didUpdateWidget(covariant DropdownField<T> oldWidget) {
+  void didUpdateWidget(covariant DropdownLayer<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialValue != widget.initialValue) {
       selectValue = widget.initialValue;
@@ -166,35 +166,32 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
 
   Widget _buildMenu(BuildContext context, double anchorWidth) {
     final colors = AppColors.of(context);
-    // 菜单与头部（锚点）同宽
+
     final width = anchorWidth;
 
-    // 需要 Material ancestor 才能正常渲染 InkWell 的高亮 / 水波纹
     return Material(
       color: Colors.transparent,
       child: ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: widget.menuHeight),
-      child: Container(
-        width: width,
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: colors.cardBackground,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: colors.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(30),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            children: widget.options.map(_buildOption).toList(),
+        constraints: BoxConstraints(maxHeight: widget.menuHeight),
+        child: Container(
+          width: width,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: colors.cardBackground,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: colors.contentBorder),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(30),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: SingleChildScrollView(
+            child: Column(children: widget.options.map(_buildOption).toList()),
           ),
         ),
-      ),
       ),
     );
   }
@@ -204,9 +201,8 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
     final theme = Theme.of(context);
     final selected = item.value == selectValue;
 
-    // 使用自带 Material + InkWell 的 ReboundButton，
-    // 不依赖浮层外部的 Material 环境
     return ReboundButton(
+      pressedScale: 1.0,
       borderRadius: BorderRadius.circular(4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       onTap: () {
@@ -222,7 +218,7 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
             child: Text(
               item.label,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: selected ? colors.interactive : colors.textPrimary,
+                color: selected ? colors.interactive : colors.itemPrimary,
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -232,7 +228,11 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
     );
   }
 
-  /// 菜单动画：淡入 + 从头部方向展开高度。
+  /// 菜单动画：淡入 + 从头部方向展开（视觉压缩生长）。
+  ///
+  /// 用 [Transform.scale]（绘制层变换，不改布局尺寸）替代 SizeTransition /
+  /// Align(heightFactor)：布局尺寸始终是菜单完整尺寸 → 浮层定位稳定，
+  /// 不会出现动画结束偏移、收纳时偏移回去；也无 ClipRect 裁剪阴影问题。
   Widget _dropdownAnimation(
     BuildContext context,
     Animation<double> animation,
@@ -241,10 +241,21 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
   ) {
     return FadeTransition(
       opacity: animation,
-      child: SizeTransition(
-        sizeFactor: animation,
-        axisAlignment: -1.0,
-        child: child,
+      child: Align(
+        alignment: Alignment.topCenter,
+        // 尺寸 = child 尺寸（不撑满容器，避免水平居中偏移）
+        widthFactor: 1.0,
+        heightFactor: 1.0,
+        child: AnimatedBuilder(
+          // 监听动画每帧重建 Transform（不改变布局尺寸，定位稳定）
+          animation: animation,
+          builder: (context, child) => Transform.scale(
+            scaleY: animation.value,
+            alignment: Alignment.topCenter,
+            child: child,
+          ),
+          child: child,
+        ),
       ),
     );
   }
@@ -257,10 +268,8 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
     if (selectValue == null) return widget.hintText;
     final DropdownOption<T> o = widget.options.firstWhere(
       (o) => selectValue == o.value,
-      orElse: () => DropdownOption<T>(
-        value: selectValue as T,
-        label: widget.hintText,
-      ),
+      orElse: () =>
+          DropdownOption<T>(value: selectValue as T, label: widget.hintText),
     );
     return o.label;
   }
@@ -269,7 +278,7 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
+    final colors = AppColors.of(context);
     final head = MouseRegion(
       onExit: (_) {
         setState(() {
@@ -292,14 +301,14 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
               begin:
                   widget.border ??
                   Border.all(
-                    color: colorScheme.onSurface,
+                    color: colors.contentBorder,
                     width: 0.9,
                     strokeAlign: BorderSide.strokeAlignOutside,
                   ),
               end:
                   widget.hoverBorder ??
                   Border.all(
-                    color: colorScheme.secondary,
+                    color: colors.contentBorderFocus,
                     width: 2,
                     strokeAlign: BorderSide.strokeAlignOutside,
                   ),
@@ -328,22 +337,18 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
                       layoutBuilder: (oldChild, children) {
                         return Stack(
                           alignment: Alignment.centerLeft,
-                          children: [
-                            ?oldChild,
-                            ...children,
-                          ],
+                          children: [?oldChild, ...children],
                         );
                       },
                       child: Text(
                         label,
                         key: ValueKey(label),
-                        style:
-                            selectValue != null
-                                ? TextStyle()
-                                : theme.textTheme.bodyMedium?.copyWith(
-                                    color: theme.textTheme.bodyMedium?.color
-                                        ?.withAlpha(185),
-                                  ),
+                        style: selectValue != null
+                            ? TextStyle()
+                            : theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.textTheme.bodyMedium?.color
+                                    ?.withAlpha(185),
+                              ),
                       ),
                     ),
                   ),
@@ -373,7 +378,8 @@ class _DropdownFieldState<T> extends State<DropdownField<T>>
           setState(() {});
         }
       },
-      overlayChildBuilder: (context, anchorRect) => _buildMenu(context, anchorRect.width),
+      overlayChildBuilder: (context, anchorRect) =>
+          _buildMenu(context, anchorRect.width),
       child: head,
     );
   }
@@ -408,13 +414,19 @@ class _DropdownPositionDelegate extends PopupOverlayPositionDelegate {
     left = left
         .clamp(
           padding.left,
-          math.max(padding.left, overlaySize.width - padding.right - childSize.width),
+          math.max(
+            padding.left,
+            overlaySize.width - padding.right - childSize.width,
+          ),
         )
         .toDouble();
     top = top
         .clamp(
           padding.top,
-          math.max(padding.top, overlaySize.height - padding.bottom - childSize.height),
+          math.max(
+            padding.top,
+            overlaySize.height - padding.bottom - childSize.height,
+          ),
         )
         .toDouble();
 

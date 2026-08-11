@@ -5,7 +5,7 @@ import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/util/framework/content_panel.dart';
-import 'package:copper_launcher/ui/components/overlay_field/dropdown_field.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
 import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
@@ -465,7 +465,7 @@ class _ModViewPageState extends State<ModViewPage> {
                   children: [
                     Text('游戏版本'),
                     Expanded(
-                      child: DropdownField<int>(
+                      child: DropdownLayer<int>(
                         initialValue: version,
                         onSelect: (v) {
                           setState(() {
@@ -492,7 +492,7 @@ class _ModViewPageState extends State<ModViewPage> {
                   children: [
                     Text('排序'),
                     Expanded(
-                      child: DropdownField(
+                      child: DropdownLayer(
                         initialValue: sort,
                         onSelect: (s) {
                           setState(() {

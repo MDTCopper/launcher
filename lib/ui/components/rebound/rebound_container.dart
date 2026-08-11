@@ -5,7 +5,13 @@ class ReboundContainer extends StatefulWidget {
   final double? pressedScale;
   final Duration? duration; // 回弹持续时间
   final Widget? child;
-  final Widget? surfaceChild; // 非响应区
+
+  /// 交互隔离层：叠在按钮表面，其中的组件接收自己的交互，
+  /// 点击不会透传到 InkWell，不会触发按钮回弹。
+  final Widget? surfaceChild;
+
+  /// [surfaceChild] 在按钮区域内的对齐方式。
+  final AlignmentGeometry surfaceAlignment;
 
   final VoidCallback? onTap;
   final GestureLongPressCallback? onLongTap;
@@ -32,6 +38,7 @@ class ReboundContainer extends StatefulWidget {
     this.duration = const Duration(milliseconds: 160),
     this.child,
     this.surfaceChild,
+    this.surfaceAlignment = Alignment.center,
     this.onTap,
     this.onLongTap,
     this.shapeBorder,
@@ -80,7 +87,8 @@ class _ReboundContainer extends State<ReboundContainer>
           });
     _pressScale = Tween(
       begin: 1.0,
-      end: widget.pressedScale,
+      // 兜底：调用方可能传 null（如 ReboundButton 未指定 pressedScale）
+      end: widget.pressedScale ?? 0.90,
     ).animate(CurvedAnimation(parent: _pressController, curve: Curves.ease));
 
     // 悬浮监听
@@ -202,7 +210,13 @@ class _ReboundContainer extends State<ReboundContainer>
               child: child,
             ),
           ),
-          ?surfaceChild,
+          if (surfaceChild != null)
+            Positioned.fill(
+              child: Align(
+                alignment: widget.surfaceAlignment,
+                child: surfaceChild,
+              ),
+            ),
           //todo 墨水层实现脱离，用MaterialInkController操控墨水
           // 悬浮叠加层 —— 用动画控制透明度，暗色模式也能看见
           Positioned.fill(

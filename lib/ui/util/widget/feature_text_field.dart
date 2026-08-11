@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -146,7 +147,16 @@ class _OutlinedTextFieldState extends State<OutlinedTextField>
       }
 
       if (status.contains(WidgetState.hovered)) {
-        final border = decoration?.enabled ?? theme.enabledBorder;
+        // hover 边框：用 inputBorderHover 语义色（theme 无 hoveredBorder 字段）
+        final border =
+            decoration?.enabledBorder ??
+            OutlineInputBorder(
+              borderSide: BorderSide(
+                color: AppColors.of(context).contentBorderHover,
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(4),
+            );
         if (border is OutlineInputBorder) return border;
       }
       final border = decoration?.border ?? theme.border;
@@ -163,8 +173,11 @@ class _OutlinedTextFieldState extends State<OutlinedTextField>
       if (status.contains(WidgetState.error)) {
         return Theme.of(context).colorScheme.error.withAlpha(30);
       }
-      if (status.contains(WidgetState.focused) ||
-          status.contains(WidgetState.hovered)) {
+      if (status.contains(WidgetState.focused)) {
+        // 聚焦：略透明主题色背景
+        return AppColors.of(context).contentBackgroundFocus;
+      }
+      if (status.contains(WidgetState.hovered)) {
         return fillColor;
       }
       return fillColor?.withAlpha(0);

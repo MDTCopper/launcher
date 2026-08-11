@@ -63,10 +63,7 @@ class ReboundListTile extends StatefulWidget {
   });
 
   @override
-  State<StatefulWidget> createState() {
-    // TODO: implement createState
-    return _ReboundListTileState();
-  }
+  State<StatefulWidget> createState() => _ReboundListTileState();
 }
 
 class _ReboundListTileState extends State<ReboundListTile> {
@@ -123,13 +120,8 @@ class _ReboundListTileState extends State<ReboundListTile> {
           onLongTap: widget.onLongTap,
           surfaceChild: widget.trailing == null
               ? null
-              : Align(
-                  alignment: Alignment.centerRight,
-                  child: UnconstrainedBox(
-                    key: trailingKey,
-                    child: widget.trailing,
-                  ),
-                ),
+              : KeyedSubtree(key: trailingKey, child: widget.trailing!),
+          surfaceAlignment: Alignment.centerRight,
           child: Row(
             spacing: widget.itemSpacing,
             children: [

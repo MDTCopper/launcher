@@ -4,34 +4,23 @@ import 'dart:typed_data';
 import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
 import 'package:json_annotation/json_annotation.dart';
 
+import 'local_asset.dart';
+
 part 'mindustry_settings.g.dart';
 
-/// Mindustry settings.bin 数据类。
+/// Mindustry settings.bin 数据类
 ///
 /// 提供对 settings.bin 文件的读写、键值对存取、
-/// 以及常用设置项的成员变量直接访问。
+/// 以及常用设置项的成员变量直接访问
 ///
-/// **成员命名**: Dart 驼峰（如 [uiScale]），内部 `_data` 键保持 Mindustry 原始键名
-///
-/// 用法：
 /// ```dart
-/// // 从文件加载
-/// final settings = MindustrySettings.fromFile('path/to/settings.bin');
-/// print(settings.uiScale);    // 100
 ///
-/// // 修改并保存
-/// settings.uiScale = 150;
-/// settings.save();
-///
-/// // 使用 Patch 批量修改（null 保留原值）
+///使用 Patch 批量修改（null 保留原值）
 /// settings.applyPatch(MindustrySettingsPatch()
 ///   ..uiScale = 150
 ///   ..fullscreen = true,
 /// );
 ///
-/// // 创建默认设置
-/// final defaults = MindustrySettings.defaults();
-/// defaults.saveTo('path/to/settings.bin');
 /// ```
 class MindustrySettings {
   /// 内部存储所有键值对。键名为 Mindustry 原始格式
@@ -584,6 +573,22 @@ class MindustrySettings {
 
   // ── 系统设置 ──
 
+  /// 玩家昵称（显示名，联机加入/开房时使用）。
+  String get name => _data['name'] as String? ?? '';
+
+  set name(String v) => _data['name'] = v;
+
+  /// 玩家 UUID（全局身份 ID，Mindustry 首次启动时自动生成，用于服务器端
+  /// 识别玩家：封禁、白名单、管理员等）。
+  String get uuid => _data['uuid'] as String? ?? '';
+
+  set uuid(String v) => _data['uuid'] = v;
+
+  /// 玩家名字颜色（settings 键 `color-0`，arc `rgba8888` 编码：0xRRGGBBAA）。
+  int get color0 => _data['color-0'] as int? ?? 0;
+
+  set color0(int v) => _data['color-0'] = v;
+
   /// 语言。
   String get locale => _data['locale'] as String? ?? 'default';
 
@@ -617,6 +622,43 @@ class MindustrySettings {
   // /// 用户 UUID。
   // String? get uuid => _data['uuid'] as String?;
   // set uuid(String? v) => _data['uuid'] = v;
+
+  // ─────────────────────────────────────────
+  // Mod 状态
+  // ─────────────────────────────────────────
+
+  /// 获取所有 mod 的启用状态列表。
+  ///
+  /// 键为 mod 内部名（Mindustry 中 `meta.name` 小写化、空格转 `-`），
+  /// 值为是否启用。对应 settings.bin 中的 `mod-<name>-enabled` 键；
+  /// `mod-<name>-repo` 等其它键会被忽略。
+  /// 未出现在列表中的 mod 视为启用（Mindustry 侧默认值为 true）。
+  ///
+  /// 注意：settings.bin 只持久化「是否启用」这一种标记；内容错误、
+  /// 依赖缺失、循环依赖等其余 [ModState] 是游戏加载时的运行时状态，
+  /// 需结合 [Mod.applyModStates] 与依赖解析结果判断。
+  Map<String, bool> get modStates {
+    final result = <String, bool>{};
+    _data.forEach((key, value) {
+      if (key.startsWith('mod-') && key.endsWith('-enabled') && value is bool) {
+        result[key.substring(4, key.length - 8)] = value;
+      }
+    });
+    return result;
+  }
+
+  /// 设置某个 mod 的启用状态。
+  ///
+  /// [modName] 为 mod 内部名（小写、空格转 `-`）。
+  /// 传入 [enabled] 为 null 时移除记录，游戏将恢复默认（启用）。
+  void setModEnabled(String modName, bool? enabled) {
+    final key = 'mod-$modName-enabled';
+    if (enabled == null) {
+      _data.remove(key);
+    } else {
+      _data[key] = enabled;
+    }
+  }
 
   // ─────────────────────────────────────────
   // 辅助方法
@@ -972,6 +1014,18 @@ class MindustrySettingsPatch {
 
   // ── 系统 ──
 
+  /// 玩家昵称。
+  @JsonKey(name: 'name')
+  String? name;
+
+  /// 玩家 UUID。
+  @JsonKey(name: 'uuid')
+  String? uuid;
+
+  /// 玩家名字颜色（settings 键 `color-0`）。
+  @JsonKey(name: 'color0')
+  int? color0;
+
   /// 语言代码（如 `"zh_CN"`, `"en"`, `"default"`）。
   @JsonKey(name: 'locale')
   String? locale;
@@ -1100,6 +1154,9 @@ class MindustrySettingsPatch {
     if (ambientVol != null) target.ambientVol = ambientVol!;
 
     // 系统
+    if (name != null) target.name = name!;
+    if (uuid != null) target.uuid = uuid!;
+    if (color0 != null) target.color0 = color0!;
     if (locale != null) target.locale = locale!;
     if (blockSync != null) target.blockSync = blockSync!;
     if (lastBuild != null) target.lastBuild = lastBuild!;
@@ -1107,18 +1164,5 @@ class MindustrySettingsPatch {
   }
 
   @override
-  String toString() {
-    final parts = <String>[];
-    // 遍历所有公有字段，找出非 null 的
-    if (saveInterval != null) parts.add('saveInterval=$saveInterval');
-    if (autoTarget != null) parts.add('autoTarget=$autoTarget');
-    if (fullscreen != null) parts.add('fullscreen=$fullscreen');
-    if (uiScale != null) parts.add('uiScale=$uiScale');
-    if (fpsCap != null) parts.add('fpsCap=$fpsCap');
-    if (vsync != null) parts.add('vsync=$vsync');
-    if (locale != null) parts.add('locale=$locale');
-    if (musicVol != null) parts.add('musicVol=$musicVol');
-    if (sfxVol != null) parts.add('sfxVol=$sfxVol');
-    return 'MindustrySettingsPatch(${parts.isEmpty ? 'empty' : parts.join(", ")})';
-  }
+  String toString() => toJson().toString();
 }

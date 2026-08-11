@@ -42,6 +42,41 @@ class ContentPanelModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    Widget c;
+    if (title != null && child != null) {
+      c = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 8,
+        children: [
+          if (title != null)
+            Text(
+              title!,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.secondary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          if (child != null)
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: DefaultTextStyle(
+                style: theme.textTheme.bodyMedium ?? TextStyle(),
+                child: IconTheme(data: theme.iconTheme, child: child!),
+              ),
+            ),
+        ],
+      );
+    } else if (title != null) {
+      c = Text(
+        title!,
+        style: theme.textTheme.bodyLarge?.copyWith(
+          color: theme.colorScheme.secondary,
+          fontWeight: FontWeight.w900,
+        ),
+      );
+    } else {
+      c = child ?? SizedBox();
+    }
 
     return Material(
       //给item套上一层壳，表示一层分类
@@ -50,28 +85,7 @@ class ContentPanelModule extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 8,
-          children: [
-            if (title != null)
-              Text(
-                title!,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.secondary,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            if (child != null)
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: DefaultTextStyle(
-                  style: theme.textTheme.bodyMedium ?? TextStyle(),
-                  child: IconTheme(data: theme.iconTheme, child: child!),
-                ),
-              ),
-          ],
-        ),
+        child: c,
       ),
     );
   }
