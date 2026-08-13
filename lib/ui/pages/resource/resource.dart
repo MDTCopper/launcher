@@ -12,10 +12,10 @@ import 'mod_view_page.dart';
 import 'package_view_page.dart';
 
 ///资源分项路由
-const modViewPageRouteKey = '/mod_view';
-const packageViewPageRouteKey = '/package_view';
-const blueprintViewPageRouteKey = '/blueprint_view';
-const mapViewPageRouteKey = '/map_view';
+const modViewPageRouteKey = '/community_resources/mod_view';
+const packageViewPageRouteKey = '/community_resources/package_view';
+const blueprintViewPageRouteKey = '/community_resources/blueprint_view';
+const mapViewPageRouteKey = '/community_resources/map_view';
 
 class ResourcePage extends StatefulWidget {
   const ResourcePage({super.key});

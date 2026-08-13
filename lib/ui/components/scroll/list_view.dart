@@ -3,7 +3,6 @@ import 'package:copper_launcher/ui/util/widget/desktop_scroll_view.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 /// Copper 列表视图：桌面端套 [DesktopScrollViewContainer]（自研滚动条 +
 /// 滚轮/触控板处理），非桌面端用官方 [ListView]（原生物理），
@@ -21,7 +20,6 @@ class CopperListView extends StatefulWidget {
   final EdgeInsetsGeometry? padding;
   final double? itemExtent;
   final Widget? prototypeItem;
-  final ItemExtentBuilder? itemExtentBuilder;
   final double? cacheExtent;
   final DragStartBehavior dragStartBehavior;
   final ScrollViewKeyboardDismissBehavior keyboardDismissBehavior;
@@ -43,6 +41,9 @@ class CopperListView extends StatefulWidget {
   // ── 渐变遮罩 ──
   final bool fadeMask;
 
+  /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变。
+  final double? estimatedMaxScrollExtent;
+
   /// 默认构造：直接传 children。
   const CopperListView({
     super.key,
@@ -55,7 +56,6 @@ class CopperListView extends StatefulWidget {
     this.padding,
     this.itemExtent,
     this.prototypeItem,
-    this.itemExtentBuilder,
     this.cacheExtent,
     this.dragStartBehavior = DragStartBehavior.start,
     this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
@@ -68,6 +68,7 @@ class CopperListView extends StatefulWidget {
     this.maxVelocity = 3000,
     this.scrollbarAlignment,
     this.fadeMask = true,
+    this.estimatedMaxScrollExtent,
   }) : itemBuilder = null,
        itemCount = null;
 
@@ -83,7 +84,6 @@ class CopperListView extends StatefulWidget {
     this.padding,
     this.itemExtent,
     this.prototypeItem,
-    this.itemExtentBuilder,
     required this.itemBuilder,
     this.itemCount,
     this.cacheExtent,
@@ -97,6 +97,7 @@ class CopperListView extends StatefulWidget {
     this.maxVelocity = 3000,
     this.scrollbarAlignment,
     this.fadeMask = true,
+    this.estimatedMaxScrollExtent,
   }) : children = const [];
 
   @override
@@ -134,7 +135,6 @@ class _CopperListViewState extends State<CopperListView> {
         padding: widget.padding,
         itemExtent: widget.itemExtent,
         prototypeItem: widget.prototypeItem,
-        itemExtentBuilder: widget.itemExtentBuilder,
         itemBuilder: widget.itemBuilder!,
         itemCount: widget.itemCount,
         cacheExtent: widget.cacheExtent,
@@ -155,7 +155,6 @@ class _CopperListViewState extends State<CopperListView> {
         padding: widget.padding,
         itemExtent: widget.itemExtent,
         prototypeItem: widget.prototypeItem,
-        itemExtentBuilder: widget.itemExtentBuilder,
         cacheExtent: widget.cacheExtent,
         dragStartBehavior: widget.dragStartBehavior,
         keyboardDismissBehavior: widget.keyboardDismissBehavior,
@@ -167,7 +166,10 @@ class _CopperListViewState extends State<CopperListView> {
     }
 
     Widget child = listView;
-    if (isDesktop) {
+    // shrinkWrap（嵌入父滚动容器、无界约束）时不需要桌面滚动容器 / 渐变遮罩：
+    // - 桌面容器内部 Stack/Align 依赖有界约束，无界下会崩溃
+    // - shrinkWrap 不独立滚动，父级滚动容器已处理滚动
+    if (isDesktop && !widget.shrinkWrap) {
       child = DesktopScrollViewContainer(
         controller: _scrollController,
         scrollDirection: widget.scrollDirection,
@@ -175,10 +177,11 @@ class _CopperListViewState extends State<CopperListView> {
         trackpadSensitivity: widget.trackpadSensitivity,
         maxVelocity: widget.maxVelocity,
         scrollbarAlignment: widget.scrollbarAlignment,
+        estimatedMaxScrollExtent: widget.estimatedMaxScrollExtent,
         child: child,
       );
     }
-    if (widget.fadeMask) {
+    if (widget.fadeMask && !widget.shrinkWrap) {
       child = ScrollFadeMask(
           controller: _scrollController,
           scrollDirection: widget.scrollDirection,

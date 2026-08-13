@@ -54,7 +54,11 @@ class _AppearItemState extends State<AppearItem>
         if (mounted) _controller.forward();
       });
     } else if (widget.animate) {
-      _controller.forward();
+      // 延迟到首帧布局完成后才播放：立即 forward 会在布局期间触发动画 paint，
+      // 导致 shrinkWrap 列表中未布局的 item RepaintBoundary 崩溃（hasSize 断言）
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _controller.forward();
+      });
     } else {
       _controller.value = 1.0; // 不动画：直接显示最终态
     }

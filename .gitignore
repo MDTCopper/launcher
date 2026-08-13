@@ -49,6 +49,9 @@ app.*.map.json
 
 # ai
 .deepcode/
+.opencode/
+opencode.json
+总结.md
 
 # copperlauncher
 versions/
@@ -61,3 +64,4 @@ config.*
 #不需要开发iOS 和 Web端
 ios/
 web/
+

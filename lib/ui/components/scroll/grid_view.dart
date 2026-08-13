@@ -40,6 +40,9 @@ class CopperGridView extends StatefulWidget {
   // ── 渐变遮罩 ──
   final bool fadeMask;
 
+  /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变。
+  final double? estimatedMaxScrollExtent;
+
   /// 默认构造：gridDelegate + children。
   const CopperGridView({
     super.key,
@@ -63,6 +66,7 @@ class CopperGridView extends StatefulWidget {
     this.maxVelocity = 3000,
     this.scrollbarAlignment,
     this.fadeMask = true,
+    this.estimatedMaxScrollExtent,
   }) : itemBuilder = null,
        itemCount = null;
 
@@ -90,6 +94,7 @@ class CopperGridView extends StatefulWidget {
     this.maxVelocity = 3000,
     this.scrollbarAlignment,
     this.fadeMask = true,
+    this.estimatedMaxScrollExtent,
   }) : children = const [];
 
   @override
@@ -156,7 +161,8 @@ class _CopperGridViewState extends State<CopperGridView> {
     }
 
     Widget child = gridView;
-    if (isDesktop) {
+    // shrinkWrap（嵌入父滚动容器、无界约束）时不需要桌面滚动容器 / 渐变遮罩
+    if (isDesktop && !widget.shrinkWrap) {
       child = DesktopScrollViewContainer(
         controller: _scrollController,
         scrollDirection: widget.scrollDirection,
@@ -164,10 +170,11 @@ class _CopperGridViewState extends State<CopperGridView> {
         trackpadSensitivity: widget.trackpadSensitivity,
         maxVelocity: widget.maxVelocity,
         scrollbarAlignment: widget.scrollbarAlignment,
+        estimatedMaxScrollExtent: widget.estimatedMaxScrollExtent,
         child: child,
       );
     }
-    if (widget.fadeMask) {
+    if (widget.fadeMask && !widget.shrinkWrap) {
       child = ScrollFadeMask(
           controller: _scrollController,
           scrollDirection: widget.scrollDirection,

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:copper_launcher/ui/components/scroll/list_view.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 import 'appear_item.dart';
 
@@ -11,7 +10,7 @@ import 'appear_item.dart';
 /// 两种构造：
 /// - 默认构造：全量 [items]，**错位入场**（无浮现，适合模块少、无性能压力的列表）
 /// - [RevealListView.builder]：惰性构建（滚动到才构建），**错位入场 + 滚动浮现**；
-///   配合高度预期（[itemExtent] / [prototypeItem] / [itemExtentBuilder] 三选一）
+///   可选固定条目高度（[itemExtent] / [prototypeItem]），不传则条目自适应
 ///   让总长精确可预测，滚动条不乱跳。
 ///
 /// 浮现机制：条目首次构建时播放入场动画——进入页面按 index 错位（延迟递增），
@@ -25,10 +24,9 @@ class RevealListView extends StatefulWidget {
   final int? itemCount;
   final NullableIndexedWidgetBuilder? itemBuilder;
 
-  // ── 高度预期（builder 惰性时三选一，精确总长）──
+  // ── 可选固定条目高度（不传则条目自适应）──
   final double? itemExtent;
   final Widget? prototypeItem;
-  final ItemExtentBuilder? itemExtentBuilder;
 
   // ── 错位动画 ──
   final double interval; // item 出现间隔系数（相对 appearDuration）
@@ -44,6 +42,9 @@ class RevealListView extends StatefulWidget {
   final bool shrinkWrap;
   final bool fadeMask;
 
+  /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变。
+  final double? estimatedMaxScrollExtent;
+
   const RevealListView({
     super.key,
     this.items = const [],
@@ -57,11 +58,11 @@ class RevealListView extends StatefulWidget {
     this.itemSpacing = 4.0,
     this.shrinkWrap = false,
     this.fadeMask = false,
+    this.estimatedMaxScrollExtent,
   }) : itemCount = null,
        itemBuilder = null,
        itemExtent = null,
-       prototypeItem = null,
-       itemExtentBuilder = null;
+       prototypeItem = null;
 
   const RevealListView.builder({
     super.key,
@@ -69,7 +70,6 @@ class RevealListView extends StatefulWidget {
     required this.itemBuilder,
     this.itemExtent,
     this.prototypeItem,
-    this.itemExtentBuilder,
     this.interval = 0.3,
     this.delay = 0,
     this.appearDuration = const Duration(milliseconds: 200),
@@ -80,6 +80,7 @@ class RevealListView extends StatefulWidget {
     this.itemSpacing = 4.0,
     this.shrinkWrap = false,
     this.fadeMask = false,
+    this.estimatedMaxScrollExtent,
   }) : items = const [];
 
   @override
@@ -89,9 +90,8 @@ class RevealListView extends StatefulWidget {
 class _RevealListViewState extends State<RevealListView> {
   late final ScrollController _scrollController;
 
-  /// 错位入场窗口是否结束（结束后滚动构建的条目立即浮现）
-  bool _entryDone = false;
-  Timer? _entryTimer;
+  /// 首帧构建完成后置 true：滚动构建的条目直接显示（只入场动画，无滚动浮现）
+  bool _firstBuildDone = false;
 
   /// 已播放过动画的条目 index（滚动回来不重复浮现）
   final Set<int> _animated = {};
@@ -103,21 +103,14 @@ class _RevealListViewState extends State<RevealListView> {
     super.initState();
     _scrollController = widget.scrollController ?? ScrollController();
 
-    // 错位入场总时长 = 首延迟 + (n-1) 个间隔 + 最后 item 动画时长
-    final totalMs =
-        widget.delay +
-        ((_count - 1) *
-                (widget.interval * widget.appearDuration.inMilliseconds))
-            .round() +
-        widget.appearDuration.inMilliseconds;
-    _entryTimer = Timer(Duration(milliseconds: totalMs), () {
-      if (mounted) setState(() => _entryDone = true);
+    // 首帧后：滚动构建的条目不再播放入场动画（只入场动画）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _firstBuildDone = true);
     });
   }
 
   @override
   void dispose() {
-    _entryTimer?.cancel();
     if (widget.scrollController == null) {
       _scrollController.dispose();
     }
@@ -133,7 +126,7 @@ class _RevealListViewState extends State<RevealListView> {
     return Padding(
       padding: EdgeInsets.only(bottom: widget.itemSpacing),
       child: AppearItem(
-        delayMs: animate ? (_entryDone ? 0 : _delayFor(index)) : 0,
+        delayMs: animate ? _delayFor(index) : 0,
         animate: animate,
         offset: widget.offset,
         duration: widget.appearDuration,
@@ -156,14 +149,14 @@ class _RevealListViewState extends State<RevealListView> {
         itemCount: widget.itemCount,
         itemExtent: widget.itemExtent,
         prototypeItem: widget.prototypeItem,
-        itemExtentBuilder: widget.itemExtentBuilder,
         fadeMask: widget.fadeMask,
+        estimatedMaxScrollExtent: widget.estimatedMaxScrollExtent,
         itemBuilder: (context, index) {
           final item = widget.itemBuilder!(context, index);
           if (item == null) return const SizedBox.shrink();
-          // 首次构建才播动画（滚动回来复用不重复浮现）
+          // 只入场动画：首帧构建的条目错位入场，滚动构建的直接显示
           final isFirstBuild = _animated.add(index);
-          return _wrapItem(index, item, animate: isFirstBuild);
+          return _wrapItem(index, item, animate: isFirstBuild && !_firstBuildDone);
         },
       );
     }

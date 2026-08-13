@@ -22,6 +22,7 @@ class DesktopScrollViewContainer extends StatefulWidget {
     this.trackpadSensitivity = 0.33,
     this.scrollbarAlignment,
     this.maxVelocity = 2000,
+    this.estimatedMaxScrollExtent,
   });
 
   final Widget child;
@@ -36,6 +37,11 @@ class DesktopScrollViewContainer extends StatefulWidget {
 
   /// 滚动条位置（默认：垂直滚动条在右侧，水平滚动条在底部）。
   final AlignmentGeometry? scrollbarAlignment;
+
+  /// 预测最大偏移（惰性列表提供）：滚动条 thumb / 点击 / 拖动用此值计算，
+  /// 避免惰性列表 maxScrollExtent 估算（平均外推）导致的跳变。
+  /// 不传则用 position.maxScrollExtent。到达实际边界时自动重校为实际值。
+  final double? estimatedMaxScrollExtent;
 
   /// 触控板惯性速度上限（px/s），<= 0 表示不限速。
   /// 速度经 tanh 非线性映射：低速≈真实，高速渐近逼近该值。
@@ -82,6 +88,14 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   // ── 滚动条 hover 时的有效灵敏度（窄区域需要更灵敏）──
 
   bool get _isScrollbarHovered => isHovered;
+
+  /// 滚动条有效最大偏移：预测优先（稳定），到达实际边界后重校为实际值。
+  double? _effectiveMax;
+
+  double get _scrollMax =>
+      _effectiveMax ??
+      widget.estimatedMaxScrollExtent ??
+      _controller.position.maxScrollExtent;
 
   /// 滚轮有效灵敏度：滚动条 hover 时 ×2
   double get _effectiveScrollSensitivity =>
@@ -171,16 +185,31 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
 
   //只要滚动就会更新UI
   void _onScroll() {
-    // 越界检测：offset 超过当前最大偏移时自动回弹（惰性列表 maxScrollExtent
-    // 变化、外部 jumpTo 超限等场景兜底）
     if (_controller.hasClients) {
       final position = _controller.position;
+      // 越界检测：offset 超过当前最大偏移时自动回弹
       if (position.pixels > position.maxScrollExtent) {
         _controller.jumpTo(position.maxScrollExtent);
         return;
       }
+      // 到达实际边界 → 把预测重校为实际值（滚动条对齐；底部内容全构建后精确）
+      if (position.pixels >= position.maxScrollExtent - 1 ||
+          position.pixels <= position.minScrollExtent + 1) {
+        if (_effectiveMax != position.maxScrollExtent) {
+          _effectiveMax = position.maxScrollExtent;
+        }
+      }
     }
     setState(_handleOutScroll);
+  }
+
+  @override
+  void didUpdateWidget(covariant DesktopScrollViewContainer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 预测更新（外层 rebuild / 可变列表）：重置重校，重新用新预测
+    if (oldWidget.estimatedMaxScrollExtent != widget.estimatedMaxScrollExtent) {
+      _effectiveMax = null;
+    }
   }
 
   void _showScrollBar() {
@@ -213,6 +242,20 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
 
   bool _isInnerScroll = false;
   Timer? _innerScrollTimer;
+  /// 判断滚轮方向是否还能继续滚动（未到边界）。
+  bool _canScroll(PointerScrollEvent event) {
+    if (!_controller.hasClients) return false;
+    final raw = _isVertical
+        ? event.scrollDelta.dy
+        : (event.scrollDelta.dx != 0
+              ? event.scrollDelta.dx
+              : event.scrollDelta.dy);
+    final position = _controller.position;
+    if (raw > 0) return position.pixels < position.maxScrollExtent;
+    if (raw < 0) return position.pixels > position.minScrollExtent;
+    return false;
+  }
+
   void _handleScroll(PointerScrollEvent event) {
     _stopInertia();
     _isInnerScroll = true;
@@ -221,7 +264,16 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
       _isInnerScroll = false;
     });
 
-    final delta = _axisDelta(event.scrollDelta) * _effectiveScrollSensitivity;
+    // 鼠标滚轮：垂直列表取 dy；横向列表取 dx，若无水平滚轮（dx=0）则回退到 dy，
+    // 让普通鼠标滚轮也能滚动横向内容
+    final double rawDelta;
+    if (_isVertical) {
+      rawDelta = event.scrollDelta.dy;
+    } else {
+      rawDelta =
+          event.scrollDelta.dx != 0 ? event.scrollDelta.dx : event.scrollDelta.dy;
+    }
+    final delta = rawDelta * _effectiveScrollSensitivity;
     final minExtent = _controller.position.minScrollExtent;
     final maxExtent = _controller.position.maxScrollExtent;
 
@@ -251,7 +303,12 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   /// 最近几次触控板滚动的 (缩放后 delta, 时间秒) 样本，用于估算离手速度
   final List<(double, double)> _recentPan = [];
 
+  /// 当前正在处理 PanZoom 手势的容器（嵌套滚动时最内层优先）。
+  static _DesktopScrollViewContainerState? _panZoomOwner;
+
   void _handlePanZoomStart(PointerPanZoomStartEvent event) {
+    // 嵌套滚动：hit test 从内到外，最内层先收到 start，成为 PanZoom 处理者
+    _panZoomOwner ??= this;
     _stopInertia();
     _isInnerScroll = true;
     _recentPan.clear();
@@ -259,6 +316,10 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   }
 
   void _handlePanZoomUpdate(PointerPanZoomUpdateEvent event) {
+    // 嵌套滚动：只有当前处理者响应；owner 被释放（内层到边界）时接管
+    if (_panZoomOwner != null && _panZoomOwner != this) return;
+    _panZoomOwner ??= this;
+
     _isInnerScroll = true;
     _innerScrollTimer?.cancel();
     _innerScrollTimer = Timer(const Duration(milliseconds: 300), () {
@@ -275,6 +336,12 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     // 连续手势走 jumpTo，即时跟随无动画延迟
     _controller.jumpTo(_panZoomOffset);
 
+    // 到边界继续越界滚动 → 释放处理权，让外层（若有）接管剩余滚动
+    if ((_panZoomOffset == minExtent && delta > 0) ||
+        (_panZoomOffset == maxExtent && delta < 0)) {
+      _panZoomOwner = null;
+    }
+
     // 记录速度样本（缩放后的 delta + 时间秒）
     _recentPan.add((delta, event.timeStamp.inMicroseconds / 1e6));
     if (_recentPan.length > 5) _recentPan.removeAt(0);
@@ -288,6 +355,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   }
 
   void _handlePanZoomEnd(PointerPanZoomEndEvent event) {
+    if (_panZoomOwner == this) _panZoomOwner = null;
     _isInnerScroll = false;
     _targetOffset = _controller.offset;
 
@@ -372,12 +440,13 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
       statesController.update(WidgetState.dragged, true);
       _dragStartOffset = localPos - thumbTop;
     } else {
-      // 点击轨道快速跳转
+      // 点击轨道快速跳转（用预测 _scrollMax，稳定不跳；clamp 实际边界）
       final ratio = (localPos - thumbHeight / 2) / (trackHeight - thumbHeight);
-      _targetOffset =
-          (ratio.clamp(0.0, 1.0)) * _controller.position.maxScrollExtent;
+      _targetOffset = (ratio.clamp(0.0, 1.0)) * _scrollMax;
+      final minExtent = _controller.position.minScrollExtent;
+      final maxExtent = _controller.position.maxScrollExtent;
       _controller.animateTo(
-        _targetOffset,
+        _targetOffset.clamp(minExtent, maxExtent),
         duration: const Duration(milliseconds: 300),
         curve: Curves.fastEaseInToSlowEaseOut,
       );
@@ -391,7 +460,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     double trackHeight,
   ) {
     if (!isDragged || !_controller.hasClients) return;
-    final maxScroll = _controller.position.maxScrollExtent;
+    final maxScroll = _scrollMax;
 
     if (maxScroll <= 0) return;
 
@@ -414,8 +483,14 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   Widget _buildListView() {
     return Listener(
       onPointerSignal: (PointerSignalEvent event) {
-        if (event is PointerScrollEvent) {
-          _handleScroll(event);
+        if (event is! PointerScrollEvent) return;
+        // 嵌套滚动：内层还能滚时消费事件（resolver 保证只有最内层处理，
+        // 外层不响应）；内层到边界时不注册，事件自然冒泡到外层滚动容器
+        if (_canScroll(event)) {
+          GestureBinding.instance.pointerSignalResolver.register(
+            event,
+            (e) => _handleScroll(e as PointerScrollEvent),
+          );
         }
       },
       // 触控板：Flutter 桌面端（macOS 等）把两指平移发成 PanZoom 手势，
@@ -430,6 +505,9 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
         ),
         child: NotificationListener<ScrollNotification>(
           onNotification: (n) {
+            // 只响应本容器（depth 0）的滚动，忽略内层嵌套滚动冒泡上来的通知，
+            // 避免滚动内层时外层滚动条误显示
+            if (n.depth != 0) return false;
             if (n is ScrollStartNotification || n is ScrollUpdateNotification) {
               statesController.update(WidgetState.scrolledUnder, true);
             } else if (n is ScrollEndNotification) {
@@ -467,7 +545,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
         builder: (context, constraints) {
           final position = _controller.position;
           // 如果最大偏移量为0，内容未溢出，不显示滚动条
-          final maxScroll = position.maxScrollExtent;
+          final maxScroll = _scrollMax;
           if (maxScroll <= 0) {
             if (isDragged) statesController.update(WidgetState.dragged, false);
             if (isHovered) statesController.update(WidgetState.hovered, false);
@@ -619,7 +697,10 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   @override
   Widget build(BuildContext context) {
     return Stack(
-      fit: StackFit.expand,
+      // passthrough：约束透传给 ListView，Stack 尺寸 = 内容。
+      // expand 会在无界约束（shrinkWrap 上下文，如模块内）下崩溃；
+      // 页面级有界约束下 ListView 默认撑满，行为不变
+      fit: StackFit.passthrough,
       children: [
         _buildListView(),
         if (_controller.hasClients) _buildScrollBar(),

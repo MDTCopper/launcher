@@ -37,6 +37,9 @@ class RevealGridView extends StatefulWidget {
   final bool shrinkWrap;
   final bool fadeMask;
 
+  /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变。
+  final double? estimatedMaxScrollExtent;
+
   const RevealGridView({
     super.key,
     this.items = const [],
@@ -51,6 +54,7 @@ class RevealGridView extends StatefulWidget {
     this.itemSpacing = 8.0,
     this.shrinkWrap = false,
     this.fadeMask = false,
+    this.estimatedMaxScrollExtent,
   }) : itemCount = null,
        itemBuilder = null;
 
@@ -69,6 +73,7 @@ class RevealGridView extends StatefulWidget {
     this.itemSpacing = 8.0,
     this.shrinkWrap = false,
     this.fadeMask = false,
+    this.estimatedMaxScrollExtent,
   }) : items = const [];
 
   @override
@@ -78,8 +83,7 @@ class RevealGridView extends StatefulWidget {
 class _RevealGridViewState extends State<RevealGridView> {
   late final ScrollController _scrollController;
 
-  bool _entryDone = false;
-  Timer? _entryTimer;
+  bool _firstBuildDone = false;
   final Set<int> _animated = {};
 
   int get _count => widget.itemCount ?? widget.items.length;
@@ -89,20 +93,14 @@ class _RevealGridViewState extends State<RevealGridView> {
     super.initState();
     _scrollController = widget.scrollController ?? ScrollController();
 
-    final totalMs =
-        widget.delay +
-        ((_count - 1) *
-                (widget.interval * widget.appearDuration.inMilliseconds))
-            .round() +
-        widget.appearDuration.inMilliseconds;
-    _entryTimer = Timer(Duration(milliseconds: totalMs), () {
-      if (mounted) setState(() => _entryDone = true);
+    // 首帧后：滚动构建的条目不再播放入场动画（只入场动画）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _firstBuildDone = true);
     });
   }
 
   @override
   void dispose() {
-    _entryTimer?.cancel();
     if (widget.scrollController == null) {
       _scrollController.dispose();
     }
@@ -117,7 +115,7 @@ class _RevealGridViewState extends State<RevealGridView> {
     return Padding(
       padding: EdgeInsets.all(widget.itemSpacing / 2),
       child: AppearItem(
-        delayMs: animate ? (_entryDone ? 0 : _delayFor(index)) : 0,
+        delayMs: animate ? _delayFor(index) : 0,
         animate: animate,
         scale: widget.startScale, // 生长式
         duration: widget.appearDuration,
@@ -140,11 +138,13 @@ class _RevealGridViewState extends State<RevealGridView> {
         gridDelegate: widget.gridDelegate,
         itemCount: widget.itemCount,
         fadeMask: widget.fadeMask,
+        estimatedMaxScrollExtent: widget.estimatedMaxScrollExtent,
         itemBuilder: (context, index) {
           final item = widget.itemBuilder!(context, index);
           if (item == null) return const SizedBox.shrink();
+          // 只入场动画：首帧构建的条目错位生长入场，滚动构建的直接显示
           final isFirstBuild = _animated.add(index);
-          return _wrapItem(index, item, animate: isFirstBuild);
+          return _wrapItem(index, item, animate: isFirstBuild && !_firstBuildDone);
         },
       );
     }

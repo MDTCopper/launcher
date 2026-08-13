@@ -5,6 +5,7 @@ import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/switcher_builder.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
 import 'package:window_manager/window_manager.dart';
 
@@ -58,13 +59,15 @@ class AppShellState extends State<AppShell> {
           icon: Icons.local_fire_department_outlined,
           route: '/community_resources',
         ),
+        RailItem(label: '神秘小工具', icon: Icons.build, route: '/tools'),
       ],
     ),
   ];
 
   static final _items = [
     RailItem(label: '设置', icon: Icons.settings, route: '/setting'),
-    RailItem(label: '更多', icon: Icons.menu, route: '/more'),
+    if (kDebugMode)
+      RailItem(label: '测试页面', icon: Icons.terminal_outlined, route: '/test'),
   ];
   //导航栏根路由切换
   void _onRootNavigate(String route, Object? arg) {

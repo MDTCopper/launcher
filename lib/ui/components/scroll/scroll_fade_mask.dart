@@ -61,21 +61,27 @@ class _ScrollFadeMaskState extends State<ScrollFadeMask>
   /// 渐变遮罩：[start] 为 true 时起始端（顶部 / 左侧）渐隐，否则结束端。
   Widget _buildFade(bool show, bool start) {
     final colors = AppColors.of(context);
-    return AnimatedOpacity(
-      opacity: show ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 100),
-      child: Container(
-        height: _isVertical ? widget.fadeSize : double.infinity,
-        width: _isVertical ? double.infinity : widget.fadeSize,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: _isVertical
-                ? (start ? Alignment.topCenter : Alignment.bottomCenter)
-                : (start ? Alignment.centerLeft : Alignment.centerRight),
-            end: _isVertical
-                ? (start ? Alignment.bottomCenter : Alignment.topCenter)
-                : (start ? Alignment.centerRight : Alignment.centerLeft),
-            colors: [colors.cardBackground, colors.cardBackground.withAlpha(0)],
+    // IgnorePointer：遮罩只做视觉渐隐，不拦截下层交互（点击 / 滚动 / 悬停）
+    return IgnorePointer(
+      child: AnimatedOpacity(
+        opacity: show ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          height: _isVertical ? widget.fadeSize : double.infinity,
+          width: _isVertical ? double.infinity : widget.fadeSize,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: _isVertical
+                  ? (start ? Alignment.topCenter : Alignment.bottomCenter)
+                  : (start ? Alignment.centerLeft : Alignment.centerRight),
+              end: _isVertical
+                  ? (start ? Alignment.bottomCenter : Alignment.topCenter)
+                  : (start ? Alignment.centerRight : Alignment.centerLeft),
+              colors: [
+                colors.cardBackground,
+                colors.cardBackground.withAlpha(0),
+              ],
+            ),
           ),
         ),
       ),
