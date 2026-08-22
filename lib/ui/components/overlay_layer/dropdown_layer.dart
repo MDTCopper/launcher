@@ -146,6 +146,16 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     _popupController.dismiss();
   }
 
+  /// dismiss 开始（退场动画前）立即复位：箭头转回、外框高亮取消，
+  /// 不用等退场动画完全结束。
+  void _onDismissStart() {
+    if (!mounted || !expanded) return;
+    expanded = false;
+    arrowController.reverse();
+    _hoverChange();
+    setState(() {});
+  }
+
   void _select(T value) {
     selectValue = value;
     _closeMenu();
@@ -228,7 +238,12 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     );
   }
 
-  /// 菜单动画：淡入 + 从头部方向展开（视觉压缩生长）。
+  /// 菜单动画：淡入 + 从锚点方向生长（视觉压缩展开）。
+  ///
+  /// 生长方向跟随菜单实际方位（由 [PopupOverlayPlacement] 提供）：
+  /// - 菜单在锚点下方 → 从菜单顶边（贴锚点）向下生长
+  /// - 菜单在锚点上方 → 从菜单底边（贴锚点）向上生长（从下往上）
+  /// - 沉底（上下都不够）→ 从锚点所在高度向外生长（锚点 = 触发组件位置）
   ///
   /// 用 [Transform.scale]（绘制层变换，不改布局尺寸）替代 SizeTransition /
   /// Align(heightFactor)：布局尺寸始终是菜单完整尺寸 → 浮层定位稳定，
@@ -241,23 +256,33 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   ) {
     return FadeTransition(
       opacity: animation,
-      child: Align(
-        alignment: Alignment.topCenter,
-        // 尺寸 = child 尺寸（不撑满容器，避免水平居中偏移）
-        widthFactor: 1.0,
-        heightFactor: 1.0,
-        child: AnimatedBuilder(
-          // 监听动画每帧重建 Transform（不改变布局尺寸，定位稳定）
-          animation: animation,
-          builder: (context, child) => Transform.scale(
-            scaleY: animation.value,
-            alignment: Alignment.topCenter,
-            child: child,
-          ),
+      child: AnimatedBuilder(
+        // 监听动画每帧重建 Transform（不改变布局尺寸，定位稳定）
+        animation: animation,
+        builder: (context, child) => Transform.scale(
+          scaleY: animation.value,
+          alignment: _growthAlignment(placement),
           child: child,
         ),
+        child: child,
       ),
     );
+  }
+
+  /// 计算生长锚点：根据菜单与锚点的实际位置关系决定生长方向。
+  Alignment _growthAlignment(PopupOverlayPlacement? placement) {
+    if (placement == null) return Alignment.topCenter;
+    final menuTop = placement.position.dy;
+    final menuBottom = menuTop + placement.childSize.height;
+    final anchorBottom = placement.anchorRect.bottom;
+    // 菜单在锚点下方：贴锚点的是菜单顶边 → 从顶边向下生长
+    if (anchorBottom <= menuTop) return Alignment.topCenter;
+    // 菜单在锚点上方：贴锚点的是菜单底边 → 从底边向上生长（从下往上）
+    if (anchorBottom >= menuBottom) return Alignment.bottomCenter;
+    // 沉底（锚点在菜单范围内）：从锚点所在高度向外生长
+    final ratio = ((anchorBottom - menuTop) / placement.childSize.height)
+        .clamp(0.0, 1.0);
+    return Alignment(0, ratio * 2 - 1);
   }
 
   // ------------------------------------------------------------------
@@ -369,6 +394,8 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
       animation: _dropdownAnimation,
       positionDelegate: const _DropdownPositionDelegate(gap: 4),
       animationDuration: const Duration(milliseconds: 200),
+      // 关闭菜单的瞬间立即复位箭头与外框高亮（不等退场动画结束）
+      onDismissStart: _onDismissStart,
       onClose: () {
         // 点击外部 / Esc 关闭时同步状态
         if (mounted && expanded) {
@@ -378,6 +405,8 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
           setState(() {});
         }
       },
+      // 滚动外部时与点击外部一样自动关闭
+      dismissOnScrollOutside: true,
       overlayChildBuilder: (context, anchorRect) =>
           _buildMenu(context, anchorRect.width),
       child: head,
@@ -385,7 +414,10 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   }
 }
 
-/// 下拉定位策略：菜单固定在锚点左缘正下方展开，放不下时翻转到上方。
+/// 下拉定位策略：
+/// 1. 优先显示在锚点下方
+/// 2. 下方没空间 → 显示在锚点上方
+/// 3. 上下都不够（菜单比屏幕高）→ 沉底（菜单底边贴屏幕底部）
 class _DropdownPositionDelegate extends PopupOverlayPositionDelegate {
   final double gap;
 
@@ -402,9 +434,14 @@ class _DropdownPositionDelegate extends PopupOverlayPositionDelegate {
     var left = anchorRect.left;
     var top = anchorRect.bottom + gap;
 
-    // 垂直翻转：下方放不下则展开到上方
+    // 1. 优先下方
     if (top + childSize.height > overlaySize.height - padding.bottom) {
+      // 2. 下方放不下 → 上方
       top = anchorRect.top - childSize.height - gap;
+      // 3. 上方也放不下（菜单比屏幕高）→ 沉底
+      if (top < padding.top) {
+        top = overlaySize.height - padding.bottom - childSize.height;
+      }
     }
     // 水平收拢：菜单比锚点宽时限制在屏幕内
     if (left + childSize.width > overlaySize.width - padding.right) {

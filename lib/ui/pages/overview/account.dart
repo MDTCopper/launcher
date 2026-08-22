@@ -263,7 +263,10 @@ class _AccountPageState extends State<AccountPage> {
     );
 
     // 右键 / 长按弹出操作菜单（桌面端风格）
+    // key 标识账户：删除某项后 Flutter 按 key 复用 Element，
+    // 避免 ActionSlideLayer 的打开状态串到下一个组件。
     return MenuLayer(
+      key: ValueKey(account.id),
       child: row,
       menuBuilder: (context, controller) => [
         _menuItem(

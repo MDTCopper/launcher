@@ -265,6 +265,8 @@ class HintLayerState extends State<HintLayer> {
       // 提示框不拦截点击、不响应 Esc（与原行为一致）
       dismissOnTapOutside: false,
       dismissOnEsc: false,
+      // 锚点移动自动关闭等外部关闭时同步自身状态（防止 _isShowing 卡死）
+      onClose: _onPopupClosed,
       screenPadding: widget.screenPadding,
       animationDuration: widget.animationDuration,
       overlayChildBuilder: _buildHintOverlayChild, // (context, anchorRect)
@@ -395,7 +397,23 @@ class HintLayerState extends State<HintLayer> {
       HintLayer._activeHint = null;
     }
 
-    _popupController.dismiss();
+    _popupController.dismiss(immediate: immediate);
+  }
+
+  /// 浮层被外部机制关闭（锚点移动自动关闭 / 点击外部等）时同步自身状态，
+  /// 避免 `_isShowing` 卡在 true 导致后续无法重新显示。
+  void _onPopupClosed() {
+    if (_disposed) return;
+    _waitTimer?.cancel();
+    _dismissTimer?.cancel();
+    final bool wasVisible = _isShowing;
+    _isShowing = false;
+    if (wasVisible) {
+      HintLayer._lastDismissTime = DateTime.now();
+    }
+    if (HintLayer._activeHint == this) {
+      HintLayer._activeHint = null;
+    }
   }
 }
 

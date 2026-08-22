@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -183,7 +184,10 @@ class PopupOverlayController {
   void open({Offset? position}) => _state?._open(position: position);
 
   /// 关闭浮层（播放退场动画后移除）。
-  Future<void> dismiss() => _state?._dismiss() ?? Future.value();
+  ///
+  /// [immediate] 为 true 时立即隐藏，不播放退场动画。
+  Future<void> dismiss({bool immediate = false}) =>
+      _state?._dismiss(immediate: immediate) ?? Future.value();
 }
 
 /// 在指定位置弹出浮层窗口，自动挑选合适位置，非对话框（无遮罩）。
@@ -224,6 +228,19 @@ class PopupOverlay extends StatefulWidget {
   /// 浮层关闭后回调（点击外部 / Esc / 手动 dismiss 都会触发）。
   final VoidCallback? onClose;
 
+  /// dismiss 开始（退场动画播放前）立即回调。
+  ///
+  /// 用于在关闭瞬间同步外部状态（如下拉菜单立即复位箭头 / 高亮），
+  /// 而不必等退场动画结束。
+  final VoidCallback? onDismissStart;
+
+  /// 滚动外部（滚轮）是否自动关闭浮层。
+  ///
+  /// 开启后在浮层外的滚轮滚动会触发 dismiss。
+  /// 注意：浮层打开时外部滚动被浮层层拦截（与点击外部一致），
+  /// 关闭浮层后滚动恢复。
+  final bool dismissOnScrollOutside;
+
   /// 浮层距屏幕边缘的最小安全距离。
   final EdgeInsets screenPadding;
 
@@ -240,6 +257,8 @@ class PopupOverlay extends StatefulWidget {
     this.dismissOnTapOutside = true,
     this.dismissOnEsc = true,
     this.onClose,
+    this.onDismissStart,
+    this.dismissOnScrollOutside = false,
     this.screenPadding = const EdgeInsets.all(8),
     this.animationDuration = const Duration(milliseconds: 150),
   });
@@ -266,6 +285,10 @@ class _PopupOverlayState extends State<PopupOverlay> {
   Rect? _anchorSnapshot;
   Size? _overlaySnapshot;
 
+  /// 打开代数：每次 [open] 递增；[dismiss] 完成时若代数未变
+  /// （期间未被重新打开），才真正隐藏浮层。
+  int _generation = 0;
+
   /// 布局最大尺寸跟踪（每次打开重置）。
   final _SizeTracker _sizeTracker = _SizeTracker();
 
@@ -276,6 +299,7 @@ class _PopupOverlayState extends State<PopupOverlay> {
     _anchorSnapshot = null;
     _overlaySnapshot = null;
     _sizeTracker.max = null;
+    _generation++;
     if (mounted) {
       setState(() => _position = position);
     }
@@ -284,13 +308,17 @@ class _PopupOverlayState extends State<PopupOverlay> {
     _animationKey.currentState?.restart();
   }
 
-  Future<void> _dismiss() async {
+  Future<void> _dismiss({bool immediate = false}) async {
+    widget.onDismissStart?.call();
     _anchorSnapshot = null;
     _overlaySnapshot = null;
+    final gen = _generation;
     final anim = _animationKey.currentState;
-    await anim?.playReverse();
-    // 退场期间被重新打开（动画已重新 forward）→ 不隐藏，保持显示
-    if (mounted && (anim == null || !anim.isReopened)) {
+    if (!immediate) {
+      await anim?.playReverse();
+    }
+    // 退场期间被重新打开（代数已变）→ 不隐藏，保持显示
+    if (mounted && gen == _generation) {
       _overlayController.hide();
       _placement.value = null;
       widget.onClose?.call();
@@ -346,10 +374,18 @@ class _PopupOverlayState extends State<PopupOverlay> {
         // 透明关闭层：点击浮层外部关闭，无视觉遮罩
         if (widget.dismissOnTapOutside)
           Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _dismiss(),
-              child: const SizedBox.expand(),
+            child: Listener(
+              // 滚轮滚动外部时自动关闭（与点击外部一致）
+              onPointerSignal: widget.dismissOnScrollOutside
+                  ? (e) {
+                      if (e is PointerScrollEvent) _dismiss();
+                    }
+                  : null,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _dismiss(),
+                child: const SizedBox.expand(),
+              ),
             ),
           ),
         Positioned.fill(
@@ -558,9 +594,6 @@ class _PopupOverlayAnimationState extends State<_PopupOverlayAnimation>
       _controller.forward();
     }
   }
-
-  /// 退场完成后是否已被重新打开（用于 [_PopupOverlayState._dismiss] 的 hide 保护）。
-  bool get isReopened => _controller.isAnimating;
 
   @override
   Widget build(BuildContext context) {

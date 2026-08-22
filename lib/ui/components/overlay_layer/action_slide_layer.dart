@@ -13,6 +13,12 @@ class ActionSlideLayer extends StatefulWidget {
   final Duration animationDuration;
   final Curve curve;
 
+  /// 菜单非按钮区域是否拦截事件。
+  ///
+  /// 为 false（默认）时，菜单露出区域内点击 / 滚动会透传到下层组件；
+  /// 为 true 时菜单区域拦截所有事件（按钮仍可点击）。
+  final bool blockMenuEvents;
+
   const ActionSlideLayer({
     super.key,
     required this.child,
@@ -20,6 +26,7 @@ class ActionSlideLayer extends StatefulWidget {
     this.openRatio = 0.5,
     this.animationDuration = const Duration(milliseconds: 250),
     this.curve = Curves.fastOutSlowIn,
+    this.blockMenuEvents = false,
   });
 
   @override
@@ -28,18 +35,23 @@ class ActionSlideLayer extends StatefulWidget {
 
 class _ActionSlideLayerState extends State<ActionSlideLayer>
     with SingleTickerProviderStateMixin {
+  /// 展开度控制器（无边界）：正常值 [0,1] 表示展开度；
+  /// 拖动过冲时可超出边界（负 = 超过菜单宽，正 = 超过 0），
+  /// 松手回弹时由 [animateTo] 平滑滑回边界。
   late final AnimationController _controller;
+
   final GlobalKey _menuKey = GlobalKey();
 
   double _menuWidth = 0;
 
-  /// 手势累计偏移（负值表示左滑），范围 [-_menuWidth, 0]
+  /// 手势累计偏移（px，负值表示左移）。过冲时可超出
+  /// [-_menuWidth, 0]，超出部分带阻尼（橡皮筋手感）。
   double _dragDistance = 0;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _controller = AnimationController.unbounded(
       vsync: this,
       duration: widget.animationDuration,
     );
@@ -85,13 +97,25 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
 
   void _onDragStart(DragStartDetails details) {
     _controller.stop();
-    // 从当前展开度开始累计
+    // 从当前视觉偏移开始累计（含未回弹完的过冲）
     _dragDistance = -_menuWidth * _controller.value;
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
-    _dragDistance = (_dragDistance + details.delta.dx).clamp(-_menuWidth, 0);
+    final raw = _dragDistance + details.delta.dx;
+    final min = -_menuWidth;
+    final max = 0.0;
+    if (raw < min) {
+      // 左过冲：超出部分阻尼 80%，越拖越难
+      _dragDistance = min + (raw - min) * 0.9;
+    } else if (raw > max) {
+      // 右过冲：超出部分阻尼40%
+      _dragDistance = raw * 0.4;
+    } else {
+      _dragDistance = raw;
+    }
     if (_menuWidth > 0) {
+      // 无边界控制器直接存偏移比例（可超界）
       _controller.value = -_dragDistance / _menuWidth;
     }
     setState(() {});
@@ -99,6 +123,7 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
 
   void _onDragEnd(DragEndDetails details) {
     final shouldOpen = _controller.value > widget.openRatio;
+    // 过冲值由 animateTo 从超界位置平滑滑回边界
     _animateTo(shouldOpen ? 1 : 0);
   }
 
@@ -106,38 +131,17 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
     _onDragEnd(DragEndDetails());
   }
 
+  /// child 平移偏移（px，负值左移）。过冲时超出边界，由 Stack 裁剪。
+  double get _translateOffset => -_menuWidth * _controller.value;
+
   @override
   Widget build(BuildContext context) {
     final isOpen = _controller.value > 0.5;
 
     return Stack(
+      clipBehavior: Clip.hardEdge,
       children: [
-        // 菜单层：静态垫底，右对齐
-        // 用 ClipPath 差集裁剪：child 平移后的区域从菜单层"裁掉"，
-        // child 背景透明也不会透出菜单（PS 遮罩思路：child 区域即蒙版）
-        Positioned.fill(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              final reveal = _menuWidth * _controller.value;
-              return ClipPath(
-                clipper: _MenuRevealClipper(reveal),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Row(
-                    key: _menuKey,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final action in widget.actions)
-                        SizedBox(height: double.infinity, child: action),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        // child 层：手势 + 平移露出菜单
+        // ── child 层：手势 + 平移露出菜单（垫底）──
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onHorizontalDragStart: _onDragStart,
@@ -149,17 +153,61 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
             animation: _controller,
             builder: (context, child) {
               return Transform.translate(
-                offset: Offset(-_menuWidth * _controller.value, 0),
+                offset: Offset(_translateOffset, 0),
                 child: child,
               );
             },
             child: widget.child,
           ),
         ),
+        // ── 菜单层：置顶，保证按钮能收到点击 ──
+        // ClipPath 差集把「child 平移后占据的区域」从菜单层裁掉（PS 蒙版思路），
+        // child 移开多少，菜单就从右往左露出多少。
+        // 非按钮区域默认透传（ClipPath 外不命中，点击/滚动穿到下层）；
+        // blockMenuEvents 为 true 时菜单露出区域拦截所有事件。
+        Positioned.fill(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              // 菜单露出宽度：展开度 clamp 到 [0,1]（过冲不改变菜单宽度）
+              final reveal = _menuWidth * _controller.value.clamp(0.0, 1.0);
+              return ClipPath(
+                clipper: _MenuRevealClipper(reveal),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 背景拦截层：仅当 blockMenuEvents 时拦截露出区域的事件
+                    //（在 ClipPath 内，只作用于菜单露出部分，不影响 child 层）
+                    if (widget.blockMenuEvents)
+                      Positioned.fill(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: _noop,
+                        ),
+                      ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        key: _menuKey,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final action in widget.actions)
+                            SizedBox(height: double.infinity, child: action),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
       ],
     );
   }
 }
+
+void _noop() {}
 
 /// 菜单层遮罩：把「child 平移后占据的区域」从菜单层裁剪掉（PS 蒙版思路）。
 ///
