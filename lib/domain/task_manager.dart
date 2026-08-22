@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:copper_launcher/domain/task.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:window_manager/window_manager.dart';
 
 final Map<String, CancelToken> cancelTokens = {};
@@ -21,59 +21,90 @@ class TaskManager {
   TaskManager._();
   factory TaskManager() => _instance;
 
+  /// 通知刷新窗口：高频 progress 更新被合并到该间隔内，最多每窗口发一次。
+  static const _kNotifyInterval = Duration(milliseconds: 100);
+  static const _kBarDelay = Duration(seconds: 1);
+
   final Map<String, Task> _tasks = {};
 
   final StreamController<List<Task>> _taskStreamController =
       StreamController.broadcast();
 
-  Stream<List<Task>> get stream => _taskStreamController.stream;
+  /// 聚合进度：只读监听源，UI 可精确刷新而无需每次 build 遍历全表。
+  final ValueNotifier<double?> _totalProgress = ValueNotifier<double?>(null);
+  ValueListenable<double?> get totalProcessProgress => _totalProgress;
 
-  double? get totalProcessProgress {
-    double? progress;
-    final tasks = _tasks.values.where((task) {
-      return [TaskStatus.process].contains(task.status);
-    }).toList();
-    int measurableTasks = 0;
-    for (final task in tasks) {
-      if (task.progress != null) {
-        progress = progress ?? 0.0 + task.progress!;
-        measurableTasks++;
-      }
-    }
-    if (progress != null) {
-      progress /= measurableTasks;
-    }
-    return progress;
-  }
+  Stream<List<Task>> get stream => _taskStreamController.stream;
 
   List<Task> get currentTasks => List.from(_tasks.values);
 
-  //通知UI变化
+  static bool _isProcessing(Task task) => task.status == TaskStatus.process;
+
+  // ── 通知节流（leading + trailing）──
+  // 窗口外首变化立即发（leading，保证增删/状态即时），窗口内标记 pending，
+  // 窗口结束时补发一次合并后的最新快照（trailing，保证最新状态必达）。
+  // 不随每次 notify 重置计时器 → 连续高频更新被限频到 [kNotifyInterval]。
+  Timer? _notifyTimer;
+  bool _pending = false;
+
   void _notify() {
+    if (_notifyTimer != null) {
+      _pending = true;
+      return;
+    }
+    _emit();
+    _notifyTimer = Timer(_kNotifyInterval, () {
+      _notifyTimer = null;
+      if (_pending) {
+        _pending = false;
+        _emit();
+      }
+    });
+  }
+
+  void _emit() {
+    _totalProgress.value = _computeTotalProcessProgress();
     _taskStreamController.add(List.from(_tasks.values));
     if (Platform.isWindows) setProgressBar();
   }
 
-  Timer? _timer;
+  double? _computeTotalProcessProgress() {
+    double sum = 0;
+    int measurable = 0;
+    for (final task in _tasks.values.where(_isProcessing)) {
+      if (task.progress != null) {
+        // 修复优先级 bug：原 `progress ?? 0.0 + task.progress!` 实际只取第一个任务
+        sum += task.progress!;
+        measurable++;
+      }
+    }
+    return measurable == 0 ? null : sum / measurable;
+  }
+
+  //通知UI变化
+  Timer? _setBarTimer;
+  Timer? _clearBarTimer;
+
   void setProgressBar() {
-    final progress = totalProcessProgress;
+    final progress = _totalProgress.value;
+    final hasProcessing = _tasks.values.any(_isProcessing);
 
-    final tasks = _tasks.values.where((task) {
-      return [TaskStatus.process].contains(task.status);
-    });
-    //完成结算
-    if (progress == 1.0 || (progress == null && tasks.isEmpty)) {
-      _timer?.cancel();
-      _timer = null;
-
-      Future.delayed(const Duration(seconds: 1), () {
+    //完成结算：无进行中任务，或总进度到位 → 1 秒后清除任务栏进度条
+    if (progress == 1.0 || (progress == null && !hasProcessing)) {
+      _setBarTimer?.cancel();
+      _setBarTimer = null;
+      _clearBarTimer ??= Timer(_kBarDelay, () {
         windowManager.setProgressBar(-1);
+        _clearBarTimer = null;
       });
       return;
     }
 
-    if (_timer == null || !_timer!.isActive) {
-      _timer = Timer(const Duration(seconds: 1), () {
+    //仍有进行中任务：取消待清除，1 秒防抖后更新进度
+    _clearBarTimer?.cancel();
+    _clearBarTimer = null;
+    if (_setBarTimer == null || !_setBarTimer!.isActive) {
+      _setBarTimer = Timer(_kBarDelay, () {
         windowManager.setProgressBar(progress ?? 2.0);
       });
     }
@@ -121,6 +152,27 @@ class TaskManager {
   }
 
   void dispose() {
+    _notifyTimer?.cancel();
+    _setBarTimer?.cancel();
+    _clearBarTimer?.cancel();
+    _totalProgress.dispose();
     _taskStreamController.close();
+  }
+
+  /// 仅供测试：清空单例状态，隔离用例（TaskManager 是单例，无外部重置入口）。
+  @visibleForTesting
+  void debugReset() {
+    _notifyTimer?.cancel();
+    _notifyTimer = null;
+    _setBarTimer?.cancel();
+    _setBarTimer = null;
+    _clearBarTimer?.cancel();
+    _clearBarTimer = null;
+    _pending = false;
+    for (final task in _tasks.values) {
+      task.removeListener(_notify);
+    }
+    _tasks.clear();
+    _totalProgress.value = null;
   }
 }

@@ -62,25 +62,33 @@ class _TaskListState extends State<TaskList> {
   }
 
   void _updateList(List<Task> newTasks) {
-    for (final oldTask in _tasks) {
-      //todo 可以尝试弄一个完成和失败特效
-      final needRemove = !newTasks.any((newTask) => newTask.id == oldTask.id);
-      if (needRemove) {
-        final index = _tasks.indexOf(oldTask);
-        if (index != -1 && _key.currentState != null) {
-          _key.currentState!.removeItem(
-            index,
-            (context, animation) => _buildRemoveAnimation(oldTask, animation),
-            duration: const Duration(milliseconds: 800),
-          );
-        }
+    final state = _key.currentState;
+    if (state == null) return;
+
+    // 移除：按在旧列表中的索引降序处理，先删位置靠后的，前面的索引才不会被移动。
+    // 原写法逐个按旧列表 index removeItem，但 AnimatedList 每次删除都会让后方条目前移，
+    // 一批同时删 ≥2 条时，第二次就会用错索引（删到别的位置甚至越界）。
+    final removed = _tasks
+        .where((t) => !newTasks.any((n) => n.id == t.id))
+        .toList()
+      ..sort((a, b) => _tasks.indexOf(b).compareTo(_tasks.indexOf(a)));
+    for (final task in removed) {
+      final index = _tasks.indexOf(task);
+      if (index != -1) {
+        state.removeItem(
+          index,
+          (context, animation) => _buildRemoveAnimation(task, animation),
+          duration: const Duration(milliseconds: 800),
+        );
       }
     }
 
+    // 新增：移除完成后，AnimatedList 内剩余条目已与 newTasks 对齐（同样按 createTime 排序），
+    // 依次按目标位置插入即可。
     for (final newTask in newTasks) {
       final needAdd = !_tasks.any((oldTask) => oldTask.id == newTask.id);
-      if (needAdd && _key.currentState != null) {
-        _key.currentState!.insertItem(newTasks.indexOf(newTask));
+      if (needAdd) {
+        state.insertItem(newTasks.indexOf(newTask));
       }
     }
   }

@@ -34,8 +34,12 @@ class _TaskDrawerOpenerState extends State<TaskDrawerOpener> {
   void _subscribeTaskStream() {
     _taskSubscription?.cancel();
     _taskSubscription = taskManager.stream.listen((tasks) {
-      _taskNum = _findTasksFormList(tasks).length;
-      setState(() {});
+      final n = _findTasksFormList(tasks).length;
+      // 只有条数变化才重绘窗口组件；进度条由 totalProcessProgress 的
+      // ValueListenable 精确驱动，避免每次 progress 变化整树 rebuild。
+      if (n != _taskNum) {
+        setState(() => _taskNum = n);
+      }
     });
   }
 
@@ -47,8 +51,6 @@ class _TaskDrawerOpenerState extends State<TaskDrawerOpener> {
 
   @override
   Widget build(BuildContext context) {
-    double? progress = taskManager.totalProcessProgress;
-
     final theme = Theme.of(context).textTheme;
 
     return Row(
@@ -69,9 +71,13 @@ class _TaskDrawerOpenerState extends State<TaskDrawerOpener> {
                     SizedBox(
                       width: 100,
                       height: 8,
-                      child: LinearProgressIndicator(
-                        borderRadius: BorderRadius.circular(4),
-                        value: _taskNum == 0 ? 1.0 : progress,
+                      child: ValueListenableBuilder<double?>(
+                        valueListenable: taskManager.totalProcessProgress,
+                        builder: (context, progress, _) =>
+                            LinearProgressIndicator(
+                          borderRadius: BorderRadius.circular(4),
+                          value: progress,
+                        ),
                       ),
                     ),
                   ],

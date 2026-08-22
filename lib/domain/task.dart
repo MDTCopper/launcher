@@ -119,10 +119,15 @@ class SimpleTask extends Task {
 
   @override
   Future<void> runTask() async {
-    task?.call(this);
-    await futureTask?.call(this);
-    progress = 1.0;
-    status = TaskStatus.completed;
+    try {
+      task?.call(this);
+      await futureTask?.call(this);
+      progress = 1.0;
+      status = TaskStatus.completed;
+    } finally {
+      // 完成（或异常中止）后必须广播，否则 manager._notify 收不到 → 进度/列表不刷新
+      updateDisplay();
+    }
   }
 
   @override

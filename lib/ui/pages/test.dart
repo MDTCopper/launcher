@@ -7,6 +7,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/components/scroll/list_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/util/info/notification.dart';
 import 'package:flutter/material.dart';
 
 /// 测试页：浮层体系（PopupOverlay 及 Menu / Dropdown / Hint / ActionSlide）测试用例集中地。
@@ -298,6 +299,72 @@ class TestState extends State<Test> {
                   child: const Text('← 向左滑动试试'),
                 ),
               ),
+            ),
+          ),
+          // ════════ 8. 通知（NotificationWidget） ════════
+          _sectionTitle('8. 通知（入场/退场动画 + 左滑删除）'),
+          _card(
+            title: '通知测试（左上角弹出）',
+            desc: '点击按钮发通知（左上角出现，入场滑入+淡入，退场先收缩再滑走）。左滑通知超阈值松手删除，未达阈值回弹；点击通知触发回调并删除；长时长通知等待自动消失。',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ReboundButton(
+                  onTap: () => addNotice(
+                    icon: Icons.info_outline,
+                    title: '普通通知',
+                    content: '3 秒后自动消失，可以左滑删除',
+                  ),
+                  child: const Text('发普通通知'),
+                ),
+                ReboundButton(
+                  onTap: () => addNotice(
+                    icon: Icons.warning_amber,
+                    title: '长时通知',
+                    content: '10 秒才消失，方便慢慢滑动测试',
+                    duration: const Duration(seconds: 10),
+                  ),
+                  child: const Text('发长时通知'),
+                ),
+                ReboundButton(
+                  onTap: () => addNotice(
+                    icon: Icons.check_circle,
+                    title: '点击回调',
+                    content: '点我试试（点击触发回调并删除）',
+                    onTap: () => addNotice(
+                      icon: Icons.thumb_up,
+                      title: '你点了通知',
+                      content: '这条是回调里发的',
+                      duration: const Duration(seconds: 2),
+                    ),
+                  ),
+                  child: const Text('点击回调通知'),
+                ),
+                ReboundButton(
+                  onTap: () {
+                    addNotice(
+                      icon: Icons.bolt,
+                      title: '连发 1',
+                      content: '快速连发测试（条目独立，互不影响）',
+                      duration: const Duration(seconds: 6),
+                    );
+                    addNotice(
+                      icon: Icons.bolt,
+                      title: '连发 2',
+                      content: '与连发 1 同时在场',
+                      duration: const Duration(seconds: 6),
+                    );
+                    addNotice(
+                      icon: Icons.bolt,
+                      title: '连发 3',
+                      content: '与连发 1/2 同时在场',
+                      duration: const Duration(seconds: 6),
+                    );
+                  },
+                  child: const Text('连发 3 条'),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 120),
