@@ -3,15 +3,23 @@ import 'package:flutter/material.dart';
 /// 滑动菜单 Field：child 背面垫一层动作菜单，向左滑动露出（类似手机通知管理）。
 ///
 /// - 向左拖动 child 平移露出右侧 [actions] 菜单，松手后：
-///   超过 [openRatio] 保持展开，否则回弹收回
+///   - 甩动速度超过 [velocityThreshold]（向左 → 打开，向右 → 收回）直接判定
+///   - 速度不足时按脱手位置判定：超过 [openRatio] 打开，否则收回
+///   - 过冲区（拖过菜单宽）松手快速归位到目标边界
 /// - 展开状态下点击 child 收回
 /// - 移动端多用（与 [MenuLayer] 的桌面端点开区分）
 class ActionSlideLayer extends StatefulWidget {
   final Widget child;
   final List<Widget> actions; // 菜单动作按钮
-  final double openRatio; // 保持展开的阈值（0~1，相对菜单宽）
+  final double openRatio; // 位置判定阈值（0~1，相对菜单宽）
   final Duration animationDuration;
   final Curve curve;
+
+  /// 甩动速度阈值（px/s，绝对值）。
+  ///
+  /// 脱手瞬间的水平速度超过此值即按方向打开 / 收回，
+  /// 忽略位置（"滑动惯性"）；速度不足时退回位置判定（[openRatio]）。
+  final double velocityThreshold;
 
   /// 菜单非按钮区域是否拦截事件。
   ///
@@ -26,6 +34,7 @@ class ActionSlideLayer extends StatefulWidget {
     this.openRatio = 0.5,
     this.animationDuration = const Duration(milliseconds: 250),
     this.curve = Curves.fastOutSlowIn,
+    this.velocityThreshold = 500,
     this.blockMenuEvents = false,
   });
 
@@ -122,9 +131,28 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
   }
 
   void _onDragEnd(DragEndDetails details) {
-    final shouldOpen = _controller.value > widget.openRatio;
-    // 过冲值由 animateTo 从超界位置平滑滑回边界
-    _animateTo(shouldOpen ? 1 : 0);
+    // 脱手瞬时水平速度：负 = 向左甩，正 = 向右甩
+    final vx = details.velocity.pixelsPerSecond.dx;
+    final raw = _controller.value;
+
+    // 判定：速度优先（甩动超过阈值直接按方向决定），
+    // 速度不足时按脱手位置判定（超过 openRatio 打开，保证最低速度打开）
+    final byVelocity = vx.abs() > widget.velocityThreshold;
+    final progress = raw.clamp(0.0, 1.0).toDouble();
+    final shouldOpen = byVelocity ? vx < 0 : progress > widget.openRatio;
+    final target = shouldOpen ? 1.0 : 0.0;
+
+    // 过冲区（拖过菜单宽 / 越过原点）松手：快速归位到目标边界
+    final overshoot = raw < 0 ? -raw : (raw > 1 ? raw - 1 : 0.0);
+    if (overshoot > 0.001) {
+      _controller.animateTo(
+        target,
+        duration: widget.animationDuration * 0.4,
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _animateTo(target);
+    }
   }
 
   void _onDragCancel() {

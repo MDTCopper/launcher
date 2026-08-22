@@ -12,7 +12,7 @@ void themeSwitchTo(ThemeMode mode, ThemeColor color) {
   final key = PageKeyProvider.themeKey;
   setting.themeMode = mode;
   setting.themeColor = color;
-  key.currentState?.updateState();
+  key.currentState?.updateTheme();
   config.save();
 }
 
