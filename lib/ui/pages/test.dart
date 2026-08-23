@@ -1,3 +1,5 @@
+import 'package:copper_launcher/domain/task.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
@@ -8,6 +10,8 @@ import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.da
 import 'package:copper_launcher/ui/components/scroll/list_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/info/notification.dart';
+import 'package:copper_launcher/ui/util/info/task_drawer_opener.dart';
+import 'package:copper_launcher/ui/util/info/task_list.dart';
 import 'package:flutter/material.dart';
 
 /// 测试页：浮层体系（PopupOverlay 及 Menu / Dropdown / Hint / ActionSlide）测试用例集中地。
@@ -367,10 +371,84 @@ class TestState extends State<Test> {
               ],
             ),
           ),
+          _taskSection(),
           const SizedBox(height: 120),
         ],
       ),
     );
+  }
+
+  // ════════ 9. 任务系统（TaskManager + TaskList + TaskDrawer） ════════
+  Widget _taskSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('9. 任务系统（TaskManager + TaskList + TaskDrawer）'),
+        _card(
+          title: '任务列表 / 任务抽屉 / 聚合进度',
+          desc: '添加任务进 TaskList（展示入场/移除动画），TaskDrawer 显示进行中数量与聚合进度。任务数秒完成，可点“取消全部”让其离开进行中状态。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  ReboundButton(
+                    onTap: () => _addSimTask(TaskType.download, '模拟下载任务'),
+                    child: const Text('+ 模拟下载'),
+                  ),
+                  const SizedBox(width: 8),
+                  ReboundButton(
+                    onTap: () => _addSimTask(TaskType.check, '模拟校验任务'),
+                    child: const Text('+ 模拟校验'),
+                  ),
+                  const SizedBox(width: 8),
+                  ReboundButton(
+                    onTap: _cancelAll,
+                    child: const Text('取消全部'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text('任务抽屉：'),
+                  const SizedBox(width: 8),
+                  const TaskDrawerOpener(),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(height: 320, child: const TaskList()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 添加一个模拟任务：progress 逐帧推进，数秒后自然完成。
+  void _addSimTask(TaskType type, String label) {
+    addTask(
+      SimpleTask(
+        type: type,
+        describe: label,
+        futureTask: (t) async {
+          for (var i = 0; i <= 10; i++) {
+            await Future.delayed(const Duration(milliseconds: 300));
+            if (t.status != TaskStatus.process) return; // 已取消/暂停，提前结束
+            t.progress = i / 10;
+            t.updateDisplay();
+          }
+        },
+      ),
+    );
+  }
+
+  void _cancelAll() {
+    for (final task in taskManager.currentTasks) {
+      if (task.status == TaskStatus.process) {
+        changeTaskStatus(task.id, TaskStatus.cancel);
+      }
+    }
   }
 
   /// 翻转测试触发器：dx/dy 表示水平 / 垂直的对齐方向。

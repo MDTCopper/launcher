@@ -52,6 +52,7 @@ app.*.map.json
 .opencode/
 opencode.json
 总结.md
+.dsh/
 
 # copperlauncher
 versions/

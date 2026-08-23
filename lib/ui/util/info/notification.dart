@@ -145,7 +145,9 @@ class _NotificationWidgetState extends State<NotificationWidget> {
     widget = Align(
       alignment: Alignment.centerLeft,
       child: Padding(
-        padding: const EdgeInsets.only(left: 12, bottom: 12),
+        // 底部分隔统一由 _NoticeItem 外层的 SizeTransition 内 Padding 承担（随条目收缩、
+        // 且不算点击区），这里只留水平边距，避免卡片内部再叠一份可点击的底部间距。
+        padding: const EdgeInsets.only(left: 12),
         child: Material(
           color: Colors.transparent,
           elevation: 4,
@@ -191,12 +193,9 @@ class _NotificationWidgetState extends State<NotificationWidget> {
               // 深层 _NoticeItem 会被重建并重播入场动画。
               key: ValueKey(item.id),
               alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 12, bottom: 12),
-                child: _NoticeItem(
-                  item: item,
-                  onRemove: () => _removeById(item.id),
-                ),
+              child: _NoticeItem(
+                item: item,
+                onRemove: () => _removeById(item.id),
               ),
             ),
         ],
@@ -231,33 +230,26 @@ class _NoticeItemState extends State<_NoticeItem>
   static const _kShrinkDuration = Duration(milliseconds: 200);
   static const _kPressWait = Duration(milliseconds: 100);
 
-  // ── 动画曲线（每阶段显式指定，视觉节奏可控）──
-  /// 入场滑入：带轻微回弹的 spring 感（从左侧滑入）。
   static const Curve _kEnterPositionCurve = Curves.easeOutBack;
-  /// 入场淡入：快速的不透明度提升，避免长时间半透明。
+
   static const Curve _kEnterOpacityCurve = Curves.easeOutCubic;
-  /// 点击缩小（按下感）：快速收拢到 0.92。
+
   static const Curve _kPressCurve = Curves.easeOutCubic;
-  /// 划出 + 淡化：松开后加速飞出（从静止快速离开），有明确的"释放"感。
+
   static const Curve _kSwipeCurve = Curves.easeInCubic;
-  /// 占位收缩：ease 曲线向上收拢，下方通知干净地上移。
-  static const Curve _kShrinkCurve = Curves.ease;
-  /// 未达阈值归位：spring 式回弹还原。
+
+  static const Curve _kShrinkCurve = Curves.easeOutCubic;
+
   static const Curve _kDragBackCurve = Curves.easeOutBack;
 
-  /// 入场控制器（forward 0→1）。
   late final AnimationController _controller;
 
-  /// 退场阶段 1（仅点击）：小幅度缩小，占位不变。
   late final AnimationController _pressController;
 
-  /// 退场阶段 2：划出 + 淡化（占位不动）。
   late final AnimationController _swipeController;
 
-  /// 退场阶段 3：占位收缩（下方上移）。
   late final AnimationController _shrinkController;
 
-  /// 点击缩小完成 → 等待 100ms → 划出淡化。
   Timer? _waitTimer;
 
   /// 滑动未达阈值时的归位动画（_dragX 从当前位置缓慢回 0）。
@@ -277,7 +269,7 @@ class _NoticeItemState extends State<_NoticeItem>
   double _dragX = 0;
 
   /// 滑动删除阈值（px）。
-  static const _dismissDistance = 150.0;
+  static const _dismissDistance = 100.0;
 
   @override
   void initState() {
@@ -347,7 +339,7 @@ class _NoticeItemState extends State<_NoticeItem>
     setState(() {
       _removing = true;
       _byTap = byTap;
-      // 保留 _dragX：退场 Slide 从当前滑动位置继续（不回弹）
+      // 保留 _dragX：退场 Slide 从当前滑动位置继续
     });
     if (_byTap) {
       _pressController.forward(from: 0);
@@ -390,43 +382,27 @@ class _NoticeItemState extends State<_NoticeItem>
 
   @override
   Widget build(BuildContext context) {
-    // ── 入场（forward 0→1）：左滑入 + 淡入，无展开 ──
-    final enterOpacity = CurvedAnimation(
-      parent: _controller,
-      curve: _kEnterOpacityCurve,
-    );
-    final enterPosition = Tween(
-      begin: const Offset(-0.35, 0),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: _kEnterPositionCurve));
+    final enterPosition = Tween(begin: const Offset(-0.35, 0), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _controller, curve: _kEnterPositionCurve),
+        );
 
-    // ── 退场三阶段（保持用户确认的方向语义）──
-    //   phase 1 点击缩小（仅 _byTap，300ms）：scale 1.0→0.92，占位不变
-    //   phase 2 划出 + 淡化（300ms）：fade 1→0，slide（用户定的方向）
-    //   phase 3 占位收缩（200ms）：size 1→0，下方通知此时才上移
-    // 时序：点击 = 缩小(300ms) → 停顿(100ms) → 划出淡化(300ms) → 收缩(200ms)
-    //       滑动/定时 = 划出淡化(300ms) → 收缩(200ms)
     final pressScale = _removing && _byTap
         ? Tween(begin: 1.0, end: 0.92).animate(
             CurvedAnimation(parent: _pressController, curve: _kPressCurve),
           )
         : const AlwaysStoppedAnimation(1.0);
-    final swipeOpacity = _removing
-        ? Tween(begin: 1.0, end: 0.0).animate(
-            CurvedAnimation(parent: _swipeController, curve: _kSwipeCurve),
-          )
-        : const AlwaysStoppedAnimation(1.0);
-    // 退场滑动方向：Tween(0 → -0.35) forward = 从原位往左划出（右→左）。
-    // begin 必须为 Offset.zero：_swipeController 初始 value=0，
-    // 若 begin 取 -0.35 会在点按/定时瞬间先把条目左跳 35%（诡异）。
+    final enterOpacity = CurvedAnimation(
+      parent: _controller,
+      curve: _kEnterOpacityCurve,
+    );
+
     final swipePosition = _removing
         ? Tween(begin: Offset.zero, end: const Offset(-0.35, 0)).animate(
             CurvedAnimation(parent: _swipeController, curve: _kSwipeCurve),
           )
         : const AlwaysStoppedAnimation(Offset.zero);
-    // 占位收缩只在 _shrinkController 真正前进时才生效：
-    // Tween(1.0 → 0.0) 让初始 value=0 时 sizeFactor=1（不塌陷），
-    // 否则 _removing 一瞬间 shrinkController 仍为 0 → sizeFactor=0 → 立即消失。
+
     final shrinkSize = _removing
         ? Tween(begin: 1.0, end: 0.0).animate(
             CurvedAnimation(parent: _shrinkController, curve: _kShrinkCurve),
@@ -434,6 +410,11 @@ class _NoticeItemState extends State<_NoticeItem>
         : const AlwaysStoppedAnimation(1.0);
 
     // 合成：入场用 _controller（forward）；退场各阶段用独立 controller
+    final swipeOpacity = _removing
+        ? Tween(begin: 1.0, end: 0.0).animate(
+            CurvedAnimation(parent: _swipeController, curve: _kSwipeCurve),
+          )
+        : const AlwaysStoppedAnimation(1.0);
     final opacity = _removing ? swipeOpacity : enterOpacity;
     final position = _removing ? swipePosition : enterPosition;
     final sizeFactor = _removing
@@ -441,18 +422,13 @@ class _NoticeItemState extends State<_NoticeItem>
         : const AlwaysStoppedAnimation(1.0);
     final scale = _removing ? pressScale : const AlwaysStoppedAnimation(1.0);
 
+    // 视觉变换（Fade / Slide / Scale）只作用于通知卡片本身；
+    // SizeTransition / 底部分隔放在最外层，见下方 return。
     Widget content = FadeTransition(
       opacity: opacity,
       child: SlideTransition(
         position: position,
-        child: ScaleTransition(
-          scale: scale,
-          child: SizeTransition(
-            sizeFactor: sizeFactor,
-            axisAlignment: -1.0, // 收缩时向上（顶部通知）
-            child: widget.item.widget,
-          ),
-        ),
+        child: ScaleTransition(scale: scale, child: widget.item.widget),
       ),
     );
 
@@ -461,7 +437,8 @@ class _NoticeItemState extends State<_NoticeItem>
     // 点击/定时删除时 _dragX=0 从原位起飞。
     content = Transform.translate(offset: Offset(_dragX, 0), child: content);
 
-    return GestureDetector(
+    // 点击/滑动区只覆盖卡片本身（不含底部分隔）。
+    final Widget item = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
         widget.item.onTap?.call();
@@ -471,6 +448,14 @@ class _NoticeItemState extends State<_NoticeItem>
       onHorizontalDragUpdate: _onDragUpdate,
       onHorizontalDragEnd: _onDragEnd,
       child: content,
+    );
+
+    // 底部分隔在 SizeTransition 内、GestureDetector 外：
+    // 随条目一起收缩（移除不瞬移），但不属于点击/滑动区。
+    return SizeTransition(
+      sizeFactor: sizeFactor,
+      axisAlignment: -1.0, // 收缩时向上（顶部通知）
+      child: Padding(padding: const EdgeInsets.only(bottom: 12), child: item),
     );
   }
 }
