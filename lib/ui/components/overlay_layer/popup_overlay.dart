@@ -371,21 +371,22 @@ class _PopupOverlayState extends State<PopupOverlay> {
 
     Widget content = Stack(
       children: [
-        // 透明关闭层：点击浮层外部关闭，无视觉遮罩
+        // 透明关闭层：点击 / 右键 / 长按浮层外部 → 关闭。
+        // 用 translucent 的 Listener（而非 opaque GestureDetector）：
+        // 观察外部按下并关闭，但不阻挡事件——可透传到下层内容，满足
+        // "右键另一按钮打开新菜单、旧的自动关闭"、"滚动不被拦截且滚动即关闭"。
         if (widget.dismissOnTapOutside)
           Positioned.fill(
             child: Listener(
-              // 滚轮滚动外部时自动关闭（与点击外部一致）
+              behavior: HitTestBehavior.translucent,
+              // tap / 右键 / 长按 都从 pointer down 开始：外部一按下即关闭
+              onPointerDown: (_) => _dismiss(),
               onPointerSignal: widget.dismissOnScrollOutside
                   ? (e) {
                       if (e is PointerScrollEvent) _dismiss();
                     }
                   : null,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _dismiss(),
-                child: const SizedBox.expand(),
-              ),
+              child: const SizedBox.expand(),
             ),
           ),
         Positioned.fill(

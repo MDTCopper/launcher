@@ -142,19 +142,14 @@ class _NotificationWidgetState extends State<NotificationWidget> {
       ),
     );
 
-    widget = Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        // 底部分隔统一由 _NoticeItem 外层的 SizeTransition 内 Padding 承担（随条目收缩、
-        // 且不算点击区），这里只留水平边距，避免卡片内部再叠一份可点击的底部间距。
-        padding: const EdgeInsets.only(left: 12),
-        child: Material(
-          color: Colors.transparent,
-          elevation: 4,
-          clipBehavior: Clip.hardEdge,
-          child: widget,
-        ),
-      ),
+    // 注意：不要再用 Align/Padding 包裹——Align 会撑满到容器宽（300），
+    // 导致 GestureDetector 命中区远超卡片实际显示；这里只保留卡片本身，
+    // 左/底间距统一放到 _NoticeItem 外层（不进点击区）。
+    widget = Material(
+      color: Colors.transparent,
+      elevation: 4,
+      clipBehavior: Clip.hardEdge,
+      child: widget,
     );
     addItemWidget(widget, onTap, duration);
   }
@@ -455,7 +450,14 @@ class _NoticeItemState extends State<_NoticeItem>
     return SizeTransition(
       sizeFactor: sizeFactor,
       axisAlignment: -1.0, // 收缩时向上（顶部通知）
-      child: Padding(padding: const EdgeInsets.only(bottom: 12), child: item),
+      child: Padding(
+        // 左间距也放点击区外，命中范围=卡片实际显示本身。
+        padding: const EdgeInsets.only(left: 12),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: item,
+        ),
+      ),
     );
   }
 }
