@@ -92,16 +92,6 @@ class _ResourcePageState extends State<ResourcePage>
             collapse: collapse,
           ),
         ],
-        itemsAtBottom: [
-          NavigationCollapseButton(
-            collapse: collapse,
-            onTap: () {
-              setState(() {
-                collapse = !collapse;
-              });
-            },
-          ),
-        ],
       ),
       page: pages[_index],
     );

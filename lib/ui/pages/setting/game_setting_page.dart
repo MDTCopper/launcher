@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
-import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/util/widget/setting_bar/switch_setting_bar.dart';
 import 'package:flutter/material.dart';
 
@@ -807,18 +807,18 @@ class _GameSettingPageState extends State<GameSettingPage> {
               Row(
                 spacing: 8,
                 children: [
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.data_object,
                     content: '同步选中版本设置',
                     onTap: () {},
                   ),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.cancel_outlined,
                     content: '取消',
                     onTap: () {},
                   ),
                   Expanded(child: SizedBox()),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.refresh,
                     content: '恢复默认',
                     onTap: () {},

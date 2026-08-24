@@ -311,12 +311,6 @@ class _VersionSelectPageState extends State<VersionSelectPage>
             collapse: collapse,
             onTap: () {},
           ),
-          NavigationCollapseButton(
-            collapse: collapse,
-            onTap: () {
-              setState(() => collapse = !collapse);
-            },
-          ),
         ],
       ),
       page: _buildVersionViewPage(_versionFolds[_index].versions),

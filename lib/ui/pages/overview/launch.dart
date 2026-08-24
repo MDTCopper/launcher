@@ -5,7 +5,7 @@ import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
-import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
 import 'package:flutter/material.dart';
 
@@ -118,7 +118,7 @@ class _LaunchPageState extends State<LaunchPage> {
       width: 225,
       child: ReboundButton(
         pressedScale: 0.9,
-        backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+        baseColor: Theme.of(context).colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(8),
         elevation: 2,
         hoverElevation: 4,
@@ -227,7 +227,7 @@ class _BeginState extends State<_Begin> {
       width: 225,
       child: ReboundButton(
         pressedScale: 0.9,
-        backgroundColor: Colors.grey,
+        baseColor: Colors.grey,
         borderRadius: BorderRadius.circular(8),
         hoverElevation: 8,
         onTap: () async {

@@ -132,6 +132,10 @@ class AppShellState extends State<AppShell> {
   //面包屑
   Widget _buildTopbar() {
     final colors = AppColors.of(context);
+    final navigationCollapse =
+        config.setting.personalizationOptions.navigationCollapse;
+
+    final isRoot = _currentRoute == _currentRootRoute;
 
     return Container(
       height: 40,
@@ -151,7 +155,20 @@ class AppShellState extends State<AppShell> {
             ),
           Row(
             children: [
-              SizedBox(width: 4),
+              const SizedBox(width: 4),
+              _dockSidebarToggle(
+                icon: Symbols.dock_to_right,
+                fillAlignment: Alignment(-0.56, -0.08),
+                active: !navigationCollapse,
+                onTap: () {
+                  setState(() {
+                    config.setting.personalizationOptions.navigationCollapse =
+                        !navigationCollapse;
+                    config.save();
+                  });
+                },
+              ),
+
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 transitionBuilder: SwitcherBuilders.fadeSlide(Offset(0.0, 1.0)),
@@ -171,21 +188,24 @@ class AppShellState extends State<AppShell> {
 
               Expanded(child: SizedBox()),
 
-              // 侧边栏收起/展开开关（左、右两个 dock 按钮）
-              _buildSidebarToggles(),
+              AnimatedOpacitySize(
+                child: isRoot
+                    ? null
+                    : ValueListenableBuilder<bool>(
+                        valueListenable: subNavigationCollapseNotifier,
+                        builder: (context, subNavigationCollapse, _) {
+                          return _dockSidebarToggle(
+                            icon: Symbols.dock_to_left,
+                            fillAlignment: Alignment(0.60, -0.08),
+                            active: !subNavigationCollapse,
+                            onTap: () => setSubNavigationCollapse(
+                              !subNavigationCollapse,
+                            ),
+                          );
+                        },
+                      ),
+              ),
 
-              // Icon(Icons.person_outlined),
-              // SizedBox(width: 4),
-              // Text('rainfall'),
-              // SizedBox(width: 8),
-              // Container(
-              //   width: 16,
-              //   height: 16,
-              //   decoration: BoxDecoration(
-              //     color: Colors.green,
-              //     border: Border.all(width: 1,color: colors.barrier),
-              //   ),
-              // ),
               const TaskDrawerOpener(),
               if (isDesktop) ...[
                 const SizedBox(width: 4),
@@ -209,47 +229,6 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  // ── 顶栏侧边栏开关（左 / 右）──
-  /// 左侧边栏 = NavigationRail（收起态存 config.navigationCollapse）；
-  /// 右侧边栏 = 子页面右侧导航，收起态用共享 [subNavigationCollapseNotifier]，
-  /// 保证顶栏改它时容器页（在 Navigator 里）能同步重建。
-  Widget _buildSidebarToggles() {
-    final bool navigationCollapse =
-        config.setting.personalizationOptions.navigationCollapse;
-    return ValueListenableBuilder<bool>(
-      valueListenable: subNavigationCollapseNotifier,
-      builder: (context, subNavigationCollapse, _) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _dockSidebarToggle(
-              icon: Symbols.dock_to_right,
-              fillAlignment: Alignment(-0.56, -0.08),
-              active: !navigationCollapse,
-              onTap: () {
-                setState(() {
-                  config.setting.personalizationOptions.navigationCollapse =
-                      !navigationCollapse;
-                  config.save();
-                });
-              },
-            ),
-            const SizedBox(width: 2),
-
-            _dockSidebarToggle(
-              icon: Symbols.dock_to_left,
-              fillAlignment: Alignment(0.60, -0.08),
-              active: subNavigationCollapse,
-              onTap: () => setSubNavigationCollapse(!subNavigationCollapse),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// dock 图标 + 面板半区填充：dock 图标无填充态，激活时"填充面板那一半"表示开启。
-  /// 填充宽度（0.45）与对齐位置已参数化，方便微调。
   Widget _dockSidebarToggle({
     required IconData icon,
     required Alignment fillAlignment,
@@ -282,7 +261,7 @@ class AppShellState extends State<AppShell> {
                 ),
               ),
             ),
-            // dock 图标（outline 无填充态）
+
             Positioned.fill(child: Icon(icon)),
           ],
         ),

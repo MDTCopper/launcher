@@ -257,7 +257,6 @@ class NavigationRailState extends State<NavigationRail> {
   Widget _buildBottomItems() {
     final currentRoute = widget.currentRootRoute;
     final onNavigate = widget.onNavigate;
-
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Column(

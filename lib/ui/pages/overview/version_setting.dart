@@ -6,13 +6,11 @@ import 'dart:math';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
+
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 
-import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/framework/content_panel.dart';
 
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
@@ -110,16 +108,6 @@ class _VersionSettingState extends State<VersionSettingPage>
             onTap: () => moveTo(3),
             selected: _index == 3,
             collapse: collapse,
-          ),
-        ],
-        itemsAtBottom: [
-          NavigationCollapseButton(
-            collapse: collapse,
-            onTap: () {
-              setState(() {
-                collapse = !collapse;
-              });
-            },
           ),
         ],
       ),

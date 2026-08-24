@@ -119,16 +119,6 @@ class _SettingPageState extends State<SettingPage>
             collapse: collapse,
           ),
         ],
-        itemsAtBottom: [
-          NavigationCollapseButton(
-            collapse: collapse,
-            onTap: () {
-              setState(() {
-                collapse = !collapse;
-              });
-            },
-          ),
-        ],
       ),
       page: pages[_index],
     );
