@@ -1,9 +1,8 @@
-import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
-import 'package:copper_launcher/ui/util/info/sub_navigation_state.dart';
+import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
 
@@ -25,28 +24,9 @@ class ResourcePage extends StatefulWidget {
   State<StatefulWidget> createState() => _ResourcePageState();
 }
 
-class _ResourcePageState extends State<ResourcePage> {
+class _ResourcePageState extends State<ResourcePage>
+    with SubNavigationCollapseListener {
   static int _index = 0;
-
-  bool get collapse => subNavCollapseNotifier.value;
-  set collapse(bool value) => setSubNavCollapse(value);
-
-  /// 顶栏改收起态时页面不会自动重建，监听共享 notifier 同步刷新本页二级导航。
-  @override
-  void initState() {
-    super.initState();
-    subNavCollapseNotifier.addListener(_onSubNavChanged);
-  }
-
-  @override
-  void dispose() {
-    subNavCollapseNotifier.removeListener(_onSubNavChanged);
-    super.dispose();
-  }
-
-  void _onSubNavChanged() {
-    if (mounted) setState(() {});
-  }
 
   late final List<Widget> pages = const [
     ModViewPage(),

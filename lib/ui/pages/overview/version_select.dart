@@ -8,18 +8,15 @@ import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/framework/content_panel.dart';
-import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
-import 'package:copper_launcher/ui/util/route/sub_route_register.dart';
+
 import 'package:copper_launcher/ui/util/widget/animated_expansion.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
-import 'package:copper_launcher/ui/util/info/sub_navigation_state.dart';
+import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-
 import '../../feature/images.dart';
-import '../../shell/navigation_rail.dart';
 
 ////version_select
 const versionSelectPageRouteKey = '/version_select';
@@ -31,36 +28,11 @@ class VersionSelectPage extends StatefulWidget {
 }
 
 //选择版本页面
-class _VersionSelectPageState extends State<VersionSelectPage> {
+class _VersionSelectPageState extends State<VersionSelectPage>
+    with SubNavigationCollapseListener {
   final List<VersionFold> _versionFolds = config.versionOptions.versionFolds;
 
   static int _index = 0;
-
-  bool get collapse => subNavCollapseNotifier.value;
-  set collapse(bool value) => setSubNavCollapse(value);
-
-  // 顶栏改收起态时页面不会自动重建，监听共享 notifier 同步刷新本页二级导航。
-  @override
-  void initState() {
-    super.initState();
-    subNavCollapseNotifier.addListener(_onSubNavChanged);
-  }
-
-  @override
-  void dispose() {
-    subNavCollapseNotifier.removeListener(_onSubNavChanged);
-    super.dispose();
-  }
-
-  void _onSubNavChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void didUpdateWidget(covariant VersionSelectPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    print(collapse);
-  }
 
   void _delete(Mindustry version) {
     final index = _versionFolds[_index].versions.indexWhere(

@@ -15,7 +15,7 @@ import '../components/colorful_background.dart';
 import '../theme/app_colors.dart';
 import '../components/overlay_layer/drag_file_field.dart';
 import '../util/framework/info_drawer.dart';
-import '../util/info/sub_navigation_state.dart';
+import '../page_framwork/sub_navigation_state.dart';
 import '../util/info/task_drawer_opener.dart';
 import '../util/widget/feature_button.dart';
 import '../util/widget/resource_importer.dart';
@@ -211,13 +211,13 @@ class AppShellState extends State<AppShell> {
 
   // ── 顶栏侧边栏开关（左 / 右）──
   /// 左侧边栏 = NavigationRail（收起态存 config.navigationCollapse）；
-  /// 右侧边栏 = 子页面右侧导航，收起态用共享 [subNavCollapseNotifier]，
+  /// 右侧边栏 = 子页面右侧导航，收起态用共享 [subNavigationCollapseNotifier]，
   /// 保证顶栏改它时容器页（在 Navigator 里）能同步重建。
   Widget _buildSidebarToggles() {
     final bool navigationCollapse =
         config.setting.personalizationOptions.navigationCollapse;
     return ValueListenableBuilder<bool>(
-      valueListenable: subNavCollapseNotifier,
+      valueListenable: subNavigationCollapseNotifier,
       builder: (context, subNavigationCollapse, _) {
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -240,7 +240,7 @@ class AppShellState extends State<AppShell> {
               icon: Symbols.dock_to_left,
               fillAlignment: Alignment(0.60, -0.08),
               active: subNavigationCollapse,
-              onTap: () => setSubNavCollapse(!subNavigationCollapse),
+              onTap: () => setSubNavigationCollapse(!subNavigationCollapse),
             ),
           ],
         );
