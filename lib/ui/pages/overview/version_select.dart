@@ -13,6 +13,7 @@ import 'package:copper_launcher/ui/util/route/sub_route_register.dart';
 import 'package:copper_launcher/ui/util/widget/animated_expansion.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/util/info/sub_navigation_state.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -35,12 +36,30 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
 
   static int _index = 0;
 
-  bool get collapse =>
-      config.setting.personalizationOptions.subNavigationCollapse;
+  bool get collapse => subNavCollapseNotifier.value;
+  set collapse(bool value) => setSubNavCollapse(value);
 
-  set collapse(bool value) {
-    config.setting.personalizationOptions.subNavigationCollapse = value;
-    config.save();
+  // 顶栏改收起态时页面不会自动重建，监听共享 notifier 同步刷新本页二级导航。
+  @override
+  void initState() {
+    super.initState();
+    subNavCollapseNotifier.addListener(_onSubNavChanged);
+  }
+
+  @override
+  void dispose() {
+    subNavCollapseNotifier.removeListener(_onSubNavChanged);
+    super.dispose();
+  }
+
+  void _onSubNavChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(covariant VersionSelectPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    print(collapse);
   }
 
   void _delete(Mindustry version) {

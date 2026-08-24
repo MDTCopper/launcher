@@ -1,5 +1,8 @@
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/ui/components/button/action_button.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
@@ -13,6 +16,7 @@ import 'package:copper_launcher/ui/util/info/notification.dart';
 import 'package:copper_launcher/ui/util/info/task_drawer_opener.dart';
 import 'package:copper_launcher/ui/util/info/task_list.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 
 /// 测试页：浮层体系（PopupOverlay 及 Menu / Dropdown / Hint / ActionSlide）测试用例集中地。
 class Test extends StatefulWidget {
@@ -30,6 +34,12 @@ class TestState extends State<Test> {
   int _dropdownValue = 1;
   int _customClick = 0;
   String _slideLog = '（未点击）';
+
+  // ── 按钮演示区状态 ──
+  int _btnTap = 0; // ReboundButton 点击次数
+  int _btnLongTap = 0; // ReboundButton 长按次数
+  int _iconTap = 0; // IconTextButton 点击次数
+  bool _navCollapsed = false; // NavigationCollapseButton 收起态（箭头旋转）
 
   @override
   void dispose() {
@@ -54,7 +64,10 @@ class TestState extends State<Test> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
           Text(desc, style: const TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 12),
@@ -88,7 +101,10 @@ class TestState extends State<Test> {
   );
 
   /// 通用菜单项（右键菜单回归用）。
-  List<Widget> _buildMenu(BuildContext context, PopupOverlayController controller) {
+  List<Widget> _buildMenu(
+    BuildContext context,
+    PopupOverlayController controller,
+  ) {
     return [
       for (int i = 0; i < 5; i++)
         ReboundMenuButton(
@@ -111,7 +127,8 @@ class TestState extends State<Test> {
           _sectionTitle('1. PopupOverlay 基础（控制器 + 自定义浮层）'),
           _card(
             title: '自定义浮层（点击 / 外部 / Esc 关闭）',
-            desc: '按钮触发 open()；浮层内按钮点 dismiss() 关闭。点击浮层外或按 Esc 也会关闭（onClose 已挂接日志）。',
+            desc:
+                '按钮触发 open()；浮层内按钮点 dismiss() 关闭。点击浮层外或按 Esc 也会关闭（onClose 已挂接日志）。',
             child: Row(
               children: [
                 PopupOverlay(
@@ -128,7 +145,10 @@ class TestState extends State<Test> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('自定义浮层内容', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const Text(
+                          '自定义浮层内容',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                         const SizedBox(height: 8),
                         Text('点击次数：$_customClick'),
                         const SizedBox(height: 8),
@@ -137,7 +157,10 @@ class TestState extends State<Test> {
                           onTap: () => setState(() => _customClick++),
                         ),
                         const SizedBox(height: 8),
-                        ReboundMenuButton(label: '关闭', onTap: customController.dismiss),
+                        ReboundMenuButton(
+                          label: '关闭',
+                          onTap: customController.dismiss,
+                        ),
                       ],
                     ),
                   ),
@@ -204,7 +227,8 @@ class TestState extends State<Test> {
           _sectionTitle('4. MenuLayer 右键菜单'),
           _card(
             title: '右键 / 长按弹出，菜单位置自适应',
-            desc: '对目标框点右键（桌面）或长按（移动端）弹出菜单。最近点击菜单项：$_menuLog。锚点优先级：左上→右上→左下→右下。',
+            desc:
+                '对目标框点右键（桌面）或长按（移动端）弹出菜单。最近点击菜单项：$_menuLog。锚点优先级：左上→右上→左下→右下。',
             child: Wrap(
               spacing: 16,
               runSpacing: 16,
@@ -227,7 +251,8 @@ class TestState extends State<Test> {
           _sectionTitle('5. DropdownLayer 下拉选择'),
           _card(
             title: '下拉展开 / 选择 / 翻转',
-            desc: '点击头部展开，选择后关闭并回调 onSelect。当前值：$_dropdownValue。优先下方展开，下方没空间翻到上方；滚轮滚动外部会像点击外部一样自动关闭；关闭瞬间箭头/高亮立即复位。',
+            desc:
+                '点击头部展开，选择后关闭并回调 onSelect。当前值：$_dropdownValue。优先下方展开，下方没空间翻到上方；滚轮滚动外部会像点击外部一样自动关闭；关闭瞬间箭头/高亮立即复位。',
             child: DropdownLayer<int>(
               initialValue: _dropdownValue,
               options: [
@@ -287,13 +312,22 @@ class TestState extends State<Test> {
           _sectionTitle('7. ActionSlideLayer 滑动操作菜单'),
           _card(
             title: '左滑露出操作按钮',
-            desc: '向左拖动 child 露出右侧操作按钮；超过阈值松手保持展开，点 child 收回。点击操作按钮有回弹反馈。最近点击：$_slideLog。菜单按钮置顶可点，非按钮区域事件默认透传。',
+            desc:
+                '向左拖动 child 露出右侧操作按钮；超过阈值松手保持展开，点 child 收回。点击操作按钮有回弹反馈。最近点击：$_slideLog。菜单按钮置顶可点，非按钮区域事件默认透传。',
             child: SizedBox(
               width: 360,
               child: ActionSlideLayer(
                 actions: [
-                  _slideAction('收藏', Colors.blue, () => setState(() => _slideLog = '收藏')),
-                  _slideAction('删除', Colors.red, () => setState(() => _slideLog = '删除')),
+                  _slideAction(
+                    '收藏',
+                    Colors.blue,
+                    () => setState(() => _slideLog = '收藏'),
+                  ),
+                  _slideAction(
+                    '删除',
+                    Colors.red,
+                    () => setState(() => _slideLog = '删除'),
+                  ),
                 ],
                 child: Container(
                   height: 56,
@@ -309,7 +343,8 @@ class TestState extends State<Test> {
           _sectionTitle('8. 通知（入场/退场动画 + 左滑删除）'),
           _card(
             title: '通知测试（左上角弹出）',
-            desc: '点击按钮发通知（左上角出现，入场滑入+淡入，退场先收缩再滑走）。左滑通知超阈值松手删除，未达阈值回弹；点击通知触发回调并删除；长时长通知等待自动消失。',
+            desc:
+                '点击按钮发通知（左上角出现，入场滑入+淡入，退场先收缩再滑走）。左滑通知超阈值松手删除，未达阈值回弹；点击通知触发回调并删除；长时长通知等待自动消失。',
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -372,6 +407,7 @@ class TestState extends State<Test> {
             ),
           ),
           _taskSection(),
+          _buttonSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -386,7 +422,8 @@ class TestState extends State<Test> {
         _sectionTitle('9. 任务系统（TaskManager + TaskList + TaskDrawer）'),
         _card(
           title: '任务列表 / 任务抽屉 / 聚合进度',
-          desc: '添加任务进 TaskList（展示入场/移除动画），TaskDrawer 显示进行中数量与聚合进度。任务数秒完成，可点“取消全部”让其离开进行中状态。',
+          desc:
+              '添加任务进 TaskList（展示入场/移除动画），TaskDrawer 显示进行中数量与聚合进度。任务数秒完成，可点“取消全部”让其离开进行中状态。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -402,10 +439,7 @@ class TestState extends State<Test> {
                     child: const Text('+ 模拟校验'),
                   ),
                   const SizedBox(width: 8),
-                  ReboundButton(
-                    onTap: _cancelAll,
-                    child: const Text('取消全部'),
-                  ),
+                  ReboundButton(onTap: _cancelAll, child: const Text('取消全部')),
                 ],
               ),
               const SizedBox(height: 12),
@@ -419,6 +453,69 @@ class TestState extends State<Test> {
               const SizedBox(height: 12),
               SizedBox(height: 320, child: const TaskList()),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════ 10. 按钮组件（ReboundButton / IconTextButton / ActionButton / NavigationCollapseButton） ════════
+  Widget _buttonSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('10. 按钮组件演示'),
+        _card(
+          title: 'ReboundButton / IconTextButton',
+          desc: '点击 / 长按 / 无状态图标按钮。ReboundButton 带回弹按压反馈（长按已接上 onLongTap）。',
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              // ReboundButton：点击 + 长按，各自计数
+              ReboundButton(
+                onTap: () => setState(() => _btnTap++),
+                onLongTap: () => setState(() => _btnLongTap++),
+                child: Text('点击$_btnTap / 长按$_btnLongTap'),
+              ),
+              // IconTextButton：无状态图标 + 文本，点击计数
+              IconTextButton(
+                icon: _iconTap % 2 == 0
+                    ? Symbols.dock_to_left
+                    : Symbols.grid_layout_side,
+                content: '图标按钮$_iconTap',
+                onTap: () => setState(() => _iconTap++),
+              ),
+              IconTextButton(
+                icon: _iconTap % 2 == 0
+                    ? Symbols.dock_to_right
+                    : Symbols.side_navigation,
+                content: '图标按钮$_iconTap',
+                onTap: () => setState(() => _iconTap++),
+              ),
+            ],
+          ),
+        ),
+        _card(
+          title: 'ActionButton（选中态 / 禁用态）',
+          desc: '带选中态（点击切换、颜色动画），支持 onChanged 回调；禁用时不可点、前景置灰。',
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              // 可选中切换，带悬停提示
+              ActionButton(icon: Icons.star, content: '可选中', hint: '点击切换选中'),
+              // 禁用态：不可点、置灰
+              ActionButton(icon: Icons.block, content: '禁用', enable: false),
+            ],
+          ),
+        ),
+        _card(
+          title: 'NavigationCollapseButton（箭头旋转）',
+          desc: '点击触发 onTap，箭头随收起态旋转（AnimatedRotation）。当前收起态：$_navCollapsed。',
+          child: NavigationCollapseButton(
+            collapse: _navCollapsed,
+            onTap: () => setState(() => _navCollapsed = !_navCollapsed),
           ),
         ),
       ],

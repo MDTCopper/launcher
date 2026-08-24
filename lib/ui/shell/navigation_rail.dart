@@ -1,5 +1,4 @@
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
@@ -301,14 +300,7 @@ class NavigationRailState extends State<NavigationRail> {
               ),
             ),
           ),
-          NavigationCollapseButton(
-            collapse: collapse,
-            onTap: () {
-              setState(() {
-                collapse = !collapse;
-              });
-            },
-          ),
+          // 侧边栏收起/展开开关已移到顶栏，这里不再放
         ],
       ),
     );

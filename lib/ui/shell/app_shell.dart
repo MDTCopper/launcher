@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/switcher_builder.dart';
@@ -7,12 +8,14 @@ import 'package:copper_launcher/util/io/os.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../components/colorful_background.dart';
 import '../theme/app_colors.dart';
 import '../components/overlay_layer/drag_file_field.dart';
 import '../util/framework/info_drawer.dart';
+import '../util/info/sub_navigation_state.dart';
 import '../util/info/task_drawer_opener.dart';
 import '../util/widget/feature_button.dart';
 import '../util/widget/resource_importer.dart';
@@ -168,6 +171,9 @@ class AppShellState extends State<AppShell> {
 
               Expanded(child: SizedBox()),
 
+              // 侧边栏收起/展开开关（左、右两个 dock 按钮）
+              _buildSidebarToggles(),
+
               // Icon(Icons.person_outlined),
               // SizedBox(width: 4),
               // Text('rainfall'),
@@ -199,6 +205,87 @@ class AppShellState extends State<AppShell> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // ── 顶栏侧边栏开关（左 / 右）──
+  /// 左侧边栏 = NavigationRail（收起态存 config.navigationCollapse）；
+  /// 右侧边栏 = 子页面右侧导航，收起态用共享 [subNavCollapseNotifier]，
+  /// 保证顶栏改它时容器页（在 Navigator 里）能同步重建。
+  Widget _buildSidebarToggles() {
+    final bool navigationCollapse =
+        config.setting.personalizationOptions.navigationCollapse;
+    return ValueListenableBuilder<bool>(
+      valueListenable: subNavCollapseNotifier,
+      builder: (context, subNavigationCollapse, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _dockSidebarToggle(
+              icon: Symbols.dock_to_right,
+              fillAlignment: Alignment(-0.56, -0.08),
+              active: !navigationCollapse,
+              onTap: () {
+                setState(() {
+                  config.setting.personalizationOptions.navigationCollapse =
+                      !navigationCollapse;
+                  config.save();
+                });
+              },
+            ),
+            const SizedBox(width: 2),
+
+            _dockSidebarToggle(
+              icon: Symbols.dock_to_left,
+              fillAlignment: Alignment(0.60, -0.08),
+              active: subNavigationCollapse,
+              onTap: () => setSubNavCollapse(!subNavigationCollapse),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// dock 图标 + 面板半区填充：dock 图标无填充态，激活时"填充面板那一半"表示开启。
+  /// 填充宽度（0.45）与对齐位置已参数化，方便微调。
+  Widget _dockSidebarToggle({
+    required IconData icon,
+    required Alignment fillAlignment,
+    required bool active,
+    VoidCallback? onTap,
+  }) {
+    final colors = AppColors.of(context);
+    return ReboundButton(
+      backgroundColor: Colors.transparent,
+      onTap: onTap,
+      child: SizedBox(
+        width: 24,
+        height: 24,
+        child: Stack(
+          children: [
+            // 面板半区填充色块（fade 过渡）；宽度/位置由用户微调
+            Positioned.fill(
+              child: Align(
+                alignment: fillAlignment,
+                child: FractionallySizedBox(
+                  widthFactor: 0.2,
+                  heightFactor: 0.72,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: active ? 1 : 0,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(color: colors.interactive),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // dock 图标（outline 无填充态）
+            Positioned.fill(child: Icon(icon)),
+          ],
+        ),
       ),
     );
   }

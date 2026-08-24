@@ -3,6 +3,7 @@ import 'package:copper_launcher/ui/components/button/navigation_collapse_button.
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
+import 'package:copper_launcher/ui/util/info/sub_navigation_state.dart';
 import 'package:copper_launcher/ui/pages/setting/about_page.dart';
 import 'package:copper_launcher/ui/pages/setting/help_page.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
@@ -31,11 +32,25 @@ class SettingPage extends StatefulWidget {
 class _SettingPageState extends State<SettingPage> {
   static int _index = 0;
 
-  bool get collapse =>
-      config.setting.personalizationOptions.subNavigationCollapse;
-  set collapse(bool value) {
-    config.setting.personalizationOptions.subNavigationCollapse = value;
-    config.save();
+  bool get collapse => subNavCollapseNotifier.value;
+  set collapse(bool value) => setSubNavCollapse(value);
+
+  /// 顶栏（app_shell）改收起态时，页面在 Navigator 里不会自动重建；
+  /// 监听共享 notifier 主动 setState，让本页的二级导航同步收起/展开。
+  @override
+  void initState() {
+    super.initState();
+    subNavCollapseNotifier.addListener(_onSubNavChanged);
+  }
+
+  @override
+  void dispose() {
+    subNavCollapseNotifier.removeListener(_onSubNavChanged);
+    super.dispose();
+  }
+
+  void _onSubNavChanged() {
+    if (mounted) setState(() {});
   }
 
   late final List<Widget> pages = const [

@@ -128,6 +128,11 @@ class HintLayer extends StatefulWidget {
   /// 悬停 / 长按后，提示框出现前的等待时长。
   final Duration waitDuration;
 
+  /// 共享 waitDuration 的分组 id：同 id 的 hint 共享"跳过等待"计时，
+  /// **不同 id 互不共享**（例如页面 hint 与菜单栏 hint 用不同 id，互不干扰）。
+  /// `null` 时归入默认组。
+  final String? id;
+
   /// 提示框消失后，等待重置间隔。在此间隔内悬停另一个组件可跳过 [waitDuration]。
   /// `null` 时默认等于 [animationDuration]。
   final Duration? waitResetDuration;
@@ -161,10 +166,13 @@ class HintLayer extends StatefulWidget {
   /// 纯文本提示的文字样式。`null` 时使用主题的 [TextTheme.labelMedium]。
   final TextStyle? textStyle;
 
-  // ---- 静态协调 ----
+  // ---- 静态协调（按分组 id 隔离"跳过等待"计时，避免页面 / 菜单栏互串）----
   static HintLayerState? _activeHint;
-  static DateTime? _lastShowTime;
-  static DateTime? _lastDismissTime;
+  static final Map<String, DateTime> _lastShowTime = {};
+  static final Map<String, DateTime> _lastDismissTime = {};
+
+  /// 默认分组：未指定 id 的 hint 归入此组（彼此共享，同旧全局行为）。
+  static const String defaultGroup = 'default';
 
   const HintLayer({
     super.key,
@@ -175,6 +183,7 @@ class HintLayer extends StatefulWidget {
     this.showDuration = const Duration(seconds: 2),
     this.waitDuration = const Duration(milliseconds: 800),
     this.waitResetDuration,
+    this.id,
     this.animationDuration = const Duration(milliseconds: 200),
     this.showAnimation = HintAnimation.scale,
     this.hideAnimation,
@@ -355,8 +364,10 @@ class HintLayerState extends State<HintLayer> {
 
     final Duration resetWindow =
         widget.waitResetDuration ?? widget.animationDuration;
-    final DateTime? lastEvent =
-        HintLayer._lastDismissTime ?? HintLayer._lastShowTime;
+    // 只读取本分组的最近事件，避免与其它 id 的 hint 互串"跳过等待"
+    final String group = widget.id ?? HintLayer.defaultGroup;
+    final DateTime? lastEvent = HintLayer._lastDismissTime[group] ??
+        HintLayer._lastShowTime[group];
     final bool skipWait =
         lastEvent != null && DateTime.now().difference(lastEvent) < resetWindow;
 
@@ -372,7 +383,8 @@ class HintLayerState extends State<HintLayer> {
     if (!mounted || _isShowing) return;
 
     _isShowing = true;
-    HintLayer._lastShowTime = DateTime.now();
+    HintLayer._lastShowTime[widget.id ?? HintLayer.defaultGroup] =
+        DateTime.now();
     if (mounted) setState(() {});
     _popupController.open();
 
@@ -390,7 +402,8 @@ class HintLayerState extends State<HintLayer> {
     if (mounted && !_disposed) setState(() {});
 
     if (wasVisible) {
-      HintLayer._lastDismissTime = DateTime.now();
+      HintLayer._lastDismissTime[widget.id ?? HintLayer.defaultGroup] =
+          DateTime.now();
     }
 
     if (HintLayer._activeHint == this) {
@@ -409,7 +422,8 @@ class HintLayerState extends State<HintLayer> {
     final bool wasVisible = _isShowing;
     _isShowing = false;
     if (wasVisible) {
-      HintLayer._lastDismissTime = DateTime.now();
+      HintLayer._lastDismissTime[widget.id ?? HintLayer.defaultGroup] =
+          DateTime.now();
     }
     if (HintLayer._activeHint == this) {
       HintLayer._activeHint = null;

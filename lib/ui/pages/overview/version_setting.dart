@@ -31,6 +31,7 @@ import '../../../util/format/ram_rank_list.dart';
 import '../../../util/system_info.dart';
 import '../../components/rebound/rebound_checkbox.dart';
 import '../../feature/images.dart';
+import '../../util/info/sub_navigation_state.dart';
 import '../../util/widget/percent_bar.dart';
 import '../../util/widget/setting_bar/checkbox_setting_bar.dart';
 import '../../util/widget/setting_bar/input_setting_bar.dart';
@@ -51,11 +52,24 @@ class VersionSettingPage extends StatefulWidget {
 class _VersionSettingState extends State<VersionSettingPage> {
   static int _index = 0;
 
-  bool get collapse =>
-      config.setting.personalizationOptions.subNavigationCollapse;
-  set collapse(bool value) {
-    config.setting.personalizationOptions.subNavigationCollapse = value;
-    config.save();
+  bool get collapse => subNavCollapseNotifier.value;
+  set collapse(bool value) => setSubNavCollapse(value);
+
+  // 顶栏改收起态时页面不会自动重建，监听共享 notifier 同步刷新本页二级导航。
+  @override
+  void initState() {
+    super.initState();
+    subNavCollapseNotifier.addListener(_onSubNavChanged);
+  }
+
+  @override
+  void dispose() {
+    subNavCollapseNotifier.removeListener(_onSubNavChanged);
+    super.dispose();
+  }
+
+  void _onSubNavChanged() {
+    if (mounted) setState(() {});
   }
 
   late final List<Widget> pages = [_About(), _Setting(), _Mods(), _Package()];

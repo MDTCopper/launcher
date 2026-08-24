@@ -66,19 +66,28 @@ abstract class Task implements Listenable {
   }
 
   void cancel() {
-    if (status == TaskStatus.cancel) throw Exception('重复取消');
+    if (status == TaskStatus.cancel) {
+      debugPrint('重复取消');
+      return;
+    }
     status = TaskStatus.cancel;
     updateDisplay();
   }
 
   void pause() {
-    if (status == TaskStatus.paused) throw Exception('重复暂停');
+    if (status == TaskStatus.paused) {
+      debugPrint('重复暂停');
+      return;
+    }
     status = TaskStatus.paused;
     updateDisplay();
   }
 
   void start() {
-    if (status == TaskStatus.process) throw Exception('重复启动');
+    if (status == TaskStatus.process) {
+      debugPrint('重复开始');
+      return;
+    }
     status = TaskStatus.process;
     runTask();
     updateDisplay();
