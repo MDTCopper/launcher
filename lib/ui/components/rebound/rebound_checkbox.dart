@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:flutter/material.dart';
 
 class ReboundCheckbox extends StatefulWidget {

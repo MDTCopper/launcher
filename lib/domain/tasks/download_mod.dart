@@ -10,7 +10,7 @@ import 'package:path/path.dart' as p;
 
 import '../../ui/shell/drawer/log_list.dart';
 import '../../ui/util/notification.dart';
-import '../../ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import '../../util/format/byte_unit.dart';
 import '../../util/io/downloader.dart';
 import '../../util/math/speed_calculate.dart';

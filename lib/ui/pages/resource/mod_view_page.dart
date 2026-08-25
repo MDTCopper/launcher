@@ -7,8 +7,9 @@ import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
-import 'package:copper_launcher/ui/util/widget/feature_button.dart';
-import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/format/time_since.dart';
@@ -318,7 +319,7 @@ class _ModViewPageState extends State<ModViewPage> {
               ? Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ReboundIconButton(
+                    IconTextButton(
                       icon: Icons.refresh,
                       content: '重置',
                       onTap: () {
@@ -449,7 +450,7 @@ class _ModViewPageState extends State<ModViewPage> {
               ),
               SizedBox(width: 16),
               buildResetButton(),
-              ReboundIconButton(
+              IconTextButton(
                 icon: Icons.search,
                 content: '搜索',
                 onTap: () => setState(() {}),
@@ -700,7 +701,7 @@ class _ModViewPageState extends State<ModViewPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('模组列表获取失败，请检查网络后重试'),
-              ReboundIconButton(
+              IconTextButton(
                 icon: Icons.refresh,
                 content: '重试',
                 onTap: () => setState(() => _refreshModMetas = true),

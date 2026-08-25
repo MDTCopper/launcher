@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:flutter/material.dart';
 
 import 'popup_overlay.dart';

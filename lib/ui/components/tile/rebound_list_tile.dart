@@ -18,6 +18,7 @@ class ReboundListTile extends StatefulWidget {
   final bool enable;
   final double elevation;
   final double hoverElevation;
+  final double pressedScale;
   final Color? baseColor;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
@@ -41,6 +42,7 @@ class ReboundListTile extends StatefulWidget {
     this.margin,
     this.borderRadius,
     this.itemSpacing = 8,
+    this.pressedScale = 0.95,
   });
 
   @override
@@ -129,7 +131,7 @@ class _ReboundListTileState extends State<ReboundListTile>
       builder: (context, child) {
         final foreground = foregroundT.value;
         return ReboundContainer(
-          pressedScale: 0.95,
+          pressedScale: widget.pressedScale,
           elevation: widget.elevation,
           hoverElevation: enabled ? widget.hoverElevation : widget.elevation,
           borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
@@ -142,10 +144,7 @@ class _ReboundListTileState extends State<ReboundListTile>
           // 挂在 GlobalKey 上帧后实测宽度，行内按 _trailingWidth 预留占位
           surfaceChild: widget.trailing == null
               ? null
-              : KeyedSubtree(
-                  key: _trailingKey,
-                  child: widget.trailing!,
-                ),
+              : KeyedSubtree(key: _trailingKey, child: widget.trailing!),
           surfaceAlignment: Alignment.centerRight,
           child: IconTheme(
             data: IconTheme.of(context).copyWith(color: foreground),
@@ -175,8 +174,7 @@ class _ReboundListTileState extends State<ReboundListTile>
                     ],
                   ),
                 ),
-                if (_trailingWidth > 0)
-                  SizedBox(width: _trailingWidth),
+                if (_trailingWidth > 0) SizedBox(width: _trailingWidth),
               ],
             ),
           ),

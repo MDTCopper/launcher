@@ -1,5 +1,6 @@
 import 'package:copper_launcher/ui/components/animation/reveal_list_view.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
+import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:flutter/material.dart';
 
@@ -7,8 +8,7 @@ import '../../util/format/string_cleaner.dart';
 import '../../util/io/file_reader.dart';
 import '../feature/images.dart';
 
-import '../util/widget/feature_button.dart';
-import '../util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 bool isImporting = false;
 

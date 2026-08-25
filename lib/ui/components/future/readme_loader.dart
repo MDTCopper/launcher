@@ -9,7 +9,7 @@ import 'package:markdown/markdown.dart' as md;
 
 import '../../../util/io/downloader.dart';
 import '../../vars.dart';
-import '../../util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 class ModNetReadmeLoader extends StatefulWidget {
   const ModNetReadmeLoader({super.key, required this.mod});

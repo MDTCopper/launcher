@@ -9,7 +9,7 @@ import '../../data/local_asset.dart';
 import '../../data/net_asset.dart';
 import '../../ui/shell/drawer/log_list.dart';
 import '../../ui/util/notification.dart';
-import '../../ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import '../../util/app_paths.dart';
 import '../../util/format/byte_unit.dart';
 import '../../util/io/downloader.dart';

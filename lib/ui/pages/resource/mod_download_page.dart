@@ -9,7 +9,7 @@ import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 
-import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/future/readme_loader.dart';
 import 'package:copper_launcher/ui/components/pager.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -23,7 +23,8 @@ import 'package:line_icons/line_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/app_constant.dart';
-import '../../util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import '../../components/future/mod_icon_loader.dart';
 import '../../vars.dart';
 
@@ -170,19 +171,19 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
             spacing: 8,
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              ReboundIconButton(
+              IconTextButton(
                 icon: Icons.folder_outlined,
                 content: '下载源码',
                 onTap: () => _buildDownloadPopup(mod, downloadSource: true),
               ),
-              ReboundIconButton(
+              IconTextButton(
                 icon: Icons.outbond_outlined,
                 content: '版本详情',
                 onTap: () {},
               ),
             ],
           )
-        : ReboundIconButton(
+        : IconTextButton(
             icon: Icons.outbond_outlined,
             content: '版本详情',
             onTap: () {},
@@ -384,24 +385,24 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                     Row(
                       spacing: 8,
                       children: [
-                        ReboundIconButton(
+                        IconTextButton(
                           icon: Icons.info_outline,
                           content: '模组详情',
                           onTap: () {},
                         ),
-                        ReboundIconButton(
+                        IconTextButton(
                           icon: LineIcons.readme,
                           content: 'README',
                           onTap: () => _showReadme(),
                         ),
-                        ReboundIconButton(
+                        IconTextButton(
                           icon: Icons.file_open_outlined,
                           content: '源码仓库',
                           onTap: () => _goToUrl(
                             'https://github.com/${modListMeta.repo}',
                           ),
                         ),
-                        ReboundIconButton(
+                        IconTextButton(
                           icon: FontAwesomeIcons.github,
                           content: '作者主页',
                           onTap: () => _goToUrl(
@@ -409,7 +410,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                           ),
                         ),
                         Expanded(child: SizedBox()),
-                        ReboundIconButton(
+                        IconTextButton(
                           icon: Icons.download,
                           content: '最新版本',
                           onTap: () => _buildDownloadPopup(metas.firstOrNull),
@@ -749,7 +750,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
                   ),
                 ),
                 Center(
-                  child: ReboundIconButton(
+                  child: IconTextButton(
                     icon: Icons.file_open_outlined,
                     content: '选择其他路径',
                     onTap: () => _chooseOtherSavePath(),

@@ -2,7 +2,7 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task.dart';
-import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/mindustry_settings.dart';
@@ -23,7 +23,7 @@ class LaunchMindustryTask extends Task {
     return Row(
       children: [
         Text('游戏运行中'),
-        ReboundIconButton(icon: Icons.close, content: '关闭', onTap: cancel),
+        IconTextButton(icon: Icons.close, content: '关闭', onTap: cancel),
       ],
     );
   }

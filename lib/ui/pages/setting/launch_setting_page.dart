@@ -7,7 +7,8 @@ import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
-import 'package:copper_launcher/ui/util/widget/feature_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
 import 'package:copper_launcher/ui/components/percent_bar.dart';
 import 'package:copper_launcher/ui/util/widget/setting_bar/checkbox_setting_bar.dart';
@@ -271,7 +272,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
             spacing: 8,
             children: [
               SizedBox(width: 8),
-              ReboundIconButton(
+              IconTextButton(
                 icon: Icons.check,
                 padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                 content: '保存',
@@ -286,7 +287,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
                   });
                 },
               ),
-              ReboundIconButton(
+              IconTextButton(
                 icon: Icons.close,
                 padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                 content: '取消',
@@ -445,17 +446,17 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           spacing: 16,
           children: [
             if (javaOptions.javas.isEmpty)
-              ReboundIconButton(
+              IconTextButton(
                 icon: LineIcons.java,
                 content: '下载Java',
                 onTap: () {},
               ),
-            ReboundIconButton(
+            IconTextButton(
               icon: Icons.folder_copy_outlined,
               content: '手动添加',
               onTap: _addJava,
             ),
-            ReboundIconButton(
+            IconTextButton(
               icon: Icons.search,
               content: '自动搜索',
               onTap: _searchJava,

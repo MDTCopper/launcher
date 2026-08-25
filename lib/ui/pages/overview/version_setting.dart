@@ -13,8 +13,8 @@ import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
-import 'package:copper_launcher/ui/util/widget/feature_button.dart';
-import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/util/widget/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/util/widget/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
@@ -163,40 +163,40 @@ class _AboutState extends State<_About> {
               Wrap(
                 spacing: 16,
                 children: [
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.save,
                     content: '存档文件夹',
                     onTap: () {
                       _openFolder(_mindustry.savesPath);
                     },
                   ),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.map_outlined,
                     content: '地图文件夹',
                     onTap: () {
                       _openFolder(_mindustry.mapsPath);
                     },
                   ),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.paste,
                     content: '蓝图文件夹',
                     onTap: () {
                       _openFolder(_mindustry.schematicsPath);
                     },
                   ),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: LineIcons.puzzlePiece,
                     content: '模组文件夹',
                     onTap: () {
                       _openFolder(_mindustry.modsPath);
                     },
                   ),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.file_copy,
                     content: '导出崩溃日志',
                     onTap: () {},
                   ),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.broken_image_outlined,
                     content: '查看崩溃日志',
                     onTap: () {},
@@ -228,12 +228,12 @@ class _AboutState extends State<_About> {
                 spacing: 8,
                 mainAxisSize: MainAxisSize.max,
                 children: [
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.layers_outlined,
                     content: '导入资源',
                     onTap: () {},
                   ),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.folder_outlined,
                     content: '批量导入',
                     onTap: () {},
@@ -258,22 +258,22 @@ class _AboutState extends State<_About> {
                 spacing: 8,
                 mainAxisSize: MainAxisSize.max,
                 children: [
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.save,
                     content: '存档',
                     onTap: () {},
                   ),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.map_outlined,
                     content: '地图',
                     onTap: () {},
                   ),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: LineIcons.puzzlePiece,
                     content: '模组',
                     onTap: () {},
                   ),
-                  ReboundIconButton(
+                  IconTextButton(
                     icon: Icons.paste,
                     content: '蓝图',
                     onTap: () {},

@@ -2,10 +2,11 @@ import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
+import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/widget/animated_expansion.dart';
-import 'package:copper_launcher/ui/util/widget/feature_button.dart';
-import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+
 import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
