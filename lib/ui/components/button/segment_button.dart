@@ -1,57 +1,12 @@
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-class ReboundButton extends ReboundContainer {
-  const ReboundButton({
-    super.key,
-    super.child,
-    required super.onTap,
-    super.pressedScale = 0.8,
-    super.duration,
-    super.onLongTap,
-    super.borderRadius = const BorderRadius.all(Radius.circular(4)),
-    super.shapeBorder,
-    super.padding = const EdgeInsets.all(4),
-    super.margin,
-    super.hoverColor,
-    super.splashColor,
-    super.highlightColor,
-    super.shadowColor,
-    super.backgroundColor,
-    super.elevation,
-    super.hoverElevation = 2,
-  });
-}
-
-class ReboundIconButton extends StatelessWidget {
-  const ReboundIconButton({
-    super.key,
-    required this.icon,
-    required this.content,
-    required this.onTap,
-    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-  });
-
-  final IconData icon;
-  final String content;
-  final VoidCallback onTap;
-  final EdgeInsetsGeometry? padding;
-
-  @override
-  Widget build(BuildContext context) {
-    return ReboundButton(
-      padding: padding,
-      onTap: onTap,
-      child: Row(
-        spacing: 4,
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [Icon(icon), Text(content)],
-      ),
-    );
-  }
-}
-
+/// 分段按钮组：多段互斥 / 多选，选中段有背景 + 前景过渡动画。
+///
+/// copper 风格双模式：
+/// - 暗色：玻璃感——透明背景，选中态叠一层半透明主题色
+/// - 浅色：云母片——不透明背景，选中态用 alphaBlend 模拟半透明主题色
 class SegmentedReboundButton<T> extends StatefulWidget {
   const SegmentedReboundButton({
     super.key,
@@ -87,14 +42,16 @@ class _SegmentedReboundButtonState<T> extends State<SegmentedReboundButton<T>> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey),
-        color: Theme.of(context).colorScheme.secondaryContainer,
+        border: Border.all(color: colors.contentBorder),
+        color: colors.inputBackground,
       ),
       clipBehavior: Clip.antiAlias,
-      padding: EdgeInsets.all(4),
+      padding: const EdgeInsets.all(4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: 4,
@@ -117,6 +74,7 @@ class _SegmentedReboundButtonState<T> extends State<SegmentedReboundButton<T>> {
   }
 }
 
+/// 分段数据描述：值 + 可选的内容 / 图标 / 自定义 label
 class ReboundButtonSegment<T> {
   ReboundButtonSegment({
     required this.value,
@@ -125,15 +83,15 @@ class ReboundButtonSegment<T> {
     this.label,
     this.enabled = true,
   }) : assert(content != null || label != null);
-  final T value;
 
+  final T value;
   final String? content;
   final Widget? icon;
   final Widget? label;
-
   final bool enabled;
 }
 
+/// 单个分段按钮：自持 [AnimationController]，选中/取消由 [selected] 驱动过渡
 class SegmentedReboundSingleButton<T> extends StatefulWidget {
   const SegmentedReboundSingleButton({
     super.key,
@@ -160,7 +118,7 @@ class _SegmentedReboundSingleButtonState<T>
     super.initState();
     controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 200),
     );
     if (widget.selected) controller.animateTo(1.0);
   }
@@ -181,40 +139,45 @@ class _SegmentedReboundSingleButtonState<T>
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textStyle = theme.textTheme.bodyLarge;
-    final iconTheme = theme.iconTheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final baseColor = colors.cardBackground;
+
+    // 选中背景：暗色叠半透明主题色（玻璃）、浅色 alphaBlend（云母片）
+    final endBackground = isDark
+        ? colors.interactive.withAlpha(60)
+        : Color.alphaBlend(colors.interactive.withAlpha(60), baseColor);
+    final backgroundT = ColorTween(
+      begin: baseColor,
+      end: endBackground,
+    ).animate(controller);
+
+    // 前景：未选中 itemPrimary → 选中 interactiveHigh（无禁用态驱动，保持简洁）
+    final foregroundT = ColorTween(
+      begin: colors.itemPrimary,
+      end: colors.interactiveHigh,
+    ).animate(controller);
 
     return AnimatedBuilder(
       animation: controller,
       builder: (context, child) {
-        final animation = CurvedAnimation(
-          parent: controller,
-          curve: Curves.fastOutSlowIn,
-        );
-
-        final backgroundT = ColorTween(
-          begin: colorScheme.secondaryContainer,
-          end: colorScheme.secondary,
-        ).animate(animation);
-        final foregroundT = ColorTween(
-          begin: colorScheme.secondary,
-          end: colorScheme.secondaryContainer,
-        ).animate(animation);
-
         return ReboundContainer(
-          pressedScale: 0.8,
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          pressedScale: 0.9,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           hoverElevation: 2,
-          elevation: 1,
+          elevation: 0,
           backgroundColor: backgroundT.value,
           borderRadius: BorderRadius.circular(4),
           onTap: widget.onTap,
           child: DefaultTextStyle(
-            style: textStyle?.copyWith(color: foregroundT.value) ?? TextStyle(),
+            style:
+                theme.textTheme.bodyLarge?.copyWith(
+                      color: foregroundT.value,
+                    ) ??
+                const TextStyle(),
             child: IconTheme(
-              data: iconTheme.copyWith(color: foregroundT.value),
+              data: theme.iconTheme.copyWith(color: foregroundT.value),
               child: child!,
             ),
           ),

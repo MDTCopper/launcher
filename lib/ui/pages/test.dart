@@ -1,9 +1,11 @@
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/button/segment_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
@@ -40,6 +42,10 @@ class TestState extends State<Test> {
   int _btnLongTap = 0; // ReboundButton 长按次数
   int _iconTap = 0; // IconTextButton 点击次数
   bool _navCollapsed = false; // NavigationCollapseButton 收起态（箭头旋转）
+
+  // ── 第 11 区演示状态 ──
+  int _segSelected = 1; // SegmentedReboundButton 选中值
+  bool _groupExpanded = false; // AnimatedExpansion 展开日志
 
   @override
   void dispose() {
@@ -408,6 +414,7 @@ class TestState extends State<Test> {
           ),
           _taskSection(),
           _buttonSection(),
+          _segmentExpansionSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -516,6 +523,48 @@ class TestState extends State<Test> {
           child: NavigationCollapseButton(
             collapse: _navCollapsed,
             onTap: () => setState(() => _navCollapsed = !_navCollapsed),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════ 11. 分段按钮 + 展开/收起容器（copper 风格翻新件） ════════
+  Widget _segmentExpansionSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('11. SegmentedReboundButton / AnimatedExpansion'),
+        _card(
+          title: 'SegmentedReboundButton（copper 双模式选中态）',
+          desc:
+              '分段按钮：点击切换选中段，选中段背景/前景有过渡动画（暗色玻璃、浅色云母片）。当前选中：$_segSelected。',
+          child: SegmentedReboundButton<int>(
+            selected: {_segSelected},
+            segments: [
+              ReboundButtonSegment(value: 0, icon: Icon(Icons.dark_mode), label: Text('暗色')),
+              ReboundButtonSegment(value: 1, icon: Icon(Icons.auto_mode), label: Text('跟随系统')),
+              ReboundButtonSegment(value: 2, icon: Icon(Icons.light_mode), label: Text('浅色')),
+            ],
+            onChange: (set) => setState(() => _segSelected = set.first),
+          ),
+        ),
+        _card(
+          title: 'AnimatedExpansion（基于 Flutter Expansible，收起后卸载子树）',
+          desc:
+              '点击标题展开/收起；收起动画完成后内容从树上移除（maintainState:false 性能改进）。最近切换日志：${_groupExpanded ? '展开' : '收起'}。',
+          child: AnimatedExpansion(
+            title: Text('展开一个分组（点我）'),
+            onChange: () => setState(() => _groupExpanded = !_groupExpanded),
+            children: [
+              for (int i = 0; i < 30; i++)
+                Container(
+                  height: 32,
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text('收起后这 30 行不再参与构建 - 第 $i 项'),
+                ),
+            ],
           ),
         ),
       ],

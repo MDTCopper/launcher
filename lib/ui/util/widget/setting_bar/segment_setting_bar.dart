@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../feature_button.dart';
+import 'package:copper_launcher/ui/components/button/segment_button.dart';
 
 class SegmentSettingBar<T> extends StatelessWidget {
   const SegmentSettingBar({

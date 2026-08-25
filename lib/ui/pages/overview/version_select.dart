@@ -9,7 +9,7 @@ import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 
-import 'package:copper_launcher/ui/util/widget/animated_expansion.dart';
+import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
