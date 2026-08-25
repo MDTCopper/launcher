@@ -27,24 +27,24 @@ class DesktopScrollViewContainer extends StatefulWidget {
 
   final Widget child;
 
-  /// 离散滚轮灵敏度（鼠标滚轮）。
+  /// 离散滚轮灵敏度
   final double sensitivity;
 
-  /// 触控板灵敏度（连续手势，独立于滚轮）。
+  /// 触控板灵敏度
   final double trackpadSensitivity;
 
   final Axis scrollDirection;
 
-  /// 滚动条位置（默认：垂直滚动条在右侧，水平滚动条在底部）。
+  /// 滚动条位置（默认：垂直滚动条在右侧，水平滚动条在底部）
   final AlignmentGeometry? scrollbarAlignment;
 
   /// 预测最大偏移（惰性列表提供）：滚动条 thumb / 点击 / 拖动用此值计算，
-  /// 避免惰性列表 maxScrollExtent 估算（平均外推）导致的跳变。
-  /// 不传则用 position.maxScrollExtent。到达实际边界时自动重校为实际值。
+  /// 避免惰性列表 maxScrollExtent 估算（平均外推）导致的跳变
+  /// 不传则用 position.maxScrollExtent。到达实际边界时自动重校为实际值
   final double? estimatedMaxScrollExtent;
 
-  /// 触控板惯性速度上限（px/s），<= 0 表示不限速。
-  /// 速度经 tanh 非线性映射：低速≈真实，高速渐近逼近该值。
+  /// 触控板惯性速度上限（px/s），<= 0 表示不限速
+  /// 速度经 tanh 非线性映射：低速≈真实，高速渐近逼近该值
   final double maxVelocity;
 
   final ScrollController controller;
@@ -162,6 +162,10 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     if (currentMaxExtent == _lastMaxScrollExtent) return;
 
     setState(() {
+      // 最大偏移变化（如切页换内容）：失效已校准的 _effectiveMax，
+      // 让 _scrollMax 回落重新计算，否则沿用冻结旧值会算出错误的 thumb
+      // （旧值偏小 → thumb 撑满槽 + 交互异常），直到回到边界才恢复
+      _effectiveMax = null;
       _lastMaxScrollExtent = currentMaxExtent;
       final offset = _controller.offset;
       if (currentMaxExtent <= 0.0 || offset > currentMaxExtent) {
@@ -242,6 +246,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
 
   bool _isInnerScroll = false;
   Timer? _innerScrollTimer;
+
   /// 判断滚轮方向是否还能继续滚动（未到边界）。
   bool _canScroll(PointerScrollEvent event) {
     if (!_controller.hasClients) return false;
@@ -270,8 +275,9 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     if (_isVertical) {
       rawDelta = event.scrollDelta.dy;
     } else {
-      rawDelta =
-          event.scrollDelta.dx != 0 ? event.scrollDelta.dx : event.scrollDelta.dy;
+      rawDelta = event.scrollDelta.dx != 0
+          ? event.scrollDelta.dx
+          : event.scrollDelta.dy;
     }
     final delta = rawDelta * _effectiveScrollSensitivity;
     final minExtent = _controller.position.minScrollExtent;
@@ -590,8 +596,9 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
                     GestureRecognizerFactoryWithHandlers<
                       VerticalDragGestureRecognizer
                     >(
-                      () => VerticalDragGestureRecognizer()
-                        ..supportedDevices = {PointerDeviceKind.mouse},
+                      () =>
+                          VerticalDragGestureRecognizer()
+                            ..supportedDevices = {PointerDeviceKind.mouse},
                       (instance) {
                         instance
                           ..onStart = (details) {
@@ -609,15 +616,16 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
                             _handleDragEnd();
                           }
                           ..onCancel = _handleDragEnd;
-                      }
+                      },
                     )
               else
                 HorizontalDragGestureRecognizer:
                     GestureRecognizerFactoryWithHandlers<
                       HorizontalDragGestureRecognizer
                     >(
-                      () => HorizontalDragGestureRecognizer()
-                        ..supportedDevices = {PointerDeviceKind.mouse},
+                      () =>
+                          HorizontalDragGestureRecognizer()
+                            ..supportedDevices = {PointerDeviceKind.mouse},
                       (instance) {
                         instance
                           ..onStart = (details) {

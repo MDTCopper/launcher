@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/switcher_builder.dart';
 import 'package:copper_launcher/util/io/os.dart';
@@ -10,14 +11,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:window_manager/window_manager.dart';
-
 import '../components/colorful_background.dart';
 import '../theme/app_colors.dart';
 import '../components/overlay_layer/drag_file_field.dart';
-import '../util/framework/info_drawer.dart';
+import 'info_drawer.dart';
 import '../page_framwork/sub_navigation_state.dart';
 import '../util/info/task_drawer_opener.dart';
-import '../util/widget/feature_button.dart';
 import '../util/widget/resource_importer.dart';
 import '../vars.dart';
 import 'navigation_rail.dart';
@@ -157,6 +156,7 @@ class AppShellState extends State<AppShell> {
             children: [
               const SizedBox(width: 4),
               _dockSidebarToggle(
+                hint: !navigationCollapse ? '点击收纳主菜单' : '点击展开主菜单',
                 icon: Symbols.dock_to_right,
                 fillAlignment: Alignment(-0.56, -0.08),
                 active: !navigationCollapse,
@@ -188,37 +188,37 @@ class AppShellState extends State<AppShell> {
 
               Expanded(child: SizedBox()),
 
-              AnimatedOpacitySize(
-                child: isRoot
-                    ? null
-                    : ValueListenableBuilder<bool>(
-                        valueListenable: subNavigationCollapseNotifier,
-                        builder: (context, subNavigationCollapse, _) {
-                          return _dockSidebarToggle(
-                            icon: Symbols.dock_to_left,
-                            fillAlignment: Alignment(0.60, -0.08),
-                            active: !subNavigationCollapse,
-                            onTap: () => setSubNavigationCollapse(
-                              !subNavigationCollapse,
-                            ),
-                          );
-                        },
-                      ),
+              ValueListenableBuilder<bool>(
+                valueListenable: subNavigationCollapseNotifier,
+                builder: (context, subNavigationCollapse, _) {
+                  return _dockSidebarToggle(
+                    hint: !subNavigationCollapse ? '点击收纳副菜单' : '点击展开副菜单',
+                    icon: Symbols.dock_to_left,
+                    fillAlignment: Alignment(0.60, -0.08),
+                    active: !subNavigationCollapse,
+                    onTap: () =>
+                        setSubNavigationCollapse(!subNavigationCollapse),
+                  );
+                },
               ),
 
               const TaskDrawerOpener(),
+
               if (isDesktop) ...[
                 const SizedBox(width: 4),
                 ReboundButton(
-                  backgroundColor: Colors.transparent,
+                  baseColor: Colors.transparent,
                   onTap: () => windowManager.minimize(),
                   child: Icon(Icons.remove),
                 ),
                 const SizedBox(width: 2),
+
                 ReboundButton(
-                  backgroundColor: Colors.transparent,
+                  baseColor: Colors.transparent,
+                  highlightColor: colors.error.withAlpha(155),
+                  hoverColor: colors.error.withAlpha(85),
                   onTap: () => windowManager.close(),
-                  child: Icon(Icons.close),
+                  child: Icon(Icons.close, color: colors.indicator),
                 ),
                 const SizedBox(width: 4),
               ],
@@ -231,39 +231,45 @@ class AppShellState extends State<AppShell> {
 
   Widget _dockSidebarToggle({
     required IconData icon,
+    required String hint,
     required Alignment fillAlignment,
     required bool active,
-    VoidCallback? onTap,
+    required VoidCallback onTap,
   }) {
     final colors = AppColors.of(context);
-    return ReboundButton(
-      backgroundColor: Colors.transparent,
-      onTap: onTap,
-      child: SizedBox(
-        width: 24,
-        height: 24,
-        child: Stack(
-          children: [
-            // 面板半区填充色块（fade 过渡）；宽度/位置由用户微调
-            Positioned.fill(
-              child: Align(
-                alignment: fillAlignment,
-                child: FractionallySizedBox(
-                  widthFactor: 0.2,
-                  heightFactor: 0.72,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: active ? 1 : 0,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(color: colors.interactive),
+
+    return HintLayer(
+      hint: hint,
+      preferPosition: .bottom,
+      child: ReboundButton(
+        baseColor: Colors.transparent,
+        onTap: onTap,
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: Stack(
+            children: [
+              // 面板半区填充色块（fade 过渡）；宽度/位置由用户微调
+              Positioned.fill(
+                child: Align(
+                  alignment: fillAlignment,
+                  child: FractionallySizedBox(
+                    widthFactor: 0.2,
+                    heightFactor: 0.72,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: active ? 1 : 0,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(color: colors.interactive),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-            Positioned.fill(child: Icon(icon)),
-          ],
+              Positioned.fill(child: Icon(icon)),
+            ],
+          ),
         ),
       ),
     );

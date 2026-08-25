@@ -3,10 +3,10 @@ import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
-import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
+import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_config.dart';
@@ -26,6 +26,7 @@ class _LaunchPageState extends State<LaunchPage> {
 
   final controller = PopupOverlayController();
   Widget _buildVersionTile() {
+    final colors = AppColors.of(context);
     if (_selectedVersion == null) {
       return ReboundListTile(
         borderRadius: BorderRadius.circular(8),
@@ -53,10 +54,9 @@ class _LaunchPageState extends State<LaunchPage> {
     }
     return ReboundListTile(
       padding: EdgeInsets.all(8),
-      elevation: 2,
-      hoverElevation: 4,
       borderRadius: BorderRadius.circular(8),
-      onLongTap: () {},
+      trailingWidth: 66, // settings 按钮：icon 50 + padding 8×2
+
       onTap: () async {
         await Navigator.pushNamed(
           context,
@@ -90,6 +90,8 @@ class _LaunchPageState extends State<LaunchPage> {
       ),
       trailing: ReboundButton(
         borderRadius: BorderRadius.circular(8),
+        baseColor: Colors.transparent,
+        padding: EdgeInsets.all(8),
         child: Icon(
           Icons.settings,
           color: Theme.of(context).iconTheme.color,
@@ -112,16 +114,14 @@ class _LaunchPageState extends State<LaunchPage> {
 
   Widget _buildLaunchButton() {
     if (_selectedVersion == null) return SizedBox();
+    final colors = AppColors.of(context);
 
     return SizedBox(
       height: 80,
       width: 225,
       child: ReboundButton(
         pressedScale: 0.9,
-        baseColor: Theme.of(context).colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(8),
-        elevation: 2,
-        hoverElevation: 4,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           spacing: 16,

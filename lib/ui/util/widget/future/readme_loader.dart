@@ -1,5 +1,5 @@
 import 'package:copper_launcher/data/net_asset.dart';
-import 'package:copper_launcher/ui/util/widget/desktop_scroll_view.dart';
+import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';

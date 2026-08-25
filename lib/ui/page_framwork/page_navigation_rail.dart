@@ -66,6 +66,7 @@ class PageNavigationRail extends StatelessWidget {
 
     return AnimatedContainer(
       duration: animationDuration,
+      alignment: .topCenter,
       curve: Curves.ease,
       width: collapse ? collapseWidth : width,
 

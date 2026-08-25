@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/ui/util/widget/desktop_scroll_view.dart';
+import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:flutter/material.dart';
 
 import '../../feature/feature_curve.dart';
@@ -122,10 +122,14 @@ class _AppearListView extends State<AppearListView>
         final end = begin + duration;
         final curve = Interval(begin, end, curve: FeatureCurves.reboundIn);
 
-        final position = Tween<Offset>(begin: widget.offset, end: Offset.zero)
-            .animate(CurvedAnimation(parent: controller, curve: curve));
-        final opacity = Tween<double>(begin: 0.0, end: 1.0)
-            .animate(CurvedAnimation(parent: controller, curve: curve));
+        final position = Tween<Offset>(
+          begin: widget.offset,
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: controller, curve: curve));
+        final opacity = Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).animate(CurvedAnimation(parent: controller, curve: curve));
 
         return Padding(
           padding: EdgeInsets.only(bottom: widget.itemSpacing),

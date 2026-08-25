@@ -1,12 +1,13 @@
 import 'dart:async';
 
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/task.dart';
 import '../../../domain/task_manager.dart';
-import '../widget/feature_button.dart';
 
 class TaskDrawerOpener extends StatefulWidget {
   const TaskDrawerOpener({super.key});
@@ -49,50 +50,55 @@ class _TaskDrawerOpenerState extends State<TaskDrawerOpener> {
     }).toList();
   }
 
+  Widget _buildProcessBar() {
+    final theme = Theme.of(context).textTheme;
+    final show = _taskNum != 0;
+    return AnimatedOpacitySize(
+      child: show
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: 8),
+                Text(
+                  '${_taskNum == 0 ? 1 : _taskNum} 项任务',
+                  style: theme.labelMedium,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(width: 8),
+                SizedBox(
+                  width: 100,
+                  height: 8,
+                  child: ValueListenableBuilder<double?>(
+                    valueListenable: taskManager.totalProcessProgress,
+                    builder: (context, progress, _) => LinearProgressIndicator(
+                      borderRadius: BorderRadius.circular(4),
+                      value: progress,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context).textTheme;
-
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AnimatedOpacitySize(
-          child: _taskNum != 0
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(width: 8),
-                    Text(
-                      '${_taskNum == 0 ? 1 : _taskNum} 项任务',
-                      style: theme.labelMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    SizedBox(width: 8),
-                    SizedBox(
-                      width: 100,
-                      height: 8,
-                      child: ValueListenableBuilder<double?>(
-                        valueListenable: taskManager.totalProcessProgress,
-                        builder: (context, progress, _) =>
-                            LinearProgressIndicator(
-                          borderRadius: BorderRadius.circular(4),
-                          value: progress,
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              : null,
-        ),
         SizedBox(width: 8),
-        ReboundButton(
-          backgroundColor: Colors.transparent,
-          child: Icon(Icons.chrome_reader_mode_outlined),
-          onTap: () {
-            Scaffold.of(
-              PageKeyProvider.navigatorKey.currentContext!,
-            ).openEndDrawer();
-          },
+        HintLayer(
+          hint: '打开任务列表',
+          child: ReboundButton(
+            baseColor: Colors.transparent,
+            child: Icon(Icons.chrome_reader_mode_outlined),
+            onTap: () {
+              Scaffold.of(
+                PageKeyProvider.navigatorKey.currentContext!,
+              ).openEndDrawer();
+            },
+          ),
         ),
       ],
     );

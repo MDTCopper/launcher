@@ -23,6 +23,10 @@ class ReboundListTile extends StatefulWidget {
   final BorderRadius? borderRadius;
   final double itemSpacing;
 
+  /// trailing 占位宽度：留在 [ReboundContainer.surfaceChild] 做交互隔离（点击不透传
+  /// 到 tile），并在行内预留此宽度推开 title/subtitle；传实际宽度才能正确占位
+  final double trailingWidth;
+
   const ReboundListTile({
     super.key,
     this.leading,
@@ -39,6 +43,7 @@ class ReboundListTile extends StatefulWidget {
     this.margin,
     this.borderRadius,
     this.itemSpacing = 8,
+    this.trailingWidth = 0,
   });
 
   @override
@@ -85,7 +90,6 @@ class _ReboundListTileState extends State<ReboundListTile>
     final baseColor = widget.baseColor ?? colors.cardBackground;
     final enabled = widget.enable;
 
-    // 双模式背景（同 ActionButton）：暗色玻璃 / 浅色云母片
     final beginBackground = isDark ? Colors.transparent : baseColor;
     final endBackground = isDark
         ? colors.interactive.withAlpha(100)
@@ -115,6 +119,10 @@ class _ReboundListTileState extends State<ReboundListTile>
           backgroundColor: backgroundT.value,
           onTap: enabled ? widget.onTap : null,
           onLongTap: enabled ? widget.onLongTap : null,
+          // trailing 进 surfaceChild：交互隔离（点它不透传到 tile 的 ink），
+          // 行内按 trailingWidth 预留宽度占位，避免内容被 trailing 覆盖
+          surfaceChild: widget.trailing,
+          surfaceAlignment: Alignment.centerRight,
           child: IconTheme(
             data: IconTheme.of(context).copyWith(color: foreground),
             child: Row(
@@ -143,10 +151,8 @@ class _ReboundListTileState extends State<ReboundListTile>
                     ],
                   ),
                 ),
-                if (widget.trailing != null) ...[
-                  SizedBox(width: widget.itemSpacing),
-                  widget.trailing!,
-                ],
+                if (widget.trailingWidth > 0)
+                  SizedBox(width: widget.trailingWidth),
               ],
             ),
           ),

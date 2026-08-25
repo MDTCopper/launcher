@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
-import '../widget/desktop_scroll_view.dart';
+import '../../components/scroll/desktop_scroll_view.dart';
 
 //final logManager = LogManager();
 

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/ui/util/animation/pixel_slide_transition.dart';
-import 'package:copper_launcher/ui/util/widget/desktop_scroll_view.dart';
+import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/task.dart';
@@ -68,10 +68,9 @@ class _TaskListState extends State<TaskList> {
     // 移除：按在旧列表中的索引降序处理，先删位置靠后的，前面的索引才不会被移动。
     // 原写法逐个按旧列表 index removeItem，但 AnimatedList 每次删除都会让后方条目前移，
     // 一批同时删 ≥2 条时，第二次就会用错索引（删到别的位置甚至越界）。
-    final removed = _tasks
-        .where((t) => !newTasks.any((n) => n.id == t.id))
-        .toList()
-      ..sort((a, b) => _tasks.indexOf(b).compareTo(_tasks.indexOf(a)));
+    final removed =
+        _tasks.where((t) => !newTasks.any((n) => n.id == t.id)).toList()
+          ..sort((a, b) => _tasks.indexOf(b).compareTo(_tasks.indexOf(a)));
     for (final task in removed) {
       final index = _tasks.indexOf(task);
       if (index != -1) {

@@ -1,5 +1,5 @@
 import 'package:copper_launcher/ui/components/scroll/scroll_fade_mask.dart';
-import 'package:copper_launcher/ui/util/widget/desktop_scroll_view.dart';
+import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -105,10 +105,10 @@ class _CopperSingleChildScrollViewState
     }
     if (widget.fadeMask) {
       child = ScrollFadeMask(
-          controller: _scrollController,
-          scrollDirection: widget.scrollDirection,
-          child: child,
-        );
+        controller: _scrollController,
+        scrollDirection: widget.scrollDirection,
+        child: child,
+      );
     }
 
     return child;

@@ -24,6 +24,7 @@ class ReboundContainer extends StatefulWidget {
   final double hoverElevation;
   final double elevation;
   final Color? hoverColor;
+
   final Color? splashColor;
   final Color? highlightColor;
   final Color? backgroundColor;
@@ -155,7 +156,8 @@ class _ReboundContainer extends State<ReboundContainer>
         widget.backgroundColor ?? AppColors.of(context).cardBackground;
     theme.colorScheme.secondaryContainer;
 
-    final hoverColor = widget.hoverColor ?? AppColors.of(context).splash;
+    final hoverColor =
+        widget.hoverColor ?? AppColors.of(context).splash.withAlpha(30);
 
     final light = theme.brightness == Brightness.light;
 
@@ -226,9 +228,7 @@ class _ReboundContainer extends State<ReboundContainer>
                 duration: widget.hoverDuration,
                 curve: Curves.ease,
                 decoration: BoxDecoration(
-                  color: isHover
-                      ? hoverColor.withAlpha(30)
-                      : hoverColor.withAlpha(0),
+                  color: isHover ? hoverColor : hoverColor.withAlpha(0),
                   borderRadius: widget.borderRadius,
                 ),
               ),

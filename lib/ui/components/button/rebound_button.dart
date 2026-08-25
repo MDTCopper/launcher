@@ -18,34 +18,45 @@ class ReboundButton extends StatelessWidget {
   final EdgeInsetsGeometry? margin;
   final BorderRadius? borderRadius;
 
+  final Color? hoverColor;
+  final Color? splashColor;
+  final Color? highlightColor;
+  final Color? shadowColor;
+
   const ReboundButton({
     super.key,
     required this.child,
     this.onTap,
     this.onLongTap,
-    this.pressedScale,
+    this.pressedScale = 0.8,
     this.elevation,
     this.hoverElevation = 2,
     this.baseColor,
-    this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    this.padding = const EdgeInsets.all(4),
     this.margin,
     this.borderRadius,
+    this.hoverColor,
+    this.splashColor,
+    this.highlightColor,
+    this.shadowColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final baseColor = this.baseColor ?? AppColors.of(context).cardBackground;
 
     return ReboundContainer(
       pressedScale: pressedScale,
       elevation: elevation ?? 0.0,
       hoverElevation: hoverElevation,
-      borderRadius: borderRadius ?? BorderRadius.circular(8),
+      borderRadius: borderRadius ?? BorderRadius.circular(4),
       padding: padding,
       margin: margin,
-      backgroundColor: isDark ? Colors.transparent : baseColor,
+      backgroundColor: baseColor,
+      hoverColor: hoverColor,
+      splashColor: splashColor,
+      highlightColor: highlightColor,
+      shadowColor: shadowColor,
       onTap: onTap,
       onLongTap: onLongTap,
       child: child,
