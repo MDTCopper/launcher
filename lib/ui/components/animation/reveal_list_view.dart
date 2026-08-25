@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:copper_launcher/ui/components/scroll/list_view.dart';
 import 'package:flutter/material.dart';
 
@@ -120,7 +118,8 @@ class _RevealListViewState extends State<RevealListView> {
   /// 条目错位延迟：delay + index 递增间隔
   int _delayFor(int index) =>
       widget.delay +
-      (index * (widget.interval * widget.appearDuration.inMilliseconds)).round();
+      (index * (widget.interval * widget.appearDuration.inMilliseconds))
+          .round();
 
   Widget _wrapItem(int index, Widget item, {required bool animate}) {
     return Padding(
@@ -156,7 +155,11 @@ class _RevealListViewState extends State<RevealListView> {
           if (item == null) return const SizedBox.shrink();
           // 只入场动画：首帧构建的条目错位入场，滚动构建的直接显示
           final isFirstBuild = _animated.add(index);
-          return _wrapItem(index, item, animate: isFirstBuild && !_firstBuildDone);
+          return _wrapItem(
+            index,
+            item,
+            animate: isFirstBuild && !_firstBuildDone,
+          );
         },
       );
     }

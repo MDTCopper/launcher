@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 
 class PercentBar extends StatefulWidget {
@@ -67,7 +68,9 @@ class _PercentBarState extends State<PercentBar> {
 
         //填充剩余部分
         children.add(
-          Expanded(child: Container(color: backgroundColor, height: height)),
+          Expanded(
+            child: Container(color: backgroundColor, height: height),
+          ),
         );
 
         return Row(children: children);
@@ -80,14 +83,14 @@ class _PercentSingleBar extends StatefulWidget {
   const _PercentSingleBar({
     required this.color,
     required this.size,
-    this.duration = const Duration(milliseconds: 300),
+
     required this.percent,
   });
 
   final double percent;
   final Color color;
   final Size size;
-  final Duration duration;
+
   @override
   State<StatefulWidget> createState() => _PercentSingleBarState();
 }
@@ -134,7 +137,7 @@ class _PercentSingleBarState extends State<_PercentSingleBar>
   void percentAnimate() {
     percentController.animateTo(
       widget.percent,
-      duration: widget.duration,
+      duration: animationDuration,
       curve: Curves.fastEaseInToSlowEaseOut,
     );
   }

@@ -9,7 +9,7 @@ import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/framework/content_panel.dart';
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
 import 'package:copper_launcher/ui/util/widget/future/readme_loader.dart';
-import 'package:copper_launcher/ui/util/widget/pager.dart';
+import 'package:copper_launcher/ui/components/pager.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/downloader.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';

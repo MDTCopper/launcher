@@ -4,13 +4,6 @@ import 'package:flutter/material.dart';
 
 import 'log_list.dart';
 import 'task_list.dart';
-import '../../util/framework/menu_bar.dart';
-
-//自定义抽屉
-class InfoDrawer extends Drawer {
-  //todo 信息栏抽屉
-  const InfoDrawer({super.key});
-}
 
 class InfoList extends StatefulWidget {
   const InfoList({super.key});

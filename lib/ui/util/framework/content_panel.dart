@@ -1,4 +1,3 @@
-import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 import '../widget/appear_grid_view.dart';

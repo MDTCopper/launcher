@@ -244,7 +244,6 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
           onTap: () async {
             print('fetch minGameVersion');
 
-            var depth = 0;
             for (final version in _versionList) {
               // depth++;
               // if (depth > 2) break;
@@ -307,8 +306,6 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
         Expanded(child: child),
       ],
     );
-
-    return child;
   }
 }
 

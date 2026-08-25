@@ -2,12 +2,12 @@ import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:flutter/material.dart';
 
-import '../../../util/format/string_cleaner.dart';
-import '../../../util/io/file_reader.dart';
-import '../../feature/images.dart';
-import 'appear_list_view.dart';
-import 'feature_button.dart';
-import 'feature_list_tile.dart';
+import '../../util/format/string_cleaner.dart';
+import '../../util/io/file_reader.dart';
+import '../feature/images.dart';
+import '../util/widget/appear_list_view.dart';
+import '../util/widget/feature_button.dart';
+import '../util/widget/feature_list_tile.dart';
 
 bool isImporting = false;
 

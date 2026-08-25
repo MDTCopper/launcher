@@ -244,11 +244,10 @@ class AppColors extends ThemeExtension<AppColors> {
       splash: splash ?? this.splash,
       border: border ?? this.border,
       borderFocus: borderFocus ?? this.borderFocus,
-      contentBorder: inputBorder ?? this.contentBorder,
-      contentBorderHover: inputBorderHover ?? this.contentBorderHover,
-      contentBorderFocus: inputBorderFocus ?? this.contentBorderFocus,
-      contentBackgroundFocus:
-          inputBackgroundFocus ?? this.contentBackgroundFocus,
+      contentBorder: inputBorder ?? contentBorder,
+      contentBorderHover: inputBorderHover ?? contentBorderHover,
+      contentBorderFocus: inputBorderFocus ?? contentBorderFocus,
+      contentBackgroundFocus: inputBackgroundFocus ?? contentBackgroundFocus,
       scrollbarThumb: scrollbarThumb ?? this.scrollbarThumb,
       scrollbarThumbHover: scrollbarThumbHover ?? this.scrollbarThumbHover,
       scrollbarThumbPressed:

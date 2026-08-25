@@ -6,7 +6,6 @@ import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
-import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_config.dart';

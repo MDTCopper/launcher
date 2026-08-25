@@ -284,12 +284,13 @@ class _UbjsonReader {
       }
       // 读取元素数量（int32 BE）
       final count = _readInt32() & 0xFFFFFFFF;
-      if (count < 0)
+      if (count < 0) {
         throw FormatException('UBJson: invalid optimized array count');
+      }
 
       // 读取优化数组元素
       for (int i = 0; i < count; i++) {
-        list.add(_parseOptimizedValue(elementType!));
+        list.add(_parseOptimizedValue(elementType));
       }
     } else {
       // 普通数组

@@ -7,7 +7,7 @@ import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
-import 'package:copper_launcher/ui/util/widget/percent_bar.dart';
+import 'package:copper_launcher/ui/components/percent_bar.dart';
 import 'package:copper_launcher/ui/util/widget/setting_bar/checkbox_setting_bar.dart';
 import 'package:copper_launcher/ui/util/widget/setting_bar/input_setting_bar.dart';
 import 'package:copper_launcher/ui/util/widget/setting_bar/option_setting_bar.dart';

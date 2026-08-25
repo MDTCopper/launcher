@@ -1,8 +1,7 @@
-import 'dart:io';
-
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
+import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/switcher_builder.dart';
 import 'package:copper_launcher/util/io/os.dart';
@@ -11,13 +10,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:window_manager/window_manager.dart';
-import '../components/colorful_background.dart';
+import 'parts/colorful_background.dart';
 import '../theme/app_colors.dart';
 import '../components/overlay_layer/drag_file_field.dart';
 import 'drawer/info_drawer.dart';
 import '../page_framwork/sub_navigation_state.dart';
-import 'drawer/task_drawer_opener.dart';
-import '../util/widget/resource_importer.dart';
+import 'parts/task_drawer_opener.dart';
+import '../popup/resource_importer.dart';
 import '../vars.dart';
 import 'navigation_rail.dart';
 
@@ -128,13 +127,10 @@ class AppShellState extends State<AppShell> {
 
   // ── 构建 ──
 
-  //面包屑
   Widget _buildTopbar() {
     final colors = AppColors.of(context);
     final navigationCollapse =
         config.setting.personalizationOptions.navigationCollapse;
-
-    final isRoot = _currentRoute == _currentRootRoute;
 
     return Container(
       height: 40,
@@ -155,7 +151,7 @@ class AppShellState extends State<AppShell> {
           Row(
             children: [
               const SizedBox(width: 4),
-              _dockSidebarToggle(
+              _sidebarToggle(
                 hint: !navigationCollapse ? '点击收纳主菜单' : '点击展开主菜单',
                 icon: Symbols.dock_to_right,
                 fillAlignment: Alignment(-0.56, -0.08),
@@ -191,7 +187,7 @@ class AppShellState extends State<AppShell> {
               ValueListenableBuilder<bool>(
                 valueListenable: subNavigationCollapseNotifier,
                 builder: (context, subNavigationCollapse, _) {
-                  return _dockSidebarToggle(
+                  return _sidebarToggle(
                     hint: !subNavigationCollapse ? '点击收纳副菜单' : '点击展开副菜单',
                     icon: Symbols.dock_to_left,
                     fillAlignment: Alignment(0.60, -0.08),
@@ -201,6 +197,7 @@ class AppShellState extends State<AppShell> {
                   );
                 },
               ),
+              const SizedBox(width: 4),
 
               const TaskDrawerOpener(),
 
@@ -211,16 +208,8 @@ class AppShellState extends State<AppShell> {
                   onTap: () => windowManager.minimize(),
                   child: Icon(Icons.remove),
                 ),
-                const SizedBox(width: 2),
-
-                ReboundButton(
-                  backgroundColor: Colors.transparent,
-
-                  highlightColor: colors.error.withAlpha(100),
-                  hoverColor: colors.error.withAlpha(100),
-                  onTap: () => windowManager.close(),
-                  child: Icon(Icons.close),
-                ),
+                const SizedBox(width: 4),
+                WindowCloseButton(),
                 const SizedBox(width: 4),
               ],
             ],
@@ -230,7 +219,7 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _dockSidebarToggle({
+  Widget _sidebarToggle({
     required IconData icon,
     required String hint,
     required Alignment fillAlignment,
@@ -243,7 +232,6 @@ class AppShellState extends State<AppShell> {
       hint: hint,
       preferPosition: .bottom,
       child: ReboundButton(
-        hoverElevation: 0.0,
         backgroundColor: Colors.transparent,
         onTap: onTap,
         child: SizedBox(
@@ -291,10 +279,6 @@ class AppShellState extends State<AppShell> {
     return child;
   }
 
-  Widget _buildColorfulBackground(Widget child) {
-    return ColorfulBackground(child: child);
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
@@ -305,7 +289,7 @@ class AppShellState extends State<AppShell> {
         width: MediaQuery.of(context).size.width * 0.45,
         elevation: 2,
         shadowColor: Colors.black,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(side: BorderSide(color: colors.border)),
         child: InfoList(),
       ),
       body: Row(
@@ -325,8 +309,8 @@ class AppShellState extends State<AppShell> {
 
           // ── 右侧内容区 ──
           Expanded(
-            child: _buildColorfulBackground(
-              Column(
+            child: ColorfulBackground(
+              child: Column(
                 children: [
                   _buildTopbar(),
                   Expanded(child: _buildNavigator()),

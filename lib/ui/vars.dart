@@ -71,3 +71,6 @@ Duration get animationSwitcherDuration =>
 
 Duration get animationDuration =>
     kDefaultAnimationDuration * animationMultiplier;
+
+Duration get fastAnimationDuration =>
+    kDefaultFastAnimationSwitcherDuration * animationMultiplier;

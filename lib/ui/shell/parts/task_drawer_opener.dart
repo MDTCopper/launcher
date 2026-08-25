@@ -53,33 +53,34 @@ class _TaskDrawerOpenerState extends State<TaskDrawerOpener> {
   Widget _buildProcessBar() {
     final theme = Theme.of(context).textTheme;
     final show = _taskNum != 0;
-    return AnimatedOpacitySize(
-      child: show
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(width: 8),
-                Text(
-                  '${_taskNum == 0 ? 1 : _taskNum} 项任务',
-                  style: theme.labelMedium,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(width: 8),
-                SizedBox(
-                  width: 100,
-                  height: 8,
-                  child: ValueListenableBuilder<double?>(
-                    valueListenable: taskManager.totalProcessProgress,
-                    builder: (context, progress, _) => LinearProgressIndicator(
-                      borderRadius: BorderRadius.circular(4),
-                      value: progress,
-                    ),
+
+    final child = !show
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${_taskNum == 0 ? 1 : _taskNum} 项任务',
+                style: theme.labelMedium,
+                overflow: TextOverflow.ellipsis,
+              ),
+              SizedBox(width: 8),
+              SizedBox(
+                width: 100,
+                height: 8,
+                child: ValueListenableBuilder<double?>(
+                  valueListenable: taskManager.totalProcessProgress,
+                  builder: (context, progress, _) => LinearProgressIndicator(
+                    borderRadius: BorderRadius.circular(4),
+                    value: progress,
                   ),
                 ),
-              ],
-            )
-          : null,
-    );
+              ),
+              SizedBox(width: 8),
+            ],
+          );
+
+    return AnimatedOpacitySize(child: child);
   }
 
   @override
@@ -87,7 +88,7 @@ class _TaskDrawerOpenerState extends State<TaskDrawerOpener> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(width: 8),
+        _buildProcessBar(),
         HintLayer(
           hint: '打开任务列表',
           child: ReboundButton(

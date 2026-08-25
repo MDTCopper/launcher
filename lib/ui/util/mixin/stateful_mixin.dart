@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 
-
 //混合状态类，组合后直接使用状态判断
 
 mixin StatefulMixin<T extends StatefulWidget> on State<T> {
-
-  final statesController =WidgetStatesController();
+  final statesController = WidgetStatesController();
 
   Set<WidgetState> get states => statesController.value;
 
@@ -25,23 +23,21 @@ mixin StatefulMixin<T extends StatefulWidget> on State<T> {
     statesController.dispose();
     super.dispose();
   }
-
 }
 
+// class _States {
 
-class _States {
+//   _States(this._states);
 
-  _States(this._states);
+//   final Set<WidgetState> _states;
 
-  final Set<WidgetState> _states;
+//   bool get focused => _states.contains(WidgetState.focused);
+//   bool get disabled => _states.contains(WidgetState.disabled);
+//   bool get dragged => _states.contains(WidgetState.dragged);
+//   bool get error => _states.contains(WidgetState.error);
+//   bool get hovered => _states.contains(WidgetState.hovered);
+//   bool get pressed => _states.contains(WidgetState.pressed);
+//   bool get scrolledUnder => _states.contains(WidgetState.scrolledUnder);
+//   bool get selected => _states.contains(WidgetState.selected);
 
-  bool get focused => _states.contains(WidgetState.focused);
-  bool get disabled => _states.contains(WidgetState.disabled);
-  bool get dragged => _states.contains(WidgetState.dragged);
-  bool get error => _states.contains(WidgetState.error);
-  bool get hovered => _states.contains(WidgetState.hovered);
-  bool get pressed => _states.contains(WidgetState.pressed);
-  bool get scrolledUnder => _states.contains(WidgetState.scrolledUnder);
-  bool get selected => _states.contains(WidgetState.selected);
-
-}
+// }

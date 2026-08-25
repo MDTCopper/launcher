@@ -192,7 +192,7 @@ class Downloader {
         await tempFile.delete(); // 删除临时分块文件
       }
       await mainSink.close();
-    } on DioException catch (e) {
+    } on DioException catch (_) {
       if (deleteOnError) {
         for (var it in chunks) {
           await File(it.path).delete();

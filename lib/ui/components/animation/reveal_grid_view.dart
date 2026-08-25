@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:copper_launcher/ui/components/scroll/grid_view.dart';
 import 'package:flutter/material.dart';
 
@@ -109,7 +107,8 @@ class _RevealGridViewState extends State<RevealGridView> {
 
   int _delayFor(int index) =>
       widget.delay +
-      (index * (widget.interval * widget.appearDuration.inMilliseconds)).round();
+      (index * (widget.interval * widget.appearDuration.inMilliseconds))
+          .round();
 
   Widget _wrapItem(int index, Widget item, {required bool animate}) {
     return Padding(
@@ -144,7 +143,11 @@ class _RevealGridViewState extends State<RevealGridView> {
           if (item == null) return const SizedBox.shrink();
           // 只入场动画：首帧构建的条目错位生长入场，滚动构建的直接显示
           final isFirstBuild = _animated.add(index);
-          return _wrapItem(index, item, animate: isFirstBuild && !_firstBuildDone);
+          return _wrapItem(
+            index,
+            item,
+            animate: isFirstBuild && !_firstBuildDone,
+          );
         },
       );
     }

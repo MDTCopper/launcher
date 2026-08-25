@@ -32,8 +32,6 @@ class PageNavigationRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-
     Widget top = CopperSingleChildScrollView(
       padding: EdgeInsets.all(8),
       child: Column(

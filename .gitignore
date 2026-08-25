@@ -52,7 +52,7 @@ app.*.map.json
 .deepcode/
 .opencode/
 opencode.json
-总结.md
+项目情况与进度.md
 .dsh/
 
 # copperlauncher

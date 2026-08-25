@@ -53,4 +53,6 @@ final minJavaModGameVersionModifier = RangeModifier(0, [
 
 const kDefaultAnimationDuration = Duration(milliseconds: 300);
 
+const kDefaultFastAnimationSwitcherDuration = Duration(milliseconds: 200);
+
 const kDefaultAnimationSwitcherDuration = Duration(milliseconds: 200);

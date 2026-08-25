@@ -3,10 +3,8 @@ import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.da
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/util/switcher_builder.dart';
-import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/vars.dart';
-import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 

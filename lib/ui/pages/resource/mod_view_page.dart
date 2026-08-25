@@ -19,7 +19,7 @@ import '../../../core/app_config.dart';
 import '../../../util/io/downloader.dart';
 import '../../components/rebound/rebound_container.dart';
 import '../../util/widget/future/mod_icon_loader.dart';
-import '../../util/widget/pager.dart';
+import '../../components/pager.dart';
 import '../../vars.dart';
 
 ///模组浏览页面

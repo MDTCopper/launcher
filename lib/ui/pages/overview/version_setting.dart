@@ -5,7 +5,6 @@ import 'dart:math';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
 
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
@@ -30,7 +29,7 @@ import '../../../util/system_info.dart';
 import '../../components/rebound/rebound_checkbox.dart';
 import '../../feature/images.dart';
 import '../../page_framwork/sub_navigation_state.dart';
-import '../../util/widget/percent_bar.dart';
+import '../../components/percent_bar.dart';
 import '../../util/widget/setting_bar/checkbox_setting_bar.dart';
 import '../../util/widget/setting_bar/input_setting_bar.dart';
 import '../../util/widget/setting_bar/slider_setting_bar.dart';
