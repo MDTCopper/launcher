@@ -43,8 +43,7 @@ class ReboundButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseColor =
-        this.backgroundColor ?? AppColors.of(context).cardBackground;
+    final baseColor = backgroundColor ?? AppColors.of(context).cardBackground;
 
     return ReboundContainer(
       pressedScale: pressedScale,

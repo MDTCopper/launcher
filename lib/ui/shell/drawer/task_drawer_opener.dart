@@ -91,7 +91,6 @@ class _TaskDrawerOpenerState extends State<TaskDrawerOpener> {
         HintLayer(
           hint: '打开任务列表',
           child: ReboundButton(
-            hoverElevation: 0.0,
             backgroundColor: Colors.transparent,
             child: Icon(Icons.chrome_reader_mode_outlined),
             onTap: () {

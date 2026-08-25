@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/pixel_slide_transition.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +9,6 @@ import 'package:flutter/material.dart';
 import '../../../domain/task.dart';
 import '../../../domain/task_manager.dart';
 
-//UI
 class TaskList extends StatefulWidget {
   const TaskList({super.key});
 
@@ -64,10 +64,6 @@ class _TaskListState extends State<TaskList> {
   void _updateList(List<Task> newTasks) {
     final state = _key.currentState;
     if (state == null) return;
-
-    // 移除：按在旧列表中的索引降序处理，先删位置靠后的，前面的索引才不会被移动。
-    // 原写法逐个按旧列表 index removeItem，但 AnimatedList 每次删除都会让后方条目前移，
-    // 一批同时删 ≥2 条时，第二次就会用错索引（删到别的位置甚至越界）。
     final removed =
         _tasks.where((t) => !newTasks.any((n) => n.id == t.id)).toList()
           ..sort((a, b) => _tasks.indexOf(b).compareTo(_tasks.indexOf(a)));
@@ -82,8 +78,6 @@ class _TaskListState extends State<TaskList> {
       }
     }
 
-    // 新增：移除完成后，AnimatedList 内剩余条目已与 newTasks 对齐（同样按 createTime 排序），
-    // 依次按目标位置插入即可。
     for (final newTask in newTasks) {
       final needAdd = !_tasks.any((oldTask) => oldTask.id == newTask.id);
       if (needAdd) {
@@ -115,14 +109,14 @@ class _TaskListState extends State<TaskList> {
       sizeFactor: sizeFactor,
       child: SlideTransition(
         position: position,
-        child: FadeTransition(opacity: opacity, child: _buildTask(task)),
+        child: FadeTransition(opacity: opacity, child: _buildTaskTile(task)),
       ),
     );
 
     return widget;
   }
 
-  Widget _buildTask(Task task) {
+  Widget _buildTaskTile(Task task) {
     final theme = Theme.of(context);
     return Container(
       margin: EdgeInsets.symmetric(vertical: 4),
@@ -139,14 +133,18 @@ class _TaskListState extends State<TaskList> {
   }
 
   Widget _buildNoTaskPage() {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.fact_check_outlined, color: Colors.white60, size: 48),
+          Icon(Icons.fact_check_outlined, color: colors.itemHint, size: 48),
           Text(
             '没有任务啦 ~(‾▾‾~)~',
-            style: TextStyle(color: Colors.white60, fontSize: 28),
+            style: theme.textTheme.displayLarge?.copyWith(
+              color: colors.itemHint,
+            ),
           ),
           SizedBox(height: 50),
         ],
@@ -173,7 +171,10 @@ class _TaskListState extends State<TaskList> {
 
         return FadeTransition(
           opacity: animation,
-          child: SlideTransition(position: position, child: _buildTask(task)),
+          child: SlideTransition(
+            position: position,
+            child: _buildTaskTile(task),
+          ),
         );
       },
     );

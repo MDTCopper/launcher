@@ -11,8 +11,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/app_config.dart';
 import '../../feature/images.dart';
-import '../../util/info/log_list.dart';
-import '../../util/info/notification.dart';
+import '../../shell/drawer/log_list.dart';
+import '../../util/notification.dart';
 
 class LaunchPage extends StatefulWidget {
   const LaunchPage({super.key});
@@ -53,7 +53,6 @@ class _LaunchPageState extends State<LaunchPage> {
     return ReboundListTile(
       padding: EdgeInsets.all(8),
       borderRadius: BorderRadius.circular(8),
-      trailingWidth: 66, // settings 按钮：icon 50 + padding 8×2
 
       onTap: () async {
         await Navigator.pushNamed(
@@ -112,7 +111,6 @@ class _LaunchPageState extends State<LaunchPage> {
 
   Widget _buildLaunchButton() {
     if (_selectedVersion == null) return SizedBox();
-    final colors = AppColors.of(context);
 
     return SizedBox(
       height: 80,
@@ -132,7 +130,7 @@ class _LaunchPageState extends State<LaunchPage> {
             Text(
               "启动游戏",
               style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
+                color: Theme.of(context).colorScheme.secondary,
               ),
             ),
             SizedBox(),

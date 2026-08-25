@@ -1,8 +1,9 @@
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-/// 分类面板模块：纯装饰外壳，用于区分不同区域（Material 卡片 + 可选标题）。
+/// 分类面板模块：纯装饰外壳，用于区分不同区域
 ///
-/// 不做动画、不承载列表——内容多时请用 [ContentListPanelModule] / [ContentGridPanelModule]。
+/// 不做动画、不承载列表——内容多时用 [ContentListPanelModule] / [ContentGridPanelModule]
 class ContentPanelModule extends StatelessWidget {
   final Widget? child;
   final String? title;
@@ -12,10 +13,11 @@ class ContentPanelModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final colors = AppColors.of(context);
 
     return Material(
       elevation: 4.0,
-      color: theme.colorScheme.secondaryContainer,
+      color: colors.cardBackground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),

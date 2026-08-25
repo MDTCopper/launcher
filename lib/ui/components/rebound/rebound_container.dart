@@ -1,23 +1,25 @@
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
+///回弹容器，点击有回弹效果，视觉上有被点击的效果
+///在暗色主题禁用和透明背景禁用elevation
 class ReboundContainer extends StatefulWidget {
   final double? pressedScale;
   final Duration? duration; // 回弹持续时间
   final Widget? child;
 
   /// 交互隔离层：叠在按钮表面，其中的组件接收自己的交互，
-  /// 点击不会透传到 InkWell，不会触发按钮回弹。
+  /// 点击不会透传到 InkWell，不会触发按钮回弹
   final Widget? surfaceChild;
 
-  /// [surfaceChild] 在按钮区域内的对齐方式。
+  /// [surfaceChild] 在按钮区域内的对齐方式
   final AlignmentGeometry surfaceAlignment;
 
   final VoidCallback? onTap;
   final GestureLongPressCallback? onLongTap;
 
   final BorderRadius? borderRadius;
-  final ShapeBorder? shapeBorder; // 高亮覆盖层修饰
+  final ShapeBorder? shapeBorder;
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
 
@@ -152,19 +154,18 @@ class _ReboundContainer extends State<ReboundContainer>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final light = theme.brightness == Brightness.light;
+
     final backgroundColor =
         widget.backgroundColor ?? AppColors.of(context).cardBackground;
     theme.colorScheme.secondaryContainer;
 
-    final hoverColor =
-        widget.hoverColor ?? AppColors.of(context).splash.withAlpha(30);
-
-    final light = theme.brightness == Brightness.light;
+    final hoverColor = widget.hoverColor ?? AppColors.of(context).splash;
 
     final double elevation;
 
     //亮色且背景不透明情况下触发elevation
-    if (light && backgroundColor.a != 255) {
+    if (light && backgroundColor.a == 1.0) {
       if (isHover && !isPressed) {
         elevation = widget.hoverElevation;
       } else {

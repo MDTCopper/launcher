@@ -105,19 +105,19 @@ class AppColors extends ThemeExtension<AppColors> {
     elevatedBackground: Palette.neutral100,
 
     // 文本 / 图标
-    itemPrimary: Palette.neutral600,
-    itemSecondary: Palette.neutral500,
+    itemPrimary: Palette.neutral700,
+    itemSecondary: Palette.neutral600,
     itemOnInteractive: Palette.neutral100,
-    itemHint: Palette.neutral400,
+    itemHint: Palette.neutral500,
 
     // 交互（低 → 高强调）
-    interactiveLow: Palette.copper300,
-    interactive: Palette.copper500,
+    interactiveLow: Palette.copper500,
+    interactive: Palette.copper600,
     interactiveHigh: Palette.copper800,
     splash: Palette.copperHoverOverlay,
 
     // 边框
-    border: Palette.neutral300,
+    border: Palette.neutral400,
     borderFocus: Palette.copper500,
 
     // 输入框
@@ -126,7 +126,7 @@ class AppColors extends ThemeExtension<AppColors> {
     contentBorderFocus: Palette.copper500,
     contentBackgroundFocus: Palette.inputFocusBackground,
 
-    // 滚动条（亮色：按压变暗）
+    // 滚动条
     scrollbarThumb: Palette.neutral400,
     scrollbarThumbHover: Palette.neutral500,
     scrollbarThumbPressed: Palette.neutral600,

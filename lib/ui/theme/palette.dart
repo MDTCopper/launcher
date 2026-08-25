@@ -29,12 +29,12 @@ abstract class Palette {
   static const Color white = Color(0xFFFFFFFF);
   static const Color neutral50 = Color(0xFFFAFAFA); // 暖白页底
   static const Color neutral100 = Color(0xFFF5F5F5);
-  static const Color neutral200 = Color(0xFFE8E8E8); // 若有若无的边框
-  static const Color neutral300 = Color(0xFFD0D0D0); // 禁用态
-  static const Color neutral400 = Color(0xFF999999); // 很淡的辅助文字
-  static const Color neutral500 = Color(0xFF6E6E6E); // 次要文字
-  static const Color neutral600 = Color(0xFF555555);
-  static const Color neutral700 = Color(0xFF3A3A3A);
+  static const Color neutral200 = Color.fromARGB(255, 223, 223, 223); // 若有若无的边框
+  static const Color neutral300 = Color.fromARGB(255, 200, 200, 200); // 禁用态
+  static const Color neutral400 = Color.fromARGB(255, 173, 173, 173); // 很淡的辅助文字
+  static const Color neutral500 = Color.fromARGB(255, 125, 125, 125); // 次要文字
+  static const Color neutral600 = Color.fromARGB(255, 98, 98, 98);
+  static const Color neutral700 = Color.fromARGB(255, 76, 76, 76);
   static const Color neutral800 = Color(0xFF2D2D2D); // 主要文字（亮色）
   static const Color neutral900 = Color(0xFF1A1A1A);
   static const Color black = Color(0xFF000000);
@@ -73,20 +73,25 @@ abstract class Palette {
   static const Color barrier = Color(0x80000000);
 
   /// 铜色悬浮叠加
-  static const Color copperHoverOverlay = Color(0x1EC89958);
+  static const Color copperHoverOverlay = Color.fromARGB(40, 188, 140, 72);
 
   /// 白色悬浮叠加（带一点主题铜色，暗色模式下悬浮更协调）
-  static const Color whiteHoverOverlay = Color.fromARGB(18, 194, 166, 134);
+  static const Color whiteHoverOverlay = Color.fromARGB(32, 194, 166, 134);
 
   // ═══════════════════════════════════════════════════════════
   // 滚动条
   // ═══════════════════════════════════════════════════════════
 
-  /// 亮色槽（neutral300 15%，比滑块更淡，拉开区分度）
-  static const Color scrollbarTrackLight = Color(0x26D0D0D0);
+  /// 亮色槽
+  static const Color scrollbarTrackLight = Color.fromARGB(100, 173, 173, 173);
 
-  /// 亮色槽 hover（neutral300 25%）
-  static const Color scrollbarTrackLightHover = Color(0x40D0D0D0);
+  /// 亮色槽
+  static const Color scrollbarTrackLightHover = Color.fromARGB(
+    185,
+    173,
+    173,
+    173,
+  );
 
   /// 暗色槽（白 8%，比滑块暗，拉开区分度）
   static const Color scrollbarTrackDark = Color(0x14FFFFFF);

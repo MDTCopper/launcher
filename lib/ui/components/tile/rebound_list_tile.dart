@@ -16,16 +16,13 @@ class ReboundListTile extends StatefulWidget {
   final VoidCallback? onLongTap;
   final bool selected;
   final bool enable;
+  final double elevation;
   final double hoverElevation;
   final Color? baseColor;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
   final BorderRadius? borderRadius;
   final double itemSpacing;
-
-  /// trailing 占位宽度：留在 [ReboundContainer.surfaceChild] 做交互隔离（点击不透传
-  /// 到 tile），并在行内预留此宽度推开 title/subtitle；传实际宽度才能正确占位
-  final double trailingWidth;
 
   const ReboundListTile({
     super.key,
@@ -37,13 +34,13 @@ class ReboundListTile extends StatefulWidget {
     this.onLongTap,
     this.selected = false,
     this.enable = true,
-    this.hoverElevation = 2,
+    this.elevation = 1,
+    this.hoverElevation = 6,
     this.baseColor,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     this.margin,
     this.borderRadius,
     this.itemSpacing = 8,
-    this.trailingWidth = 0,
   });
 
   @override
@@ -54,6 +51,13 @@ class _ReboundListTileState extends State<ReboundListTile>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
+  /// 挂在 surfaceChild 的 trailing 上，用于在帧后读取它的实际尺寸。
+  final GlobalKey _trailingKey = GlobalKey();
+
+  /// trailing 占位宽度（实测）：trailing 留在 surfaceChild（交互隔离、点不透传
+  /// tile），行内按此宽度预留占位，避免内容被 trailing 盖住
+  double _trailingWidth = 0;
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +66,21 @@ class _ReboundListTileState extends State<ReboundListTile>
       duration: const Duration(milliseconds: 200),
     );
     if (widget.selected) _controller.value = 1.0;
+    _measureTrailingWidth();
+  }
+
+  /// 每帧后读取 trailing 布局后的宽度，变化才 setState；
+  /// trailing 尺寸变化（切图标 / 出现 / 消失）也能跟上
+  void _measureTrailingWidth() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final context = _trailingKey.currentContext;
+      final width = context?.size?.width ?? 0;
+      if (width != _trailingWidth) {
+        setState(() => _trailingWidth = width);
+      }
+      _measureTrailingWidth();
+    });
   }
 
   @override
@@ -111,8 +130,8 @@ class _ReboundListTileState extends State<ReboundListTile>
         final foreground = foregroundT.value;
         return ReboundContainer(
           pressedScale: 0.95,
-          elevation: 0,
-          hoverElevation: enabled ? widget.hoverElevation : 0,
+          elevation: widget.elevation,
+          hoverElevation: enabled ? widget.hoverElevation : widget.elevation,
           borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
           padding: widget.padding,
           margin: widget.margin,
@@ -120,8 +139,13 @@ class _ReboundListTileState extends State<ReboundListTile>
           onTap: enabled ? widget.onTap : null,
           onLongTap: enabled ? widget.onLongTap : null,
           // trailing 进 surfaceChild：交互隔离（点它不透传到 tile 的 ink），
-          // 行内按 trailingWidth 预留宽度占位，避免内容被 trailing 覆盖
-          surfaceChild: widget.trailing,
+          // 挂在 GlobalKey 上帧后实测宽度，行内按 _trailingWidth 预留占位
+          surfaceChild: widget.trailing == null
+              ? null
+              : KeyedSubtree(
+                  key: _trailingKey,
+                  child: widget.trailing!,
+                ),
           surfaceAlignment: Alignment.centerRight,
           child: IconTheme(
             data: IconTheme.of(context).copyWith(color: foreground),
@@ -151,8 +175,8 @@ class _ReboundListTileState extends State<ReboundListTile>
                     ],
                   ),
                 ),
-                if (widget.trailingWidth > 0)
-                  SizedBox(width: widget.trailingWidth),
+                if (_trailingWidth > 0)
+                  SizedBox(width: _trailingWidth),
               ],
             ),
           ),

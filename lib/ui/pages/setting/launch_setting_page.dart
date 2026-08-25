@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
-import 'package:copper_launcher/ui/util/info/notification.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';

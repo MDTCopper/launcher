@@ -6,8 +6,8 @@ import 'package:copper_launcher/ui/util/widget/feature_button.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/mindustry_settings.dart';
-import '../../ui/util/info/log_list.dart';
-import '../../ui/util/info/notification.dart';
+import '../../ui/shell/drawer/log_list.dart';
+import '../../ui/util/notification.dart';
 
 class LaunchMindustryTask extends Task {
   final Mindustry mindustry;

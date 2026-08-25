@@ -8,8 +8,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
-import '../../ui/util/info/log_list.dart';
-import '../../ui/util/info/notification.dart';
+import '../../ui/shell/drawer/log_list.dart';
+import '../../ui/util/notification.dart';
 import '../../ui/util/widget/feature_button.dart';
 import '../../util/format/byte_unit.dart';
 import '../../util/io/downloader.dart';

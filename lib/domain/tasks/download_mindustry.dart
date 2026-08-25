@@ -7,8 +7,8 @@ import 'package:path/path.dart' as p;
 import '../../core/app_config.dart';
 import '../../data/local_asset.dart';
 import '../../data/net_asset.dart';
-import '../../ui/util/info/log_list.dart';
-import '../../ui/util/info/notification.dart';
+import '../../ui/shell/drawer/log_list.dart';
+import '../../ui/util/notification.dart';
 import '../../ui/util/widget/feature_button.dart';
 import '../../util/app_paths.dart';
 import '../../util/format/byte_unit.dart';
@@ -94,12 +94,9 @@ class DownloadMindustryTask extends Task {
         downloadedSize = await file.length();
       }
 
-      final String url =
-          mindustryMeta.assets
-              .firstWhere(
-                (it) => it.name.toLowerCase().contains('mindustry.jar'),
-              )
-              .url;
+      final String url = mindustryMeta.assets
+          .firstWhere((it) => it.name.toLowerCase().contains('mindustry.jar'))
+          .url;
       print(url);
 
       await dr.download(
@@ -231,14 +228,13 @@ class DownloadMindustryTask extends Task {
       return Text('链接中...');
     }
 
-    final connectedCount =
-        chunks
-            .where(
-              (it) =>
-                  it.status == DownloadChunkStatus.download ||
-                  it.status == DownloadChunkStatus.complete,
-            )
-            .length;
+    final connectedCount = chunks
+        .where(
+          (it) =>
+              it.status == DownloadChunkStatus.download ||
+              it.status == DownloadChunkStatus.complete,
+        )
+        .length;
 
     if (connectedCount == chunks.length) {
       String str = '共${chunks.length}个分块：\n';

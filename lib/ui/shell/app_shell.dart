@@ -14,9 +14,9 @@ import 'package:window_manager/window_manager.dart';
 import '../components/colorful_background.dart';
 import '../theme/app_colors.dart';
 import '../components/overlay_layer/drag_file_field.dart';
-import 'info_drawer.dart';
+import 'drawer/info_drawer.dart';
 import '../page_framwork/sub_navigation_state.dart';
-import '../util/info/task_drawer_opener.dart';
+import 'drawer/task_drawer_opener.dart';
 import '../util/widget/resource_importer.dart';
 import '../vars.dart';
 import 'navigation_rail.dart';
@@ -207,7 +207,6 @@ class AppShellState extends State<AppShell> {
               if (isDesktop) ...[
                 const SizedBox(width: 4),
                 ReboundButton(
-                  hoverElevation: 0.0,
                   backgroundColor: Colors.transparent,
                   onTap: () => windowManager.minimize(),
                   child: Icon(Icons.remove),
@@ -216,11 +215,11 @@ class AppShellState extends State<AppShell> {
 
                 ReboundButton(
                   backgroundColor: Colors.transparent,
-                  hoverElevation: 0.0,
-                  highlightColor: colors.error.withAlpha(155),
-                  hoverColor: colors.error.withAlpha(85),
+
+                  highlightColor: colors.error.withAlpha(100),
+                  hoverColor: colors.error.withAlpha(100),
                   onTap: () => windowManager.close(),
-                  child: Icon(Icons.close, color: colors.indicator),
+                  child: Icon(Icons.close),
                 ),
                 const SizedBox(width: 4),
               ],
@@ -270,7 +269,7 @@ class AppShellState extends State<AppShell> {
                 ),
               ),
 
-              Positioned.fill(child: Icon(icon)),
+              Positioned.fill(child: Icon(icon, fontWeight: FontWeight.bold)),
             ],
           ),
         ),
@@ -302,7 +301,7 @@ class AppShellState extends State<AppShell> {
 
     Widget shell = Scaffold(
       endDrawer: Drawer(
-        backgroundColor: colors.cardBackground.withAlpha(185),
+        backgroundColor: colors.pageBackground.withAlpha(230),
         width: MediaQuery.of(context).size.width * 0.45,
         elevation: 2,
         shadowColor: Colors.black,

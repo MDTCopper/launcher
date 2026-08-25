@@ -43,10 +43,10 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
 
     colorScheme: ColorScheme(
       brightness: brightness,
-      primary: colors.interactive,
+      primary: colors.interactiveLow,
       onPrimary: colors.itemOnInteractive,
       primaryContainer: colors.elevatedBackground,
-      secondary: colors.interactiveLow,
+      secondary: colors.interactive,
       onSecondary: colors.itemOnInteractive,
       secondaryContainer: colors.cardBackground,
       surface: colors.cardBackground,

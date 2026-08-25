@@ -12,9 +12,9 @@ import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/components/scroll/list_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/ui/util/info/notification.dart';
-import 'package:copper_launcher/ui/util/info/task_drawer_opener.dart';
-import 'package:copper_launcher/ui/util/info/task_list.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/ui/shell/drawer/task_drawer_opener.dart';
+import 'package:copper_launcher/ui/shell/drawer/task_list.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 
