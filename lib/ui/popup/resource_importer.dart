@@ -1,3 +1,4 @@
+import 'package:copper_launcher/ui/components/animation/reveal_list_view.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:flutter/material.dart';
@@ -5,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../../util/format/string_cleaner.dart';
 import '../../util/io/file_reader.dart';
 import '../feature/images.dart';
-import '../util/widget/appear_list_view.dart';
+
 import '../util/widget/feature_button.dart';
 import '../util/widget/feature_list_tile.dart';
 
@@ -85,7 +86,7 @@ class ResourceImporterState extends State<ResourceImporter> {
         SizedBox(height: 8),
         if (importList.isNotEmpty)
           Expanded(
-            child: AppearListView(
+            child: RevealListView(
               delay: 300,
               appearDuration: const Duration(milliseconds: 350),
               offset: Offset(-0.1, 0.0),

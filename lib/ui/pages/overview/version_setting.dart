@@ -5,12 +5,12 @@ import 'dart:math';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
+import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
-
-import 'package:copper_launcher/ui/util/framework/content_panel.dart';
 
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/util/widget/feature_button.dart';

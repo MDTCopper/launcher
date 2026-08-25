@@ -1,4 +1,5 @@
-import 'package:copper_launcher/ui/util/framework/content_panel.dart';
+import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
+import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:flutter/material.dart';
 
 class BlueprintViewPage extends StatelessWidget {
@@ -7,9 +8,7 @@ class BlueprintViewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
-      items: [
-        ContentPanelModule(title: '蓝图', child: Text('todo 蓝图浏览')),
-      ],
+      items: [ContentPanelModule(title: '蓝图', child: Text('todo 蓝图浏览'))],
     );
   }
 }

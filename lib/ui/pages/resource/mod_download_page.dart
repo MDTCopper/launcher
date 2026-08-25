@@ -3,12 +3,14 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/download_mod.dart';
+import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
+import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
-import 'package:copper_launcher/ui/util/framework/content_panel.dart';
+
 import 'package:copper_launcher/ui/util/widget/feature_list_tile.dart';
-import 'package:copper_launcher/ui/util/widget/future/readme_loader.dart';
+import 'package:copper_launcher/ui/components/future/readme_loader.dart';
 import 'package:copper_launcher/ui/components/pager.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/downloader.dart';
@@ -22,7 +24,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/app_constant.dart';
 import '../../util/widget/feature_button.dart';
-import '../../util/widget/future/mod_icon_loader.dart';
+import '../../components/future/mod_icon_loader.dart';
 import '../../vars.dart';
 
 ///模组仓库有三种情况：

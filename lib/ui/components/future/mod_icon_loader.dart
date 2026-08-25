@@ -3,7 +3,7 @@ import 'package:copper_launcher/ui/vars.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../util/io/downloader.dart';
+import '../../../util/io/downloader.dart';
 
 class ModNetworkIcon extends StatefulWidget {
   final ModOfficialListMeta modMeta;

@@ -1,4 +1,5 @@
-import 'package:copper_launcher/ui/util/framework/content_panel.dart';
+import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
+import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:flutter/material.dart';
 
 class ToolsPage extends StatelessWidget {

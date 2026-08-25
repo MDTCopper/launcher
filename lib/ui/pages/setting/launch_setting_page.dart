@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
+import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
@@ -22,7 +24,7 @@ import 'package:line_icons/line_icons.dart';
 
 import '../../../core/app_config.dart';
 import '../../../util/format/ram_rank_list.dart';
-import '../../util/framework/content_panel.dart';
+
 import '../../util/widget/setting_bar/slider_setting_bar.dart';
 
 class LaunchSettingPage extends StatefulWidget {
