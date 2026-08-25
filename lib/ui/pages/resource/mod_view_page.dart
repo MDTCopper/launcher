@@ -10,6 +10,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart'
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/format/time_since.dart';
@@ -580,12 +581,17 @@ class _ModViewPageState extends State<ModViewPage> {
 
   Widget _buildModTile(ModOfficialListMeta mod) {
     final theme = Theme.of(context);
+    final colors = AppColors.of(context);
 
     Widget buildOverview() {
       Widget buildIconText(IconData icon, String text) {
         return Row(
           mainAxisSize: MainAxisSize.min,
-          children: [Icon(icon), Text(text)],
+          spacing: 4,
+          children: [
+            Icon(icon, size: 18, color: colors.itemHint),
+            Text(text),
+          ],
         );
       }
 

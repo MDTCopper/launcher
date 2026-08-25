@@ -52,12 +52,8 @@ class ReboundListTile extends StatefulWidget {
 class _ReboundListTileState extends State<ReboundListTile>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-
-  /// 挂在 surfaceChild 的 trailing 上，用于在帧后读取它的实际尺寸。
   final GlobalKey _trailingKey = GlobalKey();
 
-  /// trailing 占位宽度（实测）：trailing 留在 surfaceChild（交互隔离、点不透传
-  /// tile），行内按此宽度预留占位，避免内容被 trailing 盖住
   double _trailingWidth = 0;
 
   @override
@@ -71,8 +67,6 @@ class _ReboundListTileState extends State<ReboundListTile>
     _measureTrailingWidth();
   }
 
-  /// 每帧后读取 trailing 布局后的宽度，变化才 setState；
-  /// trailing 尺寸变化（切图标 / 出现 / 消失）也能跟上
   void _measureTrailingWidth() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -140,7 +134,7 @@ class _ReboundListTileState extends State<ReboundListTile>
           backgroundColor: backgroundT.value,
           onTap: enabled ? widget.onTap : null,
           onLongTap: enabled ? widget.onLongTap : null,
-          // trailing 进 surfaceChild：交互隔离（点它不透传到 tile 的 ink），
+          // trailing 进 surfaceChild：交互隔离
           // 挂在 GlobalKey 上帧后实测宽度，行内按 _trailingWidth 预留占位
           surfaceChild: widget.trailing == null
               ? null
