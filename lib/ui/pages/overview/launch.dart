@@ -26,11 +26,9 @@ class _LaunchPageState extends State<LaunchPage> {
 
   final controller = PopupOverlayController();
   Widget _buildVersionTile() {
-    final colors = AppColors.of(context);
     if (_selectedVersion == null) {
       return ReboundListTile(
         borderRadius: BorderRadius.circular(8),
-
         onTap: () async {
           await Navigator.pushNamed(
             context,
@@ -90,7 +88,7 @@ class _LaunchPageState extends State<LaunchPage> {
       ),
       trailing: ReboundButton(
         borderRadius: BorderRadius.circular(8),
-        baseColor: Colors.transparent,
+        backgroundColor: Colors.transparent,
         padding: EdgeInsets.all(8),
         child: Icon(
           Icons.settings,
@@ -227,7 +225,7 @@ class _BeginState extends State<_Begin> {
       width: 225,
       child: ReboundButton(
         pressedScale: 0.9,
-        baseColor: Colors.grey,
+        backgroundColor: Colors.grey,
         borderRadius: BorderRadius.circular(8),
         hoverElevation: 8,
         onTap: () async {

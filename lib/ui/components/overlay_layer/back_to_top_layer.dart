@@ -75,7 +75,7 @@ class _BackToTopLayerState extends State<BackToTopLayer> {
                   hoverElevation: 4.0,
                   elevation: 1.0,
                   borderRadius: const BorderRadius.all(Radius.circular(50)),
-                  baseColor: color.cardBackground,
+                  backgroundColor: color.cardBackground,
                   onTap: () {
                     widget.controller.animateTo(
                       0,

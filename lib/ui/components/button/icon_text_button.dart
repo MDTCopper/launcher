@@ -41,7 +41,7 @@ class IconTextButton extends StatelessWidget {
     return ReboundButton(
       pressedScale: pressedScale,
       hoverElevation: hoverElevation,
-      baseColor: baseColor,
+      backgroundColor: baseColor,
       padding: padding,
       margin: margin,
       borderRadius: borderRadius,

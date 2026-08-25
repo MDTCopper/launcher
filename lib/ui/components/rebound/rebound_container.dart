@@ -152,7 +152,7 @@ class _ReboundContainer extends State<ReboundContainer>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final baseColor =
+    final backgroundColor =
         widget.backgroundColor ?? AppColors.of(context).cardBackground;
     theme.colorScheme.secondaryContainer;
 
@@ -163,8 +163,8 @@ class _ReboundContainer extends State<ReboundContainer>
 
     final double elevation;
 
-    //亮色情况下触发elevation
-    if (light) {
+    //亮色且背景不透明情况下触发elevation
+    if (light && backgroundColor.a != 255) {
       if (isHover && !isPressed) {
         elevation = widget.hoverElevation;
       } else {
@@ -194,7 +194,7 @@ class _ReboundContainer extends State<ReboundContainer>
           Material(
             borderRadius: widget.borderRadius,
             shape: widget.shapeBorder,
-            color: baseColor,
+            color: backgroundColor,
             shadowColor: widget.shadowColor,
             elevation: elevation,
             child: InkWell(

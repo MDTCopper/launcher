@@ -207,14 +207,16 @@ class AppShellState extends State<AppShell> {
               if (isDesktop) ...[
                 const SizedBox(width: 4),
                 ReboundButton(
-                  baseColor: Colors.transparent,
+                  hoverElevation: 0.0,
+                  backgroundColor: Colors.transparent,
                   onTap: () => windowManager.minimize(),
                   child: Icon(Icons.remove),
                 ),
                 const SizedBox(width: 2),
 
                 ReboundButton(
-                  baseColor: Colors.transparent,
+                  backgroundColor: Colors.transparent,
+                  hoverElevation: 0.0,
                   highlightColor: colors.error.withAlpha(155),
                   hoverColor: colors.error.withAlpha(85),
                   onTap: () => windowManager.close(),
@@ -242,7 +244,8 @@ class AppShellState extends State<AppShell> {
       hint: hint,
       preferPosition: .bottom,
       child: ReboundButton(
-        baseColor: Colors.transparent,
+        hoverElevation: 0.0,
+        backgroundColor: Colors.transparent,
         onTap: onTap,
         child: SizedBox(
           width: 24,

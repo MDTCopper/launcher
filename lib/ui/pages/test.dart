@@ -556,7 +556,7 @@ class TestState extends State<Test> {
       borderRadius: BorderRadius.zero,
       padding: EdgeInsets.zero,
       pressedScale: 0.9,
-      baseColor: color,
+      backgroundColor: color,
       child: SizedBox(
         width: 64,
         height: double.infinity,
