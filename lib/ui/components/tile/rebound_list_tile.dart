@@ -90,7 +90,7 @@ class _ReboundListTileState extends State<ReboundListTile>
     final baseColor = widget.baseColor ?? colors.cardBackground;
     final enabled = widget.enable;
 
-    final beginBackground = isDark ? Colors.transparent : baseColor;
+    final beginBackground = baseColor;
     final endBackground = isDark
         ? colors.interactive.withAlpha(100)
         : Color.alphaBlend(colors.interactive.withAlpha(100), baseColor);

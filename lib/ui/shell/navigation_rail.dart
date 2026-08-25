@@ -247,7 +247,7 @@ class NavigationRailState extends State<NavigationRail> {
     );
 
     child = CopperSingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(8, 0, 8, 0),
+      padding: EdgeInsets.fromLTRB(8, 0, 8, 8),
       child: child,
     );
 
@@ -280,27 +280,17 @@ class NavigationRailState extends State<NavigationRail> {
     );
   }
 
-  Widget _buildCollapseField() {
+  Widget _buildVersionTile() {
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(8, 0, 8, 8),
-      child: Row(
-        crossAxisAlignment: .end,
-        children: [
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(left: 4),
-              child: Text(
-                config.version,
-                maxLines: 1,
-                overflow: .ellipsis,
-                style: theme.textTheme.labelSmall,
-              ),
-            ),
-          ),
-          // 侧边栏收起/展开开关已移到顶栏，这里不再放
-        ],
+    return Container(
+      alignment: .centerLeft,
+      padding: EdgeInsets.only(left: 4, bottom: 3),
+      child: Text(
+        config.version,
+        maxLines: 1,
+        overflow: .ellipsis,
+        style: theme.textTheme.labelSmall,
       ),
     );
   }
@@ -319,7 +309,7 @@ class NavigationRailState extends State<NavigationRail> {
           children: [
             _buildLogo(),
             Expanded(child: _buildMenuView()),
-            _buildCollapseField(),
+            _buildVersionTile(),
           ],
         ),
       ),
