@@ -21,6 +21,7 @@ import '../../../core/app_config.dart';
 import '../../../util/io/downloader.dart';
 import '../../components/future/mod_icon_loader.dart';
 import '../../components/pager.dart';
+import '../../components/row/priority_row.dart';
 import '../../util/widget/warning_bar.dart';
 import '../../vars.dart';
 
@@ -544,30 +545,16 @@ class _ModViewPageState extends State<ModViewPage> {
     final theme = Theme.of(context);
 
     Widget buildOverview() {
-      Widget buildIconText(IconData icon, String text, double width) {
-        Widget child = Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: .start,
-          spacing: 4,
-          children: [Icon(icon), Text(text)],
-        );
-
-        child = SizedBox(width: width, child: child);
-
-        return child;
+      String modTypeText() {
+        if (mod.hasJava) return 'Java';
+        if (mod.hasScripts && !mod.hasJava) return 'JavaScript';
+        return 'Json';
       }
 
-      Widget buildModType(double width) {
-        if (mod.hasJava)
-          return buildIconText(Icons.coffee_outlined, 'Java', width);
-        if (mod.hasScripts && !mod.hasJava) {
-          return buildIconText(
-            LineIcons.javascriptJsSquare,
-            'JavaScript',
-            width,
-          );
-        }
-        return buildIconText(Icons.data_object, 'Json', width);
+      IconData modTypeIcon() {
+        if (mod.hasJava) return Icons.coffee_outlined;
+        if (mod.hasScripts && !mod.hasJava) return LineIcons.javascriptJsSquare;
+        return Icons.data_object;
       }
 
       var stars = '${mod.stars}';
@@ -580,37 +567,49 @@ class _ModViewPageState extends State<ModViewPage> {
 
       return Row(
         children: [
-          buildIconText(Icons.source_outlined, 'v${mod.minGameVersion}', 80),
+          SizedBox(
+            width: 70,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(Icons.source_outlined, size: 18),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    'v${mod.minGameVersion}',
 
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
           Expanded(
-            child: LayoutBuilder(
-              builder: (_, constraints) {
-                final available = constraints.maxWidth;
-                // 窄窗按优先级舍弃：更新时间 → 星星 → 类型
-                final double updateWidth = 160;
-                final double starsWidth = 100;
-                final double typeWidth = 90;
-
-                final showUpdate =
-                    available >= updateWidth + starsWidth + typeWidth;
-                final showStars = available >= starsWidth + typeWidth;
-                final showType = available >= typeWidth;
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    if (showType) buildModType(typeWidth),
-                    if (showStars)
-                      buildIconText(Icons.star_border, stars, starsWidth),
-                    if (showUpdate)
-                      buildIconText(
-                        Icons.update,
-                        "${mod.lastUpdated.toIso8601String().split('T').first}"
-                        " (${timeSince(mod.lastUpdated)})",
-                        updateWidth,
-                      ),
-                  ],
-                );
-              },
+            child: PriorityRow(
+              items: [
+                PriorityRowItem.text(
+                  text: modTypeText(),
+                  icon: modTypeIcon(),
+                  priority: 3,
+                  width: 100,
+                ),
+                PriorityRowItem.text(
+                  text: stars,
+                  icon: Icons.star_border,
+                  priority: 2,
+                  width: 90,
+                ),
+                PriorityRowItem.text(
+                  text:
+                      "${mod.lastUpdated.toIso8601String().split('T').first}"
+                      " (${timeSince(mod.lastUpdated)})",
+                  icon: Icons.update,
+                  priority: 1,
+                  width: 160,
+                ),
+              ],
             ),
           ),
         ],
