@@ -295,11 +295,17 @@ class _OutlinedTextFieldState extends State<OutlinedTextField>
     return Row(
       children: [
         if (widget.label != null)
-          SizedBox(
-            width: widget.labelWidth,
-            child: Text(
-              widget.label!,
-              style: widget.textStyle ?? theme.textTheme.bodyMedium,
+          Flexible(
+            child: ConstrainedBox(
+              // label 列弹性：空间足时按 labelWidth 固定使用，
+              // 空间不足时允许收缩 + 省略号，把位置让给输入框
+              constraints: BoxConstraints(maxWidth: widget.labelWidth ?? 150),
+              child: Text(
+                widget.label!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: widget.textStyle ?? theme.textTheme.bodyMedium,
+              ),
             ),
           ),
         if (widget.label != null) SizedBox(width: widget.labelSpacing ?? 16),

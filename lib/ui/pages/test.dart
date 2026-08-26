@@ -4,6 +4,10 @@ import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
+import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
+import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
@@ -33,6 +37,10 @@ class TestState extends State<Test> {
   // ── 第 11 区演示状态 ──
   int _segSelected = 1; // SegmentedReboundButton 选中值
   bool _groupExpanded = false; // AnimatedExpansion 展开日志
+
+  // ── 第 12 区演示状态 ──
+  bool _switchOn = false; // ReboundSwitch 开关
+  double _sliderValue = 0.4; // CopperSlider 值(0~1 比例)
 
   @override
   void dispose() {
@@ -86,6 +94,7 @@ class TestState extends State<Test> {
         children: [
           // _buttonSection(),
           _segmentExpansionSection(),
+          _switchSliderSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -201,6 +210,45 @@ class TestState extends State<Test> {
                   padding: const EdgeInsets.only(left: 8),
                   child: Text('收起后这 30 行不再参与构建 - 第 $i 项'),
                 ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════ 12. copper 风格开关 / 滑条（ReboundSwitch / CopperSlider） ════════
+  Widget _switchSliderSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('12. ReboundSwitch / CopperSlider'),
+        _card(
+          title: 'ReboundSwitch(copper 风格开关)',
+          desc: '轨道 + 滑块，选中/未选中平滑过渡；选中轨道变主题色。当前：${_switchOn ? '开' : '关'}。',
+          child: ReboundSwitch(
+            value: _switchOn,
+            onChanged: (v) => setState(() => _switchOn = v),
+          ),
+        ),
+        _card(
+          title: 'CopperSlider(点击 / 拖动 / 刻度吸附)',
+          desc: '轨道 + 填充 + 滑块，点击定位、拖动调整、拖拽时显示浮标；divisions 非空时吸附刻度。当前：${(_sliderValue * 100).round()}。',
+          child: CopperSlider(
+            value: _sliderValue,
+            divisions: 10,
+            label: '${(_sliderValue * 100).round()}',
+            onChanged: (v) => setState(() => _sliderValue = v),
+          ),
+        ),
+        _card(
+          title: 'SwitchSettingBar / SliderSettingBar(弹性标题列)',
+          desc: '标题列自适应：空间足时 150 固定宽，空间不足自动收缩 + 省略号。缩窗口即可观察。',
+          child: Column(
+            spacing: 12,
+            children: [
+              const SwitchSettingBar(title: '某个开关设置很长', value: true),
+              SliderSettingBar(title: '某个滑条设置很长', value: 0.6),
             ],
           ),
         ),

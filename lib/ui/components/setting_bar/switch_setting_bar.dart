@@ -1,5 +1,7 @@
-
 import 'package:flutter/material.dart';
+
+import 'adaptive_title.dart';
+import '../rebound/rebound_switch.dart';
 
 class SwitchSettingBar extends StatelessWidget {
   const SwitchSettingBar({
@@ -19,9 +21,10 @@ class SwitchSettingBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        SizedBox(width: wide, child: Text(title)),
+        AdaptiveTitle(title: title, titleWide: wide ?? 150),
+        const SizedBox(width: 8),
         Expanded(child: SizedBox()),
-        SizedBox(height: 36, child: Switch(value: value, onChanged: onChanged)),
+        ReboundSwitch(value: value, onChanged: onChanged),
       ],
     );
   }

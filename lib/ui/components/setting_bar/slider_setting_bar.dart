@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_title.dart';
+import '../rebound/copper_slider.dart';
+
 class SliderSettingBar extends StatelessWidget {
   const SliderSettingBar({
     super.key,
@@ -30,9 +33,10 @@ class SliderSettingBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        SizedBox(width: wide, child: Text(title)),
+        AdaptiveTitle(title: title, titleWide: wide ?? 150),
+        const SizedBox(width: 8),
         Expanded(
-          child: Slider(
+          child: CopperSlider(
             value: value,
             divisions: divisions,
             label: label,
@@ -41,7 +45,6 @@ class SliderSettingBar extends StatelessWidget {
             onChangeEnd: onChangeEnd,
             min: min,
             max: max,
-            padding: EdgeInsets.symmetric(vertical: 8),
           ),
         ),
       ],

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_title.dart';
+
 class CheckboxSettingBar<T> extends StatelessWidget {
   final String title;
 
@@ -20,16 +22,19 @@ class CheckboxSettingBar<T> extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.max,
       children: [
-        SizedBox(width: titleWide ?? 150, child: Text(title)),
-        Container(
-          padding: EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(4),
-            border: Border.fromBorderSide(
-              theme.inputDecorationTheme.border?.borderSide ?? BorderSide(),
+        AdaptiveTitle(title: title, titleWide: titleWide ?? 150),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Container(
+            padding: EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              border: Border.fromBorderSide(
+                theme.inputDecorationTheme.border?.borderSide ?? BorderSide(),
+              ),
             ),
+            child: Row(spacing: 4, children: options),
           ),
-          child: Row(spacing: 4, children: options),
         ),
       ],
     );
