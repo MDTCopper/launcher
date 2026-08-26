@@ -158,8 +158,8 @@ class AppColors extends ThemeExtension<AppColors> {
     // 文本 / 图标
     itemPrimary: Palette.darkTextPrimary,
     itemSecondary: Palette.darkTextSecondary,
-    itemOnInteractive: Palette.neutral100,
     itemHint: Palette.neutral400,
+    itemOnInteractive: Palette.neutral100,
 
     // 交互（低 → 高强调，暗色下高强调更亮）
     interactiveLow: Palette.copper700,

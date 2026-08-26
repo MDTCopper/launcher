@@ -250,7 +250,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         ],
       ),
       onTap: () => _buildDownloadPopup(mod),
-      trailing: trailing,
+      // trailing: trailing,
     );
   }
 

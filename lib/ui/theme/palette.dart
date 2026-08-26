@@ -47,13 +47,18 @@ abstract class Palette {
   static const Color darkCard = Color(0xFF1A1A1A); // 卡片 / 容器
   static const Color darkElevated = Color(0xFF252525); // 悬浮 / 选中浮层
   static const Color darkBorder = Color(0xFF2A2A2A); // 边框（暗色）
-  static const Color darkTextPrimary = Color(0xFFE8E8E8); // 主文字（暗色）
+  static const Color darkTextPrimary = Color.fromARGB(
+    255,
+    216,
+    216,
+    216,
+  ); // 主文字
   static const Color darkTextSecondary = Color.fromARGB(
     255,
-    209,
-    209,
-    209,
-  ); // 次文字（暗色）
+    193,
+    193,
+    193,
+  ); // 次文字
 
   // ═══════════════════════════════════════════════════════════
   // 语义色

@@ -120,10 +120,16 @@ class _ReboundListTileState extends State<ReboundListTile>
       end: enabled ? colors.interactive : colors.itemHint,
     ).animate(_controller);
 
+    final subForegroundT = ColorTween(
+      begin: enabled ? colors.itemSecondary : colors.itemHint,
+      end: enabled ? colors.interactiveLow : colors.itemHint,
+    ).animate(_controller);
+
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         final foreground = foregroundT.value;
+        final subForeground = subForegroundT.value;
         return ReboundContainer(
           pressedScale: widget.pressedScale,
           elevation: widget.elevation,
@@ -163,7 +169,12 @@ class _ReboundListTileState extends State<ReboundListTile>
                           style: theme.textTheme.bodySmall!.copyWith(
                             color: colors.itemSecondary,
                           ),
-                          child: widget.subtitle!,
+                          child: IconTheme(
+                            data: IconTheme.of(
+                              context,
+                            ).copyWith(color: subForeground, size: 18),
+                            child: widget.subtitle!,
+                          ),
                         ),
                     ],
                   ),
