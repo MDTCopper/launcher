@@ -1,14 +1,8 @@
+import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 
-/// 展开/收起容器：基于 Flutter 内置 [Expansible] 的封装。
-///
-/// 相比手写实现的关键改进——性能：
-/// [Expansible.maintainState] 为 false，收起动画完成后 body 会从树上
-/// 整体移除（Offstage + 卸载），大 content（如版本列表）不再持续构建；
-/// 手写版收起后子树仍挂在树上反复 build。
-///
-/// 自由度保留：header/body 都能拿到展开 [Animation]（[ExpansibleComponentBuilder]），
-/// 标题箭头旋转、body 淡入都由它驱动，观感与手写版一致。
+/// 展开/收起容器：基于 Flutter 内置 [Expansible] 的封装
+
 class AnimatedExpansion extends StatefulWidget {
   final Widget? lead;
   final Widget? title;
@@ -17,7 +11,7 @@ class AnimatedExpansion extends StatefulWidget {
   final Widget? child;
   final bool initExpanded;
   final VoidCallback? onChange;
-  final Duration duration;
+  final Duration? duration;
   final ExpansibleController? controller;
 
   const AnimatedExpansion({
@@ -27,7 +21,7 @@ class AnimatedExpansion extends StatefulWidget {
     this.children,
     this.initExpanded = false,
     this.onChange,
-    this.duration = const Duration(milliseconds: 200),
+    this.duration,
     this.color,
     this.child,
     this.controller,
@@ -83,14 +77,10 @@ class _AnimatedExpansionState extends State<AnimatedExpansion> {
       ),
       child: Expansible(
         controller: controller,
-        // 性能关键：收起完成后 body 从树上移除，不再持续构建
+        // 收起完成后 body 从树上移除，不再持续构建
         maintainState: false,
-        // 展开/收起的缓动曲线：展开 easeOut（先快后缓）、收起 easeIn——
-        // 与旧手写版观感一致，避免默认 ease 过于平直
         animationStyle: AnimationStyle(
-          duration: widget.duration,
-          curve: Curves.easeOut,
-          reverseCurve: Curves.easeIn,
+          duration: widget.duration ?? animationDuration,
         ),
         headerBuilder: (context, animation) => ListTile(
           iconColor: theme.iconTheme.color,
@@ -102,7 +92,13 @@ class _AnimatedExpansionState extends State<AnimatedExpansion> {
           leading: widget.lead,
           title: widget.title,
           trailing: RotationTransition(
-            turns: Tween(begin: 0.0, end: 0.5).animate(animation),
+            turns: Tween(begin: 0.0, end: 0.5).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutBack,
+                reverseCurve: Curves.easeInBack,
+              ),
+            ),
             child: const Icon(Icons.keyboard_arrow_down),
           ),
           onTap: _toggle,
@@ -111,7 +107,8 @@ class _AnimatedExpansionState extends State<AnimatedExpansion> {
           padding: const EdgeInsets.all(8),
           child: FadeTransition(
             opacity: animation,
-            child: widget.child ??
+            child:
+                widget.child ??
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   spacing: 8,

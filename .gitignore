@@ -62,6 +62,7 @@ logs/
 config.*
 /lib/abandon_mystery_code/
 /lib/test/
+analyze_out.txt
 
 #不需要开发iOS 和 Web端
 ios/
