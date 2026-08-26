@@ -1,5 +1,6 @@
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 
 /// 分段按钮组：多段互斥 / 多选，选中段有背景 + 前景过渡动画。
@@ -116,10 +117,7 @@ class _SegmentedReboundSingleButtonState<T>
   @override
   void initState() {
     super.initState();
-    controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
+    controller = AnimationController(vsync: this, duration: animationDuration);
     if (widget.selected) controller.animateTo(1.0);
   }
 
@@ -142,21 +140,24 @@ class _SegmentedReboundSingleButtonState<T>
     final colors = AppColors.of(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final baseColor = colors.cardBackground;
+    final cardBackground = colors.cardBackground;
 
-    // 选中背景：暗色叠半透明主题色（玻璃）、浅色 alphaBlend（云母片）
+    final beginBackground = isDark
+        ? colors.interactive.withAlpha(0)
+        : cardBackground;
+
     final endBackground = isDark
-        ? colors.interactive.withAlpha(60)
-        : Color.alphaBlend(colors.interactive.withAlpha(60), baseColor);
+        ? colors.interactive.withAlpha(45)
+        : Color.alphaBlend(colors.interactive.withAlpha(45), cardBackground);
     final backgroundT = ColorTween(
-      begin: baseColor,
+      begin: beginBackground,
       end: endBackground,
     ).animate(controller);
 
-    // 前景：未选中 itemPrimary → 选中 interactiveHigh（无禁用态驱动，保持简洁）
+    // 前景：未选中 itemPrimary → 选中 interactiveHigh
     final foregroundT = ColorTween(
       begin: colors.itemPrimary,
-      end: colors.interactiveHigh,
+      end: colors.interactive,
     ).animate(controller);
 
     return AnimatedBuilder(
@@ -172,9 +173,7 @@ class _SegmentedReboundSingleButtonState<T>
           onTap: widget.onTap,
           child: DefaultTextStyle(
             style:
-                theme.textTheme.bodyLarge?.copyWith(
-                      color: foregroundT.value,
-                    ) ??
+                theme.textTheme.bodyLarge?.copyWith(color: foregroundT.value) ??
                 const TextStyle(),
             child: IconTheme(
               data: theme.iconTheme.copyWith(color: foregroundT.value),

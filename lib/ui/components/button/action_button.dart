@@ -84,7 +84,9 @@ class _ActionButtonState extends State<ActionButton>
     final backgroundColor = widget.backgroundColor ?? colors.cardBackground;
     final enabled = widget.enable;
 
-    final beginBackground = backgroundColor;
+    final beginBackground = isDark
+        ? colors.interactive.withAlpha(0)
+        : backgroundColor;
     final endBackground = isDark
         ? colors.interactive.withAlpha(45)
         : Color.alphaBlend(colors.interactive.withAlpha(45), backgroundColor);

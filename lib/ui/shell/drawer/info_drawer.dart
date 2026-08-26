@@ -77,7 +77,6 @@ class _InfoListState extends State<InfoList>
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     ActionButton(
-                      backgroundColor: colors.cardBackground.withAlpha(0),
                       selected: index == 0,
                       icon: Icons.list_alt,
                       content: '任务',
@@ -86,7 +85,6 @@ class _InfoListState extends State<InfoList>
                       }),
                     ),
                     ActionButton(
-                      backgroundColor: colors.cardBackground.withAlpha(0),
                       selected: index == 1,
                       icon: Icons.watch_later_outlined,
                       content: '日志',

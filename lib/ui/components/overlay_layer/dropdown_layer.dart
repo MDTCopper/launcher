@@ -407,6 +407,10 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
       },
       // 滚动外部时与点击外部一样自动关闭
       dismissOnScrollOutside: true,
+      // 锚点区域（头部）的点击不触发关闭层：
+      // 头部 onTap 的 _toggle 负责切换开合——否则 pointerDown 关闭层先关、
+      // 随后头部 onTap 又因 expanded==false 重新打开，变成"关闭瞬间又打开"
+      dismissOnAnchorTap: false,
       overlayChildBuilder: (context, anchorRect) =>
           _buildMenu(context, anchorRect.width),
       child: head,

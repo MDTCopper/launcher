@@ -172,7 +172,7 @@ class _ReboundListTileState extends State<ReboundListTile>
                           child: IconTheme(
                             data: IconTheme.of(
                               context,
-                            ).copyWith(color: subForeground, size: 18),
+                            ).copyWith(color: subForeground, size: 17),
                             child: widget.subtitle!,
                           ),
                         ),

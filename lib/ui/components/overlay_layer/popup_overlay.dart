@@ -222,6 +222,14 @@ class PopupOverlay extends StatefulWidget {
   /// 是否点击浮层外部关闭。
   final bool dismissOnTapOutside;
 
+  /// 点击锚点（触发组件）区域是否也触发关闭。
+  ///
+  /// 默认 true（点击锚点区域即关闭）；设 false 时锚点区域的点击不触发关闭层，
+  /// 交给锚点自身处理——如 DropdownLayer 点击头部本应切换开合，
+  /// 若关闭层在 pointerDown 先把菜单关了、头部 onTap 又因 `expanded==false`
+  /// 重新打开，就会出现"关闭的瞬间又打开"。
+  final bool dismissOnAnchorTap;
+
   /// 是否按 Esc 关闭。
   final bool dismissOnEsc;
 
@@ -255,6 +263,7 @@ class PopupOverlay extends StatefulWidget {
     this.animation,
     this.positionDelegate,
     this.dismissOnTapOutside = true,
+    this.dismissOnAnchorTap = true,
     this.dismissOnEsc = true,
     this.onClose,
     this.onDismissStart,
@@ -380,7 +389,15 @@ class _PopupOverlayState extends State<PopupOverlay> {
             child: Listener(
               behavior: HitTestBehavior.translucent,
               // tap / 右键 / 长按 都从 pointer down 开始：外部一按下即关闭
-              onPointerDown: (_) => _dismiss(),
+              onPointerDown: (event) {
+                // 锚点区域内的按下：默认也关闭；dismissOnAnchorTap=false 时
+                // 留给锚点自己处理（如 Dropdown 点击头部切换开合，避免
+                // 关闭层在 pointerDown 关掉、头部 onTap 又立刻重新打开）
+                final insideAnchor = anchorRect.contains(event.localPosition);
+                if (widget.dismissOnAnchorTap || !insideAnchor) {
+                  _dismiss();
+                }
+              },
               onPointerSignal: widget.dismissOnScrollOutside
                   ? (e) {
                       if (e is PointerScrollEvent) _dismiss();

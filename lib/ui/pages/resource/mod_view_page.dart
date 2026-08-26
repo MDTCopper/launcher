@@ -587,11 +587,9 @@ class _ModViewPageState extends State<ModViewPage> {
       Widget buildIconText(IconData icon, String text) {
         return Row(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: .start,
           spacing: 4,
-          children: [
-            Icon(icon, size: 18, color: colors.itemHint),
-            Text(text),
-          ],
+          children: [Icon(icon), Text(text)],
         );
       }
 

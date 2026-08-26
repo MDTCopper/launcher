@@ -111,9 +111,9 @@ class AppColors extends ThemeExtension<AppColors> {
     itemHint: Palette.neutral500,
 
     // 交互（低 → 高强调）
-    interactiveLow: Palette.copper500,
-    interactive: Palette.copper600,
-    interactiveHigh: Palette.copper800,
+    interactiveLow: Palette.copper600,
+    interactive: Palette.copper700,
+    interactiveHigh: Palette.copper900,
     splash: Palette.copperHoverOverlay,
 
     // 边框
@@ -161,7 +161,7 @@ class AppColors extends ThemeExtension<AppColors> {
     itemHint: Palette.neutral400,
     itemOnInteractive: Palette.neutral100,
 
-    // 交互（低 → 高强调，暗色下高强调更亮）
+    // 交互
     interactiveLow: Palette.copper700,
     interactive: Palette.copper600,
     interactiveHigh: Palette.copper400,

@@ -154,6 +154,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon),
+            SizedBox(width: 2),
             ConstrainedBox(
               constraints: BoxConstraints(maxWidth: 140),
               child: Text(data, maxLines: 1, overflow: TextOverflow.ellipsis),

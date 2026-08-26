@@ -85,7 +85,13 @@ class _AnimatedExpansionState extends State<AnimatedExpansion> {
         controller: controller,
         // 性能关键：收起完成后 body 从树上移除，不再持续构建
         maintainState: false,
-        animationStyle: AnimationStyle(duration: widget.duration),
+        // 展开/收起的缓动曲线：展开 easeOut（先快后缓）、收起 easeIn——
+        // 与旧手写版观感一致，避免默认 ease 过于平直
+        animationStyle: AnimationStyle(
+          duration: widget.duration,
+          curve: Curves.easeOut,
+          reverseCurve: Curves.easeIn,
+        ),
         headerBuilder: (context, animation) => ListTile(
           iconColor: theme.iconTheme.color,
           titleTextStyle: theme.textTheme.bodyLarge?.copyWith(
