@@ -193,76 +193,61 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     return ReboundListTile(
       borderRadius: BorderRadius.circular(4),
       title: Text(mod.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: LayoutBuilder(
-        builder: (context, constraints) {
-          final available = constraints.maxWidth;
-          // 信息行按优先级丢弃，避免窄窗撑爆（版本 tile 不适合叠放）：
-          // 下载数最先丢(估宽 110) → 日期(估宽 110) → 兼容性(估宽 120)
-          // 版本号与支持版本信息不丢
-          final showDownloadCount = available >= 720;
-          final showDate = available >= 600;
+      subtitle: Row(
+        spacing: 8,
+        children: [
+          buildOverView(Icons.folder_outlined, mod.releaseNum),
+          buildOverView(Icons.update, mod.releaseDate.split('T').first),
+          if (mod.assets.firstOrNull != null)
+            buildOverView(
+              Icons.arrow_downward,
+              mod.assets.first.downloadCount.toString(),
+            ),
+          FutureBuilder(
+            future: minGameVersion,
+            builder: (_, s) {
+              if (s.connectionState == ConnectionState.waiting) {
+                return buildOverView(Icons.source_outlined, '...');
+              }
+              if (s.hasData) {
+                final version = selectedVersion;
+                if (version == null) {
+                  return buildOverView(Icons.source_outlined, s.data!);
+                }
 
-          return Row(
-            spacing: 8,
-            children: [
-              buildOverView(Icons.folder_outlined, mod.releaseNum),
-              if (showDate)
-                buildOverView(Icons.update, mod.releaseDate.split('T').first),
-              if (showDownloadCount && mod.assets.firstOrNull != null)
-                buildOverView(
-                  Icons.arrow_downward,
-                  mod.assets.first.downloadCount.toString(),
-                ),
-              FutureBuilder(
-                future: minGameVersion,
-                builder: (_, s) {
-                  if (s.connectionState == ConnectionState.waiting) {
-                    return buildOverView(Icons.source_outlined, '...');
-                  }
-                  if (s.hasData) {
-                    final version = selectedVersion;
-                    if (version == null) {
-                      return buildOverView(Icons.source_outlined, s.data!);
-                    }
+                bool support;
+                final modMin = double.parse(s.data!.substring(1));
+                if (modListMeta.hasJava) {
+                  final minGameVersion = minJavaModGameVersionModifier
+                      .resultOf(version.releaseDouble);
+                  support =
+                      modMin >= minGameVersion &&
+                      modMin <= version.releaseDouble;
+                } else {
+                  final minGameVersion = minModGameVersionModifier.resultOf(
+                    version.releaseDouble,
+                  );
+                  support =
+                      modMin >= minGameVersion &&
+                      modMin <= version.releaseDouble;
+                }
 
-                    bool support;
-                    final modMin = double.parse(s.data!.substring(1));
-                    if (modListMeta.hasJava) {
-                      final minGameVersion = minJavaModGameVersionModifier
-                          .resultOf(version.releaseDouble);
-                      support =
-                          modMin >= minGameVersion &&
-                          modMin <= version.releaseDouble;
-                    } else {
-                      final minGameVersion = minModGameVersionModifier.resultOf(
-                        version.releaseDouble,
-                      );
-                      support =
-                          modMin >= minGameVersion &&
-                          modMin <= version.releaseDouble;
-                    }
-
-                    if (support) {
-                      return buildOverView(
-                        Icons.check_outlined,
-                        '支持 (${s.data!})',
-                      );
-                    } else if (support == false) {
-                      return buildOverView(
-                        Icons.close_outlined,
-                        '可能不支持 (${s.data!})',
-                      );
-                    } else {
-                      return buildOverView(Icons.info_outlined, s.data!);
-                    }
-                  } else {
-                    return buildOverView(Icons.source_outlined, 'XXX');
-                  }
-                },
-              ),
-            ],
-          );
-        },
+                if (support) {
+                  return buildOverView(Icons.check_outlined, '支持 (${s.data!})');
+                } else if (support == false) {
+                  return buildOverView(
+                    Icons.close_outlined,
+                    '可能不支持 (${s.data!})',
+                  );
+                } else {
+                  return buildOverView(Icons.info_outlined, s.data!);
+                }
+              } else {
+                return buildOverView(Icons.source_outlined, 'XXX');
+              }
+            },
+          ),
+        ],
       ),
       onTap: () => _buildDownloadPopup(mod),
       // trailing: trailing,

@@ -10,7 +10,6 @@ import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart'
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
-import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/format/time_since.dart';
@@ -345,12 +344,10 @@ class _ModViewPageState extends State<ModViewPage> {
     );
 
     Widget buildModTypeOptions() {
-      return Wrap(
-        spacing: 16,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      return Row(
         children: [
           Text('模组类型'),
+          SizedBox(width: 16),
           Container(
             padding: EdgeInsets.all(4),
             decoration: BoxDecoration(
@@ -359,9 +356,8 @@ class _ModViewPageState extends State<ModViewPage> {
                 theme.inputDecorationTheme.border?.borderSide ?? BorderSide(),
               ),
             ),
-            child: Wrap(
+            child: Row(
               spacing: 4,
-              runSpacing: 4,
               children: [
                 ReboundCheckbox(
                   label: '不限',
@@ -452,7 +448,7 @@ class _ModViewPageState extends State<ModViewPage> {
                   controller: searchTextController,
                 ),
               ),
-              SizedBox(width: 16),
+              const SizedBox(width: 8),
               buildResetButton(),
               IconTextButton(
                 icon: Icons.search,
@@ -461,9 +457,8 @@ class _ModViewPageState extends State<ModViewPage> {
               ),
             ],
           ),
-          Wrap(
+          Row(
             spacing: 32,
-            runSpacing: 8,
             children: [
               SizedBox(
                 width: 180,
@@ -540,24 +535,39 @@ class _ModViewPageState extends State<ModViewPage> {
       context,
       'warning bar of mod page of download page enable',
       '国内访问github受限，请优先选择国内镜像资源；'
-      '如有条件，可以到设置中添加网络代理',
-      onTap: () =>
-          setState(() {}), // 关闭后刷新移除本条，与 util 版关闭写入配置的行为配合
+          '如有条件，可以到设置中添加网络代理',
+      onTap: () => setState(() {}),
     );
   }
 
   Widget _buildModTile(ModOfficialListMeta mod) {
     final theme = Theme.of(context);
-    final colors = AppColors.of(context);
 
     Widget buildOverview() {
-      Widget buildIconText(IconData icon, String text) {
-        return Row(
+      Widget buildIconText(IconData icon, String text, double width) {
+        Widget child = Row(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: .start,
           spacing: 4,
           children: [Icon(icon), Text(text)],
         );
+
+        child = SizedBox(width: width, child: child);
+
+        return child;
+      }
+
+      Widget buildModType(double width) {
+        if (mod.hasJava)
+          return buildIconText(Icons.coffee_outlined, 'Java', width);
+        if (mod.hasScripts && !mod.hasJava) {
+          return buildIconText(
+            LineIcons.javascriptJsSquare,
+            'JavaScript',
+            width,
+          );
+        }
+        return buildIconText(Icons.data_object, 'Json', width);
       }
 
       var stars = '${mod.stars}';
@@ -568,58 +578,42 @@ class _ModViewPageState extends State<ModViewPage> {
         }
       }
 
-      // 信息行按优先级丢弃，避免窄窗撑爆（tile 不适合叠放，优先保核心信息）：
-      // 支持版本不能丢 → 类型标签 → 星星 → 更新时间(最先丢)
-      Widget typeTags = Row(
-        mainAxisSize: MainAxisSize.min,
+      return Row(
         children: [
-          if (mod.hasJava) buildIconText(Icons.coffee_outlined, 'Java'),
-          if (mod.hasScripts && !mod.hasJava)
-            buildIconText(LineIcons.javascriptJsSquare, 'JavaScript'),
-          if (!(mod.hasScripts || mod.hasJava))
-            buildIconText(Icons.data_object, 'Json'),
+          buildIconText(Icons.source_outlined, 'v${mod.minGameVersion}', 80),
+
+          Expanded(
+            child: LayoutBuilder(
+              builder: (_, constraints) {
+                final available = constraints.maxWidth;
+                // 窄窗按优先级舍弃：更新时间 → 星星 → 类型
+                final double updateWidth = 160;
+                final double starsWidth = 100;
+                final double typeWidth = 90;
+
+                final showUpdate =
+                    available >= updateWidth + starsWidth + typeWidth;
+                final showStars = available >= starsWidth + typeWidth;
+                final showType = available >= typeWidth;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    if (showType) buildModType(typeWidth),
+                    if (showStars)
+                      buildIconText(Icons.star_border, stars, starsWidth),
+                    if (showUpdate)
+                      buildIconText(
+                        Icons.update,
+                        "${mod.lastUpdated.toIso8601String().split('T').first}"
+                        " (${timeSince(mod.lastUpdated)})",
+                        updateWidth,
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
         ],
-      );
-
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final available = constraints.maxWidth;
-          // 更新时间占位最宽，窄时最先丢（估宽 190）
-          final showUpdateTime = available >= 800;
-          // 星星其次（估宽 110）
-          final showStars = available >= 680;
-          // 类型标签再次（估宽 150）
-          final showTypes = available >= 520;
-
-          return Row(
-            spacing: 12,
-            children: [
-              if (showTypes) typeTags,
-              Expanded(child: SizedBox()),
-              ConstrainedBox(
-                constraints: BoxConstraints(minWidth: 60, maxWidth: 100),
-                child: buildIconText(
-                  Icons.source_outlined,
-                  'v${mod.minGameVersion}',
-                ),
-              ),
-              if (showStars)
-                ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: 80, maxWidth: 120),
-                  child: buildIconText(Icons.star_border, stars),
-                ),
-              if (showUpdateTime)
-                SizedBox(
-                  width: 180,
-                  child: buildIconText(
-                    Icons.update,
-                    "${mod.lastUpdated.toIso8601String().split('T').first}"
-                    " (${timeSince(mod.lastUpdated)})",
-                  ),
-                ),
-            ],
-          );
-        },
       );
     }
 

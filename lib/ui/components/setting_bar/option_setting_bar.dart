@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 
-import 'adaptive_title.dart';
+import 'setting_bar_row.dart';
 
 class OptionSettingBar<T> extends StatelessWidget {
   final String title;
@@ -28,24 +28,18 @@ class OptionSettingBar<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    double buttonWide = wide ?? double.infinity;
-    if (titleWide != null) buttonWide -= titleWide!;
-
-    return Row(
-      children: [
-        AdaptiveTitle(title: title, titleWide: titleWide ?? 150),
-        const SizedBox(width: 8),
-        Expanded(
-          child: DropdownLayer<T>(
-            hintText: hintText ?? '默认',
-            width: buttonWide,
-            initialValue: initialValue,
-            options: options,
-            onSelect: onSelect,
-            menuHeight: menuHeight,
-          ),
-        ),
-      ],
+    // 下拉框头部占剩余空间，宽窗撑满、窄窗保控件最小宽
+    return SettingBarRow(
+      title: title,
+      titleWide: titleWide ?? 150,
+      control: DropdownLayer<T>(
+        hintText: hintText ?? '默认',
+        width: double.infinity,
+        initialValue: initialValue,
+        options: options,
+        onSelect: onSelect,
+        menuHeight: menuHeight,
+      ),
     );
   }
 }

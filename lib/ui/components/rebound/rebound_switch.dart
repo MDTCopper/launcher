@@ -20,9 +20,9 @@ class ReboundSwitch extends StatefulWidget {
 
 class _ReboundSwitchState extends State<ReboundSwitch>
     with SingleTickerProviderStateMixin {
-  static const _kTrackWidth = 40.0;
-  static const _kTrackHeight = 22.0;
-  static const _kThumbSize = 16.0;
+  static const _kTrackWidth = 48.0;
+  static const _kTrackHeight = 26.0;
+  static const _kThumbSize = 20.0;
   static const _kThumbInset = 3.0;
 
   late final AnimationController _controller;

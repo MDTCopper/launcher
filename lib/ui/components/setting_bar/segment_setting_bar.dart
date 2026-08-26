@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
 
-import 'adaptive_title.dart';
+import 'setting_bar_row.dart';
 
 class SegmentSettingBar<T> extends StatelessWidget {
   const SegmentSettingBar({
@@ -24,18 +24,19 @@ class SegmentSettingBar<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        AdaptiveTitle(title: title, titleWide: wide ?? 150),
-        const SizedBox(width: 8),
-        Expanded(child: SizedBox()),
-        SegmentedReboundButton(
+    return SettingBarRow(
+      title: title,
+      titleWide: wide ?? 150,
+      // 分段按钮自持宽度，右对齐贴边
+      control: Align(
+        alignment: Alignment.centerRight,
+        child: SegmentedReboundButton(
           segments: segments,
           onChange: onChange,
           selected: selected,
           multiSelectionEnabled: multiSelectionEnabled,
         ),
-      ],
+      ),
     );
   }
 }

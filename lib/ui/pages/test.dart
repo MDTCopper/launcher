@@ -101,69 +101,6 @@ class TestState extends State<Test> {
     );
   }
 
-  // ════════ 10. 按钮组件（ReboundButton / IconTextButton / ActionButton / NavigationCollapseButton） ════════
-  Widget _buttonSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('10. 按钮组件演示'),
-        _card(
-          title: 'ReboundButton / IconTextButton',
-          desc: '点击 / 长按 / 无状态图标按钮。ReboundButton 带回弹按压反馈（长按已接上 onLongTap）。',
-          child: Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              // ReboundButton：点击 + 长按，各自计数
-              ReboundButton(
-                onTap: () => setState(() => _btnTap++),
-                onLongTap: () => setState(() => _btnLongTap++),
-                child: Text('点击$_btnTap / 长按$_btnLongTap'),
-              ),
-              // IconTextButton：无状态图标 + 文本，点击计数
-              IconTextButton(
-                icon: _iconTap % 2 == 0
-                    ? Symbols.dock_to_left
-                    : Symbols.grid_layout_side,
-                content: '图标按钮$_iconTap',
-                onTap: () => setState(() => _iconTap++),
-              ),
-              IconTextButton(
-                icon: _iconTap % 2 == 0
-                    ? Symbols.dock_to_right
-                    : Symbols.side_navigation,
-                content: '图标按钮$_iconTap',
-                onTap: () => setState(() => _iconTap++),
-              ),
-            ],
-          ),
-        ),
-        _card(
-          title: 'ActionButton（选中态 / 禁用态）',
-          desc: '带选中态（点击切换、颜色动画），支持 onChanged 回调；禁用时不可点、前景置灰。',
-          child: Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              // 可选中切换，带悬停提示
-              ActionButton(icon: Icons.star, content: '可选中', hint: '点击切换选中'),
-              // 禁用态：不可点、置灰
-              ActionButton(icon: Icons.block, content: '禁用', enable: false),
-            ],
-          ),
-        ),
-        _card(
-          title: 'NavigationCollapseButton（箭头旋转）',
-          desc: '点击触发 onTap，箭头随收起态旋转（AnimatedRotation）。当前收起态：$_navCollapsed。',
-          child: NavigationCollapseButton(
-            collapse: _navCollapsed,
-            onTap: () => setState(() => _navCollapsed = !_navCollapsed),
-          ),
-        ),
-      ],
-    );
-  }
-
   // ════════ 11. 分段按钮 + 展开/收起容器（copper 风格翻新件） ════════
   Widget _segmentExpansionSection() {
     return Column(
@@ -233,7 +170,8 @@ class TestState extends State<Test> {
         ),
         _card(
           title: 'CopperSlider(点击 / 拖动 / 刻度吸附)',
-          desc: '轨道 + 填充 + 滑块，点击定位、拖动调整、拖拽时显示浮标；divisions 非空时吸附刻度。当前：${(_sliderValue * 100).round()}。',
+          desc:
+              '轨道 + 填充 + 滑块，点击定位、拖动调整、拖拽时显示浮标；divisions 非空时吸附刻度。当前：${(_sliderValue * 100).round()}。',
           child: CopperSlider(
             value: _sliderValue,
             divisions: 10,
@@ -249,6 +187,54 @@ class TestState extends State<Test> {
             children: [
               const SwitchSettingBar(title: '某个开关设置很长', value: true),
               SliderSettingBar(title: '某个滑条设置很长', value: 0.6),
+            ],
+          ),
+        ),
+        _card(
+          title: '竖排方案试验：描述在上、开关在下',
+          desc: '把具体控件放在描述下方（描述居左、控件右对齐独立成行），而非横排右侧。窗口缩窄时描述行仍可完整显示。',
+          child: Column(
+            spacing: 12,
+            children: [
+              // 横排对照：描述 + 右侧控件
+              SwitchSettingBar(
+                title: '横排对照开关',
+                value: _switchOn,
+                onChanged: (v) => setState(() => _switchOn = v),
+              ),
+              // 竖排试验：描述一行、开关下一行贴右
+              Row(
+                children: [
+                  const Expanded(child: Text('开启某项高级功能')),
+                  ReboundSwitch(
+                    value: _switchOn,
+                    onChanged: (v) => setState(() => _switchOn = v),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // 竖排变体：描述 + 副说明 + 控件贴右
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('开启自动更新'),
+                        Text(
+                          '更新到最新版本',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 4),
+                        ReboundSwitch(
+                          value: _switchOn,
+                          onChanged: (v) => setState(() => _switchOn = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

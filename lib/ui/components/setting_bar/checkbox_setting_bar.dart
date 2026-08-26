@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'adaptive_title.dart';
+import 'setting_bar_row.dart';
 
 class CheckboxSettingBar<T> extends StatelessWidget {
   final String title;
@@ -19,24 +19,20 @@ class CheckboxSettingBar<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Row(
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        AdaptiveTitle(title: title, titleWide: titleWide ?? 150),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Container(
-            padding: EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
-              border: Border.fromBorderSide(
-                theme.inputDecorationTheme.border?.borderSide ?? BorderSide(),
-              ),
-            ),
-            child: Row(spacing: 4, children: options),
+    return SettingBarRow(
+      title: title,
+      titleWide: titleWide ?? 150,
+      control: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(4),
+          border: Border.fromBorderSide(
+            theme.inputDecorationTheme.border?.borderSide ?? BorderSide(),
           ),
         ),
-      ],
+        // 多选整组：内容紧凑排列，放不下自动换行
+        child: Wrap(spacing: 4, runSpacing: 4, children: options),
+      ),
     );
   }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'adaptive_title.dart';
+import 'setting_bar_row.dart';
 import '../rebound/rebound_switch.dart';
 
 class SwitchSettingBar extends StatelessWidget {
@@ -19,13 +19,14 @@ class SwitchSettingBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        AdaptiveTitle(title: title, titleWide: wide ?? 150),
-        const SizedBox(width: 8),
-        Expanded(child: SizedBox()),
-        ReboundSwitch(value: value, onChanged: onChanged),
-      ],
+    return SettingBarRow(
+      title: title,
+      titleWide: wide ?? 150,
+      // 开关固定尺寸，右对齐贴边
+      control: Align(
+        alignment: Alignment.centerRight,
+        child: ReboundSwitch(value: value, onChanged: onChanged),
+      ),
     );
   }
 }

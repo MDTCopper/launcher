@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'adaptive_title.dart';
-import '../rebound/copper_slider.dart';
+import 'setting_bar_row.dart';
 
 class SliderSettingBar extends StatelessWidget {
   const SliderSettingBar({
@@ -31,23 +30,21 @@ class SliderSettingBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        AdaptiveTitle(title: title, titleWide: wide ?? 150),
-        const SizedBox(width: 8),
-        Expanded(
-          child: CopperSlider(
-            value: value,
-            divisions: divisions,
-            label: label,
-            onChanged: onChanged,
-            onChangeStart: onChangeStart,
-            onChangeEnd: onChangeEnd,
-            min: min,
-            max: max,
-          ),
-        ),
-      ],
+    return SettingBarRow(
+      title: title,
+      titleWide: wide ?? 150,
+      // 官方 Slider：吸附/赋值/点击跳转由框架保证
+      control: Slider(
+        value: value,
+        divisions: divisions,
+        label: label,
+        onChanged: onChanged,
+        onChangeStart: onChangeStart,
+        onChangeEnd: onChangeEnd,
+        min: min,
+        max: max,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+      ),
     );
   }
 }

@@ -10,8 +10,8 @@ import 'package:flutter/material.dart';
 /// - 有禁用态：[enable] 为 false 时不可点击、无浮出、前景置灰
 /// - 双模式背景：暗色玻璃 / 浅色云母片浮动（elevation 阴影不透传）
 class ActionButton extends StatefulWidget {
-  final IconData icon;
-  final String content;
+  final Widget? icon;
+  final Widget? content;
   final String? hint;
   final VoidCallback? onTap;
   final bool selected;
@@ -116,21 +116,23 @@ class _ActionButtonState extends State<ActionButton>
           onTap: enabled ? widget.onTap : null,
           child: IconTheme(
             data: IconTheme.of(context).copyWith(color: itemColor),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(widget.icon),
-                const SizedBox(width: 8),
-                Text(
-                  widget.content,
-                  style: theme.textTheme.bodyLarge?.copyWith(
+            child: DefaultTextStyle(
+              style:
+                  theme.textTheme.bodyLarge?.copyWith(
                     color: itemColor,
                     fontWeight: widget.selected
                         ? FontWeight.bold
                         : FontWeight.normal,
-                  ),
-                ),
-              ],
+                  ) ??
+                  const TextStyle(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ?widget.icon,
+                  const SizedBox(width: 8),
+                  ?widget.content,
+                ],
+              ),
             ),
           ),
         );

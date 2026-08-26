@@ -78,16 +78,16 @@ class _InfoListState extends State<InfoList>
                   children: [
                     ActionButton(
                       selected: index == 0,
-                      icon: Icons.list_alt,
-                      content: '任务',
+                      icon: Icon(Icons.list_alt),
+                      content: Text('任务'),
                       onTap: () => setState(() {
                         index = 0;
                       }),
                     ),
                     ActionButton(
                       selected: index == 1,
-                      icon: Icons.watch_later_outlined,
-                      content: '日志',
+                      icon: Icon(Icons.watch_later_outlined),
+                      content: Text('日志'),
                       onTap: () => setState(() {
                         index = 1;
                       }),

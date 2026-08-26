@@ -34,24 +34,38 @@ class CopperSlider extends StatefulWidget {
 }
 
 class _CopperSliderState extends State<CopperSlider>
-    with SingleTickerProviderStateMixin {
-  static const _kTrackHeight = 4.0;
-  static const _kThumbSize = 14.0;
-  static const _kHitHeight = 24.0;
+    with TickerProviderStateMixin {
+  static const _kTrackHeight = 6.0;
+  static const _kThumbSize = 18.0;
+  static const _kHitHeight = 28.0;
 
   late final AnimationController _labelController;
+
+  /// 点击跳转动画：从当前显示位置缓动到点击目标。
+  late final AnimationController _jumpController;
+
+  /// 跳转起点 / 终点(0~1 比例)。
+  double _jumpStart = 0;
+  double _jumpTarget = 0;
+
+  /// 动画中的连续插值(未吸附)，动画结束置 null 交回外部值。
+  double? _jumpValue;
 
   /// 拖动中的临时值(min~max)。
   double? _dragValue;
 
-  /// 刻度换算：带 divisions 时吸附到最近刻度。
-  double get _effectiveValue {
-    final current = _dragValue ?? widget.value;
+  /// 当前显示值：动画插值 > 拖动临时值 > 外部 [widget.value]。
+  double get _displayValue => _jumpValue ?? _dragValue ?? widget.value;
+
+  /// 比例 → 吸附刻度后的值：带 [divisions] 时四舍五入到最近刻度，
+  /// 否则原样换算。所有对外回调(change/changeStart/changeEnd)统一用它，
+  /// 保证显示与赋值一致。
+  double _snapValue(double ratio) {
     final divisions = widget.divisions;
-    if (divisions == null || divisions <= 0) return current;
-    return (_valueToRatio(current) * divisions).round() / divisions *
-        (widget.max - widget.min) +
-        widget.min;
+    final raw = _ratioToValue(ratio);
+    if (divisions == null || divisions <= 0) return raw;
+    final snappedRatio = (ratio * divisions).round() / divisions;
+    return _ratioToValue(snappedRatio);
   }
 
   double _valueToRatio(double value) =>
@@ -67,31 +81,64 @@ class _CopperSliderState extends State<CopperSlider>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
+    _jumpController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    )
+      ..addListener(() {
+        // 位置连续插值(不吸附)，让滑块平滑滑到目标
+        final t = Curves.easeOutCubic.transform(_jumpController.value);
+        final ratio = _jumpStart + (_jumpTarget - _jumpStart) * t;
+        setState(() => _jumpValue = _ratioToValue(ratio));
+      })
+      ..addStatusListener((status) {
+        if (status != AnimationStatus.completed) return;
+        // 到位后提交吸附值并收浮标
+        final finalValue = _snapValue(_jumpTarget);
+        setState(() => _jumpValue = null);
+        widget.onChanged?.call(finalValue);
+        widget.onChangeEnd?.call(finalValue);
+        _labelController.reverse();
+      });
   }
 
   @override
   void dispose() {
+    _jumpController.dispose();
     _labelController.dispose();
     super.dispose();
   }
 
-  void _startDrag(double ratio) {
+  /// 点击跳转：从当前显示位置缓动到 [targetRatio] 对应刻度。
+  void _jumpTo(double targetRatio) {
+    _jumpController.stop();
+    _jumpStart = _valueToRatio(_displayValue);
+    _jumpTarget = targetRatio;
+    _jumpValue = null;
     _labelController.forward();
-    final value = _ratioToValue(ratio);
+    _jumpController.forward(from: 0);
+  }
+
+  void _startDrag(double ratio) {
+    // 拖动打断跳转动画，改为实时跟手
+    _jumpController.stop();
+    _jumpValue = null;
+    _labelController.forward();
+    final value = _snapValue(ratio);
     _dragValue = value;
     widget.onChangeStart?.call(value);
     setState(() {});
   }
 
   void _updateDrag(double ratio) {
-    final value = _ratioToValue(ratio);
+    final value = _snapValue(ratio);
     _dragValue = value;
     widget.onChanged?.call(value);
     setState(() {});
   }
 
   void _endDrag(double ratio) {
-    final value = _ratioToValue(ratio);
+    final value = _snapValue(ratio);
     _dragValue = null;
     widget.onChangeEnd?.call(value);
     _labelController.reverse();
@@ -105,7 +152,8 @@ class _CopperSliderState extends State<CopperSlider>
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final ratio = _valueToRatio(_effectiveValue);
+        // 显示比例：动画插值连续过渡，否则吸附外部值
+        final ratio = _valueToRatio(_displayValue);
         // 滑块中心可活动范围 = 轨道宽 - 滑块直径
         final thumbCenterLeft = ratio * (width - _kThumbSize);
 
@@ -155,22 +203,23 @@ class _CopperSliderState extends State<CopperSlider>
           height: _kHitHeight,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            // 点击 / 拖动都按水平位置换算
-            onTapDown: (details) => _startDrag(
+            // 点击：等手势竞技裁决(确认是 tap 而非 drag)后，从当前位置缓动跳转
+            onTapUp: (details) => _jumpTo(
               (details.localPosition.dx / width).clamp(0.0, 1.0),
             ),
-            onTapUp: (details) => _endDrag(
-              (details.localPosition.dx / width).clamp(0.0, 1.0),
-            ),
+            onTapCancel: () => _jumpController.stop(),
+            // 拖动：实时跟手(优先于 tap 竞技胜出)
             onHorizontalDragStart: (details) => _startDrag(
               (details.localPosition.dx / width).clamp(0.0, 1.0),
             ),
             onHorizontalDragUpdate: (details) => _updateDrag(
               (details.localPosition.dx / width).clamp(0.0, 1.0),
             ),
-            onHorizontalDragEnd: (_) => _endDrag(_valueToRatio(_effectiveValue)),
+            onHorizontalDragEnd: (_) => _endDrag(_valueToRatio(_displayValue)),
             child: Stack(
               alignment: Alignment.center,
+              // 浮标越出命中区上方，需放开裁剪
+              clipBehavior: Clip.none,
               children: [
                 // 轨道垂直居中于命中区
                 Positioned(
@@ -180,12 +229,12 @@ class _CopperSliderState extends State<CopperSlider>
                   child: track,
                 ),
                 thumb,
-                // 拖拽浮标：值文本浮在滑块上方
+                // 拖拽浮标：值文本浮在滑块上方偏外(translation 负 Y 上移)
                 Positioned(
                   left: thumbCenterLeft + _kThumbSize / 2,
                   top: 0,
                   child: FractionalTranslation(
-                    translation: const Offset(-0.5, -0.2),
+                    translation: const Offset(-0.5, -1.0),
                     child: FadeTransition(
                       opacity: _labelController,
                       child: Container(
@@ -197,10 +246,17 @@ class _CopperSliderState extends State<CopperSlider>
                           color: colors.elevatedBackground,
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(color: colors.border),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 2,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
                         ),
                         child: Text(
                           widget.label ??
-                              _effectiveValue.toStringAsFixed(
+                              _displayValue.toStringAsFixed(
                                 widget.divisions != null ? 0 : 2,
                               ),
                           style: Theme.of(context).textTheme.bodySmall,
