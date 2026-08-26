@@ -15,8 +15,8 @@ import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
-import 'package:copper_launcher/ui/util/widget/setting_bar/option_setting_bar.dart';
-import 'package:copper_launcher/ui/util/widget/setting_bar/switch_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/math/range.dart';
 import 'package:flutter/material.dart';
@@ -30,9 +30,9 @@ import '../../components/rebound/rebound_checkbox.dart';
 import '../../feature/images.dart';
 import '../../page_framwork/sub_navigation_state.dart';
 import '../../components/percent_bar.dart';
-import '../../util/widget/setting_bar/checkbox_setting_bar.dart';
-import '../../util/widget/setting_bar/input_setting_bar.dart';
-import '../../util/widget/setting_bar/slider_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/checkbox_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
 
 late Mindustry _mindustry;
 

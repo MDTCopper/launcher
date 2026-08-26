@@ -4,7 +4,7 @@ import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
-import 'package:copper_launcher/ui/util/widget/setting_bar/switch_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_config.dart';

@@ -1,11 +1,11 @@
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
-import 'package:copper_launcher/ui/util/widget/setting_bar/input_setting_bar.dart';
-import 'package:copper_launcher/ui/util/widget/setting_bar/option_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:flutter/material.dart';
 
-import '../../util/widget/setting_bar/slider_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
 
 class OtherSettingPage extends StatefulWidget {
   const OtherSettingPage({super.key});

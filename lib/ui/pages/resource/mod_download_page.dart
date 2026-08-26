@@ -5,7 +5,6 @@ import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/download_mod.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
-import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 
@@ -26,6 +25,7 @@ import '../../../core/app_constant.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import '../../components/future/mod_icon_loader.dart';
+import '../../util/widget/warning_bar.dart';
 import '../../vars.dart';
 
 ///模组仓库有三种情况：
@@ -256,51 +256,13 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
   }
 
   Widget? _buildWarningBar() {
-    final key = 'warning bar of mod download page enable';
-    var setting = config.setting.getCustomSetting(key, true);
-    if (setting == false) return null;
-
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withAlpha(40),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.primary.withAlpha(100),
-          width: 2,
-        ),
-      ),
-      padding: EdgeInsets.all(4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '由于githubAPI对匿名访问有 60次/小时 的限制，请不要短时间访问多个模组，访问过的模组已经缓存；'
-              '如有条件，可以到设置中添加github访问token',
-              maxLines: 2,
-            ),
-          ),
-          ReboundContainer(
-            backgroundColor: Colors.transparent,
-            pressedScale: 0.75,
-            borderRadius: BorderRadius.circular(4),
-            onTap: () {},
-            child: Icon(Icons.arrow_outward_outlined),
-          ),
-          SizedBox(width: 4),
-          ReboundContainer(
-            backgroundColor: Colors.transparent,
-            pressedScale: 0.75,
-            borderRadius: BorderRadius.circular(4),
-            onTap: () {
-              config.setting.customSetting[key] = false;
-              setState(() {});
-              config.save();
-            },
-            child: Icon(Icons.close),
-          ),
-        ],
-      ),
+    return buildWarningBar(
+      context,
+      'warning bar of mod download page enable',
+      '由于githubAPI对匿名访问有 60次/小时 的限制，请不要短时间访问多个模组，访问过的模组已经缓存；'
+      '如有条件，可以到设置中添加github访问token',
+      onTap: () =>
+          setState(() {}), // 关闭后刷新移除本条，与 util 版关闭写入配置的行为配合
     );
   }
 

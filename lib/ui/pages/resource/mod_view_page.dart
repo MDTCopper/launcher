@@ -20,9 +20,9 @@ import 'package:string_similarity/string_similarity.dart';
 
 import '../../../core/app_config.dart';
 import '../../../util/io/downloader.dart';
-import '../../components/rebound/rebound_container.dart';
 import '../../components/future/mod_icon_loader.dart';
 import '../../components/pager.dart';
+import '../../util/widget/warning_bar.dart';
 import '../../vars.dart';
 
 ///模组浏览页面
@@ -532,50 +532,13 @@ class _ModViewPageState extends State<ModViewPage> {
   }
 
   Widget? _buildWarningBar() {
-    final key = 'warning bar of mod page of download page enable';
-    final setting = config.setting.getCustomSetting(key, true);
-    if (setting == false) return null;
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withAlpha(40),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.primary.withAlpha(100),
-          width: 2,
-        ),
-      ),
-      padding: EdgeInsets.all(4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '国内访问github受限，请优先选择国内镜像资源；'
-              '如有条件，可以到设置中添加网络代理',
-              maxLines: 2,
-            ),
-          ),
-          ReboundContainer(
-            backgroundColor: Colors.transparent,
-            pressedScale: 0.75,
-            borderRadius: BorderRadius.circular(4),
-            onTap: () {},
-            child: Icon(Icons.arrow_outward_outlined),
-          ),
-          SizedBox(width: 4),
-          ReboundContainer(
-            backgroundColor: Colors.transparent,
-            pressedScale: 0.75,
-            borderRadius: BorderRadius.circular(4),
-            onTap: () {
-              config.setting.customSetting[key] = false;
-              setState(() {});
-              config.save();
-            },
-            child: Icon(Icons.close),
-          ),
-        ],
-      ),
+    return buildWarningBar(
+      context,
+      'warning bar of mod page of download page enable',
+      '国内访问github受限，请优先选择国内镜像资源；'
+      '如有条件，可以到设置中添加网络代理',
+      onTap: () =>
+          setState(() {}), // 关闭后刷新移除本条，与 util 版关闭写入配置的行为配合
     );
   }
 

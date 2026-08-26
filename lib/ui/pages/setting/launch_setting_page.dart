@@ -11,10 +11,10 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
 import 'package:copper_launcher/ui/components/percent_bar.dart';
-import 'package:copper_launcher/ui/util/widget/setting_bar/checkbox_setting_bar.dart';
-import 'package:copper_launcher/ui/util/widget/setting_bar/input_setting_bar.dart';
-import 'package:copper_launcher/ui/util/widget/setting_bar/option_setting_bar.dart';
-import 'package:copper_launcher/ui/util/widget/setting_bar/switch_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/checkbox_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/java_finder.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
@@ -26,7 +26,7 @@ import 'package:line_icons/line_icons.dart';
 import '../../../core/app_config.dart';
 import '../../../util/format/ram_rank_list.dart';
 
-import '../../util/widget/setting_bar/slider_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
 
 class LaunchSettingPage extends StatefulWidget {
   const LaunchSettingPage({super.key});

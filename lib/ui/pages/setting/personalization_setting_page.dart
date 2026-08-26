@@ -3,10 +3,10 @@ import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/theme/app_theme.dart';
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
-import 'package:copper_launcher/ui/util/widget/setting_bar/switch_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:flutter/material.dart';
 
-import '../../util/widget/setting_bar/segment_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/segment_setting_bar.dart';
 
 class PersonalizationSettingPage extends StatefulWidget {
   const PersonalizationSettingPage({super.key});
