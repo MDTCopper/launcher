@@ -38,7 +38,7 @@ class ReboundCheckbox extends StatelessWidget {
       content: label == null ? null : Text(label!),
       hint: hint,
       selected: value,
-      padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      padding: EdgeInsets.symmetric(vertical: 4, horizontal: 6),
       enable: enable,
       onTap: onChange == null ? null : () => onChange!(!value),
       pressedScale: pressedScale,

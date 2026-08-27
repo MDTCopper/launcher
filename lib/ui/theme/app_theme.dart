@@ -64,23 +64,23 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
     canvasColor: colors.pageBackground,
 
     textTheme: TextTheme(
-      // ── Display: 超大标题，用于页面主标题、英雄文字 ──
+      // ── Display: 超大标题，强调色(interactive)，用于页面主标题、英雄文字 ──
       displayLarge: TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.bold,
-        color: colors.itemPrimary,
+        color: colors.interactive,
         height: 1.2,
       ),
       displayMedium: TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.bold,
-        color: colors.itemPrimary,
+        color: colors.interactive,
         height: 1.2,
       ),
       displaySmall: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.bold,
-        color: colors.itemPrimary,
+        color: colors.interactive,
         height: 1.2,
       ),
 
@@ -121,7 +121,7 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
       // ── Body: 正文、说明、注释 ──
       bodyLarge: TextStyle(
         fontSize: 16,
-        color: colors.itemPrimary,
+        color: colors.itemSecondary,
         height: 1.5,
       ),
       bodyMedium: TextStyle(
@@ -129,18 +129,22 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
         color: colors.itemSecondary,
         height: 1.5,
       ),
-      bodySmall: TextStyle(fontSize: 12, color: colors.itemHint, height: 1.4),
+      bodySmall: TextStyle(
+        fontSize: 12,
+        color: colors.itemSecondary,
+        height: 1.4,
+      ),
 
       // ── Label: 按钮文字、标签、徽标 ──
       labelLarge: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.bold,
-        color: colors.itemOnInteractive,
+        color: colors.itemHint,
       ),
       labelMedium: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w500,
-        color: colors.itemSecondary,
+        color: colors.itemHint,
       ),
       labelSmall: TextStyle(
         fontSize: 10,

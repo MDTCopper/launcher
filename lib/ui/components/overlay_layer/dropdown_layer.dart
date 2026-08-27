@@ -37,6 +37,16 @@ class DropdownLayer<T> extends StatefulWidget {
   final T? initialValue;
   final String hintText;
   final void Function(T value)? onSelect;
+
+  /// 多选模式：菜单项变为复选框，勾选不收起菜单，头部显示"已选 N 项"。
+  final bool multiSelection;
+
+  /// 多选模式的初始选中集合。
+  final Set<T>? initialValues;
+
+  /// 多选回调：勾选变化后携带当前选中集合。
+  final ValueChanged<Set<T>>? onMultiSelect;
+
   final double width;
   final double menuHeight;
   final Color? color;
@@ -50,6 +60,9 @@ class DropdownLayer<T> extends StatefulWidget {
     required this.options,
     this.hintText = 'null',
     this.onSelect,
+    this.multiSelection = false,
+    this.initialValues,
+    this.onMultiSelect,
     this.menuHeight = 200,
     this.child,
     this.width = double.infinity,
@@ -71,6 +84,9 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   bool expanded = false;
 
   T? selectValue;
+  Set<T> selectValues = {};
+
+  bool get _multiSelection => widget.multiSelection;
 
   /// 头部 hover 过渡（边框 / 背景）。
   late final AnimationController selectController;
@@ -83,6 +99,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   void initState() {
     super.initState();
     selectValue = widget.initialValue;
+    selectValues = {...?widget.initialValues};
 
     selectController = AnimationController(
       vsync: this,
@@ -107,6 +124,9 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialValue != widget.initialValue) {
       selectValue = widget.initialValue;
+    }
+    if (oldWidget.initialValues != widget.initialValues) {
+      selectValues = {...?widget.initialValues};
     }
   }
 
@@ -162,6 +182,18 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     widget.onSelect?.call(value);
   }
 
+  /// 多选切换：勾选/取消不收起菜单，变化后回调当前集合。
+  void _toggleMultiSelect(T value) {
+    setState(() {
+      if (selectValues.contains(value)) {
+        selectValues.remove(value);
+      } else {
+        selectValues.add(value);
+      }
+    });
+    widget.onMultiSelect?.call(Set.of(selectValues));
+  }
+
   void _hoverChange() {
     if (onHover || expanded) {
       selectController.forward();
@@ -199,18 +231,91 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
             ],
           ),
           child: SingleChildScrollView(
-            child: Column(children: widget.options.map(_buildOption).toList()),
+            child: Column(
+              children: [
+                // 多选菜单顶部操作栏：重置(清空勾选)
+                if (_multiSelection) _buildMultiActionBar(),
+                ...widget.options.map(_buildOption),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  /// 多选菜单顶部操作栏：重置按钮(清空全部勾选，不收起菜单)。
+  Widget _buildMultiActionBar() {
+    final colors = AppColors.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Divider(height: 6, color: colors.border),
+        ),
+        ReboundButton(
+          pressedScale: 0.9,
+          borderRadius: BorderRadius.circular(4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          onTap: () {
+            setState(() => selectValues = {});
+            widget.onMultiSelect?.call(<T>{});
+          },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.restart_alt, size: 14, color: colors.itemSecondary),
+              const SizedBox(width: 4),
+              Text(
+                '重置',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: colors.itemSecondary),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildOption(DropdownOption<T> item) {
     final colors = AppColors.of(context);
     final theme = Theme.of(context);
-    final selected = item.value == selectValue;
 
+    // 多选：复选框样式，勾选切换但不收起菜单
+    if (_multiSelection) {
+      final selected = selectValues.contains(item.value);
+      return ReboundButton(
+        pressedScale: 1.0,
+        borderRadius: BorderRadius.circular(4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        onTap: () => _toggleMultiSelect(item.value),
+        backgroundColor: selected ? colors.interactive.withAlpha(30) : null,
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.check_box : Icons.check_box_outline_blank,
+              size: 18,
+              color: selected ? colors.interactive : colors.itemHint,
+            ),
+            const SizedBox(width: 8),
+            ?item.leading,
+            if (item.leading != null) const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                item.label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: selected ? colors.interactive : colors.itemPrimary,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final selected = item.value == selectValue;
     return ReboundButton(
       pressedScale: 1.0,
       borderRadius: BorderRadius.circular(4),
@@ -290,6 +395,11 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   // ------------------------------------------------------------------
 
   String get label {
+    // 多选：空集 = 不限；否则显示已选数量
+    if (_multiSelection) {
+      if (selectValues.isEmpty) return widget.hintText;
+      return '已选 ${selectValues.length} 项';
+    }
     if (selectValue == null) return widget.hintText;
     final DropdownOption<T> o = widget.options.firstWhere(
       (o) => selectValue == o.value,
@@ -302,7 +412,6 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final colors = AppColors.of(context);
     final head = MouseRegion(
       onExit: (_) {
@@ -319,72 +428,75 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
       },
       child: GestureDetector(
         onTap: _toggle,
-        child: AnimatedBuilder(
-          animation: selectController,
-          builder: (context, child) {
-            final Animation<Border?> border = BorderTween(
-              begin:
-                  widget.border ??
-                  Border.all(
-                    color: colors.contentBorder,
-                    width: 0.9,
-                    strokeAlign: BorderSide.strokeAlignOutside,
+        // 层叠方案：边框层(变厚 1→2 + 颜色)与内容层分离——
+        // 边框 Positioned.fill 只做绘制层覆盖，不参与布局，
+        // 宽度动画向内挤压不了内部 Row
+        child: SizedBox(
+          width: widget.width,
+          child: Stack(
+            children: [
+              // 装饰层：边框 + 背景，hover/展开变厚变色
+              Positioned.fill(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
+                  decoration: BoxDecoration(
+                    // 宽度 1→2：向内变厚但由绘制层承担，不影响布局
+                    border: Border.all(
+                      color: expanded
+                          ? colors.contentBorderFocus
+                          : onHover
+                          ? colors.contentBorderHover
+                          : colors.contentBorder,
+                      width: expanded || onHover ? 2 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                    color: expanded
+                        ? colors.contentBackgroundFocus
+                        : Colors.transparent,
                   ),
-              end:
-                  widget.hoverBorder ??
-                  Border.all(
-                    color: colors.contentBorderFocus,
-                    width: 2,
-                    strokeAlign: BorderSide.strokeAlignOutside,
-                  ),
-            ).animate(selectController);
-
-            final Animation<Color?> backgroundColor = ColorTween(
-              begin: widget.color ?? colorScheme.secondary.withAlpha(0),
-              end: widget.hoverColor ?? colorScheme.secondary.withAlpha(30),
-            ).animate(selectController);
-
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-              width: widget.width,
-              decoration: BoxDecoration(
-                border: border.value,
-                borderRadius: BorderRadius.circular(4),
-                color: backgroundColor.value,
+                ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: AnimatedSwitcher(
-                      switchInCurve: const Interval(0.5, 1.0),
-                      switchOutCurve: const Interval(0.5, 1.0),
-                      duration: const Duration(milliseconds: 300),
-                      layoutBuilder: (oldChild, children) {
-                        return Stack(
-                          alignment: Alignment.centerLeft,
-                          children: [?oldChild, ...children],
-                        );
-                      },
-                      child: Text(
-                        label,
-                        key: ValueKey(label),
-                        style: selectValue != null
-                            ? TextStyle()
-                            : theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.textTheme.bodyMedium?.color
-                                    ?.withAlpha(185),
-                              ),
+              // 内容层：布局主体，尺寸恒定
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 6,
+                  horizontal: 12,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        switchInCurve: const Interval(0.5, 1.0),
+                        switchOutCurve: const Interval(0.5, 1.0),
+                        duration: const Duration(milliseconds: 300),
+                        layoutBuilder: (oldChild, children) {
+                          return Stack(
+                            alignment: Alignment.centerLeft,
+                            children: [?oldChild, ...children],
+                          );
+                        },
+                        child: Text(
+                          label,
+                          key: ValueKey(label),
+                          style: selectValue != null
+                              ? TextStyle()
+                              : theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.textTheme.bodyMedium?.color
+                                      ?.withAlpha(185),
+                                ),
+                        ),
                       ),
                     ),
-                  ),
-                  RotationTransition(
-                    turns: turns,
-                    child: const Icon(Icons.keyboard_arrow_down),
-                  ),
-                ],
+                    RotationTransition(
+                      turns: turns,
+                      child: const Icon(Icons.keyboard_arrow_down),
+                    ),
+                  ],
+                ),
               ),
-            );
-          },
+            ],
+          ),
         ),
       ),
     );

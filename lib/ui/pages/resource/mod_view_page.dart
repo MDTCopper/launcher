@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:async/async.dart';
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
@@ -345,12 +346,33 @@ class _ModViewPageState extends State<ModViewPage> {
     );
 
     Widget buildModTypeOptions() {
-      return Row(
-        children: [
-          Text('模组类型'),
-          SizedBox(width: 16),
-          Container(
-            padding: EdgeInsets.all(4),
+      Widget buildOptions() => LayoutBuilder(
+        builder: (_, c) {
+          if (c.maxWidth < 330) {
+            // 窄窗：切换为多选下拉(勾选不收起，菜单顶部自带"重置"清空)
+            return DropdownLayer<String>(
+              multiSelection: true,
+              hintText: '不限',
+              width: c.maxWidth.clamp(0.0, 150),
+              initialValues: modTypeSet,
+              onMultiSelect: (set) {
+                setState(() {
+                  modTypeSet
+                    ..clear()
+                    ..addAll(set);
+                });
+              },
+              options: [
+                DropdownOption(value: 'copper', label: 'Copper'),
+                DropdownOption(value: 'java', label: 'Java'),
+                DropdownOption(value: 'js', label: 'JavaScript'),
+                DropdownOption(value: 'json', label: 'Json'),
+              ],
+            );
+          }
+
+          return Container(
+            padding: EdgeInsets.all(3),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(4),
               border: Border.fromBorderSide(
@@ -359,6 +381,7 @@ class _ModViewPageState extends State<ModViewPage> {
             ),
             child: Row(
               spacing: 4,
+              mainAxisSize: .min,
               children: [
                 ReboundCheckbox(
                   label: '不限',
@@ -431,7 +454,15 @@ class _ModViewPageState extends State<ModViewPage> {
                 ),
               ],
             ),
-          ),
+          );
+        },
+      );
+
+      return Row(
+        children: [
+          Text('模组类型'),
+          SizedBox(width: 16),
+          Flexible(child: buildOptions()),
         ],
       );
     }

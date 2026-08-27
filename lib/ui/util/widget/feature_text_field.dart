@@ -294,15 +294,15 @@ class _OutlinedTextFieldState extends State<OutlinedTextField>
     final decoration = widget.decoration ?? InputDecoration();
     return Row(
       children: [
-        if (widget.label != null)
+        if (widget.label != null) ...[
           Text(
             widget.label!,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: widget.textStyle ?? theme.textTheme.bodyMedium,
           ),
-
-        if (widget.label != null) SizedBox(width: widget.labelSpacing ?? 16),
+          SizedBox(width: widget.labelSpacing ?? 16),
+        ],
         Expanded(
           child: MouseRegion(
             onEnter: (_) {
