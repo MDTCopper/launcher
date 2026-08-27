@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:flutter/material.dart';
@@ -166,8 +167,6 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     _popupController.dismiss();
   }
 
-  /// dismiss 开始（退场动画前）立即复位：箭头转回、外框高亮取消，
-  /// 不用等退场动画完全结束。
   void _onDismissStart() {
     if (!mounted || !expanded) return;
     expanded = false;
@@ -182,7 +181,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     widget.onSelect?.call(value);
   }
 
-  /// 多选切换：勾选/取消不收起菜单，变化后回调当前集合。
+  /// 多选切换：勾选/取消不收起菜单，变化后回调当前集合
   void _toggleMultiSelect(T value) {
     setState(() {
       if (selectValues.contains(value)) {
@@ -230,13 +229,11 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
               ),
             ],
           ),
-          child: SingleChildScrollView(
+          child: CopperSingleChildScrollView(
+            fadeMask: false,
             child: Column(
-              children: [
-                // 多选菜单顶部操作栏：重置(清空勾选)
-                if (_multiSelection) _buildMultiActionBar(),
-                ...widget.options.map(_buildOption),
-              ],
+              spacing: 2,
+              children: [...widget.options.map(_buildOption)],
             ),
           ),
         ),
@@ -244,14 +241,12 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     );
   }
 
-  /// 多选菜单顶部操作栏：重置按钮(清空全部勾选，不收起菜单)。
+  /// 多选菜单顶部操作栏
   Widget _buildMultiActionBar() {
     final colors = AppColors.of(context);
     return Row(
       children: [
-        Expanded(
-          child: Divider(height: 6, color: colors.border),
-        ),
+        Expanded(child: Divider(height: 6, color: colors.border)),
         ReboundButton(
           pressedScale: 0.9,
           borderRadius: BorderRadius.circular(4),
@@ -293,12 +288,6 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
         backgroundColor: selected ? colors.interactive.withAlpha(30) : null,
         child: Row(
           children: [
-            Icon(
-              selected ? Icons.check_box : Icons.check_box_outline_blank,
-              size: 18,
-              color: selected ? colors.interactive : colors.itemHint,
-            ),
-            const SizedBox(width: 8),
             ?item.leading,
             if (item.leading != null) const SizedBox(width: 8),
             Expanded(
@@ -343,7 +332,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     );
   }
 
-  /// 菜单动画：淡入 + 从锚点方向生长（视觉压缩展开）。
+  /// 菜单动画：淡入 + 从锚点方向生长
   ///
   /// 生长方向跟随菜单实际方位（由 [PopupOverlayPlacement] 提供）：
   /// - 菜单在锚点下方 → 从菜单顶边（贴锚点）向下生长
@@ -385,8 +374,10 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     // 菜单在锚点上方：贴锚点的是菜单底边 → 从底边向上生长（从下往上）
     if (anchorBottom >= menuBottom) return Alignment.bottomCenter;
     // 沉底（锚点在菜单范围内）：从锚点所在高度向外生长
-    final ratio = ((anchorBottom - menuTop) / placement.childSize.height)
-        .clamp(0.0, 1.0);
+    final ratio = ((anchorBottom - menuTop) / placement.childSize.height).clamp(
+      0.0,
+      1.0,
+    );
     return Alignment(0, ratio * 2 - 1);
   }
 
@@ -428,9 +419,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
       },
       child: GestureDetector(
         onTap: _toggle,
-        // 层叠方案：边框层(变厚 1→2 + 颜色)与内容层分离——
-        // 边框 Positioned.fill 只做绘制层覆盖，不参与布局，
-        // 宽度动画向内挤压不了内部 Row
+
         child: SizedBox(
           width: widget.width,
           child: Stack(
@@ -441,7 +430,6 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOut,
                   decoration: BoxDecoration(
-                    // 宽度 1→2：向内变厚但由绘制层承担，不影响布局
                     border: Border.all(
                       color: expanded
                           ? colors.contentBorderFocus
@@ -459,10 +447,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
               ),
               // 内容层：布局主体，尺寸恒定
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 6,
-                  horizontal: 12,
-                ),
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
                 child: Row(
                   children: [
                     Expanded(
@@ -490,7 +475,11 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
                     ),
                     RotationTransition(
                       turns: turns,
-                      child: const Icon(Icons.keyboard_arrow_down),
+                      child: Icon(
+                        Icons.keyboard_arrow_down,
+                        color: colors.itemPrimary,
+                        size: 18,
+                      ),
                     ),
                   ],
                 ),

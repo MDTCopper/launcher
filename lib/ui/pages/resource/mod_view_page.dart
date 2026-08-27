@@ -11,7 +11,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart'
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
-import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
+import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/format/time_since.dart';
 import 'package:flutter/material.dart';
@@ -23,7 +23,7 @@ import '../../../util/io/downloader.dart';
 import '../../components/future/mod_icon_loader.dart';
 import '../../components/pager.dart';
 import '../../components/row/priority_row.dart';
-import '../../util/widget/warning_bar.dart';
+import '../../components/tips/warning_bar.dart';
 import '../../vars.dart';
 
 ///模组浏览页面

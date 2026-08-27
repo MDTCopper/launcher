@@ -25,7 +25,8 @@ import '../../../core/app_constant.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import '../../components/future/mod_icon_loader.dart';
-import '../../util/widget/warning_bar.dart';
+import '../../components/row/priority_row.dart';
+import '../../components/tips/warning_bar.dart';
 import '../../vars.dart';
 
 ///模组仓库有三种情况：
@@ -193,60 +194,86 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     return ReboundListTile(
       borderRadius: BorderRadius.circular(4),
       title: Text(mod.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Row(
-        spacing: 8,
-        children: [
-          buildOverView(Icons.folder_outlined, mod.releaseNum),
-          buildOverView(Icons.update, mod.releaseDate.split('T').first),
-          if (mod.assets.firstOrNull != null)
-            buildOverView(
-              Icons.arrow_downward,
-              mod.assets.first.downloadCount.toString(),
-            ),
-          FutureBuilder(
-            future: minGameVersion,
-            builder: (_, s) {
-              if (s.connectionState == ConnectionState.waiting) {
-                return buildOverView(Icons.source_outlined, '...');
-              }
-              if (s.hasData) {
-                final version = selectedVersion;
-                if (version == null) {
-                  return buildOverView(Icons.source_outlined, s.data!);
-                }
-
-                bool support;
-                final modMin = double.parse(s.data!.substring(1));
-                if (modListMeta.hasJava) {
-                  final minGameVersion = minJavaModGameVersionModifier
-                      .resultOf(version.releaseDouble);
-                  support =
-                      modMin >= minGameVersion &&
-                      modMin <= version.releaseDouble;
-                } else {
-                  final minGameVersion = minModGameVersionModifier.resultOf(
-                    version.releaseDouble,
-                  );
-                  support =
-                      modMin >= minGameVersion &&
-                      modMin <= version.releaseDouble;
-                }
-
-                if (support) {
-                  return buildOverView(Icons.check_outlined, '支持 (${s.data!})');
-                } else if (support == false) {
-                  return buildOverView(
-                    Icons.close_outlined,
-                    '可能不支持 (${s.data!})',
-                  );
-                } else {
-                  return buildOverView(Icons.info_outlined, s.data!);
-                }
-              } else {
-                return buildOverView(Icons.source_outlined, 'XXX');
-              }
-            },
+      subtitle: PriorityRow(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        items: [
+          // 版本号：核心信息，永不丢
+          PriorityRowItem(
+            priority: 0,
+            width: 140,
+            child: buildOverView(Icons.folder_outlined, mod.releaseNum),
           ),
+          // 兼容性：异步加载，次重要(支持版本信息保留)
+          PriorityRowItem(
+            priority: 1,
+            width: 160,
+            child: FutureBuilder(
+              future: minGameVersion,
+              builder: (_, s) {
+                if (s.connectionState == ConnectionState.waiting) {
+                  return buildOverView(Icons.source_outlined, '...');
+                }
+                if (s.hasData) {
+                  final version = selectedVersion;
+                  if (version == null) {
+                    return buildOverView(Icons.source_outlined, s.data!);
+                  }
+
+                  bool support;
+                  final modMin = double.parse(s.data!.substring(1));
+                  if (modListMeta.hasJava) {
+                    final minGameVersion = minJavaModGameVersionModifier
+                        .resultOf(version.releaseDouble);
+                    support =
+                        modMin >= minGameVersion &&
+                        modMin <= version.releaseDouble;
+                  } else {
+                    final minGameVersion = minModGameVersionModifier.resultOf(
+                      version.releaseDouble,
+                    );
+                    support =
+                        modMin >= minGameVersion &&
+                        modMin <= version.releaseDouble;
+                  }
+
+                  if (support) {
+                    return buildOverView(
+                      Icons.check_outlined,
+                      '支持 (${s.data!})',
+                    );
+                  } else if (support == false) {
+                    return buildOverView(
+                      Icons.close_outlined,
+                      '可能不支持 (${s.data!})',
+                    );
+                  } else {
+                    return buildOverView(Icons.info_outlined, s.data!);
+                  }
+                } else {
+                  return buildOverView(Icons.source_outlined, 'XXX');
+                }
+              },
+            ),
+          ),
+          // 日期：中了优先级
+          PriorityRowItem(
+            priority: 2,
+            width: 130,
+            child: buildOverView(
+              Icons.update,
+              mod.releaseDate.split('T').first,
+            ),
+          ),
+          // 下载数：最先丢
+          if (mod.assets.firstOrNull != null)
+            PriorityRowItem(
+              priority: 3,
+              width: 110,
+              child: buildOverView(
+                Icons.arrow_downward,
+                mod.assets.first.downloadCount.toString(),
+              ),
+            ),
         ],
       ),
       onTap: () => _buildDownloadPopup(mod),
@@ -259,9 +286,8 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       context,
       'warning bar of mod download page enable',
       '由于githubAPI对匿名访问有 60次/小时 的限制，请不要短时间访问多个模组，访问过的模组已经缓存；'
-      '如有条件，可以到设置中添加github访问token',
-      onTap: () =>
-          setState(() {}), // 关闭后刷新移除本条，与 util 版关闭写入配置的行为配合
+          '如有条件，可以到设置中添加github访问token',
+      onTap: () => setState(() {}), // 关闭后刷新移除本条，与 util 版关闭写入配置的行为配合
     );
   }
 

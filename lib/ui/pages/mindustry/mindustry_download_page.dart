@@ -7,7 +7,7 @@ import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
-import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
+import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 

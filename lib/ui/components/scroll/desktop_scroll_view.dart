@@ -711,7 +711,11 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
       fit: StackFit.passthrough,
       children: [
         _buildListView(),
-        if (_controller.hasClients) _buildScrollBar(),
+        // 滚动条用 Positioned.fill 覆盖、不参与 Stack 尺寸计算：
+        // Align 在松散约束下会撑满 constraints.biggest（如下拉菜单
+        // maxHeight 封顶 200）→ 把整个 Stack 撑成 200、菜单莫名变高；
+        // 页面级紧约束下两者结果一致，行为不变
+        if (_controller.hasClients) Positioned.fill(child: _buildScrollBar()),
       ],
     );
   }

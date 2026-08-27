@@ -508,11 +508,19 @@ class _PopupOverlayLayout extends SingleChildLayoutDelegate {
   @override
   Offset getPositionForChild(Size size, Size childSize) {
     onAnchorChanged?.call(anchorRect, size);
-    // 定位基于最大（完整）尺寸：动画中 childSize 渐增，位置不随动画漂移
+    // 定位基于最大（完整）尺寸：展开动画中 childSize 渐增，位置不随动画漂移
+    // 允许回落：childSize 显著变小(真实收缩/浮动内容高度变化)时更新 max，
+    // 避免一次瞬时大测量(如 hover 触发重布局)把尺寸永久锁大
     final prev = sizeTracker.max;
-    if (prev == null ||
-        childSize.height > prev.height ||
-        childSize.width > prev.width) {
+    final grew =
+        prev == null ||
+        childSize.height > prev.height + 0.01 ||
+        childSize.width > prev.width + 0.01;
+    final shrank =
+        prev != null &&
+        (childSize.height < prev.height - 1.0 ||
+            childSize.width < prev.width - 1.0);
+    if (grew || shrank) {
       sizeTracker.max = childSize;
     }
     final effective = sizeTracker.max ?? childSize;

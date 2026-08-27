@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
+import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:flutter/cupertino.dart';
 
 typedef InputSettingBarCallBack = void Function(String);
@@ -27,7 +27,7 @@ class InputSettingBar extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget widget = OutlinedTextField(
       labelWidth: titleWide,
-      labelSpacing: 0,
+
       label: title,
       controller: controller,
       onEditingComplete: onEditingComplete,

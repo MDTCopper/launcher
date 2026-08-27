@@ -8,7 +8,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 
-import 'package:copper_launcher/ui/util/widget/feature_text_field.dart';
+import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:flutter/material.dart';
 
 ///账户管理页路由（左侧主导航「概览 > 账户」）。
