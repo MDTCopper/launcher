@@ -643,9 +643,10 @@ class _ModViewPageState extends State<ModViewPage> {
                   ),
                 ),
               )..layout();
-              final layoutAuthor = painter.width < c.maxWidth + 1;
+              const authorMinWidth = 120;
+              final nameSoLong = c.maxWidth - painter.width < authorMinWidth;
 
-              final name = Text(
+              Widget name = Text(
                 generalizeText(mod.name),
                 style: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.bold,
@@ -654,19 +655,26 @@ class _ModViewPageState extends State<ModViewPage> {
                 overflow: TextOverflow.ellipsis,
               );
 
+              Widget author = Text(
+                generalizeText(mod.author),
+                style: theme.textTheme.labelMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+
+              if (nameSoLong) {
+                author = SizedBox(width: 100, child: author);
+                name = Flexible(child: name);
+              } else {
+                author = Expanded(child: author);
+              }
+
               return Row(
                 spacing: 8,
                 children: [
+                  name,
                   VerticalDivider(endIndent: 5, indent: 5, width: 1),
-                  if (layoutAuthor)
-                    Expanded(
-                      child: Text(
-                        generalizeText(mod.author),
-                        style: theme.textTheme.labelMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                  author,
                 ],
               );
             },
