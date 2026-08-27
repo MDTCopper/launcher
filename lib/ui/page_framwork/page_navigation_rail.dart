@@ -1,5 +1,4 @@
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
-import 'package:copper_launcher/ui/theme/app_colors.dart';
 
 import 'package:copper_launcher/ui/vars.dart';
 

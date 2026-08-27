@@ -84,8 +84,6 @@ class PriorityRow extends StatelessWidget {
     this.textIconGap = 4,
   });
 
-  /// 一条的固有宽：固定 [width] 优先；否则文本 TextPainter 实测 + 图标宽；
-  /// 再与 [minWidth] 取大(跨行占位)。
   double _measure(BuildContext context, PriorityRowItem item) {
     if (item.width != null) return item.width!;
     assert(item.text != null, '自定义 child 必须传 width');

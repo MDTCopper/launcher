@@ -16,6 +16,8 @@ class ActionButton extends StatefulWidget {
   final VoidCallback? onTap;
   final bool selected;
   final bool enable;
+  final EdgeInsets? padding;
+  final EdgeInsets? margin;
   final double hoverElevation;
   final double? pressedScale;
   final Color? backgroundColor; // 按钮所在容器背景，用于混合选中背景色
@@ -23,8 +25,8 @@ class ActionButton extends StatefulWidget {
 
   const ActionButton({
     super.key,
-    required this.icon,
-    required this.content,
+    this.icon,
+    this.content,
     this.hint,
     this.onTap,
 
@@ -34,6 +36,8 @@ class ActionButton extends StatefulWidget {
     this.pressedScale,
     this.backgroundColor,
     this.hintPosition = HintPosition.auto,
+    this.padding,
+    this.margin,
   });
 
   @override
@@ -111,14 +115,15 @@ class _ActionButtonState extends State<ActionButton>
           elevation: 0,
           hoverElevation: enabled ? widget.hoverElevation : 0,
           borderRadius: BorderRadius.circular(4),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: widget.padding ?? const EdgeInsets.all(8),
+          margin: widget.margin,
           backgroundColor: backgroundT.value,
           onTap: enabled ? widget.onTap : null,
           child: IconTheme(
             data: IconTheme.of(context).copyWith(color: itemColor),
             child: DefaultTextStyle(
               style:
-                  theme.textTheme.bodyLarge?.copyWith(
+                  theme.textTheme.bodyMedium?.copyWith(
                     color: itemColor,
                     fontWeight: widget.selected
                         ? FontWeight.bold
@@ -128,9 +133,11 @@ class _ActionButtonState extends State<ActionButton>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ?widget.icon,
-                  const SizedBox(width: 8),
-                  ?widget.content,
+                  if (widget.icon != null) ...[
+                    widget.icon!,
+                    const SizedBox(width: 8),
+                  ],
+                  if (widget.content != null) widget.content!,
                 ],
               ),
             ),

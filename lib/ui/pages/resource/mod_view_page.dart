@@ -632,24 +632,44 @@ class _ModViewPageState extends State<ModViewPage> {
         ),
         title: SizedBox(
           height: 24,
-          child: Row(
-            spacing: 8,
-            children: [
-              Text(
-                removeColorTags(mod.name),
+          child: LayoutBuilder(
+            builder: (_, c) {
+              final painter = TextPainter(
+                textDirection: Directionality.of(context),
+                text: TextSpan(
+                  text: removeColorTags(mod.name),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )..layout();
+              final layoutAuthor = painter.width < c.maxWidth + 1;
+
+              final name = Text(
+                generalizeText(mod.name),
                 style: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
-              ),
-              VerticalDivider(endIndent: 5, indent: 5),
-              Expanded(
-                child: Text(
-                  removeColorTags(removeNewlines(mod.author)),
-                  style: theme.textTheme.bodySmall,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+
+              return Row(
+                spacing: 8,
+                children: [
+                  VerticalDivider(endIndent: 5, indent: 5, width: 1),
+                  if (layoutAuthor)
+                    Expanded(
+                      child: Text(
+                        generalizeText(mod.author),
+                        style: theme.textTheme.labelMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
         subtitle: Column(

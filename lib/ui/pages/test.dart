@@ -1,5 +1,4 @@
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
-import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -29,10 +28,10 @@ class TestState extends State<Test> {
   final ScrollController listController = ScrollController();
 
   // ── 按钮演示区状态 ──
-  int _btnTap = 0; // ReboundButton 点击次数
-  int _btnLongTap = 0; // ReboundButton 长按次数
-  int _iconTap = 0; // IconTextButton 点击次数
-  bool _navCollapsed = false; // NavigationCollapseButton 收起态（箭头旋转）
+  final int _btnTap = 0; // ReboundButton 点击次数
+  final int _btnLongTap = 0; // ReboundButton 长按次数
+  final int _iconTap = 0; // IconTextButton 点击次数
+  final bool _navCollapsed = false; // NavigationCollapseButton 收起态（箭头旋转）
 
   // ── 第 11 区演示状态 ──
   int _segSelected = 1; // SegmentedReboundButton 选中值

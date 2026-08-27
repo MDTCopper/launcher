@@ -1,121 +1,64 @@
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:flutter/material.dart';
 
-class ReboundCheckbox extends StatefulWidget {
+/// copper 风格复选：基于 [ActionButton] 封装，风格与选中态/禁用态统一
+///
+/// - [value] 受控选中态(与 ActionButton.selected 同构)
+/// - [onChange] 点击回调(传翻转后的值)
+/// - [label]/[icon] 映射为 ActionButton 的 content/icon(Widget 形式)
+/// - 可选 [hint] 悬停提示、[enable] 禁用态
+class ReboundCheckbox extends StatelessWidget {
+  final String? label;
+  final IconData? icon;
+  final bool value;
+  final ValueChanged<bool>? onChange;
+  final String? hint;
+  final bool enable;
+  final double? pressedScale;
+
+  /// 图标着色(未选中时)；ActionButton 选中前景走主题色体系
+  final Color? itemColor;
+
   const ReboundCheckbox({
     super.key,
     required this.value,
     this.icon,
     this.label,
     this.onChange,
+    this.hint,
+    this.enable = true,
+    this.pressedScale,
     this.itemColor,
-    this.itemActiveColor,
-    this.backgroundColor,
-    this.backgroundActiveColor,
   });
-
-  final String? label;
-  final IconData? icon;
-  final bool value;
-  final ValueChanged<bool>? onChange;
-
-  final Color? itemColor;
-  final Color? itemActiveColor;
-  final Color? backgroundColor;
-  final Color? backgroundActiveColor;
-
-  @override
-  State<StatefulWidget> createState() => _ReboundCheckboxState();
-}
-
-class _ReboundCheckboxState extends State<ReboundCheckbox>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    if (widget.value) _controller.animateTo(1.0);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(covariant ReboundCheckbox oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value) {
-      if (widget.value) {
-        _controller.forward();
-      } else {
-        _controller.reverse();
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    final itemColor = widget.itemColor ?? theme.colorScheme.onSurface;
-    final itemActiveColor =
-        widget.itemActiveColor ?? theme.colorScheme.secondaryContainer;
-    final backgroundColor =
-        widget.backgroundColor ?? theme.colorScheme.secondaryContainer;
-    final backgroundActiveColor =
-        widget.backgroundActiveColor ?? theme.colorScheme.primary;
-
-    return ConstrainedBox(
-      constraints: BoxConstraints(minWidth: 20, minHeight: 20),
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (_, child) {
-          final animation = CurvedAnimation(
-            parent: _controller,
-            curve: Curves.ease,
-          );
-
-          final itemColorTween = ColorTween(
-            begin: itemColor,
-            end: itemActiveColor,
-          ).animate(animation);
-          final backgroundColorTween = ColorTween(
-            begin: backgroundColor,
-            end: backgroundActiveColor,
-          ).animate(animation);
-          return ReboundButton(
-            backgroundColor: backgroundColorTween.value,
-            onTap: () => widget.onChange?.call(!widget.value),
-            child: Row(
-              spacing: 4,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.icon != null)
-                  Icon(widget.icon!, color: itemColorTween.value),
-                if (widget.label != null)
-                  Text(
-                    widget.label!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: itemColorTween.value,
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
+    return ActionButton(
+      icon: icon == null ? null : Icon(icon, size: 16, color: itemColor),
+      content: label == null ? null : Text(label!),
+      hint: hint,
+      selected: value,
+      padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      enable: enable,
+      onTap: onChange == null ? null : () => onChange!(!value),
+      pressedScale: pressedScale,
     );
   }
 }
 
+/// 勾选图标切换版复选：未选显示 [icon](默认 ✕)、选中翻转动画切换为 [activeIcon](默认 ✓)。
+///
+/// 与 [ReboundCheckbox] 的区别在内容表现：这里是图标本身随选中态切换
+/// (带旋转 + 淡入动画)，适合 trailing 等紧凑场景；按钮外壳同样走 ActionButton。
 class ReboundCheckChangeBox extends StatefulWidget {
+  final String? label;
+  final bool value;
+  final ValueChanged<bool>? onChange;
+  final Icon? icon;
+  final Icon? activeIcon;
+  final String? hint;
+  final bool enable;
+
   const ReboundCheckChangeBox({
     super.key,
     required this.value,
@@ -123,159 +66,42 @@ class ReboundCheckChangeBox extends StatefulWidget {
     this.activeIcon,
     this.label,
     this.onChange,
-    this.itemColor,
-    this.itemActiveColor,
-    this.backgroundColor,
-    this.backgroundActiveColor,
+    this.hint,
+    this.enable = true,
   });
-
-  final String? label;
-  final bool value;
-  final ValueChanged<bool>? onChange;
-
-  final Icon? icon;
-  final Icon? activeIcon;
-
-  final Color? itemColor;
-  final Color? itemActiveColor;
-  final Color? backgroundColor;
-  final Color? backgroundActiveColor;
 
   @override
   State<StatefulWidget> createState() => _ReboundCheckChangeBoxState();
 }
 
-class _ReboundCheckChangeBoxState extends State<ReboundCheckChangeBox>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    if (widget.value) _controller.animateTo(1.0);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(covariant ReboundCheckChangeBox oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value) {
-      if (widget.value) {
-        _controller.forward();
-      } else {
-        _controller.reverse();
-      }
-    }
-  }
-
+class _ReboundCheckChangeBoxState extends State<ReboundCheckChangeBox> {
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final icon = widget.icon ?? const Icon(Icons.close, size: 16);
+    final activeIcon = widget.activeIcon ?? const Icon(Icons.check, size: 16);
 
-    final itemColor = widget.itemColor ?? theme.colorScheme.onSurface;
-    final itemActiveColor =
-        widget.itemActiveColor ?? theme.colorScheme.secondaryContainer;
-    final backgroundColor =
-        widget.backgroundColor ?? theme.colorScheme.secondaryContainer;
-    final backgroundActiveColor =
-        widget.backgroundActiveColor ?? theme.colorScheme.primary;
-
-    final icon = widget.icon ?? Icon(Icons.close);
-    final activeIcon = widget.activeIcon ?? Icon(Icons.check);
-
-    return ConstrainedBox(
-      constraints: BoxConstraints(minWidth: 20, minHeight: 20),
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (_, child) {
-          final animation = CurvedAnimation(
-            parent: _controller,
-            curve: Curves.ease,
-          );
-
-          final itemColorTween = ColorTween(
-            begin: itemColor,
-            end: itemActiveColor,
-          ).animate(animation);
-          final backgroundColorTween = ColorTween(
-            begin: backgroundColor,
-            end: backgroundActiveColor,
-          ).animate(animation);
-          return ReboundButton(
-            backgroundColor: backgroundColorTween.value,
-            elevation: 2,
-            onTap: widget.onChange == null
-                ? null
-                : () => widget.onChange?.call(!widget.value),
-            child: Row(
-              spacing: 4,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 400),
-                  transitionBuilder: (child, animation) {
-                    final Animation<double> turns;
-
-                    if (animation.isForwardOrCompleted) {
-                      turns = Tween(begin: -0.25, end: 0.0).animate(
-                        CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOutBack,
-                        ),
-                      );
-                    } else {
-                      turns = Tween(begin: 0.25, end: 0.0).animate(
-                        CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeInBack,
-                        ),
-                      );
-                    }
-
-                    final opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-                      CurvedAnimation(
-                        parent: animation,
-                        curve: Interval(0.4, 1.0),
-                        // reverseCurve: Interval(0.3, 1.0),
-                      ),
-                    );
-
-                    return FadeTransition(
-                      opacity: opacity,
-                      child: RotationTransition(turns: turns, child: child),
-                    );
-                  },
-                  child: KeyedSubtree(
-                    key: ValueKey(widget.value),
-                    child: IconTheme(
-                      data: theme.iconTheme.copyWith(
-                        color: itemColorTween.value,
-                      ),
-                      child: widget.value ? activeIcon : icon,
-                    ),
-                  ),
-                ),
-                if (widget.label != null)
-                  Text(
-                    widget.label!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: itemColorTween.value,
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
+    // 图标随选中态切换：旋转 + 淡入动画(AnimatedSwitcher)
+    final switcherIcon = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (child, animation) {
+        return FadeTransition(opacity: animation, child: child);
+      },
+      child: KeyedSubtree(
+        key: ValueKey(widget.value),
+        child: widget.value ? activeIcon : icon,
       ),
+    );
+
+    return ActionButton(
+      icon: switcherIcon,
+      content: widget.label == null ? null : Text(widget.label!),
+      padding: const EdgeInsets.all(8),
+      hint: widget.hint,
+      selected: widget.value,
+      enable: widget.enable,
+      onTap: widget.onChange == null
+          ? null
+          : () => widget.onChange!(!widget.value),
     );
   }
 }
