@@ -26,6 +26,39 @@ class DropdownOption<T> {
   });
 }
 
+/// 菜单顶部自定义区构建器（[DropdownLayer.topWidget]）
+///
+/// [controller] 提供选中集合与全选 / 重置能力，供场景自建“全选 / 重置”等工具栏
+typedef DropdownTopWidgetBuilder<T> =
+    Widget Function(BuildContext context, DropdownController<T> controller);
+
+/// 下拉框菜单控制器：供菜单顶部自定义区（[DropdownLayer.topWidget]）使用
+///
+/// 场景可按需自建“全选 / 重置”等工具栏；状态变化触发重建时读取到的值始终最新
+class DropdownController<T> {
+  _DropdownLayerState<T>? _state;
+
+  void _attach(_DropdownLayerState<T> state) => _state = state;
+  void _detach() => _state = null;
+
+  /// 当前是否已全选（空选项列表视为未全选）
+  bool get isAllSelected {
+    final state = _state;
+    if (state == null) return false;
+    return state.widget.options.isNotEmpty &&
+        state.selectValues.length == state.widget.options.length;
+  }
+
+  /// 全选：选中全部选项
+  void selectAll() => _state?._selectAll();
+
+  /// 重置：清空全部选项
+  void reset() => _state?._resetAll();
+
+  /// 当前选中集合
+  Set<T> get selectValues => Set.of(_state?.selectValues ?? <T>{});
+}
+
 /// 下拉选择 Field：点击头部在下方展开选项菜单
 ///
 /// 基于 [PopupOverlay] 实现：
@@ -43,7 +76,9 @@ class DropdownLayer<T> extends StatefulWidget {
   final Widget? headExtra;
 
   /// 菜单顶部自定义区：显示在菜单内容最上方
-  final Widget? topWidget;
+  ///
+  /// 接收 [DropdownController]，场景可按需自建“全选 / 重置”等工具栏
+  final DropdownTopWidgetBuilder<T>? topWidget;
 
   /// 多选模式：菜单项变为复选框，勾选不收起菜单，头部显示"已选 N 项"
   final bool multiSelection;
@@ -92,7 +127,7 @@ class DropdownLayer<T> extends StatefulWidget {
     double width = double.infinity,
     double menuHeight = 200,
     Widget? headExtra,
-    Widget? topWidget,
+    DropdownTopWidgetBuilder<T>? topWidget,
     Color? color,
     Color? hoverColor,
     Border? border,
@@ -124,6 +159,9 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     with TickerProviderStateMixin {
   final PopupOverlayController _popupController = PopupOverlayController();
 
+  /// 供菜单顶部自定义区使用的控制器
+  final DropdownController<T> controller = DropdownController<T>();
+
   bool onHover = false;
   bool expanded = false;
 
@@ -142,6 +180,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   @override
   void initState() {
     super.initState();
+    controller._attach(this);
     selectValue = widget.initialValue;
     selectValues = {...?widget.initialValues};
 
@@ -176,6 +215,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
 
   @override
   void dispose() {
+    controller._detach();
     selectController.dispose();
     arrowController.dispose();
     super.dispose();
@@ -267,7 +307,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
 
     final width = anchorWidth;
     // 菜单顶部自定义区：显示在菜单内容最上方
-    final topWidget = widget.topWidget;
+    final topWidget = widget.topWidget?.call(context, controller);
 
     return Material(
       color: Colors.transparent,
@@ -293,51 +333,14 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
             child: Column(
               spacing: 2,
               children: [
-                // 菜单顶部自定义区
+                // 菜单顶部自定义区（场景按需提供，如 全选 / 重置 工具栏）
                 ?topWidget,
-                // 多选顶部操作栏：全选 / 重置 互斥切换
-                if (_multiSelection && widget.options.isNotEmpty)
-                  _buildMultiActionBar(),
                 ...widget.options.map(_buildOption),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-
-  /// 多选菜单顶部操作栏：全选 / 重置 互斥切换
-  Widget _buildMultiActionBar() {
-    final colors = AppColors.of(context);
-    final isAllSelected = selectValues.length == widget.options.length;
-    return Row(
-      children: [
-        Expanded(child: Divider(height: 6, color: colors.border)),
-        ReboundButton(
-          pressedScale: 0.9,
-          borderRadius: BorderRadius.circular(4),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          onTap: isAllSelected ? _resetAll : _selectAll,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isAllSelected ? Icons.restart_alt : Icons.select_all,
-                size: 14,
-                color: colors.itemSecondary,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                isAllSelected ? '重置' : '全选',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: colors.itemSecondary),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -473,95 +476,95 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     final head = MouseRegion(
-            onExit: (_) {
-              setState(() {
-                onHover = false;
-                _hoverChange();
-              });
-            },
-            onEnter: (_) {
-              setState(() {
-                onHover = true;
-                _hoverChange();
-              });
-            },
-            child: GestureDetector(
-              onTap: _toggle,
+      onExit: (_) {
+        setState(() {
+          onHover = false;
+          _hoverChange();
+        });
+      },
+      onEnter: (_) {
+        setState(() {
+          onHover = true;
+          _hoverChange();
+        });
+      },
+      child: GestureDetector(
+        onTap: _toggle,
 
-              child: SizedBox(
-                width: widget.width,
-                child: Stack(
+        child: SizedBox(
+          width: widget.width,
+          child: Stack(
+            children: [
+              // 装饰层
+              Positioned.fill(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: expanded
+                          ? colors.contentBorderFocus
+                          : onHover
+                          ? colors.contentBorderHover
+                          : colors.contentBorder,
+                      width: expanded || onHover ? 2 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                    color: expanded
+                        ? colors.contentBackgroundFocus
+                        : Colors.transparent,
+                  ),
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                child: Row(
                   children: [
-                    // 装饰层
-                    Positioned.fill(
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOut,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: expanded
-                                ? colors.contentBorderFocus
-                                : onHover
-                                ? colors.contentBorderHover
-                                : colors.contentBorder,
-                            width: expanded || onHover ? 2 : 1,
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                          color: expanded
-                              ? colors.contentBackgroundFocus
-                              : Colors.transparent,
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        switchInCurve: const Interval(0.5, 1.0),
+                        switchOutCurve: const Interval(0.5, 1.0),
+                        duration: const Duration(milliseconds: 300),
+                        layoutBuilder: (oldChild, children) {
+                          return Stack(
+                            alignment: Alignment.centerLeft,
+                            children: [?oldChild, ...children],
+                          );
+                        },
+                        child: Text(
+                          label,
+                          key: ValueKey(label),
+                          style: selectValue != null
+                              ? TextStyle()
+                              : theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.textTheme.bodyMedium?.color
+                                      ?.withAlpha(185),
+                                ),
                         ),
                       ),
                     ),
-
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: AnimatedSwitcher(
-                              switchInCurve: const Interval(0.5, 1.0),
-                              switchOutCurve: const Interval(0.5, 1.0),
-                              duration: const Duration(milliseconds: 300),
-                              layoutBuilder: (oldChild, children) {
-                                return Stack(
-                                  alignment: Alignment.centerLeft,
-                                  children: [?oldChild, ...children],
-                                );
-                              },
-                              child: Text(
-                                label,
-                                key: ValueKey(label),
-                                style: selectValue != null
-                                    ? TextStyle()
-                                    : theme.textTheme.bodyMedium?.copyWith(
-                                        color: theme.textTheme.bodyMedium?.color
-                                            ?.withAlpha(185),
-                                      ),
-                              ),
-                            ),
-                          ),
-                          // 头部自定义区：位于下拉图标左侧
-                          if (widget.headExtra case final headExtra?) ...[
-                            const SizedBox(width: 8),
-                            headExtra,
-                          ],
-                          RotationTransition(
-                            turns: turns,
-                            child: Icon(
-                              Icons.keyboard_arrow_down,
-                              color: colors.itemPrimary,
-                              size: 18,
-                            ),
-                          ),
-                        ],
+                    // 头部自定义区：位于下拉图标左侧
+                    if (widget.headExtra case final headExtra?) ...[
+                      const SizedBox(width: 8),
+                      headExtra,
+                    ],
+                    RotationTransition(
+                      turns: turns,
+                      child: Icon(
+                        Icons.keyboard_arrow_down,
+                        color: colors.itemPrimary,
+                        size: 18,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          );
+            ],
+          ),
+        ),
+      ),
+    );
 
     return PopupOverlay(
       controller: _popupController,

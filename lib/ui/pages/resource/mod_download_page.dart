@@ -370,39 +370,32 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Row(
+                    Wrap(
                       spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        Flexible(
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              IconTextButton(
-                                icon: Icons.info_outline,
-                                content: '模组详情',
-                                onTap: () {},
-                              ),
-                              IconTextButton(
-                                icon: LineIcons.readme,
-                                content: 'README',
-                                onTap: () => _showReadme(),
-                              ),
-                              IconTextButton(
-                                icon: Icons.file_open_outlined,
-                                content: '源码仓库',
-                                onTap: () => _goToUrl(
-                                  'https://github.com/${modListMeta.repo}',
-                                ),
-                              ),
-                              IconTextButton(
-                                icon: FontAwesomeIcons.github,
-                                content: '作者主页',
-                                onTap: () => _goToUrl(
-                                  'https://github.com/${modListMeta.repo.split('/').first}',
-                                ),
-                              ),
-                            ],
+                        IconTextButton(
+                          icon: Icons.info_outline,
+                          content: '模组详情',
+                          onTap: () {},
+                        ),
+                        IconTextButton(
+                          icon: LineIcons.readme,
+                          content: 'README',
+                          onTap: () => _showReadme(),
+                        ),
+                        IconTextButton(
+                          icon: Icons.file_open_outlined,
+                          content: '源码仓库',
+                          onTap: () => _goToUrl(
+                            'https://github.com/${modListMeta.repo}',
+                          ),
+                        ),
+                        IconTextButton(
+                          icon: FontAwesomeIcons.github,
+                          content: '作者主页',
+                          onTap: () => _goToUrl(
+                            'https://github.com/${modListMeta.repo.split('/').first}',
                           ),
                         ),
                         IconTextButton(

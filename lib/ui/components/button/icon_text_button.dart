@@ -36,7 +36,7 @@ class IconTextButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final itemColor = AppColors.of(context).itemPrimary;
+    final itemColor = AppColors.of(context).itemSecondary;
 
     return ReboundButton(
       pressedScale: pressedScale,

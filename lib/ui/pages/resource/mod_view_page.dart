@@ -11,6 +11,7 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/format/time_since.dart';
 import 'package:flutter/material.dart';
@@ -368,6 +369,42 @@ class _ModViewPageState extends State<ModViewPage> {
           DropdownOption(value: 'js', label: 'JavaScript'),
           DropdownOption(value: 'json', label: 'Json'),
         ],
+        // 场景自建“全选 / 重置”工具栏，位于菜单顶部
+        topWidget: (context, controller) {
+          final colors = AppColors.of(context);
+          return Row(
+            children: [
+              Expanded(child: Divider(height: 6, color: colors.border)),
+              ReboundButton(
+                pressedScale: 0.9,
+                borderRadius: BorderRadius.circular(4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                onTap: controller.isAllSelected
+                    ? controller.reset
+                    : controller.selectAll,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      controller.isAllSelected
+                          ? Icons.restart_alt
+                          : Icons.select_all,
+                      size: 14,
+                      color: colors.itemSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      controller.isAllSelected ? '重置' : '全选',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.itemSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
 
