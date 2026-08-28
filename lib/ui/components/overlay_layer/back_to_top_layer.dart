@@ -3,16 +3,17 @@ import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 /// 滚动回顶浮层：监听 [ScrollController]，滚动超过 [showThreshold] 时浮现
-/// 回顶按钮，低于 [hideThreshold] 时隐藏；点击滚动到顶部。
+/// 回顶按钮，低于 [hideThreshold] 时隐藏；点击滚动到顶部
 ///
-/// 需要时再套（如 `BackToTopLayer(controller: c, child: list)`），
-/// 滚动视图本身不内嵌。
+/// 需要时再套
+/// 滚动视图本身不内嵌
 class BackToTopLayer extends StatefulWidget {
   final ScrollController controller;
   final Widget child;
   final double showThreshold; // 滚动超过此值显示按钮
   final double hideThreshold; // 滚动低于此值隐藏按钮
   final Alignment alignment; // 按钮位置
+  final EdgeInsets padding;
 
   const BackToTopLayer({
     super.key,
@@ -20,7 +21,8 @@ class BackToTopLayer extends StatefulWidget {
     required this.child,
     this.showThreshold = 1200,
     this.hideThreshold = 600,
-    this.alignment = const Alignment(0, 0.9), // 底部中央偏左
+    this.alignment = .bottomRight,
+    this.padding = const EdgeInsets.all(20),
   });
 
   @override
@@ -62,7 +64,7 @@ class _BackToTopLayerState extends State<BackToTopLayer> {
         Align(
           alignment: widget.alignment,
           child: Padding(
-            padding: const EdgeInsets.only(bottom: 20),
+            padding: widget.padding,
             child: AnimatedOpacity(
               opacity: _show ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 180),

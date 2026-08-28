@@ -124,19 +124,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
 
     final theme = Theme.of(context);
 
-    return ReboundListTile(
-      padding: EdgeInsets.all(8),
-      borderRadius: BorderRadius.circular(4),
-      leading: Image.asset(
-        version.launcher == LauncherType.copper
-            ? Images.copper
-            : Images.mindustry,
-        scale: 0.8,
-        height: 48,
-      ),
-      title: Text(version.tag, style: theme.textTheme.bodyLarge),
-      subtitle: Text(version.name, style: theme.textTheme.bodyMedium),
-      trailing: IconTheme(
+    Widget buildMenu() {
+      return IconTheme(
         data: theme.iconTheme,
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -165,7 +154,22 @@ class _VersionSelectPageState extends State<VersionSelectPage>
             ),
           ],
         ),
+      );
+    }
+
+    return ReboundListTile(
+      padding: EdgeInsets.all(8),
+      borderRadius: BorderRadius.circular(4),
+      leading: Image.asset(
+        version.launcher == LauncherType.copper
+            ? Images.copper
+            : Images.mindustry,
+        scale: 0.8,
+        height: 48,
       ),
+      title: Text(version.tag, style: theme.textTheme.bodyLarge),
+      subtitle: Text(version.name, style: theme.textTheme.bodyMedium),
+
       onTap: () => _select(version),
     );
   }

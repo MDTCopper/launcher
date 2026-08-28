@@ -5,6 +5,12 @@ import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/download_mod.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/util/io/os.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 
@@ -168,30 +174,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     final minGameVersion = minGameVersionsCache[mod.releaseNum] ??=
         _getMinGameVersion(mod);
 
-    final trailing = modListMeta.hasJava
-        ? Row(
-            spacing: 8,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              IconTextButton(
-                icon: Icons.folder_outlined,
-                content: '下载源码',
-                onTap: () => _buildDownloadPopup(mod, downloadSource: true),
-              ),
-              IconTextButton(
-                icon: Icons.outbond_outlined,
-                content: '版本详情',
-                onTap: () {},
-              ),
-            ],
-          )
-        : IconTextButton(
-            icon: Icons.outbond_outlined,
-            content: '版本详情',
-            onTap: () {},
-          );
-
-    return ReboundListTile(
+    final tile = ReboundListTile(
       borderRadius: BorderRadius.circular(4),
       title: Text(mod.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: PriorityRow(
@@ -277,8 +260,130 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         ],
       ),
       onTap: () => _buildDownloadPopup(mod),
-      // trailing: trailing,
     );
+
+    // 滑动菜单：移动端使用；桌面端 debug 模式下可测试
+    Widget swipeChild = tile;
+    if (isMobile || (isDesktop && kDebugMode)) {
+      swipeChild = ActionSlideLayer(
+        actions: _buildSwipeActions(context, mod),
+        child: tile,
+      );
+    }
+
+    // 右键菜单（桌面端）/ 长按菜单（多端）：内容 = 构建 tile 时未用的下载源码 / 版本详情
+    return MenuLayer(
+      rightClickTrigger: true,
+      longPressTrigger: true,
+      menuBuilder: (context, controller) =>
+          _buildMenuItems(context, mod, controller),
+      child: swipeChild,
+    );
+  }
+
+  /// 菜单项：图标 + 文本
+  Widget _buildMenuItem(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final color = AppColors.of(context).itemPrimary;
+    return SizedBox(
+      width: 120,
+      child: ReboundButton(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 右键 / 长按菜单内容：下载源码 + 版本详情（构建 tile 时未用的 trailing）
+  List<Widget> _buildMenuItems(
+    BuildContext context,
+    ModGithubMeta mod,
+    PopupOverlayController controller,
+  ) {
+    return [
+      if (modListMeta.hasJava)
+        _buildMenuItem(
+          context,
+          icon: Icons.folder_outlined,
+          label: '下载源码',
+          onTap: () {
+            _buildDownloadPopup(mod, downloadSource: true);
+            controller.dismiss();
+          },
+        ),
+      _buildMenuItem(
+        context,
+        icon: Icons.outbond_outlined,
+        label: '版本详情',
+        onTap: () {
+          _buildDownloadPopup(mod);
+          controller.dismiss();
+        },
+      ),
+    ];
+  }
+
+  /// 滑动菜单动作：下载源码 + 版本详情
+  List<Widget> _buildSwipeActions(BuildContext context, ModGithubMeta mod) {
+    final colors = AppColors.of(context);
+    Widget action({
+      required IconData icon,
+      required String label,
+      required VoidCallback onTap,
+    }) {
+      return SizedBox(
+        width: 88,
+        child: Container(
+          color: colors.interactive,
+          alignment: Alignment.center,
+          child: ReboundButton(
+            padding: EdgeInsets.zero,
+            borderRadius: BorderRadius.circular(0),
+            onTap: onTap,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18, color: colors.itemOnInteractive),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: colors.itemOnInteractive,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return [
+      if (modListMeta.hasJava)
+        action(
+          icon: Icons.folder_outlined,
+          label: '下载源码',
+          onTap: () => _buildDownloadPopup(mod, downloadSource: true),
+        ),
+      action(
+        icon: Icons.outbond_outlined,
+        label: '版本详情',
+        onTap: () => _buildDownloadPopup(mod),
+      ),
+    ];
   }
 
   Widget? _buildWarningBar() {

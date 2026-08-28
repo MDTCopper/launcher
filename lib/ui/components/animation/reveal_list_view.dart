@@ -1,21 +1,21 @@
 import 'package:copper_launcher/ui/components/scroll/list_view.dart';
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:flutter/material.dart';
 
 import 'appear_item.dart';
 
-/// 入场/浮现列表（AppearListView 重构版）。
+/// 入场/浮现列表
 ///
 /// 两种构造：
 /// - 默认构造：全量 [items]，**错位入场**（无浮现，适合模块少、无性能压力的列表）
 /// - [RevealListView.builder]：惰性构建（滚动到才构建），**错位入场 + 滚动浮现**；
 ///   可选固定条目高度（[itemExtent] / [prototypeItem]），不传则条目自适应
-///   让总长精确可预测，滚动条不乱跳。
+///   让总长精确可预测，滚动条不乱跳
 ///
 /// 浮现机制：条目首次构建时播放入场动画——进入页面按 index 错位（延迟递增），
 /// 滚动后构建的条目立即浮现；已出现的条目滚动回来不重复动画。
 ///
-/// 内部滚动容器复用 [CopperListView]（桌面滚动条/触控板/渐变遮罩）。
-/// 需要回顶按钮时自行套 `BackToTopLayer`（传入同一个 [scrollController]）。
+/// 内部滚动容器复用 [CopperListView]
 class RevealListView extends StatefulWidget {
   // ── 内容 ──
   final List<Widget?> items;
@@ -88,10 +88,10 @@ class RevealListView extends StatefulWidget {
 class _RevealListViewState extends State<RevealListView> {
   late final ScrollController _scrollController;
 
-  /// 首帧构建完成后置 true：滚动构建的条目直接显示（只入场动画，无滚动浮现）
+  /// 首帧构建完成后置 true：滚动构建的条目直接显示
   bool _firstBuildDone = false;
 
-  /// 已播放过动画的条目 index（滚动回来不重复浮现）
+  /// 已播放过动画的条目 index
   final Set<int> _animated = {};
 
   int get _count => widget.itemCount ?? widget.items.length;
@@ -101,7 +101,7 @@ class _RevealListViewState extends State<RevealListView> {
     super.initState();
     _scrollController = widget.scrollController ?? ScrollController();
 
-    // 首帧后：滚动构建的条目不再播放入场动画（只入场动画）
+    // 首帧后：滚动构建的条目不再播放入场动画
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _firstBuildDone = true);
     });
@@ -164,18 +164,20 @@ class _RevealListViewState extends State<RevealListView> {
       );
     }
 
-    // 全量：错位入场（无浮现）
-    return CopperListView(
+    // 全量：错位入场
+    return CopperSingleChildScrollView(
       controller: _scrollController,
       physics: widget.physics,
       padding: widget.padding,
-      shrinkWrap: widget.shrinkWrap,
       fadeMask: widget.fadeMask,
-      children: [
-        for (int i = 0; i < widget.items.length; i++)
-          if (widget.items[i] != null)
-            _wrapItem(i, widget.items[i]!, animate: true),
-      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (int i = 0; i < widget.items.length; i++)
+            if (widget.items[i] != null)
+              _wrapItem(i, widget.items[i]!, animate: true),
+        ],
+      ),
     );
   }
 }
