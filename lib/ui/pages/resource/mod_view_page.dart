@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:async/async.dart';
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/net_asset.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
@@ -40,6 +39,13 @@ class _ModViewPageState extends State<ModViewPage> {
   static int index = 1;
   static bool order = true;
   static String sort = 'default';
+
+  /// 版本(180) + 排序(200) + 两处间距(24*2) ≈ 428，即需求中的“约 420”
+  static const double _kVersionSortBlockWidth = 420;
+
+  /// 选项区并排阈值：模组类型标签(≈72) + 紧凑下拉(150) + 版本排序块(428)
+  static const double _kInlineMoreOptionsMinWidth =
+      420 + _kVersionSortBlockWidth;
 
   late bool conditionChange;
 
@@ -296,7 +302,9 @@ class _ModViewPageState extends State<ModViewPage> {
 
   Widget _buildHeadBar() {
     final theme = Theme.of(context);
-
+    var selectedVersion = double.tryParse(
+      config.versionOptions.selectedVersion?.releaseNum.substring(1) ?? '',
+    );
     Widget buildResetButton() {
       final showResetButton =
           searchString.isNotEmpty ||
@@ -341,35 +349,33 @@ class _ModViewPageState extends State<ModViewPage> {
       );
     }
 
-    var selectedVersion = double.tryParse(
-      config.versionOptions.selectedVersion?.releaseNum.substring(1) ?? '',
+    /// 模组类型紧凑多选下拉：窄窗与宽窗并排时共用
+    Widget buildModTypeDropdown() => LayoutBuilder(
+      builder: (_, c) => DropdownLayer<String>.multiSelect(
+        hintText: '不限',
+        width: c.maxWidth.clamp(0.0, 280),
+        initialValues: modTypeSet,
+        onMultiSelect: (set) {
+          setState(() {
+            modTypeSet
+              ..clear()
+              ..addAll(set);
+          });
+        },
+        options: [
+          DropdownOption(value: 'copper', label: 'Copper'),
+          DropdownOption(value: 'java', label: 'Java'),
+          DropdownOption(value: 'js', label: 'JavaScript'),
+          DropdownOption(value: 'json', label: 'Json'),
+        ],
+      ),
     );
 
     Widget buildModTypeOptions() {
       Widget buildOptions() => LayoutBuilder(
         builder: (_, c) {
-          if (c.maxWidth < 330) {
-            // 窄窗：切换为多选下拉(勾选不收起，菜单顶部自带"重置"清空)
-            return DropdownLayer<String>(
-              multiSelection: true,
-              hintText: '不限',
-              width: c.maxWidth.clamp(0.0, 150),
-              initialValues: modTypeSet,
-              onMultiSelect: (set) {
-                setState(() {
-                  modTypeSet
-                    ..clear()
-                    ..addAll(set);
-                });
-              },
-              options: [
-                DropdownOption(value: 'copper', label: 'Copper'),
-                DropdownOption(value: 'java', label: 'Java'),
-                DropdownOption(value: 'js', label: 'JavaScript'),
-                DropdownOption(value: 'json', label: 'Json'),
-              ],
-            );
-          }
+          // 窄窗：切换为多选下拉
+          if (c.maxWidth < 330) return buildModTypeDropdown();
 
           return Container(
             padding: EdgeInsets.all(3),
@@ -467,6 +473,112 @@ class _ModViewPageState extends State<ModViewPage> {
       );
     }
 
+    Widget buildVersionOptions() {
+      return SizedBox(
+        width: 180,
+        child: Row(
+          spacing: 16,
+          children: [
+            Text('游戏版本'),
+            Expanded(
+              child: DropdownLayer<int>(
+                initialValue: version,
+                onSelect: (v) {
+                  setState(() {
+                    version = v;
+                    conditionChange = true;
+                  });
+                },
+                options: [
+                  DropdownOption(value: -1, label: '不限'),
+                  if (selectedVersion != null)
+                    DropdownOption(value: -2, label: '当前版本'),
+                  DropdownOption(value: 154, label: 'v154+'),
+                  DropdownOption(value: 147, label: 'v147+'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget buildSortOptions() => LayoutBuilder(
+      builder: (_, c) {
+        // 长度不足 200：排序二字并入无选项占位文本，递增递减符号并入菜单头部
+        final soSmall = c.maxWidth < 200;
+
+        return SizedBox(
+          width: c.maxWidth.clamp(0, 200),
+          child: Row(
+            children: [
+              if (!soSmall) ...[Text('排序'), const SizedBox(width: 16)],
+              Expanded(
+                child: DropdownLayer(
+                  initialValue: sort,
+                  onSelect: (s) {
+                    setState(() {
+                      sort = s;
+                      conditionChange = true;
+                    });
+                  },
+                  options: [
+                    DropdownOption(
+                      value: 'default',
+                      label: soSmall ? '默认排序' : '默认',
+                    ),
+                    DropdownOption(value: 'stars', label: '星星'),
+                    DropdownOption(value: 'updateTime', label: '更新时间'),
+                    DropdownOption(value: 'hot', label: '热度'),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              ReboundButton(
+                child: AnimatedRotation(
+                  turns: order ? 0.0 : 0.5,
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeInOutBack,
+                  child: Icon(Icons.arrow_downward, size: 18),
+                ),
+                onTap: () => setState(() => order = !order),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    /// 选项区：宽窗时模组类型与版本 / 排序并排一行，窄窗回退为分行
+    Widget buildFilterOptionsRow() => LayoutBuilder(
+      builder: (_, c) {
+        if (c.maxWidth >= _kInlineMoreOptionsMinWidth) {
+          return Row(
+            children: [
+              Flexible(child: buildModTypeOptions()),
+              const SizedBox(width: 24),
+              buildVersionOptions(),
+              const SizedBox(width: 24),
+              buildSortOptions(),
+            ],
+          );
+        }
+        return Column(
+          spacing: 8,
+          children: [
+            buildModTypeOptions(),
+            Row(
+              spacing: 16,
+              children: [
+                buildVersionOptions(),
+                Flexible(child: buildSortOptions()),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
     return ContentPanelModule(
       title: '搜索',
       child: Column(
@@ -489,74 +601,7 @@ class _ModViewPageState extends State<ModViewPage> {
               ),
             ],
           ),
-          Row(
-            spacing: 32,
-            children: [
-              SizedBox(
-                width: 180,
-                child: Row(
-                  spacing: 16,
-                  children: [
-                    Text('游戏版本'),
-                    Expanded(
-                      child: DropdownLayer<int>(
-                        initialValue: version,
-                        onSelect: (v) {
-                          setState(() {
-                            version = v;
-                            conditionChange = true;
-                          });
-                        },
-                        options: [
-                          DropdownOption(value: -1, label: '不限'),
-                          if (selectedVersion != null)
-                            DropdownOption(value: -2, label: '当前版本'),
-                          DropdownOption(value: 154, label: 'v154+'),
-                          DropdownOption(value: 147, label: 'v147+'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(
-                width: 200,
-                child: Row(
-                  spacing: 16,
-                  children: [
-                    Text('排序'),
-                    Expanded(
-                      child: DropdownLayer(
-                        initialValue: sort,
-                        onSelect: (s) {
-                          setState(() {
-                            sort = s;
-                            conditionChange = true;
-                          });
-                        },
-                        options: [
-                          DropdownOption(value: 'default', label: '默认'),
-                          DropdownOption(value: 'stars', label: '星星'),
-                          DropdownOption(value: 'updateTime', label: '更新时间'),
-                          DropdownOption(value: 'hot', label: '热度'),
-                        ],
-                      ),
-                    ),
-                    ReboundButton(
-                      child: AnimatedRotation(
-                        turns: order ? 0.0 : 0.5,
-                        duration: const Duration(milliseconds: 400),
-                        curve: Curves.easeInOutBack,
-                        child: Icon(Icons.arrow_downward),
-                      ),
-                      onTap: () => setState(() => order = !order),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          buildModTypeOptions(),
+          buildFilterOptionsRow(),
         ],
       ),
     );

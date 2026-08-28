@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'popup_overlay.dart';
 
-/// 下拉选项。
+/// 下拉选项
 class DropdownOption<T> {
   final T value;
   final Widget? leading;
@@ -26,26 +26,70 @@ class DropdownOption<T> {
   });
 }
 
-/// 下拉选择 Field：点击头部在下方展开选项菜单。
+/// 自定义头部构建器：返回下拉框的锚点组件
+///
+/// [controller] 提供开合控制与选中状态，头部可自绘外观、自行决定触发方式
+typedef DropdownHeadBuilder<T> =
+    Widget Function(BuildContext context, DropdownController<T> controller);
+
+/// 下拉框头部控制器：供自定义头部（[DropdownLayer.headBuilder]）使用
+///
+/// 触发开合与读取选中状态；状态变化会触发重建，头部可直接读取最新值
+class DropdownController<T> {
+  _DropdownLayerState<T>? _state;
+
+  void _attach(_DropdownLayerState<T> state) => _state = state;
+  void _detach() => _state = null;
+
+  /// 菜单当前是否展开
+  bool get isShowing => _state?.expanded ?? false;
+
+  /// 展开 / 收起切换
+  void toggle() => _state?._toggle();
+
+  /// 展开菜单
+  void open() => _state?._openMenu();
+
+  /// 收起菜单
+  void close() => _state?._closeMenu();
+
+  /// 单选当前选中值
+  T? get selectValue => _state?.selectValue;
+
+  /// 多选当前选中集合
+  Set<T> get selectValues => Set.of(_state?.selectValues ?? <T>{});
+
+  /// 头部展示文案
+  String get label => _state?.label ?? '';
+
+  /// 选项列表
+  List<DropdownOption<T>> get options =>
+      _state?.widget.options ?? <DropdownOption<T>>[];
+}
+
+/// 下拉选择 Field：点击头部在下方展开选项菜单
 ///
 /// 基于 [PopupOverlay] 实现：
-/// - 菜单尺寸由布局管道提供，无需 Offstage 预测量
+/// - 菜单尺寸由布局管道提供
 /// - 无需手动管理 OverlayEntry
-/// - 菜单从头部下方展开，超出屏幕自动翻转，带高度展开动画
+/// - 菜单从头部下方展开，超出屏幕自动翻转
 class DropdownLayer<T> extends StatefulWidget {
   final List<DropdownOption<T>> options;
-  final Widget? child;
+
   final T? initialValue;
   final String hintText;
   final void Function(T value)? onSelect;
 
-  /// 多选模式：菜单项变为复选框，勾选不收起菜单，头部显示"已选 N 项"。
+  /// 自定义头部构建器；为 null 时使用内置头部
+  final DropdownHeadBuilder<T>? headBuilder;
+
+  /// 多选模式：菜单项变为复选框，勾选不收起菜单，头部显示"已选 N 项"
   final bool multiSelection;
 
-  /// 多选模式的初始选中集合。
+  /// 多选模式的初始选中集合
   final Set<T>? initialValues;
 
-  /// 多选回调：勾选变化后携带当前选中集合。
+  /// 多选回调：勾选变化后携带当前选中集合
   final ValueChanged<Set<T>>? onMultiSelect;
 
   final double width;
@@ -65,13 +109,48 @@ class DropdownLayer<T> extends StatefulWidget {
     this.initialValues,
     this.onMultiSelect,
     this.menuHeight = 200,
-    this.child,
+
+    this.headBuilder,
     this.width = double.infinity,
     this.color,
     this.hoverColor,
     this.border,
     this.hoverBorder,
   });
+
+  /// 多选下拉独立构造器
+  ///
+  /// 单选用默认构造器，多选用本构造器，各参数含义与默认构造器一致
+  factory DropdownLayer.multiSelect({
+    Key? key,
+    required List<DropdownOption<T>> options,
+    required Set<T> initialValues,
+    required ValueChanged<Set<T>> onMultiSelect,
+    String hintText = '不限',
+    double width = double.infinity,
+    double menuHeight = 200,
+    DropdownHeadBuilder<T>? headBuilder,
+    Color? color,
+    Color? hoverColor,
+    Border? border,
+    Border? hoverBorder,
+  }) {
+    return DropdownLayer<T>(
+      key: key,
+      options: options,
+      initialValues: initialValues,
+      onMultiSelect: onMultiSelect,
+      hintText: hintText,
+      width: width,
+      menuHeight: menuHeight,
+      headBuilder: headBuilder,
+      color: color,
+      hoverColor: hoverColor,
+      border: border,
+      hoverBorder: hoverBorder,
+      multiSelection: true,
+    );
+  }
 
   @override
   State<StatefulWidget> createState() => _DropdownLayerState<T>();
@@ -81,6 +160,9 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     with TickerProviderStateMixin {
   final PopupOverlayController _popupController = PopupOverlayController();
 
+  /// 供 headBuilder 使用的控制器
+  final DropdownController<T> controller = DropdownController<T>();
+
   bool onHover = false;
   bool expanded = false;
 
@@ -89,16 +171,17 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
 
   bool get _multiSelection => widget.multiSelection;
 
-  /// 头部 hover 过渡（边框 / 背景）。
+  /// 头部 hover 过渡
   late final AnimationController selectController;
 
-  /// 箭头旋转。
+  /// 箭头旋转
   late final AnimationController arrowController;
   late final Animation<double> turns;
 
   @override
   void initState() {
     super.initState();
+    controller._attach(this);
     selectValue = widget.initialValue;
     selectValues = {...?widget.initialValues};
 
@@ -133,6 +216,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
 
   @override
   void dispose() {
+    controller._detach();
     selectController.dispose();
     arrowController.dispose();
     super.dispose();
@@ -193,6 +277,20 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     widget.onMultiSelect?.call(Set.of(selectValues));
   }
 
+  /// 多选全选
+  void _selectAll() {
+    setState(() {
+      selectValues = {...widget.options.map((option) => option.value)};
+    });
+    widget.onMultiSelect?.call(Set.of(selectValues));
+  }
+
+  /// 多选重置
+  void _resetAll() {
+    setState(() => selectValues = {});
+    widget.onMultiSelect?.call(<T>{});
+  }
+
   void _hoverChange() {
     if (onHover || expanded) {
       selectController.forward();
@@ -233,7 +331,12 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
             fadeMask: false,
             child: Column(
               spacing: 2,
-              children: [...widget.options.map(_buildOption)],
+              children: [
+                // 多选顶部操作栏：全选 / 重置 互斥切换
+                if (_multiSelection && widget.options.isNotEmpty)
+                  _buildMultiActionBar(),
+                ...widget.options.map(_buildOption),
+              ],
             ),
           ),
         ),
@@ -241,9 +344,10 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     );
   }
 
-  /// 多选菜单顶部操作栏
+  /// 多选菜单顶部操作栏：全选 / 重置 互斥切换
   Widget _buildMultiActionBar() {
     final colors = AppColors.of(context);
+    final isAllSelected = selectValues.length == widget.options.length;
     return Row(
       children: [
         Expanded(child: Divider(height: 6, color: colors.border)),
@@ -251,17 +355,18 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
           pressedScale: 0.9,
           borderRadius: BorderRadius.circular(4),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          onTap: () {
-            setState(() => selectValues = {});
-            widget.onMultiSelect?.call(<T>{});
-          },
+          onTap: isAllSelected ? _resetAll : _selectAll,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.restart_alt, size: 14, color: colors.itemSecondary),
+              Icon(
+                isAllSelected ? Icons.restart_alt : Icons.select_all,
+                size: 14,
+                color: colors.itemSecondary,
+              ),
               const SizedBox(width: 4),
               Text(
-                '重置',
+                isAllSelected ? '重置' : '全选',
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: colors.itemSecondary),
@@ -404,98 +509,102 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    final head = MouseRegion(
-      onExit: (_) {
-        setState(() {
-          onHover = false;
-          _hoverChange();
-        });
-      },
-      onEnter: (_) {
-        setState(() {
-          onHover = true;
-          _hoverChange();
-        });
-      },
-      child: GestureDetector(
-        onTap: _toggle,
+    // 自定义头部：由 headBuilder 自绘外观与触发方式；否则用内置头部
+    final headBuilder = widget.headBuilder;
+    final Widget head = headBuilder != null
+        ? SizedBox(width: widget.width, child: headBuilder(context, controller))
+        : MouseRegion(
+            onExit: (_) {
+              setState(() {
+                onHover = false;
+                _hoverChange();
+              });
+            },
+            onEnter: (_) {
+              setState(() {
+                onHover = true;
+                _hoverChange();
+              });
+            },
+            child: GestureDetector(
+              onTap: _toggle,
 
-        child: SizedBox(
-          width: widget.width,
-          child: Stack(
-            children: [
-              // 装饰层：边框 + 背景，hover/展开变厚变色
-              Positioned.fill(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: expanded
-                          ? colors.contentBorderFocus
-                          : onHover
-                          ? colors.contentBorderHover
-                          : colors.contentBorder,
-                      width: expanded || onHover ? 2 : 1,
-                    ),
-                    borderRadius: BorderRadius.circular(4),
-                    color: expanded
-                        ? colors.contentBackgroundFocus
-                        : Colors.transparent,
-                  ),
-                ),
-              ),
-              // 内容层：布局主体，尺寸恒定
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                child: Row(
+              child: SizedBox(
+                width: widget.width,
+                child: Stack(
                   children: [
-                    Expanded(
-                      child: AnimatedSwitcher(
-                        switchInCurve: const Interval(0.5, 1.0),
-                        switchOutCurve: const Interval(0.5, 1.0),
-                        duration: const Duration(milliseconds: 300),
-                        layoutBuilder: (oldChild, children) {
-                          return Stack(
-                            alignment: Alignment.centerLeft,
-                            children: [?oldChild, ...children],
-                          );
-                        },
-                        child: Text(
-                          label,
-                          key: ValueKey(label),
-                          style: selectValue != null
-                              ? TextStyle()
-                              : theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.textTheme.bodyMedium?.color
-                                      ?.withAlpha(185),
-                                ),
+                    // 装饰层
+                    Positioned.fill(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOut,
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: expanded
+                                ? colors.contentBorderFocus
+                                : onHover
+                                ? colors.contentBorderHover
+                                : colors.contentBorder,
+                            width: expanded || onHover ? 2 : 1,
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                          color: expanded
+                              ? colors.contentBackgroundFocus
+                              : Colors.transparent,
                         ),
                       ),
                     ),
-                    RotationTransition(
-                      turns: turns,
-                      child: Icon(
-                        Icons.keyboard_arrow_down,
-                        color: colors.itemPrimary,
-                        size: 18,
+
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: AnimatedSwitcher(
+                              switchInCurve: const Interval(0.5, 1.0),
+                              switchOutCurve: const Interval(0.5, 1.0),
+                              duration: const Duration(milliseconds: 300),
+                              layoutBuilder: (oldChild, children) {
+                                return Stack(
+                                  alignment: Alignment.centerLeft,
+                                  children: [?oldChild, ...children],
+                                );
+                              },
+                              child: Text(
+                                label,
+                                key: ValueKey(label),
+                                style: selectValue != null
+                                    ? TextStyle()
+                                    : theme.textTheme.bodyMedium?.copyWith(
+                                        color: theme.textTheme.bodyMedium?.color
+                                            ?.withAlpha(185),
+                                      ),
+                              ),
+                            ),
+                          ),
+                          RotationTransition(
+                            turns: turns,
+                            child: Icon(
+                              Icons.keyboard_arrow_down,
+                              color: colors.itemPrimary,
+                              size: 18,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
+            ),
+          );
 
     return PopupOverlay(
       controller: _popupController,
       animation: _dropdownAnimation,
       positionDelegate: const _DropdownPositionDelegate(gap: 4),
       animationDuration: const Duration(milliseconds: 200),
-      // 关闭菜单的瞬间立即复位箭头与外框高亮（不等退场动画结束）
+      // 关闭菜单的瞬间立即复位箭头与外框高亮
       onDismissStart: _onDismissStart,
       onClose: () {
         // 点击外部 / Esc 关闭时同步状态
@@ -506,11 +615,9 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
           setState(() {});
         }
       },
-      // 滚动外部时与点击外部一样自动关闭
+
       dismissOnScrollOutside: true,
-      // 锚点区域（头部）的点击不触发关闭层：
-      // 头部 onTap 的 _toggle 负责切换开合——否则 pointerDown 关闭层先关、
-      // 随后头部 onTap 又因 expanded==false 重新打开，变成"关闭瞬间又打开"
+
       dismissOnAnchorTap: false,
       overlayChildBuilder: (context, anchorRect) =>
           _buildMenu(context, anchorRect.width),

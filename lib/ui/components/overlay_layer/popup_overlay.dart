@@ -225,15 +225,12 @@ class PopupOverlay extends StatefulWidget {
   /// 点击锚点（触发组件）区域是否也触发关闭。
   ///
   /// 默认 true（点击锚点区域即关闭）；设 false 时锚点区域的点击不触发关闭层，
-  /// 交给锚点自身处理——如 DropdownLayer 点击头部本应切换开合，
-  /// 若关闭层在 pointerDown 先把菜单关了、头部 onTap 又因 `expanded==false`
-  /// 重新打开，就会出现"关闭的瞬间又打开"。
   final bool dismissOnAnchorTap;
 
-  /// 是否按 Esc 关闭。
+  /// 是否按 Esc 关闭
   final bool dismissOnEsc;
 
-  /// 浮层关闭后回调（点击外部 / Esc / 手动 dismiss 都会触发）。
+  /// 浮层关闭后回调
   final VoidCallback? onClose;
 
   /// dismiss 开始（退场动画播放前）立即回调。
@@ -298,7 +295,7 @@ class _PopupOverlayState extends State<PopupOverlay> {
   /// （期间未被重新打开），才真正隐藏浮层。
   int _generation = 0;
 
-  /// 布局最大尺寸跟踪（每次打开重置）。
+  /// 布局最大尺寸跟踪
   final _SizeTracker _sizeTracker = _SizeTracker();
 
   PopupOverlayController get _effectiveController =>
@@ -335,7 +332,7 @@ class _PopupOverlayState extends State<PopupOverlay> {
   }
 
   /// 每次布局回调：锚点被滚动或视图变化时自动关闭浮层，
-  /// 避免浮层与锚点脱节（与 MenuAnchor 行为一致）。
+  /// 避免浮层与锚点脱节（与 MenuAnchor 行为一致）
   void _onAnchorChanged(Rect anchorRect, Size overlaySize) {
     if (_anchorSnapshot == null) {
       _anchorSnapshot = anchorRect;
@@ -380,10 +377,7 @@ class _PopupOverlayState extends State<PopupOverlay> {
 
     Widget content = Stack(
       children: [
-        // 透明关闭层：点击 / 右键 / 长按浮层外部 → 关闭。
-        // 用 translucent 的 Listener（而非 opaque GestureDetector）：
-        // 观察外部按下并关闭，但不阻挡事件——可透传到下层内容，满足
-        // "右键另一按钮打开新菜单、旧的自动关闭"、"滚动不被拦截且滚动即关闭"。
+        // 透明关闭层：点击 / 右键 / 长按浮层外部 → 关闭
         if (widget.dismissOnTapOutside)
           Positioned.fill(
             child: Listener(
@@ -391,8 +385,7 @@ class _PopupOverlayState extends State<PopupOverlay> {
               // tap / 右键 / 长按 都从 pointer down 开始：外部一按下即关闭
               onPointerDown: (event) {
                 // 锚点区域内的按下：默认也关闭；dismissOnAnchorTap=false 时
-                // 留给锚点自己处理（如 Dropdown 点击头部切换开合，避免
-                // 关闭层在 pointerDown 关掉、头部 onTap 又立刻重新打开）
+                // 留给锚点自己处理
                 final insideAnchor = anchorRect.contains(event.localPosition);
                 if (widget.dismissOnAnchorTap || !insideAnchor) {
                   _dismiss();
@@ -421,7 +414,7 @@ class _PopupOverlayState extends State<PopupOverlay> {
                 onAnchorChanged: _onAnchorChanged,
                 onPlaced: (placement) {
                   // 布局阶段不能触发通知（ValueListenableBuilder 会 setState），
-                  // 延迟到 post-frame，动画 / 监听者此时更新是安全的。
+                  // 延迟到 post-frame，动画 / 监听者此时更新是安全的
                   SchedulerBinding.instance.addPostFrameCallback((_) {
                     if (mounted) _placement.value = placement;
                   });
@@ -464,8 +457,8 @@ class _PopupOverlayState extends State<PopupOverlay> {
 /// 内部定位委托：适配 [PopupOverlayPositionDelegate] 到 [SingleChildLayoutDelegate]，
 /// 并在定位完成后产出 [PopupOverlayPlacement]。
 /// 布局尺寸跟踪：记录历次布局的最大 childSize。
-/// 展开动画中 childSize 渐增（如高度展开），定位始终基于最大（完整）尺寸，
-/// 避免动画过程位置漂移（展开结束偏移、收纳时偏移回去）。
+/// 展开动画中 childSize 渐增，定位始终基于最大（完整）尺寸，
+/// 避免动画过程位置漂移
 class _SizeTracker {
   Size? max;
 }
@@ -477,10 +470,10 @@ class _PopupOverlayLayout extends SingleChildLayoutDelegate {
   final EdgeInsets padding;
   final ValueChanged<PopupOverlayPlacement> onPlaced;
 
-  /// 每次布局时回调当前锚点矩形与 overlay 尺寸，用于检测锚点移动。
+  /// 每次布局时回调当前锚点矩形与 overlay 尺寸，用于检测锚点移动
   final void Function(Rect anchorRect, Size overlaySize)? onAnchorChanged;
 
-  /// 跨布局共享的最大尺寸跟踪（动画尺寸渐增时定位稳定）。
+  /// 跨布局共享的最大尺寸跟踪
   final _SizeTracker sizeTracker;
 
   const _PopupOverlayLayout({
@@ -499,18 +492,13 @@ class _PopupOverlayLayout extends SingleChildLayoutDelegate {
     // 宽度放开，让浮层收缩到内容宽度——否则 SizeTransition 内部的
     // Align（widthFactor 为 null）会在有限宽度约束下撑满，导致定位失真。
     final maxHeight = constraints.loosen().deflate(padding).maxHeight;
-    return BoxConstraints(
-      maxWidth: double.infinity,
-      maxHeight: maxHeight,
-    );
+    return BoxConstraints(maxWidth: double.infinity, maxHeight: maxHeight);
   }
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
     onAnchorChanged?.call(anchorRect, size);
-    // 定位基于最大（完整）尺寸：展开动画中 childSize 渐增，位置不随动画漂移
-    // 允许回落：childSize 显著变小(真实收缩/浮动内容高度变化)时更新 max，
-    // 避免一次瞬时大测量(如 hover 触发重布局)把尺寸永久锁大
+
     final prev = sizeTracker.max;
     final grew =
         prev == null ||
@@ -551,7 +539,7 @@ class _PopupOverlayLayout extends SingleChildLayoutDelegate {
       delegate.shouldReposition(oldDelegate.delegate);
 }
 
-/// 浮层动画层：打开时播放入场，关闭时由 [playReverse] 播放退场。
+/// 浮层动画层：打开时播放入场，关闭时由 [playReverse] 播放退场
 class _PopupOverlayAnimation extends StatefulWidget {
   final Widget child;
   final Duration duration;
@@ -604,16 +592,13 @@ class _PopupOverlayAnimationState extends State<_PopupOverlayAnimation>
     super.dispose();
   }
 
-  /// 播放退场动画，返回时动画已完成。
+  /// 播放退场动画，返回时动画已完成
   Future<void> playReverse() async {
     if (_controller.value > 0) {
       await _controller.reverse();
     }
   }
 
-  /// 退场 / 入场中重新打开：反转入场——从当前退场位置倒回显示，
-  /// 动画连贯（不从头重放）。placement 未就绪（首次打开）时由
-  /// [_onPlacementReady] 处理。
   void restart() {
     if (widget.placement.value == null) return;
     if (!_controller.isDismissed) {
