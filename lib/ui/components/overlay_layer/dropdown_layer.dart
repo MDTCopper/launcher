@@ -26,47 +26,6 @@ class DropdownOption<T> {
   });
 }
 
-/// 自定义头部构建器：返回下拉框的锚点组件
-///
-/// [controller] 提供开合控制与选中状态，头部可自绘外观、自行决定触发方式
-typedef DropdownHeadBuilder<T> =
-    Widget Function(BuildContext context, DropdownController<T> controller);
-
-/// 下拉框头部控制器：供自定义头部（[DropdownLayer.headBuilder]）使用
-///
-/// 触发开合与读取选中状态；状态变化会触发重建，头部可直接读取最新值
-class DropdownController<T> {
-  _DropdownLayerState<T>? _state;
-
-  void _attach(_DropdownLayerState<T> state) => _state = state;
-  void _detach() => _state = null;
-
-  /// 菜单当前是否展开
-  bool get isShowing => _state?.expanded ?? false;
-
-  /// 展开 / 收起切换
-  void toggle() => _state?._toggle();
-
-  /// 展开菜单
-  void open() => _state?._openMenu();
-
-  /// 收起菜单
-  void close() => _state?._closeMenu();
-
-  /// 单选当前选中值
-  T? get selectValue => _state?.selectValue;
-
-  /// 多选当前选中集合
-  Set<T> get selectValues => Set.of(_state?.selectValues ?? <T>{});
-
-  /// 头部展示文案
-  String get label => _state?.label ?? '';
-
-  /// 选项列表
-  List<DropdownOption<T>> get options =>
-      _state?.widget.options ?? <DropdownOption<T>>[];
-}
-
 /// 下拉选择 Field：点击头部在下方展开选项菜单
 ///
 /// 基于 [PopupOverlay] 实现：
@@ -80,8 +39,11 @@ class DropdownLayer<T> extends StatefulWidget {
   final String hintText;
   final void Function(T value)? onSelect;
 
-  /// 自定义头部构建器；为 null 时使用内置头部
-  final DropdownHeadBuilder<T>? headBuilder;
+  /// 头部自定义区：显示在内置头部内容与下拉图标之间（下拉图标左侧）
+  final Widget? headExtra;
+
+  /// 菜单顶部自定义区：显示在菜单内容最上方
+  final Widget? topWidget;
 
   /// 多选模式：菜单项变为复选框，勾选不收起菜单，头部显示"已选 N 项"
   final bool multiSelection;
@@ -109,8 +71,8 @@ class DropdownLayer<T> extends StatefulWidget {
     this.initialValues,
     this.onMultiSelect,
     this.menuHeight = 200,
-
-    this.headBuilder,
+    this.headExtra,
+    this.topWidget,
     this.width = double.infinity,
     this.color,
     this.hoverColor,
@@ -129,7 +91,8 @@ class DropdownLayer<T> extends StatefulWidget {
     String hintText = '不限',
     double width = double.infinity,
     double menuHeight = 200,
-    DropdownHeadBuilder<T>? headBuilder,
+    Widget? headExtra,
+    Widget? topWidget,
     Color? color,
     Color? hoverColor,
     Border? border,
@@ -143,7 +106,8 @@ class DropdownLayer<T> extends StatefulWidget {
       hintText: hintText,
       width: width,
       menuHeight: menuHeight,
-      headBuilder: headBuilder,
+      headExtra: headExtra,
+      topWidget: topWidget,
       color: color,
       hoverColor: hoverColor,
       border: border,
@@ -159,9 +123,6 @@ class DropdownLayer<T> extends StatefulWidget {
 class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     with TickerProviderStateMixin {
   final PopupOverlayController _popupController = PopupOverlayController();
-
-  /// 供 headBuilder 使用的控制器
-  final DropdownController<T> controller = DropdownController<T>();
 
   bool onHover = false;
   bool expanded = false;
@@ -181,7 +142,6 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   @override
   void initState() {
     super.initState();
-    controller._attach(this);
     selectValue = widget.initialValue;
     selectValues = {...?widget.initialValues};
 
@@ -216,7 +176,6 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
 
   @override
   void dispose() {
-    controller._detach();
     selectController.dispose();
     arrowController.dispose();
     super.dispose();
@@ -307,6 +266,8 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     final colors = AppColors.of(context);
 
     final width = anchorWidth;
+    // 菜单顶部自定义区：显示在菜单内容最上方
+    final topWidget = widget.topWidget;
 
     return Material(
       color: Colors.transparent,
@@ -332,6 +293,8 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
             child: Column(
               spacing: 2,
               children: [
+                // 菜单顶部自定义区
+                ?topWidget,
                 // 多选顶部操作栏：全选 / 重置 互斥切换
                 if (_multiSelection && widget.options.isNotEmpty)
                   _buildMultiActionBar(),
@@ -509,11 +472,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    // 自定义头部：由 headBuilder 自绘外观与触发方式；否则用内置头部
-    final headBuilder = widget.headBuilder;
-    final Widget head = headBuilder != null
-        ? SizedBox(width: widget.width, child: headBuilder(context, controller))
-        : MouseRegion(
+    final head = MouseRegion(
             onExit: (_) {
               setState(() {
                 onHover = false;
@@ -582,6 +541,11 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
                               ),
                             ),
                           ),
+                          // 头部自定义区：位于下拉图标左侧
+                          if (widget.headExtra case final headExtra?) ...[
+                            const SizedBox(width: 8),
+                            headExtra,
+                          ],
                           RotationTransition(
                             turns: turns,
                             child: Icon(
