@@ -22,7 +22,7 @@ class BackToTopLayer extends StatefulWidget {
     this.showThreshold = 1200,
     this.hideThreshold = 600,
     this.alignment = .bottomRight,
-    this.padding = const EdgeInsets.all(20),
+    this.padding = const EdgeInsets.fromLTRB(0, 0, 40, 20),
   });
 
   @override

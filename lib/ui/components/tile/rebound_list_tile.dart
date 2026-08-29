@@ -35,7 +35,7 @@ class ReboundListTile extends StatefulWidget {
     this.onLongTap,
     this.selected = false,
     this.enable = true,
-    this.elevation = 1,
+    this.elevation = 0,
     this.hoverElevation = 6,
     this.baseColor,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

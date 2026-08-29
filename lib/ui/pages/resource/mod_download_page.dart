@@ -155,176 +155,165 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
   Widget _buildVersionTile(ModGithubMeta mod) {
     Widget buildOverView(IconData icon, String data) {
-      return ConstrainedBox(
-        constraints: BoxConstraints(minWidth: 110),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon),
-            SizedBox(width: 2),
-            ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: 140),
-              child: Text(data, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon),
+          SizedBox(width: 2),
+          Text(data, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
       );
     }
 
     final minGameVersion = minGameVersionsCache[mod.releaseNum] ??=
         _getMinGameVersion(mod);
 
+    Widget buildSupportInfo() => FutureBuilder(
+      future: minGameVersion,
+      builder: (_, s) {
+        if (s.connectionState == ConnectionState.waiting) {
+          return buildOverView(Icons.source_outlined, '...');
+        }
+        if (s.hasData) {
+          final version = selectedVersion;
+          if (version == null) {
+            return buildOverView(Icons.source_outlined, s.data!);
+          }
+
+          bool support;
+          final modMin = double.parse(s.data!.substring(1));
+          if (modListMeta.hasJava) {
+            final minGameVersion = minJavaModGameVersionModifier.resultOf(
+              version.releaseDouble,
+            );
+            support =
+                modMin >= minGameVersion && modMin <= version.releaseDouble;
+          } else {
+            final minGameVersion = minModGameVersionModifier.resultOf(
+              version.releaseDouble,
+            );
+            support =
+                modMin >= minGameVersion && modMin <= version.releaseDouble;
+          }
+
+          if (support) {
+            return buildOverView(Icons.check_outlined, '支持 (${s.data!})');
+          } else if (support == false) {
+            return buildOverView(Icons.close_outlined, '可能不支持 (${s.data!})');
+          } else {
+            return buildOverView(Icons.info_outlined, s.data!);
+          }
+        } else {
+          return buildOverView(Icons.source_outlined, 'XXX');
+        }
+      },
+    );
+
     final tile = ReboundListTile(
+      hoverElevation: 4,
       borderRadius: BorderRadius.circular(4),
+      onTap: () => _buildDownloadPopup(mod),
       title: Text(mod.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: PriorityRow(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        items: [
-          // 版本号：核心信息，永不丢
-          PriorityRowItem(
-            priority: 0,
-            width: 140,
+      subtitle: Row(
+        children: [
+          SizedBox(
+            width: 120,
             child: buildOverView(Icons.folder_outlined, mod.releaseNum),
           ),
-          // 兼容性：异步加载，次重要(支持版本信息保留)
-          PriorityRowItem(
-            priority: 1,
-            width: 160,
-            child: FutureBuilder(
-              future: minGameVersion,
-              builder: (_, s) {
-                if (s.connectionState == ConnectionState.waiting) {
-                  return buildOverView(Icons.source_outlined, '...');
-                }
-                if (s.hasData) {
-                  final version = selectedVersion;
-                  if (version == null) {
-                    return buildOverView(Icons.source_outlined, s.data!);
-                  }
 
-                  bool support;
-                  final modMin = double.parse(s.data!.substring(1));
-                  if (modListMeta.hasJava) {
-                    final minGameVersion = minJavaModGameVersionModifier
-                        .resultOf(version.releaseDouble);
-                    support =
-                        modMin >= minGameVersion &&
-                        modMin <= version.releaseDouble;
-                  } else {
-                    final minGameVersion = minModGameVersionModifier.resultOf(
-                      version.releaseDouble,
-                    );
-                    support =
-                        modMin >= minGameVersion &&
-                        modMin <= version.releaseDouble;
-                  }
+          Expanded(
+            child: PriorityRow(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              items: [
+                PriorityRowItem(
+                  priority: 3,
+                  width: 140,
+                  child: buildSupportInfo(),
+                ),
 
-                  if (support) {
-                    return buildOverView(
-                      Icons.check_outlined,
-                      '支持 (${s.data!})',
-                    );
-                  } else if (support == false) {
-                    return buildOverView(
-                      Icons.close_outlined,
-                      '可能不支持 (${s.data!})',
-                    );
-                  } else {
-                    return buildOverView(Icons.info_outlined, s.data!);
-                  }
-                } else {
-                  return buildOverView(Icons.source_outlined, 'XXX');
-                }
-              },
+                PriorityRowItem(
+                  priority: 2,
+                  width: 90,
+                  child: buildOverView(
+                    Icons.update,
+                    mod.releaseDate.split('T').first,
+                  ),
+                ),
+
+                if (mod.assets.firstOrNull != null)
+                  PriorityRowItem(
+                    priority: 1,
+                    width: 120,
+                    child: buildOverView(
+                      Icons.arrow_downward,
+                      mod.assets.first.downloadCount.toString(),
+                    ),
+                  ),
+              ],
             ),
           ),
-          // 日期：中了优先级
-          PriorityRowItem(
-            priority: 2,
-            width: 130,
-            child: buildOverView(
-              Icons.update,
-              mod.releaseDate.split('T').first,
-            ),
-          ),
-          // 下载数：最先丢
-          if (mod.assets.firstOrNull != null)
-            PriorityRowItem(
-              priority: 3,
-              width: 110,
-              child: buildOverView(
-                Icons.arrow_downward,
-                mod.assets.first.downloadCount.toString(),
-              ),
-            ),
         ],
       ),
-      onTap: () => _buildDownloadPopup(mod),
+    );
+
+    final menuChild = MenuLayer(
+      menuBuilder: (_, controller) => _buildMenuItems(mod, controller),
+      child: tile,
     );
 
     // 滑动菜单：移动端使用；桌面端 debug 模式下可测试
-    Widget swipeChild = tile;
-    if (isMobile || (isDesktop && kDebugMode)) {
+    Widget swipeChild = menuChild;
+    if (isMobile || kDebugMode) {
       swipeChild = ActionSlideLayer(
         actions: _buildSwipeActions(context, mod),
-        child: tile,
+        child: swipeChild,
       );
     }
 
-    // 右键菜单（桌面端）/ 长按菜单（多端）：内容 = 构建 tile 时未用的下载源码 / 版本详情
-    return MenuLayer(
-      rightClickTrigger: true,
-      longPressTrigger: true,
-      menuBuilder: (context, controller) =>
-          _buildMenuItems(context, mod, controller),
-      child: swipeChild,
-    );
+    return swipeChild;
   }
 
-  /// 菜单项：图标 + 文本
-  Widget _buildMenuItem(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    final color = AppColors.of(context).itemPrimary;
-    return SizedBox(
-      width: 120,
-      child: ReboundButton(
-        borderRadius: BorderRadius.circular(6),
-        onTap: onTap,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 8),
-            Text(label, style: TextStyle(color: color)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 右键 / 长按菜单内容：下载源码 + 版本详情（构建 tile 时未用的 trailing）
+  /// 右键 / 长按菜单内容
   List<Widget> _buildMenuItems(
-    BuildContext context,
     ModGithubMeta mod,
     PopupOverlayController controller,
   ) {
-    return [
-      if (modListMeta.hasJava)
-        _buildMenuItem(
-          context,
-          icon: Icons.folder_outlined,
-          label: '下载源码',
-          onTap: () {
-            _buildDownloadPopup(mod, downloadSource: true);
-            controller.dismiss();
-          },
+    Widget buildMenuItem({
+      required IconData icon,
+      required String label,
+      required VoidCallback onTap,
+    }) {
+      final color = AppColors.of(context).itemSecondary;
+      return SizedBox(
+        width: 120,
+        child: ReboundButton(
+          hoverElevation: 0.0,
+          pressedScale: 0.9,
+          borderRadius: BorderRadius.circular(6),
+          onTap: onTap,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 8),
+              Text(label, style: TextStyle(color: color)),
+            ],
+          ),
         ),
-      _buildMenuItem(
-        context,
+      );
+    }
+
+    return [
+      buildMenuItem(
+        icon: Icons.folder_outlined,
+        label: '下载源码',
+        onTap: () {
+          _buildDownloadPopup(mod, downloadSource: true);
+          controller.dismiss();
+        },
+      ),
+
+      buildMenuItem(
         icon: Icons.outbond_outlined,
         label: '版本详情',
         onTap: () {
@@ -343,41 +332,32 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       required String label,
       required VoidCallback onTap,
     }) {
-      return SizedBox(
-        width: 88,
-        child: Container(
-          color: colors.interactive,
-          alignment: Alignment.center,
-          child: ReboundButton(
-            padding: EdgeInsets.zero,
-            borderRadius: BorderRadius.circular(0),
-            onTap: onTap,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 18, color: colors.itemOnInteractive),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: colors.itemOnInteractive,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+      return ReboundButton(
+        onTap: onTap,
+        margin: EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: colors.itemSecondary),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(color: colors.itemSecondary, fontSize: 12),
             ),
-          ),
+          ],
         ),
       );
     }
 
     return [
-      if (modListMeta.hasJava)
-        action(
-          icon: Icons.folder_outlined,
-          label: '下载源码',
-          onTap: () => _buildDownloadPopup(mod, downloadSource: true),
-        ),
+      const SizedBox(width: 4),
+
+      action(
+        icon: Icons.folder_outlined,
+        label: '下载源码',
+        onTap: () => _buildDownloadPopup(mod, downloadSource: true),
+      ),
+      const SizedBox(width: 4),
       action(
         icon: Icons.outbond_outlined,
         label: '版本详情',
