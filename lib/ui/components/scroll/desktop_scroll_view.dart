@@ -171,6 +171,10 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
       if (currentMaxExtent <= 0.0 || offset > currentMaxExtent) {
         _controller.jumpTo(currentMaxExtent);
       }
+      // 内容变化（刷新 / 切页）：同步 _targetOffset 到实际位置，
+      // 否则停留在最大偏移时刷新，_targetOffset 残留旧最大值，
+      // 后续滚轮判定（isMin/isMax、needReverse）错位 → 无法滑动
+      _targetOffset = _controller.offset;
     });
   }
 

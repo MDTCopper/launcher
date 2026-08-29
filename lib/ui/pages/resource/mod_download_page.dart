@@ -8,7 +8,6 @@ import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
-import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:copper_launcher/ui/feature/images.dart';
@@ -265,7 +264,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     Widget swipeChild = menuChild;
     if (isMobile || kDebugMode) {
       swipeChild = ActionSlideLayer(
-        actions: _buildSwipeActions(context, mod),
+        actions: _buildSwipeActions(mod),
         child: swipeChild,
       );
     }
@@ -278,33 +277,8 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     ModGithubMeta mod,
     PopupOverlayController controller,
   ) {
-    Widget buildMenuItem({
-      required IconData icon,
-      required String label,
-      required VoidCallback onTap,
-    }) {
-      final color = AppColors.of(context).itemSecondary;
-      return SizedBox(
-        width: 120,
-        child: ReboundButton(
-          hoverElevation: 0.0,
-          pressedScale: 0.9,
-          borderRadius: BorderRadius.circular(6),
-          onTap: onTap,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 8),
-              Text(label, style: TextStyle(color: color)),
-            ],
-          ),
-        ),
-      );
-    }
-
     return [
-      buildMenuItem(
+      MenuButton(
         icon: Icons.folder_outlined,
         label: '下载源码',
         onTap: () {
@@ -312,8 +286,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
           controller.dismiss();
         },
       ),
-
-      buildMenuItem(
+      MenuButton(
         icon: Icons.outbond_outlined,
         label: '版本详情',
         onTap: () {
@@ -325,40 +298,16 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
   }
 
   /// 滑动菜单动作：下载源码 + 版本详情
-  List<Widget> _buildSwipeActions(BuildContext context, ModGithubMeta mod) {
-    final colors = AppColors.of(context);
-    Widget action({
-      required IconData icon,
-      required String label,
-      required VoidCallback onTap,
-    }) {
-      return ReboundButton(
-        onTap: onTap,
-        margin: EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18, color: colors.itemSecondary),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(color: colors.itemSecondary, fontSize: 12),
-            ),
-          ],
-        ),
-      );
-    }
-
+  List<Widget> _buildSwipeActions(ModGithubMeta mod) {
     return [
       const SizedBox(width: 4),
-
-      action(
+      SlideActionButton(
         icon: Icons.folder_outlined,
         label: '下载源码',
         onTap: () => _buildDownloadPopup(mod, downloadSource: true),
       ),
       const SizedBox(width: 4),
-      action(
+      SlideActionButton(
         icon: Icons.outbond_outlined,
         label: '版本详情',
         onTap: () => _buildDownloadPopup(mod),

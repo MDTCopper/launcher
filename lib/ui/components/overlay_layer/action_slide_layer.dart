@@ -1,14 +1,16 @@
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-/// 滑动菜单 Field：child 背面垫一层动作菜单，向左滑动露出（类似手机通知管理）。
+/// 滑动菜单 Field：child 背面垫一层动作菜单，向左滑动露出
 ///
 /// - 向左拖动 child 平移露出右侧 [actions] 菜单，松手后：
-///   - 甩动速度超过 [velocityThreshold]（向左 → 打开，向右 → 收回）直接判定
+///   - 甩动速度超过 [velocityThreshold]直接判定
 ///   - 速度不足时按脱手位置判定：超过 [openRatio] 打开，否则收回
 ///   - 过冲区（拖过菜单宽）松手后按 [elasticDuration] 回弹到目标边界
 /// - 超界拖动：越往外越难拖，且视觉偏移有上限（[maxOvershootRatio] × 菜单宽）
 /// - 展开状态下点击 child 收回
-/// - 移动端多用（与 [MenuLayer] 的桌面端点开区分）
+/// - 移动端多用
 class ActionSlideLayer extends StatefulWidget {
   final Widget child;
   final List<Widget> actions; // 菜单动作按钮
@@ -19,14 +21,14 @@ class ActionSlideLayer extends StatefulWidget {
   /// 甩动速度阈值（px/s，绝对值）。
   ///
   /// 脱手瞬间的水平速度超过此值即按方向打开 / 收回，
-  /// 忽略位置（"滑动惯性"）；速度不足时退回位置判定（[openRatio]）。
+
   final double velocityThreshold;
 
   /// 过冲回弹时长（过冲区松手后滑回边界）。
   final Duration elasticDuration;
 
-  /// 超界视觉偏移上限（相对菜单宽的比例，0.25 = 最多多拖出菜单宽 25%）。
-  /// 越往外越难拖（渐近曲线逼近该上限）。
+  /// 超界视觉偏移上限
+  /// 越往外越难拖
   final double maxOvershootRatio;
 
   /// 菜单非按钮区域是否拦截事件。
@@ -34,6 +36,9 @@ class ActionSlideLayer extends StatefulWidget {
   /// 为 false（默认）时，菜单露出区域内点击 / 滚动会透传到下层组件；
   /// 为 true 时菜单区域拦截所有事件（按钮仍可点击）。
   final bool blockMenuEvents;
+
+  /// 菜单裁剪圆角：露出菜单按 child 尺寸裁剪时应用的形状（默认矩形）。
+  final BorderRadius? borderRadius;
 
   const ActionSlideLayer({
     super.key,
@@ -46,6 +51,7 @@ class ActionSlideLayer extends StatefulWidget {
     this.elasticDuration = const Duration(milliseconds: 400),
     this.maxOvershootRatio = 0.25,
     this.blockMenuEvents = false,
+    this.borderRadius,
   });
 
   @override
@@ -220,7 +226,10 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
               // 菜单露出宽度：展开度 clamp 到 [0,1]（过冲不改变菜单宽度）
               final reveal = _menuWidth * _controller.value.clamp(0.0, 1.0);
               return ClipPath(
-                clipper: _MenuRevealClipper(reveal),
+                clipper: _MenuRevealClipper(
+                  reveal,
+                  borderRadius: widget.borderRadius,
+                ),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -257,28 +266,89 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
 
 void _noop() {}
 
+/// 默认滑动菜单动作按钮：图标 + 文本，供 [ActionSlideLayer.actions] 使用。
+///
+/// [color] 为图标 / 文本前景色（默认 itemSecondary）；
+/// [backgroundColor] 可选背景色（如红色删除）。
+class SlideActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
+  final Color? backgroundColor;
+
+  const SlideActionButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color,
+    this.backgroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final foreground = color ?? colors.itemSecondary;
+    return ReboundButton(
+      onTap: onTap,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      backgroundColor: backgroundColor,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: foreground),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: foreground, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+
 /// 菜单层遮罩：把「child 平移后占据的区域」从菜单层裁剪掉（PS 蒙版思路）。
 ///
 /// [reveal] = child 左移距离；差集路径 = 整个区域挖掉 child 区域，
 /// child 移开多少，菜单就从右往左露出多少。
+///
+/// - 露出宽度按原组件（child）尺寸封顶，菜单不会超出组件边界
+/// - [borderRadius] 指定裁剪形状（与 child 圆角一致可选）
 class _MenuRevealClipper extends CustomClipper<Path> {
   final double reveal;
+  final BorderRadius? borderRadius;
 
-  const _MenuRevealClipper(this.reveal);
+  const _MenuRevealClipper(this.reveal, {this.borderRadius});
 
   @override
   Path getClip(Size size) {
-    final stackRect = Offset.zero & size;
-    // child 左移 reveal，占据 [−reveal, width−reveal] 区域
-    final childRect = Rect.fromLTWH(-reveal, 0, size.width, size.height);
+    // 露出宽度按组件宽封顶（菜单比组件宽时也不超出）
+    final r = reveal.clamp(0.0, size.width).toDouble();
+    final whole = Offset.zero & size;
+    // child 左移 r 后占据 [−r, width−r]
+    final childRect = Rect.fromLTWH(-r, 0, size.width, size.height);
+
+    Path rounded(Rect rect) {
+      final radius = borderRadius;
+      if (radius == null) return Path()..addRect(rect);
+      return Path()..addRRect(
+        RRect.fromRectAndCorners(
+          rect,
+          topLeft: radius.topLeft,
+          topRight: radius.topRight,
+          bottomLeft: radius.bottomLeft,
+          bottomRight: radius.bottomRight,
+        ),
+      );
+    }
+
     return Path.combine(
       PathOperation.difference,
-      Path()..addRect(stackRect),
-      Path()..addRect(childRect),
+      rounded(whole),
+      rounded(childRect),
     );
   }
 
   @override
   bool shouldReclip(covariant _MenuRevealClipper oldClipper) =>
-      oldClipper.reveal != reveal;
+      oldClipper.reveal != reveal || oldClipper.borderRadius != borderRadius;
 }

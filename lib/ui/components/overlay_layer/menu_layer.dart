@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
@@ -84,7 +85,9 @@ class _MenuLayerState extends State<MenuLayer> {
         items: widget.menuBuilder(context, _controller),
       ),
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        // translucent：只观察右键 / 长按，不阻挡事件——点击可透传到子组件、
+        // 可点开另一个 MenuLayer、也可直接滚动列表
+        behavior: HitTestBehavior.translucent,
         onSecondaryTapDown: widget.rightClickTrigger
             ? (d) => _controller.open(position: d.localPosition)
             : null,
@@ -138,6 +141,47 @@ class _MenuPanel extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: items,
+      ),
+    );
+  }
+}
+
+/// 默认菜单项按钮：图标 + 文本，供 [MenuLayer.menuBuilder] 使用。
+///
+/// [danger] 为 true 时用 error 色（危险操作）。
+class MenuButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool danger;
+
+  const MenuButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final color = danger ? colors.error : colors.itemSecondary;
+    return SizedBox(
+      width: 120,
+      child: ReboundButton(
+        hoverElevation: 0.0,
+        pressedScale: 0.9,
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(color: color)),
+          ],
+        ),
       ),
     );
   }

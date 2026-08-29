@@ -601,9 +601,9 @@ class _PopupOverlayAnimationState extends State<_PopupOverlayAnimation>
 
   void restart() {
     if (widget.placement.value == null) return;
-    if (!_controller.isDismissed) {
-      _controller.forward();
-    }
+    // 已显示时重开（值=1，forward 瞬间完成 → 菜单“跳转”）：
+    // 从 0 重放入场，让旧菜单消失、新菜单重新浮现（含 hint 快速进出中断退场）
+    _controller.forward(from: 0);
   }
 
   @override
