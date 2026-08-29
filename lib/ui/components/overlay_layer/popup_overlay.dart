@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
-import 'package:flutter/gestures.dart' show PointerScrollEvent;
+import 'package:flutter/gestures.dart' show kPrimaryButton, PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -252,6 +252,14 @@ class PopupOverlay extends StatefulWidget {
   /// 入场 / 退场动画时长。
   final Duration animationDuration;
 
+  /// 是否吞掉外部“点击”（左键），而非透传到下层。
+  ///
+  /// 默认 false（translucent Listener）：外部点击透传，可右击另一 MenuLayer 自动切换、
+  /// 下拉头部点击切换；true（如右击菜单）：左键点击被 tap 识别器抢先获胜吞掉
+  /// （不触发下层组件，避免关闭时误触），而右键 / 滚动无对应识别器、自然透传——
+  /// 仍可右击另一 MenuLayer 切换、滚动列表。
+  final bool consumeTapOutside;
+
   const PopupOverlay({
     super.key,
     required this.child,
@@ -265,6 +273,7 @@ class PopupOverlay extends StatefulWidget {
     this.onClose,
     this.onDismissStart,
     this.dismissOnScrollOutside = false,
+    this.consumeTapOutside = false,
     this.screenPadding = const EdgeInsets.all(8),
     this.animationDuration = const Duration(milliseconds: 150),
   });
@@ -377,27 +386,71 @@ class _PopupOverlayState extends State<PopupOverlay> {
 
     Widget content = Stack(
       children: [
-        // 透明关闭层：点击 / 右键 / 长按浮层外部 → 关闭
+        // 关闭层（菜单下方）
         if (widget.dismissOnTapOutside)
           Positioned.fill(
-            child: Listener(
-              behavior: HitTestBehavior.translucent,
-              // tap / 右键 / 长按 都从 pointer down 开始：外部一按下即关闭
-              onPointerDown: (event) {
-                // 锚点区域内的按下：默认也关闭；dismissOnAnchorTap=false 时
-                // 留给锚点自己处理
-                final insideAnchor = anchorRect.contains(event.localPosition);
-                if (widget.dismissOnAnchorTap || !insideAnchor) {
-                  _dismiss();
-                }
-              },
-              onPointerSignal: widget.dismissOnScrollOutside
-                  ? (e) {
-                      if (e is PointerScrollEvent) _dismiss();
-                    }
-                  : null,
-              child: const SizedBox.expand(),
-            ),
+            child: widget.consumeTapOutside
+                // 吞外部点击（右击菜单）：左键被 tap 识别器抢先获胜吞掉（不触发下层、
+                // 避免关闭时误触）；右键 / 中键用 onPointerDown 关闭但**不吞**（透传，
+                // 可右击另一 MenuLayer 打开）；滚动透传
+                ? GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    // 左键点击：tap 识别器抢先获胜吞掉 + 关闭
+                    onTapUp: (d) {
+                      if (widget.dismissOnAnchorTap ||
+                          !anchorRect.contains(d.localPosition)) {
+                        _dismiss();
+                      }
+                    },
+                    // 长按：关闭（移动端），透传
+                    onLongPressStart: (d) {
+                      if (widget.dismissOnAnchorTap ||
+                          !anchorRect.contains(d.localPosition)) {
+                        _dismiss();
+                      }
+                    },
+                    child: Listener(
+                      behavior: HitTestBehavior.translucent,
+                      // 右键 / 中键：立即关闭但**不吞**（onPointerDown 非识别器，
+                      // 透传下层，可右击另一 MenuLayer 打开）
+                      onPointerDown: (event) {
+                        final isPrimary =
+                            (event.buttons & kPrimaryButton) != 0;
+                        if (isPrimary) return;
+                        final insideAnchor =
+                            anchorRect.contains(event.localPosition);
+                        if (widget.dismissOnAnchorTap || !insideAnchor) {
+                          _dismiss();
+                        }
+                      },
+                      onPointerSignal: widget.dismissOnScrollOutside
+                          ? (e) {
+                              if (e is PointerScrollEvent) _dismiss();
+                            }
+                          : null,
+                      child: const SizedBox.expand(),
+                    ),
+                  )
+                // 透明关闭层（Dropdown / Hint）：透传，可右击切换、滚动穿透
+                : Listener(
+                    behavior: HitTestBehavior.translucent,
+                    // tap / 右键 / 长按 都从 pointer down 开始：外部一按下即关闭
+                    onPointerDown: (event) {
+                      // 锚点区域内的按下：默认也关闭；dismissOnAnchorTap=false 时
+                      // 留给锚点自己处理
+                      final insideAnchor =
+                          anchorRect.contains(event.localPosition);
+                      if (widget.dismissOnAnchorTap || !insideAnchor) {
+                        _dismiss();
+                      }
+                    },
+                    onPointerSignal: widget.dismissOnScrollOutside
+                        ? (e) {
+                            if (e is PointerScrollEvent) _dismiss();
+                          }
+                        : null,
+                    child: const SizedBox.expand(),
+                  ),
           ),
         Positioned.fill(
           child: ConstrainedBox(

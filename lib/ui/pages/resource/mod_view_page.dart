@@ -41,10 +41,10 @@ class _ModViewPageState extends State<ModViewPage> {
   static bool order = true;
   static String sort = 'default';
 
-  /// 版本(180) + 排序(200) + 两处间距(24*2) ≈ 428，即需求中的“约 420”
+  /// 版本(180) + 排序(200) + 两处间距(24*2) 的并排预算，取整 420
   static const double _kVersionSortBlockWidth = 420;
 
-  /// 选项区并排阈值：模组类型标签(≈72) + 紧凑下拉(150) + 版本排序块(428)
+  /// 选项区并排阈值：预留基准(420) + 版本排序块(420)
   static const double _kInlineMoreOptionsMinWidth =
       420 + _kVersionSortBlockWidth;
 

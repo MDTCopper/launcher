@@ -37,7 +37,7 @@ class ActionSlideLayer extends StatefulWidget {
   /// 为 true 时菜单区域拦截所有事件（按钮仍可点击）。
   final bool blockMenuEvents;
 
-  /// 菜单裁剪圆角：露出菜单按 child 尺寸裁剪时应用的形状（默认矩形）。
+  /// 菜单裁剪圆角：露出菜单按 child 尺寸裁剪时应用的形状（默认矩形）
   final BorderRadius? borderRadius;
 
   const ActionSlideLayer({
@@ -266,10 +266,10 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
 
 void _noop() {}
 
-/// 默认滑动菜单动作按钮：图标 + 文本，供 [ActionSlideLayer.actions] 使用。
+/// 默认滑动菜单动作按钮：图标 + 文本，供 [ActionSlideLayer.actions] 使用
 ///
 /// [color] 为图标 / 文本前景色（默认 itemSecondary）；
-/// [backgroundColor] 可选背景色（如红色删除）。
+/// [backgroundColor] 可选背景色（如红色删除）
 class SlideActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -306,10 +306,10 @@ class SlideActionButton extends StatelessWidget {
   }
 }
 
-/// 菜单层遮罩：把「child 平移后占据的区域」从菜单层裁剪掉（PS 蒙版思路）。
+/// 菜单层遮罩：把「child 平移后占据的区域」从菜单层裁剪掉（PS 蒙版思路）
 ///
 /// [reveal] = child 左移距离；差集路径 = 整个区域挖掉 child 区域，
-/// child 移开多少，菜单就从右往左露出多少。
+/// child 移开多少，菜单就从右往左露出多少
 ///
 /// - 露出宽度按原组件（child）尺寸封顶，菜单不会超出组件边界
 /// - [borderRadius] 指定裁剪形状（与 child 圆角一致可选）

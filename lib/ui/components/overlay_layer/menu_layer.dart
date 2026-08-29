@@ -6,34 +6,34 @@ import 'package:flutter/material.dart';
 
 import 'popup_overlay.dart';
 
-/// 菜单弹窗 Field：包住目标组件，右键 / 长按在鼠标位置弹出菜单。
+/// 菜单弹窗 Field：包住目标组件，右键 / 长按在鼠标位置弹出菜单
 ///
-/// 基于 [PopupOverlay] 实现，默认使用"缩放 + 淡入淡出"动画，
-/// 缩放锚点贴近鼠标 / 锚点位置（根据浮层实际方位自动适配）。
+/// 基于 [PopupOverlay] 实现，默认使用"缩放 + 淡入淡出"动画
+/// 缩放锚点贴近鼠标 / 锚点位置（根据浮层实际方位自动适配）
 class MenuLayer extends StatefulWidget {
-  /// 锚点目标组件：在其上右键 / 长按触发菜单。
+  /// 锚点目标组件：在其上右键 / 长按触发菜单
   final Widget child;
 
-  /// 菜单内容构建器，[controller] 用于菜单项点击后关闭菜单。
+  /// 菜单内容构建器，[controller] 用于菜单项点击后关闭菜单
   final List<Widget> Function(
     BuildContext context,
     PopupOverlayController controller,
   )
   menuBuilder;
 
-  /// 外部控制器；为空时内部自动创建并传入 [menuBuilder]。
+  /// 外部控制器；为空时内部自动创建并传入 [menuBuilder]
   final PopupOverlayController? controller;
 
-  /// 是否右键触发（桌面）。
+  /// 是否右键触发（桌面）
   final bool rightClickTrigger;
 
-  /// 是否长按触发（移动端）。
+  /// 是否长按触发（移动端）
   final bool longPressTrigger;
 
-  /// 菜单动画。默认为自适应锚点的缩放 + 淡入淡出。
+  /// 菜单动画。默认为自适应锚点的缩放 + 淡入淡出
   final PopupOverlayAnimationBuilder? animation;
 
-  /// 位置策略。默认为 [AnchorFlipPositionDelegate]。
+  /// 位置策略。默认为 [AnchorFlipPositionDelegate]
   final PopupOverlayPositionDelegate? positionDelegate;
 
   /// 是否点击菜单外部关闭。
@@ -76,18 +76,18 @@ class _MenuLayerState extends State<MenuLayer> {
     return PopupOverlay(
       controller: _controller,
       animation: widget.animation ?? _menuScaleFadeAnimation,
-      positionDelegate: widget.positionDelegate ?? const _MenuPositionDelegate(),
+      positionDelegate:
+          widget.positionDelegate ?? const _MenuPositionDelegate(),
       animationDuration: widget.animationDuration,
       screenPadding: widget.screenPadding,
       dismissOnTapOutside: widget.dismissOnTapOutside,
       dismissOnEsc: widget.dismissOnEsc,
-      overlayChildBuilder: (context, anchorRect) => _MenuPanel(
-        items: widget.menuBuilder(context, _controller),
-      ),
+      // 右键菜单：吞掉外部“点击”（左键，不透传、避免关闭误触下层），右键 / 滚动透传
+      consumeTapOutside: true,
+      overlayChildBuilder: (context, anchorRect) =>
+          _MenuPanel(items: widget.menuBuilder(context, _controller)),
       child: GestureDetector(
-        // translucent：只观察右键 / 长按，不阻挡事件——点击可透传到子组件、
-        // 可点开另一个 MenuLayer、也可直接滚动列表
-        behavior: HitTestBehavior.translucent,
+        behavior: HitTestBehavior.opaque,
         onSecondaryTapDown: widget.rightClickTrigger
             ? (d) => _controller.open(position: d.localPosition)
             : null,
@@ -101,7 +101,7 @@ class _MenuLayerState extends State<MenuLayer> {
 }
 
 /// 默认菜单动画：缩放 + 淡入淡出，缩放锚点 = 鼠标在菜单内的位置，
-/// 菜单因翻转 / 贴边偏移多远，缩放都从鼠标位置生长。
+/// 菜单因翻转 / 贴边偏移多远，缩放都从鼠标位置生长
 Widget _menuScaleFadeAnimation(
   BuildContext context,
   Animation<double> animation,
@@ -115,7 +115,6 @@ Widget _menuScaleFadeAnimation(
   );
 }
 
-/// 菜单面板：自研容器（Copper 风格）。
 class _MenuPanel extends StatelessWidget {
   final List<Widget> items;
 
@@ -138,17 +137,14 @@ class _MenuPanel extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: items,
-      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: items),
     );
   }
 }
 
-/// 默认菜单项按钮：图标 + 文本，供 [MenuLayer.menuBuilder] 使用。
+/// 默认菜单项按钮：图标 + 文本，供 [MenuLayer.menuBuilder] 使用
 ///
-/// [danger] 为 true 时用 error 色（危险操作）。
+/// [danger] 为 true 时用 error 色（危险操作）
 class MenuButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -187,7 +183,7 @@ class MenuButton extends StatelessWidget {
   }
 }
 
-/// 菜单位置策略：按锚点优先级从鼠标位置生长。
+/// 菜单位置策略：按锚点优先级从鼠标位置生长
 ///
 /// 1. 左上（向右下生长，菜单在鼠标右下）
 /// 2. 右上（向左下生长，菜单在鼠标左下）
