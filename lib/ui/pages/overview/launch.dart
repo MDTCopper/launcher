@@ -1,17 +1,12 @@
-import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/data/mindustry_settings.dart';
-import 'package:copper_launcher/domain/mindustry_launcher.dart';
-import 'package:copper_launcher/domain/task_manager.dart';
-import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
-import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:flutter/material.dart';
 
+import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import '../../../core/app_config.dart';
 import '../../feature/images.dart';
-import '../../shell/drawer/log_list.dart';
-import '../../util/notification.dart';
 
 class LaunchPage extends StatefulWidget {
   const LaunchPage({super.key});
@@ -23,7 +18,6 @@ class LaunchPage extends StatefulWidget {
 class _LaunchPageState extends State<LaunchPage> {
   Mindustry? _selectedVersion = config.versionOptions.selectedVersion;
 
-  final controller = PopupOverlayController();
   Widget _buildVersionTile() {
     if (_selectedVersion == null) {
       return ReboundListTile(
@@ -150,197 +144,25 @@ class _LaunchPageState extends State<LaunchPage> {
 
   @override
   Widget build(BuildContext context) {
-    Widget child = SizedBox(
-      child: Column(
-        //主页面
-        children: [
-          Expanded(
-            child: Align(
-              alignment: .centerRight,
-              child: ReboundButton(
-                onTap: () {
-                  final setting = MindustrySettings.fromFile(
-                    _selectedVersion!.settingPath,
-                  );
-                  final modEnables = setting.data.entries.where(
-                    (map) => map.key.contains('mod-'),
-                  );
-                  print(Map.fromEntries(modEnables));
-                },
-                child: SizedBox(width: 40, height: 40),
-              ),
-            ),
+    Widget child = Column(
+      //主页面
+      children: [
+        Expanded(child: SizedBox()),
+        Padding(
+          padding: EdgeInsets.all(8),
+          child: Row(
+            //下方操作条
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Expanded(child: _buildVersionTile()),
+              SizedBox(width: 8),
+              _buildLaunchButton(),
+            ],
           ),
-          Padding(
-            padding: EdgeInsets.all(8),
-            child: Row(
-              //下方操作条
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Expanded(child: _buildVersionTile()), //
-                SizedBox(width: 8),
-                _buildLaunchButton(),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
 
-    return child;
-  }
-}
-
-//开始游戏
-class _Begin extends StatefulWidget {
-  @override
-  State<StatefulWidget> createState() => _BeginState();
-}
-
-class _BeginState extends State<_Begin> {
-  final _mindustryLauncher = MindustryLauncher();
-
-  Mindustry? _selectedVersion = config.versionOptions.selectedVersion;
-
-  @override
-  void setState(VoidCallback fn) {
-    _selectedVersion = config.versionOptions.selectedVersion;
-    super.setState(fn);
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  void _launch() async {}
-
-  @override
-  Widget build(BuildContext context) {
-    //开始游戏
-
-    if (_selectedVersion == null) return SizedBox();
-
-    return SizedBox(
-      height: 80,
-      width: 225,
-      child: ReboundButton(
-        pressedScale: 0.9,
-        backgroundColor: Colors.grey,
-        borderRadius: BorderRadius.circular(8),
-        hoverElevation: 8,
-        onTap: () async {
-          NotificationManager.addNotice(
-            icon: Icons.rocket_launch_outlined,
-            title: '启动',
-            content: '正在启动游戏',
-          );
-          LogManager.addLog(LogEntry(.info, '正在启动游戏'));
-          final s = await _mindustryLauncher.start(_selectedVersion!);
-          if (s) {
-            NotificationManager.addNotice(
-              icon: Icons.info_outline,
-              title: '启动',
-              content: '游戏启动成功',
-            );
-            LogManager.addLog(LogEntry(.success, '游戏启动成功'));
-          } else {
-            NotificationManager.addNotice(
-              icon: Icons.info_outline,
-              title: '失败',
-              content: '游戏启动失败',
-            );
-            LogManager.addLog(LogEntry(.success, '游戏启动失败'));
-          }
-        },
-        child: Row(
-          mainAxisAlignment: .center,
-          spacing: 16,
-          children: [
-            Icon(Icons.play_arrow, size: 50, color: Colors.white),
-            Text(
-              "启动游戏",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-//游戏版本 选择或设置
-class _VersionSelect extends StatefulWidget {
-  @override
-  State<StatefulWidget> createState() => _VersionSelectState();
-}
-
-class _VersionSelectState extends State<_VersionSelect>
-    with TickerProviderStateMixin {
-  Mindustry? selectedVersion = config.versionOptions.selectedVersion;
-
-  @override
-  Widget build(BuildContext context) {
-    late Widget child;
-
-    if (selectedVersion == null) {
-      child = ReboundListTile(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () async {
-          await Navigator.pushNamed(
-            context,
-            '/version_select',
-            arguments: {'lead': '版本选择'},
-          );
-          setState(() {});
-        },
-        title: Text('未选择版本，点击以选择游戏版本', style: TextStyle(color: Colors.white60)),
-      );
-    } else {
-      final mindustry = config.versionOptions.findVersion(selectedVersion!);
-      child = ReboundListTile(
-        padding: EdgeInsets.all(8),
-        borderRadius: BorderRadius.circular(8),
-        onLongTap: () {},
-        onTap: () async {
-          await Navigator.pushNamed(
-            context,
-            '/version_select',
-            arguments: {'lead': '版本选择'},
-          );
-          setState(() {});
-        },
-        leading: Image.asset(Images.mindustry, fit: BoxFit.fill),
-        title: Text(
-          selectedVersion!.tag,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
-        ),
-        subtitle: Text(
-          selectedVersion!.name,
-          style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
-        ),
-        trailing: ReboundButton(
-          borderRadius: BorderRadius.circular(8),
-          child: Icon(Icons.settings, color: Colors.white, size: 50),
-          onTap: () {
-            Navigator.pushNamed(
-              context,
-              '/version_setting',
-              arguments: {'lead': '版本设置', 'mindustry': mindustry},
-            );
-          },
-        ),
-      );
-    }
     return child;
   }
 }

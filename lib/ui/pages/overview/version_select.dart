@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
@@ -10,7 +11,6 @@ import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
-import 'package:copper_launcher/util/io/os.dart';
 
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -18,7 +18,6 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:material_symbols_icons/symbols.dart';
 import '../../feature/images.dart';
 
@@ -140,8 +139,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       onTap: () => _select(version),
     );
 
-    // 右键 / 长按菜单：删除 / 收藏 / 设置
-    final menuChild = MenuLayer(
+    // 右键 / 长按 + 左滑 组合菜单：删除 / 收藏 / 设置
+    return ActionMenu(
       menuBuilder: (_, controller) => [
         MenuButton(
           icon: Icons.delete_outline,
@@ -171,39 +170,29 @@ class _VersionSelectPageState extends State<VersionSelectPage>
           },
         ),
       ],
+      actions: [
+        SlideActionButton(
+          icon: Icons.delete_outline,
+          label: '删除',
+          onTap: () => _delete(version),
+        ),
+        const SizedBox(width: 4),
+        SlideActionButton(
+          icon: version.like
+              ? Icons.favorite
+              : Icons.favorite_border_rounded,
+          label: version.like ? '取消收藏' : '收藏',
+          onTap: () => _collect(version),
+        ),
+        const SizedBox(width: 4),
+        SlideActionButton(
+          icon: Icons.settings,
+          label: '设置',
+          onTap: () => _popToSettingOf(version),
+        ),
+      ],
       child: tile,
     );
-
-    // 滑动菜单：移动端 + 桌面端 debug 测试用
-    Widget swipeChild = menuChild;
-    if (isMobile || kDebugMode) {
-      swipeChild = ActionSlideLayer(
-        actions: [
-          SlideActionButton(
-            icon: Icons.delete_outline,
-            label: '删除',
-            onTap: () => _delete(version),
-          ),
-          const SizedBox(width: 4),
-          SlideActionButton(
-            icon: version.like
-                ? Icons.favorite
-                : Icons.favorite_border_rounded,
-            label: version.like ? '取消收藏' : '收藏',
-            onTap: () => _collect(version),
-          ),
-          const SizedBox(width: 4),
-          SlideActionButton(
-            icon: Icons.settings,
-            label: '设置',
-            onTap: () => _popToSettingOf(version),
-          ),
-        ],
-        child: swipeChild,
-      );
-    }
-
-    return swipeChild;
   }
 
   Widget _buildVersionViewPage(List<Mindustry> versions) {

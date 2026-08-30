@@ -5,12 +5,11 @@ import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/download_mod.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
-import 'package:copper_launcher/util/io/os.dart';
 import 'package:copper_launcher/util/io/print_on_debug.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 
@@ -256,21 +255,12 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       ),
     );
 
-    final menuChild = MenuLayer(
+    // 组合菜单：右键 / 长按（MenuLayer）+ 左滑（ActionSlideLayer）
+    return ActionMenu(
       menuBuilder: (_, controller) => _buildMenuItems(mod, controller),
+      actions: _buildSwipeActions(mod),
       child: tile,
     );
-
-    // 滑动菜单：移动端使用
-    Widget swipeChild = menuChild;
-    if (isMobile || kDebugMode) {
-      swipeChild = ActionSlideLayer(
-        actions: _buildSwipeActions(mod),
-        child: swipeChild,
-      );
-    }
-
-    return swipeChild;
   }
 
   /// 右键 / 长按菜单内容
