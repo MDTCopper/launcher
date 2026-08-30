@@ -39,6 +39,12 @@ class ActionSlideLayer extends StatefulWidget {
   /// 菜单裁剪圆角：露出菜单按 child 尺寸裁剪时应用的形状（默认矩形）
   final BorderRadius? borderRadius;
 
+  /// 是否响应左滑。
+  ///
+  /// false 时 child 不随拖动平移（菜单始终收起），但该组件 State 仍保留——
+  /// 用于外部动态开关左滑（如随侧边栏收纳切换）时不重挂载、不丢失滑开状态。
+  final bool enabled;
+
   const ActionSlideLayer({
     super.key,
     required this.child,
@@ -51,6 +57,7 @@ class ActionSlideLayer extends StatefulWidget {
     this.maxOvershootRatio = 0.25,
     this.blockMenuEvents = false,
     this.borderRadius,
+    this.enabled = true,
   });
 
   @override
@@ -90,6 +97,11 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
     if (oldWidget.actions != widget.actions) {
       _measureMenu();
     }
+    // 左滑被禁用时若菜单仍处于展开态，立即收起——否则停留在打开态
+    // （拖动被门控、点击又被子组件吞掉）会关不掉
+    if (oldWidget.enabled && !widget.enabled && _controller.value > 0) {
+      _close();
+    }
   }
 
   @override
@@ -122,13 +134,14 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
   }
 
   void _onDragStart(DragStartDetails details) {
+    if (!widget.enabled) return;
     _controller.stop();
     // 从当前视觉偏移开始累计（含未回弹完的过冲）
     _fingerPosition = -_menuWidth * _controller.value;
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
-    if (_menuWidth <= 0) return;
+    if (!widget.enabled || _menuWidth <= 0) return;
     _fingerPosition += details.delta.dx;
     final min = -_menuWidth;
     final max = 0.0;
@@ -156,6 +169,7 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
   }
 
   void _onDragEnd(DragEndDetails details) {
+    if (!widget.enabled) return;
     // 脱手瞬时水平速度：负 = 向左甩，正 = 向右甩
     final vx = details.velocity.pixelsPerSecond.dx;
     final raw = _controller.value;
@@ -195,6 +209,8 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
       clipBehavior: Clip.hardEdge,
       children: [
         // ── child 层：手势 + 平移露出菜单（垫底）──
+        // 菜单展开时用 IgnorePointer 隔离 child——点 tile 主体直接触发"收起"，
+        // 不会被 child 自身的 onTap 吞掉（导致展开态关不掉）
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onHorizontalDragStart: _onDragStart,
@@ -202,15 +218,18 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
           onHorizontalDragEnd: _onDragEnd,
           onHorizontalDragCancel: _onDragCancel,
           onTap: isOpen ? _close : null,
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              return Transform.translate(
-                offset: Offset(_translateOffset, 0),
-                child: child,
-              );
-            },
-            child: widget.child,
+          child: IgnorePointer(
+            ignoring: isOpen,
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(_translateOffset, 0),
+                  child: child,
+                );
+              },
+              child: widget.child,
+            ),
           ),
         ),
         Positioned.fill(
@@ -264,8 +283,8 @@ void _noop() {}
 /// [color] 为图标 / 文本前景色；
 /// [backgroundColor] 可选背景色
 class SlideActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
+  final Icon icon;
+  final String? label;
   final VoidCallback onTap;
   final Color? color;
   final Color? backgroundColor;
@@ -273,8 +292,8 @@ class SlideActionButton extends StatelessWidget {
   const SlideActionButton({
     super.key,
     required this.icon,
-    required this.label,
     required this.onTap,
+    this.label,
     this.color,
     this.backgroundColor,
   });
@@ -287,13 +306,18 @@ class SlideActionButton extends StatelessWidget {
       onTap: onTap,
       margin: const EdgeInsets.symmetric(vertical: 4),
       backgroundColor: backgroundColor,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 18, color: foreground),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: foreground, fontSize: 12)),
-        ],
+      child: IconTheme(
+        data: IconTheme.of(context).copyWith(color: foreground, size: 18),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            icon,
+            if (label != null) ...[
+              const SizedBox(height: 4),
+              Text(label!, style: TextStyle(color: foreground, fontSize: 12)),
+            ],
+          ],
+        ),
       ),
     );
   }

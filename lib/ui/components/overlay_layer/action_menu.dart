@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 /// 组合菜单：把右键 / 长按菜单（[MenuLayer]）与左滑动作菜单（[ActionSlideLayer]）
-/// 组合为一个组件，包住 [child]（通常是列表 tile）。
+/// 组合为一个组件，包住 [child]
 ///
 /// - 右键（桌面端专属）/ 长按（多端）：弹出 [menuBuilder] 的内容
 /// - 左滑：露出 [actions]。是否开启由 [enableSwipe] 决定：
@@ -46,12 +46,7 @@ class ActionMenu extends StatelessWidget {
       child: this.child,
     );
 
-    // 左滑菜单在外层
     final swipe = enableSwipe ?? (isMobile || kDebugMode);
-    if (swipe) {
-      child = ActionSlideLayer(actions: actions, child: child);
-    }
-
-    return child;
+    return ActionSlideLayer(actions: actions, enabled: swipe, child: child);
   }
 }

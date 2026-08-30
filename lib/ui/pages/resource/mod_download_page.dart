@@ -293,13 +293,13 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     return [
       const SizedBox(width: 4),
       SlideActionButton(
-        icon: Icons.folder_outlined,
+        icon: Icon(Icons.folder_outlined),
         label: '下载源码',
         onTap: () => _buildDownloadPopup(mod, downloadSource: true),
       ),
       const SizedBox(width: 4),
       SlideActionButton(
-        icon: Icons.outbond_outlined,
+        icon: Icon(Icons.outbond_outlined),
         label: '版本详情',
         onTap: () => _buildDownloadPopup(mod),
       ),
