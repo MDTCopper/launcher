@@ -144,7 +144,7 @@ class _MenuPanel extends StatelessWidget {
 
 /// 默认菜单项按钮：图标 + 文本，供 [MenuLayer.menuBuilder] 使用
 ///
-/// [danger] 为 true 时用 error 色（危险操作）
+/// [danger] 为 true 时用 error 色
 class MenuButton extends StatelessWidget {
   final IconData icon;
   final String label;

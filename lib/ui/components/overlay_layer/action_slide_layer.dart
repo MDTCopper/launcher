@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 /// - 向左拖动 child 平移露出右侧 [actions] 菜单，松手后：
 ///   - 甩动速度超过 [velocityThreshold]直接判定
 ///   - 速度不足时按脱手位置判定：超过 [openRatio] 打开，否则收回
-///   - 过冲区（拖过菜单宽）松手后按 [elasticDuration] 回弹到目标边界
+///   - 过冲区松手后按 [elasticDuration] 回弹到目标边界
 /// - 超界拖动：越往外越难拖，且视觉偏移有上限（[maxOvershootRatio] × 菜单宽）
 /// - 展开状态下点击 child 收回
 /// - 移动端多用
@@ -20,8 +20,7 @@ class ActionSlideLayer extends StatefulWidget {
 
   /// 甩动速度阈值（px/s，绝对值）。
   ///
-  /// 脱手瞬间的水平速度超过此值即按方向打开 / 收回，
-
+  /// 脱手瞬间的水平速度超过此值即按方向打开 / 收回
   final double velocityThreshold;
 
   /// 过冲回弹时长（过冲区松手后滑回边界）。
@@ -214,16 +213,11 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
             child: widget.child,
           ),
         ),
-        // ── 菜单层：置顶，保证按钮能收到点击 ──
-        // ClipPath 差集把「child 平移后占据的区域」从菜单层裁掉（PS 蒙版思路），
-        // child 移开多少，菜单就从右往左露出多少。
-        // 非按钮区域默认透传（ClipPath 外不命中，点击/滚动穿到下层）；
-        // blockMenuEvents 为 true 时菜单露出区域拦截所有事件。
         Positioned.fill(
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
-              // 菜单露出宽度：展开度 clamp 到 [0,1]（过冲不改变菜单宽度）
+              // 菜单露出宽度：展开度 clamp 到 [0,1]
               final reveal = _menuWidth * _controller.value.clamp(0.0, 1.0);
               return ClipPath(
                 clipper: _MenuRevealClipper(
@@ -234,7 +228,6 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
                   fit: StackFit.expand,
                   children: [
                     // 背景拦截层：仅当 blockMenuEvents 时拦截露出区域的事件
-                    //（在 ClipPath 内，只作用于菜单露出部分，不影响 child 层）
                     if (widget.blockMenuEvents)
                       Positioned.fill(
                         child: GestureDetector(
@@ -268,8 +261,8 @@ void _noop() {}
 
 /// 默认滑动菜单动作按钮：图标 + 文本，供 [ActionSlideLayer.actions] 使用
 ///
-/// [color] 为图标 / 文本前景色（默认 itemSecondary）；
-/// [backgroundColor] 可选背景色（如红色删除）
+/// [color] 为图标 / 文本前景色；
+/// [backgroundColor] 可选背景色
 class SlideActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -306,13 +299,13 @@ class SlideActionButton extends StatelessWidget {
   }
 }
 
-/// 菜单层遮罩：把「child 平移后占据的区域」从菜单层裁剪掉（PS 蒙版思路）
+/// 菜单层遮罩：把「child 平移后占据的区域」从菜单层裁剪掉
 ///
 /// [reveal] = child 左移距离；差集路径 = 整个区域挖掉 child 区域，
 /// child 移开多少，菜单就从右往左露出多少
 ///
-/// - 露出宽度按原组件（child）尺寸封顶，菜单不会超出组件边界
-/// - [borderRadius] 指定裁剪形状（与 child 圆角一致可选）
+/// - 露出宽度按原组件尺寸封顶，菜单不会超出组件边界
+/// - [borderRadius] 指定裁剪形状
 class _MenuRevealClipper extends CustomClipper<Path> {
   final double reveal;
   final BorderRadius? borderRadius;
@@ -321,10 +314,9 @@ class _MenuRevealClipper extends CustomClipper<Path> {
 
   @override
   Path getClip(Size size) {
-    // 露出宽度按组件宽封顶（菜单比组件宽时也不超出）
     final r = reveal.clamp(0.0, size.width).toDouble();
     final whole = Offset.zero & size;
-    // child 左移 r 后占据 [−r, width−r]
+
     final childRect = Rect.fromLTWH(-r, 0, size.width, size.height);
 
     Path rounded(Rect rect) {

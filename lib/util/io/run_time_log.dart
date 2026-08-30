@@ -38,10 +38,6 @@ abstract class RunTimeLog {
     await file.writeAsString('${DateTime.now().toIso8601String()} $message\n');
   }
 
-  /// 清理过时的日志文件。
-  ///
-  /// 日志文件名以创建时间戳（毫秒）命名，遍历日志目录并删除
-  /// 超过 [retention] 时长的日志文件。
   static Future<void> cleanOutdatedLogs({
     Duration retention = const Duration(days: 7),
   }) async {

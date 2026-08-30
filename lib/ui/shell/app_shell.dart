@@ -60,7 +60,8 @@ class AppShellState extends State<AppShell> {
           icon: Icons.local_fire_department_outlined,
           route: '/community_resources',
         ),
-        RailItem(label: '神秘小工具', icon: Icons.build, route: '/tools'),
+        if (kDebugMode)
+          RailItem(label: '神秘小工具', icon: Icons.build, route: '/tools'),
       ],
     ),
   ];

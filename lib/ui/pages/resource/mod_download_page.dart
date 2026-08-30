@@ -9,6 +9,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/util/io/os.dart';
+import 'package:copper_launcher/util/io/print_on_debug.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
@@ -89,7 +90,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       }
       return true;
     } catch (e) {
-      print(e);
+      printOnDebug(e);
       return false;
     }
   }
@@ -116,7 +117,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     Map<String, dynamic> map = {};
     for (final json in jsons) {
       try {
-        print('$url/mod.$json');
+        printOnDebug('$url/mod.$json');
         final res = await dio.get('$url/mod.$json');
 
         if (res.statusCode != 200) continue;
@@ -124,7 +125,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         map.addAll(hjsonDecode(content, strict: false) as Map<String, dynamic>);
         if (map.isNotEmpty) break;
       } catch (e) {
-        print(e);
+        printOnDebug(e);
         continue;
       }
     }
@@ -132,7 +133,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     if (map.isEmpty) {
       for (final json in jsons) {
         try {
-          print('$url/assets/mod.$json');
+          printOnDebug('$url/assets/mod.$json');
           final res = await dio.get('$url/mod.$json');
 
           if (res.statusCode != 200) continue;
@@ -142,7 +143,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
           );
           if (map.isNotEmpty) break;
         } catch (e) {
-          print(e);
+          printOnDebug(e);
           continue;
         }
       }
@@ -260,7 +261,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       child: tile,
     );
 
-    // 滑动菜单：移动端使用；桌面端 debug 模式下可测试
+    // 滑动菜单：移动端使用
     Widget swipeChild = menuChild;
     if (isMobile || kDebugMode) {
       swipeChild = ActionSlideLayer(
