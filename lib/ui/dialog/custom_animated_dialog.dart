@@ -1,6 +1,8 @@
 import 'dart:ui';
 
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 import '../util/route/page_key_provider.dart';
@@ -108,10 +110,12 @@ Future<T?> showConfirmationPopup<T extends Object?>({
   required VoidCallback action,
 }) {
   final theme = Theme.of(context);
+  final colors = AppColors.of(context);
+  final size = MediaQuery.of(context).size;
 
-  Color barrierColor = const Color(0x80000000);
+  Color barrierColor = colors.barrier;
   if (type == ConfirmationType.warning) {
-    barrierColor = Colors.red.shade700.withAlpha(100);
+    barrierColor = AppColors.of(context).error.withAlpha(100);
   }
   bool warning = type == ConfirmationType.warning;
 
@@ -133,15 +137,18 @@ Future<T?> showConfirmationPopup<T extends Object?>({
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           child: Container(
-            width: 500,
             padding: EdgeInsets.all(16),
+            constraints: BoxConstraints(
+              maxHeight: size.height * 0.8,
+              maxWidth: size.width * 0.6,
+            ),
             decoration: BoxDecoration(
               color: theme.colorScheme.secondaryContainer,
               borderRadius: BorderRadius.circular(8),
               border: Border(
-                top: BorderSide(color: Colors.white38, width: 1.5),
-                left: BorderSide(color: Colors.white38, width: 0.75),
-                right: BorderSide(color: Colors.white38, width: 0.75),
+                top: BorderSide(color: colors.border, width: 1.5),
+                left: BorderSide(color: colors.border, width: 0.75),
+                right: BorderSide(color: colors.border, width: 0.75),
               ),
             ),
             child: Column(
@@ -175,7 +182,7 @@ Future<T?> showConfirmationPopup<T extends Object?>({
                     ),
                   ],
                 ),
-                child,
+                Flexible(child: CopperSingleChildScrollView(child: child)),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   spacing: 8,
@@ -184,7 +191,7 @@ Future<T?> showConfirmationPopup<T extends Object?>({
                       backgroundColor: warning
                           ? theme.colorScheme.error
                           : theme.colorScheme.secondaryContainer,
-                      margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                      padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                       hoverElevation: 4,
                       child: Text(
                         '确定',
@@ -200,7 +207,7 @@ Future<T?> showConfirmationPopup<T extends Object?>({
                     ),
                     ReboundButton(
                       backgroundColor: theme.colorScheme.secondaryContainer,
-                      margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                      padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                       hoverElevation: 4,
                       child: Text(
                         '取消',
@@ -233,6 +240,7 @@ Future<T?> showDefaultDialogPopup<T extends Object?>({
   final context = key.currentContext;
   if (context == null) throw Exception('未能找到全局context');
   final theme = Theme.of(context);
+  final colors = AppColors.of(context);
 
   final size = MediaQuery.of(context).size;
 
@@ -251,14 +259,13 @@ Future<T?> showDefaultDialogPopup<T extends Object?>({
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: EdgeInsets.all(16),
-
             decoration: BoxDecoration(
               color: theme.colorScheme.secondaryContainer,
               borderRadius: BorderRadius.circular(8),
               border: Border(
-                top: BorderSide(color: Colors.white38, width: 1.5),
-                left: BorderSide(color: Colors.white38, width: 0.75),
-                right: BorderSide(color: Colors.white38, width: 0.75),
+                top: BorderSide(color: colors.border, width: 1.5),
+                left: BorderSide(color: colors.border, width: 0.75),
+                right: BorderSide(color: colors.border, width: 0.75),
               ),
             ),
             child: ConstrainedBox(
@@ -271,16 +278,3 @@ Future<T?> showDefaultDialogPopup<T extends Object?>({
     },
   );
 }
-
-// required BuildContext context,
-// required Widget Function(BuildContext, Animation<double>, Animation<double>) pageBuilder,
-// bool barrierDismissible = false,
-// String? barrierLabel,
-// Color barrierColor = const Color(0x80000000),
-// Duration transitionDuration = const Duration(milliseconds: 200),
-// Widget Function(BuildContext, Animation<double>, Animation<double>, Widget)? transitionBuilder,
-// bool useRootNavigator = true,
-// bool fullscreenDialog = false,
-// RouteSettings? routeSettings,
-// Offset? anchorPoint,
-// bool? requestFocus,

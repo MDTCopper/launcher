@@ -195,7 +195,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     _updateView();
   }
 
-  /// 扫描目录内可能的游戏版本：直接 .jar 文件与子目录内的 .jar（识别为 mindustry 的加入列表）
+  /// 扫描目录内可能的游戏版本：直接 .jar 文件与子目录内的 .jar
   Future<List<Mindustry>> _scanGameVersions(String folderPath) async {
     final result = <Mindustry>[];
     final root = Directory(folderPath);
@@ -270,7 +270,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     var candidate = tag;
     var i = 1;
     while (used.contains(candidate)) {
-      candidate = '$tag${i++}';
+      candidate = '$tag(${i++})';
     }
     return candidate;
   }
@@ -467,6 +467,11 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       child: ListContentPanel(
         delay: 250,
         items: [
+          if (isDesktop)
+            Text(
+              '详细路径 ${_versionFolds[_index].path}',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
           if (likes.isNotEmpty)
             AnimatedExpansion(
               initExpanded: true,
@@ -536,6 +541,11 @@ class _VersionSelectPageState extends State<VersionSelectPage>
                   ],
                 ),
               ),
+              if (isDesktop)
+                Text(
+                  '详细路径 ${_versionFolds[_index].path}',
+                  style: theme.textTheme.labelMedium,
+                ),
             ],
           ),
         ),

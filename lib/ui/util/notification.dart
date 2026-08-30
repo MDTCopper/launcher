@@ -10,7 +10,7 @@ void addNotice({
   String? title,
   String? content,
   VoidCallback? onTap,
-  Duration duration = const Duration(seconds: 3),
+  Duration duration = const Duration(seconds: 5),
 }) => NotificationManager.addNotice(
   content: content,
   title: title,
@@ -22,7 +22,7 @@ void addNotice({
 void addNoticeWidget({
   required Widget widget,
   VoidCallback? onTap,
-  Duration duration = const Duration(seconds: 3),
+  Duration duration = const Duration(seconds: 5),
 }) => NotificationManager.addNoticeWidget(
   widget: widget,
   onTap: onTap,
@@ -54,7 +54,7 @@ class NotificationManager {
     String? title,
     String? content,
     VoidCallback? onTap,
-    Duration duration = const Duration(seconds: 3),
+    Duration duration = const Duration(seconds: 5),
   }) async {
     context ??= PageKeyProvider.shellKey.currentContext;
     await _show(context!).then((_) {
@@ -66,7 +66,7 @@ class NotificationManager {
     BuildContext? context,
     required Widget widget,
     VoidCallback? onTap,
-    Duration duration = const Duration(seconds: 3),
+    Duration duration = const Duration(seconds: 5),
   }) async {
     context ??= PageKeyProvider.shellKey.currentContext;
     await _show(context!).then((_) {
@@ -142,9 +142,6 @@ class _NotificationWidgetState extends State<NotificationWidget> {
       ),
     );
 
-    // 注意：不要再用 Align/Padding 包裹——Align 会撑满到容器宽（300），
-    // 导致 GestureDetector 命中区远超卡片实际显示；这里只保留卡片本身，
-    // 左/底间距统一放到 _NoticeItem 外层（不进点击区）。
     widget = Material(
       color: Colors.transparent,
       elevation: 4,
@@ -427,17 +424,17 @@ class _NoticeItemState extends State<_NoticeItem>
       ),
     );
 
-    // ── 左滑删除：拖动跟手（无背景层）──
+    // ── 左滑删除：拖动跟手）──
     // _dragX 保留至退场：滑动删除时退场 Slide 从当前位置继续向左，
     // 点击/定时删除时 _dragX=0 从原位起飞。
     content = Transform.translate(offset: Offset(_dragX, 0), child: content);
 
-    // 点击/滑动区只覆盖卡片本身（不含底部分隔）。
+    // 点击/滑动区只覆盖卡片本身。
     final Widget item = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
         widget.item.onTap?.call();
-        // 点击：退场先小段缩小（像被按下一样）
+        // 点击：退场先小段缩小
         _remove(byTap: true);
       },
       onHorizontalDragUpdate: _onDragUpdate,
@@ -449,14 +446,10 @@ class _NoticeItemState extends State<_NoticeItem>
     // 随条目一起收缩（移除不瞬移），但不属于点击/滑动区。
     return SizeTransition(
       sizeFactor: sizeFactor,
-      axisAlignment: -1.0, // 收缩时向上（顶部通知）
+      axisAlignment: -1.0,
       child: Padding(
-        // 左间距也放点击区外，命中范围=卡片实际显示本身。
         padding: const EdgeInsets.only(left: 12),
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: item,
-        ),
+        child: Padding(padding: const EdgeInsets.only(bottom: 12), child: item),
       ),
     );
   }
