@@ -5,8 +5,12 @@ import 'package:path/path.dart' as p;
 import '../../core/app_config.dart';
 import '../app_paths.dart';
 
+void addLog(RunTimeLogType type, String message) => Log.add(type, message);
+
+void addCustomLog(String message) => Log.addCustom(message);
+
 ///运行时日志，记录程序运行时的事件和错误，需先初始化
-abstract class RunTimeLog {
+abstract class Log {
   static late File file;
 
   static Future<void> init() async {
@@ -30,7 +34,7 @@ abstract class RunTimeLog {
 
   static Future<void> add(RunTimeLogType type, String message) async {
     await file.writeAsString(
-      '${DateTime.now().toIso8601String()} [${type.name}] $message\n',
+      '[${DateTime.now().toIso8601String()}]-[${type.name}] $message\n',
     );
   }
 
@@ -64,4 +68,4 @@ abstract class RunTimeLog {
   }
 }
 
-enum RunTimeLogType { info, error, warning, debug }
+enum RunTimeLogType { info, error, warning, debug, fault }

@@ -16,7 +16,7 @@ import '../components/overlay_layer/drag_file_field.dart';
 import 'drawer/info_drawer.dart';
 import '../page_framwork/sub_navigation_state.dart';
 import 'parts/task_drawer_opener.dart';
-import '../popup/resource_importer.dart';
+import '../dialog/resource_importer.dart';
 import '../vars.dart';
 import 'navigation_rail.dart';
 

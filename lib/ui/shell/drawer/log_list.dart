@@ -7,15 +7,15 @@ import 'package:intl/intl.dart' show DateFormat;
 import '../../components/scroll/desktop_scroll_view.dart';
 import '../../components/scroll/scroll_fade_mask.dart';
 
-void addLog(LogEntry entry) => LogManager.addLog(entry);
+void addTaskLog(LogEntry entry) => TaskLogManager.addLog(entry);
 
 /// 日志管理：全局共享，[logNotifier] 供列表监听
 ///
 /// 上限 [_kMaxLogs]：99
-class LogManager {
-  static final _instance = LogManager._();
-  const LogManager._();
-  factory LogManager() => _instance;
+class TaskLogManager {
+  static final _instance = TaskLogManager._();
+  const TaskLogManager._();
+  factory TaskLogManager() => _instance;
 
   /// 日志条数上限
   static const int _kMaxLogs = 99;
@@ -38,13 +38,13 @@ class LogManager {
   }
 }
 
-class LogList extends StatefulWidget {
-  const LogList({super.key});
+class TaskLogList extends StatefulWidget {
+  const TaskLogList({super.key});
   @override
-  State<StatefulWidget> createState() => _LogListState();
+  State<StatefulWidget> createState() => _TaskLogListState();
 }
 
-class _LogListState extends State<LogList> {
+class _TaskLogListState extends State<TaskLogList> {
   /// 当前展示的日志条数
   int _itemCount = 0;
 
@@ -62,23 +62,23 @@ class _LogListState extends State<LogList> {
   @override
   void initState() {
     super.initState();
-    _lastEntries = LogManager.logList;
+    _lastEntries = TaskLogManager.logList;
     _itemCount = _lastEntries.length;
     if (_lastEntries.isNotEmpty) {
       _lastNewest = _lastEntries.last;
     }
-    LogManager.logNotifier.addListener(_onChange);
+    TaskLogManager.logNotifier.addListener(_onChange);
   }
 
   @override
   void dispose() {
-    LogManager.logNotifier.removeListener(_onChange);
+    TaskLogManager.logNotifier.removeListener(_onChange);
     controller.dispose();
     super.dispose();
   }
 
   void _onChange() {
-    final entries = LogManager.logList;
+    final entries = TaskLogManager.logList;
     final newCount = entries.length;
     final newest = entries.isEmpty ? null : entries.last;
     final oldEntries = _lastEntries;
@@ -146,7 +146,7 @@ class _LogListState extends State<LogList> {
   }
 
   LogEntry _entryAtDisplayIndex(int index) {
-    return LogManager.logList[LogManager.logList.length - 1 - index];
+    return TaskLogManager.logList[TaskLogManager.logList.length - 1 - index];
   }
 
   Widget _buildItem(LogEntry logEntry) {
@@ -240,7 +240,7 @@ class _LogListState extends State<LogList> {
 
   @override
   Widget build(BuildContext context) {
-    if (LogManager.logList.isEmpty) return _buildNoLogPage();
+    if (TaskLogManager.logList.isEmpty) return _buildNoLogPage();
 
     Widget list = AnimatedList(
       key: _key,

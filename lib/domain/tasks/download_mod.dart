@@ -58,7 +58,7 @@ class DownloadJavaModTask extends Task {
       title: '下载',
       content: '正在下载模组[${modListMeta.name}(${modMeta.releaseNum})]',
     );
-    LogManager.addLog(
+    TaskLogManager.addLog(
       LogEntry(
         LogType.info,
         '正在下载模组[${modListMeta.name}(${modMeta.releaseNum})]',
@@ -110,7 +110,7 @@ class DownloadJavaModTask extends Task {
         title: '下载完成',
         content: '[${modListMeta.name}(${modMeta.name})]下载完成，存储路径[$path]',
       );
-      LogManager.addLog(
+      TaskLogManager.addLog(
         LogEntry(
           LogType.info,
           '[${modListMeta.name}(${modMeta.name})]下载完成，存储路径[$path]',
@@ -127,13 +127,13 @@ class DownloadJavaModTask extends Task {
           });
           debugPrint('取消下载:$e');
 
-          addLog(LogEntry(LogType.info, '已取消下载'));
+          addTaskLog(LogEntry(LogType.info, '已取消下载'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
         }
       } else {
         status = TaskStatus.failed;
         debugPrint('网络错误：$e');
-        addLog(LogEntry(LogType.error, '网络错误:$e'));
+        addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
 
         await file.delete();
@@ -142,14 +142,14 @@ class DownloadJavaModTask extends Task {
       status = TaskStatus.failed;
 
       if (e.toString().contains('url为空')) {
-        addLog(LogEntry(LogType.error, '模组元数据提供的下载链接为空，可能是模组未编译java并发布'));
+        addTaskLog(LogEntry(LogType.error, '模组元数据提供的下载链接为空，可能是模组未编译java并发布'));
         addNotice(
           icon: Icons.error_outline,
           title: '错误',
           content: '模组元数据提供的下载链接为空，可能是模组未编译java并发布',
         );
       } else {
-        addLog(LogEntry(LogType.error, '未知错误:$e'));
+        addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
         addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
       }
       await file.delete();
@@ -321,7 +321,7 @@ class DownloadZipModTask extends Task {
       title: '下载',
       content: '正在下载模组[$modTag]',
     );
-    LogManager.addLog(LogEntry(LogType.info, '正在下载模组[$modTag]'));
+    TaskLogManager.addLog(LogEntry(LogType.info, '正在下载模组[$modTag]'));
 
     var fileName = modListMeta.name;
     var url = '$githubCOM/${modListMeta.repo}/archive/refs/heads/';
@@ -380,7 +380,9 @@ class DownloadZipModTask extends Task {
         title: '下载完成',
         content: '[$modTag]下载完成，存储路径[$path]',
       );
-      LogManager.addLog(LogEntry(LogType.info, '[$modTag]下载完成，存储路径[$path]'));
+      TaskLogManager.addLog(
+        LogEntry(LogType.info, '[$modTag]下载完成，存储路径[$path]'),
+      );
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -392,13 +394,13 @@ class DownloadZipModTask extends Task {
           });
           debugPrint('取消下载:$e');
 
-          addLog(LogEntry(LogType.info, '已取消下载'));
+          addTaskLog(LogEntry(LogType.info, '已取消下载'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
         }
       } else {
         status = TaskStatus.failed;
         debugPrint('网络错误：$e');
-        addLog(LogEntry(LogType.error, '网络错误:$e'));
+        addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
 
         await file.delete();
@@ -406,7 +408,7 @@ class DownloadZipModTask extends Task {
     } catch (e) {
       status = TaskStatus.failed;
 
-      addLog(LogEntry(LogType.error, '未知错误:$e'));
+      addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
       addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
 
       await file.delete();

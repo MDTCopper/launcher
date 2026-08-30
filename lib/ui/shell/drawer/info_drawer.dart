@@ -16,7 +16,7 @@ class _InfoListState extends State<InfoList>
     with SingleTickerProviderStateMixin {
   static int index = 0;
 
-  final List<Widget> pages = [TaskList(), LogList()];
+  final List<Widget> pages = [TaskList(), TaskLogList()];
 
   late final AnimationController controller;
 

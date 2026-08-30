@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import 'package:copper_launcher/ui/popup/resource_importer.dart';
+import 'package:copper_launcher/ui/dialog/resource_importer.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 

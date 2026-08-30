@@ -81,7 +81,7 @@ class DownloadMindustryTask extends Task {
       title: '下载',
       content: '正在下载游戏[$tag]',
     );
-    LogManager.addLog(LogEntry(LogType.info, '正在下载游戏[$tag]'));
+    TaskLogManager.addLog(LogEntry(LogType.info, '正在下载游戏[$tag]'));
 
     try {
       final jarName = 'mindustry-${mindustryMeta.releaseNum}.jar';
@@ -127,7 +127,7 @@ class DownloadMindustryTask extends Task {
         title: '下载完成',
         content: '[$tag]下载完成，存储路径[$path]',
       );
-      LogManager.addLog(LogEntry(LogType.info, '[$tag]下载完成，存储路径[$path]'));
+      TaskLogManager.addLog(LogEntry(LogType.info, '[$tag]下载完成，存储路径[$path]'));
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -139,13 +139,13 @@ class DownloadMindustryTask extends Task {
           });
           debugPrint('取消下载:$e');
 
-          addLog(LogEntry(LogType.info, '已取消下载'));
+          addTaskLog(LogEntry(LogType.info, '已取消下载'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
         }
       } else {
         status = TaskStatus.failed;
         debugPrint('网络错误：$e');
-        addLog(LogEntry(LogType.error, '网络错误:$e'));
+        addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
 
         await file.delete();
@@ -153,7 +153,7 @@ class DownloadMindustryTask extends Task {
     } catch (e) {
       status = TaskStatus.failed;
       debugPrint('未知错误$e');
-      addLog(LogEntry(LogType.error, '未知错误:$e'));
+      addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
       addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
 
       await file.delete();

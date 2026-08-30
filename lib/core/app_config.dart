@@ -6,7 +6,7 @@ import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
-import 'package:copper_launcher/util/io/run_time_log.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
@@ -108,7 +108,7 @@ class AppConfig {
       await file.writeAsString(formattedJson, flush: true);
     } catch (e) {
       debugPrint('配置保存失败: $e');
-      RunTimeLog.add(.error, '配置保存失败: $e');
+      Log.add(.error, '配置保存失败: $e');
     }
   }
 
@@ -124,7 +124,7 @@ class AppConfig {
       await file.writeAsString(encodedData, flush: true);
     } catch (e) {
       debugPrint('配置保存失败: $e');
-      RunTimeLog.add(.error, '配置保存失败: $e');
+      Log.add(.error, '配置保存失败: $e');
     }
   }
 }
@@ -157,7 +157,8 @@ class Account {
     this.color = 0,
   });
 
-  factory Account.fromJson(Map<String, dynamic> json) => _$AccountFromJson(json);
+  factory Account.fromJson(Map<String, dynamic> json) =>
+      _$AccountFromJson(json);
 
   Map<String, dynamic> toJson() => _$AccountToJson(this);
 }

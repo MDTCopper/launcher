@@ -34,8 +34,11 @@ class Mindustry {
   /// 玩家给游戏版本的标签
   String tag;
   bool like = false;
+
+  ///版本隔离
   bool isolation;
 
+  ///启动选用java路径
   String? java;
 
   @JsonKey(includeToJson: false, includeFromJson: false)

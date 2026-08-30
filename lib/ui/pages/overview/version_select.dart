@@ -18,8 +18,16 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/shell/drawer/log_list.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
+import 'package:copper_launcher/util/io/file_reader.dart';
+import 'package:copper_launcher/util/io/os.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
+import 'package:file_selector/file_selector.dart' show XTypeGroup;
+import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -152,9 +160,16 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     final defaultTag = path.split(Platform.pathSeparator).last;
     final tag = await showAnimatedDialog<String>(
       context: context,
-      pageBuilder: (_, _, _) => _NewFolderDialog(
-        defaultTag: defaultTag,
-        existingTags: _versionFolds.map((fold) => fold.tag).toSet(),
+      pageBuilder: (_, _, _) => _TagInputDialog(
+        title: '添加新目录',
+        label: '目录名称',
+        defaultText: defaultTag,
+        validate: (tag) {
+          final e = WindowsFileNameValidator.tagValidate(tag);
+          if (e != null) return e;
+          if (_versionFolds.any((fold) => fold.tag == tag)) return '名称已存在';
+          return null;
+        },
       ),
     );
     if (tag == null || !mounted) return;
@@ -167,7 +182,84 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     _updateView();
   }
 
-  // void _addNewSort() {}
+  /// 导入本地游戏：选一个 Mindustry jar，识别后作为版本加入当前目录（桌面端）
+  Future<void> _importLocalGame() async {
+    if (!isDesktop) return;
+
+    Log.add(.info, '导入外部游戏文件');
+
+    final path = await PathSelector.selectFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Mindustry', extensions: ['jar', 'zip']),
+      ],
+    );
+    if (path == null || !mounted) return;
+
+    final reader = await FileReader.fromPath(path);
+    if (!mounted) return;
+    final meta = reader.mindustry;
+    if (reader.type != ResourceType.mindustry || meta == null) {
+      addNotice(
+        icon: Icons.close,
+        title: '类型错误',
+        content: '该文件不是有效的 Mindustry 游戏文件，请确认文件存在',
+      );
+      Log.add(.warning, '类型错误:文件[$path]不是有效的 Mindustry 游戏文件');
+      return;
+    }
+
+    final isBe = meta.type == 'bleeding-edge';
+    final name = isBe
+        ? 'v${meta.version} Build ${meta.build}'
+        : 'Build ${meta.build}';
+
+    final fold = _versionFolds[_index];
+    final versionTags = _versionFolds
+        .expand((fold) => fold.versions)
+        .map((version) => version.tag)
+        .toSet();
+
+    final tag = await showAnimatedDialog<String>(
+      context: context,
+      pageBuilder: (_, _, _) => _TagInputDialog(
+        title: '导入游戏',
+        label: '版本标签',
+        defaultText: name,
+        validate: (tag) {
+          final e = WindowsFileNameValidator.tagValidate(tag);
+          if (e != null) return e;
+          if (versionTags.contains(tag)) return '名称已存在';
+          return null;
+        },
+      ),
+    );
+    if (tag == null || !mounted) return;
+
+    // 拷贝 jar 到当前目录的版本文件夹下（版本自包含）
+    final jarPath = await reader.importTo(p.join(fold.path, tag));
+    if (jarPath == null) {
+      addNotice(icon: Icons.close, title: '导入失败', content: '无法写入目标目录，请选择合适的路径');
+      Log.add(.warning, '导入失败:文件[$path]无法写入目标目录[$jarPath]');
+      return;
+    }
+
+    final mindustry = Mindustry(
+      id: const Uuid().v4(),
+      launcher: LauncherType.mindustry, //TODO 等待后续接入Copper Loader
+      tag: tag,
+      jarPath: jarPath,
+      isBe: isBe,
+      path: fold.path,
+      name: name,
+      releaseNum: isBe ? meta.version : 'v${meta.version}',
+      addTime: DateTime.now(),
+      isolation: false,
+    );
+    if (mounted) setState(() => fold.versions.add(mindustry));
+    config.save();
+    Log.add(.info, '导入完成:$mindustry');
+    if (mounted) _updateView();
+  }
 
   Widget _buildVersionTile(Mindustry version) {
     final theme = Theme.of(context);
@@ -409,12 +501,13 @@ class _VersionSelectPageState extends State<VersionSelectPage>
             collapse: collapse,
             onTap: _addNewFold,
           ),
-          NavigationTile(
-            icon: Icon(Symbols.deployed_code_update),
-            content: '导入本地游戏',
-            collapse: collapse,
-            onTap: () {},
-          ),
+          if (isDesktop)
+            NavigationTile(
+              icon: Icon(Symbols.deployed_code_update),
+              content: '导入本地游戏',
+              collapse: collapse,
+              onTap: _importLocalGame,
+            ),
         ],
       ),
       page: _buildVersionViewPage(_versionFolds[_index].versions),
@@ -422,31 +515,35 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   }
 }
 
-/// 添加新目录：输入目录名称（tag）的对话框
-class _NewFolderDialog extends StatefulWidget {
-  final String defaultTag;
-  final Set<String> existingTags;
+/// 通用标签输入对话框：title / label / 默认值 / 校验器（返回错误文案或 null）
+class _TagInputDialog extends StatefulWidget {
+  final String title;
+  final String label;
+  final String defaultText;
+  final String? Function(String tag) validate;
 
-  const _NewFolderDialog({
-    required this.defaultTag,
-    required this.existingTags,
+  const _TagInputDialog({
+    required this.title,
+    required this.label,
+    required this.defaultText,
+    required this.validate,
   });
 
   @override
-  State<_NewFolderDialog> createState() => _NewFolderDialogState();
+  State<_TagInputDialog> createState() => _TagInputDialogState();
 }
 
-class _NewFolderDialogState extends State<_NewFolderDialog> {
+class _TagInputDialogState extends State<_TagInputDialog> {
   late final TextEditingController controller;
   String? error;
 
   @override
   void initState() {
     super.initState();
-    controller = TextEditingController(text: widget.defaultTag);
-    error = _computeError(controller.text);
+    controller = TextEditingController(text: widget.defaultText);
+    error = widget.validate(controller.text);
     controller.addListener(() {
-      setState(() => error = _computeError(controller.text));
+      setState(() => error = widget.validate(controller.text));
     });
   }
 
@@ -454,13 +551,6 @@ class _NewFolderDialogState extends State<_NewFolderDialog> {
   void dispose() {
     controller.dispose();
     super.dispose();
-  }
-
-  String? _computeError(String tag) {
-    final e = WindowsFileNameValidator.tagValidate(tag);
-    if (e != null) return e;
-    if (widget.existingTags.contains(tag)) return '名称已存在';
-    return null;
   }
 
   @override
@@ -491,7 +581,7 @@ class _NewFolderDialogState extends State<_NewFolderDialog> {
                     onTap: () => Navigator.of(context).pop(),
                   ),
                   Text(
-                    '添加新目录',
+                    widget.title,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -501,7 +591,7 @@ class _NewFolderDialogState extends State<_NewFolderDialog> {
                 ],
               ),
               OutlinedTextField(
-                label: '目录名称',
+                label: widget.label,
                 error: error,
                 controller: controller,
               ),

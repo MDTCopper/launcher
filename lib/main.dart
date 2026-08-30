@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
 import 'package:copper_launcher/util/app_paths.dart';
-import 'package:copper_launcher/util/io/run_time_log.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -21,7 +21,7 @@ Future<void> _initialize() async {
   await AppPaths.init();
   await TokenEncryptor.init();
   await initAppConfig();
-  await RunTimeLog.init();
+  await Log.init();
   await _initViewPool();
 }
 

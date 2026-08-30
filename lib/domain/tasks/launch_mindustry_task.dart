@@ -45,7 +45,7 @@ class LaunchMindustryTask extends Task {
       title: '启动',
       content: '正在启动\r\n[${mindustry.name}]',
     );
-    LogManager.addLog(LogEntry(LogType.info, '正在启动游戏'));
+    TaskLogManager.addLog(LogEntry(LogType.info, '正在启动游戏'));
 
     final launchOption = config.setting.launchOptions;
 
@@ -137,7 +137,7 @@ class LaunchMindustryTask extends Task {
           title: '启动成功',
           content: '启动成功，耗时${time.trim()}',
         );
-        LogManager.addLog(LogEntry(LogType.success, '游戏启动成功，耗时$time'));
+        TaskLogManager.addLog(LogEntry(LogType.success, '游戏启动成功，耗时$time'));
       }
       if (log.contains('exit')) {
         if (log.contains('0')) {
@@ -146,21 +146,21 @@ class LaunchMindustryTask extends Task {
             title: '退出',
             content: '正常游戏退出',
           );
-          LogManager.addLog(LogEntry(LogType.info, '正常游戏退出'));
+          TaskLogManager.addLog(LogEntry(LogType.info, '正常游戏退出'));
         } else if (log.contains('-1')) {
           NotificationManager.addNotice(
             icon: Icons.info_outline,
             title: '退出',
             content: '已停止游戏',
           );
-          LogManager.addLog(LogEntry(LogType.info, '已停止游戏'));
+          TaskLogManager.addLog(LogEntry(LogType.info, '已停止游戏'));
         } else {
           NotificationManager.addNotice(
             icon: Icons.error_outline,
             title: '退出',
             content: '游戏异常退出 ($log)',
           );
-          LogManager.addLog(LogEntry(LogType.error, '游戏异常退出，退出码 ($log)'));
+          TaskLogManager.addLog(LogEntry(LogType.error, '游戏异常退出，退出码 ($log)'));
         }
         progress = 1.0;
         status = TaskStatus.completed;

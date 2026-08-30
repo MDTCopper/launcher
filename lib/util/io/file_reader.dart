@@ -106,13 +106,17 @@ class FileReader {
   }
 
   /// 从字节数组解析。
+  ///
+  /// 命中类型后**再尝试用对应 meta 构建**（如 [MindustryMeta.fromJson]），
+  /// 构建失败则判定「不是该类型」，落到下一候选 / 最终 type=null——
+  /// 避免"能匹配文件但内容不符"被误分类后在调用处抛错。
   static FileReader _fromBytes(Uint8List bytes, String path) {
     final fileName = p.basename(path);
     final header = bytes.length >= 8 ? bytes.sublist(0, 8) : bytes;
 
     // 优先检查 MSAV（zlib 头）
     final mapMeta = _tryMapMeta(bytes, header);
-    if (mapMeta != null) {
+    if (mapMeta != null && _tryBuild(() => MapSave.fromJson(mapMeta)) != null) {
       return FileReader._(
         path: path,
         fileName: fileName,
@@ -124,7 +128,8 @@ class FileReader {
 
     // 检查 msch 蓝图
     final schemMeta = _trySchematicMeta(bytes, header);
-    if (schemMeta != null) {
+    if (schemMeta != null &&
+        _tryBuild(() => Schematic.fromJson(schemMeta)) != null) {
       return FileReader._(
         path: path,
         fileName: fileName,
@@ -149,7 +154,9 @@ class FileReader {
     // 检查 ZIP/JAR
     if (_isZip(header)) {
       final modResult = _tryModMeta(bytes);
-      if (modResult != null) {
+      if (modResult != null &&
+          _tryBuild(() => Mod.fromJson(modResult.meta, icon: modResult.icon)) !=
+              null) {
         return FileReader._(
           path: path,
           fileName: fileName,
@@ -161,7 +168,8 @@ class FileReader {
       }
 
       final gameMeta = _tryGameMeta(bytes);
-      if (gameMeta != null) {
+      if (gameMeta != null &&
+          _tryBuild(() => MindustryMeta.fromJson(gameMeta)) != null) {
         return FileReader._(
           path: path,
           fileName: fileName,
@@ -180,6 +188,15 @@ class FileReader {
       fileFormat: FileFormat.other,
       meta: null,
     );
+  }
+
+  /// 尝试执行构建，失败返回 null（用于"命中但内容不符"的容错）
+  static T? _tryBuild<T>(T Function() build) {
+    try {
+      return build();
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── 导入操作 ──
@@ -370,19 +387,19 @@ class FileReader {
   // ── 类型化 getter ──
 
   MapSave? get mapSave => type == ResourceType.mapSave && meta != null
-      ? MapSave.fromJson(meta!)
+      ? _tryBuild(() => MapSave.fromJson(meta!))
       : null;
 
   Schematic? get schematic => type == ResourceType.schematic && meta != null
-      ? Schematic.fromJson(meta!)
+      ? _tryBuild(() => Schematic.fromJson(meta!))
       : null;
 
   Mod? get mod => type == ResourceType.mod && meta != null
-      ? Mod.fromJson(meta!, icon: modIcon)
+      ? _tryBuild(() => Mod.fromJson(meta!, icon: modIcon))
       : null;
 
   MindustryMeta? get mindustry => type == ResourceType.mindustry && meta != null
-      ? MindustryMeta.fromJson(meta!)
+      ? _tryBuild(() => MindustryMeta.fromJson(meta!))
       : null;
 
   @override
