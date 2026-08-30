@@ -150,40 +150,44 @@ class _LaunchPageState extends State<LaunchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      //主页面
-      children: [
-        Expanded(
-          child: Align(
-            alignment: .centerRight,
-            child: ReboundButton(
-              onTap: () {
-                final setting = MindustrySettings.fromFile(
-                  _selectedVersion!.settingPath,
-                );
-                final modEnables = setting.data.entries.where(
-                  (map) => map.key.contains('mod-'),
-                );
-                print(Map.fromEntries(modEnables));
-              },
-              child: SizedBox(width: 40, height: 40),
+    Widget child = SizedBox(
+      child: Column(
+        //主页面
+        children: [
+          Expanded(
+            child: Align(
+              alignment: .centerRight,
+              child: ReboundButton(
+                onTap: () {
+                  final setting = MindustrySettings.fromFile(
+                    _selectedVersion!.settingPath,
+                  );
+                  final modEnables = setting.data.entries.where(
+                    (map) => map.key.contains('mod-'),
+                  );
+                  print(Map.fromEntries(modEnables));
+                },
+                child: SizedBox(width: 40, height: 40),
+              ),
             ),
           ),
-        ),
-        Padding(
-          padding: EdgeInsets.all(8),
-          child: Row(
-            //下方操作条
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Expanded(child: _buildVersionTile()), //
-              SizedBox(width: 8),
-              _buildLaunchButton(),
-            ],
+          Padding(
+            padding: EdgeInsets.all(8),
+            child: Row(
+              //下方操作条
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Expanded(child: _buildVersionTile()), //
+                SizedBox(width: 8),
+                _buildLaunchButton(),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
+
+    return child;
   }
 }
 

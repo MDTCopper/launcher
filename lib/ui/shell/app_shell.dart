@@ -336,7 +336,15 @@ class AppShellState extends State<AppShell> {
 
     return PageRouteBuilder(
       settings: setting,
-      pageBuilder: (_, _, _) => page,
+      // 页面内容包一层全屏吸入点击的 GestureDetector：空白点击被页面自身吃掉，
+      // 不再下传到路由背后的透明 ModalBarrier（PageRoute 默认 barrierDismissible=false，
+      // 点空区会播 SystemSoundType.alert → Windows 系统提示音）；
+      // 按钮 / 列表 / 滚动等子级正常（手势竞技场子级优先获胜）
+      pageBuilder: (_, _, _) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {},
+        child: page,
+      ),
       transitionDuration: const Duration(milliseconds: 350),
       reverseTransitionDuration: const Duration(milliseconds: 350),
       transitionsBuilder: (_, animation, secondaryAnimation, child) {
