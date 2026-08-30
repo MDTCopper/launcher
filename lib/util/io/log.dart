@@ -35,11 +35,15 @@ abstract class Log {
   static Future<void> add(RunTimeLogType type, String message) async {
     await file.writeAsString(
       '[${DateTime.now().toIso8601String()}]-[${type.name}] $message\n',
+      mode: .append,
     );
   }
 
   static Future<void> addCustom(String message) async {
-    await file.writeAsString('${DateTime.now().toIso8601String()} $message\n');
+    await file.writeAsString(
+      '${DateTime.now().toIso8601String()} $message\n',
+      mode: .append,
+    );
   }
 
   static Future<void> cleanOutdatedLogs({

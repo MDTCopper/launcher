@@ -18,7 +18,6 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
-import 'package:copper_launcher/ui/shell/drawer/log_list.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
@@ -152,12 +151,21 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     );
   }
 
-  /// 添加新目录：选一个游戏目录，命名后加入版本折叠
+  /// 添加新目录：选一个游戏目录，命名后加入版本折叠；目录下已有游戏版本会被自动扫描进去
   Future<void> _addNewFold() async {
     final path = await PathSelector.selectDirectory();
     if (path == null || !mounted) return;
 
+    // 检查是否为存在的文件夹
+    if (!await Directory(path).exists()) {
+      if (mounted) {
+        addNotice(icon: Icons.close, title: '添加失败', content: '所选路径不是存在的文件夹');
+      }
+      return;
+    }
+
     final defaultTag = path.split(Platform.pathSeparator).last;
+    if (!mounted) return;
     final tag = await showAnimatedDialog<String>(
       context: context,
       pageBuilder: (_, _, _) => _TagInputDialog(
@@ -174,12 +182,97 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     );
     if (tag == null || !mounted) return;
 
+    // 扫描目录内可能的游戏版本，作为新目录的初始版本
+    final scanned = await _scanGameVersions(path);
+    if (!mounted) return;
+    Log.add(.info, '目录[$tag] 扫描到 ${scanned.length} 个游戏版本');
+    addNotice(content: '在目录中找到${scanned.length} 个游戏版本');
     setState(() {
-      _versionFolds.add(VersionFold(tag: tag, path: path, versions: []));
+      _versionFolds.add(VersionFold(tag: tag, path: path, versions: scanned));
       _index = _versionFolds.length - 1;
     });
     await config.save();
     _updateView();
+  }
+
+  /// 扫描目录内可能的游戏版本：直接 .jar 文件与子目录内的 .jar（识别为 mindustry 的加入列表）
+  Future<List<Mindustry>> _scanGameVersions(String folderPath) async {
+    final result = <Mindustry>[];
+    final root = Directory(folderPath);
+    if (!await root.exists()) return result;
+
+    await for (final entity in root.list()) {
+      if (entity is File && entity.path.toLowerCase().endsWith('.jar')) {
+        final version = await _recognizeJar(
+          folderPath,
+          entity.path,
+          p.basenameWithoutExtension(entity.path),
+        );
+        if (version != null) result.add(version);
+        continue;
+      }
+      if (entity is Directory) {
+        await for (final sub in entity.list()) {
+          if (sub is File && sub.path.toLowerCase().endsWith('.jar')) {
+            final version = await _recognizeJar(
+              folderPath,
+              sub.path,
+              p.basenameWithoutExtension(entity.path),
+            );
+            if (version != null) result.add(version);
+            break;
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  /// 用 [FileReader] 识别 jar：是 mindustry 则构造版本（tag 去重）
+  Future<Mindustry?> _recognizeJar(
+    String folderPath,
+    String jarPath,
+    String tag,
+  ) async {
+    final reader = await FileReader.fromPath(jarPath);
+    final meta = reader.mindustry;
+    if (reader.type != ResourceType.mindustry || meta == null) {
+      return null;
+    }
+
+    final isBe = meta.type == 'bleeding-edge';
+    final name = !isBe
+        ? 'v${meta.version} Build ${meta.build}'
+        : 'Build ${meta.build}';
+
+    return Mindustry(
+      id: const Uuid().v4(),
+      launcher: LauncherType.mindustry,
+      tag: _uniqueTag(tag),
+      jarPath: jarPath,
+      isBe: isBe,
+      path: folderPath,
+      name: name,
+      releaseNum: isBe ? meta.version : 'v${meta.version}',
+      addTime: DateTime.now(),
+      isolation: false,
+    );
+  }
+
+  /// 保证 tag 不与已有目录 / 版本重名（重名时追加序号）
+  String _uniqueTag(String tag) {
+    final used =
+        _versionFolds
+            .expand((fold) => fold.versions)
+            .map((version) => version.tag)
+            .toSet()
+          ..addAll(_versionFolds.map((fold) => fold.tag));
+    var candidate = tag;
+    var i = 1;
+    while (used.contains(candidate)) {
+      candidate = '$tag${i++}';
+    }
+    return candidate;
   }
 
   /// 导入本地游戏：选一个 Mindustry jar，识别后作为版本加入当前目录（桌面端）
@@ -209,7 +302,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     }
 
     final isBe = meta.type == 'bleeding-edge';
-    final name = isBe
+    final name = !isBe
         ? 'v${meta.version} Build ${meta.build}'
         : 'Build ${meta.build}';
 
@@ -369,32 +462,35 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       );
     }
 
-    return ListContentPanel(
-      delay: 250,
-      items: [
-        if (likes.isNotEmpty)
-          AnimatedExpansion(
-            initExpanded: true,
-            title: Text('收藏(${likes.length})'),
-            children: likes,
-          ),
-        if (mindustrys.isNotEmpty)
-          AnimatedExpansion(
-            initExpanded: likes.isEmpty,
-            title: Text('原版(${mindustrys.length})'),
-            children: mindustrys,
-          ),
-        if (coppers.isNotEmpty)
-          AnimatedExpansion(
-            title: Text('Copper(${coppers.length})'),
-            children: coppers,
-          ),
-        if (betas.isNotEmpty)
-          AnimatedExpansion(
-            title: Text('预览版(${betas.length})'),
-            children: betas,
-          ),
-      ],
+    return KeyedSubtree(
+      key: Key(_versionFolds[_index].path),
+      child: ListContentPanel(
+        delay: 250,
+        items: [
+          if (likes.isNotEmpty)
+            AnimatedExpansion(
+              initExpanded: true,
+              title: Text('收藏(${likes.length})'),
+              children: likes,
+            ),
+          if (mindustrys.isNotEmpty)
+            AnimatedExpansion(
+              initExpanded: likes.isEmpty,
+              title: Text('原版(${mindustrys.length})'),
+              children: mindustrys,
+            ),
+          if (coppers.isNotEmpty)
+            AnimatedExpansion(
+              title: Text('Copper(${coppers.length})'),
+              children: coppers,
+            ),
+          if (betas.isNotEmpty)
+            AnimatedExpansion(
+              title: Text('预览版(${betas.length})'),
+              children: betas,
+            ),
+        ],
+      ),
     );
   }
 
@@ -412,14 +508,14 @@ class _VersionSelectPageState extends State<VersionSelectPage>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('~(～￣▽￣)～', style: theme.textTheme.bodyLarge),
-              Text('没有找到任何游戏版本', style: theme.textTheme.displayMedium),
+              Text('没有找到任何游戏版本', style: theme.textTheme.headlineLarge),
 
-              Text('可以添加其他游戏目录或者直接下载游戏', style: theme.textTheme.bodyMedium),
+              Text('可以添加其他游戏目录或者直接下载游戏', style: theme.textTheme.labelLarge),
               SizedBox(height: 2),
               ReboundButton(
                 elevation: 2,
                 hoverElevation: 4,
-                margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                 onTap: () {
                   Navigator.pushNamedAndRemoveUntil(
                     context,
