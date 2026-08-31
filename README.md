@@ -7,13 +7,11 @@
 基于 **Flutter** 开发的多平台 [Mindustry](https://github.com/Anuken/Mindustry) 游戏启动器  
 **目前处于开发阶段**
 
-
-
 ## 运行平台
 - **桌面端**  
 支持 **Windows** ， **Linux** 和 **MacOS** ，支持启动器所有可用功能
 - **Android**  
-安卓部分功能必须在安装CopperModLoader时才能使用
+必须在安装CopperModLoader时才能正常使用
 - **不支持iOS**  
 iOS限制较多且在iOS上的Mindustry不能运行Java模组，没有任何开发的必要
 ## 核心功能

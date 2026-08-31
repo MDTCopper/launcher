@@ -12,7 +12,7 @@ A multi-platform game launcher for [Mindustry](https://github.com/Anuken/Mindust
 - **Desktop**  
   Supports **Windows**, **Linux**, and **macOS**, with full access to all launcher features.
 - **Android**  
-  Some features require the installation of CopperModLoader to function.
+  require the installation of CopperModLoader to function.
 - **iOS is NOT supported**  
   Due to significant platform restrictions and the inability to run Java mods on iOS, development for this platform is not planned.
 

@@ -59,6 +59,7 @@ opencode.json
 versions/
 logs/
 .test/
+.script/
 config.*
 /lib/abandon_mystery_code/
 /lib/test/
