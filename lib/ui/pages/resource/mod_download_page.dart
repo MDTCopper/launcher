@@ -417,7 +417,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                           ),
                         ),
                         IconTextButton(
-                          icon: FontAwesomeIcons.github,
+                          icon: FontAwesomeIcons.github.data,
                           content: '作者主页',
                           onTap: () => _goToUrl(
                             'https://github.com/${modListMeta.repo.split('/').first}',

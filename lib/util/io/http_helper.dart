@@ -201,6 +201,45 @@ class HttpHelper {
     }
   }
 
+  // void _recreateClient() {
+  //   final baseOptions = BaseOptions(
+  //     connectTimeout: _connectTimeout,
+  //     receiveTimeout: _receiveTimeout,
+  //   );
+
+  //   if (_proxyHost != null && _proxyPort != null) {
+  //     _dio = Dio(baseOptions)
+  //       ..httpClientAdapter = IOHttpClientAdapter(
+  //         createHttpClient: () {
+  //           final client = HttpClient();
+  //           client.findProxy = (url) => 'PROXY $_proxyHost:$_proxyPort';
+  //           if (_proxyUsername != null) {
+  //             client.addProxyCredentials(
+  //               _proxyHost!,
+  //               _proxyPort!,
+  //               'realm',
+  //               HttpClientBasicCredentials(_proxyUsername!, _proxyPassword ?? ''),
+  //             );
+  //           }
+  //           return client;
+  //         },
+  //       );
+  //   } else {
+  //     _dio = Dio(baseOptions)
+  //       ..httpClientAdapter = IOHttpClientAdapter(
+  //         createHttpClient: () {
+  //           final client = HttpClient();
+  //           client.findProxy = (url) {
+  //             final proxy = _detectSystemProxy(url);
+  //             if (proxy != null) return 'PROXY $proxy';
+  //             return 'DIRECT';
+  //           };
+  //           return client;
+  //         },
+  //       );
+  //   }
+  // }
+
   String? _detectSystemProxy(Uri url) {
     final scheme = url.scheme;
 
