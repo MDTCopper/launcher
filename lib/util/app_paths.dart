@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:copper_launcher/util/io/log.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 

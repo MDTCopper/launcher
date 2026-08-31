@@ -87,6 +87,8 @@ class _AnimatedExpansionState extends State<AnimatedExpansion> {
         headerBuilder: (context, animation) => Material(
           type: MaterialType.transparency,
           child: ListTile(
+            splashColor: Colors.transparent,
+            hoverColor: Colors.transparent,
             iconColor: theme.iconTheme.color,
             titleTextStyle: theme.textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.w900,
