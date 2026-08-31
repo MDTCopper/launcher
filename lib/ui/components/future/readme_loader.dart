@@ -64,7 +64,6 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
     for (var m in main) {
       try {
         var url = '$repo$m/README.md';
-        print(url);
         final res = await dio.get(
           url,
           options: Options(headers: modDownloadHeaders),
@@ -170,7 +169,6 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
                         s.data ?? 'wu',
                         extensionSet: md.ExtensionSet.gitHubFlavored,
                       );
-                      print(h);
                       return _buildHtml(h);
                   }
                 },
@@ -337,7 +335,6 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
       for (var branch in ['main', 'master']) {
         try {
           url = '$repo$branch/${uri.toString()}';
-          print(url);
           var isSvg = await _checkIsSvgFrom(url);
           if (isSvg == null) continue;
           if (isSvg) {
@@ -376,8 +373,6 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return FutureBuilder(
       future: imageCache,
       builder: (_, s) {

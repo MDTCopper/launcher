@@ -59,10 +59,6 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   static const _kFadeDuration = Duration(milliseconds: 300);
   static const _kAutoHideDelay = Duration(seconds: 1);
 
-  static final _kDefaultThumbVisibility = WidgetStateProperty.resolveWith(
-    (state) {},
-  );
-
   late final ScrollController _controller = widget.controller;
   late final AnimationController _fadeController;
 

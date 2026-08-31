@@ -39,7 +39,7 @@ class SettingsBinCodec {
 
   // ── 解码 ──
 
-  /// 从字节数组解码 settings.bin，返回 Map<String, dynamic>。
+  /// 从字节数组解码 settings.bin，返回 Map
   static Map<String, dynamic> decode(Uint8List bytes) {
     final data = _maybeDecompress(bytes);
     final reader = _SettingsBinReader(data);
@@ -80,7 +80,7 @@ class SettingsBinCodec {
 
   // ── 编码 ──
 
-  /// 将 Map<String, dynamic> 编码为 settings.bin 字节数组。
+  /// 将 Map编码为 settings.bin 字节数组。
   static Uint8List encode(Map<String, dynamic> data) {
     final writer = _SettingsBinWriter();
     writer._writeAll(data);
@@ -311,6 +311,7 @@ class _SettingsBinWriter {
     _buffer.add(v & 0xFF);
   }
 
+  // ignore: unused_element
   void _writeInt64(int v) {
     _writeInt32((v >> 32) & 0xFFFFFFFF);
     _writeInt32(v & 0xFFFFFFFF);

@@ -3,6 +3,7 @@ import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 /// Copper 列表视图：桌面端套 [DesktopScrollViewContainer]（自研滚动条 +
 /// 滚轮/触控板处理），非桌面端用官方 [ListView]（原生物理），
@@ -20,7 +21,7 @@ class CopperListView extends StatefulWidget {
   final EdgeInsetsGeometry? padding;
   final double? itemExtent;
   final Widget? prototypeItem;
-  final double? cacheExtent;
+  final ScrollCacheExtent? scrollCacheExtent;
   final DragStartBehavior dragStartBehavior;
   final ScrollViewKeyboardDismissBehavior keyboardDismissBehavior;
   final String? restorationId;
@@ -56,7 +57,7 @@ class CopperListView extends StatefulWidget {
     this.padding,
     this.itemExtent,
     this.prototypeItem,
-    this.cacheExtent,
+    this.scrollCacheExtent,
     this.dragStartBehavior = DragStartBehavior.start,
     this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
     this.restorationId,
@@ -86,7 +87,7 @@ class CopperListView extends StatefulWidget {
     this.prototypeItem,
     required this.itemBuilder,
     this.itemCount,
-    this.cacheExtent,
+    this.scrollCacheExtent,
     this.dragStartBehavior = DragStartBehavior.start,
     this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
     this.restorationId,
@@ -137,7 +138,7 @@ class _CopperListViewState extends State<CopperListView> {
         prototypeItem: widget.prototypeItem,
         itemBuilder: widget.itemBuilder!,
         itemCount: widget.itemCount,
-        cacheExtent: widget.cacheExtent,
+        scrollCacheExtent: widget.scrollCacheExtent,
         dragStartBehavior: widget.dragStartBehavior,
         keyboardDismissBehavior: widget.keyboardDismissBehavior,
         restorationId: widget.restorationId,
@@ -155,7 +156,7 @@ class _CopperListViewState extends State<CopperListView> {
         padding: widget.padding,
         itemExtent: widget.itemExtent,
         prototypeItem: widget.prototypeItem,
-        cacheExtent: widget.cacheExtent,
+        scrollCacheExtent: widget.scrollCacheExtent,
         dragStartBehavior: widget.dragStartBehavior,
         keyboardDismissBehavior: widget.keyboardDismissBehavior,
         restorationId: widget.restorationId,

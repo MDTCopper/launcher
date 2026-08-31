@@ -364,11 +364,13 @@ class _UbjsonWriter {
     _buffer.add(v & 0xFF);
   }
 
+  // ignore: unused_element
   void _writeInt64(int v) {
     _writeInt32((v >> 32) & 0xFFFFFFFF);
     _writeInt32(v & 0xFFFFFFFF);
   }
 
+  // ignore: unused_element
   void _writeFloat32(double v) {
     final bytes = Uint8List(4);
     final buffer = ByteData.view(bytes.buffer);

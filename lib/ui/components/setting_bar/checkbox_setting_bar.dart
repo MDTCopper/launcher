@@ -56,10 +56,7 @@ class CheckboxSettingBar<T> extends StatelessWidget {
           spacing: 4,
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            ...options,
-            if (resetButton != null) resetButton,
-          ],
+          children: [...options, ?resetButton],
         ),
       ),
     );

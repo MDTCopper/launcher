@@ -9,6 +9,7 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_config.dart';
@@ -241,70 +242,66 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ReboundButton(
-          child: Icon(Icons.download, size: 40),
-          onTap: () async {
-            print('fetch minGameVersion');
+        if (kDebugMode) ...[
+          ReboundButton(
+            child: Icon(Icons.download, size: 40),
+            onTap: () async {
+              print('fetch minGameVersion');
 
-            for (final version in _versionList) {
-              // depth++;
-              // if (depth > 2) break;
+              for (final version in _versionList) {
+                // depth++;
+                // if (depth > 2) break;
 
-              final num = double.parse(version.releaseNum.substring(1));
+                final num = double.parse(version.releaseNum.substring(1));
 
-              if (num < 100) break;
+                if (num < 100) break;
 
-              if (_minJavaModGameVersionMap.containsKey(num)) continue;
-              if (_minModGameVersionMap.containsKey(num)) continue;
+                if (_minJavaModGameVersionMap.containsKey(num)) continue;
+                if (_minModGameVersionMap.containsKey(num)) continue;
 
-              print(version.releaseNum);
-              dio
-                  .get(
-                    '$githubRAW/Anuken/Mindustry/${version.releaseNum}/core/src/mindustry/Vars.java',
-                  )
-                  .then((value) {
-                    if (value.statusCode == 200) {
-                      final str = value.data as String;
-                      var index = str.lastIndexOf('minModGameVersion = ');
-                      if (index != -1) {
-                        final len = 'minModGameVersion = '.length;
-                        final minGameVersion = str.substring(
-                          index + len,
-                          index + len + 3,
-                        );
-                        _minModGameVersionMap[double.parse(
-                          version.releaseNum.substring(1),
-                        )] = int.parse(
-                          minGameVersion,
-                        );
+                print(version.releaseNum);
+                dio
+                    .get(
+                      '$githubRAW/Anuken/Mindustry/${version.releaseNum}/core/src/mindustry/Vars.java',
+                    )
+                    .then((value) {
+                      if (value.statusCode == 200) {
+                        final str = value.data as String;
+                        var index = str.lastIndexOf('minModGameVersion = ');
+                        if (index != -1) {
+                          final len = 'minModGameVersion = '.length;
+                          final minGameVersion = str.substring(
+                            index + len,
+                            index + len + 3,
+                          );
+                          _minModGameVersionMap[double.parse(
+                            version.releaseNum.substring(1),
+                          )] = int.parse(
+                            minGameVersion,
+                          );
+                        }
+                        index = str.lastIndexOf('minJavaModGameVersion = ');
+                        if (index != -1) {
+                          final len = 'minJavaModGameVersion = '.length;
+                          final minGameVersion = str.substring(
+                            index + len,
+                            index + len + 3,
+                          );
+                          _minJavaModGameVersionMap[double.parse(
+                            version.releaseNum.substring(1),
+                          )] = int.parse(
+                            minGameVersion,
+                          );
+                        }
                       }
-                      index = str.lastIndexOf('minJavaModGameVersion = ');
-                      if (index != -1) {
-                        final len = 'minJavaModGameVersion = '.length;
-                        final minGameVersion = str.substring(
-                          index + len,
-                          index + len + 3,
-                        );
-                        _minJavaModGameVersionMap[double.parse(
-                          version.releaseNum.substring(1),
-                        )] = int.parse(
-                          minGameVersion,
-                        );
-                      }
-                    }
-                  });
-              await Future.delayed(const Duration(milliseconds: 400));
-            }
-          },
-        ),
-        ReboundButton(
-          child: Icon(Icons.print, size: 40),
-          onTap: () {
-            print(_minModGameVersionMap);
-            print('----------------');
-            print(_minJavaModGameVersionMap);
-          },
-        ),
+                    });
+                await Future.delayed(const Duration(milliseconds: 400));
+              }
+            },
+          ),
+          ReboundButton(child: Icon(Icons.print, size: 40), onTap: () {}),
+        ],
+
         Expanded(child: child),
       ],
     );

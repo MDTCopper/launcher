@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/cupertino.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/app_config.dart';
@@ -7,7 +8,17 @@ import '../app_paths.dart';
 
 void addLog(RunTimeLogType type, String message) => Log.add(type, message);
 
+void addLogAndPrint(RunTimeLogType type, String message) {
+  Log.add(type, message);
+  debugPrint('[${DateTime.now().toIso8601String()}]-[${type.name}] $message\n');
+}
+
 void addCustomLog(String message) => Log.addCustom(message);
+
+void addCustomLogAndPrint(String message) {
+  Log.addCustom(message);
+  debugPrint('[${DateTime.now().toIso8601String()}] $message\n');
+}
 
 ///运行时日志，记录程序运行时的事件和错误，需先初始化
 abstract class Log {
@@ -41,7 +52,7 @@ abstract class Log {
 
   static Future<void> addCustom(String message) async {
     await file.writeAsString(
-      '${DateTime.now().toIso8601String()} $message\n',
+      '[${DateTime.now().toIso8601String()}] $message\n',
       mode: .append,
     );
   }

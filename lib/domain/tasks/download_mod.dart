@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -64,8 +65,7 @@ class DownloadJavaModTask extends Task {
         '正在下载模组[${modListMeta.name}(${modMeta.releaseNum})]',
       ),
     );
-
-    await Future.delayed(const Duration(milliseconds: 500));
+    addLogAndPrint(.info, '下载模组[${modListMeta.name}(${modMeta.releaseNum})]');
 
     try {
       final fileName = '${modListMeta.name}-${modMeta.name}.jar';
@@ -99,8 +99,6 @@ class DownloadJavaModTask extends Task {
         },
         chunksStatus: (it) => chunks = it,
       );
-
-      print(url);
 
       if (await file.length() != totalSize) Exception('文件可能在合并过程中损坏');
       status = TaskStatus.completed;
@@ -148,9 +146,11 @@ class DownloadJavaModTask extends Task {
           title: '错误',
           content: '模组元数据提供的下载链接为空，可能是模组未编译java并发布',
         );
+        addLog(.warning, e.toString());
       } else {
         addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
         addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
+        addLog(.error, '未知错误:$e');
       }
       await file.delete();
       rethrow;
@@ -322,6 +322,7 @@ class DownloadZipModTask extends Task {
       content: '正在下载模组[$modTag]',
     );
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载模组[$modTag]'));
+    addLog(.info, '下载模组[$modTag] 类型：ZIP');
 
     var fileName = modListMeta.name;
     var url = '$githubCOM/${modListMeta.repo}/archive/refs/heads/';
@@ -337,7 +338,18 @@ class DownloadZipModTask extends Task {
           url += 'main';
         } else {
           res = await dio.head('${url}master.zip');
-          if (res.statusCode != 206) throw Exception('找不到模组主仓库');
+          if (res.statusCode != 206) {
+            NotificationManager.addNotice(
+              icon: Icons.error,
+              title: '错误',
+              content: '找不到模组仓库',
+            );
+            TaskLogManager.addLog(LogEntry(LogType.error, '找不到模组仓库'));
+            addLog(.warning, '找不到模组仓库');
+            status = .failed;
+            updateDisplay();
+            return;
+          }
           url += 'master';
         }
       }
@@ -346,7 +358,7 @@ class DownloadZipModTask extends Task {
     url += '.zip';
 
     final path = p.join(savePath, fileName);
-    print('$url => $path');
+
     file = File(path);
     if (await file.exists()) await file.delete();
     await file.create(recursive: true);
@@ -383,6 +395,7 @@ class DownloadZipModTask extends Task {
       TaskLogManager.addLog(
         LogEntry(LogType.info, '[$modTag]下载完成，存储路径[$path]'),
       );
+      addLog(.info, '[$modTag]下载完成，存储路径[$path]');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -392,25 +405,22 @@ class DownloadZipModTask extends Task {
           Future.delayed(Duration(milliseconds: 300), () async {
             await file.delete();
           });
-          debugPrint('取消下载:$e');
-
           addTaskLog(LogEntry(LogType.info, '已取消下载'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
+          addLog(.info, '取消下载[$modTag]');
         }
       } else {
         status = TaskStatus.failed;
-        debugPrint('网络错误：$e');
         addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
-
+        addLog(.warning, '网络错误:$e');
         await file.delete();
       }
     } catch (e) {
       status = TaskStatus.failed;
-
       addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
       addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
-
+      addLog(.error, '未知错误:$e');
       await file.delete();
       rethrow;
     } finally {

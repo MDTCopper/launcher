@@ -284,7 +284,6 @@ class _ModViewPageState extends State<ModViewPage> {
         return true;
       } catch (e) {
         if (tryTime < 5) {
-          print('$tryTime , $e');
           tryTime++;
           await Future.delayed(const Duration(seconds: 1));
           return await fetch(tryTime: tryTime);

@@ -268,8 +268,6 @@ class AppShellState extends State<AppShell> {
 
   //TODO: 安卓端退出程序
 
-  DateTime? _lastPopTime;
-
   Widget _buildNavigator() {
     Widget child = Navigator(
       key: PageKeyProvider.navigatorKey,

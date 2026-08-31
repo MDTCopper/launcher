@@ -69,7 +69,7 @@ class PathSelector {
     return file?.path;
   }
 
-  //todo 安卓端文件定位
+  //TODO 安卓端文件定位
   static Future<void> _locateFileOnAndroid(String path) async {
     // 申请存储权限（Android 13+需读取权限）
     final bool hasPermission = await _requestAndroidFilePermission();
@@ -87,8 +87,6 @@ class PathSelector {
         //兜底
         await OpenFilex.open(folderPath, type: "folder");
         print("Android文件管理器不支持直接定位，已打开所在文件夹：$folderPath");
-      } else {
-        print("Android文件定位成功：$path");
       }
     } catch (e) {
       // 最终兜底：打开文件夹

@@ -3,6 +3,7 @@ import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 /// Copper 网格视图：桌面端套 [DesktopScrollViewContainer]（自研滚动条 +
 /// 滚轮/触控板处理），非桌面端用官方 [GridView]（原生物理），
@@ -19,7 +20,7 @@ class CopperGridView extends StatefulWidget {
   final bool shrinkWrap;
   final EdgeInsetsGeometry? padding;
   final SliverGridDelegate gridDelegate;
-  final double? cacheExtent;
+  final ScrollCacheExtent? scrollCacheExtent;
   final DragStartBehavior dragStartBehavior;
   final ScrollViewKeyboardDismissBehavior keyboardDismissBehavior;
   final String? restorationId;
@@ -54,7 +55,7 @@ class CopperGridView extends StatefulWidget {
     this.shrinkWrap = false,
     this.padding,
     required this.gridDelegate,
-    this.cacheExtent,
+    this.scrollCacheExtent,
     this.dragStartBehavior = DragStartBehavior.start,
     this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
     this.restorationId,
@@ -83,7 +84,7 @@ class CopperGridView extends StatefulWidget {
     required this.gridDelegate,
     required this.itemBuilder,
     this.itemCount,
-    this.cacheExtent,
+    this.scrollCacheExtent,
     this.dragStartBehavior = DragStartBehavior.start,
     this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
     this.restorationId,
@@ -133,7 +134,7 @@ class _CopperGridViewState extends State<CopperGridView> {
         gridDelegate: widget.gridDelegate,
         itemBuilder: widget.itemBuilder!,
         itemCount: widget.itemCount,
-        cacheExtent: widget.cacheExtent,
+        scrollCacheExtent: widget.scrollCacheExtent,
         dragStartBehavior: widget.dragStartBehavior,
         keyboardDismissBehavior: widget.keyboardDismissBehavior,
         restorationId: widget.restorationId,
@@ -150,7 +151,7 @@ class _CopperGridViewState extends State<CopperGridView> {
         shrinkWrap: widget.shrinkWrap,
         padding: widget.padding,
         gridDelegate: widget.gridDelegate,
-        cacheExtent: widget.cacheExtent,
+        scrollCacheExtent: widget.scrollCacheExtent,
         dragStartBehavior: widget.dragStartBehavior,
         keyboardDismissBehavior: widget.keyboardDismissBehavior,
         restorationId: widget.restorationId,

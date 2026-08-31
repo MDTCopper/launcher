@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -97,7 +98,8 @@ class DownloadMindustryTask extends Task {
       final String url = mindustryMeta.assets
           .firstWhere((it) => it.name.toLowerCase().contains('mindustry.jar'))
           .url;
-      print(url);
+
+      addLog(.info, '下载游戏[$tag],$url');
 
       await dr.download(
         url,
@@ -128,6 +130,7 @@ class DownloadMindustryTask extends Task {
         content: '[$tag]下载完成，存储路径[$path]',
       );
       TaskLogManager.addLog(LogEntry(LogType.info, '[$tag]下载完成，存储路径[$path]'));
+      addLog(.info, '[$tag]下载完成，存储路径[$path],');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -141,13 +144,14 @@ class DownloadMindustryTask extends Task {
 
           addTaskLog(LogEntry(LogType.info, '已取消下载'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
+          addLog(.info, '已取消下载[$tag]');
         }
       } else {
         status = TaskStatus.failed;
         debugPrint('网络错误：$e');
         addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
-
+        addLog(.warning, '网络错误:$e');
         await file.delete();
       }
     } catch (e) {
@@ -155,7 +159,7 @@ class DownloadMindustryTask extends Task {
       debugPrint('未知错误$e');
       addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
       addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
-
+      addLog(.error, '未知错误:$e');
       await file.delete();
     } finally {
       updateDisplay();
@@ -183,7 +187,7 @@ class DownloadMindustryTask extends Task {
       config.saveAsJson();
     } else {
       //todo 新的路径可以询问玩家是否创建，不创建就移入默认文件夹
-      debugPrint('无法同步配置文件');
+      addLogAndPrint(.error, '无法同步配置文件');
     }
   }
 

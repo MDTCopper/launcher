@@ -366,7 +366,7 @@ class _NoticeItemState extends State<_NoticeItem>
     if (_dragX <= -_dismissDistance) {
       _remove();
     } else {
-      // 未达阈值：缓慢归位（收拢回原位置）
+      // 未达阈值：缓慢归位
       _dragBackStart = _dragX;
       _dragBackController.forward(from: 0);
     }
@@ -424,7 +424,7 @@ class _NoticeItemState extends State<_NoticeItem>
       ),
     );
 
-    // ── 左滑删除：拖动跟手）──
+    // ── 左滑删除 ──
     // _dragX 保留至退场：滑动删除时退场 Slide 从当前位置继续向左，
     // 点击/定时删除时 _dragX=0 从原位起飞。
     content = Transform.translate(offset: Offset(_dragX, 0), child: content);
@@ -442,11 +442,9 @@ class _NoticeItemState extends State<_NoticeItem>
       child: content,
     );
 
-    // 底部分隔在 SizeTransition 内、GestureDetector 外：
-    // 随条目一起收缩（移除不瞬移），但不属于点击/滑动区。
     return SizeTransition(
       sizeFactor: sizeFactor,
-      axisAlignment: -1.0,
+      alignment: Alignment(-1.0, -1.0),
       child: Padding(
         padding: const EdgeInsets.only(left: 12),
         child: Padding(padding: const EdgeInsets.only(bottom: 12), child: item),

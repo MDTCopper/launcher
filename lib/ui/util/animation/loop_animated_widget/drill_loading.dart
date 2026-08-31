@@ -32,35 +32,31 @@ class _DrillLoadingState extends State<DrillLoading>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          CustomPaint(
-            size: Size(110, 110),
-            painter: _DrillBottomPainter(color: theme.colorScheme.primary),
-          ),
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        CustomPaint(
+          size: Size(110, 110),
+          painter: _DrillBottomPainter(color: theme.colorScheme.primary),
+        ),
 
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              return RotationTransition(
-                turns: _controller,
-                child: CustomPaint(
-                  size: Size(100, 100),
-                  painter: _DrillFansPainter(color: theme.colorScheme.primary),
-                ),
-              );
-            },
-          ),
-          ClipPath(
-            clipper: _DrillTopPainter(
-              color: theme.colorScheme.primaryContainer,
-            ),
-            child: Container(width: 60,height: 60,color: Colors.transparent,),
-          ),
-        ],
-      ),
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return RotationTransition(
+              turns: _controller,
+              child: CustomPaint(
+                size: Size(100, 100),
+                painter: _DrillFansPainter(color: theme.colorScheme.primary),
+              ),
+            );
+          },
+        ),
+        ClipPath(
+          clipper: _DrillTopPainter(color: theme.colorScheme.primaryContainer),
+          child: Container(width: 60, height: 60, color: Colors.transparent),
+        ),
+      ],
     );
   }
 
@@ -261,7 +257,8 @@ class _DrillBottomPainter extends CustomPainter {
   _DrillBottomPainter({required this.color});
 
   @override
-  void paint(Canvas canvas, Size size) {//感觉也只能自己画了，软件不靠谱，暂时不知道为什么旋转轴不在中心
+  void paint(Canvas canvas, Size size) {
+    //感觉也只能自己画了，软件不靠谱，暂时不知道为什么旋转轴不在中心
     Paint paint = Paint();
     Path path = Path();
     paint.style = PaintingStyle.stroke;

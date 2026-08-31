@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -35,9 +36,10 @@ abstract class AppPaths {
       }
     }
     if (_defaultGameDataPath == null) {
+      addLog(.fault, '无法获取默认游戏数据存储位置');
       throw ('无法获取默认游戏数据存储位置');
     } else {
-      print('默认数据存储路径:$_defaultGameDataPath');
+      addLog(.info, '默认数据存储路径:$_defaultGameDataPath');
     }
   }
 

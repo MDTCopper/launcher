@@ -82,26 +82,31 @@ class _AnimatedExpansionState extends State<AnimatedExpansion> {
         animationStyle: AnimationStyle(
           duration: widget.duration ?? animationDuration,
         ),
-        headerBuilder: (context, animation) => ListTile(
-          iconColor: theme.iconTheme.color,
-          titleTextStyle: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.w900,
-            color: theme.colorScheme.primary,
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-          leading: widget.lead,
-          title: widget.title,
-          trailing: RotationTransition(
-            turns: Tween(begin: 0.0, end: 0.5).animate(
-              CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutBack,
-                reverseCurve: Curves.easeInBack,
-              ),
+        // ListTile 的水波纹画在最近的 Material 上；外层 Container 带背景色会夹在中间
+        // 使墨水效果不可见并触发 Flutter 调试警告，故包一层透明 Material 承接
+        headerBuilder: (context, animation) => Material(
+          type: MaterialType.transparency,
+          child: ListTile(
+            iconColor: theme.iconTheme.color,
+            titleTextStyle: theme.textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: theme.colorScheme.primary,
             ),
-            child: const Icon(Icons.keyboard_arrow_down),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            leading: widget.lead,
+            title: widget.title,
+            trailing: RotationTransition(
+              turns: Tween(begin: 0.0, end: 0.5).animate(
+                CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutBack,
+                  reverseCurve: Curves.easeInBack,
+                ),
+              ),
+              child: const Icon(Icons.keyboard_arrow_down),
+            ),
+            onTap: _toggle,
           ),
-          onTap: _toggle,
         ),
         bodyBuilder: (context, animation) => Padding(
           padding: const EdgeInsets.all(8),

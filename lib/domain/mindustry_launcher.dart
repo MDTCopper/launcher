@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/util/io/log.dart';
+
 import 'package:path/path.dart' as p;
 
 import '../core/app_config.dart';
@@ -17,7 +19,7 @@ class MindustryLauncher {
   /// 是否为启动器主动停止游戏。
   ///
   /// 主动停止且游戏未完全启动时，需清理残留的 launchid.dat 哨兵文件，
-  /// 避免下次启动被 Mindustry 误判为「mod 加载崩溃」而全部禁用 mod。
+  /// 避免下次启动被 Mindustry 误判为「mod 加载崩溃」而全部禁用 mod
   bool _stoppedByLauncher = false;
 
   // 校验 Java 环境是否可用
@@ -38,7 +40,7 @@ class MindustryLauncher {
       return errorOutput.contains('java version') ||
           errorOutput.contains('openjdk version');
     } catch (e) {
-      print('Java 环境校验失败：$e');
+      addLogAndPrint(.warning, 'Java 环境校验失败：$e');
       return false;
     }
   }
@@ -54,14 +56,14 @@ class MindustryLauncher {
     // 先校验 Java 环境
     final isJavaAvailable = await _checkJavaEnv(javaExecutable: javaExecutable);
     if (!isJavaAvailable) {
-      print('错误：未检测到 Java 环境，请先安装并配置 Java');
+      addLogAndPrint(.warning, '未检测到 Java 环境，请先安装并配置 Java');
       return false;
     }
 
     // 校验 Jar 文件是否存在
     final jarFile = File(mindustry.jarPath);
     if (!await jarFile.exists()) {
-      print('错误：mindustry.jar 不存在，路径：${mindustry.jarPath}');
+      addLogAndPrint(.warning, 'mindustry.jar 不存在，路径：${mindustry.jarPath}');
       return false;
     }
 
@@ -113,7 +115,10 @@ class MindustryLauncher {
       // 记录游戏数据目录，用于退出时清理 launchid.dat
       _dataPath = mindustry.dataPath;
 
-      print('进程 ID：${_jarProcess?.pid}，命令：java ${args.join(' ')}');
+      addLogAndPrint(
+        .info,
+        '进程 ID：${_jarProcess?.pid}，命令：java ${args.join(' ')}',
+      );
 
       // 监听进程日志（stdout + stderr）
       _listenToJarLogs();
@@ -144,7 +149,7 @@ class MindustryLauncher {
     _jarProcess!.stdout.transform(systemEncoding.decoder).listen((log) {
       if (log.isNotEmpty) {
         _logController?.add('[游戏日志] ${log.trim()}');
-        print('[游戏日志] ${log.trim()}');
+        addLogAndPrint(.info, '[游戏日志] ${log.trim()}');
       }
     });
 
@@ -152,7 +157,7 @@ class MindustryLauncher {
     _jarProcess!.stderr.transform(systemEncoding.decoder).listen((error) {
       if (error.isNotEmpty) {
         _logController?.add('[错误] ${error.trim()}');
-        print('[错误] ${error.trim()}');
+        addLogAndPrint(.warning, '[错误] ${error.trim()}');
       }
     });
   }
@@ -164,12 +169,12 @@ class MindustryLauncher {
       _stoppedByLauncher = true; // 主动停止：退出后清理残留哨兵
       _jarProcess!.kill(ProcessSignal.sigterm);
       await _jarProcess!.exitCode;
-      print('Mindustry Jar 进程已关闭');
+      addLogAndPrint(.info, 'Mindustry Jar 进程已关闭');
       _logController?.close();
       _jarProcess = null;
       return true;
     } catch (e) {
-      print('关闭 Jar 进程失败：$e');
+      addLogAndPrint(.warning, '关闭 Jar 进程失败：$e');
       return false;
     }
   }
@@ -220,10 +225,10 @@ class MindustryLauncher {
     try {
       if (await sentinel.exists()) {
         await sentinel.delete();
-        print('已删除残留的 launchid.dat（游戏未完全启动即被停止）');
+        addLogAndPrint(.info, '启动时打断, 已删除残留的 launchid.dat');
       }
     } catch (e) {
-      print('删除 launchid.dat 失败：$e');
+      addLogAndPrint(.info, '删除 launchid.dat 失败：$e');
     }
   }
 }

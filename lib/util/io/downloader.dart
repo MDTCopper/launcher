@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:copper_launcher/util/format/byte_unit.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
@@ -99,7 +100,7 @@ class Downloader {
       chunk.status = DownloadChunkStatus.connection;
       final h = {'Range': 'bytes=${chunk.start}-${chunk.end}'};
       try {
-        print('${chunk.start} - ${chunk.end} 链接中');
+        addLog(.debug, '${chunk.start} - ${chunk.end} 链接中');
         final res = await dio.head(
           url,
           options: Options(headers: h),
@@ -113,7 +114,6 @@ class Downloader {
         }
       } on DioException catch (e) {
         if (CancelToken.isCancel(e)) rethrow;
-        print(e);
         if (tryTime < maxTryTime) {
           await Future.delayed(Duration(milliseconds: 500));
           tryTime++;

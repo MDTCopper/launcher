@@ -1,7 +1,5 @@
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
-import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
-import 'package:copper_launcher/ui/components/button/navigation_collapse_button.dart';
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
 import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
@@ -13,7 +11,6 @@ import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.da
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/material_symbols_icons.dart';
 
 /// 测试页
 class Test extends StatefulWidget {
@@ -26,12 +23,6 @@ class Test extends StatefulWidget {
 class TestState extends State<Test> {
   final PopupOverlayController customController = PopupOverlayController();
   final ScrollController listController = ScrollController();
-
-  // ── 按钮演示区状态 ──
-  final int _btnTap = 0; // ReboundButton 点击次数
-  final int _btnLongTap = 0; // ReboundButton 长按次数
-  final int _iconTap = 0; // IconTextButton 点击次数
-  final bool _navCollapsed = false; // NavigationCollapseButton 收起态（箭头旋转）
 
   // ── 第 11 区演示状态 ──
   int _segSelected = 1; // SegmentedReboundButton 选中值
