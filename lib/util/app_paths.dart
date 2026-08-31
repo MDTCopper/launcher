@@ -35,12 +35,7 @@ abstract class AppPaths {
         );
       }
     }
-    if (_defaultGameDataPath == null) {
-      addLog(.fault, '无法获取默认游戏数据存储位置');
-      throw ('无法获取默认游戏数据存储位置');
-    } else {
-      addLog(.info, '默认数据存储路径:$_defaultGameDataPath');
-    }
+    if (_defaultGameDataPath == null) throw ('无法获取默认游戏数据存储位置');
   }
 
   /// win => [C:\Users\ASUS\AppData\Roaming\com.example\Copper\CopperLauncher]
