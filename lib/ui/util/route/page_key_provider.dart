@@ -6,15 +6,12 @@ import '../../shell/app_shell.dart';
 class PageKeyProvider {
   PageKeyProvider._();
 
-  static final _themeKey = GlobalKey<CopperLauncherState>();
+  ///CopperLauncherState用来更新最外层Widget，主要是更新主题
+  static final themeKey = GlobalKey<CopperLauncherState>();
 
-  static GlobalKey<CopperLauncherState> get themeKey => _themeKey;
+  ///AppShellState
+  static final shellKey = GlobalKey<AppShellState>();
 
-  static final _shellKey = GlobalKey<AppShellState>();
-
-  static GlobalKey<AppShellState> get shellKey => _shellKey;
-
-  static final _navigatorKey = GlobalKey<NavigatorState>();
-
-  static GlobalKey<NavigatorState> get navigatorKey => _navigatorKey;
+  ///NavigatorState子路由，主要用于根路由中控制子路由
+  static final navigatorKey = GlobalKey<NavigatorState>();
 }
