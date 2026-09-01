@@ -90,6 +90,32 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     );
   }
 
+  /// 重命名目录（fold 项）的 tag，路径不变
+  void _renameFold(int index) async {
+    if (index < 0 || index >= _versionFolds.length) return;
+    final fold = _versionFolds[index];
+    final tag = await showAnimatedDialog<String>(
+      context: context,
+      pageBuilder: (_, _, _) => _TagInputDialog(
+        title: '重命名目录',
+        label: '目录名称',
+        defaultText: fold.tag,
+        validate: (tag) {
+          final e = WindowsFileNameValidator.tagValidate(tag);
+          if (e != null) return e;
+          if (_versionFolds.any((other) => other != fold && other.tag == tag)) {
+            return '名称已存在';
+          }
+          return null;
+        },
+      ),
+    );
+    if (tag == null || tag == fold.tag || !mounted) return;
+    setState(() => fold.tag = tag);
+    await config.save();
+    _updateView();
+  }
+
   /// 删除游戏目录（fold 项），移除其中的版本记录
   void _deleteFold(int index) {
     if (index < 0 || index >= _versionFolds.length) return;
@@ -185,8 +211,15 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     // 扫描目录内可能的游戏版本，作为新目录的初始版本
     final scanned = await _scanGameVersions(path);
     if (!mounted) return;
-    Log.add(.info, '目录[$tag] 扫描到 ${scanned.length} 个游戏版本');
-    addNotice(content: '在目录中找到${scanned.length} 个游戏版本');
+    Log.add(.info, '已添加目录[$path]');
+    if (scanned.isNotEmpty) {
+      Log.add(.info, '目录[$path] 扫描到 ${scanned.length} 个游戏版本');
+    }
+    addNotice(
+      icon: Icons.search,
+      title: '成功添加目录',
+      content: scanned.isNotEmpty ? '在目录中找到${scanned.length} 个游戏版本' : null,
+    );
     setState(() {
       _versionFolds.add(VersionFold(tag: tag, path: path, versions: scanned));
       _index = _versionFolds.length - 1;
@@ -228,7 +261,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     return result;
   }
 
-  /// 用 [FileReader] 识别 jar：是 mindustry 则构造版本（tag 去重）
+  /// 用 [FileReader] 识别 jar：是 mindustry 则构造版本
   Future<Mindustry?> _recognizeJar(
     String folderPath,
     String jarPath,
@@ -259,7 +292,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     );
   }
 
-  /// 保证 tag 不与已有目录 / 版本重名（重名时追加序号）
+  /// 保证 tag 不与已有目录 / 版本重名
   String _uniqueTag(String tag) {
     final used =
         _versionFolds
@@ -279,7 +312,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   Future<void> _importLocalGame() async {
     if (!isDesktop) return;
 
-    Log.add(.info, '导入外部游戏文件');
+    Log.add(.info, '导入外部游戏文件：');
 
     final path = await PathSelector.selectFile(
       acceptedTypeGroups: const [
@@ -368,7 +401,9 @@ class _VersionSelectPageState extends State<VersionSelectPage>
         height: 48,
       ),
       title: Text(version.tag, style: theme.textTheme.bodyLarge),
-      subtitle: Text(version.name, style: theme.textTheme.bodyMedium),
+      subtitle: isDesktop
+          ? Text(version.name, style: theme.textTheme.bodyMedium)
+          : null,
       onTap: () => _select(version),
     );
 
@@ -376,7 +411,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     return ActionMenu(
       menuBuilder: (_, controller) => [
         MenuButton(
-          icon: Icons.delete_outline,
+          icon: Icon(Icons.delete_outline),
           label: '删除',
           danger: true,
           onTap: () {
@@ -385,15 +420,18 @@ class _VersionSelectPageState extends State<VersionSelectPage>
           },
         ),
         MenuButton(
-          icon: version.like ? Icons.favorite : Icons.favorite_border_rounded,
-          label: version.like ? '取消收藏' : '收藏',
+          icon: Icon(
+            version.like ? Icons.star : Icons.star_outline,
+            color: version.like ? Colors.amber : null,
+          ),
+          label: version.like ? '已收藏' : '收藏',
           onTap: () {
             controller.dismiss();
             _collect(version);
           },
         ),
         MenuButton(
-          icon: Icons.settings,
+          icon: Icon(Icons.settings),
           label: '设置',
           onTap: () {
             controller.dismiss();
@@ -410,8 +448,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
         const SizedBox(width: 4),
         SlideActionButton(
           icon: Icon(
-            version.like ? Icons.favorite : Icons.favorite_border_rounded,
-            color: version.like ? Colors.red : null,
+            version.like ? Icons.star : Icons.star_outline,
+            color: version.like ? Colors.amber : null,
           ),
           label: version.like ? '已收藏' : '收藏',
           onTap: () => _collect(version),
@@ -573,13 +611,21 @@ class _VersionSelectPageState extends State<VersionSelectPage>
                 setState(() => _index = index);
               },
             );
+            //默认文件夹不能删除
+            if (index == 0) return tile;
             // 侧边栏项：右键 / 长按 + 左滑 → 可删除该目录
-            return ActionMenu(
-              enableSwipe:
-                  !config.setting.personalizationOptions.subNavigationCollapse,
+            return MenuLayer(
               menuBuilder: (_, controller) => [
                 MenuButton(
-                  icon: Icons.delete_outline,
+                  icon: Icon(Icons.edit_outlined),
+                  label: '重命名',
+                  onTap: () {
+                    controller.dismiss();
+                    _renameFold(index);
+                  },
+                ),
+                MenuButton(
+                  icon: Icon(Icons.delete),
                   label: '删除',
                   danger: true,
                   onTap: () {
@@ -588,32 +634,33 @@ class _VersionSelectPageState extends State<VersionSelectPage>
                   },
                 ),
               ],
-              actions: [
-                const SizedBox(width: 2),
-                SlideActionButton(
-                  icon: Icon(Icons.delete_outline),
-                  backgroundColor: Colors.transparent,
-                  onTap: () => _deleteFold(index),
-                ),
-              ],
               child: tile,
             );
           }),
         ],
         itemsAtBottom: [
-          NavigationTile(
-            icon: Icon(Icons.create_new_folder_outlined),
-            content: '添加新目录',
-            collapse: collapse,
-            onTap: _addNewFold,
-          ),
-          if (isDesktop)
+          if (isMobile)
+            NavigationTile(
+              icon: Icon(Icons.create_new_folder_outlined),
+              content: '添加新分类',
+              collapse: collapse,
+              onTap: _addNewFold,
+            ),
+          if (isDesktop) ...[
+            NavigationTile(
+              icon: Icon(Icons.create_new_folder_outlined),
+              content: '添加新目录',
+              collapse: collapse,
+              onTap: _addNewFold,
+            ),
+
             NavigationTile(
               icon: Icon(Symbols.deployed_code_update),
               content: '导入本地游戏',
               collapse: collapse,
               onTap: _importLocalGame,
             ),
+          ],
         ],
       ),
       page: _buildVersionViewPage(_versionFolds[_index].versions),
@@ -621,7 +668,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   }
 }
 
-/// 通用标签输入对话框：title / label / 默认值 / 校验器（返回错误文案或 null）
+/// 通用标签输入对话框：title / label / 默认值 / 校验器
 class _TagInputDialog extends StatefulWidget {
   final String title;
   final String label;

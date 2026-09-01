@@ -146,7 +146,7 @@ class _MenuPanel extends StatelessWidget {
 ///
 /// [danger] 为 true 时用 error 色
 class MenuButton extends StatelessWidget {
-  final IconData icon;
+  final Icon icon;
   final String label;
   final VoidCallback onTap;
   final bool danger;
@@ -164,7 +164,7 @@ class MenuButton extends StatelessWidget {
     final colors = AppColors.of(context);
     final color = danger ? colors.error : colors.itemSecondary;
     return SizedBox(
-      width: 120,
+      width: 100,
       child: ReboundButton(
         hoverElevation: 0.0,
         pressedScale: 0.9,
@@ -173,7 +173,10 @@ class MenuButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: color),
+            IconTheme(
+              data: IconTheme.of(context).copyWith(size: 16, color: color),
+              child: icon,
+            ),
             const SizedBox(width: 8),
             Text(label, style: TextStyle(color: color)),
           ],

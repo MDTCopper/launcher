@@ -39,7 +39,7 @@ class ActionSlideLayer extends StatefulWidget {
   /// 菜单裁剪圆角：露出菜单按 child 尺寸裁剪时应用的形状（默认矩形）
   final BorderRadius? borderRadius;
 
-  /// 是否响应左滑。
+  /// 是否响应左滑
   ///
   /// false 时 child 不随拖动平移（菜单始终收起），但该组件 State 仍保留——
   /// 用于外部动态开关左滑（如随侧边栏收纳切换）时不重挂载、不丢失滑开状态。
@@ -68,7 +68,7 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
     with SingleTickerProviderStateMixin {
   /// 展开度控制器（无边界）：正常值 [0,1] 表示展开度；
   /// 拖动过冲时可超出边界（负 = 超过菜单宽，正 = 超过 0），
-  /// 松手回弹时由 [animateTo] 平滑滑回边界。
+  /// 松手回弹时由 [animateTo] 平滑滑回边界
   late final AnimationController _controller;
 
   final GlobalKey _menuKey = GlobalKey();
@@ -81,6 +81,10 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
   /// 越往外越难拖且有视觉偏移上限。往回拖时视觉跟随手指，无滞后感。
   double _fingerPosition = 0;
 
+  /// 当前展开态
+
+  bool _isOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -88,7 +92,16 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
       vsync: this,
       duration: widget.animationDuration,
     );
+    _controller.addListener(_syncOpenState);
     _measureMenu();
+  }
+
+  /// 动画值跨越 0.5 阈值时同步 [setState]
+  void _syncOpenState() {
+    final open = _controller.value > 0.5;
+    if (open != _isOpen) {
+      setState(() => _isOpen = open);
+    }
   }
 
   @override
@@ -106,6 +119,7 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
 
   @override
   void dispose() {
+    _controller.removeListener(_syncOpenState);
     _controller.dispose();
     super.dispose();
   }
@@ -203,7 +217,7 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
 
   @override
   Widget build(BuildContext context) {
-    final isOpen = _controller.value > 0.5;
+    final isOpen = _isOpen;
 
     return Stack(
       clipBehavior: Clip.hardEdge,
