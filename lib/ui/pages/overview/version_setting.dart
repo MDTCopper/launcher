@@ -252,6 +252,41 @@ class _AboutState extends State<_About> {
     }
   }
 
+  /// 导出资源目录：将某类资源（存档 / 地图 / 模组 / 蓝图）复制到用户选择的位置，
+  /// 目标为所选目录下的同名子目录，避免与目标内已有文件混淆
+  Future<void> _exportFolder(String sourcePath, String folderName) async {
+    final source = Directory(sourcePath);
+    if (!(await source.exists())) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '暂无$folderName',
+        content: '该版本还没有$folderName目录',
+      );
+      return;
+    }
+    final target = await PathSelector.selectDirectory(confirmButtonText: '导出');
+    if (target == null || !mounted) return;
+    try {
+      final targetFolder = Directory(p.join(target, folderName));
+      if (!(await targetFolder.exists())) {
+        await targetFolder.create(recursive: true);
+      }
+      await for (final entity in source.list()) {
+        if (entity is File) {
+          await entity.copy(p.join(targetFolder.path, p.basename(entity.path)));
+        }
+      }
+      addNotice(
+        icon: Icons.check_circle_outline,
+        title: '导出成功',
+        content: '已导出到 $target',
+      );
+    } catch (e) {
+      addNotice(icon: Icons.close, title: '导出失败', content: '复制$folderName时出错');
+      debugPrint('导出$folderName失败：$e');
+    }
+  }
+
   Widget _buildVersionInfoPanel() {
     Widget buildInfo(String item, String content) {
       return Row(
@@ -484,21 +519,26 @@ class _AboutState extends State<_About> {
                 spacing: 8,
                 mainAxisSize: MainAxisSize.max,
                 children: [
-                  IconTextButton(icon: Icons.save, content: '存档', onTap: () {}),
+                  IconTextButton(
+                    icon: Icons.save,
+                    content: '存档',
+                    onTap: () => _exportFolder(_mindustry.savesPath, 'saves'),
+                  ),
                   IconTextButton(
                     icon: Icons.map_outlined,
                     content: '地图',
-                    onTap: () {},
+                    onTap: () => _exportFolder(_mindustry.mapsPath, 'maps'),
                   ),
                   IconTextButton(
                     icon: LineIcons.puzzlePiece,
                     content: '模组',
-                    onTap: () {},
+                    onTap: () => _exportFolder(_mindustry.modsPath, 'mods'),
                   ),
                   IconTextButton(
                     icon: Icons.paste,
                     content: '蓝图',
-                    onTap: () {},
+                    onTap: () =>
+                        _exportFolder(_mindustry.schematicsPath, 'schematics'),
                   ),
                 ],
               ),

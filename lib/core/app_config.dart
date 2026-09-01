@@ -471,8 +471,6 @@ class VersionOptions {
   @JsonKey(includeFromJson: false)
   Mindustry? _selectedVersion; //选中版本,直接引用
 
-  /// 选中版本变化的可通知源：config 不是 Listenable，直接写 selectedVersion
-  /// 不会让其它子树重建（如 launch 页 tile），各写入点经 setter 同步此值
   @JsonKey(includeFromJson: false, includeToJson: false)
   final ValueNotifier<Mindustry?> selectedVersionNotifier = ValueNotifier(null);
 

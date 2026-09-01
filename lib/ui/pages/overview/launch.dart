@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
 
 import 'package:copper_launcher/data/local_asset.dart';
@@ -20,45 +21,30 @@ class LaunchPage extends StatefulWidget {
 }
 
 class _LaunchPageState extends State<LaunchPage> {
+  /// 选中版本来源：config 持有单一事实
   Mindustry? get _selectedVersion => config.versionOptions.selectedVersion;
 
-  @override
-  void initState() {
-    super.initState();
-    // 监听选中版本变化（version_select / 右键菜单等写入点经 setter 通知），
-    // 变化时刷新本页 tile，无需手动 setState
-    config.versionOptions.selectedVersionNotifier
-        .addListener(_onSelectedVersionChanged);
-  }
-
-  @override
-  void dispose() {
-    config.versionOptions.selectedVersionNotifier
-        .removeListener(_onSelectedVersionChanged);
-    super.dispose();
-  }
-
-  void _onSelectedVersionChanged() {
-    if (mounted) setState(() {});
-  }
-
   Widget _buildVersionTile() {
-    if (_selectedVersion == null) {
+    Widget buildEmptyTile() {
+      final addtion = config.versionOptions.versionFolds.isEmpty
+          ? ''
+          : isDesktop
+          ? '或右键'
+          : '或长按';
       return ReboundListTile(
         borderRadius: BorderRadius.circular(8),
-        onTap: () async {
-          await Navigator.pushNamed(
+        onTap: () {
+          Navigator.pushNamed(
             context,
             '/version_select',
-            arguments: {'lead': '版本选择', 'routes': []},
+            arguments: {'lead': '版本选择'},
           );
-          setState(() {});
         },
         title: SizedBox(
           height: 80,
           child: Center(
             child: Text(
-              '未选择版本，点击以选择游戏版本',
+              '未选择版本，点击$addtion以选择游戏版本',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(fontSize: 32),
@@ -67,88 +53,40 @@ class _LaunchPageState extends State<LaunchPage> {
         ),
       );
     }
-    final tile = ReboundListTile(
+
+    Widget buildTile(Mindustry selectedVersion) => ReboundListTile(
       padding: EdgeInsets.all(8),
       borderRadius: BorderRadius.circular(8),
-
-      onTap: () async {
-        await Navigator.pushNamed(
+      onTap: () {
+        Navigator.pushNamed(
           context,
           '/version_select',
           arguments: {'lead': '版本选择'},
         );
-        setState(() {});
       },
       // 选中版本切换时：图标 / 名称 / 版本号 交叠切换（淡入 + 向上位移）
-      leading: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
-        switchOutCurve: Curves.easeIn,
-        switchInCurve: Curves.easeOut,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.25),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
-          ),
-        ),
-        child: Image.asset(
-          _selectedVersion!.launcher == .copper
-              ? Images.copper
-              : Images.mindustry,
-          key: ValueKey(_selectedVersion!.id),
-          scale: 0.66,
-          height: 64,
+      leading: Image.asset(
+        selectedVersion.launcher == .copper ? Images.copper : Images.mindustry,
+        key: ValueKey(selectedVersion.id),
+        scale: 0.66,
+        height: 64,
+      ),
+      title: Text(
+        selectedVersion.tag,
+        key: ValueKey(selectedVersion.id),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.secondary,
+          fontWeight: FontWeight.w900,
+          fontSize: 28,
         ),
       ),
-      title: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
-        switchOutCurve: Curves.easeIn,
-        switchInCurve: Curves.easeOut,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.2),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
-          ),
-        ),
-        child: Text(
-          _selectedVersion!.tag,
-          key: ValueKey(_selectedVersion!.id),
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.secondary,
-            fontWeight: FontWeight.w900,
-            fontSize: 28,
-          ),
-        ),
-      ),
-      subtitle: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
-        switchOutCurve: Curves.easeIn,
-        switchInCurve: Curves.easeOut,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.2),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
-          ),
-        ),
-        child: Text(
-          _selectedVersion!.release,
-          key: ValueKey(_selectedVersion!.id),
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.primary,
-            fontWeight: FontWeight.w900,
-            fontSize: 14,
-          ),
+      subtitle: Text(
+        selectedVersion.release,
+        key: ValueKey(selectedVersion.id),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w900,
+          fontSize: 14,
         ),
       ),
       trailing: ReboundButton(
@@ -166,21 +104,82 @@ class _LaunchPageState extends State<LaunchPage> {
             '/version_setting',
             arguments: {
               'lead': '版本设置',
-              'version': _selectedVersion,
-              'title': _selectedVersion?.tag ?? 'null',
+              'version': selectedVersion,
+              'title': selectedVersion.tag,
             },
           );
         },
       ),
     );
 
+    Widget child = ValueListenableBuilder<Mindustry?>(
+      valueListenable: config.versionOptions.selectedVersionNotifier,
+      builder: (context, selectedVersion, _) {
+        Widget child;
+
+        if (selectedVersion == null) {
+          child = buildEmptyTile();
+        } else {
+          child = buildTile(selectedVersion);
+        }
+
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 700),
+          transitionBuilder: (child, animation) {
+            final isForward = !animation.status.isForwardOrCompleted;
+
+            final scale = isForward
+                ? AlwaysStoppedAnimation(1.0)
+                : Tween<double>(begin: 1.0, end: 0.9).animate(
+                    CurvedAnimation(
+                      parent: ReverseAnimation(animation),
+                      curve: Interval(0.0, 0.7, curve: Curves.easeOutCirc),
+                    ),
+                  );
+            child = ScaleTransition(scale: scale, child: child);
+
+            final position = !isForward
+                ? AlwaysStoppedAnimation(Offset.zero)
+                : Tween<Offset>(
+                    begin: const Offset(-1.0, 0.0),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Interval(0.3, 1.0, curve: Curves.fastOutSlowIn),
+                    ),
+                  );
+
+            child = SlideTransition(position: position, child: child);
+
+            final opacity = isForward
+                ? Tween<double>(begin: 0.5, end: 1.0).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Interval(0.35, 0.7),
+                    ),
+                  )
+                : AlwaysStoppedAnimation(1.0);
+
+            child = FadeTransition(opacity: opacity, child: child);
+            return child;
+          },
+          child: KeyedSubtree(
+            key: ValueKey(selectedVersion?.id ?? 'null'),
+            child: child,
+          ),
+        );
+      },
+    );
+
     // 右键 / 长按：快捷选择最近游玩过的其他版本（最多 5 个）
-    return MenuLayer(
+    child = MenuLayer(
       positionDelegate: const _AboveMousePositionDelegate(gap: 4),
       animation: _recentMenuAnimation,
       menuBuilder: (_, controller) => _buildRecentVersionMenu(controller),
-      child: tile,
+      child: child,
     );
+    return child;
   }
 
   Widget _recentMenuAnimation(
@@ -245,7 +244,7 @@ class _LaunchPageState extends State<LaunchPage> {
                 controller.dismiss();
                 config.versionOptions.selectedVersion = version;
                 config.save();
-                setState(() {});
+                // 不手动 setState：notifier 驱动的 ValueListenableBuilder 会重建 tile
               },
               child: Row(
                 mainAxisSize: MainAxisSize.min,

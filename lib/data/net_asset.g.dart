@@ -6,6 +6,7 @@ part of 'net_asset.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+//ignore: unused_element
 GithubApiRelease _$GithubApiReleaseFromJson(Map<String, dynamic> json) =>
     GithubApiRelease(
       name: json['name'] as String,
@@ -16,7 +17,7 @@ GithubApiRelease _$GithubApiReleaseFromJson(Map<String, dynamic> json) =>
           .toList(),
       describe: json['body'] as String,
     );
-
+//ignore: unused_element
 Map<String, dynamic> _$GithubApiReleaseToJson(GithubApiRelease instance) =>
     <String, dynamic>{
       'name': instance.name,
@@ -25,7 +26,7 @@ Map<String, dynamic> _$GithubApiReleaseToJson(GithubApiRelease instance) =>
       'assets': instance.assets,
       'body': instance.describe,
     };
-
+//ignore: unused_element
 GithubApiReleaseAsset _$GithubApiReleaseAssetFromJson(
   Map<String, dynamic> json,
 ) => GithubApiReleaseAsset(
@@ -34,7 +35,7 @@ GithubApiReleaseAsset _$GithubApiReleaseAssetFromJson(
   size: (json['size'] as num).toInt(),
   downloadCount: (json['download_count'] as num).toInt(),
 );
-
+//ignore: unused_element
 Map<String, dynamic> _$GithubApiReleaseAssetToJson(
   GithubApiReleaseAsset instance,
 ) => <String, dynamic>{
@@ -54,7 +55,7 @@ MindustryGithubMeta _$MindustryGithubMetaFromJson(Map<String, dynamic> json) =>
           .toList(),
       describe: json['body'] as String,
     );
-
+//ignore: unused_element
 Map<String, dynamic> _$MindustryGithubMetaToJson(
   MindustryGithubMeta instance,
 ) => <String, dynamic>{
@@ -102,7 +103,7 @@ ModGithubMeta _$ModGithubMetaFromJson(Map<String, dynamic> json) =>
           .toList(),
       describe: json['body'] as String,
     );
-
+//ignore: unused_element
 Map<String, dynamic> _$ModGithubMetaToJson(ModGithubMeta instance) =>
     <String, dynamic>{
       'name': instance.name,
