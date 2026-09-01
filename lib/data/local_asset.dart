@@ -30,8 +30,12 @@ class Mindustry {
   final bool isBe;
 
   final DateTime addTime;
-  final Duration? playTime;
-  final DateTime? lastLaunchTime;
+
+  /// 累计游玩时长；游戏退出时由启动任务累加本次时长
+  Duration? playTime;
+
+  /// 最近一次启动时间；游戏退出时由启动任务回写
+  DateTime? lastLaunchTime;
 
   /// 玩家给游戏版本的标签
   String tag;

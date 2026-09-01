@@ -319,12 +319,6 @@ class _AboutState extends State<_About> {
     );
   }
 
-  /// 修改版本 tag：同时处理版本独立文件夹（含隔离数据目录）与 jarPath 的跟随迁移
-  ///
-  /// 每个版本可能有一个独立文件夹（`path/<tag>`，隔离时数据存于其 data 子目录），
-  /// 重命名 tag 时必须同步改名，否则 dataPath 指向旧目录导致数据路径出错；
-  /// jar 若位于该文件夹内（importTo 目标），jarPath 也需同步更新。
-  /// 若 jar 已迁至统一目录（AppPaths.mindustrys）或不在 tag 文件夹内，则不受影响。
   void _changeVersionTag() async {
     final tag = await showAnimatedDialog<String>(
       context: context,
@@ -349,7 +343,6 @@ class _AboutState extends State<_About> {
     );
     if (tag == null || tag == _mindustry.tag || !mounted) return;
 
-    // 版本独立文件夹：path/<旧tag>。存在则整体改名，保证隔离数据目录跟随
     final oldFolder = _mindustry.foldPath;
     final newFolder = p.join(_mindustry.path, tag);
     final folderExists = await Directory(oldFolder).exists();

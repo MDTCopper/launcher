@@ -471,6 +471,11 @@ class VersionOptions {
   @JsonKey(includeFromJson: false)
   Mindustry? _selectedVersion; //选中版本,直接引用
 
+  /// 选中版本变化的可通知源：config 不是 Listenable，直接写 selectedVersion
+  /// 不会让其它子树重建（如 launch 页 tile），各写入点经 setter 同步此值
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final ValueNotifier<Mindustry?> selectedVersionNotifier = ValueNotifier(null);
+
   VersionOptions({
     required this.selectedVersionId,
     required List<VersionFold>? versionFolds,
@@ -487,9 +492,14 @@ class VersionOptions {
   }
 
   set selectedVersion(Mindustry? mindustry) {
-    if (mindustry == null) _selectedVersion == null;
-    _selectedVersion = findVersion(mindustry!);
-    selectedVersionId = _selectedVersion?.id;
+    if (mindustry == null) {
+      _selectedVersion = null;
+      selectedVersionId = null;
+    } else {
+      _selectedVersion = findVersion(mindustry);
+      selectedVersionId = _selectedVersion?.id;
+    }
+    selectedVersionNotifier.value = _selectedVersion;
   }
 
   Mindustry? findVersion(Mindustry mindustry) {
@@ -519,6 +529,7 @@ class VersionOptions {
       if (mindustry != null) break;
     }
     instance._selectedVersion = mindustry;
+    instance.selectedVersionNotifier.value = mindustry;
     return instance;
   }
   Map<String, dynamic> toJson() => _$VersionOptionsToJson(this);

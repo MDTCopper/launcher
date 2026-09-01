@@ -14,6 +14,9 @@ class LaunchMindustryTask extends Task {
 
   final launcher = MindustryLauncher();
 
+  /// 本次启动时刻；游戏退出成功时用于计算本次游玩时长
+  DateTime? _launchStartTime;
+
   LaunchMindustryTask(this.mindustry) {
     type = TaskType.launch;
   }
@@ -117,6 +120,8 @@ class LaunchMindustryTask extends Task {
     if (setting.data.isNotEmpty) {
       await setting.saveAsync();
     }
+    // 记录本次启动时刻，游戏退出时回写 lastLaunchTime 与 playTime
+    _launchStartTime = DateTime.now();
     await launcher.start(
       mindustry,
       maximize: maximize,
@@ -140,6 +145,18 @@ class LaunchMindustryTask extends Task {
         TaskLogManager.addLog(LogEntry(LogType.success, '游戏启动成功，耗时$time'));
       }
       if (log.contains('exit')) {
+        // 回写最近启动时间与累计游玩时长（含正常退出 / 停止 / 异常退出）
+        final launchStart = _launchStartTime;
+        if (launchStart != null) {
+          final now = DateTime.now();
+          mindustry.lastLaunchTime = now;
+          final duration = now.difference(launchStart);
+          mindustry.playTime =
+              (mindustry.playTime ?? Duration.zero) + duration;
+          _launchStartTime = null;
+          // 退出回调非异步上下文，fire-and-forget 保存（后续任务流程会再 save）
+          config.save();
+        }
         if (log.contains('0')) {
           NotificationManager.addNotice(
             icon: Icons.info_outline,

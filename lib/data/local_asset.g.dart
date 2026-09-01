@@ -17,6 +17,9 @@ Mindustry _$MindustryFromJson(Map<String, dynamic> json) =>
         isBe: json['isBe'] as bool,
         isolation: json['isolation'] as bool,
         addTime: DateTime.parse(json['addTime'] as String),
+        playTime: json['playTime'] == null
+            ? null
+            : Duration(microseconds: (json['playTime'] as num).toInt()),
         lastLaunchTime: json['lastLaunchTime'] == null
             ? null
             : DateTime.parse(json['lastLaunchTime'] as String),
@@ -36,6 +39,7 @@ Map<String, dynamic> _$MindustryToJson(Mindustry instance) => <String, dynamic>{
   'launcher': _$LauncherTypeEnumMap[instance.launcher]!,
   'isBe': instance.isBe,
   'addTime': instance.addTime.toIso8601String(),
+  'playTime': instance.playTime?.inMicroseconds,
   'lastLaunchTime': instance.lastLaunchTime?.toIso8601String(),
   'tag': instance.tag,
   'like': instance.like,
