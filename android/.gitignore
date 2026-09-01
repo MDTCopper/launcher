@@ -8,6 +8,7 @@ GeneratedPluginRegistrant.java
 .cxx/
 gradle-daemon-jvm.properties
 /build/
+/.kotlin/
 
 # Remember to never publicly share your keystore.
 # See https://flutter.dev/to/reference-keystore
