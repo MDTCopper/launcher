@@ -5,10 +5,14 @@ import 'dart:math';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
+import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/dialog/resource_importer.dart';
 
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
+import 'package:copper_launcher/ui/components/input/tag_input_dialog.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 
@@ -17,9 +21,12 @@ import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
+import 'package:copper_launcher/util/io/os.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/format/path_format.dart';
 import 'package:copper_launcher/util/math/range.dart';
+import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:line_icons/line_icons.dart';
@@ -34,6 +41,9 @@ import '../../components/percent_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/checkbox_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:file_selector/file_selector.dart' show XTypeGroup;
+import 'package:path/path.dart' as p;
 
 late Mindustry _mindustry;
 
@@ -122,6 +132,9 @@ class _About extends StatefulWidget {
 }
 
 class _AboutState extends State<_About> {
+  /// 崩溃日志目录（游戏侧 默认数据目录/crashes）
+  String get _crashesPath => _mindustry.crashesPath;
+
   Future<void> _openFolder(String folderPath) async {
     if (!(await Directory(folderPath).exists())) {
       folderPath = _mindustry.dataPath;
@@ -132,7 +145,239 @@ class _AboutState extends State<_About> {
     PathSelector.openFolder(folderPath);
   }
 
-  void _changeVersionTag() {}
+  /// 导入资源：逐个识别 jar/mod/地图/蓝图 文件并导入
+  Future<void> _importResources({required bool batch}) async {
+    const typeGroups = [
+      XTypeGroup(label: '支持的文件', extensions: ['jar', 'zip', 'msav', 'msch']),
+    ];
+    final paths = batch
+        ? await PathSelector.selectFiles(acceptedTypeGroups: typeGroups)
+        : [
+            await PathSelector.selectFile(acceptedTypeGroups: typeGroups),
+          ].whereType<String>().toList();
+    if (paths.isEmpty) return;
+    if (!mounted) return;
+    showResourceImporter(paths);
+  }
+
+  /// 收藏 / 取消收藏当前版本
+  void _toggleLike() {
+    setState(() {
+      _mindustry.like = !_mindustry.like;
+      config.save();
+    });
+  }
+
+  /// 删除当前版本：确认后删除 jar 本体并移除配置记录
+  void _deleteVersion() {
+    final tag = _mindustry.tag;
+    showConfirmationPopup(
+      context: context,
+      type: ConfirmationType.warning,
+      title: '确定要删除 [$tag] ？',
+      content: '[$tag] 游戏文件及其独立附属的存档，mod，整合包，蓝图，地图都会被删除！',
+      action: () async {
+        final jar = File(_mindustry.jarPath);
+        if (await jar.exists()) {
+          try {
+            await jar.delete();
+          } catch (e) {
+            addNotice(icon: Icons.close, title: '删除失败', content: '无法删除游戏文件');
+            debugPrint('删除失败：$e');
+            return;
+          }
+        }
+        // 从所有版本折叠中移除该版本记录
+        for (final fold in config.versionOptions.versionFolds) {
+          fold.versions.removeWhere((version) => version.id == _mindustry.id);
+        }
+        if (config.versionOptions.selectedVersionId == _mindustry.id) {
+          config.versionOptions.selectedVersionId = null;
+        }
+        await config.save();
+        if (mounted) Navigator.pop(context); // 版本设置页关闭，回到版本列表
+      },
+    );
+  }
+
+  /// 查看崩溃日志：打开崩溃日志所在文件夹
+  Future<void> _viewCrashLogs() async {
+    if (!(await Directory(_crashesPath).exists())) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '暂无崩溃日志',
+        content: '崩溃日志目录尚不存在',
+      );
+      return;
+    }
+    PathSelector.openFolder(_crashesPath);
+  }
+
+  /// 导出崩溃日志：将崩溃日志目录复制到用户选择的位置
+  Future<void> _exportCrashLogs() async {
+    final source = Directory(_crashesPath);
+    if (!(await source.exists())) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '暂无崩溃日志',
+        content: '崩溃日志目录尚不存在',
+      );
+      return;
+    }
+    final target = await PathSelector.selectDirectory(
+      confirmButtonText: '导出到此',
+    );
+    if (target == null || !mounted) return;
+    try {
+      // 复制到目标下的 crashes 子目录，避免与目标目录内已有文件混在一起
+      final targetCrashes = Directory(p.join(target, 'crashes'));
+      if (!(await targetCrashes.exists())) {
+        await targetCrashes.create(recursive: true);
+      }
+      await for (final entity in source.list()) {
+        if (entity is File) {
+          await entity.copy(
+            p.join(targetCrashes.path, p.basename(entity.path)),
+          );
+        }
+      }
+      addNotice(
+        icon: Icons.check_circle_outline,
+        title: '导出成功',
+        content: '已导出到 $target',
+      );
+    } catch (e) {
+      addNotice(icon: Icons.close, title: '导出失败', content: '复制崩溃日志时出错');
+      debugPrint('导出崩溃日志失败：$e');
+    }
+  }
+
+  Widget _buildVersionInfoPanel() {
+    Widget buildInfo(String item, String content) {
+      return Row(
+        children: [
+          Text(item),
+          Expanded(child: SizedBox()),
+          Text(content),
+        ],
+      );
+    }
+
+    return ContentPanelModule(
+      title: '版本信息',
+      child: Column(
+        children: [
+          HintLayer(
+            hint: '点击重命名该版本',
+            child: ReboundListTile(
+              borderRadius: BorderRadius.circular(4),
+              padding: EdgeInsets.all(4),
+              elevation: 4,
+              leading: Image.asset(
+                _mindustry.launcher == LauncherType.copper
+                    ? Images.copper
+                    : Images.mindustry,
+                height: 64,
+                fit: BoxFit.fitHeight,
+              ),
+              title: Text(_mindustry.tag),
+              subtitle: Text(_mindustry.release),
+              onTap: _changeVersionTag, //点击修改版本名称
+            ),
+          ),
+          const SizedBox(height: 4),
+          buildInfo('添加时间', _mindustry.addTime.toString().split('.').first),
+          buildInfo(
+            '模组加载器',
+            _mindustry.launcher == .mindustry ? '原版' : 'Copper Loader',
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: .spaceBetween,
+            children: [
+              IconTextButton(
+                icon: _mindustry.like ? Icons.star : Icons.star_outline,
+                content: _mindustry.like ? '已收藏' : '未收藏',
+                onTap: _toggleLike,
+              ),
+              //TODO 生成启动脚本
+              if (isDesktop && kDebugMode)
+                IconTextButton(
+                  icon: Icons.build_circle,
+                  content: '生成启动脚本',
+                  onTap: () {},
+                ),
+              IconTextButton(
+                icon: Icons.delete,
+                content: '删除版本',
+                onTap: _deleteVersion,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 修改版本 tag：同时处理版本独立文件夹（含隔离数据目录）与 jarPath 的跟随迁移
+  ///
+  /// 每个版本可能有一个独立文件夹（`path/<tag>`，隔离时数据存于其 data 子目录），
+  /// 重命名 tag 时必须同步改名，否则 dataPath 指向旧目录导致数据路径出错；
+  /// jar 若位于该文件夹内（importTo 目标），jarPath 也需同步更新。
+  /// 若 jar 已迁至统一目录（AppPaths.mindustrys）或不在 tag 文件夹内，则不受影响。
+  void _changeVersionTag() async {
+    final tag = await showAnimatedDialog<String>(
+      context: context,
+      pageBuilder: (_, _, _) => TagInputDialog(
+        title: '修改版本名称',
+        label: '版本标签',
+        defaultText: _mindustry.tag,
+        validate: (tag) {
+          final e = WindowsFileNameValidator.tagValidate(tag);
+          if (e != null) return e;
+          if (tag == _mindustry.tag) return null; // 原名不判重
+          final fold = config.versionOptions.versionFolds.firstWhere(
+            (fold) => fold.versions.contains(_mindustry),
+            orElse: () => VersionFold(tag: '', path: '', versions: []),
+          );
+          if (fold.versions.any((v) => v != _mindustry && v.tag == tag)) {
+            return '该版本名称已存在';
+          }
+          return null;
+        },
+      ),
+    );
+    if (tag == null || tag == _mindustry.tag || !mounted) return;
+
+    // 版本独立文件夹：path/<旧tag>。存在则整体改名，保证隔离数据目录跟随
+    final oldFolder = _mindustry.foldPath;
+    final newFolder = p.join(_mindustry.path, tag);
+    final folderExists = await Directory(oldFolder).exists();
+    if (folderExists && oldFolder != newFolder) {
+      final newFolderExists = await Directory(newFolder).exists();
+      if (newFolderExists) {
+        addNotice(icon: Icons.close, title: '重命名失败', content: '目标文件夹已存在');
+        return;
+      }
+      try {
+        await Directory(oldFolder).rename(newFolder);
+      } catch (e) {
+        addNotice(icon: Icons.close, title: '重命名失败', content: '无法重命名版本文件夹');
+        debugPrint('重命名版本文件夹失败：$e');
+        return;
+      }
+      // jar 在旧文件夹内时，jarPath 跟随新位置
+      if (p.isWithin(oldFolder, _mindustry.jarPath)) {
+        _mindustry.jarPath = p.join(
+          newFolder,
+          p.relative(_mindustry.jarPath, from: oldFolder),
+        );
+      }
+    }
+
+    setState(() => _mindustry.tag = tag);
+    await config.save();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,89 +385,76 @@ class _AboutState extends State<_About> {
 
     return ListContentPanel(
       items: [
-        ReboundListTile(
-          borderRadius: BorderRadius.circular(4),
-          padding: EdgeInsets.all(8),
-          itemSpacing: 8,
-          elevation: 4,
-          leading: Image.asset(
-            _mindustry.launcher == LauncherType.copper
-                ? Images.copper
-                : Images.mindustry,
-            height: 64,
-            fit: BoxFit.fitHeight,
-          ),
-          title: Text(_mindustry.tag),
-          subtitle: Text(_mindustry.releaseNum),
-          onTap: _changeVersionTag, //todo 修改版本名称
-        ),
+        _buildVersionInfoPanel(),
+
         ContentPanelModule(
           title: '快捷方式',
-          child: SizedBox(
-            width: double.infinity,
-            child: Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              alignment: .start,
-              children: [
-                IconTextButton(
-                  width: 136,
-                  icon: Icons.save,
-                  content: '存档文件夹',
-                  onTap: () {
-                    _openFolder(_mindustry.savesPath);
-                  },
-                ),
-
-                IconTextButton(
-                  width: 136,
-                  icon: Icons.map_outlined,
-                  content: '地图文件夹',
-                  onTap: () {
-                    _openFolder(_mindustry.mapsPath);
-                  },
-                ),
-
-                IconTextButton(
-                  width: 136,
-                  icon: Icons.paste,
-                  content: '蓝图文件夹',
-                  onTap: () {
-                    _openFolder(_mindustry.schematicsPath);
-                  },
-                ),
-
-                IconTextButton(
-                  width: 136,
-                  icon: LineIcons.puzzlePiece,
-                  content: '模组文件夹',
-                  onTap: () {
-                    _openFolder(_mindustry.modsPath);
-                  },
-                ),
-
-                IconTextButton(
-                  width: 136,
-                  icon: Icons.file_copy,
-                  content: '导出崩溃日志',
-                  onTap: () {},
-                ),
-
-                IconTextButton(
-                  width: 136,
-                  icon: Icons.broken_image_outlined,
-                  content: '查看崩溃日志',
-                  onTap: () {},
-                ),
-              ],
-            ),
+          child: Column(
+            crossAxisAlignment: .start,
+            children: [
+              Text('快速打开对应文件夹', style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                alignment: .start,
+                children: [
+                  IconTextButton(
+                    width: 136,
+                    icon: Icons.save,
+                    content: '存档文件夹',
+                    onTap: () {
+                      _openFolder(_mindustry.savesPath);
+                    },
+                  ),
+                  IconTextButton(
+                    width: 136,
+                    icon: Icons.map_outlined,
+                    content: '地图文件夹',
+                    onTap: () {
+                      _openFolder(_mindustry.mapsPath);
+                    },
+                  ),
+                  IconTextButton(
+                    width: 136,
+                    icon: Icons.paste,
+                    content: '蓝图文件夹',
+                    onTap: () {
+                      _openFolder(_mindustry.schematicsPath);
+                    },
+                  ),
+                  IconTextButton(
+                    width: 136,
+                    icon: LineIcons.puzzlePiece,
+                    content: '模组文件夹',
+                    onTap: () {
+                      _openFolder(_mindustry.modsPath);
+                    },
+                  ),
+                  IconTextButton(
+                    width: 136,
+                    icon: Icons.file_copy,
+                    content: '导出崩溃日志',
+                    onTap: _exportCrashLogs,
+                  ),
+                  IconTextButton(
+                    width: 136,
+                    icon: Icons.broken_image_outlined,
+                    content: '查看崩溃日志',
+                    onTap: _viewCrashLogs,
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
         ContentPanelModule(
           title: '导入资源',
           child: Column(
             spacing: 8,
+            crossAxisAlignment: .start,
             children: [
+              Text('支持导入游戏地图、蓝图和模组', style: theme.textTheme.bodyMedium),
               Row(
                 spacing: 8,
                 mainAxisSize: MainAxisSize.max,
@@ -230,20 +462,22 @@ class _AboutState extends State<_About> {
                   IconTextButton(
                     icon: Icons.layers_outlined,
                     content: '导入资源',
-                    onTap: () {},
+                    onTap: () => _importResources(batch: false),
                   ),
                   IconTextButton(
                     icon: Icons.folder_outlined,
                     content: '批量导入',
-                    onTap: () {},
+                    onTap: () => _importResources(batch: true),
                   ),
                 ],
               ),
 
-              if (Platform.isWindows || Platform.isLinux)
-                Text(
-                  '可以将资源或游戏本体拖动至copper快捷导入',
-                  style: theme.textTheme.bodySmall,
+              if (isDesktop)
+                Center(
+                  child: Text(
+                    'tip:可以将资源或游戏本体拖动至copper快捷导入',
+                    style: theme.textTheme.labelMedium,
+                  ),
                 ),
             ],
           ),

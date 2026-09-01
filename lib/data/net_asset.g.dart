@@ -5,22 +5,22 @@ part of 'net_asset.dart';
 // **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
-// ignore: unused_element
+
 GithubApiRelease _$GithubApiReleaseFromJson(Map<String, dynamic> json) =>
     GithubApiRelease(
       name: json['name'] as String,
-      releaseNum: json['tag_name'] as String,
+      tag: json['tag_name'] as String,
       releaseDate: json['published_at'] as String,
       assets: (json['assets'] as List<dynamic>)
           .map((e) => GithubApiReleaseAsset.fromJson(e as Map<String, dynamic>))
           .toList(),
       describe: json['body'] as String,
     );
-// ignore: unused_element
+
 Map<String, dynamic> _$GithubApiReleaseToJson(GithubApiRelease instance) =>
     <String, dynamic>{
       'name': instance.name,
-      'tag_name': instance.releaseNum,
+      'tag_name': instance.tag,
       'published_at': instance.releaseDate,
       'assets': instance.assets,
       'body': instance.describe,
@@ -34,7 +34,7 @@ GithubApiReleaseAsset _$GithubApiReleaseAssetFromJson(
   size: (json['size'] as num).toInt(),
   downloadCount: (json['download_count'] as num).toInt(),
 );
-// ignore: unused_element
+
 Map<String, dynamic> _$GithubApiReleaseAssetToJson(
   GithubApiReleaseAsset instance,
 ) => <String, dynamic>{
@@ -47,19 +47,19 @@ Map<String, dynamic> _$GithubApiReleaseAssetToJson(
 MindustryGithubMeta _$MindustryGithubMetaFromJson(Map<String, dynamic> json) =>
     MindustryGithubMeta(
       name: json['name'] as String,
-      releaseNum: json['tag_name'] as String,
+      tag: json['tag_name'] as String,
       releaseDate: json['published_at'] as String,
       assets: (json['assets'] as List<dynamic>)
           .map((e) => GithubApiReleaseAsset.fromJson(e as Map<String, dynamic>))
           .toList(),
       describe: json['body'] as String,
     );
-// ignore: unused_element
+
 Map<String, dynamic> _$MindustryGithubMetaToJson(
   MindustryGithubMeta instance,
 ) => <String, dynamic>{
   'name': instance.name,
-  'tag_name': instance.releaseNum,
+  'tag_name': instance.tag,
   'published_at': instance.releaseDate,
   'assets': instance.assets,
   'body': instance.describe,
@@ -95,18 +95,18 @@ Map<String, dynamic> _$ModOfficialListMetaToJson(
 ModGithubMeta _$ModGithubMetaFromJson(Map<String, dynamic> json) =>
     ModGithubMeta(
       name: json['name'] as String,
-      releaseNum: json['tag_name'] as String,
+      tag: json['tag_name'] as String,
       releaseDate: json['published_at'] as String,
       assets: (json['assets'] as List<dynamic>)
           .map((e) => GithubApiReleaseAsset.fromJson(e as Map<String, dynamic>))
           .toList(),
       describe: json['body'] as String,
     );
-// ignore: unused_element
+
 Map<String, dynamic> _$ModGithubMetaToJson(ModGithubMeta instance) =>
     <String, dynamic>{
       'name': instance.name,
-      'tag_name': instance.releaseNum,
+      'tag_name': instance.tag,
       'published_at': instance.releaseDate,
       'assets': instance.assets,
       'body': instance.describe,

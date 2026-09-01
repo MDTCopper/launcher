@@ -10,14 +10,16 @@ Mindustry _$MindustryFromJson(Map<String, dynamic> json) =>
     Mindustry(
         id: json['id'] as String,
         tag: json['tag'] as String,
-        name: json['name'] as String,
-        releaseNum: json['releaseNum'] as String,
+        release: json['release'] as String,
         path: json['path'] as String,
         jarPath: json['jarPath'] as String,
         launcher: $enumDecode(_$LauncherTypeEnumMap, json['launcher']),
         isBe: json['isBe'] as bool,
         isolation: json['isolation'] as bool,
         addTime: DateTime.parse(json['addTime'] as String),
+        lastLaunchTime: json['lastLaunchTime'] == null
+            ? null
+            : DateTime.parse(json['lastLaunchTime'] as String),
         java: json['java'] as String?,
         jvmParameter: json['jvmParameter'] as String?,
         useBetterGPU: json['useBetterGPU'] as bool?,
@@ -28,13 +30,13 @@ Mindustry _$MindustryFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$MindustryToJson(Mindustry instance) => <String, dynamic>{
   'id': instance.id,
-  'name': instance.name,
-  'releaseNum': instance.releaseNum,
+  'release': instance.release,
   'path': instance.path,
   'jarPath': instance.jarPath,
   'launcher': _$LauncherTypeEnumMap[instance.launcher]!,
   'isBe': instance.isBe,
   'addTime': instance.addTime.toIso8601String(),
+  'lastLaunchTime': instance.lastLaunchTime?.toIso8601String(),
   'tag': instance.tag,
   'like': instance.like,
   'isolation': instance.isolation,

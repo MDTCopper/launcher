@@ -57,6 +57,7 @@ opencode.json
 
 # copperlauncher
 versions/
+mindustrys/
 logs/
 .test/
 .script/

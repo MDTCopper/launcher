@@ -106,7 +106,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
   static final Map<String, Future<String?>> minGameVersionsCache = {};
 
   Future<String?> _getMinGameVersion(ModGithubMeta mod) async {
-    final url = '$githubRAW/${modListMeta.repo}/${mod.releaseNum}';
+    final url = '$githubRAW/${modListMeta.repo}/${mod.tag}';
     List<String> jsons;
     if (modListMeta.hasJava) {
       jsons = ['hjson', 'json'];
@@ -164,8 +164,9 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       );
     }
 
-    final minGameVersion = minGameVersionsCache[mod.releaseNum] ??=
-        _getMinGameVersion(mod);
+    final minGameVersion = minGameVersionsCache[mod.tag] ??= _getMinGameVersion(
+      mod,
+    );
 
     Widget buildSupportInfo() => FutureBuilder(
       future: minGameVersion,
@@ -217,7 +218,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         children: [
           SizedBox(
             width: 120,
-            child: buildOverView(Icons.folder_outlined, mod.releaseNum),
+            child: buildOverView(Icons.folder_outlined, mod.tag),
           ),
 
           Expanded(
@@ -604,7 +605,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
                     style: theme.textTheme.bodyLarge,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text(version!.releaseNum, style: theme.textTheme.bodySmall),
+                  Text(version!.release, style: theme.textTheme.bodySmall),
                 ],
               ),
             ],

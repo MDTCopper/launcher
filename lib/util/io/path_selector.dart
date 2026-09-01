@@ -69,6 +69,21 @@ class PathSelector {
     return file?.path;
   }
 
+  ///多选文件（批量导入等多种资源时使用）
+  static Future<List<String>> selectFiles({
+    String? initialDirectory,
+    String? confirmButtonText,
+    List<XTypeGroup> acceptedTypeGroups = const <XTypeGroup>[],
+  }) async {
+    initialDirectory ??= AppPaths.copperLauncher;
+    final files = await openFiles(
+      initialDirectory: initialDirectory,
+      confirmButtonText: confirmButtonText,
+      acceptedTypeGroups: acceptedTypeGroups,
+    );
+    return files.map((file) => file.path).toList();
+  }
+
   //TODO 安卓端文件定位
   static Future<void> _locateFileOnAndroid(String path) async {
     // 申请存储权限（Android 13+需读取权限）

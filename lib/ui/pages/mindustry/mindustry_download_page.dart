@@ -252,17 +252,17 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
                 // depth++;
                 // if (depth > 2) break;
 
-                final num = double.parse(version.releaseNum.substring(1));
+                final num = double.parse(version.tag.substring(1));
 
                 if (num < 100) break;
 
                 if (_minJavaModGameVersionMap.containsKey(num)) continue;
                 if (_minModGameVersionMap.containsKey(num)) continue;
 
-                print(version.releaseNum);
+                print(version.tag);
                 dio
                     .get(
-                      '$githubRAW/Anuken/Mindustry/${version.releaseNum}/core/src/mindustry/Vars.java',
+                      '$githubRAW/Anuken/Mindustry/${version.tag}/core/src/mindustry/Vars.java',
                     )
                     .then((value) {
                       if (value.statusCode == 200) {
@@ -275,7 +275,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
                             index + len + 3,
                           );
                           _minModGameVersionMap[double.parse(
-                            version.releaseNum.substring(1),
+                            version.tag.substring(1),
                           )] = int.parse(
                             minGameVersion,
                           );
@@ -288,7 +288,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
                             index + len + 3,
                           );
                           _minJavaModGameVersionMap[double.parse(
-                            version.releaseNum.substring(1),
+                            version.tag.substring(1),
                           )] = int.parse(
                             minGameVersion,
                           );
@@ -420,66 +420,67 @@ class _DownloadMindustryPopupPageState
                   error: error,
                   controller: textEditingController,
                 ),
-
-                AnimatedExpansion(
-                  controller: controller,
-                  title: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Text(
-                      copperVersion ?? '可选 copper launcher 版本(5)',
-                      key: ValueKey(
+                if (kDebugMode)
+                  AnimatedExpansion(
+                    controller: controller,
+                    title: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Text(
                         copperVersion ?? '可选 copper launcher 版本(5)',
+                        key: ValueKey(
+                          copperVersion ?? '可选 copper launcher 版本(5)',
+                        ),
                       ),
                     ),
-                  ),
-                  child: Container(
-                    constraints: BoxConstraints(maxHeight: 175),
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.symmetric(horizontal: 4),
-                      child: Column(
-                        spacing: 8,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (int i = 4; i > 0; i--)
-                            ReboundListTile(
-                              borderRadius: BorderRadius.circular(4),
-                              leading: Image.asset(Images.copper),
-                              title: Text('Copper v0.${i + 1}.0'),
+                    child: Container(
+                      constraints: BoxConstraints(maxHeight: 175),
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.symmetric(horizontal: 4),
+                        child: Column(
+                          spacing: 8,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (int i = 4; i > 0; i--)
+                              ReboundListTile(
+                                borderRadius: BorderRadius.circular(4),
+                                leading: Image.asset(Images.copper),
+                                title: Text('Copper v0.${i + 1}.0'),
 
-                              subtitle: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                spacing: 8,
-                                children: [
-                                  Icon(Icons.date_range_outlined, size: 18),
-                                  Text(
-                                    '2025.${i + 3}.15 ',
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                ],
+                                subtitle: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  spacing: 8,
+                                  children: [
+                                    Icon(Icons.date_range_outlined, size: 18),
+                                    Text(
+                                      '2025.${i + 3}.15 ',
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                ),
+                                trailing: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 200),
+                                  child: copperVersion == 'Copper v0.${i + 1}.0'
+                                      ? Icon(Icons.check_box_outlined, size: 28)
+                                      : null,
+                                ),
+                                onTap: () {
+                                  setState(() {
+                                    controller.collapse();
+                                    if (copperVersion ==
+                                        'Copper v0.${i + 1}.0') {
+                                      copperVersion = null;
+                                    } else {
+                                      copperVersion = 'Copper v0.${i + 1}.0';
+                                    }
+                                  });
+                                },
                               ),
-                              trailing: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 200),
-                                child: copperVersion == 'Copper v0.${i + 1}.0'
-                                    ? Icon(Icons.check_box_outlined, size: 28)
-                                    : null,
-                              ),
-                              onTap: () {
-                                setState(() {
-                                  controller.collapse();
-                                  if (copperVersion == 'Copper v0.${i + 1}.0') {
-                                    copperVersion = null;
-                                  } else {
-                                    copperVersion = 'Copper v0.${i + 1}.0';
-                                  }
-                                });
-                              },
-                            ),
-                          SizedBox(),
-                        ],
+                            SizedBox(),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -512,157 +513,5 @@ class _DownloadMindustryPopupPageState
         ),
       ],
     );
-  }
-}
-
-//            测试页面
-
-class _TextAssetPage extends StatefulWidget {
-  @override
-  State<StatefulWidget> createState() => _TextAssetPageState();
-}
-
-class _TextAssetPageState extends State<_TextAssetPage> {
-  final list = <MindustryGithubMeta>[
-    MindustryGithubMeta(
-      name: "v8 Build 152.2 - Beta",
-      releaseNum: "v152.2",
-      releaseDate: "2025-09-29T12:56:21Z",
-      assets: [
-        GithubApiReleaseAsset(
-          url: "http://localhost/downloads/Mindustry152.2.jar",
-          size: 0,
-          downloadCount: 0,
-          name: 'Mindustry.jar',
-        ),
-      ],
-      describe: '',
-    )..isBe = false,
-    MindustryGithubMeta(
-      name: "v8 Build 152 - Beta",
-      releaseNum: "v152",
-      releaseDate: "2025-09-29T12:56:21Z",
-      assets: [
-        GithubApiReleaseAsset(
-          url: "http://localhost/downloads/Mindustry152.jar",
-          size: 0,
-          downloadCount: 0,
-          name: 'Mindustry.jar',
-        ),
-      ],
-      describe: '',
-    )..isBe = false,
-    MindustryGithubMeta(
-      name: "7.0 Build 146 ",
-      releaseNum: "v146",
-      releaseDate: "2025-09-29T12:56:21Z",
-      assets: [
-        GithubApiReleaseAsset(
-          url: "http://localhost/downloads/mindustry146.jar",
-          size: 0,
-          downloadCount: 0,
-          name: 'mindustry.jar',
-        ),
-      ],
-      describe: '',
-    )..isBe = false,
-    MindustryGithubMeta(
-      name: "Build 26403",
-      releaseNum: "26403",
-      releaseDate: "2025-09-29T12:56:21Z",
-      assets: [
-        GithubApiReleaseAsset(
-          url: "http://localhost/downloads/mindustry26403.jar",
-          size: 0,
-          downloadCount: 0,
-          name: 'mindustry.jar',
-        ),
-      ],
-      describe: '',
-    )..isBe = true,
-    for (int i = 0; i < 50; i++)
-      MindustryGithubMeta(
-        name: "Build 26403",
-        releaseNum: "26403",
-        releaseDate: "2025-09-29T12:56:21Z",
-        assets: [
-          GithubApiReleaseAsset(
-            url: "http://localhost/downloads/mindustry26403.jar",
-            size: 0,
-            downloadCount: 0,
-            name: 'mindustry.jar',
-          ),
-        ],
-        describe: '',
-      )..isBe = true,
-  ];
-
-  // final list = <String, String>{
-  //   "http://localhost/downloads/Mindustry152.2.jar": 'v152.2',
-  //   "http://localhost/downloads/mindustry152.jar": 'v152',
-  //   "http://localhost/downloads/mindustry146.jar": 'v146',
-  //   "http://localhost/downloads/mindustryv142.jar": '',
-  //   "http://localhost/downloads/mindustryv126.2.jar": '',
-  //   "http://localhost/downloads/mindustry26403.jar": '',
-  //   "http://localhost/downloads/mindustry26398.jar": '',
-  // };
-
-  Widget _buildVersionList(
-    String title,
-    List<MindustryGithubMeta> versionList,
-  ) {
-    final List<Widget> versions = [];
-
-    final theme = Theme.of(context);
-
-    for (var version in versionList) {
-      if (version.assets.isEmpty) continue;
-
-      late Widget subtitle = Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 16,
-        children: [
-          Row(
-            spacing: 8,
-            children: [
-              Icon(Icons.date_range_outlined),
-              Text(version.releaseDate.split('T').first),
-            ],
-          ),
-        ],
-      );
-
-      final Widget widget = ReboundListTile(
-        padding: EdgeInsets.all(8),
-        borderRadius: BorderRadius.circular(4),
-        leading: Image.asset('assets/images/logo.png', width: 48),
-        title: Text(version.name, style: theme.textTheme.bodyLarge),
-        subtitle: subtitle,
-        onTap: () {
-          _buildDownloadPopup(version);
-        },
-      );
-      versions.add(widget);
-    }
-    title = '$title(${versions.length.toString()})';
-    return AnimatedExpansion(title: Text(title), children: versions);
-  }
-
-  void _buildDownloadPopup(MindustryGithubMeta mindustry) {
-    showAnimatedDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: '',
-      transitionDuration: const Duration(milliseconds: 350),
-      animationType: DialogAnimation.leapOut,
-      pageBuilder: (context, _, _) {
-        return _DownloadMindustryPopupPage(mindustry);
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListContentPanel(items: [_buildVersionList('mindustry', list)]);
   }
 }

@@ -71,7 +71,7 @@ class _LaunchPageState extends State<LaunchPage> {
         ),
       ),
       subtitle: Text(
-        _selectedVersion!.name,
+        _selectedVersion!.release,
         style: TextStyle(
           color: Theme.of(context).colorScheme.primary,
           fontWeight: FontWeight.w900,

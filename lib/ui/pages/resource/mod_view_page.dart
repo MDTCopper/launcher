@@ -102,7 +102,7 @@ class _ModViewPageState extends State<ModViewPage> {
 
     if (version == -2) {
       v = int.parse(
-        config.versionOptions.selectedVersion!.releaseNum
+        config.versionOptions.selectedVersion!.release
             .substring(1)
             .split('.')
             .first,
@@ -303,7 +303,7 @@ class _ModViewPageState extends State<ModViewPage> {
   Widget _buildHeadBar() {
     final theme = Theme.of(context);
     var selectedVersion = double.tryParse(
-      config.versionOptions.selectedVersion?.releaseNum.substring(1) ?? '',
+      config.versionOptions.selectedVersion?.release.substring(1) ?? '',
     );
     Widget buildResetButton() {
       final showResetButton =

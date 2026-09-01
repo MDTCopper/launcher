@@ -43,7 +43,7 @@ class LaunchMindustryTask extends Task {
     NotificationManager.addNotice(
       icon: Icons.rocket_launch_outlined,
       title: '启动',
-      content: '正在启动\r\n[${mindustry.name}]',
+      content: '正在启动\r\n[${mindustry.tag}]',
     );
     TaskLogManager.addLog(LogEntry(LogType.info, '正在启动游戏'));
 

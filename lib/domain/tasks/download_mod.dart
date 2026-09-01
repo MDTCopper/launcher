@@ -57,15 +57,12 @@ class DownloadJavaModTask extends Task {
     NotificationManager.addNotice(
       icon: Icons.download,
       title: '下载',
-      content: '正在下载模组[${modListMeta.name}(${modMeta.releaseNum})]',
+      content: '正在下载模组[${modListMeta.name}(${modMeta.tag})]',
     );
     TaskLogManager.addLog(
-      LogEntry(
-        LogType.info,
-        '正在下载模组[${modListMeta.name}(${modMeta.releaseNum})]',
-      ),
+      LogEntry(LogType.info, '正在下载模组[${modListMeta.name}(${modMeta.tag})]'),
     );
-    addLogAndPrint(.info, '下载模组[${modListMeta.name}(${modMeta.releaseNum})]');
+    addLogAndPrint(.info, '下载模组[${modListMeta.name}(${modMeta.tag})]');
 
     try {
       final fileName = '${modListMeta.name}-${modMeta.name}.jar';
@@ -313,7 +310,7 @@ class DownloadZipModTask extends Task {
   Future<void> _download() async {
     var modTag = modListMeta.name;
     if (modMeta != null) {
-      modTag += '(${modMeta!.releaseNum})';
+      modTag += '(${modMeta!.tag})';
     }
 
     NotificationManager.addNotice(
@@ -327,8 +324,8 @@ class DownloadZipModTask extends Task {
     var fileName = modListMeta.name;
     var url = '$githubCOM/${modListMeta.repo}/archive/refs/heads/';
     if (modMeta != null) {
-      fileName += '-${modMeta!.releaseNum}';
-      url += modMeta!.releaseNum;
+      fileName += '-${modMeta!.tag}';
+      url += modMeta!.tag;
     } else {
       if (modListMeta.mainBranchCache != null) {
         url += modListMeta.mainBranchCache!;
@@ -474,7 +471,7 @@ class DownloadZipModTask extends Task {
     final theme = Theme.of(context);
     var modTag = modListMeta.name;
     if (modMeta != null) {
-      modTag += '(${modMeta!.releaseNum})';
+      modTag += '(${modMeta!.tag})';
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

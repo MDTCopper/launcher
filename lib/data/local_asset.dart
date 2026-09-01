@@ -18,18 +18,20 @@ enum LauncherType { mindustry, copper }
 class Mindustry {
   final String id;
 
-  ///资源原名
-  final String name;
-  final String releaseNum;
+  final String release;
 
   ///存储路径
   final String path;
 
   ///游戏启动路径
-  final String jarPath;
+
+  String jarPath;
   final LauncherType launcher;
   final bool isBe;
+
   final DateTime addTime;
+  final Duration? playTime;
+  final DateTime? lastLaunchTime;
 
   /// 玩家给游戏版本的标签
   String tag;
@@ -58,10 +60,10 @@ class Mindustry {
   String? jvmParameter;
 
   ///返回游戏版本号 (double)
-  double get releaseDouble => double.parse(releaseNum.substring(1));
+  double get releaseDouble => double.parse(release.substring(1));
 
   ///返回游戏版本号 (int)
-  int get releaseInt => int.parse(releaseNum.substring(1).split('.').first);
+  int get releaseInt => int.parse(release.substring(1).split('.').first);
 
   ///游戏目录路径
   String get foldPath => p.join(path, tag);
@@ -88,14 +90,15 @@ class Mindustry {
   Mindustry({
     required this.id,
     required this.tag,
-    required this.name,
-    required this.releaseNum,
+    required this.release,
     required this.path,
     required this.jarPath,
     required this.launcher,
     required this.isBe,
     required this.isolation,
     required this.addTime,
+    this.playTime,
+    this.lastLaunchTime,
     this.java,
     this.jvmParameter,
     this.useBetterGPU,
@@ -109,7 +112,7 @@ class Mindustry {
 
   @override
   String toString() {
-    return 'Mindustry{ id:$id , name:$name , release:$releaseNum }';
+    return 'Mindustry{ id:$id , tag:$tag , build:$release }';
   }
 }
 

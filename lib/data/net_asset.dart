@@ -6,10 +6,9 @@ part 'net_asset.g.dart';
 @JsonSerializable()
 class GithubApiRelease {
   final String name;
-  @JsonKey(name: 'tag_name')
 
-  ///tag
-  final String releaseNum;
+  @JsonKey(name: 'tag_name')
+  final String tag;
   @JsonKey(name: 'published_at')
   final String releaseDate;
   final List<GithubApiReleaseAsset> assets;
@@ -18,7 +17,7 @@ class GithubApiRelease {
 
   GithubApiRelease({
     required this.name,
-    required this.releaseNum,
+    required this.tag,
     required this.releaseDate,
     required this.assets,
     required this.describe,
@@ -53,7 +52,7 @@ class MindustryGithubMeta extends GithubApiRelease {
 
   MindustryGithubMeta({
     required super.name, //v8 Build 152.2 - Beta
-    required super.releaseNum, //v146
+    required super.tag, //v146
     required super.releaseDate,
     required super.assets,
     required super.describe,
@@ -118,12 +117,11 @@ class ModOfficialListMeta {
 class ModGithubMeta extends GithubApiRelease {
   ModGithubMeta({
     required super.name,
-    required super.releaseNum,
+    required super.tag,
     required super.releaseDate,
     required super.assets,
     required super.describe,
   });
-
 
   factory ModGithubMeta.fromJson(Map<String, dynamic> json) =>
       _$ModGithubMetaFromJson(json);

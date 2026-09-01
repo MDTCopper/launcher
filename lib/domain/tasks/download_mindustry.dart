@@ -85,7 +85,7 @@ class DownloadMindustryTask extends Task {
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载游戏[$tag]'));
 
     try {
-      final jarName = 'mindustry-${mindustryMeta.releaseNum}.jar';
+      final jarName = 'mindustry-${mindustryMeta.tag}.jar';
       final jarPath = p.join(path, tag, jarName);
 
       file = File(jarPath);
@@ -174,8 +174,7 @@ class DownloadMindustryTask extends Task {
       jarPath: file.path,
       isBe: mindustryMeta.isBe,
       path: path,
-      name: mindustryMeta.name,
-      releaseNum: mindustryMeta.releaseNum,
+      release: mindustryMeta.tag,
       addTime: DateTime.now(),
       isolation: false,
     );

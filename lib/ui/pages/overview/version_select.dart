@@ -17,8 +17,7 @@ import 'package:copper_launcher/ui/components/animation/animated_expansion.dart'
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
-import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
-import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/input/tag_input_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
@@ -99,7 +98,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     final fold = _versionFolds[index];
     final tag = await showAnimatedDialog<String>(
       context: context,
-      pageBuilder: (_, _, _) => _TagInputDialog(
+      pageBuilder: (_, _, _) => TagInputDialog(
         title: '重命名目录',
         label: '目录名称',
         defaultText: fold.tag,
@@ -199,7 +198,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     if (!mounted) return;
     final tag = await showAnimatedDialog<String>(
       context: context,
-      pageBuilder: (_, _, _) => _TagInputDialog(
+      pageBuilder: (_, _, _) => TagInputDialog(
         title: '添加新目录',
         label: '目录名称',
         defaultText: defaultTag,
@@ -240,7 +239,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   Future<void> _addNewCategory() async {
     final tag = await showAnimatedDialog<String>(
       context: context,
-      pageBuilder: (_, _, _) => _TagInputDialog(
+      pageBuilder: (_, _, _) => TagInputDialog(
         title: '新建分类',
         label: '分类名称',
         defaultText: '新的分类',
@@ -282,22 +281,14 @@ class _VersionSelectPageState extends State<VersionSelectPage>
 
     await for (final entity in root.list()) {
       if (entity is File && entity.path.toLowerCase().endsWith('.jar')) {
-        final version = await _recognizeJar(
-          folderPath,
-          entity.path,
-          p.basenameWithoutExtension(entity.path),
-        );
+        final version = await _recognizeJar(folderPath, entity.path);
         if (version != null) result.add(version);
         continue;
       }
       if (entity is Directory) {
         await for (final sub in entity.list()) {
           if (sub is File && sub.path.toLowerCase().endsWith('.jar')) {
-            final version = await _recognizeJar(
-              folderPath,
-              sub.path,
-              p.basenameWithoutExtension(entity.path),
-            );
+            final version = await _recognizeJar(folderPath, sub.path);
             if (version != null) result.add(version);
             break;
           }
@@ -308,11 +299,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   }
 
   /// 用 [FileReader] 识别 jar：是 mindustry 则构造版本
-  Future<Mindustry?> _recognizeJar(
-    String folderPath,
-    String jarPath,
-    String tag,
-  ) async {
+  Future<Mindustry?> _recognizeJar(String folderPath, String jarPath) async {
     final reader = await FileReader.fromPath(jarPath);
     final meta = reader.mindustry;
     if (reader.type != ResourceType.mindustry || meta == null) {
@@ -320,7 +307,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     }
 
     final isBe = meta.type == 'bleeding-edge';
-    final name = !isBe
+    final tag = !isBe
         ? 'v${meta.version} Build ${meta.build}'
         : 'Build ${meta.build}';
 
@@ -331,8 +318,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       jarPath: jarPath,
       isBe: isBe,
       path: folderPath,
-      name: name,
-      releaseNum: isBe ? meta.version : 'v${meta.version}',
+      release: isBe ? meta.build : 'v${meta.build}',
       addTime: DateTime.now(),
       isolation: false,
     );
@@ -381,7 +367,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     }
 
     final isBe = meta.type == 'bleeding-edge';
-    final name = !isBe
+    final defaultTag = !isBe
         ? 'v${meta.version} Build ${meta.build}'
         : 'Build ${meta.build}';
 
@@ -393,10 +379,10 @@ class _VersionSelectPageState extends State<VersionSelectPage>
 
     final tag = await showAnimatedDialog<String>(
       context: context,
-      pageBuilder: (_, _, _) => _TagInputDialog(
+      pageBuilder: (_, _, _) => TagInputDialog(
         title: '导入游戏',
         label: '版本标签',
-        defaultText: name,
+        defaultText: defaultTag,
         validate: (tag) {
           final e = WindowsFileNameValidator.tagValidate(tag);
           if (e != null) return e;
@@ -422,8 +408,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       jarPath: jarPath,
       isBe: isBe,
       path: fold.path,
-      name: name,
-      releaseNum: isBe ? meta.version : 'v${meta.version}',
+
+      release: isBe ? meta.version : 'v${meta.version}',
       addTime: DateTime.now(),
       isolation: false,
     );
@@ -448,7 +434,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       ),
       title: Text(version.tag, style: theme.textTheme.bodyLarge),
       subtitle: isDesktop
-          ? Text(version.name, style: theme.textTheme.bodyMedium)
+          ? Text(version.release, style: theme.textTheme.bodyMedium)
           : null,
       onTap: () => _select(version),
     );
@@ -714,102 +700,6 @@ class _VersionSelectPageState extends State<VersionSelectPage>
         ],
       ),
       page: _buildVersionViewPage(_versionFolds[_index].versions),
-    );
-  }
-}
-
-/// 通用标签输入对话框：title / label / 默认值 / 校验器
-class _TagInputDialog extends StatefulWidget {
-  final String title;
-  final String label;
-  final String defaultText;
-  final String? Function(String tag) validate;
-
-  const _TagInputDialog({
-    required this.title,
-    required this.label,
-    required this.defaultText,
-    required this.validate,
-  });
-
-  @override
-  State<_TagInputDialog> createState() => _TagInputDialogState();
-}
-
-class _TagInputDialogState extends State<_TagInputDialog> {
-  late final TextEditingController controller;
-  String? error;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = TextEditingController(text: widget.defaultText);
-    error = widget.validate(controller.text);
-    controller.addListener(() {
-      setState(() => error = widget.validate(controller.text));
-    });
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Material(
-        color: Colors.transparent,
-        elevation: 4,
-        shadowColor: Colors.black,
-        child: Container(
-          width: 400,
-          padding: EdgeInsets.all(8),
-          constraints: BoxConstraints(maxHeight: 320),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Column(
-            spacing: 8,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                spacing: 8,
-                children: [
-                  ReboundButton(
-                    child: Icon(Icons.arrow_back_ios_new),
-                    onTap: () => Navigator.of(context).pop(),
-                  ),
-                  Text(
-                    widget.title,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-              OutlinedTextField(
-                label: widget.label,
-                error: error,
-                controller: controller,
-              ),
-              IconTextButton(
-                icon: Icons.check,
-                content: '确定',
-                onTap: () {
-                  if (error != null) return;
-                  Navigator.of(context).pop(controller.text);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

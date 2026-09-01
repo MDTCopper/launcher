@@ -159,7 +159,7 @@ class _ReboundListTileState extends State<ReboundListTile>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       DefaultTextStyle(
-                        style: theme.textTheme.titleMedium!.copyWith(
+                        style: theme.textTheme.headlineMedium!.copyWith(
                           color: foreground,
                         ),
                         child: widget.title ?? const SizedBox.shrink(),
