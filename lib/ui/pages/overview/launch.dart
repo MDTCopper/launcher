@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
 
@@ -125,7 +124,7 @@ class _LaunchPageState extends State<LaunchPage> {
         }
 
         return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 800),
+          duration: const Duration(milliseconds: 700),
           transitionBuilder: (child, animation) {
             final isForward = !animation.status.isForwardOrCompleted;
 
@@ -172,6 +171,7 @@ class _LaunchPageState extends State<LaunchPage> {
         );
       },
     );
+
     // 右键 / 长按：快捷选择最近游玩过的其他版本（最多 5 个）
     child = MenuLayer(
       positionDelegate: const _AboveMousePositionDelegate(gap: 4),
