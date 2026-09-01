@@ -16,10 +16,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "io.github.copper.launcher"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         // copper loader requires min api level: 30
         minSdk = 30
         targetSdk = flutter.targetSdkVersion
@@ -32,6 +29,12 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // DO NOT minify or shrink, or io.github.copper.loader.Loader will be treated as an unused class and remove,
+            // which is used in dart with jni
+            isMinifyEnabled = false
+            isShrinkResources = false
+            // TODO: or we can introduce a proguard-rules.pro here, but i'm lazy
         }
     }
 }
