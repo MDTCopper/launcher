@@ -165,6 +165,44 @@ extension type Loader._(jni$_.JObject _$this) implements jni$_.JObject {
       _$args.pointer,
     ).check();
   }
+
+  static final _id_getMemoryInfo = _class.staticMethodId(
+    r'getMemoryInfo',
+    r'(Landroid/content/Context;)Lio/github/copper/loader/Loader$MemoryInfo;',
+  );
+
+  static final _getMemoryInfo =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public io.github.copper.loader.Loader$MemoryInfo getMemoryInfo(android.content.Context applicationContext)`
+  /// The returned object must be released after use, by calling the [release] method.
+  ///
+  /// Get device memory info.
+  static Loader$MemoryInfo? getMemoryInfo(Context? applicationContext) {
+    final _$$classRef = _class.reference;
+    final _$applicationContext =
+        applicationContext?.reference ?? jni$_.jNullReference;
+    return _getMemoryInfo(
+      _$$classRef.pointer,
+      _id_getMemoryInfo.pointer,
+      _$applicationContext.pointer,
+    ).object<Loader$MemoryInfo?>();
+  }
 }
 
 final class $Loader$Type$ extends jni$_.JType<Loader> {
@@ -174,6 +212,82 @@ final class $Loader$Type$ extends jni$_.JType<Loader> {
   @jni$_.internal
   @core$_.override
   String get signature => r'Lio/github/copper/loader/Loader;';
+}
+
+/// from: `io.github.copper.loader.Loader$MemoryInfo`
+///
+/// Wrapper of android.app.ActivityManager.MemoryInfo
+extension type Loader$MemoryInfo._(jni$_.JObject _$this)
+    implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(
+    r'io/github/copper/loader/Loader$MemoryInfo',
+  );
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<Loader$MemoryInfo> type = $Loader$MemoryInfo$Type$();
+}
+
+extension Loader$MemoryInfo$$Methods on Loader$MemoryInfo {
+  static final _id_availMem = Loader$MemoryInfo._class.instanceFieldId(
+    r'availMem',
+    r'J',
+  );
+
+  /// from: `public long availMem`
+  core$_.int get availMem =>
+      _id_availMem.getNullable(this, jni$_.jlong.type) as core$_.int;
+
+  /// from: `public long availMem`
+  set availMem(core$_.int value) =>
+      _id_availMem.set(this, jni$_.jlong.type, value);
+
+  static final _id_lowMemory = Loader$MemoryInfo._class.instanceFieldId(
+    r'lowMemory',
+    r'Z',
+  );
+
+  /// from: `public boolean lowMemory`
+  core$_.bool get lowMemory =>
+      _id_lowMemory.getNullable(this, jni$_.jboolean.type) as core$_.bool;
+
+  /// from: `public boolean lowMemory`
+  set lowMemory(core$_.bool value) =>
+      _id_lowMemory.set(this, jni$_.jboolean.type, value);
+
+  static final _id_threshold = Loader$MemoryInfo._class.instanceFieldId(
+    r'threshold',
+    r'J',
+  );
+
+  /// from: `public long threshold`
+  core$_.int get threshold =>
+      _id_threshold.getNullable(this, jni$_.jlong.type) as core$_.int;
+
+  /// from: `public long threshold`
+  set threshold(core$_.int value) =>
+      _id_threshold.set(this, jni$_.jlong.type, value);
+
+  static final _id_totalMem = Loader$MemoryInfo._class.instanceFieldId(
+    r'totalMem',
+    r'J',
+  );
+
+  /// from: `public long totalMem`
+  core$_.int get totalMem =>
+      _id_totalMem.getNullable(this, jni$_.jlong.type) as core$_.int;
+
+  /// from: `public long totalMem`
+  set totalMem(core$_.int value) =>
+      _id_totalMem.set(this, jni$_.jlong.type, value);
+}
+
+final class $Loader$MemoryInfo$Type$ extends jni$_.JType<Loader$MemoryInfo> {
+  @jni$_.internal
+  const $Loader$MemoryInfo$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Lio/github/copper/loader/Loader$MemoryInfo;';
 }
 
 /// from: `android.content.Context`

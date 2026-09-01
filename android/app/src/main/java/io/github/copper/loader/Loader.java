@@ -1,5 +1,6 @@
 package io.github.copper.loader;
 
+import android.app.*;
 import android.content.*;
 import java.io.*;
 
@@ -32,6 +33,29 @@ public class Loader {
                     .invoke(null, (Object) args);
         } catch (Throwable e) {
             throw new RuntimeException("failed to build", e);
+        }
+    }
+
+    /** Get device memory info. */
+    public static MemoryInfo getMemoryInfo(Context applicationContext) {
+        ActivityManager manager = applicationContext.getSystemService(ActivityManager.class);
+        ActivityManager.MemoryInfo info = new ActivityManager.MemoryInfo();
+        manager.getMemoryInfo(info);
+        return new MemoryInfo(info);
+    }
+
+    /** Wrapper of android.app.ActivityManager.MemoryInfo */
+    public static class MemoryInfo {
+        public long availMem;
+        public boolean lowMemory;
+        public long threshold;
+        public long totalMem;
+
+        MemoryInfo(ActivityManager.MemoryInfo info) {
+            availMem = info.availMem;
+            lowMemory = info.lowMemory;
+            threshold = info.threshold;
+            totalMem = info.totalMem;
         }
     }
 }
