@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mdt_title">Mindustry</string>
+    <string name="error_title">Error happened</string>
+    <string name="copy_stacktrace">Copy</string>
+    <string name="close">Close</string>
+    <string name="copied_stacktrace">Copied error message</string>
+</resources>

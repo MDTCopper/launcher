@@ -1,0 +1,13 @@
+android_sdk_config:
+  add_gradle_deps: true
+
+source_path:
+  - 'android/app/src/main/java'
+
+classes:
+  - 'io.github.copper.loader.Loader'
+
+output:
+  dart:
+    path: lib/util/loader_binding.dart
+    structure: single_file
