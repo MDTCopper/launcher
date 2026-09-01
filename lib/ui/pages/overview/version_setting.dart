@@ -18,6 +18,7 @@ import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
+import 'package:copper_launcher/util/format/path_format.dart';
 import 'package:copper_launcher/util/math/range.dart';
 import 'package:flutter/material.dart';
 
@@ -157,67 +158,65 @@ class _AboutState extends State<_About> {
         ),
         ContentPanelModule(
           title: '快捷方式',
-          child: Column(
-            crossAxisAlignment: .stretch,
-            children: [
-              Wrap(
-                spacing: 16,
-                children: [
-                  IconTextButton(
-                    icon: Icons.save,
-                    content: '存档文件夹',
-                    onTap: () {
-                      _openFolder(_mindustry.savesPath);
-                    },
-                  ),
-                  IconTextButton(
-                    icon: Icons.map_outlined,
-                    content: '地图文件夹',
-                    onTap: () {
-                      _openFolder(_mindustry.mapsPath);
-                    },
-                  ),
-                  IconTextButton(
-                    icon: Icons.paste,
-                    content: '蓝图文件夹',
-                    onTap: () {
-                      _openFolder(_mindustry.schematicsPath);
-                    },
-                  ),
-                  IconTextButton(
-                    icon: LineIcons.puzzlePiece,
-                    content: '模组文件夹',
-                    onTap: () {
-                      _openFolder(_mindustry.modsPath);
-                    },
-                  ),
-                  IconTextButton(
-                    icon: Icons.file_copy,
-                    content: '导出崩溃日志',
-                    onTap: () {},
-                  ),
-                  IconTextButton(
-                    icon: Icons.broken_image_outlined,
-                    content: '查看崩溃日志',
-                    onTap: () {},
-                  ),
-                ],
-              ),
-            ],
+          child: SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              alignment: .start,
+              children: [
+                IconTextButton(
+                  width: 136,
+                  icon: Icons.save,
+                  content: '存档文件夹',
+                  onTap: () {
+                    _openFolder(_mindustry.savesPath);
+                  },
+                ),
+
+                IconTextButton(
+                  width: 136,
+                  icon: Icons.map_outlined,
+                  content: '地图文件夹',
+                  onTap: () {
+                    _openFolder(_mindustry.mapsPath);
+                  },
+                ),
+
+                IconTextButton(
+                  width: 136,
+                  icon: Icons.paste,
+                  content: '蓝图文件夹',
+                  onTap: () {
+                    _openFolder(_mindustry.schematicsPath);
+                  },
+                ),
+
+                IconTextButton(
+                  width: 136,
+                  icon: LineIcons.puzzlePiece,
+                  content: '模组文件夹',
+                  onTap: () {
+                    _openFolder(_mindustry.modsPath);
+                  },
+                ),
+
+                IconTextButton(
+                  width: 136,
+                  icon: Icons.file_copy,
+                  content: '导出崩溃日志',
+                  onTap: () {},
+                ),
+
+                IconTextButton(
+                  width: 136,
+                  icon: Icons.broken_image_outlined,
+                  content: '查看崩溃日志',
+                  onTap: () {},
+                ),
+              ],
+            ),
           ),
-
-          // Row(
-          //   spacing: 16,
-          //   children: [
-
-          //   ],
-          // ),
-          // Row(
-          //   spacing: 16,
-          //   children: [
-
-          //   ],
-          // ),
         ),
         ContentPanelModule(
           title: '导入资源',
@@ -258,11 +257,7 @@ class _AboutState extends State<_About> {
                 spacing: 8,
                 mainAxisSize: MainAxisSize.max,
                 children: [
-                  IconTextButton(
-                    icon: Icons.save,
-                    content: '存档',
-                    onTap: () {},
-                  ),
+                  IconTextButton(icon: Icons.save, content: '存档', onTap: () {}),
                   IconTextButton(
                     icon: Icons.map_outlined,
                     content: '地图',
@@ -387,7 +382,7 @@ class _SettingState extends State<_Setting> {
       list.add(
         DropdownOption<String>(
           value: it.path,
-          label: '$label ( "${it.path}" )',
+          label: '$label ( "${formatPathForWrap(it.path)}" )',
         ),
       );
     }

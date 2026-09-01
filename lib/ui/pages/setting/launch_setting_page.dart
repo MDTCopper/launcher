@@ -18,6 +18,7 @@ import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dar
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/java_finder.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
+import 'package:copper_launcher/util/format/path_format.dart';
 import 'package:copper_launcher/util/system_info.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -417,7 +418,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
       list.add(
         DropdownOption<String>(
           value: it.path,
-          label: '$label ( "${it.path}" )',
+          label: '$label ( "${formatPathForWrap(it.path)}" )',
         ),
       );
     }

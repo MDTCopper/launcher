@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../util/format/string_cleaner.dart';
 import '../../util/io/file_reader.dart';
+import '../../util/format/path_format.dart';
 import '../feature/images.dart';
 
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -105,7 +106,7 @@ class ResourceImporterState extends State<ResourceImporter> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text('build ${m.build}  (${m.type})'),
-                          Text('${m.path}'),
+                          Text(formatPathForWrap(m.path ?? '')),
                         ],
                       ),
                       trailing: ReboundCheckChangeBox(value: test),
@@ -138,7 +139,7 @@ class ResourceImporterState extends State<ResourceImporter> {
                           Text(
                             '版本  ${mod.version}   |   minGameVersion ${mod.minGameVersion}',
                           ),
-                          Text('${mod.path}'),
+                          Text(formatPathForWrap(mod.path ?? '')),
                         ],
                       ),
 
@@ -151,7 +152,7 @@ class ResourceImporterState extends State<ResourceImporter> {
                       title: Text(
                         '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
                       ),
-                      subtitle: Text('${m.path}'),
+                      subtitle: Text(formatPathForWrap(m.path ?? '')),
                       onTap: () {},
                     );
                   case ResourceType.schematic:
@@ -161,7 +162,7 @@ class ResourceImporterState extends State<ResourceImporter> {
                       title: Text(
                         '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
                       ),
-                      subtitle: Text('${m.path}'),
+                      subtitle: Text(formatPathForWrap(m.path ?? '')),
                       onTap: () {},
                     );
                   case ResourceType.settings:

@@ -10,6 +10,8 @@ import 'rebound_button.dart';
 class IconTextButton extends StatelessWidget {
   final IconData icon;
   final String content;
+  final double? width;
+  final double? heigth;
   final VoidCallback? onTap;
   final VoidCallback? onLongTap;
   final double? pressedScale;
@@ -21,6 +23,8 @@ class IconTextButton extends StatelessWidget {
 
   const IconTextButton({
     super.key,
+    this.width,
+    this.heigth,
     required this.icon,
     required this.content,
     this.onTap,
@@ -38,7 +42,7 @@ class IconTextButton extends StatelessWidget {
     final theme = Theme.of(context);
     final itemColor = AppColors.of(context).itemSecondary;
 
-    return ReboundButton(
+    Widget child = ReboundButton(
       pressedScale: pressedScale,
       hoverElevation: hoverElevation,
       backgroundColor: baseColor,
@@ -62,5 +66,11 @@ class IconTextButton extends StatelessWidget {
         ),
       ),
     );
+
+    if (width != null || heigth != null) {
+      child = SizedBox(width: width, height: heigth, child: child);
+    }
+
+    return child;
   }
 }

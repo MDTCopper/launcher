@@ -24,6 +24,7 @@ import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/format/path_format.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:file_selector/file_selector.dart' show XTypeGroup;
 import 'package:flutter/foundation.dart';
@@ -552,7 +553,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
         items: [
           if (isDesktop)
             Text(
-              '详细路径 ${_versionFolds[_index].path}',
+              '详细路径 ${formatPathForWrap(_versionFolds[_index].path)}',
               style: Theme.of(context).textTheme.labelMedium,
             ),
           if (likes.isNotEmpty)
@@ -628,7 +629,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
                 ),
                 if (isDesktop)
                   Text(
-                    '详细路径 ${_versionFolds[_index].path}',
+                    '详细路径 ${formatPathForWrap(_versionFolds[_index].path)}',
                     style: theme.textTheme.labelMedium,
                   ),
               ],
