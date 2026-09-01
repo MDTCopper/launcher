@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mdt_title">Mindustry</string>
+    <string name="error_title">发生错误</string>
+    <string name="copy_stacktrace">复制</string>
+    <string name="close">关闭</string>
+    <string name="copied_stacktrace">已复制报错信息</string>
+</resources>
