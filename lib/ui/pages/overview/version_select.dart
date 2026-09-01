@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
@@ -25,6 +26,7 @@ import 'package:copper_launcher/util/io/os.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:file_selector/file_selector.dart' show XTypeGroup;
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import 'package:copper_launcher/ui/vars.dart';
@@ -177,7 +179,9 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     );
   }
 
-  /// 添加新目录：选一个游戏目录，命名后加入版本折叠；目录下已有游戏版本会被自动扫描进去
+  /// 添加目录 / 分类：
+  /// - 桌面端：选一个游戏目录，命名后加入版本折叠，目录下已有版本自动扫描进去
+  /// - 移动端：新建分类——权限受限无法自由选目录，改为在应用目录下创建同名文件夹
   Future<void> _addNewFold() async {
     final path = await PathSelector.selectDirectory();
     if (path == null || !mounted) return;
@@ -222,6 +226,47 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     );
     setState(() {
       _versionFolds.add(VersionFold(tag: tag, path: path, versions: scanned));
+      _index = _versionFolds.length - 1;
+    });
+    await config.save();
+    _updateView();
+  }
+
+  /// 新建分类（移动端）：在 [AppPaths.versionsFolds] 下创建与 tag 同名的文件夹
+  ///
+  /// 手机权限受限，无法自由选择管理目录，只能在应用自己的目录下建文件夹，
+  /// 因此「添加目录」在移动端表现为「新建分类」，路径固定在应用目录内
+  Future<void> _addNewCategory() async {
+    final tag = await showAnimatedDialog<String>(
+      context: context,
+      pageBuilder: (_, _, _) => _TagInputDialog(
+        title: '新建分类',
+        label: '分类名称',
+        defaultText: '新的分类',
+        validate: (tag) {
+          final e = WindowsFileNameValidator.tagValidate(tag);
+          if (e != null) return e;
+          if (_versionFolds.any((fold) => fold.tag == tag)) return '名称已存在';
+          return null;
+        },
+      ),
+    );
+    if (tag == null || !mounted) return;
+
+    final folderPath = p.join(AppPaths.versionsFolds, tag);
+    try {
+      await Directory(folderPath).create(recursive: true);
+    } catch (e) {
+      Log.add(.error, '创建分类文件夹失败[$folderPath]:$e');
+      if (mounted) {
+        addNotice(icon: Icons.close, title: '新建失败', content: '无法在应用目录下创建分类文件夹');
+      }
+      return;
+    }
+
+    Log.add(.info, '已新建分类[$tag] 路径[$folderPath]');
+    setState(() {
+      _versionFolds.add(VersionFold(tag: tag, path: folderPath, versions: []));
       _index = _versionFolds.length - 1;
     });
     await config.save();
@@ -540,51 +585,54 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   Widget _buildEmptyPage() {
     final theme = Theme.of(context);
     return _EmptyPageEntrance(
-      child: Material(
-        color: theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-        elevation: 4,
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            spacing: 4,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('~(～￣▽￣)～', style: theme.textTheme.bodyLarge),
-              Text('没有找到任何游戏版本', style: theme.textTheme.headlineLarge),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Material(
+          color: theme.colorScheme.secondaryContainer,
+          borderRadius: BorderRadius.circular(8),
+          elevation: 4,
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              spacing: 4,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('~(～￣▽￣)～', style: theme.textTheme.bodyLarge),
+                Text('没有找到任何游戏版本', style: theme.textTheme.headlineLarge),
 
-              Text('可以添加其他游戏目录或者直接下载游戏', style: theme.textTheme.labelLarge),
-              SizedBox(height: 2),
-              ReboundButton(
-                elevation: 2,
-                hoverElevation: 4,
-                padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                onTap: () {
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    '/mindustry_download',
-                    (_) => false,
-                    arguments: {'lead': 'Mindustry'},
-                  );
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 8,
-                  children: [
-                    Icon(Icons.download, color: theme.colorScheme.onSurface),
-                    Text(
-                      '下载游戏',
-                      style: TextStyle(color: theme.colorScheme.onSurface),
-                    ),
-                  ],
+                Text('可以添加其他游戏目录或者直接下载游戏', style: theme.textTheme.labelLarge),
+                SizedBox(height: 2),
+                ReboundButton(
+                  elevation: 2,
+                  hoverElevation: 4,
+                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  onTap: () {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/mindustry_download',
+                      (_) => false,
+                      arguments: {'lead': 'Mindustry'},
+                    );
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [
+                      Icon(Icons.download, color: theme.colorScheme.onSurface),
+                      Text(
+                        '下载游戏',
+                        style: TextStyle(color: theme.colorScheme.onSurface),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              if (isDesktop)
-                Text(
-                  '详细路径 ${_versionFolds[_index].path}',
-                  style: theme.textTheme.labelMedium,
-                ),
-            ],
+                if (isDesktop)
+                  Text(
+                    '详细路径 ${_versionFolds[_index].path}',
+                    style: theme.textTheme.labelMedium,
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -611,8 +659,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
                 setState(() => _index = index);
               },
             );
-            //默认文件夹不能删除
-            if (index == 0) return tile;
+
             // 侧边栏项：右键 / 长按 + 左滑 → 可删除该目录
             return MenuLayer(
               menuBuilder: (_, controller) => [
@@ -624,27 +671,29 @@ class _VersionSelectPageState extends State<VersionSelectPage>
                     _renameFold(index);
                   },
                 ),
-                MenuButton(
-                  icon: Icon(Icons.delete),
-                  label: '删除',
-                  danger: true,
-                  onTap: () {
-                    controller.dismiss();
-                    _deleteFold(index);
-                  },
-                ),
+                //默认文件夹不能删除
+                if (index != 0)
+                  MenuButton(
+                    icon: Icon(Icons.delete),
+                    label: '删除',
+                    danger: true,
+                    onTap: () {
+                      controller.dismiss();
+                      _deleteFold(index);
+                    },
+                  ),
               ],
               child: tile,
             );
           }),
         ],
         itemsAtBottom: [
-          if (isMobile)
+          if (isMobile || kDebugMode)
             NavigationTile(
               icon: Icon(Icons.create_new_folder_outlined),
-              content: '添加新分类',
+              content: '新建分类',
               collapse: collapse,
-              onTap: _addNewFold,
+              onTap: _addNewCategory,
             ),
           if (isDesktop) ...[
             NavigationTile(
