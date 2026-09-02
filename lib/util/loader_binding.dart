@@ -192,7 +192,7 @@ extension type Loader._(jni$_.JObject _$this) implements jni$_.JObject {
   /// from: `static public io.github.copper.loader.Loader$MemoryInfo getMemoryInfo(android.content.Context applicationContext)`
   /// The returned object must be released after use, by calling the [release] method.
   ///
-  /// Get device memory info.
+  /// Get native memory info.
   static Loader$MemoryInfo? getMemoryInfo(Context? applicationContext) {
     final _$$classRef = _class.reference;
     final _$applicationContext =
@@ -202,6 +202,44 @@ extension type Loader._(jni$_.JObject _$this) implements jni$_.JObject {
       _id_getMemoryInfo.pointer,
       _$applicationContext.pointer,
     ).object<Loader$MemoryInfo?>();
+  }
+
+  static final _id_getHeapMemoryInfo = _class.staticMethodId(
+    r'getHeapMemoryInfo',
+    r'(Landroid/content/Context;)Lio/github/copper/loader/Loader$HeapMemoryInfo;',
+  );
+
+  static final _getHeapMemoryInfo =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public io.github.copper.loader.Loader$HeapMemoryInfo getHeapMemoryInfo(android.content.Context applicationContext)`
+  /// The returned object must be released after use, by calling the [release] method.
+  ///
+  /// Get art heap memory info.
+  static Loader$HeapMemoryInfo? getHeapMemoryInfo(Context? applicationContext) {
+    final _$$classRef = _class.reference;
+    final _$applicationContext =
+        applicationContext?.reference ?? jni$_.jNullReference;
+    return _getHeapMemoryInfo(
+      _$$classRef.pointer,
+      _id_getHeapMemoryInfo.pointer,
+      _$applicationContext.pointer,
+    ).object<Loader$HeapMemoryInfo?>();
   }
 }
 
@@ -288,6 +326,93 @@ final class $Loader$MemoryInfo$Type$ extends jni$_.JType<Loader$MemoryInfo> {
   @jni$_.internal
   @core$_.override
   String get signature => r'Lio/github/copper/loader/Loader$MemoryInfo;';
+}
+
+/// from: `io.github.copper.loader.Loader$HeapMemoryInfo`
+///
+/// Heap memory info of ART.
+extension type Loader$HeapMemoryInfo._(jni$_.JObject _$this)
+    implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(
+    r'io/github/copper/loader/Loader$HeapMemoryInfo',
+  );
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<Loader$HeapMemoryInfo> type =
+      $Loader$HeapMemoryInfo$Type$();
+  static final _id_new$ = _class.constructorId(r'()V');
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public void <init>()`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory Loader$HeapMemoryInfo() {
+    final _$$classRef = _class.reference;
+    return _new$(
+      _$$classRef.pointer,
+      _id_new$.pointer,
+    ).object<Loader$HeapMemoryInfo>();
+  }
+}
+
+extension Loader$HeapMemoryInfo$$Methods on Loader$HeapMemoryInfo {
+  static final _id_normalSize = Loader$HeapMemoryInfo._class.instanceFieldId(
+    r'normalSize',
+    r'I',
+  );
+
+  /// from: `public int normalSize`
+  ///
+  /// dalvik.vm.heapgrowthlimit, unit: megabytes
+  core$_.int get normalSize =>
+      _id_normalSize.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int normalSize`
+  ///
+  /// dalvik.vm.heapgrowthlimit, unit: megabytes
+  set normalSize(core$_.int value) =>
+      _id_normalSize.set(this, jni$_.jint.type, value);
+
+  static final _id_largeSize = Loader$HeapMemoryInfo._class.instanceFieldId(
+    r'largeSize',
+    r'I',
+  );
+
+  /// from: `public int largeSize`
+  ///
+  /// dalvik.vm.heapsize, unit: megabytes
+  core$_.int get largeSize =>
+      _id_largeSize.getNullable(this, jni$_.jint.type) as core$_.int;
+
+  /// from: `public int largeSize`
+  ///
+  /// dalvik.vm.heapsize, unit: megabytes
+  set largeSize(core$_.int value) =>
+      _id_largeSize.set(this, jni$_.jint.type, value);
+}
+
+final class $Loader$HeapMemoryInfo$Type$
+    extends jni$_.JType<Loader$HeapMemoryInfo> {
+  @jni$_.internal
+  const $Loader$HeapMemoryInfo$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Lio/github/copper/loader/Loader$HeapMemoryInfo;';
 }
 
 /// from: `android.content.Context`
