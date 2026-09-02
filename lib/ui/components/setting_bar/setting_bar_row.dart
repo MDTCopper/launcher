@@ -48,13 +48,7 @@ class SettingBarRow extends StatelessWidget {
               ),
             ),
             SizedBox(width: gap),
-            // 控件区：占剩余空间，但不少于 controlMinWidth
-            Expanded(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: controlMinWidth),
-                child: control,
-              ),
-            ),
+            SizedBox(width: available - titleWidth - gap, child: control),
           ],
         );
       },

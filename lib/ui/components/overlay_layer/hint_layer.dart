@@ -125,6 +125,12 @@ class HintLayer extends StatefulWidget {
   /// 长按触发后自动消失的时长。hover 模式忽略，移出即消失。
   final Duration showDuration;
 
+  /// 是否支持点击触发（点击显示，再点隐藏 / [showDuration] 后自动消失）。
+  ///
+  /// 在悬停 / 长按基础上叠加：桌面端点击与悬停共存，移动端点击与长按共存。
+  /// 默认 false 保持原有纯悬停 / 纯长按行为。
+  final bool showOnTap;
+
   /// 悬停 / 长按后，提示框出现前的等待时长。
   final Duration waitDuration;
 
@@ -181,6 +187,7 @@ class HintLayer extends StatefulWidget {
     this.hintWidget,
     this.preferPosition = HintPosition.auto,
     this.showDuration = const Duration(seconds: 2),
+    this.showOnTap = false,
     this.waitDuration = const Duration(milliseconds: 800),
     this.waitResetDuration,
     this.id,
@@ -214,6 +221,7 @@ class HintLayerState extends State<HintLayer> {
 
   bool _disposed = false;
   bool _isLongPressing = false;
+  bool _isTapShown = false;
   bool _isShowing = false;
 
   @override
@@ -259,6 +267,15 @@ class HintLayerState extends State<HintLayer> {
         onLongPressStart: _onLongPressStart,
         onLongPressEnd: _onLongPressEnd,
         onLongPressCancel: _onLongPressCancel,
+        child: child,
+      );
+    }
+
+    // 点击模式：在悬停 / 长按基础上叠加点击显示，再点隐藏
+    if (widget.showOnTap) {
+      child = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _onTap,
         child: child,
       );
     }
@@ -331,7 +348,12 @@ class HintLayerState extends State<HintLayer> {
   // ------------------------------------------------------------------
 
   void _onMouseEnter(PointerEvent event) => _requestShow();
-  void _onMouseExit(PointerEvent event) => _dismiss();
+  void _onMouseExit(PointerEvent event) {
+    // 点击显示中：鼠标移出不消失（由自动消失 / 再点控制），
+    // 否则点击后一动鼠标提示就没了，与「点击显示 + 自动消失」冲突
+    if (_isTapShown) return;
+    _dismiss();
+  }
 
   void _onLongPressStart(LongPressStartDetails d) {
     _isLongPressing = true;
@@ -346,6 +368,30 @@ class HintLayerState extends State<HintLayer> {
   void _onLongPressCancel() {
     _isLongPressing = false;
     _dismiss();
+  }
+
+  /// 点击切换：显示中（由点击触发）→ 隐藏；否则显示并自动消失
+  void _onTap() {
+    if (_isTapShown) {
+      _isTapShown = false;
+      _dismiss();
+      return;
+    }
+    _isTapShown = true;
+    // 悬停中点击（已显示但非点击来源）→ 转为点击语义并安排自动消失
+    if (_isShowing) {
+      _dismissTimer?.cancel();
+      _dismissTimer = Timer(widget.showDuration, _dismiss);
+      return;
+    }
+    // hover 等待浮现期间点击：立即显示，不再重新走过一次 waitDuration
+    // （否则每次点击都会 cancel 挂起的 waitTimer 重新计时，明显延迟）
+    if (_waitTimer?.isActive ?? false) {
+      _waitTimer?.cancel();
+      _show();
+      return;
+    }
+    _requestShow();
   }
 
   // ------------------------------------------------------------------
@@ -388,7 +434,8 @@ class HintLayerState extends State<HintLayer> {
     if (mounted) setState(() {});
     _popupController.open();
 
-    if (_isLongPressing) {
+    // 长按 / 点击触发：显示一段时间后自动消失；悬停触发由移出控制
+    if (_isLongPressing || _isTapShown) {
       _dismissTimer?.cancel();
       _dismissTimer = Timer(widget.showDuration, _dismiss);
     }
@@ -399,6 +446,7 @@ class HintLayerState extends State<HintLayer> {
     _dismissTimer?.cancel();
     final bool wasVisible = _isShowing;
     _isShowing = false;
+    _isTapShown = false;
     if (mounted && !_disposed) setState(() {});
 
     if (wasVisible) {
@@ -421,6 +469,7 @@ class HintLayerState extends State<HintLayer> {
     _dismissTimer?.cancel();
     final bool wasVisible = _isShowing;
     _isShowing = false;
+    _isTapShown = false;
     if (wasVisible) {
       HintLayer._lastDismissTime[widget.id ?? HintLayer.defaultGroup] =
           DateTime.now();

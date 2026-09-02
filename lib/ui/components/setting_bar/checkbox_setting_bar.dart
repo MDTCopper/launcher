@@ -1,64 +1,81 @@
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
-
-import 'setting_bar_row.dart';
 
 class CheckboxSettingBar<T> extends StatelessWidget {
   final String title;
+  final double titleWide;
+  final String? hint;
 
-  final double? titleWide;
   final List<Widget> options;
+  final double? optionsWidth;
 
-  /// 提供时在选项组尾部显示"重置"按钮(清空勾选，特定场景自选)。
-  final VoidCallback? onReset;
+  ///DropdownLayer参数比较复杂，最好在外部构造好传进来
+  final DropdownLayer? dropdown;
 
   const CheckboxSettingBar({
     super.key,
     required this.title,
     required this.options,
-    this.titleWide,
-    this.onReset,
+    this.optionsWidth,
+    this.titleWide = 150,
+    this.hint,
+    this.dropdown,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = AppColors.of(context);
 
-    final resetButton = onReset == null
-        ? null
-        : ReboundButton(
-            pressedScale: 0.9,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            onTap: onReset,
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.restart_alt, size: 14),
-                SizedBox(width: 4),
-                Text('重置'),
+    return Row(
+      children: [
+        SizedBox(
+          width: titleWide,
+          child: Row(
+            children: [
+              Text(title, style: theme.textTheme.bodyMedium),
+
+              if (hint != null) ...[
+                const SizedBox(width: 8),
+                HintLayer(
+                  hint: hint,
+                  showOnTap: true,
+                  // waitDuration: const Duration(),
+                  child: Icon(
+                    Icons.info_outline,
+                    size: 18,
+                    color: colors.itemHint,
+                  ),
+                ),
               ],
-            ),
-          );
-
-    return SettingBarRow(
-      title: title,
-      titleWide: titleWide ?? 150,
-      control: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
-          border: Border.fromBorderSide(
-            theme.inputDecorationTheme.border?.borderSide ?? BorderSide(),
+            ],
           ),
         ),
-        // 多选整组：内容紧凑排列，放不下自动换行；重置按钮随组显示
-        child: Wrap(
-          spacing: 4,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [...options, ?resetButton],
+        const SizedBox(width: 8),
+        Flexible(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth > (optionsWidth ?? 0) ||
+                  dropdown == null) {
+                return Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.fromBorderSide(
+                      theme.inputDecorationTheme.border?.borderSide ??
+                          BorderSide(),
+                    ),
+                  ),
+                  child: Row(spacing: 4, mainAxisSize: .min, children: options),
+                );
+              }
+              return dropdown!;
+            },
+          ),
         ),
-      ),
+      ],
     );
   }
 }

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -173,6 +174,8 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     final theme = Theme.of(context);
     return CheckboxSettingBar(
       title: '游戏默认隔离设置',
+      hint: '在下载或导入游戏时，给游戏的默认隔离设置',
+      optionsWidth: 247,
       options: [
         ReboundCheckbox(
           value: versionIsolationSet.isEmpty,
@@ -190,18 +193,13 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
             });
           },
         ),
-        SizedBox(
-          width: 1,
-          height: 16,
-          child: ColoredBox(color: theme.colorScheme.secondary),
-        ),
         ReboundCheckbox(
           value: versionIsolationSet.contains(VersionIsolation.be),
           label: '测试版',
           onChange: (value) {
             setState(() {
               if (value) {
-                launchOptions.versionIsolationSet.add(VersionIsolation.be);
+                launchOptions.versionIsolationSet.add(.be);
               } else {
                 launchOptions.versionIsolationSet.remove(VersionIsolation.be);
               }
@@ -217,9 +215,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           onChange: (value) {
             setState(() {
               if (value) {
-                launchOptions.versionIsolationSet.add(
-                  VersionIsolation.mindustry,
-                );
+                launchOptions.versionIsolationSet.add(.mindustry);
               } else {
                 launchOptions.versionIsolationSet.remove(
                   VersionIsolation.mindustry,
@@ -237,7 +233,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           onChange: (value) {
             setState(() {
               if (value) {
-                launchOptions.versionIsolationSet.add(VersionIsolation.copper);
+                launchOptions.versionIsolationSet.add(.copper);
               } else {
                 launchOptions.versionIsolationSet.remove(
                   VersionIsolation.copper,
@@ -248,6 +244,25 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           },
         ),
       ],
+      dropdown: DropdownLayer<VersionIsolation>.multiSelect(
+        hintText: '无隔离',
+        topWidget: DropdownLayer.allSelectOrClearTopWidget(),
+        textBuilder: DropdownLayer.allLabelsText(),
+        options: [
+          DropdownOption(value: .be, label: '测试版'),
+          DropdownOption(value: .mindustry, label: '正式版'),
+          DropdownOption(value: .copper, label: 'Copper'),
+        ],
+        initialValues: launchOptions.versionIsolationSet,
+        onMultiSelect: (set) {
+          setState(() {
+            launchOptions.versionIsolationSet
+              ..clear()
+              ..addAll(set);
+            config.save();
+          });
+        },
+      ),
     );
   }
 

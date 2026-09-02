@@ -1,9 +1,13 @@
 import 'dart:math' as math;
 
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 
 import 'popup_overlay.dart';
 
@@ -32,6 +36,13 @@ class DropdownOption<T> {
 typedef DropdownTopWidgetBuilder<T> =
     Widget Function(BuildContext context, DropdownController<T> controller);
 
+/// 头部展示文本构建器（[DropdownLayer.textBuilder]）
+///
+/// 返回自定义展示文本；返回 `null` 时回落内置 [DropdownLayer] 默认逻辑
+/// （多选“已选 N 项” / 单选所选 label）。接收 [controller] 以读取选中集合
+typedef DropdownTextBuilder<T> =
+    String? Function(DropdownController<T> controller);
+
 /// 下拉框菜单控制器：供菜单顶部自定义区（[DropdownLayer.topWidget]）使用
 ///
 /// 场景可按需自建“全选 / 重置”等工具栏；状态变化触发重建时读取到的值始终最新
@@ -57,6 +68,7 @@ class DropdownController<T> {
 
   /// 当前选中集合
   Set<T> get selectValues => Set.of(_state?.selectValues ?? <T>{});
+  List<DropdownOption<T>> get options => _state?.widget.options ?? [];
 }
 
 /// 下拉选择 Field：点击头部在下方展开选项菜单
@@ -79,6 +91,12 @@ class DropdownLayer<T> extends StatefulWidget {
   ///
   /// 接收 [DropdownController]，场景可按需自建“全选 / 重置”等工具栏
   final DropdownTopWidgetBuilder<T>? topWidget;
+
+  /// 头部展示文本自定义构建器。
+  ///
+  /// 返回非 null 时覆盖默认展示文本；返回 null 回落内置逻辑
+  /// （多选“已选 N 项” / 单选所选 label / 未选显示 hintText）。
+  final DropdownTextBuilder<T>? textBuilder;
 
   /// 多选模式：菜单项变为复选框，勾选不收起菜单，头部显示"已选 N 项"
   final bool multiSelection;
@@ -108,6 +126,7 @@ class DropdownLayer<T> extends StatefulWidget {
     this.menuHeight = 200,
     this.headExtra,
     this.topWidget,
+    this.textBuilder,
     this.width = double.infinity,
     this.color,
     this.hoverColor,
@@ -128,6 +147,7 @@ class DropdownLayer<T> extends StatefulWidget {
     double menuHeight = 200,
     Widget? headExtra,
     DropdownTopWidgetBuilder<T>? topWidget,
+    DropdownTextBuilder<T>? textBuilder,
     Color? color,
     Color? hoverColor,
     Border? border,
@@ -143,6 +163,7 @@ class DropdownLayer<T> extends StatefulWidget {
       menuHeight: menuHeight,
       headExtra: headExtra,
       topWidget: topWidget,
+      textBuilder: textBuilder,
       color: color,
       hoverColor: hoverColor,
       border: border,
@@ -150,6 +171,51 @@ class DropdownLayer<T> extends StatefulWidget {
       multiSelection: true,
     );
   }
+
+  /// 头部展示「所有已选项 label」（用「、」拼接）的 [textBuilder]。
+  ///
+  /// 经 controller 读取选项与选中集合，头部直接列出已选 label
+  /// （如“苹果、香蕉”），空选返回 null 回落默认（[hintText]）。适用于多选。
+  ///
+  /// 用法：`DropdownLayer.multiSelect(textBuilder: DropdownLayer.allLabelsText(), ...)`
+  static DropdownTextBuilder allLabelsText() => (controller) {
+    final options = controller.options;
+    final labels = options
+        .where((option) => controller.selectValues.contains(option.value))
+        .map((option) => option.label)
+        .toList();
+    return labels.isEmpty ? null : labels.join('、');
+  };
+
+  static DropdownTopWidgetBuilder allSelectOrClearTopWidget() =>
+      (_, controller) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedOpacitySize(
+            child: controller.selectValues.isNotEmpty
+                ? IconTextButton(
+                    padding: EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                    icon: Symbols.remove_selection_rounded,
+                    content: '清空',
+                    onTap: () => controller.reset(),
+                  )
+                : null,
+          ),
+
+          Expanded(child: SizedBox()),
+
+          AnimatedOpacitySize(
+            child: !controller.isAllSelected
+                ? IconTextButton(
+                    padding: EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                    icon: Icons.select_all,
+                    content: '全选',
+                    onTap: () => controller.selectAll(),
+                  )
+                : null,
+          ),
+        ],
+      );
 
   @override
   State<StatefulWidget> createState() => _DropdownLayerState<T>();
@@ -348,30 +414,16 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     final colors = AppColors.of(context);
     final theme = Theme.of(context);
 
-    // 多选：复选框样式，勾选切换但不收起菜单
+    // 多选：复选框样式，勾选切换但不收起菜单；
+    // 用 ActionButton 承载选中态（背景 / 前景 / 加粗）动画切换
     if (_multiSelection) {
-      final selected = selectValues.contains(item.value);
-      return ReboundButton(
-        pressedScale: 1.0,
-        borderRadius: BorderRadius.circular(4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      return ActionButton(
+        icon: item.leading,
+        content: Expanded(child: Text(item.label)),
+        selected: selectValues.contains(item.value),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        backgroundColor: colors.cardBackground,
         onTap: () => _toggleMultiSelect(item.value),
-        backgroundColor: selected ? colors.interactive.withAlpha(30) : null,
-        child: Row(
-          children: [
-            ?item.leading,
-            if (item.leading != null) const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                item.label,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: selected ? colors.interactive : colors.itemPrimary,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-            ),
-          ],
-        ),
       );
     }
 
@@ -457,6 +509,10 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   // ------------------------------------------------------------------
 
   String get label {
+    // 自定义文本构建器：返回非 null 则覆盖默认展示
+    final custom = widget.textBuilder?.call(controller);
+    if (custom != null) return custom;
+
     // 多选：空集 = 不限；否则显示已选数量
     if (_multiSelection) {
       if (selectValues.isEmpty) return widget.hintText;
@@ -538,8 +594,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
                           style: selectValue != null
                               ? TextStyle()
                               : theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.textTheme.bodyMedium?.color
-                                      ?.withAlpha(185),
+                                  color: theme.textTheme.bodyMedium?.color,
                                 ),
                         ),
                       ),

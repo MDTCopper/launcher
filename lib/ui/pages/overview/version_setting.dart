@@ -690,7 +690,6 @@ class _SettingState extends State<_Setting> {
             });
           },
         ),
-
         ReboundCheckbox(
           value: autoMemory == true,
           label: '自动分配',
