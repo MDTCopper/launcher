@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:flutter/material.dart';
@@ -37,9 +39,36 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
       break;
   }
 
+  final ui.Locale systemLocale = ui.PlatformDispatcher.instance.locale;
+  final String languageCode = systemLocale.languageCode.toLowerCase();
+  final String? countryCode = systemLocale.countryCode?.toUpperCase();
+
+  String? fontFamily;
+  if (Platform.isWindows) {
+    fontFamily = switch (languageCode) {
+      'ja' => 'Yu Gothic UI',
+      'ko' => 'Malgun Gothic',
+      'zh' => (countryCode == 'TW' || countryCode == 'HK' || countryCode == 'MO')
+          ? 'Microsoft JhengHei UI'
+          : 'Microsoft YaHei UI',
+      _ => 'Segoe UI Variable Display',
+    };
+  } else if (Platform.isLinux) {
+    fontFamily = switch (languageCode) {
+      'ja' => 'Noto Sans CJK JP',
+      'ko' => 'Noto Sans CJK KR',
+      'zh' => (countryCode == 'TW' || countryCode == 'HK' || countryCode == 'MO')
+          ? 'Noto Sans CJK TC'
+          : 'Noto Sans CJK SC',
+      _ => 'Noto Sans',
+    };
+  } else {
+    fontFamily = null; // macOS / iOS 等其他平台交由系统托管
+  }
+
   return ThemeData(
     brightness: brightness,
-    fontFamily: 'sc',
+    fontFamily: fontFamily,
 
     colorScheme: ColorScheme(
       brightness: brightness,
