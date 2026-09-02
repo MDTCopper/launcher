@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
 
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
@@ -9,6 +11,7 @@ import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dar
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/util/loader_binding.dart';
 
 import 'package:flutter/material.dart';
 
@@ -35,6 +38,7 @@ class TestState extends State<Test> {
   @override
   void dispose() {
     listController.dispose();
+
     super.dispose();
   }
 
@@ -155,7 +159,9 @@ class TestState extends State<Test> {
           desc: '轨道 + 滑块，选中/未选中平滑过渡；选中轨道变主题色。当前：${_switchOn ? '开' : '关'}。',
           child: ReboundSwitch(
             value: _switchOn,
-            onChanged: (v) => setState(() => _switchOn = v),
+            onChanged: (v) => setState(() {
+              _switchOn = v;
+            }),
           ),
         ),
         _card(
