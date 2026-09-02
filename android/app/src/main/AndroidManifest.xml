@@ -18,6 +18,10 @@
         android:appComponentFactory="io.github.copper.loader.LoaderComponentFactory"
         tools:replace="android:appComponentFactory"
         android:resizeableActivity="true">
+
+        <!-- Limits from Mindustry -->
+        <meta-data android:name="android.max_aspect" android:value="2.1"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -44,6 +48,7 @@
             android:name="io.github.copper.loader.MindustryActivity"
             android:exported="false"
             android:label="@string/mdt_title"
+            android:launchMode="singleTask"
             android:process=":mdt_process"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout">
         </activity>
