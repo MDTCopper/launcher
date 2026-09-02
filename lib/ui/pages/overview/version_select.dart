@@ -410,7 +410,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       isBe: isBe,
       path: fold.path,
 
-      release: isBe ? meta.version : 'v${meta.version}',
+      release: isBe ? meta.build : 'v${meta.build}',
       addTime: DateTime.now(),
       isolation: false,
     );

@@ -91,7 +91,7 @@ class _AnimatedExpansionState extends State<AnimatedExpansion> {
             hoverColor: Colors.transparent,
             iconColor: theme.iconTheme.color,
             titleTextStyle: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.bold,
               color: theme.colorScheme.primary,
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16),
