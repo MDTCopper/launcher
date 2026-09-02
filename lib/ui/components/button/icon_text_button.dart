@@ -60,7 +60,7 @@ class IconTextButton extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               content,
-              style: theme.textTheme.labelLarge?.copyWith(color: itemColor),
+              style: theme.textTheme.bodyMedium?.copyWith(color: itemColor),
             ),
           ],
         ),

@@ -28,9 +28,8 @@ class ContentPanelModule extends StatelessWidget {
             if (title != null)
               Text(
                 title!,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.secondary,
-                  fontWeight: FontWeight.w900,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: colors.interactive,
                 ),
               ),
             if (child != null)

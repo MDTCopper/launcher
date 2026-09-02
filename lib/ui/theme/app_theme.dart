@@ -48,18 +48,20 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
     fontFamily = switch (languageCode) {
       'ja' => 'Yu Gothic UI',
       'ko' => 'Malgun Gothic',
-      'zh' => (countryCode == 'TW' || countryCode == 'HK' || countryCode == 'MO')
-          ? 'Microsoft JhengHei UI'
-          : 'Microsoft YaHei UI',
+      'zh' =>
+        (countryCode == 'TW' || countryCode == 'HK' || countryCode == 'MO')
+            ? 'Microsoft JhengHei UI'
+            : 'Microsoft YaHei UI',
       _ => 'Segoe UI Variable Display',
     };
   } else if (Platform.isLinux) {
     fontFamily = switch (languageCode) {
       'ja' => 'Noto Sans CJK JP',
       'ko' => 'Noto Sans CJK KR',
-      'zh' => (countryCode == 'TW' || countryCode == 'HK' || countryCode == 'MO')
-          ? 'Noto Sans CJK TC'
-          : 'Noto Sans CJK SC',
+      'zh' =>
+        (countryCode == 'TW' || countryCode == 'HK' || countryCode == 'MO')
+            ? 'Noto Sans CJK TC'
+            : 'Noto Sans CJK SC',
       _ => 'Noto Sans',
     };
   } else {
@@ -165,21 +167,9 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
       ),
 
       // ── Label: 按钮文字、标签、徽标 ──
-      labelLarge: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.bold,
-        color: colors.itemHint,
-      ),
-      labelMedium: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        color: colors.itemHint,
-      ),
-      labelSmall: TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w500,
-        color: colors.itemHint,
-      ),
+      labelLarge: TextStyle(fontSize: 14, color: colors.itemHint),
+      labelMedium: TextStyle(fontSize: 12, color: colors.itemHint),
+      labelSmall: TextStyle(fontSize: 10, color: colors.itemHint),
     ),
 
     // ─────────────────────────────────────────────
