@@ -4,6 +4,7 @@ import android.app.*;
 import android.content.*;
 import java.io.*;
 
+@SuppressWarnings("unused")
 public class Loader {
     /** Starts the loader through MindustryActivity, passing the loader jar and its arguments. */
     public static void launch(String loaderPath, Context activityContext, String[] args) {
