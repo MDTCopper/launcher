@@ -545,10 +545,10 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
             ),
           ],
         ),
-
+        Text('当前占用  $used / $total GB ($occupy%)'),
         Row(
           children: [
-            Text('当前占用  $used / $total GB ($occupy%)'),
+            Text('将为游戏分配   $allocation GB '),
             Expanded(child: SizedBox()),
             AnimatedOpacity(
               opacity: memory > freeMemory ? 1 : 0,
@@ -558,7 +558,6 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
             ),
           ],
         ),
-        Text('将为游戏分配   $allocation GB '),
       ],
     );
   }
