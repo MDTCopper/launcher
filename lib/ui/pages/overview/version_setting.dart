@@ -5,6 +5,8 @@ import 'dart:math';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/mindustry_settings.dart';
+import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -18,6 +20,7 @@ import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
@@ -134,6 +137,82 @@ class _About extends StatefulWidget {
 class _AboutState extends State<_About> {
   /// 崩溃日志目录（游戏侧 默认数据目录/crashes）
   String get _crashesPath => _mindustry.crashesPath;
+
+  /// 生成启动脚本：把当前版本的完整启动命令写成 .bat / .sh
+  ///
+  /// 内容对齐 [MindustryLauncher.start]：-Xmx 内存 + 隔离数据目录 +
+  /// jvm 参数 + -jar，平台差异：Windows .bat（UTF-8 + chcp 65001），
+  /// Linux/macOS .sh。保存位置由用户选择。
+  Future<void> _generateLaunchScript() async {
+    final target = await PathSelector.selectDirectory(
+      confirmButtonText: '生成脚本到此',
+    );
+    if (target == null || !mounted) return;
+
+    final launchOptions = config.setting.launchOptions;
+
+    // 内存：单版本设置优先（autoMemory null = 跟随全局）
+    final autoMemory = _mindustry.autoMemory ?? launchOptions.autoMemory;
+    final memoryMb = autoMemory
+        ? null
+        : (_mindustry.memory ?? launchOptions.memory).mb;
+
+    // jvm 参数：单版本优先，缺省用全局
+    final jvmParameter =
+        _mindustry.jvmParameter ?? launchOptions.javaOptions.jvmParameter;
+
+    final args = <String>[
+      if (memoryMb != null)
+        '-Xmx${memoryMb}m'
+      else
+        '-Xmx512m',
+      if (_mindustry.isolation) '-Dmindustry.data.dir=${_mindustry.dataPath}',
+      ...jvmParameter.split(' ').where((arg) => arg.isNotEmpty),
+      '-jar',
+      _mindustry.jarPath,
+    ];
+
+    final isWindows = Platform.isWindows;
+    final fileName = isWindows ? '启动游戏.bat' : '启动游戏.sh';
+    final scriptFile = File(p.join(target, fileName));
+
+    final script = isWindows
+        ? _buildBatScript(args)
+        : _buildShScript(args);
+
+    try {
+      await scriptFile.writeAsString(script);
+      addNotice(
+        icon: Icons.check_circle_outline,
+        title: '脚本已生成',
+        content: scriptFile.path,
+      );
+    } catch (e) {
+      addNotice(icon: Icons.close, title: '生成失败', content: '无法写入启动脚本');
+      debugPrint('生成启动脚本失败：$e');
+    }
+  }
+
+  /// Windows .bat：UTF-8 + chcp 65001（兼容路径中文）+ 引号包裹含空格参数
+  String _buildBatScript(List<String> args) {
+    final argLine = args
+        .map((arg) => arg.contains(' ') ? '"$arg"' : arg)
+        .join(' ');
+    return '''
+@echo off
+chcp 65001 >nul
+java $argLine
+pause
+''';
+  }
+
+  /// Linux / macOS .sh
+  String _buildShScript(List<String> args) {
+    final argLine = args
+        .map((arg) => arg.contains(' ') ? '"$arg"' : arg)
+        .join(' ');
+    return '#!/bin/sh\njava $argLine\n';
+  }
 
   Future<void> _openFolder(String folderPath) async {
     if (!(await Directory(folderPath).exists())) {
@@ -323,12 +402,12 @@ class _AboutState extends State<_About> {
                 content: _mindustry.like ? '已收藏' : '未收藏',
                 onTap: _toggleLike,
               ),
-              //TODO 生成启动脚本
+              //生成启动脚本
               if (isDesktop && kDebugMode)
                 IconTextButton(
                   icon: Icons.build_circle,
                   content: '生成启动脚本',
-                  onTap: () {},
+                  onTap: _generateLaunchScript,
                 ),
               IconTextButton(
                 icon: Icons.delete,
@@ -591,8 +670,20 @@ class _SettingState extends State<_Setting> {
     });
   }
 
+  /// jvm 参数输入框 controller：进入页面时以当前值为初值
+  late final TextEditingController jvmParameterController =
+      TextEditingController(text: _mindustry.jvmParameter ?? '');
+
   String _formatRam(double ram) {
     return (ram).toStringAsFixed(1);
+  }
+
+  /// jvm 参数输入完成后写回配置
+  void _saveJvmParameter() {
+    setState(() {
+      _mindustry.jvmParameter = jvmParameterController.text;
+      config.save();
+    });
   }
 
   @override
@@ -604,6 +695,7 @@ class _SettingState extends State<_Setting> {
   @override
   void dispose() {
     _getMemoryTimer?.cancel();
+    jvmParameterController.dispose();
     super.dispose();
   }
 
@@ -844,7 +936,11 @@ class _SettingState extends State<_Setting> {
                   ),
                 ],
               ),
-              InputSettingBar(title: 'jvm虚拟机参数'),
+              InputSettingBar(
+                title: 'jvm虚拟机参数',
+                controller: jvmParameterController,
+                onEditingComplete: _saveJvmParameter,
+              ),
             ],
           ),
         ),
@@ -858,11 +954,204 @@ class _Mods extends StatefulWidget {
   State<StatefulWidget> createState() => _ModsState();
 }
 
+/// 单个已安装模组条目
+class _ModEntry {
+  /// 模组文件实际路径（启用态为 mods/xx.jar，禁用态为 mods/xx.jar.disable）
+  String filePath;
+
+  /// 模组元数据（从 jar/zip 内 mod.json / mod.hjson 解析）
+  final Mod mod;
+
+  /// 是否启用（settings `mod-<name>-enabled`，缺省 true）
+  bool enabled;
+
+  _ModEntry({required this.filePath, required this.mod, required this.enabled});
+}
+
 class _ModsState extends State<_Mods> {
+  List<_ModEntry> _entries = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMods();
+  }
+
+  /// 模组目录：版本数据目录/mods
+  String get _modsPath => _mindustry.modsPath;
+
+  /// 扫描模组目录：jar/zip 为启用态，*.jar.disable / *.zip.disable 为禁用态
+  Future<void> _loadMods() async {
+    final entries = <_ModEntry>[];
+    final dir = Directory(_modsPath);
+    if (await dir.exists()) {
+      // settings.bin 中的启用状态（键：mod-<internalName>-enabled）
+      Map<String, bool> settingsStates = {};
+      final settingsFile = File(_mindustry.settingPath);
+      if (await settingsFile.exists()) {
+        try {
+          settingsStates =
+              MindustrySettings.fromFile(settingsFile.path).modStates;
+        } catch (e) {
+          debugPrint('读取模组启用状态失败：$e');
+        }
+      }
+
+      await for (final entity in dir.list()) {
+        if (entity is! File) continue;
+        final name = entity.path.split(Platform.pathSeparator).last;
+        final disabled = name.endsWith('.disable');
+        final baseName =
+            disabled ? name.substring(0, name.length - '.disable'.length) : name;
+        if (!baseName.endsWith('.jar') && !baseName.endsWith('.zip')) continue;
+
+        final reader = await FileReader.fromPath(entity.path);
+        final mod = reader.mod;
+        if (mod == null) continue;
+
+        // 启用状态：settings 键为准（缺省 true），禁用态文件名兜底为 false
+        final enabled = settingsStates[mod.internalName] ?? !disabled;
+        entries.add(_ModEntry(filePath: entity.path, mod: mod, enabled: enabled));
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _entries = entries;
+        _loading = false;
+      });
+    }
+  }
+
+  /// 切换模组启停：写 settings + 重命名文件（禁用 → 追加 .disable；启用 → 还原）
+  ///
+  /// 双保险：settings 控制游戏内状态；`.disable` 后缀让游戏 load() 直接
+  /// 跳过该文件（官方 load 只扫 jar/zip，不识别 .disable），即使 settings
+  /// 被改动也不会被加载
+  Future<void> _toggleMod(_ModEntry entry, bool enabled) async {
+    final file = File(entry.filePath);
+    final modsDir = _modsPath;
+    final baseName = p.basename(entry.filePath);
+
+    // 计算目标文件名：启用 = 去掉 .disable；禁用 = 追加 .disable
+    final targetName = enabled
+        ? (baseName.endsWith('.disable')
+            ? baseName.substring(0, baseName.length - '.disable'.length)
+            : baseName)
+        : '$baseName.disable';
+    final targetPath = p.join(modsDir, targetName);
+
+    if (entry.filePath != targetPath && await file.exists()) {
+      try {
+        await file.rename(targetPath);
+        entry.filePath = targetPath;
+      } catch (e) {
+        addNotice(icon: Icons.close, title: '切换失败', content: '无法重命名模组文件');
+        debugPrint('重命名模组失败：$e');
+        return;
+      }
+    }
+
+    // 写 settings.bin 启用状态并保存
+    try {
+      final settings = MindustrySettings.fromFile(_mindustry.settingPath);
+      settings.setModEnabled(entry.mod.internalName, enabled);
+      settings.saveAsync();
+    } catch (e) {
+      debugPrint('写入模组启用状态失败：$e');
+    }
+
+    setState(() => entry.enabled = enabled);
+  }
+
+  /// 删除模组：确认后删文件 + 移除 settings 记录
+  void _deleteMod(_ModEntry entry) {
+    showConfirmationPopup(
+      context: context,
+      type: ConfirmationType.warning,
+      title: '确定要删除模组 [${entry.mod.name}] ？',
+      content: '将删除模组文件及其启用状态记录',
+      action: () async {
+        final file = File(entry.filePath);
+        try {
+          if (await file.exists()) await file.delete();
+          // 移除 settings 启用记录（恢复默认启用态）
+          try {
+            final settings = MindustrySettings.fromFile(_mindustry.settingPath);
+            settings.setModEnabled(entry.mod.internalName, null);
+            settings.saveAsync();
+          } catch (e) {
+            debugPrint('移除模组启用状态失败：$e');
+          }
+          if (mounted) {
+            setState(() => _entries.remove(entry));
+          }
+        } catch (e) {
+          addNotice(icon: Icons.close, title: '删除失败', content: '无法删除模组文件');
+          debugPrint('删除模组失败：$e');
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
-      items: [ContentPanelModule(title: '模组列表', child: Text('todo 模组列表及其管理'))],
+      items: [
+        ContentPanelModule(
+          title: '模组列表 (${_entries.length})',
+          child: _loading
+              ? Text('加载中...')
+              : _entries.isEmpty
+                  ? Text('没有安装任何模组')
+                  : Column(
+                      spacing: 4,
+                      children: [
+                        for (final entry in _entries)
+                          ReboundListTile(
+                            padding: EdgeInsets.all(6),
+                            borderRadius: BorderRadius.circular(4),
+                            title: Text(entry.mod.name),
+                            subtitle: Text(
+                              '${entry.mod.author}  v${entry.mod.version}'
+                              '${entry.enabled ? '' : '  (已禁用)'}',
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ReboundButton(
+                                  pressedScale: 0.9,
+                                  borderRadius: BorderRadius.circular(4),
+                                  padding: EdgeInsets.all(6),
+                                  child: Icon(
+                                    entry.enabled
+                                        ? Icons.toggle_on
+                                        : Icons.toggle_off,
+                                    size: 28,
+                                    color: entry.enabled
+                                        ? Theme.of(context)
+                                            .colorScheme
+                                            .primary
+                                        : Theme.of(context).iconTheme.color,
+                                  ),
+                                  onTap: () =>
+                                      _toggleMod(entry, !entry.enabled),
+                                ),
+                                const SizedBox(width: 4),
+                                ReboundButton(
+                                  pressedScale: 0.9,
+                                  borderRadius: BorderRadius.circular(4),
+                                  padding: EdgeInsets.all(6),
+                                  child: const Icon(Icons.delete_outline),
+                                  onTap: () => _deleteMod(entry),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+        ),
+      ],
     );
   }
 }
