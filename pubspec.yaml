@@ -64,7 +64,3 @@ flutter:
   assets:
     - assets/images/
   uses-material-design: true
-  fonts:
-    - family: sc
-      fonts:
-        - asset: assets/fonts/SourceHanSansSC-Light-2.otf
