@@ -69,7 +69,7 @@ matchAnimation(DialogAnimation animationType) {
 }
 
 Future<T?> showAnimatedDialog<T extends Object?>({
-  required BuildContext context,
+  BuildContext? context,
   DialogAnimation animationType = DialogAnimation.leapOut,
   bool barrierDismissible = true,
   String barrierLabel = '',
@@ -83,9 +83,11 @@ Future<T?> showAnimatedDialog<T extends Object?>({
   Offset? anchorPoint,
   bool? requestFocus,
 }) {
+  context ??= PageKeyProvider.shellKey.currentContext;
+  if (context == null) Exception('Context没有找到，请提供Context或在AppShell中使用');
   return showGeneralDialog<T>(
     transitionDuration: transitionDuration,
-    context: context,
+    context: context!,
     barrierLabel: barrierLabel,
     barrierDismissible: barrierDismissible,
     barrierColor: barrierColor,

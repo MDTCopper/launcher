@@ -546,14 +546,38 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   final version = config.versionOptions.selectedVersion;
   String? otherSavePath;
 
+  /// 选中的候选项在其列表中的下标（默认 0 = 体积最大的 mod 本体）
+  int _selectedAssetIndex = 0;
+
+  /// 版本详情下载的同类型候选（.jar 或 .zip，按体积从大到小）；
+  /// 下载源码时无候选，不展示。
+  List<GithubApiReleaseAsset> get _assetCandidates {
+    if (widget.downloadSource) return const <GithubApiReleaseAsset>[];
+    final ext = modListMeta.hasJava ? '.jar' : '.zip';
+    return modMeta?.assetsOfType(ext) ?? const <GithubApiReleaseAsset>[];
+  }
+
   //todo 下载到选择的版本中,如果不是支持版本警告一下,处理一下空存储路径
   void _download() async {
-    if (modListMeta.hasJava && !widget.downloadSource) {
+    final isJava = modListMeta.hasJava && !widget.downloadSource;
+
+    int mainAssetIndex = 0;
+    if (!widget.downloadSource) {
+      // 版本详情下载：无候选时留在页面显示建议，不下载
+      final candidates = _assetCandidates;
+      if (candidates.isEmpty) return;
+      // 候选列表是筛选+排序后的，转回完整 assets 下标给任务
+      final chosen = _selectedAssetIndex.clamp(0, candidates.length - 1);
+      mainAssetIndex = modMeta!.assets.indexOf(candidates[chosen]);
+    }
+
+    if (isJava) {
       addTask(
         DownloadJavaModTask(
           modListMeta: modListMeta,
           modMeta: modMeta!,
           savePath: version?.modsPath ?? otherSavePath!,
+          mainAssetIndex: mainAssetIndex,
         ),
       );
     } else {
@@ -562,11 +586,110 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
           modListMeta,
           modMeta,
           version?.modsPath ?? otherSavePath!,
+          mainAssetIndex: mainAssetIndex,
         ),
       );
     }
 
     if (mounted) Navigator.pop(context);
+  }
+
+  /// 页面内嵌的候选资源选择（不另弹窗）：多个同类型候选用下拉选择，
+  /// 单个只读展示，没有则显示建议。
+  Widget _buildAssetSelection() {
+    if (widget.downloadSource) return const SizedBox.shrink();
+    final candidates = _assetCandidates;
+    final theme = Theme.of(context);
+
+    if (candidates.isEmpty) {
+      return Row(
+        spacing: 4,
+        children: [
+          Icon(Icons.info_outline, color: theme.colorScheme.error, size: 20),
+          Expanded(
+            child: Text(
+              '该版本没有可下载的 jar/zip 文件，请尝试其他版本，或返回选择「下载源码」',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (candidates.length == 1) {
+      return Row(
+        spacing: 4,
+        children: [
+          Icon(Icons.description_outlined, size: 18),
+          Expanded(
+            child: Text(
+              candidates.first.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            _formatAssetSize(candidates.first.size),
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      );
+    }
+
+    // 多个候选：下拉选择，默认最大的在前（一般为 mod 本体）
+    final value = _selectedAssetIndex < candidates.length
+        ? _selectedAssetIndex
+        : 0;
+    return Column(
+      spacing: 4,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '选择要下载的文件（体积最大在前，一般为 mod 本体）',
+          style: theme.textTheme.bodySmall,
+        ),
+        DropdownButton<int>(
+          value: value,
+          isExpanded: true,
+          items: [
+            for (var i = 0; i < candidates.length; i++)
+              DropdownMenuItem<int>(
+                value: i,
+                child: Row(
+                  children: [
+                    Icon(Icons.description_outlined, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        candidates[i].name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      _formatAssetSize(candidates[i].size),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          onChanged: (v) => setState(() => _selectedAssetIndex = v ?? 0),
+        ),
+      ],
+    );
+  }
+
+  String _formatAssetSize(int bytes) {
+    const kb = 1024;
+    const mb = kb * 1024;
+    const gb = mb * 1024;
+    if (bytes < kb) return '$bytes B';
+    if (bytes < mb) return '${(bytes / kb).toStringAsFixed(1)} KB';
+    if (bytes < gb) return '${(bytes / mb).toStringAsFixed(1)} MB';
+    return '${(bytes / gb).toStringAsFixed(1)} GB';
   }
 
   Widget _buildVersionTile() {
@@ -763,6 +886,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
                     ),
                   ),
                 ),
+                _buildAssetSelection(),
                 Center(
                   child: IconTextButton(
                     icon: Icons.file_open_outlined,

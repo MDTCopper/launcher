@@ -71,6 +71,22 @@ class WindowsFileNameValidator {
     return null;
   }
 
+  /// 把文件名中的非法字符替换成 `_`，避免如 `xxx/xxx` 被当作路径拆分。
+  ///
+  /// 只替换非法字符，不处理扩展名（`.` 不在非法字符集内）；
+  /// 替换后若只剩非法字符/空白/点号，则回退到占位名 `mod`，避免生成空文件。
+  static String sanitizeFileName(String fileName) {
+    final result = StringBuffer();
+    for (final char in fileName.split('')) {
+      result.write(_invalidChars.contains(char) ? '_' : char);
+    }
+    final name = result.toString();
+    if (name.trim().isEmpty || RegExp(r'^[._\s]+$').hasMatch(name)) {
+      return 'mod';
+    }
+    return name;
+  }
+
   static String? tagValidate(String? tag) {
     if (tag == null||tag.isEmpty) return "名称不能为空";
 

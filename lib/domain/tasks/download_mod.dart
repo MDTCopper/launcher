@@ -4,7 +4,9 @@ import 'dart:math';
 
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -20,7 +22,7 @@ import '../task.dart';
 class DownloadJavaModTask extends Task {
   final ModOfficialListMeta modListMeta;
   final ModGithubMeta modMeta;
-
+  final int mainAssetIndex;
   final String savePath;
 
   final CancelToken cancelToken = CancelToken();
@@ -37,6 +39,7 @@ class DownloadJavaModTask extends Task {
     required this.modListMeta,
     required this.modMeta,
     required this.savePath,
+    this.mainAssetIndex = 0,
   }) : assert(modListMeta.hasJava, '模组类型只能为Java') {
     type = TaskType.download;
   }
@@ -54,30 +57,29 @@ class DownloadJavaModTask extends Task {
   }
 
   Future<void> _download() async {
+    final modTag = '${modMeta.name}(${modMeta.tag})';
+
     NotificationManager.addNotice(
       icon: Icons.download,
       title: '下载',
-      content: '正在下载模组[${modListMeta.name}(${modMeta.tag})]',
+      content: '正在下载模组[$modTag)]',
     );
-    TaskLogManager.addLog(
-      LogEntry(LogType.info, '正在下载模组[${modListMeta.name}(${modMeta.tag})]'),
-    );
-    addLogAndPrint(.info, '下载模组[${modListMeta.name}(${modMeta.tag})]');
+    TaskLogManager.addLog(LogEntry(LogType.info, '正在下载模组[$modTag]'));
+    addLog(.info, '下载模组[$modTag)]，类型：Java');
 
     try {
-      final fileName = '${modListMeta.name}-${modMeta.name}.jar';
+      final fileName = '${modMeta.name}-${modMeta.tag}.jar';
 
       final path = p.join(savePath, fileName);
       file = File(path);
       var previousDownloaded = 0;
       if (!await file.exists()) await file.create(recursive: true);
 
-      final jar = modMeta.assets.where((it) => it.name.contains('.jar'));
-
-      final url = jar.firstOrNull?.url;
-      if (url == null) {
+      if (modMeta.assets.isEmpty) {
         throw Exception('url为空:模组元数据提供的url为空,元数据urls: ${modMeta.assets}');
       }
+      final url = modMeta.assets[mainAssetIndex].url;
+
       await dr.download(
         url,
         file.path,
@@ -98,18 +100,20 @@ class DownloadJavaModTask extends Task {
       );
 
       if (await file.length() != totalSize) Exception('文件可能在合并过程中损坏');
+
+      final reader = await FileReader.fromPath(path);
+      final mod = reader.mod;
+      if (mod == null) Exception('mod.json未能成功解析');
+
       status = TaskStatus.completed;
 
       NotificationManager.addNotice(
         icon: Icons.check_box_outlined,
         title: '下载完成',
-        content: '[${modListMeta.name}(${modMeta.name})]下载完成，存储路径[$path]',
+        content: '[$modTag]下载完成，存储路径[$path]',
       );
       TaskLogManager.addLog(
-        LogEntry(
-          LogType.info,
-          '[${modListMeta.name}(${modMeta.name})]下载完成，存储路径[$path]',
-        ),
+        LogEntry(LogType.info, '[$modTag]下载完成，存储路径[$path]'),
       );
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
@@ -145,9 +149,9 @@ class DownloadJavaModTask extends Task {
         );
         addLog(.warning, e.toString());
       } else {
-        addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
+        addTaskLog(LogEntry(LogType.error, '错误:$e'));
         addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
-        addLog(.error, '未知错误:$e');
+        addLog(.error, '$e');
       }
       await file.delete();
       rethrow;
@@ -275,20 +279,30 @@ class DownloadJavaModTask extends Task {
 class DownloadZipModTask extends Task {
   final ModOfficialListMeta modListMeta;
   final ModGithubMeta? modMeta;
+  final int mainAssetIndex;
+  int totalSize = 0;
   int downloadedSize = 0;
   double speed = 0.0;
   final String savePath;
   final CancelToken cancelToken = CancelToken();
   late File file;
 
-  DownloadZipModTask(this.modListMeta, this.modMeta, this.savePath)
-    : assert(!modListMeta.hasJava, '下载模组只能为非Java') {
+  DownloadZipModTask(
+    this.modListMeta,
+    this.modMeta,
+    this.savePath, {
+    this.mainAssetIndex = 0,
+  }) : assert(!modListMeta.hasJava, '下载模组只能为非Java') {
     type = TaskType.download;
   }
 
-  ///没有总大小，只能做一个伪进度，根据一些模组的大小
-  void _updateProgress(int size) {
-    final total = 2 * mb;
+  void _updateProgress(int size, int total) {
+    if (total != -1) {
+      progress = size / (total + size);
+      return;
+    }
+    //没有总大小，只能做一个伪进度
+    total = 2 * mb;
     progress = size / (total + size);
   }
 
@@ -309,8 +323,8 @@ class DownloadZipModTask extends Task {
 
   Future<void> _download() async {
     var modTag = modListMeta.name;
-    if (modMeta != null) {
-      modTag += '(${modMeta!.tag})';
+    if (modMeta case final modMeta?) {
+      modTag = '${modMeta.name} (${modMeta.tag})';
     }
 
     NotificationManager.addNotice(
@@ -319,14 +333,26 @@ class DownloadZipModTask extends Task {
       content: '正在下载模组[$modTag]',
     );
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载模组[$modTag]'));
-    addLog(.info, '下载模组[$modTag] 类型：ZIP');
+    addLog(.info, '下载模组[$modTag] 类型：Zip');
 
-    var fileName = modListMeta.name;
-    var url = '$githubCOM/${modListMeta.repo}/archive/refs/heads/';
-    if (modMeta != null) {
-      fileName += '-${modMeta!.tag}';
-      url += modMeta!.tag;
+    String fileName;
+    String url;
+    if (modMeta case final modMeta?) {
+      if (modMeta.assets.isEmpty) {
+        NotificationManager.addNotice(
+          icon: Icons.error,
+          title: '错误',
+          content: '模组元数据提供的下载链接为空，可能是模组未正常发布',
+        );
+        status = .failed;
+        updateDisplay();
+        return;
+      }
+      fileName = '${modMeta.name}-${modMeta.tag}.zip';
+      url = modMeta.assets[mainAssetIndex].url;
     } else {
+      fileName = '${modListMeta.name}.cache';
+      url = '$githubCOM/${modListMeta.repo}/archive/refs/heads/';
       if (modListMeta.mainBranchCache != null) {
         url += modListMeta.mainBranchCache!;
       } else {
@@ -350,15 +376,11 @@ class DownloadZipModTask extends Task {
           url += 'master';
         }
       }
+      url += '.zip';
     }
-    fileName += '.zip';
-    url += '.zip';
 
-    final path = p.join(savePath, fileName);
-
-    file = File(path);
-    if (await file.exists()) await file.delete();
-    await file.create(recursive: true);
+    // 模组名/分支名可能含 `/` 等非法字符，替换掉避免被当作路径拆分
+    fileName = WindowsFileNameValidator.sanitizeFileName(fileName);
 
     final sizeNotifier = ValueNotifier<int>(0);
     final speedCalculator = SpeedCalculator(
@@ -369,6 +391,12 @@ class DownloadZipModTask extends Task {
       },
     );
     try {
+      final path = p.join(savePath, fileName);
+
+      file = File(path);
+      if (await file.exists()) await file.delete();
+      await file.create(recursive: true);
+
       await dio.download(
         url,
         path,
@@ -376,10 +404,32 @@ class DownloadZipModTask extends Task {
         onReceiveProgress: (receive, total) {
           downloadedSize = receive;
           sizeNotifier.value = receive;
-          _updateProgress(receive);
+          _updateProgress(receive, total);
           updateDisplay();
         },
       );
+
+      final reader = await FileReader.fromPath(path);
+      final mod = reader.mod;
+      if (mod == null) throw Exception('mod.json未能成功解析');
+
+      if (modMeta != null) {
+        // 用 zip 内的 mod 元数据（mod.json）改名成 <mod名>-<版本>.zip，
+        // 替代以 GitHub 分支/标签命名的临时名；名里禁止字符替换掉
+        final newName = WindowsFileNameValidator.sanitizeFileName(
+          '${mod.name}-${mod.version}.zip',
+        );
+        if (newName != fileName) {
+          final newPath = p.join(savePath, newName);
+          final newFile = File(newPath);
+          // 目标已存在先删，避免跨平台重命名冲突
+          if (await newFile.exists()) {
+            await newFile.delete();
+          }
+          await file.rename(newPath);
+          file = File(newPath);
+        }
+      }
 
       await _progressMoveTo100();
 
@@ -387,12 +437,12 @@ class DownloadZipModTask extends Task {
       NotificationManager.addNotice(
         icon: Icons.check_box_outlined,
         title: '下载完成',
-        content: '[$modTag]下载完成，存储路径[$path]',
+        content: '[$modTag]下载完成，存储路径[$file.path]',
       );
       TaskLogManager.addLog(
-        LogEntry(LogType.info, '[$modTag]下载完成，存储路径[$path]'),
+        LogEntry(LogType.info, '[$modTag]下载完成，存储路径[$file.path]'),
       );
-      addLog(.info, '[$modTag]下载完成，存储路径[$path]');
+      addLog(.info, '[$modTag]下载完成，存储路径[$file.path]');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -415,9 +465,9 @@ class DownloadZipModTask extends Task {
       }
     } catch (e) {
       status = TaskStatus.failed;
-      addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
+      addTaskLog(LogEntry(LogType.error, '错误:$e'));
       addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
-      addLog(.error, '未知错误:$e');
+      addLog(.error, '错误:$e');
       await file.delete();
       rethrow;
     } finally {
@@ -443,11 +493,14 @@ class DownloadZipModTask extends Task {
     String downloadSpeed;
 
     if (downloadedSize < kb) {
-      progress = '${downloadedSize.toStringAsFixed(1)}B/...';
+      progress = '${downloadedSize.toStringAsFixed(1)}B/';
+      progress += totalSize == -1 ? '...' : totalSize.toStringAsFixed(1);
     } else if (downloadedSize < mb) {
-      progress = '${(downloadedSize / kb).toStringAsFixed(1)}KB/...';
+      progress = '${(downloadedSize / kb).toStringAsFixed(1)}KB/';
+      progress += totalSize == -1 ? '...' : (totalSize / kb).toStringAsFixed(1);
     } else {
-      progress = '${(downloadedSize / mb).toStringAsFixed(1)}MB/...';
+      progress = '${(downloadedSize / mb).toStringAsFixed(1)}MB/';
+      progress += totalSize == -1 ? '...' : (totalSize / mb).toStringAsFixed(1);
     }
 
     if (speed < kb) {
