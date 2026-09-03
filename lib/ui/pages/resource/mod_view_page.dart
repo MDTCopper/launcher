@@ -98,17 +98,17 @@ class _ModViewPageState extends State<ModViewPage> {
   }
 
   List<ModOfficialListMeta> get filteredMods {
-    final int v;
+    final double v;
 
     if (version == -2) {
-      v = int.parse(
+      v = double.parse(
         config.versionOptions.selectedVersion!.release
             .substring(1)
             .split('.')
             .first,
       );
     } else {
-      v = version;
+      v = version.toDouble();
     }
 
     final minGameVersion = minModGameVersionModifier.resultOf(v);

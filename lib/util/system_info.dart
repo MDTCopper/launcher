@@ -80,6 +80,24 @@ class SysInfo {
     return _systemInfo2InIsolate(() => s.SysInfo.getAvailablePhysicalMemory());
   }
 
+  /// 「可用」口径物理内存：供自动分配内存估算使用。
+  ///
+  /// 各平台归一化（与 getFreePhysicalMemory / getAvailablePhysicalMemory 不同，
+  /// 这里统一给「可被新增分配」的值）：
+  /// - Windows：原生 [GlobalMemoryStatusEx] 的 `ullAvailPhys`（即可用物理，微秒级）
+  /// - Linux / Android：/proc/meminfo 的 `MemAvailable`（含可回收缓存）
+  /// - macOS 及其它：system_info2 的 available（isolate 执行）
+  static Future<int> getUsablePhysicalMemory() async {
+    if (Platform.isWindows) {
+      return _windowsMemory().ullAvailPhys;
+    }
+    if (Platform.isLinux || Platform.isAndroid) {
+      final info = _readProcMeminfo();
+      return info.availableKiloBytes * 1024;
+    }
+    return _systemInfo2InIsolate(() => s.SysInfo.getAvailablePhysicalMemory());
+  }
+
   /// Android：Copper loader 查询总内存（ActivityManager 语义），失败返回 null
   static int? _androidTotalMemory() {
     final info = _androidMemoryInfo();

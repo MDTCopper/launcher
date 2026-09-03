@@ -42,6 +42,7 @@ import 'package:flutter/material.dart';
 
 import 'package:line_icons/line_icons.dart';
 
+import '../../../util/auto_memory.dart';
 import '../../../util/format/byte_unit.dart';
 import '../../../util/format/ram_rank_list.dart';
 import '../../../util/system_info.dart';
@@ -659,18 +660,41 @@ class _SettingState extends State<_Setting> {
   static Memory freeMemory = Memory(gb: 128);
   static Memory totalMemory = Memory(gb: 128);
 
+  /// 自动分配内存：该版本启用 mod 体积之和（缓存，避免每 5 秒重扫目录）
+  int _autoModTotalBytes = 0;
+
+  /// 自动分配内存：当前估算出的分配值（随可用内存刷新）
+  Memory _autoMemoryEstimate = const Memory(gb: 1);
+
   Timer? _getMemoryTimer;
   void _getRam() async {
     final free = await SysInfo.getFreePhysicalMemory();
     freeMemory = Memory(bytes: free);
     final total = await SysInfo.getTotalPhysicalMemory();
     totalMemory = Memory(bytes: total);
+    await _loadAutoModTotal();
+    await _refreshAutoMemoryEstimate();
     if (mounted) setState(() {});
     _getMemoryTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       final free = await SysInfo.getFreePhysicalMemory();
       freeMemory = Memory(bytes: free);
+      await _refreshAutoMemoryEstimate();
       if (mounted) setState(() {});
     });
+  }
+
+  /// 加载该版本启用 mod 的体积之和（自动分配的 mod 依据）
+  Future<void> _loadAutoModTotal() async {
+    _autoModTotalBytes = await sumEnabledModSizes(_mindustry.modsPath);
+  }
+
+  /// 用当前可用内存 + 已缓存的 mod 体积刷新自动分配估算值
+  Future<void> _refreshAutoMemoryEstimate() async {
+    final available = await SysInfo.getUsablePhysicalMemory();
+    _autoMemoryEstimate = AutoMemory.estimate(
+      availableBytes: available,
+      enabledModTotalBytes: _autoModTotalBytes,
+    );
   }
 
   /// jvm 参数输入框 controller：进入页面时以当前值为初值
@@ -835,7 +859,13 @@ class _SettingState extends State<_Setting> {
     final free = _formatRam(freeMemory.inGB);
     final total = _formatRam(totalMemory.inGB);
     final used = _formatRam((totalMemory - freeMemory).inGB);
-    final allocation = _formatRam(memory.inGB);
+    // 单版本 autoMemory 为 null 时跟全局（默认 true）
+    final effectiveAuto = autoMemory ?? true;
+    // 分配值：自动时用实时估算，手动时用配置值
+    final displayedMemory = effectiveAuto ? _autoMemoryEstimate : memory;
+    final allocation = effectiveAuto
+        ? '自动（≈${_formatRam(_autoMemoryEstimate.inGB)}GB）'
+        : '${_formatRam(displayedMemory.inGB)} GB';
     final occupy = ((1 - freeMemory.bytes / totalMemory.bytes) * 100)
         .toStringAsFixed(1);
 
@@ -848,17 +878,20 @@ class _SettingState extends State<_Setting> {
           dataList: [
             PercentBarData(value: (totalMemory - freeMemory).bytes.toDouble()),
             PercentBarData(
-              value: min(memory.bytes.toDouble(), freeMemory.bytes.toDouble()),
+              value: min(
+                displayedMemory.bytes.toDouble(),
+                freeMemory.bytes.toDouble(),
+              ),
             ),
           ],
         ),
         Text('当前占用  $used / $total GB ($occupy%)'),
         Row(
           children: [
-            Text('将为游戏分配   $allocation GB '),
+            Text('将为游戏分配   $allocation '),
             Expanded(child: SizedBox()),
             AnimatedOpacity(
-              opacity: memory > freeMemory ? 1 : 0,
+              opacity: displayedMemory > freeMemory ? 1 : 0,
               curve: Curves.ease,
               duration: const Duration(milliseconds: 200),
               child: Text('( 当前可用内存仅 $free GB )'),

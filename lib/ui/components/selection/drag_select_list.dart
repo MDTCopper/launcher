@@ -6,10 +6,11 @@ import 'package:flutter/material.dart';
 /// - 点击某项：由 [itemBuilder] 构造的条目自身处理（如 tile 自带 onTap 切换选中）
 /// - 按住拖动跨过多项：连续选中（拖动经过的每一项都切换为目标状态）
 /// - 拖动目标状态由起点决定：起点已选中 → 拖过清除；起点未选中 → 拖过选中
+/// - 移动端：长按后拖动才开始多选（列表可滚动时上下滑动仍滚动，长按先进入选择再拖）
 ///
-/// 实现：外层 GestureDetector 的 onPanStart/Update/End（拖动竞技场——按下移动
-/// 超过 slop 才判定拖动，点击不触发 pan，与条目自身的 onTap 互不干扰）。
-/// 拖动路径命中用逐项几何计算。
+/// 实现：外层 GestureDetector 的 onPanStart/Update/End 与 onLongPressStart/MoveUpdate/End。
+/// 拖动竞技场——按下移动超过 slop 才判定拖动，点击不触发 pan，长按先赢得竞技场再拖动；
+/// 与条目自身的 onTap 互不干扰。拖动路径命中用逐项几何计算。
 class DragSelectList extends StatefulWidget {
   /// 条目构建器，[index] 为条目下标，[selected] 为当前选中态。
   /// 条目的点击（选中切换）由调用方在 [onToggle] 处理，条目需自带交互层
@@ -74,26 +75,17 @@ class _DragSelectListState extends State<DragSelectList> {
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onPanStart: (details) {
-        if (!widget.dragSelect) return;
-        _dragging = true;
-        _lastHitIndex = -1;
-        // 起点状态决定整段目标
-        final index = _itemIndexAtGlobal(details.globalPosition);
-        if (index >= 0) {
-          _dragTarget = !widget.selected.contains(index);
-        }
-      },
-      onPanUpdate: (details) {
-        if (!widget.dragSelect || !_dragging) return;
-        final index = _itemIndexAtGlobal(details.globalPosition);
-        if (index >= 0 && index != _lastHitIndex) {
-          _lastHitIndex = index;
-          widget.onToggle(index, _dragTarget);
-        }
-      },
+      // 桌面 / 内容不滚动的短列表：按住直接拖动即可多选
+      onPanStart: (details) =>
+          _startDrag(details.globalPosition, toggleAnchor: false),
+      onPanUpdate: (details) => _updateDrag(details.globalPosition),
       onPanEnd: (_) => _endDrag(),
       onPanCancel: _endDrag,
+      // 移动端：长按后拖动才开始多选（与滚动互不干扰，上下滑动仍滚动列表）
+      onLongPressStart: (details) =>
+          _startDrag(details.globalPosition, toggleAnchor: true),
+      onLongPressMoveUpdate: (details) => _updateDrag(details.globalPosition),
+      onLongPressEnd: (_) => _endDrag(),
       child: SingleChildScrollView(
         padding: widget.padding,
         child: Column(
@@ -108,6 +100,35 @@ class _DragSelectListState extends State<DragSelectList> {
         ),
       ),
     );
+  }
+
+  /// 进入拖动状态。[globalPosition] 为按下/长按起点；[toggleAnchor] 为 true 时
+  /// 立即切换起点项（移动端长按即选中锚点，给即时反馈），否则等拖动路径命中
+  /// 时再切换（桌面直接拖动，保持原行为）。
+  void _startDrag(Offset globalPosition, {required bool toggleAnchor}) {
+    if (!widget.dragSelect) return;
+    _dragging = true;
+    _lastHitIndex = -1;
+    // 起点状态决定整段目标
+    final index = _itemIndexAtGlobal(globalPosition);
+    if (index >= 0) {
+      _dragTarget = !widget.selected.contains(index);
+      if (toggleAnchor) {
+        // 锚点已切换，命中记锚点，首次移动不重复切换
+        _lastHitIndex = index;
+        widget.onToggle(index, _dragTarget);
+      }
+    }
+  }
+
+  /// 拖动移动：命中新项即切换（同项去重）。
+  void _updateDrag(Offset globalPosition) {
+    if (!widget.dragSelect || !_dragging) return;
+    final index = _itemIndexAtGlobal(globalPosition);
+    if (index >= 0 && index != _lastHitIndex) {
+      _lastHitIndex = index;
+      widget.onToggle(index, _dragTarget);
+    }
   }
 
   void _endDrag() {

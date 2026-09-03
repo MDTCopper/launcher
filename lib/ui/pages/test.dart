@@ -6,6 +6,9 @@ import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
 import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 
+import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
+import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
+
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
@@ -31,6 +34,20 @@ class TestState extends State<Test> {
   // ── 第 12 区演示状态 ──
   bool _switchOn = false; // ReboundSwitch 开关
   double _sliderValue = 0.4; // CopperSlider 值(0~1 比例)
+
+  // ── 第 13 区演示状态（DragSelectList 拖动连续选择）──
+  final Set<int> _dragSelectedIndexes = {}; // 已选中的演示项下标
+  bool _dragSelectEnabled = true; // 是否允许拖动连续选择
+  static const List<String> _demoModNames = [
+    'Copper Core',
+    'Endless',
+    'Factorio Mod',
+    'Frozen',
+    'Infinite',
+    'Pac-Man',
+    'Skies',
+    'Zero',
+  ];
 
   @override
   void dispose() {
@@ -86,6 +103,7 @@ class TestState extends State<Test> {
           // _buttonSection(),
           _segmentExpansionSection(),
           _switchSliderSection(),
+          _dragSelectSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -232,6 +250,90 @@ class TestState extends State<Test> {
           ),
         ),
       ],
+    );
+  }
+
+  // ════════ 13. DragSelectList 拖动连续选择 ════════
+  Widget _dragSelectSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('13. DragSelectList（点击 + 拖动连续选择）'),
+        _card(
+          title: 'DragSelectList：点击切换选中，按住拖动连续清除/选中',
+          desc:
+              '点击某行切换选中；桌面/短列表按住直接拖动，移动端长按后拖动，可整段连续选中/清除'
+              '（起点未选→整段选中，起点已选→整段清除）。列表放在固定高度容器内（自身可滚动）；'
+              '列表可滚动时上下滑动仍滚动，长按再拖动才进入多选。可切换「允许拖动选择」对比开关效果。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 12,
+            children: [
+              // 微调控件：拖动开关 + 选中数 + 清空
+              Row(
+                spacing: 12,
+                children: [
+                  const Text('允许拖动选择'),
+                  ReboundSwitch(
+                    value: _dragSelectEnabled,
+                    onChanged: (v) => setState(() => _dragSelectEnabled = v),
+                  ),
+                  const Spacer(),
+                  Text('已选 ${_dragSelectedIndexes.length} 项'),
+                  ReboundMenuButton(
+                    label: '清空',
+                    onTap: () => setState(_dragSelectedIndexes.clear),
+                  ),
+                ],
+              ),
+              // 固定高度，给内部 SingleChildScrollView 一个有界视口；
+              // 项数超高时可滚动，同时保留拖动连续选择
+              SizedBox(
+                height: 260,
+                child: DragSelectList(
+                  itemCount: _demoModNames.length,
+                  dragSelect: _dragSelectEnabled,
+                  itemSpacing: 4,
+                  selected: _dragSelectedIndexes,
+                  onToggle: (index, selected) => setState(() {
+                    if (selected) {
+                      _dragSelectedIndexes.add(index);
+                    } else {
+                      _dragSelectedIndexes.remove(index);
+                    }
+                  }),
+                  itemBuilder: (context, index, isSelected) =>
+                      _demoDragTile(index, isSelected),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 演示项：ReboundListTile 自带选中态/按压反馈，onTap 负责点击切换。
+  /// 拖动连续选择的 pan 由外层 DragSelectList 处理，与条目 onTap 互不干扰。
+  Widget _demoDragTile(int index, bool selected) {
+    return ReboundListTile(
+      itemSpacing: 10,
+      leading: Icon(
+        selected ? Icons.check_box : Icons.check_box_outline_blank,
+        size: 20,
+      ),
+      title: Text(_demoModNames[index]),
+      subtitle: Text(
+        selected ? '已选中（起点已选→整段清除）' : '未选中（起点未选→整段选中）',
+      ),
+      selected: selected,
+      onTap: () => setState(() {
+        if (selected) {
+          _dragSelectedIndexes.remove(index);
+        } else {
+          _dragSelectedIndexes.add(index);
+        }
+      }),
     );
   }
 }

@@ -3,6 +3,8 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/util/auto_memory.dart';
+import 'package:copper_launcher/util/system_info.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/mindustry_settings.dart';
@@ -74,7 +76,7 @@ class LaunchMindustryTask extends Task {
         break;
     }
 
-    final Memory? maxMemory;
+    Memory? maxMemory;
     final versionAuto = mindustry.autoMemory;
 
     if (versionAuto != null) {
@@ -83,9 +85,8 @@ class LaunchMindustryTask extends Task {
       maxMemory = launchOption.autoMemory ? null : launchOption.memory;
     }
 
-    if (maxMemory == null) {
-      //todo 自动分配内存，需要配合模组遍历来估算合适的内存
-    }
+    // 自动分配内存：可用内存 + 启用 mod 体积估算合适的最大堆
+    maxMemory ??= await _autoAllocateMemory(mindustry);
 
     String? javaPath = mindustry.java ?? launchOption.javaOptions.selectedJava;
 
@@ -184,6 +185,16 @@ class LaunchMindustryTask extends Task {
         updateDisplay();
       }
     });
+  }
+
+  /// 自动分配内存：可用内存 + 启用 mod 体积估算合适的最大堆。
+  Future<Memory> _autoAllocateMemory(Mindustry mindustry) async {
+    final available = await SysInfo.getUsablePhysicalMemory();
+    final modTotal = await sumEnabledModSizes(mindustry.modsPath);
+    return AutoMemory.estimate(
+      availableBytes: available,
+      enabledModTotalBytes: modTotal,
+    );
   }
 
   @override

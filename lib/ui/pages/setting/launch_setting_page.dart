@@ -20,6 +20,7 @@ import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/java_finder.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/format/path_format.dart';
+import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/system_info.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -66,6 +67,12 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
   static Memory freeMemory = Memory(gb: 128);
   static Memory totalMemory = Memory(gb: 128);
 
+  /// 自动分配内存：选中版本 mod 体积之和（缓存，避免每 5 秒重扫目录）
+  int _autoModTotalBytes = 0;
+
+  /// 自动分配内存：当前估算出的分配值（随可用内存刷新）
+  Memory _autoMemoryEstimate = const Memory(gb: 1);
+
   late Timer _getMemoryTimer;
 
   void _getRam() async {
@@ -73,12 +80,32 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     freeMemory = Memory(bytes: free);
     final total = await SysInfo.getTotalPhysicalMemory();
     totalMemory = Memory(bytes: total);
+    await _loadAutoModTotal();
+    await _refreshAutoMemoryEstimate();
     if (mounted) setState(() {});
     _getMemoryTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       final free = await SysInfo.getFreePhysicalMemory();
       freeMemory = Memory(bytes: free);
+      await _refreshAutoMemoryEstimate();
       if (mounted) setState(() {});
     });
+  }
+
+  /// 加载选中版本的启用 mod 体积之和（自动分配的 mod 依据）
+  Future<void> _loadAutoModTotal() async {
+    final version = config.versionOptions.selectedVersion;
+    _autoModTotalBytes = version == null
+        ? 0
+        : await sumEnabledModSizes(version.modsPath);
+  }
+
+  /// 用当前可用内存 + 已缓存的 mod 体积刷新自动分配估算值
+  Future<void> _refreshAutoMemoryEstimate() async {
+    final available = await SysInfo.getUsablePhysicalMemory();
+    _autoMemoryEstimate = AutoMemory.estimate(
+      availableBytes: available,
+      enabledModTotalBytes: _autoModTotalBytes,
+    );
   }
 
   String _formatRam(double ram) {
@@ -528,7 +555,11 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     final free = _formatRam(freeMemory.inGB);
     final total = _formatRam(totalMemory.inGB);
     final used = _formatRam((totalMemory - freeMemory).inGB);
-    final allocation = _formatRam(memory.inGB);
+    // 分配值：自动时用实时估算，手动时用配置值
+    final displayedMemory = autoMemory ? _autoMemoryEstimate : memory;
+    final allocation = autoMemory
+        ? '自动（≈${_formatRam(_autoMemoryEstimate.inGB)}GB）'
+        : '${_formatRam(displayedMemory.inGB)} GB';
     final occupy = ((1 - freeMemory.bytes / totalMemory.bytes) * 100)
         .toStringAsFixed(1);
 
@@ -541,17 +572,20 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           dataList: [
             PercentBarData(value: (totalMemory - freeMemory).bytes.toDouble()),
             PercentBarData(
-              value: min(memory.bytes.toDouble(), freeMemory.bytes.toDouble()),
+              value: min(
+                displayedMemory.bytes.toDouble(),
+                freeMemory.bytes.toDouble(),
+              ),
             ),
           ],
         ),
         Text('当前占用  $used / $total GB ($occupy%)'),
         Row(
           children: [
-            Text('将为游戏分配   $allocation GB '),
+            Text('将为游戏分配   $allocation '),
             Expanded(child: SizedBox()),
             AnimatedOpacity(
-              opacity: memory > freeMemory ? 1 : 0,
+              opacity: displayedMemory > freeMemory ? 1 : 0,
               curve: Curves.ease,
               duration: const Duration(milliseconds: 200),
               child: Text('( 当前可用内存仅 $free GB )'),

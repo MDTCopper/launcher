@@ -34,17 +34,17 @@ const github3MonthsModMetaUrl =
 ///
 
 final minModGameVersionModifier = RangeModifier(0, [
-  RangeRuler(97, 105, 97),
-  RangeRuler(105, 136, 105),
-  RangeRuler(136, double.infinity, 136),
+  RangeRuler<double, int>(97, 105, 97),
+  RangeRuler<double, int>(105, 136, 105),
+  RangeRuler<double, int>(136, double.infinity, 136),
 ]);
 
 final minJavaModGameVersionModifier = RangeModifier(0, [
-  RangeRuler(97, 105, 97),
-  RangeRuler(105, 136, 105),
-  RangeRuler(136, 147, 136),
-  RangeRuler(147, 154, 147),
-  RangeRuler(154, double.infinity, 154),
+  RangeRuler<double, int>(97, 105, 97),
+  RangeRuler<double, int>(105, 136, 105),
+  RangeRuler<double, int>(136, 147, 136),
+  RangeRuler<double, int>(147, 154, 147),
+  RangeRuler<double, int>(154, double.infinity, 154),
 ]);
 
 // const minCopperModGameVersionMap = <String, double>{};
