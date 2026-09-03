@@ -5,7 +5,7 @@ import 'dart:math';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
-import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
+
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -171,7 +171,6 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
   }
 
   Widget _buildDefaultVersionIsolationSettingBar() {
-    final theme = Theme.of(context);
     return CheckboxSettingBar(
       title: '游戏默认隔离设置',
       hint: '在下载或导入游戏时，给游戏的默认隔离设置',

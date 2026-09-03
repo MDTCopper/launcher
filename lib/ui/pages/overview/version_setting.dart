@@ -168,7 +168,7 @@ class _AboutState extends State<_About> {
     });
   }
 
-  /// 删除当前版本：确认后删除 jar 本体并移除配置记录
+  /// 删除当前版本：统一走 [VersionOptions.deleteVersion]（含共享 jar 检查）
   void _deleteVersion() {
     final tag = _mindustry.tag;
     showConfirmationPopup(
@@ -177,22 +177,10 @@ class _AboutState extends State<_About> {
       title: '确定要删除 [$tag] ？',
       content: '[$tag] 游戏文件及其独立附属的存档，mod，整合包，蓝图，地图都会被删除！',
       action: () async {
-        final jar = File(_mindustry.jarPath);
-        if (await jar.exists()) {
-          try {
-            await jar.delete();
-          } catch (e) {
-            addNotice(icon: Icons.close, title: '删除失败', content: '无法删除游戏文件');
-            debugPrint('删除失败：$e');
-            return;
-          }
-        }
-        // 从所有版本折叠中移除该版本记录
-        for (final fold in config.versionOptions.versionFolds) {
-          fold.versions.removeWhere((version) => version.id == _mindustry.id);
-        }
-        if (config.versionOptions.selectedVersionId == _mindustry.id) {
-          config.versionOptions.selectedVersionId = null;
+        final deleted = await config.versionOptions.deleteVersion(_mindustry);
+        if (!deleted) {
+          addNotice(icon: Icons.close, title: '删除失败', content: '无法删除游戏文件');
+          return;
         }
         await config.save();
         if (mounted) Navigator.pop(context); // 版本设置页关闭，回到版本列表

@@ -24,9 +24,12 @@ class _LaunchPageState extends State<LaunchPage> {
   /// 选中版本来源：config 持有单一事实
   Mindustry? get _selectedVersion => config.versionOptions.selectedVersion;
 
-  Widget _buildVersionTile() {
+  Widget _buildVersionTile(Mindustry? selectedVersion) {
     Widget buildEmptyTile() {
-      final addtion = config.versionOptions.versionFolds.isEmpty
+      final hasVersion =
+          config.versionOptions.versionFolds.firstOrNull?.versions.isNotEmpty ??
+          false;
+      final addtion = hasVersion
           ? ''
           : isDesktop
           ? '或右键'
@@ -111,65 +114,52 @@ class _LaunchPageState extends State<LaunchPage> {
         },
       ),
     );
+    Widget child = selectedVersion == null
+        ? buildEmptyTile()
+        : buildTile(selectedVersion);
 
-    Widget child = ValueListenableBuilder<Mindustry?>(
-      valueListenable: config.versionOptions.selectedVersionNotifier,
-      builder: (context, selectedVersion, _) {
-        Widget child;
+    child = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 700),
+      transitionBuilder: (child, animation) {
+        final isForward = !animation.status.isForwardOrCompleted;
 
-        if (selectedVersion == null) {
-          child = buildEmptyTile();
-        } else {
-          child = buildTile(selectedVersion);
-        }
+        final scale = isForward
+            ? AlwaysStoppedAnimation(1.0)
+            : Tween<double>(begin: 1.0, end: 0.9).animate(
+                CurvedAnimation(
+                  parent: ReverseAnimation(animation),
+                  curve: Interval(0.0, 0.7, curve: Curves.easeOutCirc),
+                ),
+              );
+        child = ScaleTransition(scale: scale, child: child);
 
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 700),
-          transitionBuilder: (child, animation) {
-            final isForward = !animation.status.isForwardOrCompleted;
+        final position = !isForward
+            ? AlwaysStoppedAnimation(Offset.zero)
+            : Tween<Offset>(
+                begin: const Offset(-1.0, 0.0),
+                end: Offset.zero,
+              ).animate(
+                CurvedAnimation(
+                  parent: animation,
+                  curve: Interval(0.3, 1.0, curve: Curves.fastOutSlowIn),
+                ),
+              );
 
-            final scale = isForward
-                ? AlwaysStoppedAnimation(1.0)
-                : Tween<double>(begin: 1.0, end: 0.9).animate(
-                    CurvedAnimation(
-                      parent: ReverseAnimation(animation),
-                      curve: Interval(0.0, 0.7, curve: Curves.easeOutCirc),
-                    ),
-                  );
-            child = ScaleTransition(scale: scale, child: child);
+        child = SlideTransition(position: position, child: child);
 
-            final position = !isForward
-                ? AlwaysStoppedAnimation(Offset.zero)
-                : Tween<Offset>(
-                    begin: const Offset(-1.0, 0.0),
-                    end: Offset.zero,
-                  ).animate(
-                    CurvedAnimation(
-                      parent: animation,
-                      curve: Interval(0.3, 1.0, curve: Curves.fastOutSlowIn),
-                    ),
-                  );
+        final opacity = isForward
+            ? Tween<double>(begin: 0.5, end: 1.0).animate(
+                CurvedAnimation(parent: animation, curve: Interval(0.35, 0.7)),
+              )
+            : AlwaysStoppedAnimation(1.0);
 
-            child = SlideTransition(position: position, child: child);
-
-            final opacity = isForward
-                ? Tween<double>(begin: 0.5, end: 1.0).animate(
-                    CurvedAnimation(
-                      parent: animation,
-                      curve: Interval(0.35, 0.7),
-                    ),
-                  )
-                : AlwaysStoppedAnimation(1.0);
-
-            child = FadeTransition(opacity: opacity, child: child);
-            return child;
-          },
-          child: KeyedSubtree(
-            key: ValueKey(selectedVersion?.id ?? 'null'),
-            child: child,
-          ),
-        );
+        child = FadeTransition(opacity: opacity, child: child);
+        return child;
       },
+      child: KeyedSubtree(
+        key: ValueKey(selectedVersion?.id ?? 'null'),
+        child: child,
+      ),
     );
 
     // 右键 / 长按：快捷选择最近游玩过的其他版本（最多 5 个）
@@ -273,8 +263,8 @@ class _LaunchPageState extends State<LaunchPage> {
     ];
   }
 
-  Widget _buildLaunchButton() {
-    if (_selectedVersion == null) return SizedBox();
+  Widget? _buildLaunchButton(Mindustry? selectedVersion) {
+    if (_selectedVersion == null) return null;
 
     return SizedBox(
       height: 80,
@@ -315,14 +305,22 @@ class _LaunchPageState extends State<LaunchPage> {
         Expanded(child: SizedBox()),
         Padding(
           padding: EdgeInsets.all(8),
-          child: Row(
-            //下方操作条
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Expanded(child: _buildVersionTile()),
-              SizedBox(width: 8),
-              _buildLaunchButton(),
-            ],
+          child: ValueListenableBuilder(
+            valueListenable: config.versionOptions.selectedVersionNotifier,
+            builder: (context, selectVersion, _) {
+              return Row(
+                //下方操作条
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Expanded(child: _buildVersionTile(selectVersion)),
+                  if (_buildLaunchButton(selectVersion)
+                      case final launchButton?) ...[
+                    SizedBox(width: 8),
+                    launchButton,
+                  ],
+                ],
+              );
+            },
           ),
         ),
       ],

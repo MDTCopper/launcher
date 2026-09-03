@@ -510,6 +510,41 @@ class VersionOptions {
     return null;
   }
 
+  /// 统一删除版本：退出所有折叠中该版本的记录，并把 jarPath 引用数≥2
+  /// （同一 jar 被多个版本共享）时保留 jar 本体。
+  ///
+  /// 共享检查基于当前配置中的全部版本（跨 fold 统计）。返回 `true` 表示
+  /// 配置删除成功；若唯一引用且 jar 删除失败返回 `false`（记录已移除，调用方提示）。
+  Future<bool> deleteVersion(Mindustry version) async {
+    // 1. 移除所有折叠中的该版本记录
+    for (final fold in versionFolds) {
+      fold.versions.removeWhere((v) => v.id == version.id);
+    }
+
+    // 2. 若被删版本正是当前选中：清空选中（含 notifier 同步）
+    if (selectedVersionId == version.id) {
+      selectedVersionId = null;
+      _selectedVersion = null;
+      selectedVersionNotifier.value = null;
+    }
+
+    // 3. jar 仍被其它版本引用（共享 jar）→ 只删记录，不动本体
+    final stillReferenced = versionFolds
+        .expand((fold) => fold.versions)
+        .any((v) => v.jarPath == version.jarPath);
+    if (stillReferenced) return true;
+
+    // 4. 唯一引用：删除 jar 本体；文件本就不存在视为成功
+    final jar = File(version.jarPath);
+    if (!await jar.exists()) return true;
+    try {
+      await jar.delete();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @JsonKey(includeFromJson: false)
   Mindustry? get selectedVersion => _selectedVersion;
 

@@ -65,27 +65,13 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       title: '确定要删除 [$tag] ？',
       content: '[$tag] 游戏文件及其独立附属的存档，mod，整合包，蓝图，地图都会被删除！',
       action: () async {
-        final file = File(version.jarPath);
-        if (await file.exists()) {
-          try {
-            await file.delete();
-          } catch (e) {
-            debugPrint('删除失败');
-            debugPrint(e.toString());
-            return;
-          }
-        } else {
-          debugPrint('游戏文件不存在,自动删除配置信息');
+        // 统一删除逻辑（含共享 jar 检查：同一 jarPath 被其它版本引用时不删本体）
+        final deleted = await config.versionOptions.deleteVersion(version);
+        if (!deleted) {
+          debugPrint('删除失败：无法删除游戏文件 $tag');
+          return;
         }
-
-        setState(() {
-          //不管何种情况版本的配置信息肯定会被删除
-          _versionFolds[_index].versions.removeAt(index);
-          final selectedVersionId = config.versionOptions.selectedVersionId;
-          if (selectedVersionId != null && version.id == selectedVersionId) {
-            config.versionOptions.selectedVersionId = null;
-          }
-        });
+        setState(() {});
         await config.save();
         _updateView();
       },
