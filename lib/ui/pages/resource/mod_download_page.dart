@@ -649,25 +649,6 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     if (mounted) Navigator.pop(context);
   }
 
-  /// java 源码下载的提醒
-  Widget _buildJavaSourceWarning() {
-    final theme = Theme.of(context);
-    return Row(
-      spacing: 4,
-      children: [
-        Icon(Icons.warning_amber, color: theme.colorScheme.error, size: 20),
-        Expanded(
-          child: Text(
-            '注意：未经编译的 java 源码无法直接载入',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   /// 页面内嵌的候选资源选择：多个同类型候选用下拉选择，
   /// 单个只读展示，没有则显示建议。
   Widget _buildAssetSelection() {
@@ -677,14 +658,51 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     // 源码下载：java 源码在下载弹窗内提醒玩家
     if (widget.downloadSource) {
       return modListMeta.hasJava
-          ? _buildJavaSourceWarning()
+          ? Row(
+              spacing: 4,
+              children: [
+                Icon(
+                  Icons.warning_amber,
+                  color: theme.colorScheme.error,
+                  size: 20,
+                ),
+                Expanded(
+                  child: Text(
+                    '注意：未经编译的 java 源码无法直接载入',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
+            )
           : const SizedBox.shrink();
     }
 
     final candidates = _assetCandidates;
     if (candidates.isEmpty) {
-      // 版本详情无编译产物：跳转对应 tag 下载源码
-      final child = Row(
+      // 无编译产物：跳转对应 tag 下载源码
+
+      // java，不允许下载
+      if (modListMeta.hasJava) {
+        return Row(
+          spacing: 4,
+          children: [
+            Icon(Icons.warning_amber, color: theme.colorScheme.error, size: 20),
+            Expanded(
+              child: Text(
+                '该版本未发布资源，请尝试下载其他版本',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+
+      //非java，提醒
+      return Row(
         spacing: 4,
         children: [
           Icon(Icons.info_outline, size: 20, color: colors.itemSecondary),
@@ -696,17 +714,9 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
           ),
         ],
       );
-
-      if (modListMeta.hasJava) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 4,
-          children: [const Text('该版本未提供编译产物，请等待作者'), _buildJavaSourceWarning()],
-        );
-      }
-      return child;
     }
 
+    //有资源
     if (candidates.length == 1) {
       return Row(
         spacing: 4,

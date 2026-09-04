@@ -40,10 +40,10 @@ class TaskManager {
 
   static bool _isProcessing(Task task) => task.status == TaskStatus.process;
 
-  // ── 通知节流（leading + trailing）──
-  // 窗口外首变化立即发（leading，保证增删/状态即时），窗口内标记 pending，
-  // 窗口结束时补发一次合并后的最新快照（trailing，保证最新状态必达）。
-  // 不随每次 notify 重置计时器 → 连续高频更新被限频到 [kNotifyInterval]。
+  // ── 通知节流 ──
+  // 窗口外首变化立即发，窗口内标记 pending，
+  // 窗口结束时补发一次合并后的最新快照（trailing，保证最新状态必达）
+  // 不随每次 notify 重置计时器 → 连续高频更新被限频到
   Timer? _notifyTimer;
   bool _pending = false;
 
@@ -73,7 +73,6 @@ class TaskManager {
     int measurable = 0;
     for (final task in _tasks.values.where(_isProcessing)) {
       if (task.progress != null) {
-        // 修复优先级 bug：原 `progress ?? 0.0 + task.progress!` 实际只取第一个任务
         sum += task.progress!;
         measurable++;
       }

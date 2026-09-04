@@ -194,7 +194,8 @@ class FileReader {
   static T? _tryBuild<T>(T Function() build) {
     try {
       return build();
-    } catch (_) {
+    } catch (e) {
+      print(e);
       return null;
     }
   }
@@ -344,7 +345,6 @@ class FileReader {
       if (iconFile != null) {
         iconBytes = Uint8List.fromList(iconFile.content as List<int>);
       }
-      map['icon'] = iconBytes;
 
       // 检测 Java mod: 有 META-INF/ 目录，或有 .class 文件，或 mod.json 中有 main 字段
       final isJava =
@@ -358,7 +358,7 @@ class FileReader {
       if (isJava) map['java'] = true;
 
       return (meta: map, icon: iconBytes);
-    } catch (_) {
+    } catch (e) {
       return null;
     }
   }

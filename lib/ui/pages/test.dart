@@ -1,4 +1,5 @@
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
 import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
@@ -63,19 +64,22 @@ class TestState extends State<Test> {
         assets: [
           GithubApiReleaseAsset(
             name: 'readme.txt',
-            url: 'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/readme.txt',
+            url:
+                'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/readme.txt',
             size: 1 * 1024,
             downloadCount: 0,
           ),
           GithubApiReleaseAsset(
             name: 'JavaMultiMod-0.8.jar',
-            url: 'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/JavaMultiMod-0.8.jar',
+            url:
+                'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/JavaMultiMod-0.8.jar',
             size: 2 * mb,
             downloadCount: 12,
           ),
           GithubApiReleaseAsset(
             name: 'JavaMultiMod-1.2.jar',
-            url: 'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/JavaMultiMod-1.2.jar',
+            url:
+                'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/JavaMultiMod-1.2.jar',
             size: 5 * mb,
             downloadCount: 88, // 体积最大 = mod 本体，应排最前
           ),
@@ -92,13 +96,15 @@ class TestState extends State<Test> {
         assets: [
           GithubApiReleaseAsset(
             name: 'ScriptMultiMod-0.3.zip',
-            url: 'https://github.com/mock/ScriptMultiMod/releases/download/v0.3.0/a.zip',
+            url:
+                'https://github.com/mock/ScriptMultiMod/releases/download/v0.3.0/a.zip',
             size: 1 * mb,
             downloadCount: 30,
           ),
           GithubApiReleaseAsset(
             name: 'ScriptMultiMod-0.2.zip',
-            url: 'https://github.com/mock/ScriptMultiMod/releases/download/v0.3.0/b.zip',
+            url:
+                'https://github.com/mock/ScriptMultiMod/releases/download/v0.3.0/b.zip',
             size: 512 * kb,
             downloadCount: 5,
           ),
@@ -115,7 +121,8 @@ class TestState extends State<Test> {
         assets: [
           GithubApiReleaseAsset(
             name: 'README.md',
-            url: 'https://github.com/mock/JavaNoAssetMod/releases/download/v0.9.0/README.md',
+            url:
+                'https://github.com/mock/JavaNoAssetMod/releases/download/v0.9.0/README.md',
             size: 2 * kb,
             downloadCount: 0,
           ),
@@ -132,7 +139,8 @@ class TestState extends State<Test> {
         assets: [
           GithubApiReleaseAsset(
             name: 'ScriptSingleMod-1.0.zip',
-            url: 'https://github.com/mock/ScriptSingleMod/releases/download/v1.0.0/single.zip',
+            url:
+                'https://github.com/mock/ScriptSingleMod/releases/download/v1.0.0/single.zip',
             size: 3 * mb,
             downloadCount: 66,
           ),
@@ -144,7 +152,10 @@ class TestState extends State<Test> {
   ];
 
   /// 每个 mock 当前选中的候选下标（默认 0 = 体积最大）
-  late final List<int> _mockSelectedAssetIndexes = List.filled(_mockMods.length, 0);
+  late final List<int> _mockSelectedAssetIndexes = List.filled(
+    _mockMods.length,
+    0,
+  );
 
   @override
   void dispose() {
@@ -197,7 +208,7 @@ class TestState extends State<Test> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // _buttonSection(),
+          IconTextButton(icon: Icons.add, content: '666', onTap: () async {}),
           _segmentExpansionSection(),
           _switchSliderSection(),
           _dragSelectSection(),
@@ -421,9 +432,7 @@ class TestState extends State<Test> {
         size: 20,
       ),
       title: Text(_demoModNames[index]),
-      subtitle: Text(
-        selected ? '已选中（起点已选→整段清除）' : '未选中（起点未选→整段选中）',
-      ),
+      subtitle: Text(selected ? '已选中（起点已选→整段清除）' : '未选中（起点未选→整段选中）'),
       selected: selected,
       onTap: () => setState(() {
         if (selected) {
@@ -445,8 +454,7 @@ class TestState extends State<Test> {
           _card(
             title:
                 '${_mockMods[i].meta.name}（${_mockMods[i].hasJava ? 'java' : '非java'}）',
-            desc:
-                'tag=${_mockMods[i].meta.tag}，${_mockMods[i].meta.describe}',
+            desc: 'tag=${_mockMods[i].meta.tag}，${_mockMods[i].meta.describe}',
             child: _mockAssetSelection(i),
           ),
       ],
@@ -500,16 +508,15 @@ class TestState extends State<Test> {
     }
 
     // 多个候选：下拉选择，默认体积最大在前
-    final value = _mockSelectedAssetIndexes[mockIndex]
-        .clamp(0, candidates.length - 1);
+    final value = _mockSelectedAssetIndexes[mockIndex].clamp(
+      0,
+      candidates.length - 1,
+    );
     return Column(
       spacing: 4,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '选择要下载的文件，体积最大一般为 mod 本体',
-          style: theme.textTheme.bodySmall,
-        ),
+        Text('选择要下载的文件，体积最大一般为 mod 本体', style: theme.textTheme.bodySmall),
         DropdownButton<int>(
           value: value,
           isExpanded: true,
@@ -536,9 +543,8 @@ class TestState extends State<Test> {
                 ),
               ),
           ],
-          onChanged: (v) => setState(
-            () => _mockSelectedAssetIndexes[mockIndex] = v ?? 0,
-          ),
+          onChanged: (v) =>
+              setState(() => _mockSelectedAssetIndexes[mockIndex] = v ?? 0),
         ),
       ],
     );

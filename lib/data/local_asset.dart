@@ -263,9 +263,13 @@ class Mod {
   }
 
   factory Mod.fromJson(Map<String, dynamic> json, {Uint8List? icon}) {
-    json['minGameVersion'] = json['minGameVersion'].toString();
-    json['hidden'] = bool.tryParse(json['hidden'].toString());
-    return _$ModFromJson(json)..icon = icon;
+    json = json.map(((key, value) {
+      if (key == 'dependencies') return MapEntry(key, value);
+      return MapEntry(key, value.toString());
+    }));
+    json['java'] = bool.tryParse(json['java']);
+    json['hidden'] = bool.tryParse(json['hidden']);
+    return _$ModFromJson(json);
   }
 
   Map<String, dynamic> toJson() => _$ModToJson(this);
