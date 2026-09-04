@@ -410,7 +410,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     );
   }
 
-  Widget _buildOption(DropdownOption<T> item) {
+  Widget _buildOption(DropdownOption<T> option) {
     final colors = AppColors.of(context);
     final theme = Theme.of(context);
 
@@ -418,37 +418,39 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     // 用 ActionButton 承载选中态（背景 / 前景 / 加粗）动画切换
     if (_multiSelection) {
       return ActionButton(
-        icon: item.leading,
-        content: Expanded(child: Text(item.label)),
-        selected: selectValues.contains(item.value),
+        icon: option.leading,
+        content: Expanded(child: option.labelWidget ?? Text(option.label)),
+        selected: selectValues.contains(option.value),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         backgroundColor: colors.cardBackground,
-        onTap: () => _toggleMultiSelect(item.value),
+        onTap: () => _toggleMultiSelect(option.value),
       );
     }
 
-    final selected = item.value == selectValue;
+    final selected = option.value == selectValue;
     return ReboundButton(
       pressedScale: 1.0,
       borderRadius: BorderRadius.circular(4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       onTap: () {
-        item.onTap?.call();
-        _select(item.value);
+        option.onTap?.call();
+        _select(option.value);
       },
       backgroundColor: selected ? colors.interactive.withAlpha(30) : null,
       child: Row(
         children: [
-          ?item.leading,
-          if (item.leading != null) const SizedBox(width: 8),
+          ?option.leading,
+          if (option.leading != null) const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              item.label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: selected ? colors.interactive : colors.itemPrimary,
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
+            child:
+                option.labelWidget ??
+                Text(
+                  option.label,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: selected ? colors.interactive : colors.itemPrimary,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
           ),
         ],
       ),

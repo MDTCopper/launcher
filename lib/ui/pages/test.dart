@@ -9,6 +9,9 @@ import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dar
 import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 
+import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/util/format/byte_unit.dart';
+
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
@@ -48,6 +51,100 @@ class TestState extends State<Test> {
     'Skies',
     'Zero',
   ];
+
+  // ── 第 14 区演示状态（ModGithubMeta 临时测试）──
+  // 每个 mock：github release 元数据 + 是否 java（对应 ModOfficialListMeta.hasJava）
+  late final List<({ModGithubMeta meta, bool hasJava})> _mockMods = [
+    (
+      meta: ModGithubMeta(
+        name: 'JavaMultiMod',
+        tag: 'v1.2.0',
+        releaseDate: '2024-01-01T00:00:00Z',
+        assets: [
+          GithubApiReleaseAsset(
+            name: 'readme.txt',
+            url: 'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/readme.txt',
+            size: 1 * 1024,
+            downloadCount: 0,
+          ),
+          GithubApiReleaseAsset(
+            name: 'JavaMultiMod-0.8.jar',
+            url: 'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/JavaMultiMod-0.8.jar',
+            size: 2 * mb,
+            downloadCount: 12,
+          ),
+          GithubApiReleaseAsset(
+            name: 'JavaMultiMod-1.2.jar',
+            url: 'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/JavaMultiMod-1.2.jar',
+            size: 5 * mb,
+            downloadCount: 88, // 体积最大 = mod 本体，应排最前
+          ),
+        ],
+        describe: 'java 多 jar 候选测试',
+      ),
+      hasJava: true,
+    ),
+    (
+      meta: ModGithubMeta(
+        name: 'ScriptMultiMod',
+        tag: 'v0.3.0',
+        releaseDate: '2024-02-05T00:00:00Z',
+        assets: [
+          GithubApiReleaseAsset(
+            name: 'ScriptMultiMod-0.3.zip',
+            url: 'https://github.com/mock/ScriptMultiMod/releases/download/v0.3.0/a.zip',
+            size: 1 * mb,
+            downloadCount: 30,
+          ),
+          GithubApiReleaseAsset(
+            name: 'ScriptMultiMod-0.2.zip',
+            url: 'https://github.com/mock/ScriptMultiMod/releases/download/v0.3.0/b.zip',
+            size: 512 * kb,
+            downloadCount: 5,
+          ),
+        ],
+        describe: '非java 多 zip 候选测试',
+      ),
+      hasJava: false,
+    ),
+    (
+      meta: ModGithubMeta(
+        name: 'JavaNoAssetMod',
+        tag: 'v0.9.0',
+        releaseDate: '2024-03-10T00:00:00Z',
+        assets: [
+          GithubApiReleaseAsset(
+            name: 'README.md',
+            url: 'https://github.com/mock/JavaNoAssetMod/releases/download/v0.9.0/README.md',
+            size: 2 * kb,
+            downloadCount: 0,
+          ),
+        ],
+        describe: 'java 无 jar 产物 → 弹窗提示跳转 tag 源码',
+      ),
+      hasJava: true,
+    ),
+    (
+      meta: ModGithubMeta(
+        name: 'ScriptSingleMod',
+        tag: 'v1.0.0',
+        releaseDate: '2024-04-01T00:00:00Z',
+        assets: [
+          GithubApiReleaseAsset(
+            name: 'ScriptSingleMod-1.0.zip',
+            url: 'https://github.com/mock/ScriptSingleMod/releases/download/v1.0.0/single.zip',
+            size: 3 * mb,
+            downloadCount: 66,
+          ),
+        ],
+        describe: '非java 单个 zip → 只读展示',
+      ),
+      hasJava: false,
+    ),
+  ];
+
+  /// 每个 mock 当前选中的候选下标（默认 0 = 体积最大）
+  late final List<int> _mockSelectedAssetIndexes = List.filled(_mockMods.length, 0);
 
   @override
   void dispose() {
@@ -104,6 +201,7 @@ class TestState extends State<Test> {
           _segmentExpansionSection(),
           _switchSliderSection(),
           _dragSelectSection(),
+          _modMetaSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -335,6 +433,125 @@ class TestState extends State<Test> {
         }
       }),
     );
+  }
+
+  // ════════ 14. ModGithubMeta 临时测试（模拟资源候选选择逻辑） ════════
+  Widget _modMetaSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('14. ModGithubMeta 临时测试'),
+        for (var i = 0; i < _mockMods.length; i++)
+          _card(
+            title:
+                '${_mockMods[i].meta.name}（${_mockMods[i].hasJava ? 'java' : '非java'}）',
+            desc:
+                'tag=${_mockMods[i].meta.tag}，${_mockMods[i].meta.describe}',
+            child: _mockAssetSelection(i),
+          ),
+      ],
+    );
+  }
+
+  /// 每个 mock 模拟下载弹窗里的资源候选展示：多个 → 下拉、单个 → 只读、无 → 提示。
+  Widget _mockAssetSelection(int mockIndex) {
+    final theme = Theme.of(context);
+    final mock = _mockMods[mockIndex];
+    final candidates = mock.meta.assetsOfType(mock.hasJava ? '.jar' : '.zip');
+
+    if (candidates.isEmpty) {
+      final hint = mock.hasJava
+          ? '该版本未提供编译产物，将跳转到对应 tag 下载源码'
+          : '该版本未发布编译产物，将自动下载该版本的源码';
+      return Row(
+        spacing: 4,
+        children: [
+          Icon(Icons.info_outline, color: theme.colorScheme.error, size: 20),
+          Expanded(
+            child: Text(
+              hint,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (candidates.length == 1) {
+      return Row(
+        spacing: 4,
+        children: [
+          Icon(Icons.description_outlined, size: 18),
+          Expanded(
+            child: Text(
+              candidates.first.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            _formatSize(candidates.first.size),
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      );
+    }
+
+    // 多个候选：下拉选择，默认体积最大在前
+    final value = _mockSelectedAssetIndexes[mockIndex]
+        .clamp(0, candidates.length - 1);
+    return Column(
+      spacing: 4,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '选择要下载的文件，体积最大一般为 mod 本体',
+          style: theme.textTheme.bodySmall,
+        ),
+        DropdownButton<int>(
+          value: value,
+          isExpanded: true,
+          items: [
+            for (var i = 0; i < candidates.length; i++)
+              DropdownMenuItem<int>(
+                value: i,
+                child: Row(
+                  children: [
+                    Icon(Icons.description_outlined, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        candidates[i].name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      _formatSize(candidates[i].size),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          onChanged: (v) => setState(
+            () => _mockSelectedAssetIndexes[mockIndex] = v ?? 0,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatSize(int bytes) {
+    const kb = 1024;
+    const mb = kb * 1024;
+    const gb = mb * 1024;
+    if (bytes < kb) return '$bytes B';
+    if (bytes < mb) return '${(bytes / kb).toStringAsFixed(1)} KB';
+    if (bytes < gb) return '${(bytes / mb).toStringAsFixed(1)} MB';
+    return '${(bytes / gb).toStringAsFixed(1)} GB';
   }
 }
 

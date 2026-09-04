@@ -3,12 +3,15 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/download_mod.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/util/io/print_on_debug.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
@@ -87,6 +90,8 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       } else {
         modMetasMapCache[modListMeta.repo]!.addAll(modMetas);
       }
+      // 刷新头部「最新版本/下载源码」按钮文案（依赖 metas 是否有 release）
+      if (mounted) setState(() {});
       return true;
     } catch (e) {
       printOnDebug(e);
@@ -96,12 +101,6 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
   //TODO https://raw.githubusercontent.com/ {Yuria-Shikibe/NewHorizonMod} / {main/tag_name} / {mod.hjson/.json}
   //用这个可以访问不同版本的json文件，这样就可以统计各个版本最小游戏版本了，然后可以本地存储一下
-
-  // @override
-  // void initState() {
-  //   minGameVersionsCache.clear();
-  //   super.initState();
-  // }
 
   static final Map<String, Future<String?>> minGameVersionsCache = {};
 
@@ -282,7 +281,10 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         icon: Icon(Icons.outbond_outlined),
         label: '版本详情',
         onTap: () {
-          _buildDownloadPopup(mod);
+          // 版本详情 = 跳转到 GitHub 该 tag 的详情页
+          _goToUrl(
+            'https://github.com/${modListMeta.repo}/releases/tag/${mod.tag}',
+          );
           controller.dismiss();
         },
       ),
@@ -302,7 +304,9 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       SlideActionButton(
         icon: Icon(Icons.outbond_outlined),
         label: '版本详情',
-        onTap: () => _buildDownloadPopup(mod),
+        onTap: () => _goToUrl(
+          'https://github.com/${modListMeta.repo}/releases/tag/${mod.tag}',
+        ),
       ),
     ];
   }
@@ -426,8 +430,19 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                         ),
                         IconTextButton(
                           icon: Icons.download,
-                          content: '最新版本',
-                          onTap: () => _buildDownloadPopup(metas.firstOrNull),
+                          content: (modListMeta.hasJava && metas.isEmpty)
+                              ? '下载源码'
+                              : '最新版本',
+                          onTap: () {
+                            final latest = metas.firstOrNull;
+                            // 非java：最新版本行为=下载最新源码（tag 常过时）；
+                            // java 有 release → 版本详情选 asset；无 release → 源码下载
+                            if (modListMeta.hasJava && latest != null) {
+                              _buildDownloadPopup(latest);
+                            } else {
+                              _buildDownloadPopup(null, downloadSource: true);
+                            }
+                          },
                         ),
                       ],
                     ),
@@ -437,7 +452,13 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
             ],
           ),
         ),
-        Text('如果有条件，请到github给模组们sart!', style: theme.textTheme.bodySmall),
+        Center(
+          child: Text(
+            '如果有条件，请到github给模组们sart!',
+            style: theme.textTheme.labelMedium,
+          ),
+        ),
+
         _buildWarningBar(),
         FutureBuilder<bool>(
           future: _fetchModMetas(page: index),
@@ -453,13 +474,16 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                   children: [
                     Text('(*´･д･)?', style: theme.textTheme.titleLarge),
                     Text(
-                      '该模组没有发布任何版本，可以点击最新版本下载源码',
+                      modListMeta.hasJava
+                          ? '该模组没有发布任何版本，请等待作者正式发布版本'
+                          : '该模组没有发布任何版本，可以点击最新版本下载源码',
                       style: theme.textTheme.bodyLarge,
                     ),
-                    Text(
-                      '!!!  注意：模组可能因处于开发阶段，没有发布任何版本，存在不能正常载入的情况  !!!',
-                      style: theme.textTheme.bodySmall,
-                    ),
+                    if (!modListMeta.hasJava)
+                      Text(
+                        '!!!  注意：模组可能因处于开发阶段，没有发布任何版本，存在不能正常载入的情况  !!!',
+                        style: theme.textTheme.bodySmall,
+                      ),
                   ],
                 ),
               );
@@ -557,21 +581,51 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     return modMeta?.assetsOfType(ext) ?? const <GithubApiReleaseAsset>[];
   }
 
-  //todo 下载到选择的版本中,如果不是支持版本警告一下,处理一下空存储路径
-  void _download() async {
-    final isJava = modListMeta.hasJava && !widget.downloadSource;
+  bool get _canDownload {
+    if (version == null && otherSavePath == null) return false;
+    if (widget.downloadSource) {
+      return true;
+    } else {
+      if (modListMeta.hasJava && _assetCandidates.isEmpty) return false;
+    }
+    return true;
 
-    int mainAssetIndex = 0;
-    if (!widget.downloadSource) {
-      // 版本详情下载：无候选时留在页面显示建议，不下载
-      final candidates = _assetCandidates;
-      if (candidates.isEmpty) return;
-      // 候选列表是筛选+排序后的，转回完整 assets 下标给任务
-      final chosen = _selectedAssetIndex.clamp(0, candidates.length - 1);
-      mainAssetIndex = modMeta!.assets.indexOf(candidates[chosen]);
+    // (widget.downloadSource ||
+    //         !(modListMeta.hasJava && _assetCandidates.isEmpty)) &&
+    //     version != null;
+  }
+
+  void _download() async {
+    // 源码下载：走源码 task
+    if (widget.downloadSource) {
+      addTask(
+        DownloadSourceModTask(
+          modListMeta: modListMeta,
+          modMeta: modMeta,
+          savePath: version?.modsPath ?? otherSavePath!,
+        ),
+      );
+      if (mounted) Navigator.pop(context);
+      return;
     }
 
-    if (isJava) {
+    // 无编译产物时跳转对应 tag 下载源码
+    final candidates = _assetCandidates;
+    if (candidates.isEmpty) {
+      addTask(
+        DownloadSourceModTask(
+          modListMeta: modListMeta,
+          modMeta: modMeta,
+          savePath: version?.modsPath ?? otherSavePath!,
+        ),
+      );
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+    final chosen = _selectedAssetIndex.clamp(0, candidates.length - 1);
+    final mainAssetIndex = modMeta!.assets.indexOf(candidates[chosen]);
+
+    if (modListMeta.hasJava) {
       addTask(
         DownloadJavaModTask(
           modListMeta: modListMeta,
@@ -581,10 +635,11 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
         ),
       );
     } else {
+      // 非Java Mod
       addTask(
         DownloadZipModTask(
           modListMeta,
-          modMeta,
+          modMeta!,
           version?.modsPath ?? otherSavePath!,
           mainAssetIndex: mainAssetIndex,
         ),
@@ -594,35 +649,69 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     if (mounted) Navigator.pop(context);
   }
 
-  /// 页面内嵌的候选资源选择（不另弹窗）：多个同类型候选用下拉选择，
+  /// java 源码下载的提醒
+  Widget _buildJavaSourceWarning() {
+    final theme = Theme.of(context);
+    return Row(
+      spacing: 4,
+      children: [
+        Icon(Icons.warning_amber, color: theme.colorScheme.error, size: 20),
+        Expanded(
+          child: Text(
+            '注意：未经编译的 java 源码无法直接载入',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 页面内嵌的候选资源选择：多个同类型候选用下拉选择，
   /// 单个只读展示，没有则显示建议。
   Widget _buildAssetSelection() {
-    if (widget.downloadSource) return const SizedBox.shrink();
-    final candidates = _assetCandidates;
     final theme = Theme.of(context);
+    final colors = AppColors.of(context);
 
+    // 源码下载：java 源码在下载弹窗内提醒玩家
+    if (widget.downloadSource) {
+      return modListMeta.hasJava
+          ? _buildJavaSourceWarning()
+          : const SizedBox.shrink();
+    }
+
+    final candidates = _assetCandidates;
     if (candidates.isEmpty) {
-      return Row(
+      // 版本详情无编译产物：跳转对应 tag 下载源码
+      final child = Row(
         spacing: 4,
         children: [
-          Icon(Icons.info_outline, color: theme.colorScheme.error, size: 20),
+          Icon(Icons.info_outline, size: 20, color: colors.itemSecondary),
           Expanded(
             child: Text(
-              '该版本没有可下载的 jar/zip 文件，请尝试其他版本，或返回选择「下载源码」',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.error,
-              ),
+              '该版本未发布资源，将自动下载该版本的源码',
+              style: theme.textTheme.bodySmall?.copyWith(),
             ),
           ),
         ],
       );
+
+      if (modListMeta.hasJava) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 4,
+          children: [const Text('该版本未提供编译产物，请等待作者'), _buildJavaSourceWarning()],
+        );
+      }
+      return child;
     }
 
     if (candidates.length == 1) {
       return Row(
         spacing: 4,
         children: [
-          Icon(Icons.description_outlined, size: 18),
+          Icon(Icons.description_outlined, color: colors.itemSecondary),
           Expanded(
             child: Text(
               candidates.first.name,
@@ -646,37 +735,39 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
       spacing: 4,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '选择要下载的文件（体积最大在前，一般为 mod 本体）',
-          style: theme.textTheme.bodySmall,
-        ),
-        DropdownButton<int>(
-          value: value,
-          isExpanded: true,
-          items: [
-            for (var i = 0; i < candidates.length; i++)
-              DropdownMenuItem<int>(
-                value: i,
-                child: Row(
-                  children: [
-                    Icon(Icons.description_outlined, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        candidates[i].name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+        Text('选择要下载的文件，体积最大一般为 mod 本体', style: theme.textTheme.bodySmall),
+        DropdownLayer<int>(
+          initialValue: value,
+          onSelect: (v) => setState(() => _selectedAssetIndex = v),
+          options: candidates
+              .map(
+                (it) => DropdownOption(
+                  value: value,
+                  leading: Icon(
+                    Icons.description_outlined,
+                    size: 18,
+                    color: colors.itemSecondary,
+                  ),
+                  label: it.name,
+                  labelWidget: Row(
+                    children: [
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          it.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                    Text(
-                      _formatAssetSize(candidates[i].size),
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
+                      Text(
+                        _formatAssetSize(it.size),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-          ],
-          onChanged: (v) => setState(() => _selectedAssetIndex = v ?? 0),
+              )
+              .toList(),
         ),
       ],
     );
@@ -692,113 +783,112 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     return '${(bytes / gb).toStringAsFixed(1)} GB';
   }
 
-  Widget _buildVersionTile() {
+  Widget _buildInfoTile() {
+    final javaBanDownload =
+        modListMeta.hasJava &&
+        _assetCandidates.isEmpty &&
+        !widget.downloadSource;
+    if (javaBanDownload) return SizedBox();
     final theme = Theme.of(context);
-    if (version == null) return Text('未选中任何版本，将下载至默认路径下');
+    Widget buildPathTile() {
+      final savePath = otherSavePath ?? version?.modsPath;
 
-    return Column(
-      spacing: 8,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('将下载到当前选中的版本', style: theme.textTheme.bodyLarge),
-        // Expanded(child: SizedBox()),
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+      if (savePath == null) {
+        return Text('未选中任何版本，请先选择版本或自定义存储路径');
+      }
+
+      return Column(
+        spacing: 4,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('存储路径', style: theme.textTheme.bodyMedium),
+          Row(
             spacing: 8,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(
-                version!.launcher == LauncherType.copper
-                    ? Images.copper
-                    : Images.mindustry,
-                scale: 1.5,
-              ),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.start,
-
-                children: [
-                  Text(
-                    version!.tag,
-                    style: theme.textTheme.bodyLarge,
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    savePath,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text(version!.release, style: theme.textTheme.bodySmall),
-                ],
+                ),
               ),
+              if (otherSavePath != null)
+                ReboundButton(
+                  child: Icon(Icons.delete),
+                  onTap: () => setState(() {
+                    otherSavePath = null;
+                  }),
+                ),
             ],
           ),
-        ),
-      ],
-    );
-  }
+        ],
+      );
+    }
 
-  Widget _buildPathTile() {
-    final theme = Theme.of(context);
+    if (otherSavePath != null || version == null) return buildPathTile();
+    Widget buildGameVersionTile() {
+      if (!_canDownload) return SizedBox();
 
-    final savePath = otherSavePath ?? version?.modsPath;
+      return Column(
+        spacing: 4,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('将下载到当前选中的版本', style: theme.textTheme.bodyMedium),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.max,
+              spacing: 8,
+              children: [
+                Image.asset(
+                  version!.launcher == LauncherType.copper
+                      ? Images.copper
+                      : Images.mindustry,
+                  scale: 1.5,
+                ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
 
-    if (savePath == null) {
-      return Text('未选中任何版本,请先选择版本或自定义存储路径');
+                  children: [
+                    Text(
+                      version!.tag,
+                      style: theme.textTheme.bodyLarge,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(version!.release, style: theme.textTheme.bodySmall),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
     }
 
     return Column(
-      spacing: 8,
+      spacing: 4,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('存储路径', style: theme.textTheme.bodyLarge),
-        Row(
-          spacing: 8,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Expanded(
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  savePath,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-            if (otherSavePath != null)
-              ReboundButton(
-                child: Icon(Icons.delete),
-                onTap: () => setState(() {
-                  otherSavePath = null;
-                }),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTile() {
-    final theme = Theme.of(context);
-
-    if (otherSavePath != null || version == null) return _buildPathTile();
-
-    return Column(
-      spacing: 8,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildVersionTile(),
+        buildGameVersionTile(),
         if (!(version?.isolation ?? false))
           Text(
             '当前版本未隔离,将下载至默认路径,建议到设置中开启隔离模式',
-            style: theme.textTheme.bodySmall,
+            style: theme.textTheme.labelMedium,
           ),
-        _buildPathTile(),
+        buildPathTile(),
       ],
     );
   }
@@ -813,117 +903,131 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+
+    final info = Column(
+      spacing: 4,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          spacing: 8,
+          children: [
+            ReboundButton(
+              child: Icon(Icons.arrow_back_ios_new, size: 18),
+              onTap: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            Expanded(
+              child: Text(
+                '下载  ${modListMeta.name}  ${modMeta?.tag ?? ''}',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+            SizedBox(width: 8),
+          ],
+        ),
+
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: _buildAssetSelection(),
+        ),
+
+        Divider(thickness: 2, indent: 32, endIndent: 32, color: colors.border),
+
+        AnimatedSize(
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.fastEaseInToSlowEaseOut,
+          child: AnimatedSwitcher(
+            duration: Duration(milliseconds: 400),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeOut,
+            transitionBuilder: (child, animation) {
+              final opacity = CurvedAnimation(
+                parent: animation,
+                curve: Interval(0.7, 1.0),
+                reverseCurve: Interval(0.7, 1.0),
+              );
+
+              return FadeTransition(opacity: opacity, child: child);
+            },
+            child: KeyedSubtree(
+              key: ValueKey(otherSavePath ?? ''),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: _buildInfoTile(),
+              ),
+            ),
+          ),
+        ),
+        Center(
+          child: IconTextButton(
+            icon: Icons.file_open_outlined,
+            content: '选择其他路径',
+            onTap: () => _chooseOtherSavePath(),
+          ),
+        ),
+      ],
+    );
+
+    final startButton = AnimatedOpacitySize(
+      child: _canDownload
+          ? ReboundButton(
+              pressedScale: 0.95,
+              elevation: 2,
+              hoverElevation: 4,
+              onTap: () => _download(),
+              child: SizedBox(
+                width: 150,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.file_download_outlined,
+                      size: 40,
+                      color: theme.colorScheme.secondary,
+                    ),
+                    Text(
+                      '开始下载',
+                      style: theme.textTheme.displayMedium?.copyWith(
+                        color: theme.colorScheme.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : null,
+    );
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
-
       children: [
         Material(
           color: Colors.transparent,
           elevation: 4,
           shadowColor: Colors.black,
           child: Container(
-            width: 500,
-            padding: EdgeInsets.all(8),
-            constraints: BoxConstraints(maxHeight: 380),
+            width: MediaQuery.of(context).size.width * 0.6,
+            padding: EdgeInsets.all(12),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.9 - 60,
+            ),
             decoration: BoxDecoration(
               color: theme.colorScheme.secondaryContainer,
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Column(
-              spacing: 8,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  spacing: 8,
-                  children: [
-                    ReboundButton(
-                      child: Icon(Icons.arrow_back_ios_new),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    Expanded(
-                      child: Text(
-                        '下载 ${modMeta?.name ?? modListMeta.name}',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                  ],
-                ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.fastEaseInToSlowEaseOut,
-                  child: AnimatedSwitcher(
-                    duration: Duration(milliseconds: 400),
-                    switchInCurve: Curves.easeOut,
-                    switchOutCurve: Curves.easeOut,
-                    transitionBuilder: (child, animation) {
-                      final opacity = CurvedAnimation(
-                        parent: animation,
-                        curve: Interval(0.7, 1.0),
-                        reverseCurve: Interval(0.7, 1.0),
-                      );
-
-                      return FadeTransition(opacity: opacity, child: child);
-                    },
-                    child: KeyedSubtree(
-                      key: ValueKey(otherSavePath ?? ''),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        child: _buildTile(),
-                      ),
-                    ),
-                  ),
-                ),
-                _buildAssetSelection(),
-                Center(
-                  child: IconTextButton(
-                    icon: Icons.file_open_outlined,
-                    content: '选择其他路径',
-                    onTap: () => _chooseOtherSavePath(),
-                  ),
-                ),
-              ],
-            ),
+            child: SingleChildScrollView(child: info),
           ),
         ),
-        SizedBox(height: 16),
-        ReboundButton(
-          pressedScale: 0.95,
-          elevation: 2,
-          hoverElevation: 4,
-          onTap: () => _download(),
-          child: SizedBox(
-            width: 150,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.file_download_outlined,
-                  size: 40,
-                  color: theme.colorScheme.secondary,
-                ),
-                Text(
-                  '开始下载',
-                  style: theme.textTheme.displayMedium?.copyWith(
-                    color: theme.colorScheme.secondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        const SizedBox(height: 8),
+        startButton,
       ],
     );
   }
