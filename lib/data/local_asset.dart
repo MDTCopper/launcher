@@ -267,9 +267,9 @@ class Mod {
       if (key == 'dependencies') return MapEntry(key, value);
       return MapEntry(key, value.toString());
     }));
-    json['java'] = bool.tryParse(json['java']);
-    json['hidden'] = bool.tryParse(json['hidden']);
-    return _$ModFromJson(json);
+    json['java'] = bool.tryParse(json['java'] ?? '');
+    json['hidden'] = bool.tryParse(json['hidden'] ?? '');
+    return _$ModFromJson(json)..icon = icon;
   }
 
   Map<String, dynamic> toJson() => _$ModToJson(this);
