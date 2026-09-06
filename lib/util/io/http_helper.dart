@@ -57,9 +57,9 @@ class HttpDownloadState {
   }
 
   String get speedText {
-    if (speed < kb) return '${speed.toStringAsFixed(1)} B/s';
-    if (speed < mb) return '${(speed / kb).toStringAsFixed(1)} KB/s';
-    return '${(speed / mb).toStringAsFixed(1)} MB/s';
+    if (speed < KB) return '${speed.toStringAsFixed(1)} B/s';
+    if (speed < MB) return '${(speed / KB).toStringAsFixed(1)} KB/s';
+    return '${(speed / MB).toStringAsFixed(1)} MB/s';
   }
 
   String get progressText {
@@ -438,7 +438,7 @@ class HttpHelper {
     final bool rangeSupported =
         headResp.headers.value('accept-ranges')?.toLowerCase() == 'bytes';
 
-    if (totalSize <= 0 || !rangeSupported || totalSize < 2 * mb) {
+    if (totalSize <= 0 || !rangeSupported || totalSize < 2 * MB) {
       await _downloadSingleStream(
         url: url,
         savePath: savePath,
@@ -577,10 +577,10 @@ class HttpHelper {
     HttpStatusCallback? onStatus,
     Map<String, String>? headers,
   }) async {
-    if (totalSize < 2 * mb) {
-      chunkCount = totalSize ~/ (500 * kb);
+    if (totalSize < 2 * MB) {
+      chunkCount = totalSize ~/ (500 * KB);
     } else {
-      chunkCount = min(chunkCount, totalSize ~/ (2 * mb));
+      chunkCount = min(chunkCount, totalSize ~/ (2 * MB));
     }
     chunkCount = max(1, chunkCount);
 

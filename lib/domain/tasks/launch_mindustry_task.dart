@@ -87,6 +87,7 @@ class LaunchMindustryTask extends Task {
 
     // 自动分配内存：可用内存 + 启用 mod 体积估算合适的最大堆
     maxMemory ??= await _autoAllocateMemory(mindustry);
+    print(maxMemory);
 
     String? javaPath = mindustry.java ?? launchOption.javaOptions.selectedJava;
 
@@ -114,7 +115,8 @@ class LaunchMindustryTask extends Task {
     final account = config.setting.currentAccount;
     if (account != null) {
       setting.name = account.name;
-      setting.uuid = account.uuid;
+      // 禁止
+      // setting.uuid = account.uuid;
       setting.color0 = account.color;
     }
 
@@ -152,8 +154,7 @@ class LaunchMindustryTask extends Task {
           final now = DateTime.now();
           mindustry.lastLaunchTime = now;
           final duration = now.difference(launchStart);
-          mindustry.playTime =
-              (mindustry.playTime ?? Duration.zero) + duration;
+          mindustry.playTime = (mindustry.playTime ?? Duration.zero) + duration;
           _launchStartTime = null;
           // 退出回调非异步上下文，fire-and-forget 保存（后续任务流程会再 save）
           config.save();
@@ -190,7 +191,10 @@ class LaunchMindustryTask extends Task {
   /// 自动分配内存：可用内存 + 启用 mod 体积估算合适的最大堆。
   Future<Memory> _autoAllocateMemory(Mindustry mindustry) async {
     final available = await SysInfo.getUsablePhysicalMemory();
-    final modTotal = await sumEnabledModSizes(mindustry.modsPath);
+    final modTotal = await sumEnabledModSizes(
+      mindustry.modsPath,
+      settingsPath: mindustry.settingPath,
+    );
     return AutoMemory.estimate(
       availableBytes: available,
       enabledModTotalBytes: modTotal,

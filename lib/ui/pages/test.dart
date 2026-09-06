@@ -73,14 +73,14 @@ class TestState extends State<Test> {
             name: 'JavaMultiMod-0.8.jar',
             url:
                 'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/JavaMultiMod-0.8.jar',
-            size: 2 * mb,
+            size: 2 * MB,
             downloadCount: 12,
           ),
           GithubApiReleaseAsset(
             name: 'JavaMultiMod-1.2.jar',
             url:
                 'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/JavaMultiMod-1.2.jar',
-            size: 5 * mb,
+            size: 5 * MB,
             downloadCount: 88, // 体积最大 = mod 本体，应排最前
           ),
         ],
@@ -98,14 +98,14 @@ class TestState extends State<Test> {
             name: 'ScriptMultiMod-0.3.zip',
             url:
                 'https://github.com/mock/ScriptMultiMod/releases/download/v0.3.0/a.zip',
-            size: 1 * mb,
+            size: 1 * MB,
             downloadCount: 30,
           ),
           GithubApiReleaseAsset(
             name: 'ScriptMultiMod-0.2.zip',
             url:
                 'https://github.com/mock/ScriptMultiMod/releases/download/v0.3.0/b.zip',
-            size: 512 * kb,
+            size: 512 * KB,
             downloadCount: 5,
           ),
         ],
@@ -123,7 +123,7 @@ class TestState extends State<Test> {
             name: 'README.md',
             url:
                 'https://github.com/mock/JavaNoAssetMod/releases/download/v0.9.0/README.md',
-            size: 2 * kb,
+            size: 2 * KB,
             downloadCount: 0,
           ),
         ],
@@ -141,7 +141,7 @@ class TestState extends State<Test> {
             name: 'ScriptSingleMod-1.0.zip',
             url:
                 'https://github.com/mock/ScriptSingleMod/releases/download/v1.0.0/single.zip',
-            size: 3 * mb,
+            size: 3 * MB,
             downloadCount: 66,
           ),
         ],

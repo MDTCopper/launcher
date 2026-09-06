@@ -96,7 +96,10 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     final version = config.versionOptions.selectedVersion;
     _autoModTotalBytes = version == null
         ? 0
-        : await sumEnabledModSizes(version.modsPath);
+        : await sumEnabledModSizes(
+            version.modsPath,
+            settingsPath: version.settingPath,
+          );
   }
 
   /// 用当前可用内存 + 已缓存的 mod 体积刷新自动分配估算值
@@ -542,7 +545,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
         setState(() {
           final rank = (value * divisions).round();
           launchOptions.memory = Memory(
-            bytes: (memoryRankList[rank] * gb).toInt(),
+            bytes: (memoryRankList[rank] * GB).toInt(),
           );
           config.save();
         });

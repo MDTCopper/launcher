@@ -53,10 +53,10 @@ class Downloader {
 
     final int num;
 
-    if (totalSize < 2 * mb) {
-      num = totalSize ~/ (500 * kb);
+    if (totalSize < 2 * MB) {
+      num = totalSize ~/ (500 * KB);
     } else {
-      num = totalSize ~/ (2 * mb);
+      num = totalSize ~/ (2 * MB);
     }
 
     chunkNum = min(chunkNum, num);

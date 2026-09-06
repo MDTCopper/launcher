@@ -168,26 +168,26 @@ class DownloadJavaModTask extends Task {
     String progress;
     String downloadSpeed;
 
-    if (totalSize < kb) {
+    if (totalSize < KB) {
       progress =
           '${downloadedSize.toStringAsFixed(1)}/${totalSize.toStringAsFixed(1)}B';
-    } else if (totalSize < mb) {
+    } else if (totalSize < MB) {
       progress =
-          '${(downloadedSize / kb).toStringAsFixed(1)}/${(totalSize / kb).toStringAsFixed(1)}KB';
-    } else if (totalSize < gb) {
+          '${(downloadedSize / KB).toStringAsFixed(1)}/${(totalSize / KB).toStringAsFixed(1)}KB';
+    } else if (totalSize < GB) {
       progress =
-          '${(downloadedSize / mb).toStringAsFixed(1)}/${(totalSize / mb).toStringAsFixed(1)}MB';
+          '${(downloadedSize / MB).toStringAsFixed(1)}/${(totalSize / MB).toStringAsFixed(1)}MB';
     } else {
       progress =
-          '${(downloadedSize / gb).toStringAsFixed(1)}/${(totalSize / gb).toStringAsFixed(1)}GB';
+          '${(downloadedSize / GB).toStringAsFixed(1)}/${(totalSize / GB).toStringAsFixed(1)}GB';
     }
 
-    if (speed < kb) {
+    if (speed < KB) {
       downloadSpeed = '${(speed).toStringAsFixed(1)}B/S';
-    } else if (speed < mb) {
-      downloadSpeed = '${(speed / kb).toStringAsFixed(1)}KB/S';
+    } else if (speed < MB) {
+      downloadSpeed = '${(speed / KB).toStringAsFixed(1)}KB/S';
     } else {
-      downloadSpeed = '${(speed / mb).toStringAsFixed(1)}MB/S';
+      downloadSpeed = '${(speed / MB).toStringAsFixed(1)}MB/S';
     }
     if (speed <= 0) {
       downloadSpeed = '0B/S';
@@ -304,7 +304,7 @@ class DownloadZipModTask extends Task {
       return;
     }
     //没有总大小，只能做一个伪进度
-    total = 2 * mb;
+    total = 2 * MB;
     progress = size / (total + size);
   }
 
@@ -445,23 +445,23 @@ class DownloadZipModTask extends Task {
     String progress;
     String downloadSpeed;
 
-    if (downloadedSize < kb) {
+    if (downloadedSize < KB) {
       progress = '${downloadedSize.toStringAsFixed(1)}B/';
       progress += totalSize == -1 ? '...' : totalSize.toStringAsFixed(1);
-    } else if (downloadedSize < mb) {
-      progress = '${(downloadedSize / kb).toStringAsFixed(1)}KB/';
-      progress += totalSize == -1 ? '...' : (totalSize / kb).toStringAsFixed(1);
+    } else if (downloadedSize < MB) {
+      progress = '${(downloadedSize / KB).toStringAsFixed(1)}KB/';
+      progress += totalSize == -1 ? '...' : (totalSize / KB).toStringAsFixed(1);
     } else {
-      progress = '${(downloadedSize / mb).toStringAsFixed(1)}MB/';
-      progress += totalSize == -1 ? '...' : (totalSize / mb).toStringAsFixed(1);
+      progress = '${(downloadedSize / MB).toStringAsFixed(1)}MB/';
+      progress += totalSize == -1 ? '...' : (totalSize / MB).toStringAsFixed(1);
     }
 
-    if (speed < kb) {
+    if (speed < KB) {
       downloadSpeed = '${(speed).toStringAsFixed(1)}B/S';
-    } else if (speed < mb) {
-      downloadSpeed = '${(speed / kb).toStringAsFixed(1)}KB/S';
+    } else if (speed < MB) {
+      downloadSpeed = '${(speed / KB).toStringAsFixed(1)}KB/S';
     } else {
-      downloadSpeed = '${(speed / mb).toStringAsFixed(1)}MB/S';
+      downloadSpeed = '${(speed / MB).toStringAsFixed(1)}MB/S';
     }
     if (speed <= 0) {
       downloadSpeed = '0B/S';
@@ -549,7 +549,7 @@ class DownloadSourceModTask extends Task {
       return;
     }
     // 源码 zip 无总大小，伪进度
-    total = 2 * mb;
+    total = 2 * MB;
     progress = size / (total + size);
   }
 
@@ -716,22 +716,22 @@ class DownloadSourceModTask extends Task {
     if (downloadedSize == 0) return '等待连接...';
     String progress;
     String downloadSpeed;
-    if (downloadedSize < kb) {
+    if (downloadedSize < KB) {
       progress = '${downloadedSize.toStringAsFixed(1)}B/';
       progress += totalSize == -1 ? '...' : totalSize.toStringAsFixed(1);
-    } else if (downloadedSize < mb) {
-      progress = '${(downloadedSize / kb).toStringAsFixed(1)}KB/';
-      progress += totalSize == -1 ? '...' : (totalSize / kb).toStringAsFixed(1);
+    } else if (downloadedSize < MB) {
+      progress = '${(downloadedSize / KB).toStringAsFixed(1)}KB/';
+      progress += totalSize == -1 ? '...' : (totalSize / KB).toStringAsFixed(1);
     } else {
-      progress = '${(downloadedSize / mb).toStringAsFixed(1)}MB/';
-      progress += totalSize == -1 ? '...' : (totalSize / mb).toStringAsFixed(1);
+      progress = '${(downloadedSize / MB).toStringAsFixed(1)}MB/';
+      progress += totalSize == -1 ? '...' : (totalSize / MB).toStringAsFixed(1);
     }
-    if (speed < kb) {
+    if (speed < KB) {
       downloadSpeed = '${(speed).toStringAsFixed(1)}B/S';
-    } else if (speed < mb) {
-      downloadSpeed = '${(speed / kb).toStringAsFixed(1)}KB/S';
+    } else if (speed < MB) {
+      downloadSpeed = '${(speed / KB).toStringAsFixed(1)}KB/S';
     } else {
-      downloadSpeed = '${(speed / mb).toStringAsFixed(1)}MB/S';
+      downloadSpeed = '${(speed / MB).toStringAsFixed(1)}MB/S';
     }
     if (speed <= 0) {
       downloadSpeed = '0B/S';

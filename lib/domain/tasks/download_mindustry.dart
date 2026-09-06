@@ -59,20 +59,6 @@ class DownloadMindustryTask extends Task {
 
   @override
   Future<void> runTask() async {
-    // progress = 0.0;
-    // totalSize = 80 * mb;
-    // await Future.delayed(const Duration(seconds: 2));
-    // for (int i = 0; i < 1000; i++) {
-    //   if (status != TaskStatus.process) return;
-    //   final i = Random().nextInt(300) + 20;
-    //   await Future.delayed(Duration(milliseconds: i));
-    //   progress = progress! + 0.1 * 0.01;
-    //   downloadedSize = (totalSize * progress!).toInt();
-    //   updateDisplay();
-    // }
-    // _status = TaskStatus.completed;
-    // updateDisplay();
-    // return;
     await _download();
   }
 
@@ -196,26 +182,26 @@ class DownloadMindustryTask extends Task {
     String progress;
     String downloadSpeed;
 
-    if (totalSize < kb) {
+    if (totalSize < KB) {
       progress =
           '${downloadedSize.toStringAsFixed(1)}/${totalSize.toStringAsFixed(1)}B';
-    } else if (totalSize < mb) {
+    } else if (totalSize < MB) {
       progress =
-          '${(downloadedSize / kb).toStringAsFixed(1)}/${(totalSize / kb).toStringAsFixed(1)}KB';
-    } else if (totalSize < gb) {
+          '${(downloadedSize / KB).toStringAsFixed(1)}/${(totalSize / KB).toStringAsFixed(1)}KB';
+    } else if (totalSize < GB) {
       progress =
-          '${(downloadedSize / mb).toStringAsFixed(1)}/${(totalSize / mb).toStringAsFixed(1)}MB';
+          '${(downloadedSize / MB).toStringAsFixed(1)}/${(totalSize / MB).toStringAsFixed(1)}MB';
     } else {
       progress =
-          '${(downloadedSize / gb).toStringAsFixed(1)}/${(totalSize / gb).toStringAsFixed(1)}GB';
+          '${(downloadedSize / GB).toStringAsFixed(1)}/${(totalSize / GB).toStringAsFixed(1)}GB';
     }
 
-    if (speed < kb) {
+    if (speed < KB) {
       downloadSpeed = '${(speed).toStringAsFixed(1)}B/S';
-    } else if (speed < mb) {
-      downloadSpeed = '${(speed / kb).toStringAsFixed(1)}KB/S';
+    } else if (speed < MB) {
+      downloadSpeed = '${(speed / KB).toStringAsFixed(1)}KB/S';
     } else {
-      downloadSpeed = '${(speed / mb).toStringAsFixed(1)}MB/S';
+      downloadSpeed = '${(speed / MB).toStringAsFixed(1)}MB/S';
     }
     if (speed <= 0) {
       downloadSpeed = '0B/S';

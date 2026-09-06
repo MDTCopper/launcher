@@ -263,46 +263,55 @@ class WindowSize {
 }
 
 class Memory {
-  final int n;
+  final int memory;
 
-  int get bytes => n;
+  int get bytes => memory;
 
-  int get kb => n ~/ 1024;
+  int get kb => memory ~/ KB;
 
-  double get inKB => n / 1024;
+  double get inKB => memory / KB;
 
-  int get mb => n ~/ 1024 ~/ 1024;
+  int get mb => memory ~/ MB;
 
-  double get inMB => inKB / 1024;
+  double get inMB => memory / MB;
 
-  int get gb => n ~/ 1024 ~/ 1024 ~/ 1024;
+  int get gb => memory ~/ GB;
 
-  double get inGB => inMB / 1024;
+  double get inGB => memory / GB;
 
-  Memory operator +(Memory other) => Memory(bytes: other.n + n);
+  Memory operator +(Memory other) => Memory(bytes: memory + other.memory);
 
-  Memory operator -(Memory other) => Memory(bytes: n - other.n);
+  Memory operator -(Memory other) => Memory(bytes: memory - other.memory);
 
-  Memory operator *(num other) => Memory(bytes: (n * other).toInt());
+  Memory operator *(num other) => Memory(bytes: (memory * other).toInt());
 
-  Memory operator /(num other) => Memory(bytes: (n / other).toInt());
+  Memory operator /(num other) => Memory(bytes: (memory / other).toInt());
 
-  Memory operator ~/(num other) => Memory(bytes: n ~/ other);
+  Memory operator ~/(num other) => Memory(bytes: memory ~/ other);
 
   const Memory({int? bytes, int? kb, int? mb, int? gb})
-    : n =
-          (bytes ?? 0) +
-          (kb ?? 0) * 1024 +
-          (mb ?? 0) * 1024 * 1024 +
-          (gb ?? 0) * 1024 * 1024 * 1024;
+    : memory = (bytes ?? 0) + (kb ?? 0) * KB + (mb ?? 0) * MB + (gb ?? 0) * GB;
 
-  bool operator >(Memory o) => n > o.n;
+  bool operator >(Memory o) => memory > o.memory;
 
-  bool operator >=(Memory o) => n >= o.n;
+  bool operator >=(Memory o) => memory >= o.memory;
 
-  bool operator <(Memory o) => n < o.n;
+  bool operator <(Memory o) => memory < o.memory;
 
-  bool operator <=(Memory o) => n <= o.n;
+  bool operator <=(Memory o) => memory <= o.memory;
+
+  @override
+  String toString() {
+    String addtion = '';
+    if (bytes > 1 * 1024 * 1024 * 1024) {
+      addtion = '(${(bytes / 1024 / 1024 / 1024).toStringAsFixed(1)}GB)';
+    } else if (bytes > 1 * 1024 * 1024) {
+      addtion = '(${(bytes / 1024 / 1024).toStringAsFixed(1)}MB)';
+    } else if (bytes > 1 * 1024) {
+      addtion = '(${(bytes / 1024).toStringAsFixed(1)}KB)';
+    }
+    return 'Memory: $bytes B $addtion';
+  }
 }
 
 @JsonSerializable()
@@ -322,7 +331,7 @@ class LaunchOptions {
 
   set memory(Memory value) => memorySize = value.bytes;
 
-  @JsonKey(defaultValue: 1 * gb)
+  @JsonKey(defaultValue: 1 * GB)
   int memorySize;
 
   @JsonKey(defaultValue: true)
@@ -449,7 +458,7 @@ class DownloadOptions {
 
   @JsonKey(defaultValue: '')
   String downloadPath;
-  @JsonKey(defaultValue: 2 * mb)
+  @JsonKey(defaultValue: 2 * MB)
   int speedLimitBytes;
   @JsonKey(defaultValue: 8)
   int maxTread;

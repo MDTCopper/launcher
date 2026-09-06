@@ -685,7 +685,10 @@ class _SettingState extends State<_Setting> {
 
   /// 加载该版本启用 mod 的体积之和（自动分配的 mod 依据）
   Future<void> _loadAutoModTotal() async {
-    _autoModTotalBytes = await sumEnabledModSizes(_mindustry.modsPath);
+    _autoModTotalBytes = await sumEnabledModSizes(
+      _mindustry.modsPath,
+      settingsPath: _mindustry.settingPath,
+    );
   }
 
   /// 用当前可用内存 + 已缓存的 mod 体积刷新自动分配估算值
@@ -843,7 +846,7 @@ class _SettingState extends State<_Setting> {
         setState(() {
           final rank = (value * divisions).round();
           _mindustry.memory = Memory(
-            bytes: (memoryRankList[rank] * gb).toInt(),
+            bytes: (memoryRankList[rank] * GB).toInt(),
           );
           saveTimer?.cancel();
           saveTimer = Timer(const Duration(seconds: 1), () {

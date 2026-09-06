@@ -1,5 +1,6 @@
-const b = 1;
-const kb = b * 1024;
-const mb = kb * 1024;
-const gb = mb * 1024;
+// ignore_for_file: constant_identifier_names
 
+const B = 1;
+const KB = B * 1024;
+const MB = KB * 1024;
+const GB = MB * 1024;
