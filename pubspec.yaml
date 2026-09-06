@@ -50,6 +50,7 @@ dependencies:
   material_symbols_icons: ^4.2960.0
   jni: ^1.0.3
   jni_flutter: ^1.0.3
+  permission_handler: ^13.0.2
 
 dev_dependencies:
   flutter_test:

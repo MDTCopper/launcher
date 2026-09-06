@@ -195,7 +195,6 @@ class FileReader {
     try {
       return build();
     } catch (e) {
-      print(e);
       return null;
     }
   }

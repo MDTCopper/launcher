@@ -87,7 +87,6 @@ class LaunchMindustryTask extends Task {
 
     // 自动分配内存：可用内存 + 启用 mod 体积估算合适的最大堆
     maxMemory ??= await _autoAllocateMemory(mindustry);
-    print(maxMemory);
 
     String? javaPath = mindustry.java ?? launchOption.javaOptions.selectedJava;
 

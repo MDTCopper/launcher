@@ -65,22 +65,20 @@ class AutoMemory {
     }
 
     // 分档收紧：可用 ≤ 阈值用 80%，超出部分 20%，再封顶硬上限
-    int capBytes;
-    if (suggestedBytes <= _thresholdBytes) {
-      capBytes = (suggestedBytes * _tightRatio).round();
+
+    int cap;
+    if (usableBytes <= _thresholdBytes) {
+      cap = (usableBytes * _tightRatio).round();
     } else {
-      capBytes =
+      cap =
           ((_thresholdBytes * _tightRatio) +
-                  (suggestedBytes - _thresholdBytes) * _excessRatio)
+                  (usableBytes - _thresholdBytes) * _excessRatio)
               .round();
     }
 
-    capBytes = min(capBytes, _hardLimitBytes);
+    cap = min(cap, _hardLimitBytes);
 
-    if (suggestedBytes > capBytes) {
-      suggestedBytes = capBytes;
-    }
-    suggestedBytes = min(capBytes, suggestedBytes);
+    suggestedBytes = min(cap, suggestedBytes);
 
     return Memory(bytes: suggestedBytes);
   }

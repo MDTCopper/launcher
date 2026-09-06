@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../app_paths.dart';
 import 'process_controller.dart';
@@ -84,12 +86,13 @@ class PathSelector {
     return files.map((file) => file.path).toList();
   }
 
-  //TODO 安卓端文件定位
   static Future<void> _locateFileOnAndroid(String path) async {
-    // 申请存储权限（Android 13+需读取权限）
-    final bool hasPermission = await _requestAndroidFilePermission();
+    // 申请存储权限（公共存储路径需要；应用私有目录无需）
+    final bool hasPermission = await _requestAndroidFilePermission(
+      path,
+    ); //私有目录直接通过
     if (!hasPermission) {
-      throw Exception('安卓端暂时不支持文件定位');
+      throw Exception('暂时不支持文件定位');
     }
 
     final File file = File(path);
@@ -101,18 +104,41 @@ class PathSelector {
       if (result.type != ResultType.done) {
         //兜底
         await OpenFilex.open(folderPath, type: "folder");
-        print("Android文件管理器不支持直接定位，已打开所在文件夹：$folderPath");
+        addLogAndPrint(.warning, "Android文件管理器不支持直接定位，已打开所在文件夹：$folderPath");
       }
     } catch (e) {
       // 最终兜底：打开文件夹
       await OpenFilex.open(folderPath, type: "folder");
-      print("Android文件定位异常，已打开所在文件夹：$e");
+      addLogAndPrint(.warning, "Android文件定位异常，已打开所在文件夹：$e");
     }
   }
 
-  static Future<bool> _requestAndroidFilePermission() async {
-    //TODO 存储权限申请
+  /// 申请安卓存储权限
+  ///
+  /// 应用私有目录（[AppPaths.applicationSupportPath]）内的路径经 OpenFilex /
+  /// FileProvider 即可打开，无需任何存储权限，直接放行；
+  /// 公共存储路径按版本申请：Android 11+ 用 所有文件访问
+  /// （MANAGE_EXTERNAL_STORAGE，跳系统设置），更旧的版本降级用传统
+  /// 存储权限（READ / WRITE_EXTERNAL_STORAGE，maxSdk 32）
+  static Future<bool> _requestAndroidFilePermission(String path) async {
+    // 私有目录无需权限（避免 Android 13+ 传统存储权限已失效却仍弹申请）
+    final prefix = AppPaths.applicationSupportPath;
+    if (path == prefix || path.startsWith('$prefix${Platform.pathSeparator}')) {
+      return true;
+    }
 
-    return false;
+    var granted = await Permission.manageExternalStorage.isGranted;
+    if (!granted) {
+      granted =
+          await Permission.manageExternalStorage.request() ==
+          PermissionStatus.granted;
+    }
+    // 旧版本不支持 MANAGE_EXTERNAL_STORAGE（request 会直接 denied），降级传统权限
+    if (!granted) {
+      granted =
+          await Permission.storage.isGranted ||
+          await Permission.storage.request() == PermissionStatus.granted;
+    }
+    return granted;
   }
 }

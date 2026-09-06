@@ -124,13 +124,15 @@ class _VersionSettingState extends State<VersionSettingPage>
             selected: _index == 2,
             collapse: collapse,
           ),
-          NavigationTile(
-            icon: Icon(Icons.outbox_outlined),
-            content: '资源打包',
-            onTap: () => moveTo(3),
-            selected: _index == 3,
-            collapse: collapse,
-          ),
+          //TODO: 后续再做
+          if (kDebugMode)
+            NavigationTile(
+              icon: Icon(Icons.outbox_outlined),
+              content: '资源打包',
+              onTap: () => moveTo(3),
+              selected: _index == 3,
+              collapse: collapse,
+            ),
         ],
       ),
       page: pages[_index],
