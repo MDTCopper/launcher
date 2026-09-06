@@ -106,13 +106,15 @@ class MindustryLauncher {
 
       // 隔离时补环境变量：官方 ClientLauncher 先读 -Dmindustry.data.dir、读不到退回
       // MINDUSTRY_DATA_DIR；更低版本则直接读 MINDUSTRY 环境变量（旧写法）。
-      // 双写兼容，Process.start 传 environment 会整体替换子进程环境，
-      // 需手动合并父环境，避免丢 PATH 等
+      // 实测 v88 类老版本（io.anuke 时代）Windows 数据目录固定取 %APPDATA%\Mindustry，
+      // 不认任何数据开关，需用 APPDATA 环境变量定向到隔离容器（新版 -D 优先，APPDATA 无副作用）。
+      // Process.start 传 environment 会整体替换子进程环境，需手动合并父环境，避免丢 PATH 等
       final environment = mindustry.isolation
           ? {
               ...Platform.environment,
               'MINDUSTRY_DATA_DIR': mindustry.dataPath,
               'MINDUSTRY': mindustry.dataPath,
+              if (Platform.isWindows) 'APPDATA': mindustry.dataPath,
             }
           : null;
 

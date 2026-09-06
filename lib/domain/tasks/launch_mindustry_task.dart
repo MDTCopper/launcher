@@ -4,6 +4,7 @@ import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
+import 'package:copper_launcher/util/io/java_compat.dart';
 import 'package:copper_launcher/util/system_info.dart';
 import 'package:flutter/material.dart';
 
@@ -91,13 +92,11 @@ class LaunchMindustryTask extends Task {
     String? javaPath = mindustry.java ?? launchOption.javaOptions.selectedJava;
 
     if (javaPath == 'auto') {
-      javaPath = null;
-      final javas = launchOption.javaOptions.javas;
-      for (var it in javas) {
-        if ((it.version ?? 0) < 17) continue;
-        javaPath = it.path;
-        break;
-      }
+      // 按游戏版本查推荐 JVM（老版本配老 JVM），在已发现 JVM 里选最近匹配
+      javaPath = _autoPickJava(
+        launchOption.javaOptions.javas,
+        mindustry.releaseInt,
+      );
     }
 
     final List<String> args =
@@ -185,6 +184,29 @@ class LaunchMindustryTask extends Task {
         updateDisplay();
       }
     });
+  }
+
+  /// 自动选择 Java：按游戏版本查推荐大版本，优先主版本精确匹配，
+  /// 没有则取「高于目标的最低可用」，再兜底任意已发现 JVM。
+  String? _autoPickJava(List<JavaInfo> javas, int releaseInt) {
+    final target = JavaCompat.recommendedFor(releaseInt);
+
+    JavaInfo? exact;
+    var bestHigherVersion = -1;
+    JavaInfo? higherPick;
+    JavaInfo? anyPick;
+
+    for (final it in javas) {
+      final version = it.version ?? 0;
+      if (version == target && exact == null) exact = it;
+      if (version > target && (bestHigherVersion == -1 || version < bestHigherVersion)) {
+        bestHigherVersion = version;
+        higherPick = it;
+      }
+      if (anyPick == null && it.version != null) anyPick = it;
+    }
+
+    return (exact ?? higherPick ?? anyPick)?.path;
   }
 
   /// 自动分配内存：可用内存 + 启用 mod 体积估算合适的最大堆。
