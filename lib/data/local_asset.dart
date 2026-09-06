@@ -182,7 +182,7 @@ class MindustryMeta {
 /// Mod 状态标记，对齐 Mindustry `Mods.ModState`。
 ///
 /// settings.bin 只持久化「是否启用」（`mod-<name>-enabled`），
-/// 其余状态（依赖缺失、内容错误等）是游戏加载时的运行时状态。
+/// 其余状态（依赖缺失、内容错误等）是游戏加载时的运行时状态
 enum ModState {
   /// 启用。
   enabled('启用'),

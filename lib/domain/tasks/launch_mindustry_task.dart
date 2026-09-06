@@ -56,26 +56,51 @@ class LaunchMindustryTask extends Task {
 
     final launchOption = config.setting.launchOptions;
 
+    // 老配置可能没存大版本号（下载前），启动时从 jar 的 version.properties 补读一次并回写；
+    // 新下载的版本已有 versionNumber，跳过此 IO
+    if (mindustry.versionNumber == null) {
+      try {
+        final major = int.tryParse(
+          (await FileReader.fromPath(
+            mindustry.jarPath,
+          )).mindustry?.version ?? '',
+        );
+        if (major != null) {
+          mindustry.versionNumber = major;
+          config.save();
+        }
+      } catch (_) {
+        // 读取失败仅影响后续降级判定，不阻塞启动
+      }
+    }
+
+    // settings.bin 覆写支持：仅 v7+（build ≥ 136，大版本 ≥ 7；数据目录才在版本内）。
+    // 低版本（io.anuke 时代）数据固定在 %APPDATA%，写入无效且无意义，整体跳过覆写
+    final supportsSettingsOverride =
+        (mindustry.versionNumber ?? mindustry.releaseInt) >= 7;
+
     final settingPath = mindustry.settingPath;
     final setting = MindustrySettings.fromFile(settingPath);
 
-    //窗口大小和最大化在jvm的启动参数
+    //窗口大小和最大化在jvm的启动参数（fullscreen 写 settings.bin 需版本支持）
     WindowSize? winSize;
     bool? maximize;
+    var fullscreen = false;
     switch (launchOption.gameWindowSizeSet) {
       case GameWindowSizeSet.fullScreen:
-        setting.fullscreen = true;
+        fullscreen = true;
         break;
       case GameWindowSizeSet.gameDefault:
         break;
       case GameWindowSizeSet.maximize:
         maximize = true;
-        setting.fullscreen = false;
         break;
       case GameWindowSizeSet.custom:
         winSize = launchOption.customWindowSize;
-        setting.fullscreen = false;
         break;
+    }
+    if (supportsSettingsOverride) {
+      setting.fullscreen = fullscreen;
     }
 
     Memory? maxMemory;
@@ -93,26 +118,10 @@ class LaunchMindustryTask extends Task {
     String? javaPath = mindustry.java ?? launchOption.javaOptions.selectedJava;
 
     if (javaPath == 'auto') {
-      // 大版本优先用元数据（下载时已从 jar 的 version.properties 读入）；
-      // 老配置缺失时启动顺带读一次补齐并回写
-      var major = mindustry.versionNumber;
-      if (major == null) {
-        try {
-          final version = (await FileReader.fromPath(
-            mindustry.jarPath,
-          )).mindustry?.version;
-          major = int.tryParse(version ?? '');
-          if (major != null) {
-            mindustry.versionNumber = major;
-            config.save();
-          }
-        } catch (_) {
-          // 读取失败用 releaseInt 兜底
-        }
-      }
+      // 大版本来自 jar 的 version.properties（已在启动开头补读/下载时存好）
       javaPath = _autoPickJava(
         launchOption.javaOptions.javas,
-        major ?? mindustry.releaseInt,
+        mindustry.versionNumber ?? mindustry.releaseInt,
       );
     }
 
@@ -121,21 +130,21 @@ class LaunchMindustryTask extends Task {
           ' ',
         );
 
-    if (config.setting.mindustrySettingsOverride) {
+    if (supportsSettingsOverride && config.setting.mindustrySettingsOverride) {
       setting.applyPatch(config.setting.mindustrySettings);
     }
 
     //应用当前选中的账户：覆盖玩家的 name / uuid / color-0
     //（放在通用设置之后，账户信息优先）
     final account = config.setting.currentAccount;
-    if (account != null) {
+    if (supportsSettingsOverride && account != null) {
       setting.name = account.name;
       // 禁止
       // setting.uuid = account.uuid;
       setting.color0 = account.color;
     }
 
-    if (setting.data.isNotEmpty) {
+    if (supportsSettingsOverride && setting.data.isNotEmpty) {
       await setting.saveAsync();
     }
     // 记录本次启动时刻，游戏退出时回写 lastLaunchTime 与 playTime
