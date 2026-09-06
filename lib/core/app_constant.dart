@@ -11,6 +11,13 @@ const githubCOM = 'https://github.com';
 ///https://raw.githubusercontent.com
 const githubRAW = 'https://raw.githubusercontent.com';
 
+///remote 数据源（copper launcher 自身仓库）raw 根地址
+const remoteRawBase =
+    'https://raw.githubusercontent.com/MDTCopper/launcher/main/remote/';
+
+///版本设置适配索引文件名（引导拉取各版本 json）
+const settingAdapterIndexFile = 'setting_adapter_index.hjson';
+
 ///$githubAPI/repos/Anuken/Mindustry/releases
 const githubMindustryUrl = '$githubAPI/repos/Anuken/Mindustry/releases';
 

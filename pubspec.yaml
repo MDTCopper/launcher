@@ -64,4 +64,5 @@ dev_dependencies:
 flutter:
   assets:
     - assets/images/
+    - remote/
   uses-material-design: true

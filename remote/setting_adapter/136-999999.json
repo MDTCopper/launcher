@@ -1,0 +1,9 @@
+{
+  "update_time": "2026-06-05 00:00:00",
+  "settings": {
+    "fullscreen": "bool",
+    "name": "string",
+    "color-0": "color",
+    "mod-enabled": "modState"
+  }
+}

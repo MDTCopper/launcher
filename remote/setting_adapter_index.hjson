@@ -1,0 +1,11 @@
+// 版本设置适配索引：按 build 区间找到该版本使用的 settings.bin 可设置列表文件
+// 文件放 remote/setting_adapter/<file>；
+update_time: 2026-06-05 00:00:00,
+rules: [
+// v7 起（build >= 136）settings 在版本数据目录内，可覆写；跟随最新版本收录代表设置
+  {
+    min_build: 136,
+    max_build: 999999,
+    file: 136-999999.json
+  }
+]

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
@@ -7,6 +8,7 @@ import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +25,8 @@ Future<void> _initialize() async {
   _checkPlatform();
   WidgetsFlutterBinding.ensureInitialized();
   await AppPaths.init();
+  // 后台拉取 remote 数据源
+  unawaited(RemoteData.refresh());
   await TokenEncryptor.init();
   await initAppConfig();
   await Log.init();

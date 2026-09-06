@@ -60,6 +60,9 @@ abstract class AppPaths {
   /// [*\logs\]
   static String get logs => p.join(copperLauncher, 'logs');
 
+  /// 远程数据源缓存（remote/ 的本地副本：启动拉取覆盖，离线用缓存/内置 assets 兜底）
+  static String get remoteData => p.join(copperLauncher, 'remote_data');
+
   /// [*\config.json]
   static String get configJson => p.join(copperLauncher, 'config.json');
 
