@@ -236,7 +236,7 @@ Future<T?> showDefaultDialogPopup<T extends Object?>({
   pageBuilder,
   BoxConstraints? constraints,
   EdgeInsetsGeometry? padding,
-  (double? width, double? height)? boxRate,
+  ({double? width, double? height})? boxRate,
 }) {
   final key = PageKeyProvider.shellKey;
   final context = key.currentContext;
@@ -246,8 +246,8 @@ Future<T?> showDefaultDialogPopup<T extends Object?>({
 
   final size = MediaQuery.of(context).size;
 
-  final width = (boxRate?.$1 ?? 0.6) * size.width;
-  final height = (boxRate?.$2 ?? 0.6) * size.height;
+  final width = (boxRate?.width ?? 0.6) * size.width;
+  final height = (boxRate?.height ?? 0.6) * size.height;
 
   final c = constraints ?? BoxConstraints(maxWidth: width, maxHeight: height);
 

@@ -10,6 +10,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/util/io/print_on_debug.dart';
@@ -589,12 +590,10 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
       if (modListMeta.hasJava && _assetCandidates.isEmpty) return false;
     }
     return true;
-
-    // (widget.downloadSource ||
-    //         !(modListMeta.hasJava && _assetCandidates.isEmpty)) &&
-    //     version != null;
   }
 
+  bool get javaDownloadBan =>
+      modListMeta.hasJava && _assetCandidates.isEmpty && !widget.downloadSource;
   void _download() async {
     // 源码下载：走源码 task
     if (widget.downloadSource) {
@@ -650,7 +649,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   }
 
   /// 页面内嵌的候选资源选择：多个同类型候选用下拉选择，
-  /// 单个只读展示，没有则显示建议。
+  /// 单个只读展示，没有则显示建议
   Widget _buildAssetSelection() {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
@@ -688,15 +687,17 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
         return Row(
           spacing: 4,
           children: [
-            Icon(Icons.warning_amber, color: theme.colorScheme.error, size: 20),
+            const SizedBox(width: 12),
+            Icon(Icons.warning_amber, color: theme.colorScheme.error, size: 28),
             Expanded(
               child: Text(
                 '该版本未发布资源，请尝试下载其他版本',
-                style: theme.textTheme.bodySmall?.copyWith(
+                style: theme.textTheme.titleLarge?.copyWith(
                   color: theme.colorScheme.error,
                 ),
               ),
             ),
+            const SizedBox(width: 12),
           ],
         );
       }
@@ -794,11 +795,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   }
 
   Widget _buildInfoTile() {
-    final javaBanDownload =
-        modListMeta.hasJava &&
-        _assetCandidates.isEmpty &&
-        !widget.downloadSource;
-    if (javaBanDownload) return SizedBox();
+    if (javaDownloadBan) return SizedBox();
     final theme = Theme.of(context);
     Widget buildPathTile() {
       final savePath = otherSavePath ?? version?.modsPath;
@@ -915,34 +912,41 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
 
+    final title = Row(
+      spacing: 8,
+      children: [
+        ReboundButton(
+          child: Icon(Icons.arrow_back_ios_new, size: 18),
+          onTap: () {
+            Navigator.of(context).pop();
+          },
+        ),
+
+        Expanded(
+          child: javaDownloadBan
+              ? Text(
+                  '警告！',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: colors.error,
+                  ),
+                )
+              : Text(
+                  '下载${widget.downloadSource ? '源码' : ''} :'
+                  ' ${modListMeta.name}  ${modMeta?.tag ?? ''}',
+                  style: theme.textTheme.titleMedium,
+                  overflow: .ellipsis,
+                  maxLines: 1,
+                ),
+        ),
+        SizedBox(width: 8),
+      ],
+    );
+
     final info = Column(
       spacing: 4,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          spacing: 8,
-          children: [
-            ReboundButton(
-              child: Icon(Icons.arrow_back_ios_new, size: 18),
-              onTap: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            Expanded(
-              child: Text(
-                '下载  ${modListMeta.name}  ${modMeta?.tag ?? ''}',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-            SizedBox(width: 8),
-          ],
-        ),
+        if (javaDownloadBan) const SizedBox(),
 
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 12),
@@ -976,13 +980,23 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
             ),
           ),
         ),
-        Center(
-          child: IconTextButton(
-            icon: Icons.file_open_outlined,
-            content: '选择其他路径',
-            onTap: () => _chooseOtherSavePath(),
+        if (!javaDownloadBan)
+          Center(
+            child: IconTextButton(
+              icon: Icons.file_open_outlined,
+              content: '选择其他路径',
+              onTap: () => _chooseOtherSavePath(),
+            ),
           ),
-        ),
+      ],
+    );
+
+    final child = Column(
+      mainAxisSize: .min,
+      children: [
+        title,
+        const SizedBox(height: 8),
+        CopperSingleChildScrollView(child: info),
       ],
     );
 
@@ -1033,7 +1047,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
               color: theme.colorScheme.secondaryContainer,
               borderRadius: BorderRadius.circular(4),
             ),
-            child: SingleChildScrollView(child: info),
+            child: child,
           ),
         ),
         const SizedBox(height: 8),
