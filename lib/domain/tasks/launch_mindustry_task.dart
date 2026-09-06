@@ -4,6 +4,7 @@ import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
+import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/java_compat.dart';
 import 'package:copper_launcher/util/system_info.dart';
 import 'package:flutter/material.dart';
@@ -92,10 +93,26 @@ class LaunchMindustryTask extends Task {
     String? javaPath = mindustry.java ?? launchOption.javaOptions.selectedJava;
 
     if (javaPath == 'auto') {
-      // 按游戏版本查推荐 JVM（老版本配老 JVM），在已发现 JVM 里选最近匹配
+      // 大版本优先用元数据（下载时已从 jar 的 version.properties 读入）；
+      // 老配置缺失时启动顺带读一次补齐并回写
+      var major = mindustry.versionNumber;
+      if (major == null) {
+        try {
+          final version = (await FileReader.fromPath(
+            mindustry.jarPath,
+          )).mindustry?.version;
+          major = int.tryParse(version ?? '');
+          if (major != null) {
+            mindustry.versionNumber = major;
+            config.save();
+          }
+        } catch (_) {
+          // 读取失败用 releaseInt 兜底
+        }
+      }
       javaPath = _autoPickJava(
         launchOption.javaOptions.javas,
-        mindustry.releaseInt,
+        major ?? mindustry.releaseInt,
       );
     }
 

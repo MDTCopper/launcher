@@ -18,6 +18,9 @@ enum LauncherType { mindustry, copper }
 class Mindustry {
   final String id;
 
+  ///正式版 形如 v146
+  ///
+  /// be版 形如 28888
   final String release;
 
   ///存储路径
@@ -41,11 +44,16 @@ class Mindustry {
   String tag;
   bool like = false;
 
-  ///版本隔离
+  /// 版本隔离
   bool isolation;
 
-  ///启动选用java路径
+  /// 启动选用java路径
   String? java;
+
+  /// 大版本号（version.properties 的 number，如 v8→8、v88→4）
+  /// github tag 只有 build 号，大版本需读 jar 内的 version.properties；
+  /// 下载时由 FileReader 解析填入，老配置缺失时启动会自动补读
+  int? versionNumber;
 
   @JsonKey(includeToJson: false, includeFromJson: false)
   Memory? get memory {
@@ -64,10 +72,16 @@ class Mindustry {
   String? jvmParameter;
 
   ///返回游戏版本号 (double)
-  double get releaseDouble => double.parse(release.substring(1));
+  double get releaseDouble {
+    if (!isBe) return double.parse(release.substring(1));
+    return double.parse(release);
+  }
 
   ///返回游戏版本号 (int)
-  int get releaseInt => int.parse(release.substring(1).split('.').first);
+  int get releaseInt {
+    if (!isBe) return int.parse(release.substring(1).split('.').first);
+    return int.parse(release.split('.').first);
+  }
 
   ///游戏目录路径
   String get foldPath => p.join(path, tag);
@@ -107,6 +121,7 @@ class Mindustry {
     this.jvmParameter,
     this.useBetterGPU,
     this.memorySize,
+    this.versionNumber,
   });
 
   factory Mindustry.fromJson(Map<String, dynamic> json) =>
@@ -139,7 +154,7 @@ class SaveData {
 //
 // }
 
-///Mindustry文件元数据
+///Mindustry本体文件元数据
 @JsonSerializable()
 class MindustryMeta {
   MindustryMeta({

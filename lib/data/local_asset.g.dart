@@ -27,6 +27,7 @@ Mindustry _$MindustryFromJson(Map<String, dynamic> json) =>
         jvmParameter: json['jvmParameter'] as String?,
         useBetterGPU: json['useBetterGPU'] as bool?,
         memorySize: (json['memorySize'] as num?)?.toInt(),
+        versionNumber: (json['versionNumber'] as num?)?.toInt(),
       )
       ..like = json['like'] as bool
       ..autoMemory = json['autoMemory'] as bool?;
@@ -49,6 +50,7 @@ Map<String, dynamic> _$MindustryToJson(Mindustry instance) => <String, dynamic>{
   'autoMemory': instance.autoMemory,
   'useBetterGPU': instance.useBetterGPU,
   'jvmParameter': instance.jvmParameter,
+  'versionNumber': instance.versionNumber,
 };
 
 const _$LauncherTypeEnumMap = {

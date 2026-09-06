@@ -14,6 +14,7 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import '../../util/app_paths.dart';
 import '../../util/format/byte_unit.dart';
 import '../../util/io/downloader.dart';
+import '../../util/io/file_reader.dart';
 import '../task.dart';
 
 ///官方渠道下载，path路径默认为 [项目//version]
@@ -153,6 +154,16 @@ class DownloadMindustryTask extends Task {
   }
 
   Future<void> _addIntoConfig() async {
+    // 大版本号从 jar 的 version.properties 读（FileReader 已实现），github tag 只有 build 号
+    int? versionNumber;
+    try {
+      final reader = await FileReader.fromPath(file.path);
+      final meta = reader.mindustry;
+      versionNumber = int.tryParse(meta?.version ?? '');
+    } catch (e) {
+      addLogAndPrint(.warning, '读取游戏版本元数据失败：$e');
+    }
+
     final mindustry = Mindustry(
       id: id,
       launcher: LauncherType.mindustry,
@@ -163,6 +174,7 @@ class DownloadMindustryTask extends Task {
       release: mindustryMeta.tag,
       addTime: DateTime.now(),
       isolation: false,
+      versionNumber: versionNumber,
     );
     final foldIndex = config.versionOptions.versionFolds.indexWhere(
       (fold) => fold.path == mindustry.path,
