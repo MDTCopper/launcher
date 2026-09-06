@@ -795,6 +795,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   }
 
   Widget _buildInfoTile() {
+    //javaDownloadBan 不呈现信息
     if (javaDownloadBan) return SizedBox();
     final theme = Theme.of(context);
     Widget buildPathTile() {
@@ -892,7 +893,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
         buildGameVersionTile(),
         if (!(version?.isolation ?? false))
           Text(
-            '当前版本未隔离,将下载至默认路径,建议到设置中开启隔离模式',
+            '当前版本未隔离，将下载至默认路径，建议到设置中开启隔离模式',
             style: theme.textTheme.labelMedium,
           ),
         buildPathTile(),
