@@ -19,7 +19,7 @@ import 'package:line_icons/line_icons.dart';
 import 'package:string_similarity/string_similarity.dart';
 
 import '../../../core/app_config.dart';
-import '../../../util/io/downloader.dart';
+import 'package:copper_launcher/util/io/copper_io.dart';
 import '../../components/future/mod_icon_loader.dart';
 import '../../components/pager.dart';
 import '../../components/row/priority_row.dart';
@@ -258,7 +258,7 @@ class _ModViewPageState extends State<ModViewPage> {
     Future<bool> fetch({int tryTime = 0}) async {
       try {
         if (modMetas.isEmpty) {
-          var res = await dio.get(githubModMetaUrl);
+          var res = await cio.get(githubModMetaUrl);
           if (res.statusCode != 200) throw Exception('链接失败');
           List<dynamic> jsons = jsonDecode(res.data);
           modMetas.addAll(
@@ -270,7 +270,7 @@ class _ModViewPageState extends State<ModViewPage> {
           );
         }
         if (previousModMetaMap.isEmpty) {
-          var res = await dio.get(github3MonthsModMetaUrl);
+          var res = await cio.get(github3MonthsModMetaUrl);
           if (res.statusCode != 200) throw Exception('链接失败');
           List<dynamic> jsons = jsonDecode(res.data);
           final List<ModOfficialListMeta> list = jsons

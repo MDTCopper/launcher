@@ -46,11 +46,11 @@ Map<String, dynamic> _$MindustryToJson(Mindustry instance) => <String, dynamic>{
   'like': instance.like,
   'isolation': instance.isolation,
   'java': instance.java,
+  'versionNumber': instance.versionNumber,
   'memorySize': instance.memorySize,
   'autoMemory': instance.autoMemory,
   'useBetterGPU': instance.useBetterGPU,
   'jvmParameter': instance.jvmParameter,
-  'versionNumber': instance.versionNumber,
 };
 
 const _$LauncherTypeEnumMap = {

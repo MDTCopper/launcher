@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
-import '../util/io/downloader.dart';
 
 ///任务抽象类，需要长时间或异步运行的程序在task类中进行
 ///
@@ -176,5 +175,3 @@ class SimpleTask extends Task {
     );
   }
 }
-
-final dr = Downloader();

@@ -21,9 +21,8 @@ import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/future/readme_loader.dart';
 import 'package:copper_launcher/ui/components/pager.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
-import 'package:copper_launcher/util/io/downloader.dart';
+import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:hjson_dart/hjson_dart.dart';
@@ -74,9 +73,9 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
     var repo = 'https://api.github.com/repos/${modListMeta.repo}/releases';
     try {
-      final res = await dio.get<List>(
+      final res = await cio.get<List>(
         '$repo?page=${page ~/ 4 + 1}&per_page=100',
-        options: Options(headers: modDownloadHeaders),
+        headers: modDownloadHeaders,
       );
       //print('$repo?page=${page ~/ 4 + 1}&per_page=100');
 
@@ -117,7 +116,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     for (final json in jsons) {
       try {
         printOnDebug('$url/mod.$json');
-        final res = await dio.get('$url/mod.$json');
+        final res = await cio.get('$url/mod.$json');
 
         if (res.statusCode != 200) continue;
         final content = res.data as String;
@@ -133,7 +132,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       for (final json in jsons) {
         try {
           printOnDebug('$url/assets/mod.$json');
-          final res = await dio.get('$url/mod.$json');
+          final res = await cio.get('$url/mod.$json');
 
           if (res.statusCode != 200) continue;
           final content = res.data as String;

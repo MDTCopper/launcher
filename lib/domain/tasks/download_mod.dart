@@ -7,7 +7,7 @@ import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
-import 'package:dio/dio.dart';
+import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
@@ -15,8 +15,6 @@ import '../../ui/shell/drawer/log_list.dart';
 import '../../ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import '../../util/format/byte_unit.dart';
-import '../../util/io/downloader.dart';
-import '../../util/math/speed_calculate.dart';
 import '../task.dart';
 
 class DownloadJavaModTask extends Task {
@@ -33,7 +31,7 @@ class DownloadJavaModTask extends Task {
   int downloadedSize = 0;
   double speed = 0.0;
 
-  List<DownloadChunk> chunks = [];
+  List<HttpChunkInfo> chunks = [];
 
   DownloadJavaModTask({
     required this.modListMeta,
@@ -78,32 +76,29 @@ class DownloadJavaModTask extends Task {
 
       final path = p.join(savePath, fileName);
       file = File(path);
-      var previousDownloaded = 0;
       if (!await file.exists()) await file.create(recursive: true);
 
       final url = asset.url;
 
-      await dr.download(
-        url,
-        file.path,
+      await cio.download(
+        url: url,
+        savePath: file.path,
         cancelToken: cancelToken,
         deleteOnError: false,
-        fileAccessMode: FileAccessMode.append,
-        onProgress: (receive, total) {
-          totalSize = previousDownloaded + total;
-          downloadedSize = previousDownloaded + receive;
-          progress = downloadedSize / totalSize;
+        onStatus: (s) {
+          totalSize = s.total;
+          downloadedSize = s.downloaded;
+          speed = s.speed;
+          progress = s.total > 0 ? s.downloaded / s.total : 0;
+          chunks = s.chunks;
           updateDisplay();
         },
-        onSpeedUpdate: (s) {
-          speed = s;
-          updateDisplay();
-        },
-        chunksStatus: (it) => chunks = it,
       );
 
       //校验：合并是否损坏 + 能否解析
-      if (await file.length() != totalSize) throw Exception('文件可能在合并过程中损坏');
+      if (totalSize > 0 && await file.length() != totalSize) {
+        throw Exception('文件可能在合并过程中损坏');
+      }
       final reader = await FileReader.fromPath(path);
       if (reader.mod == null) throw Exception('mod.json未能成功解析');
 
@@ -206,8 +201,8 @@ class DownloadJavaModTask extends Task {
     final connectedCount = chunks
         .where(
           (it) =>
-              it.status == DownloadChunkStatus.download ||
-              it.status == DownloadChunkStatus.complete,
+              it.status == HttpChunkStatus.downloading ||
+              it.status == HttpChunkStatus.complete,
         )
         .length;
 
@@ -215,7 +210,7 @@ class DownloadJavaModTask extends Task {
       String str = '共${chunks.length}个分块：\n';
 
       for (var o in chunks) {
-        final progress = o.receive / o.size * 100;
+        final progress = o.received / o.size * 100;
         str += '分块${o.index + 1} (${progress.toStringAsFixed(1)}%)   ';
         if (o.index + 1 != chunks.length && (o.index + 1) % 3 == 0) str += '\n';
       }
@@ -350,14 +345,6 @@ class DownloadZipModTask extends Task {
     final fileName = asset.name;
     final url = asset.url;
 
-    final sizeNotifier = ValueNotifier<int>(0);
-    final speedCalculator = SpeedCalculator(
-      dataNotifier: sizeNotifier,
-      updateCallback: (s) {
-        speed = s;
-        updateDisplay();
-      },
-    );
     try {
       final path = p.join(savePath, fileName);
 
@@ -365,20 +352,21 @@ class DownloadZipModTask extends Task {
       if (await file.exists()) await file.delete();
       await file.create(recursive: true);
 
-      await dio.download(
-        url,
-        path,
+      await cio.download(
+        url: url,
+        savePath: path,
         cancelToken: cancelToken,
-        onReceiveProgress: (receive, total) {
-          downloadedSize = receive;
-          sizeNotifier.value = receive;
-          _updateProgress(receive, total);
+        onStatus: (s) {
+          downloadedSize = s.downloaded;
+          totalSize = s.total;
+          speed = s.speed;
+          _updateProgress(s.downloaded, s.total > 0 ? s.total : -1);
           updateDisplay();
         },
       );
 
-      //校验：合并是否损坏 + 能否解析
-      if (totalSize != 1 && await file.length() != totalSize) {
+      //校验：合并是否损坏 + 能否解析（未知总大小跳过）
+      if (totalSize > 0 && await file.length() != totalSize) {
         throw Exception('文件可能在合并过程中损坏');
       }
 
@@ -425,7 +413,6 @@ class DownloadZipModTask extends Task {
       await file.delete();
       rethrow;
     } finally {
-      speedCalculator.cancel();
       updateDisplay();
     }
   }
@@ -447,13 +434,13 @@ class DownloadZipModTask extends Task {
 
     if (downloadedSize < KB) {
       progress = '${downloadedSize.toStringAsFixed(1)}B/';
-      progress += totalSize == -1 ? '...' : totalSize.toStringAsFixed(1);
+      progress += totalSize <= 0 ? '...' : totalSize.toStringAsFixed(1);
     } else if (downloadedSize < MB) {
       progress = '${(downloadedSize / KB).toStringAsFixed(1)}KB/';
-      progress += totalSize == -1 ? '...' : (totalSize / KB).toStringAsFixed(1);
+      progress += totalSize <= 0 ? '...' : (totalSize / KB).toStringAsFixed(1);
     } else {
       progress = '${(downloadedSize / MB).toStringAsFixed(1)}MB/';
-      progress += totalSize == -1 ? '...' : (totalSize / MB).toStringAsFixed(1);
+      progress += totalSize <= 0 ? '...' : (totalSize / MB).toStringAsFixed(1);
     }
 
     if (speed < KB) {
@@ -592,11 +579,11 @@ class DownloadSourceModTask extends Task {
       if (modListMeta.mainBranchCache != null) {
         url += modListMeta.mainBranchCache!;
       } else {
-        var res = await dio.head('${url}main.zip');
+        var res = await cio.head('${url}main.zip');
         if (res.statusCode == 206) {
           url += 'main';
         } else {
-          res = await dio.head('${url}master.zip');
+          res = await cio.head('${url}master.zip');
           if (res.statusCode != 206) {
             NotificationManager.addNotice(
               icon: Icons.error,
@@ -615,28 +602,21 @@ class DownloadSourceModTask extends Task {
       url += '.zip';
     }
 
-    final sizeNotifier = ValueNotifier<int>(0);
-    final speedCalculator = SpeedCalculator(
-      dataNotifier: sizeNotifier,
-      updateCallback: (s) {
-        speed = s;
-        updateDisplay();
-      },
-    );
     try {
       final path = p.join(savePath, fileName);
       file = File(path);
       if (await file.exists()) await file.delete();
       await file.create(recursive: true);
 
-      await dio.download(
-        url,
-        path,
+      await cio.download(
+        url: url,
+        savePath: path,
         cancelToken: cancelToken,
-        onReceiveProgress: (receive, total) {
-          downloadedSize = receive;
-          sizeNotifier.value = receive;
-          _updateProgress(receive, total);
+        onStatus: (s) {
+          downloadedSize = s.downloaded;
+          totalSize = s.total;
+          speed = s.speed;
+          _updateProgress(s.downloaded, s.total > 0 ? s.total : -1);
           updateDisplay();
         },
       );
@@ -697,7 +677,6 @@ class DownloadSourceModTask extends Task {
       await file.delete();
       rethrow;
     } finally {
-      speedCalculator.cancel();
       updateDisplay();
     }
   }
@@ -718,13 +697,13 @@ class DownloadSourceModTask extends Task {
     String downloadSpeed;
     if (downloadedSize < KB) {
       progress = '${downloadedSize.toStringAsFixed(1)}B/';
-      progress += totalSize == -1 ? '...' : totalSize.toStringAsFixed(1);
+      progress += totalSize <= 0 ? '...' : totalSize.toStringAsFixed(1);
     } else if (downloadedSize < MB) {
       progress = '${(downloadedSize / KB).toStringAsFixed(1)}KB/';
-      progress += totalSize == -1 ? '...' : (totalSize / KB).toStringAsFixed(1);
+      progress += totalSize <= 0 ? '...' : (totalSize / KB).toStringAsFixed(1);
     } else {
       progress = '${(downloadedSize / MB).toStringAsFixed(1)}MB/';
-      progress += totalSize == -1 ? '...' : (totalSize / MB).toStringAsFixed(1);
+      progress += totalSize <= 0 ? '...' : (totalSize / MB).toStringAsFixed(1);
     }
     if (speed < KB) {
       downloadSpeed = '${(speed).toStringAsFixed(1)}B/S';

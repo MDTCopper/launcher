@@ -8,14 +8,13 @@ import 'package:copper_launcher/ui/components/animation/animated_expansion.dart'
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
-import 'package:dio/dio.dart';
+import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_config.dart';
 import '../../../domain/task_manager.dart';
 import '../../../domain/tasks/download_mindustry.dart';
-import '../../../util/io/downloader.dart';
 import '../../../util/validate/windows_file_name_validator.dart';
 import '../../feature/images.dart';
 import '../../vars.dart';
@@ -44,9 +43,9 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
       final List<MindustryGithubMeta> list = [];
 
       for (int i = 1; !((i - 1) * 100 > list.length); i++) {
-        var response = await dio.get(
+        var response = await cio.get(
           '$url?page=$i&per_page=100',
-          options: Options(headers: gameDownloadHeaders),
+          headers: gameDownloadHeaders,
         );
         if (response.statusCode == 200) {
           List<dynamic> jsonList = response.data;
@@ -68,9 +67,9 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
       list.clear();
 
       //只获取最新be，然后提供按版本号下载
-      var response = await dio.get(
+      var response = await cio.get(
         '$betaUrl?per_page=1',
-        options: Options(headers: gameDownloadHeaders),
+        headers: gameDownloadHeaders,
       );
       if (response.statusCode == 200) {
         List<dynamic> jsonList = response.data;
@@ -260,7 +259,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
                 if (_minModGameVersionMap.containsKey(num)) continue;
 
                 print(version.tag);
-                dio
+                cio
                     .get(
                       '$githubRAW/Anuken/Mindustry/${version.tag}/core/src/mindustry/Vars.java',
                     )

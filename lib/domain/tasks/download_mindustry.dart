@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:copper_launcher/util/io/log.dart';
-import 'package:dio/dio.dart';
+import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
@@ -13,7 +13,6 @@ import '../../ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import '../../util/app_paths.dart';
 import '../../util/format/byte_unit.dart';
-import '../../util/io/downloader.dart';
 import '../../util/io/file_reader.dart';
 import '../task.dart';
 
@@ -34,7 +33,7 @@ class DownloadMindustryTask extends Task {
   int downloadedSize = 0;
   double speed = 0.0;
 
-  List<DownloadChunk> chunks = [];
+  List<HttpChunkInfo> chunks = [];
 
   DownloadMindustryTask({
     required this.mindustryMeta,
@@ -76,10 +75,8 @@ class DownloadMindustryTask extends Task {
       final jarPath = p.join(path, tag, jarName);
 
       file = File(jarPath);
-      var previousDownloaded = 0;
       if (!await file.exists()) {
         await file.create(recursive: true);
-        downloadedSize = await file.length();
       }
 
       final String url = mindustryMeta.assets
@@ -88,26 +85,24 @@ class DownloadMindustryTask extends Task {
 
       addLog(.info, '下载游戏[$tag],$url');
 
-      await dr.download(
-        url,
-        file.path,
+      await cio.download(
+        url: url,
+        savePath: file.path,
         cancelToken: cancelToken,
         deleteOnError: false,
-        fileAccessMode: FileAccessMode.append,
-        onProgress: (receive, total) {
-          totalSize = previousDownloaded + total;
-          downloadedSize = previousDownloaded + receive;
-          progress = downloadedSize / totalSize;
+        onStatus: (s) {
+          totalSize = s.total;
+          downloadedSize = s.downloaded;
+          speed = s.speed;
+          progress = s.total > 0 ? s.downloaded / s.total : 0;
+          chunks = s.chunks;
           updateDisplay();
         },
-        onSpeedUpdate: (s) {
-          speed = s;
-          updateDisplay();
-        },
-        chunksStatus: (it) => chunks = it,
       );
       //检查文件完整性
-      if (await file.length() != totalSize) Exception('文件可能在合并过程中损坏');
+      if (totalSize > 0 && await file.length() != totalSize) {
+        throw Exception('文件可能在合并过程中损坏');
+      }
       await _addIntoConfig();
       status = TaskStatus.completed;
 
@@ -232,8 +227,8 @@ class DownloadMindustryTask extends Task {
     final connectedCount = chunks
         .where(
           (it) =>
-              it.status == DownloadChunkStatus.download ||
-              it.status == DownloadChunkStatus.complete,
+              it.status == HttpChunkStatus.downloading ||
+              it.status == HttpChunkStatus.complete,
         )
         .length;
 
@@ -241,7 +236,7 @@ class DownloadMindustryTask extends Task {
       String str = '共${chunks.length}个分块：\n';
 
       for (var o in chunks) {
-        final progress = o.receive / o.size * 100;
+        final progress = o.received / o.size * 100;
         str += '分块${o.index + 1} (${progress.toStringAsFixed(1)}%)   ';
         if (o.index + 1 != chunks.length && (o.index + 1) % 3 == 0) str += '\n';
       }

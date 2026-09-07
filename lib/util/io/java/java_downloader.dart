@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:copper_launcher/util/io/http_helper.dart';
-import 'package:dio/dio.dart';
+import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:path/path.dart' as path;
 
 class JavaReleaseInfo {
@@ -37,7 +36,7 @@ class JavaDownloader {
   /// 获取可用的 Java 主版本号列表（8 及以上）
   static Future<List<int>> getAvailableVersions() async {
     try {
-      final response = await HttpHelper().get(
+      final response = await cio.get(
         '$_apiBase/info/available_releases',
         responseType: ResponseType.json,
       );
@@ -60,7 +59,7 @@ class JavaDownloader {
       final platformStr = _getPlatformString();
       final arch = _getArchString();
 
-      final response = await HttpHelper().get(
+      final response = await cio.get(
         '$_apiBase/assets/latest/$version/hotspot',
         responseType: ResponseType.json,
       );
@@ -126,7 +125,7 @@ class JavaDownloader {
     await Directory(installDir).create(recursive: true);
 
     try {
-      await HttpHelper().download(
+      await cio.download(
         url: info.downloadUrl,
         savePath: archivePath,
         cancelToken: cancelToken,

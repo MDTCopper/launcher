@@ -1,13 +1,12 @@
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
-import 'package:dio/dio.dart';
+import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import '../../../util/io/downloader.dart';
 import '../../vars.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
@@ -49,9 +48,9 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
     if (mod.mainBranchCache != null) {
       try {
         var url = '$repo${mod.mainBranchCache}/README.md';
-        final res = await dio.get(
+        final res = await cio.get(
           url,
-          options: Options(headers: modDownloadHeaders),
+          headers: modDownloadHeaders,
         );
         if (res.statusCode == 200) {
           readmeDataMap[mod.repo] = res.data.toString();
@@ -64,9 +63,9 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
     for (var m in main) {
       try {
         var url = '$repo$m/README.md';
-        final res = await dio.get(
+        final res = await cio.get(
           url,
-          options: Options(headers: modDownloadHeaders),
+          headers: modDownloadHeaders,
         );
 
         if (res.statusCode != 200) continue;
@@ -270,9 +269,9 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
     final uri = widget.uri;
     if (widget.uri.host.contains('img.shields.io')) {
       try {
-        final res = await dio.getUri(
+        final res = await cio.getUri(
           uri,
-          options: Options(headers: gameDownloadHeaders),
+          headers: gameDownloadHeaders,
         );
         if (res.statusCode != 200) return null;
         return SvgPicture.string(
@@ -360,7 +359,7 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
   }
 
   Future<bool?> _checkIsSvgFrom(String url) async {
-    final res = await dio.head(url);
+    final res = await cio.head(url);
     if (res.statusCode != 200) return null;
     final type = res.headers.value('content-type');
 

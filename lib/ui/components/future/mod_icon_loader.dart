@@ -1,9 +1,7 @@
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/vars.dart';
-import 'package:dio/dio.dart';
+import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
-
-import '../../../util/io/downloader.dart';
 
 class ModNetworkIcon extends StatefulWidget {
   final ModOfficialListMeta modMeta;
@@ -42,9 +40,9 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
         for (final i in icon) {
           var url = '$rope/$m/$i.$f';
           try {
-            final res = await dio.head(
+            final res = await cio.head(
               url,
-              options: Options(headers: modDownloadHeaders),
+              headers: modDownloadHeaders,
             );
             if (res.data != null) {
               widget.modMeta.iconUrlCache = url;

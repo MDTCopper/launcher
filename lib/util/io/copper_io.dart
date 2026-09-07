@@ -2,12 +2,18 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 
 import '../math/speed_calculate.dart';
+
+///dio 类型复导出：调用方只需 import 本文件即可同时获得类型（Response、
+///CancelToken、Options、DioException…）与网络单例 [cio]。
+export 'package:dio/dio.dart';
 
 typedef HttpStatusCallback = void Function(HttpDownloadState state);
 
@@ -126,27 +132,89 @@ class _RateLimiter {
   }
 }
 
-// --- HttpHelper ---
+// --- 全局网络单例 ---
 
-class HttpHelper {
-  static final HttpHelper _instance = HttpHelper._();
+/// Copper 项目唯一的网络入口：合并原 [HttpHelper]（代理/分块下载）与
+/// [Downloader]（多分块 task 下载），对外复刻 dio 的方法面。
+///
+/// - 所有请求自动带 `CopperLauncher/<版本>` User-Agent
+/// - 请求 [githubAPI] 域名时自动附加 config 中的 github token
+/// - 代理/限速/线程默认值来自 [config]，启动或设置页变更后调用
+///   [applySettings] 同步（无需重启）
+final CopperIO cio = CopperIO.instance;
 
-  factory HttpHelper() => _instance;
+class CopperIO {
+  static final CopperIO _instance = CopperIO._();
 
-  HttpHelper._();
+  static CopperIO get instance => _instance;
+
+  factory CopperIO() => _instance;
+
+  CopperIO._();
 
   Dio? _dio;
   bool _initialized = false;
 
+  ///自定义代理；为 null 表示未设置自定义代理
   String? _proxyHost;
   int? _proxyPort;
   String? _proxyUsername;
   String? _proxyPassword;
 
+  ///显式关闭代理（既不自定义也不跟随系统）
+  bool _proxyOff = false;
+
+  ///从 [config] 读取的默认下载限速（字节/秒），<=0 表示不限速
+  int _defaultSpeedLimitBytes = 0;
+
+  ///从 [config] 读取的默认分块数
+  int _defaultChunkCount = 8;
+
+  ///github token（明文），请求 api.github.com 时自动附加
+  String _githubToken = '';
+
   Duration _connectTimeout = const Duration(seconds: 20);
   Duration _receiveTimeout = const Duration(seconds: 60);
 
   int _maxRetries = 5;
+
+  String get userAgent => 'CopperLauncher/$appVersion';
+
+  ///按 config 同步 token / 代理 / 下载默认值。
+  ///
+  ///启动在 [initAppConfig] 之后调用；下载设置页每次改动 config 后也调用，
+  ///保证新请求（含新开始的下载）即时生效。
+  void applySettings() {
+    final setting = config.setting;
+    _githubToken = setting.githubToken;
+    _defaultSpeedLimitBytes = setting.downloadOptions.speedLimitBytes;
+    _defaultChunkCount = setting.downloadOptions.maxTread;
+
+    applyProxySetting(setting.proxyOptions);
+  }
+
+  ///应用配置里的代理（跟随系统 / 自定义 / 关闭三种模式）。
+  void applyProxySetting(ProxyOptions options) {
+    switch (options.mode) {
+      case ProxyMode.system:
+        clearProxy();
+      case ProxyMode.custom:
+        final host = options.host.trim();
+        if (host.isEmpty || options.port <= 0) {
+          //无效自定义代理 → 回落跟随系统，避免产生畸形 PROXY 串
+          clearProxy();
+        } else {
+          setProxy(
+            host: host,
+            port: options.port,
+            username: options.username,
+            password: options.password,
+          );
+        }
+      case ProxyMode.off:
+        disableProxy();
+    }
+  }
 
   Dio get dio {
     _ensureInit();
@@ -166,79 +234,57 @@ class HttpHelper {
       receiveTimeout: _receiveTimeout,
     );
 
-    if (_proxyHost != null && _proxyPort != null) {
-      final adapter = IOHttpClientAdapter(
-        // ignore: deprecated_member_use
-        onHttpClientCreate: (client) {
-          client.findProxy = (url) => 'PROXY $_proxyHost:$_proxyPort';
-          if (_proxyUsername != null) {
-            client.addProxyCredentials(
-              _proxyHost!,
-              _proxyPort!,
-              'realm',
-              HttpClientBasicCredentials(_proxyUsername!, _proxyPassword ?? ''),
-            );
+    final adapter = IOHttpClientAdapter(
+      // ignore: deprecated_member_use
+      onHttpClientCreate: (client) {
+        client.findProxy = (url) {
+          if (_hasValidCustomProxy) {
+            return 'PROXY $_proxyHost:$_proxyPort';
           }
-          return client;
-        },
-      );
-      _dio = Dio(baseOptions);
-      _dio!.httpClientAdapter = adapter;
-    } else {
-      final adapter = IOHttpClientAdapter(
-        // ignore: deprecated_member_use
-        onHttpClientCreate: (client) {
-          client.findProxy = (url) {
-            final proxy = _detectSystemProxy(url);
-            if (proxy != null) return 'PROXY $proxy';
-            return 'DIRECT';
-          };
-          return client;
-        },
-      );
-      _dio = Dio(baseOptions);
-      _dio!.httpClientAdapter = adapter;
-    }
+          if (_proxyOff) return 'DIRECT';
+          final proxy = _detectSystemProxy(url);
+          if (proxy != null) return 'PROXY $proxy';
+          return 'DIRECT';
+        };
+        if ((_proxyUsername?.isNotEmpty ?? false) && _hasValidCustomProxy) {
+          client.addProxyCredentials(
+            _proxyHost!,
+            _proxyPort ?? 0,
+            'realm',
+            HttpClientBasicCredentials(_proxyUsername!, _proxyPassword ?? ''),
+          );
+        }
+        return client;
+      },
+    );
+
+    _dio = Dio(baseOptions);
+    _dio!.httpClientAdapter = adapter;
+    _dio!.interceptors.add(_buildAuthInterceptor());
   }
 
-  // void _recreateClient() {
-  //   final baseOptions = BaseOptions(
-  //     connectTimeout: _connectTimeout,
-  //     receiveTimeout: _receiveTimeout,
-  //   );
+  ///自动 UA + github token 注入：请求自身没带对应头时才补。
+  InterceptorsWrapper _buildAuthInterceptor() {
+    return InterceptorsWrapper(onRequest: (options, handler) {
+      final headers = options.headers;
+      bool hasHeader(String name) => headers.keys.any(
+        (key) => key.toLowerCase() == name.toLowerCase(),
+      );
 
-  //   if (_proxyHost != null && _proxyPort != null) {
-  //     _dio = Dio(baseOptions)
-  //       ..httpClientAdapter = IOHttpClientAdapter(
-  //         createHttpClient: () {
-  //           final client = HttpClient();
-  //           client.findProxy = (url) => 'PROXY $_proxyHost:$_proxyPort';
-  //           if (_proxyUsername != null) {
-  //             client.addProxyCredentials(
-  //               _proxyHost!,
-  //               _proxyPort!,
-  //               'realm',
-  //               HttpClientBasicCredentials(_proxyUsername!, _proxyPassword ?? ''),
-  //             );
-  //           }
-  //           return client;
-  //         },
-  //       );
-  //   } else {
-  //     _dio = Dio(baseOptions)
-  //       ..httpClientAdapter = IOHttpClientAdapter(
-  //         createHttpClient: () {
-  //           final client = HttpClient();
-  //           client.findProxy = (url) {
-  //             final proxy = _detectSystemProxy(url);
-  //             if (proxy != null) return 'PROXY $proxy';
-  //             return 'DIRECT';
-  //           };
-  //           return client;
-  //         },
-  //       );
-  //   }
-  // }
+      if (!hasHeader('User-Agent')) {
+        headers['User-Agent'] = userAgent;
+      }
+
+      // 只对 GitHub API 域名注入 token，避免 token 暴露给 codeload/raw 等 CDN
+      final host = Uri.tryParse(options.path)?.host;
+      if (host == Uri.parse(githubAPI).host &&
+          _githubToken.isNotEmpty &&
+          !hasHeader('Authorization')) {
+        headers['Authorization'] = 'token $_githubToken';
+      }
+      handler.next(options);
+    });
+  }
 
   String? _detectSystemProxy(Uri url) {
     final scheme = url.scheme;
@@ -298,6 +344,17 @@ class HttpHelper {
     return null;
   }
 
+  ///切换为跟随系统代理（取消自定义 / 关闭状态）。
+  void clearProxy() {
+    _proxyHost = null;
+    _proxyPort = null;
+    _proxyUsername = null;
+    _proxyPassword = null;
+    _proxyOff = false;
+    _recreateClient();
+  }
+
+  ///设置自定义代理。
   void setProxy({
     required String host,
     required int port,
@@ -308,22 +365,29 @@ class HttpHelper {
     _proxyPort = port;
     _proxyUsername = username;
     _proxyPassword = password;
+    _proxyOff = false;
     _recreateClient();
   }
 
-  void clearProxy() {
+  ///显式关闭代理（直连）。
+  void disableProxy() {
     _proxyHost = null;
     _proxyPort = null;
     _proxyUsername = null;
     _proxyPassword = null;
+    _proxyOff = true;
     _recreateClient();
   }
 
-  bool get hasCustomProxy => _proxyHost != null && _proxyPort != null;
+  ///自定义代理是否有效（host 非空且 port 合法）
+  bool get _hasValidCustomProxy =>
+      (_proxyHost?.isNotEmpty ?? false) && (_proxyPort ?? 0) > 0;
+
+  bool get hasCustomProxy => _hasValidCustomProxy;
 
   String get proxyInfo {
-    if (!hasCustomProxy) return 'system';
-    final auth = _proxyUsername != null ? '$_proxyUsername@' : '';
+    if (!_hasValidCustomProxy) return _proxyOff ? 'off' : 'system';
+    final auth = (_proxyUsername?.isNotEmpty ?? false) ? '$_proxyUsername@' : '';
     return '$auth$_proxyHost:$_proxyPort';
   }
 
@@ -353,7 +417,21 @@ class HttpHelper {
     return _dio!.get<T>(
       url,
       options: Options(headers: headers, responseType: responseType),
-      queryParameters: queryParameters ?? queryParameters,
+      queryParameters: queryParameters,
+      cancelToken: cancelToken,
+    );
+  }
+
+  Future<Response<T>> getUri<T>(
+    Uri uri, {
+    Map<String, String>? headers,
+    CancelToken? cancelToken,
+    ResponseType responseType = ResponseType.json,
+  }) async {
+    _ensureInit();
+    return _dio!.getUri<T>(
+      uri,
+      options: Options(headers: headers, responseType: responseType),
       cancelToken: cancelToken,
     );
   }
@@ -410,20 +488,28 @@ class HttpHelper {
 
   // ---- Download ----
 
+  ///统一分块下载：能拿到大小且服务端支持 Range 且足够大 → 多分块并发
+  ///（临时分块可断点续传）；否则退化为单流下载。
+  ///
+  ///[speedLimit] / [chunkCount] 不传时使用 config 默认值；speedLimit<=0 表示不限速。
+  ///进度通过 [onStatus] 持续回调 [HttpDownloadState]（含分块明细）。
   Future<void> download({
     required String url,
     required String savePath,
     int? speedLimit,
-    int chunkCount = 8,
+    int? chunkCount,
     String? tempPath,
     CancelToken? cancelToken,
     bool deleteOnError = true,
     HttpStatusCallback? onStatus,
     Map<String, String>? headers,
-    int maxRetries = 5,
+    int? maxRetries,
   }) async {
     _ensureInit();
-    _maxRetries = maxRetries;
+    if (maxRetries != null) _maxRetries = maxRetries;
+
+    final effectiveSpeedLimit = speedLimit ?? _defaultSpeedLimitBytes;
+    final effectiveChunkCount = max(1, chunkCount ?? _defaultChunkCount);
 
     final headResp = await _dio!.head(
       url,
@@ -443,7 +529,7 @@ class HttpHelper {
         url: url,
         savePath: savePath,
         totalSize: totalSize,
-        speedLimit: speedLimit,
+        speedLimit: effectiveSpeedLimit,
         cancelToken: cancelToken,
         deleteOnError: deleteOnError,
         onStatus: onStatus,
@@ -456,8 +542,8 @@ class HttpHelper {
       url: url,
       savePath: savePath,
       totalSize: totalSize,
-      chunkCount: chunkCount,
-      speedLimit: speedLimit,
+      chunkCount: effectiveChunkCount,
+      speedLimit: effectiveSpeedLimit,
       tempPath: tempPath,
       cancelToken: cancelToken,
       deleteOnError: deleteOnError,
@@ -707,7 +793,6 @@ class HttpHelper {
 
     Future<void> downloadChunk(_Chunk chunk, {int tryTime = 0}) async {
       if (chunk.status == HttpChunkStatus.complete) return;
-      final recentReceived = chunk.received;
       final rangeHeader = {'Range': 'bytes=${chunk.start}-${chunk.end}'};
 
       try {
@@ -734,7 +819,8 @@ class HttpHelper {
           }
 
           sink.add(data);
-          chunk.received = recentReceived + (await file.length());
+          //累计收到的字节数（含续传部分），避免每块重复打开文件句柄
+          chunk.received += data.length;
           refreshChunkStats();
           notifier.value = state.downloaded;
         }
@@ -771,7 +857,7 @@ class HttpHelper {
       for (final chunk in chunks) {
         final tempFile = File(chunk.path);
         await sink.addStream(tempFile.openRead());
-        await tempFile.delete();
+        await _deleteWithRetry(tempFile);
       }
       await sink.close();
 
@@ -784,8 +870,7 @@ class HttpHelper {
       speedCalc.cancel();
       if (deleteOnError) {
         for (final c in chunks) {
-          final f = File(c.path);
-          if (await f.exists()) await f.delete();
+          await _deleteWithRetry(File(c.path));
         }
       }
       state.status = HttpDownloadStatus.failed;
@@ -796,13 +881,24 @@ class HttpHelper {
       speedCalc.cancel();
       if (deleteOnError) {
         for (final c in chunks) {
-          final f = File(c.path);
-          if (await f.exists()) await f.delete();
+          await _deleteWithRetry(File(c.path));
         }
       }
       state.status = HttpDownloadStatus.failed;
       onStatus?.call(state);
       rethrow;
+    }
+  }
+
+  ///删除临时文件并在被占用时短暂重试（Windows 下句柄释放是异步的）。
+  Future<void> _deleteWithRetry(File file, {int maxTry = 10}) async {
+    for (int i = 0; i < maxTry; i++) {
+      try {
+        if (await file.exists()) await file.delete();
+        return;
+      } on FileSystemException {
+        await Future.delayed(const Duration(milliseconds: 30));
+      }
     }
   }
 }

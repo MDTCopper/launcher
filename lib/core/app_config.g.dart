@@ -59,6 +59,9 @@ Setting _$SettingFromJson(Map<String, dynamic> json) => Setting(
       : DownloadOptions.fromJson(
           json['downloadOptions'] as Map<String, dynamic>,
         ),
+  proxyOptions: json['proxyOptions'] == null
+      ? null
+      : ProxyOptions.fromJson(json['proxyOptions'] as Map<String, dynamic>),
   accounts: (json['accounts'] as List<dynamic>?)
       ?.map((e) => Account.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -75,6 +78,7 @@ Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
   'currentAccountId': instance.currentAccountId,
   'personalizationOptions': instance.personalizationOptions,
   'downloadOptions': instance.downloadOptions,
+  'proxyOptions': instance.proxyOptions,
 };
 
 WindowSize _$WindowSizeFromJson(Map<String, dynamic> json) => WindowSize(
@@ -205,7 +209,7 @@ const _$ThemeColorEnumMap = {
 DownloadOptions _$DownloadOptionsFromJson(Map<String, dynamic> json) =>
     DownloadOptions(
       downloadPath: json['downloadPath'] as String? ?? '',
-      speedLimitBytes: (json['speedLimitBytes'] as num?)?.toInt() ?? 2097152,
+      speedLimitBytes: (json['speedLimitBytes'] as num?)?.toInt() ?? 0,
       maxTread: (json['maxTread'] as num?)?.toInt() ?? 8,
     );
 
@@ -215,6 +219,30 @@ Map<String, dynamic> _$DownloadOptionsToJson(DownloadOptions instance) =>
       'speedLimitBytes': instance.speedLimitBytes,
       'maxTread': instance.maxTread,
     };
+
+ProxyOptions _$ProxyOptionsFromJson(Map<String, dynamic> json) => ProxyOptions(
+  mode:
+      $enumDecodeNullable(_$ProxyModeEnumMap, json['mode']) ?? ProxyMode.system,
+  host: json['host'] as String? ?? '',
+  port: (json['port'] as num?)?.toInt() ?? 0,
+  username: json['username'] as String? ?? '',
+  password: json['password'] as String? ?? '',
+);
+
+Map<String, dynamic> _$ProxyOptionsToJson(ProxyOptions instance) =>
+    <String, dynamic>{
+      'mode': _$ProxyModeEnumMap[instance.mode]!,
+      'host': instance.host,
+      'port': instance.port,
+      'username': instance.username,
+      'password': instance.password,
+    };
+
+const _$ProxyModeEnumMap = {
+  ProxyMode.system: 'system',
+  ProxyMode.custom: 'custom',
+  ProxyMode.off: 'off',
+};
 
 VersionOptions _$VersionOptionsFromJson(Map<String, dynamic> json) =>
     VersionOptions(

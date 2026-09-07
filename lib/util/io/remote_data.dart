@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:hjson_dart/hjson_dart.dart' as hjson;
 import 'package:path/path.dart' as p;
@@ -14,7 +14,7 @@ import 'package:path/path.dart' as p;
 /// - 数据源仓库：`MDTCopper/launcher` main 分支的 `remote/` 目录
 /// - 本地：内置一份在 assets（打包），启动时每次尝试拉取仓库 raw 覆盖缓存
 ///   （`AppPaths.remoteData`），拉取失败/离线回落缓存或内置
-/// - mmgvm / github_mirrors 等数据后续接入（网络代理 http_helper 为待办）
+/// - 请求走统一网络入口 [cio]；mmgvm / github_mirrors 等数据后续接入
 class RemoteData {
   /// 每次启动异步拉取 remote 数据到本地缓存。
   ///
@@ -63,12 +63,9 @@ class RemoteData {
   }
 
   static Future<String?> _fetch(String url) async {
-    final res = await Dio().get<String>(
+    final res = await cio.get<String>(
       url,
-      options: Options(
-        headers: const {'User-Agent': 'CopperLauncher'},
-        responseType: ResponseType.plain,
-      ),
+      responseType: ResponseType.plain,
     );
     return res.statusCode == 200 ? res.data : null;
   }

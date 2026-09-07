@@ -190,6 +190,8 @@ class Setting {
 
   late final DownloadOptions downloadOptions;
 
+  late final ProxyOptions proxyOptions;
+
   Setting({
     required this.githubToken,
     required this.customSetting,
@@ -198,6 +200,7 @@ class Setting {
     MindustrySettingsPatch? mindustrySettings,
     PersonalizationOptions? personalizationOptions,
     DownloadOptions? downloadOptions,
+    ProxyOptions? proxyOptions,
     List<Account>? accounts,
     this.currentAccountId = '',
   }) {
@@ -206,6 +209,7 @@ class Setting {
     this.personalizationOptions =
         personalizationOptions ?? PersonalizationOptions.fromJson({});
     this.downloadOptions = downloadOptions ?? DownloadOptions.fromJson({});
+    this.proxyOptions = proxyOptions ?? ProxyOptions.fromJson({});
     this.accounts = accounts ?? [];
   }
 
@@ -458,8 +462,12 @@ class DownloadOptions {
 
   @JsonKey(defaultValue: '')
   String downloadPath;
-  @JsonKey(defaultValue: 2 * MB)
+
+  ///下载限速（字节/秒）；<=0 表示不限速（默认）
+  @JsonKey(defaultValue: 0)
   int speedLimitBytes;
+
+  ///分块并发数上限
   @JsonKey(defaultValue: 8)
   int maxTread;
 
@@ -469,6 +477,40 @@ class DownloadOptions {
       _$DownloadOptionsFromJson(json);
 
   Map<String, dynamic> toJson() => _$DownloadOptionsToJson(this);
+}
+
+///代理方式
+enum ProxyMode { system, custom, off }
+
+@JsonSerializable()
+class ProxyOptions {
+  ProxyOptions({
+    required this.mode,
+    required this.host,
+    required this.port,
+    required this.username,
+    required this.password,
+  });
+
+  @JsonKey(defaultValue: ProxyMode.system)
+  ProxyMode mode;
+
+  @JsonKey(defaultValue: '')
+  String host;
+
+  @JsonKey(defaultValue: 0)
+  int port;
+
+  @JsonKey(defaultValue: '')
+  String username;
+
+  @JsonKey(defaultValue: '')
+  String password;
+
+  factory ProxyOptions.fromJson(Map<String, dynamic> json) =>
+      _$ProxyOptionsFromJson(json);
+
+  Map<String, dynamic> toJson() => _$ProxyOptionsToJson(this);
 }
 
 @JsonSerializable()

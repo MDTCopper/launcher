@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/domain/task.dart';
-import 'package:dio/dio.dart';
+import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:window_manager/window_manager.dart';
 
