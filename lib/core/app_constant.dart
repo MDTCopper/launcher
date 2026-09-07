@@ -18,6 +18,9 @@ const remoteRawBase =
 ///版本设置适配索引文件名（引导拉取各版本 json）
 const settingAdapterIndexFile = 'setting_adapter_index.hjson';
 
+///github 镜像预设节点文件名（remote/ 根目录）
+const githubMirrorsFile = 'github_mirrors.hjson';
+
 ///$githubAPI/repos/Anuken/Mindustry/releases
 const githubMindustryUrl = '$githubAPI/repos/Anuken/Mindustry/releases';
 

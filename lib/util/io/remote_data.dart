@@ -26,6 +26,12 @@ class RemoteData {
       if (index == null) return;
       await _saveCache(settingAdapterIndexFile, index);
 
+      // 拉取 github 镜像预设节点
+      final mirrorContent = await _fetch(remoteRawBase + githubMirrorsFile);
+      if (mirrorContent != null) {
+        await _saveCache(githubMirrorsFile, mirrorContent);
+      }
+
       // 按索引拉取各版本设置 json
       try {
         final parsed = hjson.hjsonDecode(index) as Map<String, dynamic>;

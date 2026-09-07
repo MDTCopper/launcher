@@ -192,6 +192,8 @@ class Setting {
 
   late final ProxyOptions proxyOptions;
 
+  late final MirrorOptions mirrorOptions;
+
   Setting({
     required this.githubToken,
     required this.customSetting,
@@ -201,6 +203,7 @@ class Setting {
     PersonalizationOptions? personalizationOptions,
     DownloadOptions? downloadOptions,
     ProxyOptions? proxyOptions,
+    MirrorOptions? mirrorOptions,
     List<Account>? accounts,
     this.currentAccountId = '',
   }) {
@@ -210,6 +213,7 @@ class Setting {
         personalizationOptions ?? PersonalizationOptions.fromJson({});
     this.downloadOptions = downloadOptions ?? DownloadOptions.fromJson({});
     this.proxyOptions = proxyOptions ?? ProxyOptions.fromJson({});
+    this.mirrorOptions = mirrorOptions ?? MirrorOptions.fromJson({});
     this.accounts = accounts ?? [];
   }
 
@@ -511,6 +515,32 @@ class ProxyOptions {
       _$ProxyOptionsFromJson(json);
 
   Map<String, dynamic> toJson() => _$ProxyOptionsToJson(this);
+}
+
+///github 镜像加速配置。
+///
+///预设节点（官方仓库 `remote/github_mirrors.hjson` + 从 github.akams.cn 拉取的
+///节点）单独管理，不落 config；只有用户手动添加的 [customNodes] 存在这里，
+///与预设节点分开。
+@JsonSerializable()
+class MirrorOptions {
+  MirrorOptions({
+    required this.enabled,
+    required this.customNodes,
+  });
+
+  ///是否启用镜像加速（官方直连失败时才走镜像）。
+  @JsonKey(defaultValue: true)
+  bool enabled;
+
+  ///用户自定义节点（完整前缀，如 `https://ghfast.top/`）。
+  @JsonKey(defaultValue: [])
+  List<String> customNodes;
+
+  factory MirrorOptions.fromJson(Map<String, dynamic> json) =>
+      _$MirrorOptionsFromJson(json);
+
+  Map<String, dynamic> toJson() => _$MirrorOptionsToJson(this);
 }
 
 @JsonSerializable()

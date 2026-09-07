@@ -10,6 +10,7 @@ import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
+import 'package:copper_launcher/util/io/github_mirror.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -30,8 +31,10 @@ Future<void> _initialize() async {
   unawaited(RemoteData.refresh());
   await TokenEncryptor.init();
   await initAppConfig();
-  //config 就绪后同步网络设置（代理/token/限速/线程），此后新建请求即生效
+  //config 就绪后同步网络设置（代理/token/限速/线程/镜像），此后新建请求即生效
   cio.applySettings();
+  //加载 github 镜像预设节点（远程+爬取缓存；过期自动后台重爬）
+  unawaited(GithubMirror.instance.load());
   await Log.init();
   await _checkAndPromptGameIssues();
   await _initViewPool();

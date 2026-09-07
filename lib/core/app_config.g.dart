@@ -62,6 +62,9 @@ Setting _$SettingFromJson(Map<String, dynamic> json) => Setting(
   proxyOptions: json['proxyOptions'] == null
       ? null
       : ProxyOptions.fromJson(json['proxyOptions'] as Map<String, dynamic>),
+  mirrorOptions: json['mirrorOptions'] == null
+      ? null
+      : MirrorOptions.fromJson(json['mirrorOptions'] as Map<String, dynamic>),
   accounts: (json['accounts'] as List<dynamic>?)
       ?.map((e) => Account.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -79,6 +82,7 @@ Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
   'personalizationOptions': instance.personalizationOptions,
   'downloadOptions': instance.downloadOptions,
   'proxyOptions': instance.proxyOptions,
+  'mirrorOptions': instance.mirrorOptions,
 };
 
 WindowSize _$WindowSizeFromJson(Map<String, dynamic> json) => WindowSize(
@@ -243,6 +247,22 @@ const _$ProxyModeEnumMap = {
   ProxyMode.custom: 'custom',
   ProxyMode.off: 'off',
 };
+
+MirrorOptions _$MirrorOptionsFromJson(Map<String, dynamic> json) =>
+    MirrorOptions(
+      enabled: json['enabled'] as bool? ?? true,
+      customNodes:
+          (json['customNodes'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+    );
+
+Map<String, dynamic> _$MirrorOptionsToJson(MirrorOptions instance) =>
+    <String, dynamic>{
+      'enabled': instance.enabled,
+      'customNodes': instance.customNodes,
+    };
 
 VersionOptions _$VersionOptionsFromJson(Map<String, dynamic> json) =>
     VersionOptions(

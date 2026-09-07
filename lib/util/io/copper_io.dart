@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
+import 'package:copper_launcher/util/io/github_mirror.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
@@ -174,7 +175,7 @@ class CopperIO {
   String _githubToken = '';
 
   Duration _connectTimeout = const Duration(seconds: 20);
-  Duration _receiveTimeout = const Duration(seconds: 60);
+  Duration _receiveTimeout = const Duration(seconds: 600);
 
   int _maxRetries = 5;
 
@@ -191,6 +192,7 @@ class CopperIO {
     _defaultChunkCount = setting.downloadOptions.maxTread;
 
     applyProxySetting(setting.proxyOptions);
+    GithubMirror.instance.applySettings();
   }
 
   ///应用配置里的代理（跟随系统 / 自定义 / 关闭三种模式）。
@@ -265,25 +267,67 @@ class CopperIO {
 
   ///自动 UA + github token 注入：请求自身没带对应头时才补。
   InterceptorsWrapper _buildAuthInterceptor() {
-    return InterceptorsWrapper(onRequest: (options, handler) {
-      final headers = options.headers;
-      bool hasHeader(String name) => headers.keys.any(
-        (key) => key.toLowerCase() == name.toLowerCase(),
-      );
+    return InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final headers = options.headers;
+        bool hasHeader(String name) =>
+            headers.keys.any((key) => key.toLowerCase() == name.toLowerCase());
 
-      if (!hasHeader('User-Agent')) {
-        headers['User-Agent'] = userAgent;
-      }
+        if (!hasHeader('User-Agent')) {
+          headers['User-Agent'] = userAgent;
+        }
 
-      // 只对 GitHub API 域名注入 token，避免 token 暴露给 codeload/raw 等 CDN
-      final host = Uri.tryParse(options.path)?.host;
-      if (host == Uri.parse(githubAPI).host &&
-          _githubToken.isNotEmpty &&
-          !hasHeader('Authorization')) {
-        headers['Authorization'] = 'token $_githubToken';
+        // 只对 GitHub API 域名注入 token，避免 token 暴露给 codeload/raw 等 CDN
+        final host = Uri.tryParse(options.path)?.host;
+        if (host == Uri.parse(githubAPI).host &&
+            _githubToken.isNotEmpty &&
+            !hasHeader('Authorization')) {
+          headers['Authorization'] = 'token $_githubToken';
+        }
+        handler.next(options);
+      },
+    );
+  }
+
+  ///官方直连失败（网络类错误）后，选最优镜像重试一次。
+  ///
+  ///对齐 Mindustry 的错误驱动回退：直连优先，网络不通才走镜像。
+  ///镜像优先用 TTL 缓存（10 分钟），过期才重新分级测速，避免每次回退
+  ///都对全量节点发起探测。
+  Future<R> _githubFallback<R>(
+    String url,
+    Future<R> Function(String effectiveUrl) send,
+  ) async {
+    try {
+      return await send(url);
+    } catch (e) {
+      if (!_isNetworkError(e)) rethrow;
+
+      final mirror = GithubMirror.instance;
+      if (!mirror.enabled || !GithubMirror.isGithubUrl(url)) rethrow;
+
+      String? prefix = mirror.freshBestMirror;
+      if (prefix == null) {
+        try {
+          prefix = await mirror.selectBestMirror(url);
+        } catch (_) {
+          //测速失败不阻塞，用现有最优镜像继续
+          prefix = mirror.bestMirror;
+        }
       }
-      handler.next(options);
-    });
+      if (prefix == null) rethrow;
+      return await send('$prefix$url');
+    }
+  }
+
+  bool _isNetworkError(Object error) {
+    if (error is DioException) {
+      return error.type == DioExceptionType.connectionError ||
+          error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.sendTimeout ||
+          error.type == DioExceptionType.receiveTimeout;
+    }
+    return false;
   }
 
   String? _detectSystemProxy(Uri url) {
@@ -321,20 +365,13 @@ class CopperIO {
       final result = Process.runSync('reg', [
         'query',
         r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings',
-        '/v',
-        'ProxyServer',
       ], runInShell: true);
-
       if (result.exitCode == 0) {
-        final output = result.stdout.toString();
-        final match = RegExp(r'ProxyServer\s+REG_SZ\s+(.+)').firstMatch(output);
-        if (match != null) {
-          final proxy = match.group(1)!.trim();
-          if (proxy.isNotEmpty) {
-            _windowsSystemProxyCache = proxy;
-            _windowsSystemProxyCacheTime = DateTime.now();
-            return proxy;
-          }
+        final proxy = parseWindowsSystemProxy(result.stdout.toString());
+        if (proxy != null) {
+          _windowsSystemProxyCache = proxy;
+          _windowsSystemProxyCacheTime = DateTime.now();
+          return proxy;
         }
       }
     } catch (_) {}
@@ -342,6 +379,27 @@ class CopperIO {
     _windowsSystemProxyCache = null;
     _windowsSystemProxyCacheTime = DateTime.now();
     return null;
+  }
+
+  ///从 `reg query` 输出解析系统代理。
+  ///
+  ///必须同时满足 `ProxyEnable = 1` 才启用，否则即使 `ProxyServer` 残留历史值
+  ///（关停的代理软件常留下 `127.0.0.1:<port>`）也视为无代理，避免把已关闭的
+  ///代理当成有效路由导致请求全部被拒。
+  @visibleForTesting
+  static String? parseWindowsSystemProxy(String regOutput) {
+    final enableMatch = RegExp(
+      r'ProxyEnable\s+REG_DWORD\s+0x([0-9a-fA-F]+)',
+    ).firstMatch(regOutput);
+    if (enableMatch == null) return null;
+    if (int.tryParse(enableMatch.group(1)!, radix: 16) != 1) return null;
+
+    final serverMatch = RegExp(
+      r'ProxyServer\s+REG_SZ\s+(.+)',
+    ).firstMatch(regOutput);
+    if (serverMatch == null) return null;
+    final proxy = serverMatch.group(1)!.trim();
+    return proxy.isEmpty ? null : proxy;
   }
 
   ///切换为跟随系统代理（取消自定义 / 关闭状态）。
@@ -387,7 +445,9 @@ class CopperIO {
 
   String get proxyInfo {
     if (!_hasValidCustomProxy) return _proxyOff ? 'off' : 'system';
-    final auth = (_proxyUsername?.isNotEmpty ?? false) ? '$_proxyUsername@' : '';
+    final auth = (_proxyUsername?.isNotEmpty ?? false)
+        ? '$_proxyUsername@'
+        : '';
     return '$auth$_proxyHost:$_proxyPort';
   }
 
@@ -414,12 +474,12 @@ class CopperIO {
     ResponseType responseType = ResponseType.json,
   }) async {
     _ensureInit();
-    return _dio!.get<T>(
-      url,
+    return _githubFallback(url, (effectiveUrl) => _dio!.get<T>(
+      effectiveUrl,
       options: Options(headers: headers, responseType: responseType),
       queryParameters: queryParameters,
       cancelToken: cancelToken,
-    );
+    ));
   }
 
   Future<Response<T>> getUri<T>(
@@ -429,11 +489,11 @@ class CopperIO {
     ResponseType responseType = ResponseType.json,
   }) async {
     _ensureInit();
-    return _dio!.getUri<T>(
-      uri,
+    return _githubFallback(uri.toString(), (effectiveUrl) => _dio!.getUri<T>(
+      Uri.parse(effectiveUrl),
       options: Options(headers: headers, responseType: responseType),
       cancelToken: cancelToken,
-    );
+    ));
   }
 
   Future<Response> head(
@@ -442,11 +502,11 @@ class CopperIO {
     CancelToken? cancelToken,
   }) async {
     _ensureInit();
-    return _dio!.head(
-      url,
+    return _githubFallback(url, (effectiveUrl) => _dio!.head(
+      effectiveUrl,
       options: Options(headers: headers),
       cancelToken: cancelToken,
-    );
+    ));
   }
 
   Future<Response<T>> post<T>(
@@ -458,13 +518,13 @@ class CopperIO {
     ResponseType responseType = ResponseType.json,
   }) async {
     _ensureInit();
-    return _dio!.post<T>(
-      url,
+    return _githubFallback(url, (effectiveUrl) => _dio!.post<T>(
+      effectiveUrl,
       data: data,
       options: Options(headers: headers, responseType: responseType),
       queryParameters: queryParameters,
       cancelToken: cancelToken,
-    );
+    ));
   }
 
   Future<bool> supportsRange(String url) async {
@@ -493,6 +553,8 @@ class CopperIO {
   ///
   ///[speedLimit] / [chunkCount] 不传时使用 config 默认值；speedLimit<=0 表示不限速。
   ///进度通过 [onStatus] 持续回调 [HttpDownloadState]（含分块明细）。
+  ///
+  ///官方直连失败（网络类错误）时自动回退到最优镜像重试一次。
   Future<void> download({
     required String url,
     required String savePath,
@@ -507,7 +569,33 @@ class CopperIO {
   }) async {
     _ensureInit();
     if (maxRetries != null) _maxRetries = maxRetries;
+    await _githubFallback(
+      url,
+      (effectiveUrl) => _downloadOnce(
+        url: effectiveUrl,
+        savePath: savePath,
+        speedLimit: speedLimit,
+        chunkCount: chunkCount,
+        tempPath: tempPath,
+        cancelToken: cancelToken,
+        deleteOnError: deleteOnError,
+        onStatus: onStatus,
+        headers: headers,
+      ),
+    );
+  }
 
+  Future<void> _downloadOnce({
+    required String url,
+    required String savePath,
+    int? speedLimit,
+    int? chunkCount,
+    String? tempPath,
+    CancelToken? cancelToken,
+    bool deleteOnError = true,
+    HttpStatusCallback? onStatus,
+    Map<String, String>? headers,
+  }) async {
     final effectiveSpeedLimit = speedLimit ?? _defaultSpeedLimitBytes;
     final effectiveChunkCount = max(1, chunkCount ?? _defaultChunkCount);
 
