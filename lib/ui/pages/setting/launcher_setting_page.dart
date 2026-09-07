@@ -8,15 +8,14 @@ import 'package:flutter/material.dart';
 
 import 'package:copper_launcher/ui/components/setting_bar/segment_setting_bar.dart';
 
-class PersonalizationSettingPage extends StatefulWidget {
-  const PersonalizationSettingPage({super.key});
+class LauncherSettingPage extends StatefulWidget {
+  const LauncherSettingPage({super.key});
 
   @override
-  State<StatefulWidget> createState() => _PersonalizationSettingPageState();
+  State<StatefulWidget> createState() => _LauncherSettingPageState();
 }
 
-class _PersonalizationSettingPageState
-    extends State<PersonalizationSettingPage> {
+class _LauncherSettingPageState extends State<LauncherSettingPage> {
   static Set<ThemeMode> selected = {};
 
   @override

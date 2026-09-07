@@ -12,7 +12,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'game_setting_page.dart';
 import 'launch_setting_page.dart';
 import 'download_setting_page.dart';
-import 'personalization_setting_page.dart';
+import 'launcher_setting_page.dart';
 
 //设置分项路由
 const launchSettingPageRouteKey = '/setting/launch_setting';
@@ -36,7 +36,7 @@ class _SettingPageState extends State<SettingPage>
   late final List<Widget> pages = const [
     LaunchSettingPage(),
     GameSettingPage(),
-    PersonalizationSettingPage(),
+    LauncherSettingPage(),
     DownloadSettingPage(),
     HelpPage(),
     AboutPage(),
