@@ -7,14 +7,14 @@ import 'package:flutter/material.dart';
 
 import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
 
-class OtherSettingPage extends StatefulWidget {
-  const OtherSettingPage({super.key});
+class DownloadSettingPage extends StatefulWidget {
+  const DownloadSettingPage({super.key});
 
   @override
-  State<StatefulWidget> createState() => _OtherSettingPage();
+  State<StatefulWidget> createState() => _DownloadSettingPage();
 }
 
-class _OtherSettingPage extends State<OtherSettingPage> {
+class _DownloadSettingPage extends State<DownloadSettingPage> {
   Setting get setting => config.setting;
 
   static double maxDownloadSpeed = 0.5;
@@ -65,15 +65,6 @@ class _OtherSettingPage extends State<OtherSettingPage> {
                 },
               ),
               OptionSettingBar(title: '资源获取优先级', options: []),
-            ],
-          ),
-        ),
-        ContentPanelModule(
-          title: '存储',
-          child: Column(
-            children: [
-              Text('todo 存储'),
-              InputSettingBar(title: '默认存储路径'),
             ],
           ),
         ),

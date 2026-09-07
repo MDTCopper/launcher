@@ -17,7 +17,8 @@ import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
-import 'package:copper_launcher/util/io/java_finder.dart';
+import 'package:copper_launcher/util/io/java/java_finder.dart';
+
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/format/path_format.dart';
 import 'package:copper_launcher/util/auto_memory.dart';

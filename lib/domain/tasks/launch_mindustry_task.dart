@@ -5,7 +5,8 @@ import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
-import 'package:copper_launcher/util/io/java_compat.dart';
+import 'package:copper_launcher/util/io/java/java_compat.dart';
+
 import 'package:copper_launcher/util/system_info.dart';
 import 'package:flutter/material.dart';
 
@@ -61,9 +62,8 @@ class LaunchMindustryTask extends Task {
     if (mindustry.versionNumber == null) {
       try {
         final major = int.tryParse(
-          (await FileReader.fromPath(
-            mindustry.jarPath,
-          )).mindustry?.version ?? '',
+          (await FileReader.fromPath(mindustry.jarPath)).mindustry?.version ??
+              '',
         );
         if (major != null) {
           mindustry.versionNumber = major;
@@ -225,7 +225,8 @@ class LaunchMindustryTask extends Task {
     for (final it in javas) {
       final version = it.version ?? 0;
       if (version == target && exact == null) exact = it;
-      if (version > target && (bestHigherVersion == -1 || version < bestHigherVersion)) {
+      if (version > target &&
+          (bestHigherVersion == -1 || version < bestHigherVersion)) {
         bestHigherVersion = version;
         higherPick = it;
       }

@@ -53,7 +53,6 @@ app.*.map.json
 .opencode/
 opencode.json
 项目情况与进度.md
-想法与待办.md
 .dsh/
 
 # copperlauncher
@@ -66,6 +65,7 @@ config.*
 /lib/abandon_mystery_code/
 /lib/test/
 analyze_out.txt
+remote_data/
 
 #不需要开发iOS 和 Web端
 ios/

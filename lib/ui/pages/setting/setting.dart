@@ -5,11 +5,13 @@ import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
 import 'package:copper_launcher/ui/pages/setting/about_page.dart';
 import 'package:copper_launcher/ui/pages/setting/help_page.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import 'game_setting_page.dart';
 import 'launch_setting_page.dart';
-import 'other_setting_page.dart';
+import 'download_setting_page.dart';
 import 'personalization_setting_page.dart';
 
 //设置分项路由
@@ -35,7 +37,7 @@ class _SettingPageState extends State<SettingPage>
     LaunchSettingPage(),
     GameSettingPage(),
     PersonalizationSettingPage(),
-    OtherSettingPage(),
+    DownloadSettingPage(),
     HelpPage(),
     AboutPage(),
   ];
@@ -89,27 +91,29 @@ class _SettingPageState extends State<SettingPage>
             collapse: collapse,
           ),
           NavigationTile(
-            icon: Icon(Icons.palette_outlined),
-            content: '个性化',
+            icon: Icon(Symbols.deployed_code),
+            content: '启动器设置',
             onTap: () => moveTo(2),
             selected: _index == 2,
             collapse: collapse,
           ),
           NavigationTile(
-            icon: Icon(Icons.more_horiz_outlined),
-            content: '其他',
+            icon: Icon(Icons.download),
+            content: '下载',
             onTap: () => moveTo(3),
             selected: _index == 3,
             collapse: collapse,
           ),
           Divider(color: colors.border, indent: 4, endIndent: 4),
-          NavigationTile(
-            icon: Icon(Icons.help_center_outlined),
-            content: '帮助',
-            onTap: () => moveTo(4),
-            selected: _index == 4,
-            collapse: collapse,
-          ),
+          //TODO 后续版本实现
+          if (kDebugMode)
+            NavigationTile(
+              icon: Icon(Icons.help_center_outlined),
+              content: '帮助',
+              onTap: () => moveTo(4),
+              selected: _index == 4,
+              collapse: collapse,
+            ),
           NavigationTile(
             icon: Icon(Icons.info_outline),
             content: '关于',
