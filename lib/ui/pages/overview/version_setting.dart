@@ -657,12 +657,12 @@ class _SettingState extends State<_Setting> {
 
   bool? get autoMemory => _mindustry.autoMemory;
 
-  bool? get useGoodGPU => _mindustry.useBetterGPU;
+  bool? get useBetterGPU => _mindustry.useBetterGPU;
 
   String? get jvmParameter => _mindustry.jvmParameter;
 
-  static Memory freeMemory = Memory(gb: 128);
-  static Memory totalMemory = Memory(gb: 128);
+  static Memory freeMemory = Memory(gb: 12);
+  static Memory totalMemory = Memory(gb: 16);
 
   /// 自动分配内存：该版本启用 mod 体积之和（缓存，避免每 5 秒重扫目录）
   int _autoModTotalBytes = 0;
@@ -768,39 +768,19 @@ class _SettingState extends State<_Setting> {
       );
     }
 
-    return Column(
-      spacing: 8,
-      children: [
-        OptionSettingBar<String?>(
-          title: '游戏Java',
-          initialValue: javaSelect,
-          hintText: '跟随系统',
-          onSelect: (value) {
-            setState(() {
-              _mindustry.java = value;
-              config.save();
-            });
-          },
-          options: [
-            DropdownOption<String?>(value: null, label: '跟随系统'),
-            ...list,
-          ],
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: IconTextButton(
-            icon: LineIcons.java,
-            content: '下载Java',
-            onTap: () {
-              showJavaDownloadDialog(
-                context,
-                recommendedVersion: JavaCompat.recommendedFor(
-                  _mindustry.versionNumber ?? _mindustry.releaseInt,
-                ),
-              );
-            },
-          ),
-        ),
+    return OptionSettingBar<String?>(
+      title: '游戏Java',
+      initialValue: javaSelect,
+      hintText: '跟随系统',
+      onSelect: (value) {
+        setState(() {
+          _mindustry.java = value;
+          config.save();
+        });
+      },
+      options: [
+        DropdownOption<String?>(value: null, label: '跟随系统'),
+        ...list,
       ],
     );
   }
@@ -886,7 +866,7 @@ class _SettingState extends State<_Setting> {
     // 分配值：自动时用实时估算，手动时用配置值
     final displayedMemory = effectiveAuto ? _autoMemoryEstimate : memory;
     final allocation = effectiveAuto
-        ? '自动（≈${_formatRam(_autoMemoryEstimate.inGB)}GB）'
+        ? '${_formatRam(_autoMemoryEstimate.inGB)} GB'
         : '${_formatRam(displayedMemory.inGB)} GB';
     final occupy = ((1 - freeMemory.bytes / totalMemory.bytes) * 100)
         .toStringAsFixed(1);
@@ -962,7 +942,7 @@ class _SettingState extends State<_Setting> {
                 title: '使用高性能显卡',
                 options: [
                   ReboundCheckbox(
-                    value: useGoodGPU == null,
+                    value: useBetterGPU == null,
                     label: '跟随全局',
                     onChange: (_) {
                       setState(() {
@@ -972,7 +952,7 @@ class _SettingState extends State<_Setting> {
                     },
                   ),
                   ReboundCheckbox(
-                    value: useGoodGPU == false,
+                    value: useBetterGPU == false,
                     label: '关闭',
                     onChange: (_) {
                       setState(() {
@@ -982,7 +962,7 @@ class _SettingState extends State<_Setting> {
                     },
                   ),
                   ReboundCheckbox(
-                    value: useGoodGPU == true,
+                    value: useBetterGPU == true,
                     label: '开启',
                     onChange: (_) {
                       setState(() {

@@ -66,6 +66,7 @@ config.*
 /lib/test/
 analyze_out.txt
 remote_data/
+java/
 
 #不需要开发iOS 和 Web端
 ios/
