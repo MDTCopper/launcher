@@ -1,4 +1,3 @@
-import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -9,14 +8,14 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/app_config.dart';
 import '../../../domain/task_manager.dart';
 import '../../../domain/tasks/download_mindustry.dart';
 import '../../../util/validate/windows_file_name_validator.dart';
-import '../../feature/images.dart';
+
 import '../../vars.dart';
 
 class MindustryDownloadPage extends StatefulWidget {
@@ -28,8 +27,7 @@ class MindustryDownloadPage extends StatefulWidget {
 
 class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   static final List<MindustryGithubMeta> _versionList = [];
-  static final Map<double, int> _minModGameVersionMap = {};
-  static final Map<double, int> _minJavaModGameVersionMap = {};
+
   static late MindustryGithubMeta _latestBeta;
 
   Future<bool> _fetchVersionAssets() async {
@@ -238,72 +236,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
       },
     );
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (kDebugMode) ...[
-          ReboundButton(
-            child: Icon(Icons.download, size: 40),
-            onTap: () async {
-              print('fetch minGameVersion');
-
-              for (final version in _versionList) {
-                // depth++;
-                // if (depth > 2) break;
-
-                final num = double.parse(version.tag.substring(1));
-
-                if (num < 100) break;
-
-                if (_minJavaModGameVersionMap.containsKey(num)) continue;
-                if (_minModGameVersionMap.containsKey(num)) continue;
-
-                print(version.tag);
-                cio
-                    .get(
-                      '$githubRAW/Anuken/Mindustry/${version.tag}/core/src/mindustry/Vars.java',
-                    )
-                    .then((value) {
-                      if (value.statusCode == 200) {
-                        final str = value.data as String;
-                        var index = str.lastIndexOf('minModGameVersion = ');
-                        if (index != -1) {
-                          final len = 'minModGameVersion = '.length;
-                          final minGameVersion = str.substring(
-                            index + len,
-                            index + len + 3,
-                          );
-                          _minModGameVersionMap[double.parse(
-                            version.tag.substring(1),
-                          )] = int.parse(
-                            minGameVersion,
-                          );
-                        }
-                        index = str.lastIndexOf('minJavaModGameVersion = ');
-                        if (index != -1) {
-                          final len = 'minJavaModGameVersion = '.length;
-                          final minGameVersion = str.substring(
-                            index + len,
-                            index + len + 3,
-                          );
-                          _minJavaModGameVersionMap[double.parse(
-                            version.tag.substring(1),
-                          )] = int.parse(
-                            minGameVersion,
-                          );
-                        }
-                      }
-                    });
-                await Future.delayed(const Duration(milliseconds: 400));
-              }
-            },
-          ),
-          ReboundButton(child: Icon(Icons.print, size: 40), onTap: () {}),
-        ],
-
-        Expanded(child: child),
-      ],
-    );
+    return child;
   }
 }
 
@@ -419,67 +352,6 @@ class _DownloadMindustryPopupPageState
                   error: error,
                   controller: textEditingController,
                 ),
-                if (kDebugMode)
-                  AnimatedExpansion(
-                    controller: controller,
-                    title: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Text(
-                        copperVersion ?? '可选 copper launcher 版本(5)',
-                        key: ValueKey(
-                          copperVersion ?? '可选 copper launcher 版本(5)',
-                        ),
-                      ),
-                    ),
-                    child: Container(
-                      constraints: BoxConstraints(maxHeight: 175),
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.symmetric(horizontal: 4),
-                        child: Column(
-                          spacing: 8,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (int i = 4; i > 0; i--)
-                              ReboundListTile(
-                                borderRadius: BorderRadius.circular(4),
-                                leading: Image.asset(Images.copper),
-                                title: Text('Copper v0.${i + 1}.0'),
-
-                                subtitle: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  spacing: 8,
-                                  children: [
-                                    Icon(Icons.date_range_outlined, size: 18),
-                                    Text(
-                                      '2025.${i + 3}.15 ',
-                                      style: theme.textTheme.bodyMedium,
-                                    ),
-                                  ],
-                                ),
-                                trailing: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 200),
-                                  child: copperVersion == 'Copper v0.${i + 1}.0'
-                                      ? Icon(Icons.check_box_outlined, size: 28)
-                                      : null,
-                                ),
-                                onTap: () {
-                                  setState(() {
-                                    controller.collapse();
-                                    if (copperVersion ==
-                                        'Copper v0.${i + 1}.0') {
-                                      copperVersion = null;
-                                    } else {
-                                      copperVersion = 'Copper v0.${i + 1}.0';
-                                    }
-                                  });
-                                },
-                              ),
-                            SizedBox(),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),

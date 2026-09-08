@@ -11,6 +11,7 @@ import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dar
 import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
@@ -33,7 +34,30 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
 
   ///限速档位（MB/s），0 表示不限速
   static const List<double> speedRankMBList = [
-    0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512,
+    0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.8,
+    1.0,
+    1.2,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    5.0,
+    6.0,
+    7.0,
+    8.0,
+    9.0,
+    10.0,
+    15.0,
+    20.0,
   ];
 
   late final TextEditingController githubTokenController;
@@ -60,8 +84,12 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
     proxyPortController = TextEditingController(
       text: proxyOptions.port <= 0 ? '' : '${proxyOptions.port}',
     );
-    proxyUsernameController = TextEditingController(text: proxyOptions.username);
-    proxyPasswordController = TextEditingController(text: proxyOptions.password);
+    proxyUsernameController = TextEditingController(
+      text: proxyOptions.username,
+    );
+    proxyPasswordController = TextEditingController(
+      text: proxyOptions.password,
+    );
     customNodeController = TextEditingController();
   }
 
@@ -82,14 +110,15 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
     cio.applySettings();
   }
 
-  ///当前限速在档位列表中的下标（不在表中时向上取整到最近的档位）
+  ///当前限速在档位列表中的下标
   int _speedRankIndex() {
     final bytes = downloadOptions.speedLimitBytes;
     if (bytes <= 0) return 0;
-    final mb = bytes / MB;
+    final mb = (bytes / MB * 10).roundToDouble() / 10;
     for (int i = 0; i < speedRankMBList.length; i++) {
       if (speedRankMBList[i] >= mb) return i;
     }
+
     return speedRankMBList.length - 1;
   }
 
@@ -113,23 +142,23 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
         spacing: 8,
         children: [
           SliderSettingBar(
-            title: '最大下载速度',
+            title: '最大下载速度  ',
             label: rankIndex == 0
                 ? '不限速'
-                : '${speedRankMBList[rankIndex].toStringAsFixed(0)} MB/s',
+                : '${speedRankMBList[rankIndex].toStringAsFixed(1)} MB/s',
             value: rankIndex / divisions,
             divisions: divisions,
             onChanged: (value) {
               final rank = (value * divisions).round().clamp(0, divisions);
               setState(() {
-                downloadOptions.speedLimitBytes =
-                    (speedRankMBList[rank] * MB).round();
+                downloadOptions.speedLimitBytes = (speedRankMBList[rank] * MB)
+                    .round();
               });
               _persistAndSync();
             },
           ),
           SliderSettingBar(
-            title: '最大线程数',
+            title: '最大线程数   ${downloadOptions.maxTread.toString()}',
             label: downloadOptions.maxTread.toString(),
             value: downloadOptions.maxTread.toDouble(),
             min: 1,
@@ -157,20 +186,20 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
     );
   }
 
-  Widget _buildProxyCustomModule() {
+  Widget? _buildProxyCustomModule() {
     //非自定义代理模式不展示地址表单
-    if (proxyOptions.mode != ProxyMode.custom) return const SizedBox.shrink();
+    if (proxyOptions.mode != ProxyMode.custom) return null;
 
     return Column(
       spacing: 8,
       children: [
         InputSettingBar(
-          title: '代理地址',
+          title: '代理地址*',
           controller: proxyHostController,
           onEditingComplete: _saveProxyCustom,
         ),
         InputSettingBar(
-          title: '端口',
+          title: '端口*',
           controller: proxyPortController,
           onEditingComplete: _saveProxyCustom,
         ),
@@ -220,7 +249,7 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
               DropdownOption(value: ProxyMode.off, label: '关闭'),
             ],
           ),
-          AnimatedSize(
+          AnimatedOpacitySize(
             duration: const Duration(milliseconds: 200),
             curve: Curves.ease,
             alignment: Alignment.topCenter,
@@ -246,7 +275,7 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
       addNotice(
         icon: Icons.cloud_done_outlined,
         title: '拉取节点',
-        content: '已拉取并预检 github.akams.cn 社区节点（失败的已剔除）',
+        content: '已拉取并预检 github.akams.cn 社区节点',
       );
     }
   }
@@ -271,7 +300,10 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
       _testingNodes.addAll(nodes);
     });
     for (final node in nodes) {
-      final ms = await GithubMirror.instance.measure(node, GithubMirror.probeUrl);
+      final ms = await GithubMirror.instance.measure(
+        node,
+        GithubMirror.probeUrl,
+      );
       if (!mounted) return;
       setState(() {
         _testingNodes.remove(node);
@@ -285,7 +317,11 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
     final node = GithubMirror.normalizeNode(customNodeController.text);
     final customs = config.setting.mirrorOptions.customNodes;
     if (node == null) {
-      addNotice(icon: Icons.error_outline, title: '添加失败', content: '请输入有效的镜像节点地址');
+      addNotice(
+        icon: Icons.error_outline,
+        title: '添加失败',
+        content: '请输入有效的镜像节点地址',
+      );
       return;
     }
     if (customs.contains(node)) {
@@ -319,10 +355,7 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
   Widget _buildNodeTile(String node, {required bool isCustom}) {
     return ReboundListTile(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      leading: Icon(
-        isCustom ? Icons.star_outline : Icons.public,
-        size: 18,
-      ),
+      leading: Icon(isCustom ? Icons.star_outline : Icons.public, size: 32),
       title: Text(node, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(_latencyText(node)),
       trailing: isCustom
@@ -399,11 +432,9 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
             ],
           ),
           SizedBox(
-            height: 260,
+            height: 300,
             child: nodes.isEmpty
-                ? const Center(
-                    child: Text('暂无节点，可点击「拉取节点」或添加自定义节点'),
-                  )
+                ? const Center(child: Text('暂无节点，可点击「拉取节点」或添加自定义节点'))
                 : CopperSingleChildScrollView(
                     child: Column(
                       spacing: 4,

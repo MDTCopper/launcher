@@ -33,7 +33,6 @@ class SliderSettingBar extends StatelessWidget {
     return SettingBarRow(
       title: title,
       titleWide: wide ?? 150,
-      // 官方 Slider：吸附/赋值/点击跳转由框架保证
       control: Slider(
         value: value,
         divisions: divisions,

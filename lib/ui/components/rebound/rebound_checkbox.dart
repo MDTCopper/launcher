@@ -12,6 +12,7 @@ class ReboundCheckbox extends StatelessWidget {
   final IconData? icon;
   final bool value;
   final ValueChanged<bool>? onChange;
+  final EdgeInsets? padding;
   final String? hint;
   final bool enable;
   final double? pressedScale;
@@ -29,16 +30,18 @@ class ReboundCheckbox extends StatelessWidget {
     this.enable = true,
     this.pressedScale,
     this.itemColor,
+    this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
     return ActionButton(
-      icon: icon == null ? null : Icon(icon, size: 16, color: itemColor),
+      icon: icon == null ? null : Icon(icon, size: 18, color: itemColor),
       content: label == null ? null : Text(label!),
       hint: hint,
       selected: value,
-      padding: EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+      padding:
+          padding ?? const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
       enable: enable,
       onTap: onChange == null ? null : () => onChange!(!value),
       pressedScale: pressedScale,

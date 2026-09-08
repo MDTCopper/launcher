@@ -27,7 +27,6 @@ class InputSettingBar extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget widget = OutlinedTextField(
       labelWidth: titleWide,
-
       label: title,
       controller: controller,
       onEditingComplete: onEditingComplete,

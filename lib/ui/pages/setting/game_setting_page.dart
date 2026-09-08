@@ -42,10 +42,9 @@ class _GameSettingPageState extends State<GameSettingPage> {
   // ── 通用控件 ──
 
   Widget _buildOverrideIcon(bool value, void Function(bool)? onChange) {
-    final itemColor = Theme.of(context).colorScheme.primary;
     return ReboundCheckbox(
       value: value,
-      itemColor: itemColor,
+      padding: EdgeInsets.all(6),
       icon: Icons.settings,
       onChange: onChange,
     );
@@ -57,7 +56,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
     void Function(bool?) onChanged,
   ) {
     final theme = Theme.of(context);
-    final itemColor = theme.colorScheme.primary;
+
     return Row(
       spacing: 8,
       children: [
@@ -75,19 +74,19 @@ class _GameSettingPageState extends State<GameSettingPage> {
             spacing: 4,
             children: [
               ReboundCheckbox(
-                itemColor: itemColor,
+                padding: EdgeInsets.all(6),
                 icon: Icons.close,
                 value: value == false,
                 onChange: (_) => onChanged(false),
               ),
               ReboundCheckbox(
-                itemColor: itemColor,
+                padding: EdgeInsets.all(6),
                 icon: Icons.check,
                 value: value == true,
                 onChange: (_) => onChanged(true),
               ),
               ReboundCheckbox(
-                itemColor: itemColor,
+                padding: EdgeInsets.all(6),
                 icon: Icons.settings,
                 value: value == null,
                 onChange: (_) => onChanged(null),
@@ -829,7 +828,6 @@ class _GameSettingPageState extends State<GameSettingPage> {
             ],
           ),
         ),
-
         // ── 游戏 ──
         ContentPanelModule(
           title: '游戏',

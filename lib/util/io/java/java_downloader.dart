@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
 class JavaReleaseInfo {
@@ -107,6 +108,14 @@ class JavaDownloader {
     void Function(double progress)? onProgress,
     void Function(String status)? onStatus,
   }) async {
+    //已安装则直接复用，跳过下载解压
+    final existingJava = _findJavaExecutable(path.join(installDir, 'jdk-$version'));
+    if (existingJava != null) {
+      onStatus?.call('Java $version 已安装');
+      onProgress?.call(1.0);
+      return existingJava;
+    }
+
     onStatus?.call('正在获取Java版本信息...');
     final info = await getReleaseInfo(version);
     if (info == null) {
@@ -135,7 +144,7 @@ class JavaDownloader {
       );
 
       onStatus?.call('正在解压Java...');
-      await _extractArchive(archivePath, extractDir);
+      await extractArchive(archivePath, extractDir);
 
       await File(archivePath).delete();
 
@@ -159,8 +168,9 @@ class JavaDownloader {
     }
   }
 
-  /// 解压 zip 存档到指定目录
-  static Future<void> _extractArchive(
+  /// 解压 zip / tar.gz 存档到指定目录
+  @visibleForTesting
+  static Future<void> extractArchive(
     String archivePath,
     String extractDir,
   ) async {
@@ -171,8 +181,9 @@ class JavaDownloader {
       final archive = decoder.decodeBytes(bytes);
       await _extractToDisk(archive, extractDir);
     } else if (archivePath.endsWith('.tar.gz')) {
-      // tar.gz 暂未实现
-      throw UnsupportedError('暂不支持 tar.gz 解压');
+      final tar = TarDecoder();
+      final archive = tar.decodeBytes(GZipDecoder().decodeBytes(bytes));
+      await _extractToDisk(archive, extractDir);
     }
   }
 

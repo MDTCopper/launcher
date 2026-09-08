@@ -227,6 +227,7 @@ class CopperIO {
     if (!_initialized) {
       _recreateClient();
       _initialized = true;
+      unawaited(_detectWindowsSystemProxyOnce());
     }
   }
 
@@ -344,41 +345,39 @@ class CopperIO {
     }
 
     if (Platform.isWindows) {
-      return _getWindowsSystemProxy();
+      //异步检测完成前先直连；之后读缓存值（含「无代理」结果）
+      return _windowsSystemProxyChecked ? _windowsSystemProxy : null;
     }
 
     return null;
   }
 
-  String? _windowsSystemProxyCache;
-  DateTime? _windowsSystemProxyCacheTime;
+  ///Windows 系统代理检测结果（null = 无代理）；仅由异步检测填充
+  String? _windowsSystemProxy;
 
-  String? _getWindowsSystemProxy() {
-    if (_windowsSystemProxyCache != null &&
-        _windowsSystemProxyCacheTime != null &&
-        DateTime.now().difference(_windowsSystemProxyCacheTime!) <
-            const Duration(seconds: 30)) {
-      return _windowsSystemProxyCache;
-    }
+  ///是否已完成异步检测（区分「未检测」与「无代理」两种 null）
+  bool _windowsSystemProxyChecked = false;
 
+  bool _windowsSystemProxyDetectionStarted = false;
+
+  ///异步检测一次 Windows 系统代理。
+  ///
+  ///`reg` 是进程调用，绝不能放进请求路径同步执行——否则每个连接都
+  ///`Process.runSync` 阻塞主 isolate（多并发 icon/图片时卡到无法拖动窗口）。
+  ///启动时检测一次并缓存即可，系统代理不会频繁变化。
+  Future<void> _detectWindowsSystemProxyOnce() async {
+    if (_windowsSystemProxyDetectionStarted) return;
+    _windowsSystemProxyDetectionStarted = true;
     try {
-      final result = Process.runSync('reg', [
+      final result = await Process.run('reg', [
         'query',
         r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings',
       ], runInShell: true);
       if (result.exitCode == 0) {
-        final proxy = parseWindowsSystemProxy(result.stdout.toString());
-        if (proxy != null) {
-          _windowsSystemProxyCache = proxy;
-          _windowsSystemProxyCacheTime = DateTime.now();
-          return proxy;
-        }
+        _windowsSystemProxy = parseWindowsSystemProxy(result.stdout.toString());
       }
     } catch (_) {}
-
-    _windowsSystemProxyCache = null;
-    _windowsSystemProxyCacheTime = DateTime.now();
-    return null;
+    _windowsSystemProxyChecked = true;
   }
 
   ///从 `reg query` 输出解析系统代理。

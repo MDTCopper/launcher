@@ -17,7 +17,9 @@ import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
+import 'package:copper_launcher/util/io/java/java_compat.dart';
 import 'package:copper_launcher/util/io/java/java_finder.dart';
+import 'package:copper_launcher/ui/dialog/java_download_dialog.dart';
 
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/format/path_format.dart';
@@ -129,6 +131,17 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
   }
 
   bool searching = false;
+
+  ///打开下载 Java 对话框，默认选中当前版本推荐的 Java 主版本。
+  void _downloadJava() {
+    final version = config.versionOptions.selectedVersion;
+    final recommended = version == null
+        ? null
+        : JavaCompat.recommendedFor(
+            version.versionNumber ?? version.releaseInt,
+          );
+    showJavaDownloadDialog(context, recommendedVersion: recommended);
+  }
 
   void _searchJava() async {
     if (searching) return;
@@ -491,12 +504,11 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           mainAxisAlignment: MainAxisAlignment.end,
           spacing: 16,
           children: [
-            if (javaOptions.javas.isEmpty)
-              IconTextButton(
-                icon: LineIcons.java,
-                content: '下载Java',
-                onTap: () {},
-              ),
+            IconTextButton(
+              icon: LineIcons.java,
+              content: '下载Java',
+              onTap: _downloadJava,
+            ),
             IconTextButton(
               icon: Icons.folder_copy_outlined,
               content: '手动添加',

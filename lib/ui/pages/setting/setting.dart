@@ -99,7 +99,7 @@ class _SettingPageState extends State<SettingPage>
           ),
           NavigationTile(
             icon: Icon(Icons.download),
-            content: '下载',
+            content: '下载设置',
             onTap: () => moveTo(3),
             selected: _index == 3,
             collapse: collapse,

@@ -102,7 +102,7 @@ class _ActionButtonState extends State<ActionButton>
     ).animate(_controller);
     final foregroundT = ColorTween(
       // 禁用时前景置灰
-      begin: enabled ? colors.itemPrimary : colors.itemHint,
+      begin: enabled ? colors.itemSecondary : colors.itemHint,
       end: enabled ? colors.interactive : colors.itemHint,
     ).animate(_controller);
 
@@ -131,14 +131,9 @@ class _ActionButtonState extends State<ActionButton>
                   ) ??
                   const TextStyle(),
               child: Row(
+                spacing: 8,
                 mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.icon != null) ...[
-                    widget.icon!,
-                    const SizedBox(width: 8),
-                  ],
-                  if (widget.content != null) widget.content!,
-                ],
+                children: [?widget.icon, ?widget.content],
               ),
             ),
           ),
