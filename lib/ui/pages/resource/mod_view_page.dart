@@ -248,7 +248,6 @@ class _ModViewPageState extends State<ModViewPage> {
   var _refreshModMetas = true;
 
   Future<bool> _fetchModMetas() async {
-    // await Future.delayed(const Duration(seconds: 1));
     if (!_refreshModMetas && _fetchModMetasOperation != null) {
       return await _fetchModMetasOperation!.value;
     }

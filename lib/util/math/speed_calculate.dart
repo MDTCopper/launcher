@@ -42,18 +42,18 @@ class SpeedCalculator {
       _dataList.removeAt(0);
     }
 
-    double timeDiff = 0.0;
-    double dataDiff = 0.0;
+    double timeDiffer = 0.0;
+    double dataDiffer = 0.0;
 
     final half = (length / 2).floor();
 
     for (int i = 0; i < half; i++) {
-      dataDiff += _dataList[i] - _dataList[i + half];
-      timeDiff +=
+      dataDiffer += _dataList[i] - _dataList[i + half];
+      timeDiffer +=
           _timeList[i].difference(_timeList[i + half]).inMilliseconds / 1000;
     }
 
-    speed = dataDiff / timeDiff;
+    speed = dataDiffer / timeDiffer;
     updateCallback.call(speed);
   }
 

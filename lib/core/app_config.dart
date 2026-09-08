@@ -270,7 +270,7 @@ class WindowSize {
   Map<String, dynamic> toJson() => _$WindowSizeToJson(this);
 }
 
-class Memory {
+class Memory implements Comparable<Memory> {
   final int memory;
 
   int get bytes => memory;
@@ -311,15 +311,18 @@ class Memory {
   @override
   String toString() {
     String addtion = '';
-    if (bytes > 1 * 1024 * 1024 * 1024) {
-      addtion = '(${(bytes / 1024 / 1024 / 1024).toStringAsFixed(1)}GB)';
-    } else if (bytes > 1 * 1024 * 1024) {
-      addtion = '(${(bytes / 1024 / 1024).toStringAsFixed(1)}MB)';
-    } else if (bytes > 1 * 1024) {
-      addtion = '(${(bytes / 1024).toStringAsFixed(1)}KB)';
+    if (memory > 1 * 1024 * 1024 * 1024) {
+      addtion = '(${(memory / 1024 / 1024 / 1024).toStringAsFixed(1)}GB)';
+    } else if (memory > 1 * 1024 * 1024) {
+      addtion = '(${(memory / 1024 / 1024).toStringAsFixed(1)}MB)';
+    } else if (memory > 1 * 1024) {
+      addtion = '(${(memory / 1024).toStringAsFixed(1)}KB)';
     }
-    return 'Memory: $bytes B $addtion';
+    return 'Memory: $memory B $addtion';
   }
+
+  @override
+  int compareTo(Memory o) => o.memory - memory;
 }
 
 @JsonSerializable()
@@ -524,10 +527,7 @@ class ProxyOptions {
 ///与预设节点分开。
 @JsonSerializable()
 class MirrorOptions {
-  MirrorOptions({
-    required this.enabled,
-    required this.customNodes,
-  });
+  MirrorOptions({required this.enabled, required this.customNodes});
 
   ///是否启用镜像加速（官方直连失败时才走镜像）。
   @JsonKey(defaultValue: true)

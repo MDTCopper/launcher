@@ -74,7 +74,7 @@ class LaunchMindustryTask extends Task {
       }
     }
 
-    // settings.bin 覆写支持：仅 v7+（build ≥ 136，大版本 ≥ 7；数据目录才在版本内）。
+    // settings.bin 覆写支持：仅 v7+（build ≥ 136，大版本 ≥ 7；数据目录才在版本内）
     // 低版本（io.anuke 时代）数据固定在 %APPDATA%，写入无效且无意义，整体跳过覆写
     final supportsSettingsOverride =
         (mindustry.versionNumber ?? mindustry.releaseInt) >= 7;
@@ -82,7 +82,7 @@ class LaunchMindustryTask extends Task {
     final settingPath = mindustry.settingPath;
     final setting = MindustrySettings.fromFile(settingPath);
 
-    //窗口大小和最大化在jvm的启动参数（fullscreen 写 settings.bin 需版本支持）
+    //窗口大小和最大化在jvm的启动参数（fullscreen 写 settings.bin 需版本支持，老版本无相关参数，无法支持）
     WindowSize? winSize;
     bool? maximize;
     var fullscreen = false;
