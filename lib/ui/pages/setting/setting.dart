@@ -74,7 +74,7 @@ class _SettingPageState extends State<SettingPage>
     return MainPageLayout(
       navigationRail: PageNavigationRail(
         collapse: collapse,
-        width: 137,
+        width: 140,
         items: [
           NavigationTile(
             icon: Icon(Icons.rocket_launch_outlined),

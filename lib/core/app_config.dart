@@ -433,6 +433,9 @@ class JavaOptions {
 
 enum ThemeColor { copper, titanium, thorium, plastanium }
 
+///游戏启动后 Launcher 的行为（桌面端）
+enum LauncherPostLaunchBehavior { none, tray }
+
 @JsonSerializable()
 class PersonalizationOptions {
   @JsonKey(defaultValue: false)
@@ -446,11 +449,21 @@ class PersonalizationOptions {
   @JsonKey(defaultValue: ThemeColor.copper)
   ThemeColor themeColor;
 
+  ///游戏启动后 Launcher 的行为：无行为 / 收进系统托盘
+  @JsonKey(defaultValue: LauncherPostLaunchBehavior.none)
+  LauncherPostLaunchBehavior launcherPostLaunchBehavior;
+
+  ///托盘模式下，游戏退出后是否自动恢复主窗口（默认恢复）
+  @JsonKey(defaultValue: true)
+  bool restoreWindowOnGameExit;
+
   PersonalizationOptions({
     required this.themeMode,
     required this.themeColor,
     required this.navigationCollapse,
     required this.subNavigationCollapse,
+    required this.launcherPostLaunchBehavior,
+    required this.restoreWindowOnGameExit,
   });
 
   factory PersonalizationOptions.fromJson(Map<String, dynamic> json) =>

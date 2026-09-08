@@ -186,6 +186,13 @@ PersonalizationOptions _$PersonalizationOptionsFromJson(
       ThemeColor.copper,
   navigationCollapse: json['navigationCollapse'] as bool? ?? false,
   subNavigationCollapse: json['subNavigationCollapse'] as bool? ?? false,
+  launcherPostLaunchBehavior:
+      $enumDecodeNullable(
+        _$LauncherPostLaunchBehaviorEnumMap,
+        json['launcherPostLaunchBehavior'],
+      ) ??
+      LauncherPostLaunchBehavior.none,
+  restoreWindowOnGameExit: json['restoreWindowOnGameExit'] as bool? ?? true,
 );
 
 Map<String, dynamic> _$PersonalizationOptionsToJson(
@@ -195,6 +202,9 @@ Map<String, dynamic> _$PersonalizationOptionsToJson(
   'subNavigationCollapse': instance.subNavigationCollapse,
   'themeMode': _$ThemeModeEnumMap[instance.themeMode]!,
   'themeColor': _$ThemeColorEnumMap[instance.themeColor]!,
+  'launcherPostLaunchBehavior':
+      _$LauncherPostLaunchBehaviorEnumMap[instance.launcherPostLaunchBehavior]!,
+  'restoreWindowOnGameExit': instance.restoreWindowOnGameExit,
 };
 
 const _$ThemeModeEnumMap = {
@@ -208,6 +218,11 @@ const _$ThemeColorEnumMap = {
   ThemeColor.titanium: 'titanium',
   ThemeColor.thorium: 'thorium',
   ThemeColor.plastanium: 'plastanium',
+};
+
+const _$LauncherPostLaunchBehaviorEnumMap = {
+  LauncherPostLaunchBehavior.none: 'none',
+  LauncherPostLaunchBehavior.tray: 'tray',
 };
 
 DownloadOptions _$DownloadOptionsFromJson(Map<String, dynamic> json) =>

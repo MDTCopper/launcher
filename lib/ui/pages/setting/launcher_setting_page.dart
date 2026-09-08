@@ -9,6 +9,8 @@ import 'package:copper_launcher/ui/theme/app_theme.dart';
 
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/vars.dart';
+import 'package:copper_launcher/util/io/os.dart';
+import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -27,6 +29,107 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
 
   ThemeMode get themeMode => personalizationOptions.themeMode;
   ThemeColor get themeColor => personalizationOptions.themeColor;
+
+  void _setPostLaunchBehavior(LauncherPostLaunchBehavior behavior) {
+    setState(() {
+      personalizationOptions.launcherPostLaunchBehavior = behavior;
+    });
+    config.save();
+    //实时应用托盘模式（创建/销毁托盘、开关「关闭进托盘」）
+    LauncherTray.instance.applyMode();
+  }
+
+  Widget _buildPostLaunchOption({
+    required bool selected,
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    return Expanded(
+      child: ReboundContainer(
+        pressedScale: 0.95,
+        borderRadius: BorderRadius.circular(12),
+        backgroundColor: selected ? colors.interactive.withAlpha(40) : null,
+        onTap: onTap,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: colors.border),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              children: [
+                Icon(
+                  icon,
+                  size: 28,
+                  color: selected ? colors.interactive : colors.itemSecondary,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: selected ? colors.interactive : colors.itemPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPostLaunchModule() {
+    final behavior = personalizationOptions.launcherPostLaunchBehavior;
+    final isTray = behavior == LauncherPostLaunchBehavior.tray;
+    return ContentPanelModule(
+      title: '游戏启动后',
+      child: Column(
+        spacing: 8,
+        children: [
+          Row(
+            spacing: 8,
+            children: [
+              _buildPostLaunchOption(
+                selected: !isTray,
+                label: '无行为',
+                icon: Icons.do_not_disturb_on_outlined,
+                onTap: () =>
+                    _setPostLaunchBehavior(LauncherPostLaunchBehavior.none),
+              ),
+              _buildPostLaunchOption(
+                selected: isTray,
+                label: '系统托盘',
+                icon: Icons.minimize_outlined,
+                onTap: () =>
+                    _setPostLaunchBehavior(LauncherPostLaunchBehavior.tray),
+              ),
+            ],
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.ease,
+            alignment: Alignment.topCenter,
+            child: isTray
+                ? SwitchSettingBar(
+                    title: '游戏退出后恢复窗口',
+                    value: personalizationOptions.restoreWindowOnGameExit,
+                    onChanged: (value) {
+                      setState(() {
+                        personalizationOptions.restoreWindowOnGameExit = value;
+                      });
+                      config.save();
+                    },
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildThemeColorOptions() {
     return Row(
@@ -55,6 +158,7 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   Widget build(BuildContext context) {
     return ListContentPanel(
       items: [
+        if (isDesktop) _buildPostLaunchModule(),
         ContentPanelModule(
           title: '主题',
           child: Column(

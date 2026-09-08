@@ -8,6 +8,7 @@ import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/java/java_compat.dart';
+import 'package:copper_launcher/util/launcher_tray.dart';
 
 import 'package:copper_launcher/util/system_info.dart';
 import 'package:flutter/material.dart';
@@ -192,6 +193,8 @@ class LaunchMindustryTask extends Task {
           content: '启动成功，耗时${time.trim()}',
         );
         TaskLogManager.addLog(LogEntry(LogType.success, '游戏启动成功，耗时$time'));
+        //托盘模式下收进系统托盘（进程保留监听游戏退出）
+        LauncherTray.instance.hideIfTrayMode();
       }
       if (log.contains('exit')) {
         // 回写最近启动时间与累计游玩时长（含正常退出 / 停止 / 异常退出）
@@ -205,6 +208,8 @@ class LaunchMindustryTask extends Task {
           // 退出回调非异步上下文，fire-and-forget 保存（后续任务流程会再 save）
           config.save();
         }
+        //托盘模式下按「恢复窗口」选项决定是否弹出主窗口
+        LauncherTray.instance.showIfRestoreOnExit();
         if (log.contains('0')) {
           NotificationManager.addNotice(
             icon: Icons.info_outline,

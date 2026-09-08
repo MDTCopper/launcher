@@ -12,6 +12,7 @@ import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/github_mirror.dart';
 import 'package:copper_launcher/util/io/java/java_finder.dart';
+import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +42,8 @@ Future<void> _initialize() async {
   await Log.init();
   await _checkAndPromptGameIssues();
   await _initViewPool();
+  //窗口就绪后应用托盘模式（依赖 config + windowManager）
+  await LauncherTray.instance.applyMode();
 }
 
 void _checkPlatform() {

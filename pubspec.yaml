@@ -51,6 +51,7 @@ dependencies:
   jni: ^1.0.3
   jni_flutter: ^1.0.3
   permission_handler: ^13.0.2
+  tray_manager: ^0.2.3
 
 dev_dependencies:
   flutter_test:
