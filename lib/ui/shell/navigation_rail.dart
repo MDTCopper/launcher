@@ -74,9 +74,14 @@ class NavigationRailState extends State<NavigationRail> {
   }
 
   // ── Logo , 拖拽区 , 返回按钮 ──
-  Widget _buildLogo() {
-    final colors = AppColors.of(context);
-    final textTheme = Theme.of(context).textTheme;
+  Widget _buildTop() {
+    final theme = config.setting.personalizationOptions.themeColor;
+    final icon = switch (theme) {
+      ThemeColor.copper => Images.copper,
+      ThemeColor.titanium => Images.titanium,
+      ThemeColor.thorium => Images.thorium,
+      ThemeColor.plastanium => Images.plastanium,
+    };
     return Stack(
       alignment: .centerLeft,
       children: [
@@ -85,50 +90,65 @@ class NavigationRailState extends State<NavigationRail> {
             onPanStart: (_) => windowManager.startDragging(),
           ),
         ),
-
         Container(
           height: 40,
           padding: EdgeInsets.symmetric(horizontal: 12),
           alignment: .centerLeft,
           child: AnimatedSwitcher(
             duration: animationDuration,
-            transitionBuilder: SwitcherBuilders.slideOver(),
+            transitionBuilder: SwitcherBuilders.slideOver(reverse: true),
             layoutBuilder: (currentChild, previousChildren) {
               return Stack(
                 alignment: .centerLeft,
                 children: [...previousChildren, ?currentChild],
               );
             },
-            child: canPop
-                ? _buildBackButton()
-                : Row(
-                    children: [
-                      AnimatedSize(
-                        duration: animationDuration,
-                        curve: Curves.ease,
-                        child: SizedBox(width: collapse ? 4 : 0),
-                      ),
-                      Image.asset(Images.copper, width: 24, height: 24),
-                      Expanded(
-                        child: AnimatedOpacity(
-                          duration: animationDuration,
-                          curve: Curves.ease,
-                          opacity: collapse ? 0.0 : 1.0,
-                          child: Padding(
-                            padding: EdgeInsetsGeometry.only(left: 8),
-                            child: Text(
-                              'Copper',
-                              style: textTheme.titleLarge?.copyWith(
-                                color: colors.interactive,
-                                fontWeight: FontWeight.w900,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+            child: canPop ? _buildBackButton() : _buildLogo(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLogo() {
+    final colors = AppColors.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final theme = config.setting.personalizationOptions.themeColor;
+    final icon = switch (theme) {
+      ThemeColor.copper => Images.copper,
+      ThemeColor.titanium => Images.titanium,
+      ThemeColor.thorium => Images.thorium,
+      ThemeColor.plastanium => Images.plastanium,
+    };
+    return Row(
+      key: ValueKey('logo'),
+      children: [
+        AnimatedSize(
+          duration: animationDuration,
+          curve: Curves.ease,
+          child: SizedBox(width: collapse ? 4 : 0),
+        ),
+        AnimatedSwitcher(
+          duration: animationDuration,
+          transitionBuilder: SwitcherBuilders.slideOver(),
+          child: Image.asset(icon, key: ValueKey(icon), width: 24, height: 24),
+        ),
+        Expanded(
+          child: AnimatedOpacity(
+            duration: animationDuration,
+            curve: Curves.ease,
+            opacity: collapse ? 0.0 : 1.0,
+            child: Padding(
+              padding: EdgeInsetsGeometry.only(left: 8),
+              child: Text(
+                'Copper',
+                style: textTheme.titleLarge?.copyWith(
+                  color: colors.interactive,
+                  fontWeight: FontWeight.w900,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
           ),
         ),
       ],
@@ -140,6 +160,7 @@ class NavigationRailState extends State<NavigationRail> {
     final textTheme = Theme.of(context).textTheme;
 
     return ReboundButton(
+      key: ValueKey('backButton'),
       pressedScale: collapse ? 0.8 : 0.9,
       borderRadius: BorderRadius.circular(4),
       backgroundColor: Colors.transparent,
@@ -149,7 +170,6 @@ class NavigationRailState extends State<NavigationRail> {
         }
       },
       child: Row(
-        crossAxisAlignment: .start,
         children: [
           Icon(Icons.arrow_back, color: colors.itemSecondary),
           Expanded(
@@ -305,7 +325,7 @@ class NavigationRailState extends State<NavigationRail> {
         color: colors.cardBackground,
         child: Column(
           children: [
-            _buildLogo(),
+            _buildTop(),
             Expanded(child: _buildMenuView()),
             _buildVersionTile(),
           ],

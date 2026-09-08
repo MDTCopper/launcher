@@ -30,14 +30,17 @@ abstract class SwitcherBuilders {
   ///层叠覆盖
   ///
   ///[offset]是新组件划入的偏移，如[Offset(-0.4, 0.0)]代表新组件从左边滑入
-  static Widget Function(Widget, Animation<double>) slideOver([
+  ///未知原因，同样的代码对于不同的children效果恰好相反，[reverse]作为一个修正选项看情况调整
+  static Widget Function(Widget, Animation<double>) slideOver({
     Offset offset = const Offset(-0.66, 0.0),
-  ]) {
+    bool reverse = false,
+  }) {
     Widget function(Widget child, Animation<double> animation) {
-      final isForward = animation.isForwardOrCompleted;
+      var isForward = animation.isForwardOrCompleted;
+      if (reverse) isForward = !isForward;
       final Animation<Offset> position;
       final Animation<double> scale;
-      if (!isForward) {
+      if (isForward) {
         position = Tween<Offset>(
           begin: offset,
           end: Offset.zero,
