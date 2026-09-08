@@ -379,7 +379,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           SizedBox(height: 8),
           Row(
             children: [
-              SizedBox(width: 150, child: Text('自定义窗口大小')),
+              SizedBox(width: 158, child: Text('自定义窗口大小')),
               Expanded(
                 child: Row(
                   spacing: 4,

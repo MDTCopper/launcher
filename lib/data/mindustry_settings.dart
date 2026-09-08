@@ -1056,6 +1056,280 @@ class MindustrySettingsPatch {
     return json;
   }
 
+  /// 按 settings.bin 键名读取覆盖值；未覆盖（null）返回 null。
+  dynamic getValue(String key) {
+    switch (key) {
+      case 'saveinterval':
+        return saveInterval;
+      case 'autotarget':
+        return autoTarget;
+      case 'keyboard':
+        return keyboard;
+      case 'crashreport':
+        return crashReport;
+      case 'communityservers':
+        return communityServers;
+      case 'savecreate':
+        return saveCreate;
+      case 'blockreplace':
+        return blockReplace;
+      case 'conveyorpathfinding':
+        return conveyorPathfinding;
+      case 'hints':
+        return hints;
+      case 'logichints':
+        return logicHints;
+      case 'backgroundpause':
+        return backgroundPause;
+      case 'buildautopause':
+        return buildAutoPause;
+      case 'distinctcontrolgroups':
+        return distinctControlGroups;
+      case 'doubletapmine':
+        return doubleTapMine;
+      case 'commandmodehold':
+        return commandModeHold;
+      case 'modcrashdisable':
+        return modCrashDisable;
+      case 'playerlimit':
+        return playerLimit;
+      case 'steampublichost':
+        return steamPublicHost;
+      case 'console':
+        return console;
+      case 'uiscale':
+        return uiScale;
+      case 'screenshake':
+        return screenShake;
+      case 'bloomintensity':
+        return bloomIntensity;
+      case 'bloomblur':
+        return bloomBlur;
+      case 'fpscap':
+        return fpsCap;
+      case 'chatopacity':
+        return chatOpacity;
+      case 'lasersopacity':
+        return lasersOpacity;
+      case 'unitlaseropacity':
+        return unitLaserOpacity;
+      case 'bridgeopacity':
+        return bridgeOpacity;
+      case 'maxmagnificationmultiplierpercent':
+        return maxMagnificationMultiplierPercent;
+      case 'minmagnificationmultiplierpercent':
+        return minMagnificationMultiplierPercent;
+      case 'vsync':
+        return vsync;
+      case 'fullscreen':
+        return fullscreen;
+      case 'borderlesswindow':
+        return borderlessWindow;
+      case 'landscape':
+        return landscape;
+      case 'effects':
+        return effects;
+      case 'atmosphere':
+        return atmosphere;
+      case 'drawlight':
+        return drawLight;
+      case 'destroyedblocks':
+        return destroyedBlocks;
+      case 'blockstatus':
+        return blockStatus;
+      case 'playerchat':
+        return playerChat;
+      case 'coreitems':
+        return coreItems;
+      case 'minimap':
+        return minimap;
+      case 'smoothcamera':
+        return smoothCamera;
+      case 'detach-camera':
+        return detachCamera;
+      case 'position':
+        return position;
+      case 'mouseposition':
+        return mousePosition;
+      case 'fps':
+        return fps;
+      case 'playerindicators':
+        return playerIndicators;
+      case 'indicators':
+        return indicators;
+      case 'showweather':
+        return showWeather;
+      case 'animatedwater':
+        return animatedWater;
+      case 'animatedshields':
+        return animatedShields;
+      case 'bloom':
+        return bloom;
+      case 'pixelate':
+        return pixelate;
+      case 'linear':
+        return linear;
+      case 'skipcoreanimation':
+        return skipCoreAnimation;
+      case 'hidedisplays':
+        return hideDisplays;
+      case 'macnotch':
+        return macNotch;
+      case 'swapdiagonal':
+        return swapDiagonal;
+      case 'alwaysmusic':
+        return alwaysMusic;
+      case 'musicvol':
+        return musicVol;
+      case 'sfxvol':
+        return sfxVol;
+      case 'ambientvol':
+        return ambientVol;
+      case 'locale':
+        return locale;
+      case 'blocksync':
+        return blockSync;
+      default:
+        return null;
+    }
+  }
+
+  /// 按 settings.bin 键名写入覆盖值；[value] 为 null 表示清除覆盖。
+  void setValue(String key, dynamic value) {
+    switch (key) {
+      case 'saveinterval':
+        saveInterval = value as int?;
+      case 'autotarget':
+        autoTarget = value as bool?;
+      case 'keyboard':
+        keyboard = value as bool?;
+      case 'crashreport':
+        crashReport = value as bool?;
+      case 'communityservers':
+        communityServers = value as bool?;
+      case 'savecreate':
+        saveCreate = value as bool?;
+      case 'blockreplace':
+        blockReplace = value as bool?;
+      case 'conveyorpathfinding':
+        conveyorPathfinding = value as bool?;
+      case 'hints':
+        hints = value as bool?;
+      case 'logichints':
+        logicHints = value as bool?;
+      case 'backgroundpause':
+        backgroundPause = value as bool?;
+      case 'buildautopause':
+        buildAutoPause = value as bool?;
+      case 'distinctcontrolgroups':
+        distinctControlGroups = value as bool?;
+      case 'doubletapmine':
+        doubleTapMine = value as bool?;
+      case 'commandmodehold':
+        commandModeHold = value as bool?;
+      case 'modcrashdisable':
+        modCrashDisable = value as bool?;
+      case 'playerlimit':
+        playerLimit = value as int?;
+      case 'steampublichost':
+        steamPublicHost = value as bool?;
+      case 'console':
+        console = value as bool?;
+      case 'uiscale':
+        uiScale = value as int?;
+      case 'screenshake':
+        screenShake = value as int?;
+      case 'bloomintensity':
+        bloomIntensity = value as int?;
+      case 'bloomblur':
+        bloomBlur = value as int?;
+      case 'fpscap':
+        fpsCap = value as int?;
+      case 'chatopacity':
+        chatOpacity = value as int?;
+      case 'lasersopacity':
+        lasersOpacity = value as int?;
+      case 'unitlaseropacity':
+        unitLaserOpacity = value as int?;
+      case 'bridgeopacity':
+        bridgeOpacity = value as int?;
+      case 'maxmagnificationmultiplierpercent':
+        maxMagnificationMultiplierPercent = value as int?;
+      case 'minmagnificationmultiplierpercent':
+        minMagnificationMultiplierPercent = value as int?;
+      case 'vsync':
+        vsync = value as bool?;
+      case 'fullscreen':
+        fullscreen = value as bool?;
+      case 'borderlesswindow':
+        borderlessWindow = value as bool?;
+      case 'landscape':
+        landscape = value as bool?;
+      case 'effects':
+        effects = value as bool?;
+      case 'atmosphere':
+        atmosphere = value as bool?;
+      case 'drawlight':
+        drawLight = value as bool?;
+      case 'destroyedblocks':
+        destroyedBlocks = value as bool?;
+      case 'blockstatus':
+        blockStatus = value as bool?;
+      case 'playerchat':
+        playerChat = value as bool?;
+      case 'coreitems':
+        coreItems = value as bool?;
+      case 'minimap':
+        minimap = value as bool?;
+      case 'smoothcamera':
+        smoothCamera = value as bool?;
+      case 'detach-camera':
+        detachCamera = value as bool?;
+      case 'position':
+        position = value as bool?;
+      case 'mouseposition':
+        mousePosition = value as bool?;
+      case 'fps':
+        fps = value as bool?;
+      case 'playerindicators':
+        playerIndicators = value as bool?;
+      case 'indicators':
+        indicators = value as bool?;
+      case 'showweather':
+        showWeather = value as bool?;
+      case 'animatedwater':
+        animatedWater = value as bool?;
+      case 'animatedshields':
+        animatedShields = value as bool?;
+      case 'bloom':
+        bloom = value as bool?;
+      case 'pixelate':
+        pixelate = value as bool?;
+      case 'linear':
+        linear = value as bool?;
+      case 'skipcoreanimation':
+        skipCoreAnimation = value as bool?;
+      case 'hidedisplays':
+        hideDisplays = value as bool?;
+      case 'macnotch':
+        macNotch = value as bool?;
+      case 'swapdiagonal':
+        swapDiagonal = value as bool?;
+      case 'alwaysmusic':
+        alwaysMusic = value as bool?;
+      case 'musicvol':
+        musicVol = value as int?;
+      case 'sfxvol':
+        sfxVol = value as int?;
+      case 'ambientvol':
+        ambientVol = value as int?;
+      case 'locale':
+        locale = value as String?;
+      case 'blocksync':
+        blockSync = value as bool?;
+    }
+  }
+
   /// 将非 null 字段应用到 [target]。
   void _applyTo(MindustrySettings target) {
     // 游戏
