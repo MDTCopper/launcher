@@ -11,6 +11,7 @@ import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/github_mirror.dart';
+import 'package:copper_launcher/util/io/java/java_finder.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -35,6 +36,8 @@ Future<void> _initialize() async {
   cio.applySettings();
   //加载 github 镜像预设节点（远程+爬取缓存；过期自动后台重爬）
   unawaited(GithubMirror.instance.load());
+  //启动校验 Java 配置：失效项标记，选中失效则回退自动选择
+  unawaited(_checkConfiguredJavas());
   await Log.init();
   await _checkAndPromptGameIssues();
   await _initViewPool();
@@ -43,6 +46,15 @@ Future<void> _initialize() async {
 void _checkPlatform() {
   if (kIsWeb) throw Exception('Web不支持');
   if (Platform.isIOS) throw Exception('IOS平台不支持');
+}
+
+/// 启动校验 Java 配置：标记失效项并回退失效的选中，变更则保存。
+Future<void> _checkConfiguredJavas() async {
+  final invalid = await JavaFinder.validateConfiguredJavas();
+  if (invalid > 0) {
+    addLogAndPrint(.warning, '$invalid 个 Java 配置路径失效，已标记并在选中时回退自动');
+    await config.save();
+  }
 }
 
 Future _initViewPool() async {

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
@@ -125,6 +127,26 @@ class LaunchMindustryTask extends Task {
       );
     }
 
+    // 启动前兜底：选中路径已失效（被删/移动）则回退自动选择；仍无则中止并提示
+    if (javaPath != null && !File(javaPath).existsSync()) {
+      addTaskLog(LogEntry(LogType.warning, 'Java 路径失效: $javaPath，回退自动选择'));
+      javaPath = _autoPickJava(
+        launchOption.javaOptions.javas,
+        mindustry.versionNumber ?? mindustry.releaseInt,
+      );
+    }
+    if (javaPath == null) {
+      addNotice(
+        icon: Icons.error_outline,
+        title: '缺少Java',
+        content: '未找到可用Java，请到设置中下载或添加',
+      );
+      addTaskLog(LogEntry(LogType.error, '未找到可用Java，无法启动'));
+      status = TaskStatus.failed;
+      updateDisplay();
+      return;
+    }
+
     final List<String> args =
         (mindustry.jvmParameter ?? launchOption.javaOptions.jvmParameter).split(
           ' ',
@@ -223,6 +245,7 @@ class LaunchMindustryTask extends Task {
     JavaInfo? anyPick;
 
     for (final it in javas) {
+      if (!it.isValid) continue; //失效项不参与选择
       final version = it.version ?? 0;
       if (version == target && exact == null) exact = it;
       if (version > target &&

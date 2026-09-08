@@ -640,4 +640,29 @@ class JavaFinder {
 
     return JavaInfo(path: javaPath, version: version, isValid: true);
   }
+
+  /// 启动时校验配置里的 javas 列表：路径失效的标记为无效（保留记录，
+  /// 界面下拉会跳过），选中的失效项回退为自动选择。返回本次失效数量。
+  static Future<int> validateConfiguredJavas() async {
+    final javas = config.setting.launchOptions.javaOptions.javas;
+    var invalidCount = 0;
+    for (var i = 0; i < javas.length; i++) {
+      final item = javas[i];
+      if (!item.isValid) continue;
+      final version = await _validateAndGetVersion(item.path);
+      if (version == null) {
+        javas[i] = JavaInfo(path: item.path, version: null, isValid: false);
+        invalidCount++;
+      }
+    }
+
+    final options = config.setting.launchOptions.javaOptions;
+    if (options.selectedJava != 'auto') {
+      final selectedValid = javas.any(
+        (item) => item.path == options.selectedJava && item.isValid,
+      );
+      if (!selectedValid) options.selectedJava = 'auto';
+    }
+    return invalidCount;
+  }
 }

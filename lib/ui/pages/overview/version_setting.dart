@@ -32,8 +32,7 @@ import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
-import 'package:copper_launcher/ui/dialog/java_download_dialog.dart';
-import 'package:copper_launcher/util/io/java/java_compat.dart';
+
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/format/path_format.dart';

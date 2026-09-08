@@ -138,10 +138,16 @@ class _RateLimiter {
 /// Copper 项目唯一的网络入口：合并原 [HttpHelper]（代理/分块下载）与
 /// [Downloader]（多分块 task 下载），对外复刻 dio 的方法面。
 ///
-/// - 所有请求自动带 `CopperLauncher/<版本>` User-Agent
-/// - 请求 [githubAPI] 域名时自动附加 config 中的 github token
-/// - 代理/限速/线程默认值来自 [config]，启动或设置页变更后调用
-///   [applySettings] 同步（无需重启）
+/// 请求工作流：
+/// 1. 直连官方 URL，拦截器自动补 UA；请求 api.github.com 且配置了
+///    token 时附加 Authorization
+/// 2. 直连失败（连接类错误）→ 走 github 镜像（[GithubMirror]）回退，
+///    官方优先、错误驱动，镜像选最优并带 TTL 缓存
+/// 3. 大文件下载走分块并发（断点续传）或单流回退，限速/线程默认值来自
+///    [config]
+///
+/// 代理三模式（跟随系统/自定义/关闭）与下载默认值在启动或设置页变更后
+/// 通过 [applySettings] 同步，无需重启。
 final CopperIO cio = CopperIO.instance;
 
 class CopperIO {
@@ -362,9 +368,9 @@ class CopperIO {
 
   ///异步检测一次 Windows 系统代理。
   ///
-  ///`reg` 是进程调用，绝不能放进请求路径同步执行——否则每个连接都
-  ///`Process.runSync` 阻塞主 isolate（多并发 icon/图片时卡到无法拖动窗口）。
-  ///启动时检测一次并缓存即可，系统代理不会频繁变化。
+  ///`reg` 是进程调用，不能在请求路径同步执行——否则每个连接都
+  ///`Process.runSync` 阻塞主 isolate 导致 UI 卡顿。启动时异步检测一次并
+  ///缓存即可，系统代理不会频繁变化。
   Future<void> _detectWindowsSystemProxyOnce() async {
     if (_windowsSystemProxyDetectionStarted) return;
     _windowsSystemProxyDetectionStarted = true;
