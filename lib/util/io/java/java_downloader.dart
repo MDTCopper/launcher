@@ -69,8 +69,16 @@ class JavaDownloader {
       for (final release in releases) {
         if (release is! Map) continue;
 
-        final binaries = release['binaries'] as List?;
-        if (binaries == null) continue;
+        //Adoptium API 曾用 binaries[] 数组，现为 binary 单数对象；两者都兼容
+        final raw = release['binaries'] ?? release['binary'];
+        final List binaries;
+        if (raw is List) {
+          binaries = raw;
+        } else if (raw is Map) {
+          binaries = [raw];
+        } else {
+          continue;
+        }
 
         for (final binary in binaries) {
           if (binary is! Map) continue;
