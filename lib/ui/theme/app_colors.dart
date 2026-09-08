@@ -93,10 +93,7 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.barrier,
   });
 
-  // ═══════════════════════════════════════════════════════════
-  // 亮色
-  // ═══════════════════════════════════════════════════════════
-
+  //Copper默认主题色
   static const light = AppColors(
     // 背景
     pageBackground: Palette.neutral200,
@@ -143,10 +140,6 @@ class AppColors extends ThemeExtension<AppColors> {
     indicatorBackground: Palette.copper300,
     barrier: Palette.barrier,
   );
-
-  // ═══════════════════════════════════════════════════════════
-  // 暗色
-  // ═══════════════════════════════════════════════════════════
 
   static const dark = AppColors(
     // 背景
@@ -195,7 +188,20 @@ class AppColors extends ThemeExtension<AppColors> {
     barrier: Palette.barrier,
   );
 
-  static const blueDark = null;
+  //TitaniumBlue钛蓝主题色
+  static const titaniumBlueLight = null;
+
+  static const titaniumBlueDark = null;
+
+  //thoriumPink 粉钍
+  static const thoriumPinkLight = null;
+
+  static const thoriumPinkDark = null;
+
+  //plastaniumGreen 塑钢绿
+  static const plastaniumGreenLight = null;
+
+  static const plastaniumGreenDark = null;
 
   @override
   AppColors copyWith({
