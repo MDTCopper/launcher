@@ -64,7 +64,7 @@ class _JavaDownloadDialogState extends State<_JavaDownloadDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
+    final child = Material(
       color: Colors.transparent,
       elevation: 4,
       shadowColor: Colors.black,
@@ -102,21 +102,6 @@ class _JavaDownloadDialogState extends State<_JavaDownloadDialog> {
                 child: CircularProgressIndicator(),
               )
             else ...[
-              if (widget.recommendedVersion != null)
-                Row(
-                  spacing: 4,
-                  children: [
-                    Icon(
-                      Icons.recommend_outlined,
-                      size: 18,
-                      color: theme.colorScheme.primary,
-                    ),
-                    Text(
-                      '当前版本推荐 Java ${widget.recommendedVersion}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ),
               DropdownLayer<int>(
                 width: double.infinity,
                 initialValue: _selectedVersion,
@@ -126,6 +111,18 @@ class _JavaDownloadDialogState extends State<_JavaDownloadDialog> {
                     DropdownOption(value: version, label: 'Java $version'),
                 ],
               ),
+              if (widget.recommendedVersion != null)
+                Row(
+                  spacing: 4,
+                  children: [
+                    Icon(
+                      Icons.recommend_outlined,
+                      size: 24,
+                      color: theme.colorScheme.primary,
+                    ),
+                    Text('当前版本推荐 Java ${widget.recommendedVersion}'),
+                  ],
+                ),
               Align(
                 alignment: Alignment.center,
                 child: ReboundButton(
@@ -159,5 +156,6 @@ class _JavaDownloadDialogState extends State<_JavaDownloadDialog> {
         ),
       ),
     );
+    return Center(child: child);
   }
 }

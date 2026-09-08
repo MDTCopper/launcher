@@ -25,6 +25,7 @@ import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/format/path_format.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/system_info.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:line_icons/line_icons.dart';
@@ -67,8 +68,8 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
 
   late final TextEditingController widthController;
   late final TextEditingController heightController;
-  static Memory freeMemory = Memory(gb: 128);
-  static Memory totalMemory = Memory(gb: 128);
+  static Memory freeMemory = Memory(gb: 12);
+  static Memory totalMemory = Memory(gb: 16);
 
   /// 自动分配内存：选中版本 mod 体积之和（缓存，避免每 5 秒重扫目录）
   int _autoModTotalBytes = 0;
@@ -338,7 +339,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
                 onTap: () {
                   setState(() {
                     if (width <= 320 || height <= 160) {
-                      return; //todo 窗口过小警告
+                      return; //TODO 窗口过小警告
                     }
                     final winSize = WindowSize(width, height);
                     launchOptions.customWindowSize = winSize;
@@ -504,11 +505,12 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           mainAxisAlignment: MainAxisAlignment.end,
           spacing: 16,
           children: [
-            IconTextButton(
-              icon: LineIcons.java,
-              content: '下载Java',
-              onTap: _downloadJava,
-            ),
+            if (launchOptions.javaOptions.javas.isEmpty || kDebugMode)
+              IconTextButton(
+                icon: LineIcons.java,
+                content: '下载Java',
+                onTap: _downloadJava,
+              ),
             IconTextButton(
               icon: Icons.folder_copy_outlined,
               content: '手动添加',
@@ -574,7 +576,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     // 分配值：自动时用实时估算，手动时用配置值
     final displayedMemory = autoMemory ? _autoMemoryEstimate : memory;
     final allocation = autoMemory
-        ? '自动（≈${_formatRam(_autoMemoryEstimate.inGB)}GB）'
+        ? '≈${_formatRam(_autoMemoryEstimate.inGB)}GB'
         : '${_formatRam(displayedMemory.inGB)} GB';
     final occupy = ((1 - freeMemory.bytes / totalMemory.bytes) * 100)
         .toStringAsFixed(1);
