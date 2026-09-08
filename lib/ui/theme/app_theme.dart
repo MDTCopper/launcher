@@ -28,14 +28,18 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
     case ThemeColor.copper:
       colors = isDark ? AppColors.dark : AppColors.light;
       break;
-    case ThemeColor.tai:
-      colors = isDark ? AppColors.dark : AppColors.light;
+    case ThemeColor.titanium:
+      colors = isDark
+          ? AppColors.titaniumBlueDark
+          : AppColors.titaniumBlueLight;
       break;
-    case ThemeColor.tu:
-      colors = isDark ? AppColors.dark : AppColors.light;
+    case ThemeColor.thorium:
+      colors = isDark ? AppColors.thoriumPinkDark : AppColors.thoriumPinkLight;
       break;
-    case ThemeColor.suGang:
-      colors = isDark ? AppColors.dark : AppColors.light;
+    case ThemeColor.plastanium:
+      colors = isDark
+          ? AppColors.plastaniumGreenDark
+          : AppColors.plastaniumGreenLight;
       break;
   }
 

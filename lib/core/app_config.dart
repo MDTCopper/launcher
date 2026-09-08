@@ -431,7 +431,7 @@ class JavaOptions {
   Map<String, dynamic> toJson() => _$JavaOptionsToJson(this);
 }
 
-enum ThemeColor { copper, tai, tu, suGang }
+enum ThemeColor { copper, titanium, thorium, plastanium }
 
 @JsonSerializable()
 class PersonalizationOptions {

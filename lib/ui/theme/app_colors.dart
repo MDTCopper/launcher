@@ -93,7 +93,7 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.barrier,
   });
 
-  //Copper默认主题色
+  //Copper默认主题色，黄铜
   static const light = AppColors(
     // 背景
     pageBackground: Palette.neutral200,
@@ -111,7 +111,7 @@ class AppColors extends ThemeExtension<AppColors> {
     interactiveLow: Palette.copper600,
     interactive: Palette.copper700,
     interactiveHigh: Palette.copper900,
-    splash: Palette.copperHoverOverlay,
+    splash: Palette.copperDarkHoverOverlay,
 
     // 边框
     border: Palette.neutral400,
@@ -121,7 +121,7 @@ class AppColors extends ThemeExtension<AppColors> {
     contentBorder: Palette.neutral500,
     contentBorderHover: Palette.neutral600,
     contentBorderFocus: Palette.copper500,
-    contentBackgroundFocus: Palette.inputFocusBackground,
+    contentBackgroundFocus: Palette.copperInputFocusBackground,
 
     // 滚动条
     scrollbarThumb: Palette.neutral400,
@@ -158,7 +158,7 @@ class AppColors extends ThemeExtension<AppColors> {
     interactiveLow: Palette.copper700,
     interactive: Palette.copper600,
     interactiveHigh: Palette.copper400,
-    splash: Palette.whiteHoverOverlay,
+    splash: Palette.copperHoverOverlay,
 
     // 边框
     border: Palette.darkBorder,
@@ -168,7 +168,7 @@ class AppColors extends ThemeExtension<AppColors> {
     contentBorder: Palette.neutral500,
     contentBorderHover: Palette.neutral400,
     contentBorderFocus: Palette.copper500,
-    contentBackgroundFocus: Palette.inputFocusBackground,
+    contentBackgroundFocus: Palette.copperInputFocusBackground,
 
     // 滚动条（暗色：按压稍亮，不过曝）
     scrollbarThumb: Palette.neutral600,
@@ -188,20 +188,290 @@ class AppColors extends ThemeExtension<AppColors> {
     barrier: Palette.barrier,
   );
 
-  //TitaniumBlue钛蓝主题色
-  static const titaniumBlueLight = null;
+  //titanium Blue 钛蓝
+  static const titaniumBlueLight = AppColors(
+    // 背景
+    pageBackground: Palette.neutral200,
+    cardBackground: Palette.neutral100,
+    inputBackground: Palette.neutral100,
+    elevatedBackground: Palette.neutral100,
 
-  static const titaniumBlueDark = null;
+    // 文本 / 图标
+    itemPrimary: Palette.neutral700,
+    itemSecondary: Palette.neutral600,
+    itemOnInteractive: Palette.neutral100,
+    itemHint: Palette.neutral500,
 
-  //thoriumPink 粉钍
-  static const thoriumPinkLight = null;
+    // 交互（低 → 高强调）
+    interactiveLow: Palette.titanium600,
+    interactive: Palette.titanium700,
+    interactiveHigh: Palette.titanium900,
+    splash: Palette.titaniumDarkHoverOverlay,
 
-  static const thoriumPinkDark = null;
+    // 边框
+    border: Palette.neutral400,
+    borderFocus: Palette.titanium500,
 
-  //plastaniumGreen 塑钢绿
-  static const plastaniumGreenLight = null;
+    // 输入框
+    contentBorder: Palette.neutral500,
+    contentBorderHover: Palette.neutral600,
+    contentBorderFocus: Palette.titanium500,
+    contentBackgroundFocus: Palette.titaniumInputFocusBackground,
 
-  static const plastaniumGreenDark = null;
+    // 滚动条
+    scrollbarThumb: Palette.neutral400,
+    scrollbarThumbHover: Palette.neutral500,
+    scrollbarThumbPressed: Palette.neutral600,
+    scrollbarTrack: Palette.scrollbarTrackLight,
+    scrollbarTrackHover: Palette.scrollbarTrackLightHover,
+
+    // 语义
+    error: Palette.error,
+    success: Palette.success,
+    warning: Palette.warning,
+
+    // 其他
+    indicator: Palette.titanium500,
+    indicatorBackground: Palette.titanium300,
+    barrier: Palette.barrier,
+  );
+
+  static const titaniumBlueDark = AppColors(
+    // 背景
+    pageBackground: Palette.darkPage,
+    cardBackground: Palette.darkCard,
+    inputBackground: Palette.darkCard,
+    elevatedBackground: Palette.darkElevated,
+
+    // 文本 / 图标
+    itemPrimary: Palette.darkTextPrimary,
+    itemSecondary: Palette.darkTextSecondary,
+    itemHint: Palette.neutral400,
+    itemOnInteractive: Palette.neutral100,
+
+    // 交互
+    interactiveLow: Palette.titanium700,
+    interactive: Palette.titanium600,
+    interactiveHigh: Palette.titanium400,
+    splash: Palette.titaniumHoverOverlay,
+
+    // 边框
+    border: Palette.darkBorder,
+    borderFocus: Palette.titanium500,
+
+    // 输入框
+    contentBorder: Palette.neutral500,
+    contentBorderHover: Palette.neutral400,
+    contentBorderFocus: Palette.titanium500,
+    contentBackgroundFocus: Palette.titaniumInputFocusBackground,
+
+    // 滚动条（暗色：按压稍亮，不过曝）
+    scrollbarThumb: Palette.neutral600,
+    scrollbarThumbHover: Palette.neutral500,
+    scrollbarThumbPressed: Palette.neutral400,
+    scrollbarTrack: Palette.scrollbarTrackDark,
+    scrollbarTrackHover: Palette.scrollbarTrackDarkHover,
+
+    // 语义
+    error: Palette.errorDark,
+    success: Palette.success,
+    warning: Palette.warning,
+
+    // 其他
+    indicator: Palette.titanium500,
+    indicatorBackground: Palette.titanium300,
+    barrier: Palette.barrier,
+  );
+
+  //thorium Pink 粉钍
+  static const thoriumPinkLight = AppColors(
+    // 背景
+    pageBackground: Palette.neutral200,
+    cardBackground: Palette.neutral100,
+    inputBackground: Palette.neutral100,
+    elevatedBackground: Palette.neutral100,
+
+    // 文本 / 图标
+    itemPrimary: Palette.neutral700,
+    itemSecondary: Palette.neutral600,
+    itemOnInteractive: Palette.neutral100,
+    itemHint: Palette.neutral500,
+
+    // 交互（低 → 高强调）
+    interactiveLow: Palette.thorium600,
+    interactive: Palette.thorium700,
+    interactiveHigh: Palette.thorium900,
+    splash: Palette.thoriumDarkHoverOverlay,
+
+    // 边框
+    border: Palette.neutral400,
+    borderFocus: Palette.thorium500,
+
+    // 输入框
+    contentBorder: Palette.neutral500,
+    contentBorderHover: Palette.neutral600,
+    contentBorderFocus: Palette.thorium500,
+    contentBackgroundFocus: Palette.thoriumInputFocusBackground,
+
+    // 滚动条
+    scrollbarThumb: Palette.neutral400,
+    scrollbarThumbHover: Palette.neutral500,
+    scrollbarThumbPressed: Palette.neutral600,
+    scrollbarTrack: Palette.scrollbarTrackLight,
+    scrollbarTrackHover: Palette.scrollbarTrackLightHover,
+
+    // 语义
+    error: Palette.error,
+    success: Palette.success,
+    warning: Palette.warning,
+
+    // 其他
+    indicator: Palette.thorium500,
+    indicatorBackground: Palette.thorium300,
+    barrier: Palette.barrier,
+  );
+
+  static const thoriumPinkDark = AppColors(
+    // 背景
+    pageBackground: Palette.darkPage,
+    cardBackground: Palette.darkCard,
+    inputBackground: Palette.darkCard,
+    elevatedBackground: Palette.darkElevated,
+
+    // 文本 / 图标
+    itemPrimary: Palette.darkTextPrimary,
+    itemSecondary: Palette.darkTextSecondary,
+    itemHint: Palette.neutral400,
+    itemOnInteractive: Palette.neutral100,
+
+    // 交互
+    interactiveLow: Palette.thorium700,
+    interactive: Palette.thorium600,
+    interactiveHigh: Palette.thorium400,
+    splash: Palette.thoriumHoverOverlay,
+
+    // 边框
+    border: Palette.darkBorder,
+    borderFocus: Palette.thorium500,
+
+    // 输入框
+    contentBorder: Palette.neutral500,
+    contentBorderHover: Palette.neutral400,
+    contentBorderFocus: Palette.thorium500,
+    contentBackgroundFocus: Palette.thoriumInputFocusBackground,
+
+    // 滚动条（暗色：按压稍亮，不过曝）
+    scrollbarThumb: Palette.neutral600,
+    scrollbarThumbHover: Palette.neutral500,
+    scrollbarThumbPressed: Palette.neutral400,
+    scrollbarTrack: Palette.scrollbarTrackDark,
+    scrollbarTrackHover: Palette.scrollbarTrackDarkHover,
+
+    // 语义
+    error: Palette.errorDark,
+    success: Palette.success,
+    warning: Palette.warning,
+
+    // 其他
+    indicator: Palette.thorium500,
+    indicatorBackground: Palette.thorium300,
+    barrier: Palette.barrier,
+  );
+
+  //plastanium Green 塑钢绿
+  static const plastaniumGreenLight = AppColors(
+    // 背景
+    pageBackground: Palette.neutral200,
+    cardBackground: Palette.neutral100,
+    inputBackground: Palette.neutral100,
+    elevatedBackground: Palette.neutral100,
+
+    // 文本 / 图标
+    itemPrimary: Palette.neutral700,
+    itemSecondary: Palette.neutral600,
+    itemOnInteractive: Palette.neutral100,
+    itemHint: Palette.neutral500,
+
+    // 交互（低 → 高强调）
+    interactiveLow: Palette.plastanium600,
+    interactive: Palette.plastanium700,
+    interactiveHigh: Palette.plastanium900,
+    splash: Palette.plastaniumDarkHoverOverlay,
+
+    // 边框
+    border: Palette.neutral400,
+    borderFocus: Palette.plastanium500,
+
+    // 输入框
+    contentBorder: Palette.neutral500,
+    contentBorderHover: Palette.neutral600,
+    contentBorderFocus: Palette.plastanium500,
+    contentBackgroundFocus: Palette.plastaniumInputFocusBackground,
+
+    // 滚动条
+    scrollbarThumb: Palette.neutral400,
+    scrollbarThumbHover: Palette.neutral500,
+    scrollbarThumbPressed: Palette.neutral600,
+    scrollbarTrack: Palette.scrollbarTrackLight,
+    scrollbarTrackHover: Palette.scrollbarTrackLightHover,
+
+    // 语义
+    error: Palette.error,
+    success: Palette.success,
+    warning: Palette.warning,
+
+    // 其他
+    indicator: Palette.plastanium500,
+    indicatorBackground: Palette.plastanium300,
+    barrier: Palette.barrier,
+  );
+
+  static const plastaniumGreenDark = AppColors(
+    // 背景
+    pageBackground: Palette.darkPage,
+    cardBackground: Palette.darkCard,
+    inputBackground: Palette.darkCard,
+    elevatedBackground: Palette.darkElevated,
+
+    // 文本 / 图标
+    itemPrimary: Palette.darkTextPrimary,
+    itemSecondary: Palette.darkTextSecondary,
+    itemHint: Palette.neutral400,
+    itemOnInteractive: Palette.neutral100,
+
+    // 交互
+    interactiveLow: Palette.plastanium700,
+    interactive: Palette.plastanium600,
+    interactiveHigh: Palette.plastanium400,
+    splash: Palette.plastaniumHoverOverlay,
+
+    // 边框
+    border: Palette.darkBorder,
+    borderFocus: Palette.plastanium500,
+
+    // 输入框
+    contentBorder: Palette.neutral500,
+    contentBorderHover: Palette.neutral400,
+    contentBorderFocus: Palette.plastanium500,
+    contentBackgroundFocus: Palette.plastaniumInputFocusBackground,
+
+    // 滚动条（暗色：按压稍亮，不过曝）
+    scrollbarThumb: Palette.neutral600,
+    scrollbarThumbHover: Palette.neutral500,
+    scrollbarThumbPressed: Palette.neutral400,
+    scrollbarTrack: Palette.scrollbarTrackDark,
+    scrollbarTrackHover: Palette.scrollbarTrackDarkHover,
+
+    // 语义
+    error: Palette.errorDark,
+    success: Palette.success,
+    warning: Palette.warning,
+
+    // 其他
+    indicator: Palette.plastanium500,
+    indicatorBackground: Palette.plastanium300,
+    barrier: Palette.barrier,
+  );
 
   @override
   AppColors copyWith({

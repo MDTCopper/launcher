@@ -1,18 +1,17 @@
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/ui/components/button/action_button.dart';
+
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/app_theme.dart';
-import 'package:copper_launcher/ui/components/button/segment_button.dart';
+
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:copper_launcher/ui/components/setting_bar/segment_setting_bar.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 class LauncherSettingPage extends StatefulWidget {
@@ -29,6 +28,29 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   ThemeMode get themeMode => personalizationOptions.themeMode;
   ThemeColor get themeColor => personalizationOptions.themeColor;
 
+  Widget _buildThemeColorOptions() {
+    return Row(
+      children: [
+        ReboundButton(
+          child: Text('Copper'),
+          onTap: () => setState(() => themeSwitchTo(themeMode, .copper)),
+        ),
+        ReboundButton(
+          child: Text('titanium'),
+          onTap: () => setState(() => themeSwitchTo(themeMode, .titanium)),
+        ),
+        ReboundButton(
+          child: Text('thorium'),
+          onTap: () => setState(() => themeSwitchTo(themeMode, .thorium)),
+        ),
+        ReboundButton(
+          child: Text('plastanium'),
+          onTap: () => setState(() => themeSwitchTo(themeMode, .plastanium)),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
@@ -38,7 +60,7 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
           child: Column(
             spacing: 8,
             children: [
-              Text('todo 主题色'),
+              _buildThemeColorOptions(),
               SizedBox(height: 20),
               Row(
                 children: [

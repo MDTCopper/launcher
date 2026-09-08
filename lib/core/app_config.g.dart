@@ -205,9 +205,9 @@ const _$ThemeModeEnumMap = {
 
 const _$ThemeColorEnumMap = {
   ThemeColor.copper: 'copper',
-  ThemeColor.tai: 'tai',
-  ThemeColor.tu: 'tu',
-  ThemeColor.suGang: 'suGang',
+  ThemeColor.titanium: 'titanium',
+  ThemeColor.thorium: 'thorium',
+  ThemeColor.plastanium: 'plastanium',
 };
 
 DownloadOptions _$DownloadOptionsFromJson(Map<String, dynamic> json) =>
