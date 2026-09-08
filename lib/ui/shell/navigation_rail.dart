@@ -75,13 +75,6 @@ class NavigationRailState extends State<NavigationRail> {
 
   // ── Logo , 拖拽区 , 返回按钮 ──
   Widget _buildTop() {
-    final theme = config.setting.personalizationOptions.themeColor;
-    final icon = switch (theme) {
-      ThemeColor.copper => Images.copper,
-      ThemeColor.titanium => Images.titanium,
-      ThemeColor.thorium => Images.thorium,
-      ThemeColor.plastanium => Images.plastanium,
-    };
     return Stack(
       alignment: .centerLeft,
       children: [
