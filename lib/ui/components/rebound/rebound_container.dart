@@ -88,11 +88,9 @@ class _ReboundContainer extends State<ReboundContainer>
               _pressController.reverse();
             }
           });
-    _pressScale = Tween(
-      begin: 1.0,
-      // 兜底：调用方可能传 null（如 ReboundButton 未指定 pressedScale）
-      end: widget.pressedScale ?? 0.90,
-    ).animate(CurvedAnimation(parent: _pressController, curve: Curves.ease));
+    _pressScale = Tween(begin: 1.0, end: widget.pressedScale ?? 0.90).animate(
+      CurvedAnimation(parent: _pressController, curve: Curves.easeInOut),
+    );
 
     // 悬浮监听
     onHover = (hover) {

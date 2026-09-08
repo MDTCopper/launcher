@@ -576,7 +576,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     // 分配值：自动时用实时估算，手动时用配置值
     final displayedMemory = autoMemory ? _autoMemoryEstimate : memory;
     final allocation = autoMemory
-        ? '≈${_formatRam(_autoMemoryEstimate.inGB)}GB'
+        ? '${_formatRam(_autoMemoryEstimate.inGB)} GB'
         : '${_formatRam(displayedMemory.inGB)} GB';
     final occupy = ((1 - freeMemory.bytes / totalMemory.bytes) * 100)
         .toStringAsFixed(1);
@@ -672,26 +672,28 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
         ),
         SizedBox(height: 8),
         if (config.versionOptions.selectedVersion != null)
-          ReboundButton(
-            margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            borderRadius: BorderRadius.circular(16),
-            pressedScale: 0.9,
-            elevation: 2,
-            hoverElevation: 4,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 8,
-              children: [
-                Icon(Icons.swap_vert, size: 48),
-                Text(
-                  '转到单独版本设置',
-                  style: Theme.of(context).textTheme.displayMedium,
-                ),
-              ],
+          Center(
+            child: ReboundButton(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              borderRadius: BorderRadius.circular(16),
+              pressedScale: 0.9,
+              elevation: 2,
+              hoverElevation: 4,
+              child: Row(
+                mainAxisSize: .min,
+                spacing: 8,
+                children: [
+                  Icon(Icons.launch, size: 40),
+                  Text(
+                    '转到单独版本设置',
+                    style: Theme.of(context).textTheme.displayMedium,
+                  ),
+                ],
+              ),
+              onTap: () {
+                _routeToVersionSetting();
+              },
             ),
-            onTap: () {
-              _routeToVersionSetting();
-            },
           ),
         SizedBox(height: 8),
       ],

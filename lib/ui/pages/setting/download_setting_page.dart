@@ -354,6 +354,7 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
 
   Widget _buildNodeTile(String node, {required bool isCustom}) {
     return ReboundListTile(
+      hoverElevation: 2.0,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       leading: Icon(isCustom ? Icons.star_outline : Icons.public, size: 32),
       title: Text(node, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -396,7 +397,7 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
             },
           ),
           Text(
-            '官方直连失败时自动走最快的镜像。预设节点 $presetCount 个，自定义节点 ${customs.length} 个。',
+            '官方直连失败时自动走最快的镜像\n预设节点 $presetCount 个，自定义节点 ${customs.length} 个',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           Row(
@@ -436,6 +437,7 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
             child: nodes.isEmpty
                 ? const Center(child: Text('暂无节点，可点击「拉取节点」或添加自定义节点'))
                 : CopperSingleChildScrollView(
+                    padding: EdgeInsets.symmetric(horizontal: 4),
                     child: Column(
                       spacing: 4,
                       children: [
