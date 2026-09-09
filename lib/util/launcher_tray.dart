@@ -9,15 +9,14 @@ import 'package:copper_launcher/util/io/os.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
-///Launcher 托盘管理（仅桌面端）。
+///Launcher 托盘管理，仅桌面端
 ///
-///按 config 的「游戏启动后行为」决定：
+///按 config 的游戏启动后行为决定：
 ///- none：无行为，游戏照常，关闭窗口即退出
 ///- tray：启动游戏成功后把 Launcher 收进系统托盘（进程存活以监听游戏退出），
 ///  托盘菜单可恢复窗口 / 快速启动最近游玩 / 停止当前游戏（两步确认）/ 退出
 ///
-///托盘是原生系统元素，只能自定义图标、tooltip 与原生菜单（普通项 / 图标 /
-///checkbox / 分隔线 / 子菜单），无法渲染 Flutter 组件。
+///托盘是原生系统元素，只能自定义图标、tooltip 与原生菜单
 class LauncherTray extends TrayListener with WindowListener {
   LauncherTray._() {
     trayManager.addListener(this);
@@ -152,7 +151,7 @@ class LauncherTray extends TrayListener with WindowListener {
     await _refreshMenu();
   }
 
-  ///停止当前游戏：两步确认（第一次进入待确认，第二次真正停止）
+  ///停止当前游戏：两步确认
   void _stopCurrentGame() {
     final running = taskManager.currentTasks
         .whereType<LaunchMindustryTask>()

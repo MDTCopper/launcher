@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:path/path.dart' as p;
 
-import '../../core/app_config.dart';
 import '../app_paths.dart';
 
 void addLog(RunTimeLogType type, String message) => Log.add(type, message);
@@ -37,7 +36,6 @@ abstract class Log {
     await file.writeAsString(
       'Copper Launcher Run Time Log\n\n'
       'Launch Time : ${DateTime.now().toIso8601String()}\n'
-      'AppVersion : ${config.version}\n'
       'Platform : $platform ($version)\n'
       '------------------\n',
     );

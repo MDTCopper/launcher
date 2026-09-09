@@ -1,23 +1,17 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
-import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
-import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/app_paths.dart';
-import 'package:copper_launcher/util/io/log.dart';
-import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
-import 'package:copper_launcher/util/io/github_mirror.dart';
-import 'package:copper_launcher/util/io/java/java_finder.dart';
-import 'package:copper_launcher/util/launcher_tray.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
+import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path/path.dart' as p;
 import 'package:window_manager/window_manager.dart';
 
 void main() async {
@@ -25,25 +19,21 @@ void main() async {
   runCopperLauncher();
 }
 
+///必要的基础初始化完成后即进入 app
 Future<void> _initialize() async {
   _checkPlatform();
   WidgetsFlutterBinding.ensureInitialized();
   await AppPaths.init();
-  // 后台拉取 remote 数据源
-  unawaited(RemoteData.refresh());
+  await Log.init();
   await TokenEncryptor.init();
   await initAppConfig();
   //config 就绪后同步网络设置（代理/token/限速/线程/镜像），此后新建请求即生效
   cio.applySettings();
-  //加载 github 镜像预设节点（远程+爬取缓存；过期自动后台重爬）
-  unawaited(GithubMirror.instance.load());
-  //启动校验 Java 配置：失效项标记，选中失效则回退自动选择
-  unawaited(_checkConfiguredJavas());
-  await Log.init();
-  await _checkAndPromptGameIssues();
-  await _initViewPool();
+  await _initPlatformView();
   //窗口就绪后应用托盘模式（依赖 config + windowManager）
   await LauncherTray.instance.applyMode();
+  //后台初始化任务：不阻塞，进任务抽屉自跑
+  addTask(StartupBackgroundTask());
 }
 
 void _checkPlatform() {
@@ -51,16 +41,8 @@ void _checkPlatform() {
   if (Platform.isIOS) throw Exception('IOS平台不支持');
 }
 
-/// 启动校验 Java 配置：标记失效项并回退失效的选中，变更则保存。
-Future<void> _checkConfiguredJavas() async {
-  final invalid = await JavaFinder.validateConfiguredJavas();
-  if (invalid > 0) {
-    addLogAndPrint(.warning, '$invalid 个 Java 配置路径失效，已标记并在选中时回退自动');
-    await config.save();
-  }
-}
-
-Future _initViewPool() async {
+///平台视图初始化：桌面端建窗口，移动端设置系统 UI
+Future<void> _initPlatformView() async {
   if (Platform.isAndroid) {
     await _initAndroidView();
   } else {
@@ -93,105 +75,4 @@ Future<void> _initAndroidView() async {
   ]);
   //隐藏状态栏和导航栏
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-}
-
-/// 启动检查：缺失目录/版本收集起来，引用检测出孤儿本体，一并询问是否删除
-Future<void> _checkAndPromptGameIssues() async {
-  final folds = config.versionOptions.versionFolds;
-
-  final missingFolds = <VersionFold>[];
-  final missingVersions = <Mindustry>[];
-  for (final fold in folds) {
-    if (!await Directory(fold.path).exists()) {
-      missingFolds.add(fold);
-      Log.add(.warning, '游戏目录不存在: [${fold.tag}] ${fold.path}');
-      continue;
-    }
-    for (final version in fold.versions) {
-      if (!await File(version.jarPath).exists()) {
-        missingVersions.add(version);
-        Log.add(.warning, '游戏版本缺少 jar: [${version.tag}] ${version.jarPath}');
-      }
-    }
-  }
-
-  // 引用检测
-  final brokenLower = <String>{
-    for (final fold in missingFolds)
-      for (final version in fold.versions)
-        p.normalize(version.jarPath).toLowerCase(),
-    for (final version in missingVersions)
-      p.normalize(version.jarPath).toLowerCase(),
-  };
-  final survivingLower = <String>{
-    for (final fold in folds)
-      for (final version in fold.versions)
-        p.normalize(version.jarPath).toLowerCase(),
-  }..removeAll(brokenLower);
-
-  final orphanJars = <String>[];
-  final seenOrphan = <String>{};
-  void considerOrphan(String jarPath) {
-    final norm = p.normalize(jarPath).toLowerCase();
-    if (seenOrphan.add(norm) &&
-        !survivingLower.contains(norm) &&
-        File(jarPath).existsSync()) {
-      orphanJars.add(jarPath);
-    }
-  }
-
-  for (final fold in missingFolds) {
-    for (final version in fold.versions) {
-      considerOrphan(version.jarPath);
-    }
-  }
-  for (final version in missingVersions) {
-    considerOrphan(version.jarPath);
-  }
-
-  final count =
-      missingFolds.length + missingVersions.length + orphanJars.length;
-  if (count == 0) return;
-
-  // 应用首帧后几秒：检查缺失目录 / 版本 + 引用检测，有缺失则询问是否删除
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    Future.delayed(const Duration(seconds: 3), () {
-      final navContext = PageKeyProvider.navigatorKey.currentContext;
-      if (navContext == null || !navContext.mounted) return;
-      final detail = [
-        for (final fold in missingFolds) '目录 [${fold.tag}] 已不存在',
-        for (final version in missingVersions) '版本 [${version.tag}] 缺少 jar',
-        for (final jar in orphanJars) '无引用本体: $jar',
-      ].join('\n');
-      showConfirmationPopup(
-        context: navContext,
-        type: ConfirmationType.warning,
-        title: '检测到缺失或被孤立的游戏文件',
-        content:
-            '以下记录或文件是否删除？\n$detail\n\n'
-            '（缺失记录仅删记录；无引用本体将删除文件）',
-        action: () async {
-          for (final fold in missingFolds) {
-            config.versionOptions.versionFolds.remove(fold);
-            Log.add(.info, '已删除缺失目录记录: [${fold.tag}]');
-          }
-          for (final version in missingVersions) {
-            for (final fold in config.versionOptions.versionFolds) {
-              fold.versions.remove(version);
-            }
-            Log.add(.info, '已删除缺失版本记录: [${version.tag}]');
-          }
-          for (final jar in orphanJars) {
-            try {
-              await File(jar).delete();
-              Log.add(.info, '已删除无引用本体: $jar');
-            } catch (e) {
-              Log.add(.warning, '删除无引用本体失败: $jar $e');
-            }
-          }
-          await config.save();
-        },
-      );
-    });
-  });
 }
