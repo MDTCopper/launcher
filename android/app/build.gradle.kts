@@ -7,7 +7,8 @@ plugins {
 
 android {
     namespace = "io.github.copper.launcher"
-    compileSdk = flutter.compileSdkVersion
+    // permission_handler_android 硬编码 compileSdk 37，Flutter 默认 36 不满足
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -89,7 +89,7 @@ class NavigationRailState extends State<NavigationRail> {
           alignment: .centerLeft,
           child: AnimatedSwitcher(
             duration: animationDuration,
-            transitionBuilder: SwitcherBuilders.slideOver(reverse: true),
+            transitionBuilder: SwitcherBuilders.slideOver(fix: true),
             layoutBuilder: (currentChild, previousChildren) {
               return Stack(
                 alignment: .centerLeft,

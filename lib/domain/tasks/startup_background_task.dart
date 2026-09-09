@@ -12,6 +12,7 @@ import 'package:copper_launcher/util/io/github_mirror.dart';
 import 'package:copper_launcher/util/io/java/java_finder.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
+import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
@@ -24,8 +25,11 @@ class StartupBackgroundTask extends Task {
   ///已完成步骤数，用于折算进度
   int _completedSteps = 0;
 
+  ///是否包含 Java 配置校验步骤：仅桌面端（移动端用自带 loader，无桌面 Java 路径）
+  final bool _includeJavaCheck = isDesktop;
+
   ///总步骤数，每完成一步进度前进一步
-  static const _totalSteps = 4;
+  int get _totalSteps => _includeJavaCheck ? 4 : 3;
 
   StartupBackgroundTask() {
     type = TaskType.check;
@@ -40,8 +44,10 @@ class StartupBackgroundTask extends Task {
     if (_shouldStop) return;
     await _runStep('正在加载镜像节点', GithubMirror.instance.load);
     if (_shouldStop) return;
-    await _runStep('正在校验 Java 配置', _checkConfiguredJavas);
-    if (_shouldStop) return;
+    if (_includeJavaCheck) {
+      await _runStep('正在校验 Java 配置', _checkConfiguredJavas);
+      if (_shouldStop) return;
+    }
     await _runStep('正在检查游戏文件', _checkAndPromptGameIssues);
     if (_shouldStop) return;
 

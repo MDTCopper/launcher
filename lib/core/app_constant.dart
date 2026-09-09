@@ -1,6 +1,6 @@
 import '../util/math/range.dart';
 
-const appVersion = '0.0.1a';
+const appVersion = '0.0.1 preview';
 
 ///https://api.github.com
 const githubAPI = 'https://api.github.com';
