@@ -93,7 +93,6 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
               width: widget.size,
               headers: {
                 'User-Agent': 'MindustryModDownloader',
-                'Authorization': 'token $githubToken',
               },
               errorBuilder: (_, _, _) => onError,
             );

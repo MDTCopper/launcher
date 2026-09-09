@@ -12,8 +12,6 @@ import 'package:copper_launcher/ui/pages/test.dart';
 import 'package:copper_launcher/ui/pages/tools.dart';
 import 'package:flutter/cupertino.dart';
 
-import '../core/app_config.dart';
-
 ///路由映射
 ///
 ///主要页面下跟随其分项路由（分项路由 key 重定向到对应的主要页面，
@@ -51,16 +49,14 @@ const Map<String, Widget> routeMap = {
   aboutPageRouteKey: SettingPage(),
 };
 
-String get githubToken => config.setting.githubToken;
-
+//token 注入统一由 cio 拦截器处理：仅 api.github.com、且 token 非空才附加，
+//避免空 token 的 `Authorization: token ` 触发 GitHub 401，以及 token 泄露给镜像/raw
 Map<String, String> get modDownloadHeaders => {
   'User-Agent': 'MindustryModDownloader',
-  'Authorization': 'token $githubToken',
 };
 
 Map<String, String> get gameDownloadHeaders => {
   'User-Agent': 'MindustryDownloader',
-  'Authorization': 'token $githubToken',
 };
 
 //动画倍率

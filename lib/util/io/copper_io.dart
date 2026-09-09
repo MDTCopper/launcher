@@ -193,7 +193,8 @@ class CopperIO {
   ///保证新请求（含新开始的下载）即时生效。
   void applySettings() {
     final setting = config.setting;
-    _githubToken = setting.githubToken;
+    //trim 防止历史配置残留空白 token（`token   ` 也会触发 GitHub 401）
+    _githubToken = setting.githubToken.trim();
     _defaultSpeedLimitBytes = setting.downloadOptions.speedLimitBytes;
     _defaultChunkCount = setting.downloadOptions.maxTread;
 
@@ -308,7 +309,7 @@ class CopperIO {
     try {
       return await send(url);
     } catch (e) {
-      if (!_isNetworkError(e)) rethrow;
+      if (!_shouldFallbackToMirror(e, url)) rethrow;
 
       final mirror = GithubMirror.instance;
       if (!mirror.enabled || !GithubMirror.isGithubUrl(url)) rethrow;
@@ -327,12 +328,20 @@ class CopperIO {
     }
   }
 
-  bool _isNetworkError(Object error) {
-    if (error is DioException) {
-      return error.type == DioExceptionType.connectionError ||
-          error.type == DioExceptionType.connectionTimeout ||
-          error.type == DioExceptionType.sendTimeout ||
-          error.type == DioExceptionType.receiveTimeout;
+  ///是否值得回退镜像：网络类错误一律回退；GitHub 的 401/403（空/失效 token、
+  ///匿名限流）也回退——镜像请求不带 token，换 IP 常能绕过
+  bool _shouldFallbackToMirror(Object error, String url) {
+    if (error is! DioException) return false;
+    if (error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.receiveTimeout) {
+      return true;
+    }
+    if (error.type == DioExceptionType.badResponse &&
+        GithubMirror.isGithubUrl(url)) {
+      final status = error.response?.statusCode;
+      return status == 401 || status == 403;
     }
     return false;
   }
