@@ -1,18 +1,55 @@
 import 'dart:io';
 
 import 'package:copper_launcher/util/io/os.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 abstract class AppPaths {
   static late String applicationSupportPath;
 
+  /// 数据根目录：桌面端优先用可执行文件所在目录（绿色版，配置跟着 exe 走），
+  /// 不可写时退回 [applicationSupportPath]；未 [init] 时为 null（测试环境按工作目录算）
+  static String? _copperLauncher;
+
   static String? _defaultGameDataPath;
+
+  /// 是否退回了应用支持目录（装到 Program Files 这类只读位置时为 true）
+  static bool get isUsingFallbackDataPath =>
+      _copperLauncher != null && _copperLauncher != p.current;
 
   static Future<void> init() async {
     final appSupportDir = await getApplicationSupportDirectory();
     applicationSupportPath = appSupportDir.path;
+    _copperLauncher = await _resolveCopperLauncherPath();
     await initDefaultDataPath();
+  }
+
+  /// 决定数据根目录
+  ///
+  /// 装到 Program Files 且非管理员运行时，exe 目录写不进去，
+  /// 日志 / 配置 / 远程数据缓存都会失败（表现为双击后进程秒退），
+  /// 所以这里实测一次可写性，不可写就整体改用 %APPDATA%
+  static Future<String> _resolveCopperLauncherPath() async {
+    if (Platform.isAndroid || !isDesktop) return applicationSupportPath;
+
+    final workingDir = p.current;
+    if (await _isWritable(workingDir)) return workingDir;
+
+    debugPrint('数据目录不可写[$workingDir]，改用[$applicationSupportPath]');
+    return applicationSupportPath;
+  }
+
+  /// 实测目录可写性：直接写一个探针文件再删掉，比看权限位可靠
+  static Future<bool> _isWritable(String dir) async {
+    final probe = File(p.join(dir, '.copper_write_probe'));
+    try {
+      await probe.writeAsString('probe', flush: true);
+      await probe.delete();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   static Future<void> initDefaultDataPath() async {
@@ -37,12 +74,12 @@ abstract class AppPaths {
     if (_defaultGameDataPath == null) throw ('无法获取默认游戏数据存储位置');
   }
 
-  /// 桌面端为根目录 [*\copper_launcher]
+  /// 桌面端为 exe 所在目录（可写时）或应用支持目录，见 [_resolveCopperLauncherPath]
   ///
   /// android为工作目录
   static String get copperLauncher {
     if (Platform.isAndroid) return applicationSupportPath;
-    return p.current;
+    return _copperLauncher ?? p.current;
   }
 
   /// 默认版本文件夹路径 [*\versions\]

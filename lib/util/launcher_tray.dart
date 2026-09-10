@@ -142,6 +142,17 @@ class LauncherTray extends TrayListener with WindowListener {
     await _refreshMenu();
   }
 
+  ///把主窗口叫回来：托盘隐藏 / 最小化状态都能拉回前台
+  ///
+  ///单实例守护收到第二个实例的通知时调它（用户又点了图标）
+  Future<void> showMainWindow() async {
+    if (!isDesktop) return;
+    if (await windowManager.isMinimized()) {
+      await windowManager.restore();
+    }
+    await _showFromTray();
+  }
+
   ///从托盘快速启动最近游玩版本（游戏已在跑则不动作）
   Future<void> _quickLaunchRecent() async {
     final version = _recentVersion();

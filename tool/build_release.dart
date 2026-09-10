@@ -80,7 +80,8 @@ enum BuildMode {
 enum PackageFormat {
   none('不打包'),
   zip('Zip（解压即用）'),
-  setup('Setup（安装包）');
+  setup('Setup（安装包）'),
+  both('Zip + Setup');
 
   const PackageFormat(this.label);
 
@@ -195,7 +196,7 @@ Future<void> main(List<String> args) async {
     stdout.writeln('产物目录：${_normalizePath(folder.path)}');
   }
 
-  final archive = await _packageIfNeeded(
+  final distFolder = await _packageIfNeeded(
     options: options,
     mode: mode,
     versionName: versionName,
@@ -205,10 +206,7 @@ Future<void> main(List<String> args) async {
 
   await _openFoldersIfWanted(
     options: options,
-    folders: [
-      ...outputFolders,
-      if (archive != null) archive.parent,
-    ],
+    folders: [...outputFolders, ?distFolder],
   );
 }
 
@@ -526,10 +524,10 @@ Directory? _firstExistingFolder(List<String> candidates) {
   return null;
 }
 
-/// 构建后按需打包；返回产物文件，没打包返回 null
+/// 构建后按需打包；返回产物所在目录，没打包返回 null
 ///
 /// --yes 免交互时不主动打包，只认 --package
-Future<File?> _packageIfNeeded({
+Future<Directory?> _packageIfNeeded({
   required BuildOptions options,
   required BuildMode mode,
   required String versionName,
@@ -565,16 +563,15 @@ Future<File?> _packageIfNeeded({
       ? versionName
       : '$versionName-${channel.suffix}$buildNumber';
 
-  return switch (packageFormat) {
-    PackageFormat.zip => _packageZip(sourceFolder, distFolder, baseName),
-    PackageFormat.setup => _packageSetup(
-      sourceFolder,
-      distFolder,
-      baseName,
-      appVersion,
-    ),
-    PackageFormat.none => null,
-  };
+  if (packageFormat == PackageFormat.zip ||
+      packageFormat == PackageFormat.both) {
+    await _packageZip(sourceFolder, distFolder, baseName);
+  }
+  if (packageFormat == PackageFormat.setup ||
+      packageFormat == PackageFormat.both) {
+    await _packageSetup(sourceFolder, distFolder, baseName, appVersion);
+  }
+  return distFolder;
 }
 
 /// 产物名（不含后缀）：copper-launcher-v0.0.2-alpha2-windows-x64
