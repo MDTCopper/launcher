@@ -60,6 +60,7 @@ versions/
 mindustrys/
 logs/
 .test/
+tool/build_release_state.json
 config.*
 /lib/abandon_mystery_code/
 /lib/test/

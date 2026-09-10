@@ -16,6 +16,9 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # json_serializable 等代码生成产物（*.g.dart）：不参与分析，
+    # 否则生成代码里的未引用声明会持续报 warning
+    - "**/*.g.dart"
 include: package:flutter_lints/flutter.yaml
 
 linter:

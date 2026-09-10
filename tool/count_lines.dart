@@ -81,14 +81,14 @@ Future<void> main() async {
   // 按行数降序排序并取前 20 个
   fileCounts.sort((a, b) => b['lines'].compareTo(a['lines']));
 
-  print('🔝 Top 20 Files by Lines of Code:');
-  print('-' * 60);
+  stdout.writeln('🔝 Top 20 Files by Lines of Code:');
+  stdout.writeln('-' * 60);
   for (var i = 0; i < fileCounts.length && i < 20; i++) {
-    print(
+    stdout.writeln(
       '${fileCounts[i]['lines'].toString().padLeft(6)}  ${fileCounts[i]['file']}',
     );
   }
 
-  print('-' * 60);
-  print('📊 TOTAL VALID LINES: $totalLines');
+  stdout.writeln('-' * 60);
+  stdout.writeln('📊 TOTAL VALID LINES: $totalLines');
 }

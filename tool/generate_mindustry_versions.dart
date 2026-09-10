@@ -4,7 +4,7 @@
 // MindustryGithubMeta.fromJson 对齐，启动器直接复用同一套解析；
 // 历史版本不会再变，之后启动器只需用 API 补最新一页
 //
-// 用法：dart .script/generate_mindustry_versions.dart [代理地址，如 http://127.0.0.1:7890]
+// 用法：dart tool/generate_mindustry_versions.dart [代理地址，如 http://127.0.0.1:7890]
 import 'dart:convert';
 import 'dart:io';
 
