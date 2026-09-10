@@ -13,7 +13,7 @@
 - **Android**  
 必须在安装CopperModLoader时才能正常使用
 - **不支持iOS**  
-iOS限制较多且在iOS上的Mindustry不能运行Java模组，没有任何开发的必要
+iOS限制较多，没有任何开发的必要
 ## 核心功能
 
 ### 游戏与社区资源浏览和下载
@@ -61,4 +61,5 @@ copper模组加载器特殊支持
 ## 鸣谢
 该项目主要参考了第三方Minecraft启动器：
 1. **PCl2** 的UI设计和页面逻辑
-2. **MinecraftX** 的后台任务系统
+2. **LauncherX** 的后台任务系统
+3. **HMCL** 的部分后端逻辑
