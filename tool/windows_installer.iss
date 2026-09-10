@@ -16,6 +16,12 @@
 #ifndef OutputBaseName
   #define OutputBaseName "copper-launcher-setup"
 #endif
+; 简体中文语言文件（Inno 官方安装包不带中文，这份取自 issrc 仓库，
+; 由 kira-96/Inno-Setup-Chinese-Simplified-Translation 维护，文件头保留了作者信息）
+; build_release.dart 会注入绝对路径；直接手动编译时走这个相对路径
+#ifndef ChineseMessagesFile
+  #define ChineseMessagesFile "languages\ChineseSimplified.isl"
+#endif
 
 [Setup]
 ; AppId 固定不变，升级安装才会识别成同一个应用（换了它就会变成两个程序）
@@ -45,7 +51,9 @@ SetupIconFile={#SetupIconFile}
 UninstallDisplayIcon={app}\copper_launcher.exe
 
 [Languages]
-Name: "chinese"; MessagesFile: "compiler:Default.isl"
+; 中文系统自动选简体中文（ShowLanguageDialog 默认 auto）；其它语言走英文
+Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "chinesesimplified"; MessagesFile: "{#ChineseMessagesFile}"
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: unchecked

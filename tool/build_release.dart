@@ -636,12 +636,17 @@ Future<File?> _packageSetup(
 
   stdout.writeln('\n正在编译 Setup：$outputBaseName.exe');
   final scriptPath = File('tool/windows_installer.iss').absolute.path;
+  final chineseMessages = File(
+    'tool/languages/ChineseSimplified.isl',
+  ).absolute.path;
   final result = await Process.run(iscc, [
     '/DAppVersion=$appVersion',
     '/DSourceDir=${_normalizePath(sourceFolder.absolute.path)}',
     '/DOutputDir=${_normalizePath(distFolder.absolute.path)}',
     '/DOutputBaseName=$outputBaseName',
     '/DSetupIconFile=${_normalizePath(File('windows/runner/resources/app_icon.ico').absolute.path)}',
+    if (File(chineseMessages).existsSync())
+      '/DChineseMessagesFile=${_normalizePath(chineseMessages)}',
     _normalizePath(scriptPath),
   ]);
 
