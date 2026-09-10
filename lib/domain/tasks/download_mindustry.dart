@@ -79,9 +79,11 @@ class DownloadMindustryTask extends Task {
         await file.create(recursive: true);
       }
 
-      final String url = mindustryMeta.assets
-          .firstWhere((it) => it.name.toLowerCase().contains('mindustry.jar'))
-          .url;
+      final jarAsset = mindustryMeta.desktopJarAsset;
+      if (jarAsset == null) {
+        throw Exception('该版本 release 中没有游戏本体 jar，无法下载');
+      }
+      final String url = jarAsset.url;
 
       addLog(.info, '下载游戏[$tag],$url');
 

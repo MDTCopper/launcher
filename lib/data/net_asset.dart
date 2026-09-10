@@ -76,6 +76,32 @@ class MindustryGithubMeta extends GithubApiRelease {
     instance.isBe = json['reactions'] == null;
     return instance;
   }
+
+  /// 桌面端游戏本体 jar：正式版 asset 名为 `Mindustry.jar`，
+  /// be 版（MindustryBuilds）为 `Mindustry-BE-Desktop-<build>.jar`
+  ///
+  /// 同一 release 里还带 `server-release.jar` / `assets.jar` / `dependencies.jar`
+  /// 和 Android apk，都进不了游戏，需排除；找不到本体返回 null
+  GithubApiReleaseAsset? get desktopJarAsset {
+    final jarAssets = [
+      for (final asset in assets)
+        if (_isGameJarCandidate(asset.name)) asset,
+    ];
+
+    for (final asset in jarAssets) {
+      if (asset.name.toLowerCase() == 'mindustry.jar') return asset;
+    }
+    for (final asset in jarAssets) {
+      if (asset.name.toLowerCase().contains('desktop')) return asset;
+    }
+    return null;
+  }
+
+  /// 是否是本体候选：jar 且不是服务端包（server-release.jar）
+  static bool _isGameJarCandidate(String assetName) {
+    final name = assetName.toLowerCase();
+    return name.endsWith('.jar') && !name.contains('server');
+  }
 }
 
 ///官方模组列表元数据
