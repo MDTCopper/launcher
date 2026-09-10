@@ -33,15 +33,6 @@ const githubModMetaUrl = '$githubRAW/Anuken/MindustryMods/master/mods.json';
 const github3MonthsModMetaUrl =
     '$githubRAW/Anuken/MindustryMods/@{3months}/mods.json';
 
-///在146之前，不论是怎么类型的模组，都是一样的
-///
-///146-136=> 136
-///
-///135-105=> 105
-///
-///105-97 => 97 (这个版本往前就没有加载模组功能，可以说是远古版了)
-///
-
 final minModGameVersionModifier = RangeModifier(0, [
   RangeRuler<double, int>(97, 105, 97),
   RangeRuler<double, int>(105, 136, 105),
@@ -57,8 +48,6 @@ final minJavaModGameVersionModifier = RangeModifier(0, [
 ]);
 
 // const minCopperModGameVersionMap = <String, double>{};
-//147往后才能进行存档隔离
-//142往后才支持控制窗口状态
 
 const kDefaultAnimationDuration = Duration(milliseconds: 300);
 
