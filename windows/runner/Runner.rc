@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
+            VALUE "CompanyName", "io.github.copper" "\0"
             VALUE "FileDescription", "Copper Launcher" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "Copper Launcher" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 io.github.copper. All rights reserved." "\0"
             VALUE "OriginalFilename", "CopperLauncher.exe" "\0"
             VALUE "ProductName", "Copper" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
