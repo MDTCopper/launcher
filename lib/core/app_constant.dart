@@ -20,6 +20,14 @@ const settingAdapterIndexFile = 'setting_adapter_index.hjson';
 ///github 镜像预设节点文件名（remote/ 根目录）
 const githubMirrorsFile = 'github_mirrors.hjson';
 
+///官方版本列表快照文件名（remote/ 根目录）
+///
+///历史版本不变，存快照里；启动只用 API 补最新一页
+const mindustryVersionsFile = 'mindustry_versions.json';
+
+///版本列表每次向 API 取多少条（GitHub 列表接口一页上限就是 100）
+const mindustryVersionPageSize = 100;
+
 ///$githubAPI/repos/Anuken/Mindustry/releases
 const githubMindustryUrl = '$githubAPI/repos/Anuken/Mindustry/releases';
 

@@ -1,13 +1,17 @@
+import 'package:copper_launcher/data/mindustry_version_snapshot.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
+import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/io/remote_data.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -31,57 +35,61 @@ class MindustryDownloadPage extends StatefulWidget {
 class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   static final List<MindustryGithubMeta> _versionList = [];
 
-  static late MindustryGithubMeta _latestBeta;
+  /// 最新 be；拿不到（网络 / 限流）时为 null，页面不显示该入口
+  static MindustryGithubMeta? _latestBeta;
 
+  /// 版本列表：先读 remote 快照（历史版本基本不变，不用反复问 API），
+  /// 再用 API 取最新一页合并；API 挂了就只用快照，至少老版本还能下
   Future<bool> _fetchVersionAssets() async {
     if (_versionList.isNotEmpty) return true;
 
-    final url = githubMindustryUrl;
-    final betaUrl = githubBeUrl;
+    final snapshot = MindustryVersionSnapshot.parse(
+      await RemoteData.load(mindustryVersionsFile),
+    );
 
+    List<MindustryGithubMeta> latest;
     try {
-      final List<MindustryGithubMeta> list = [];
-
-      for (int i = 1; !((i - 1) * 100 > list.length); i++) {
-        var response = await cio.get(
-          '$url?page=$i&per_page=100',
-          headers: gameDownloadHeaders,
-        );
-        if (response.statusCode == 200) {
-          List<dynamic> jsonList = response.data;
-          //用jsonList生成Mindustry后组成MindustryList
-          list.addAll(
-            jsonList
-                .map<MindustryGithubMeta>(
-                  (json) => MindustryGithubMeta.fromJson(json),
-                )
-                .toList(),
-          );
-        } else {
-          throw Exception("列表获取失败：${response.statusCode}");
-        }
-      }
-
-      _versionList.clear();
-      _versionList.addAll(list);
-      list.clear();
-
-      //只获取最新be，然后提供按版本号下载
-      var response = await cio.get(
-        '$betaUrl?per_page=1',
-        headers: gameDownloadHeaders,
-      );
-      if (response.statusCode == 200) {
-        List<dynamic> jsonList = response.data;
-        _latestBeta = MindustryGithubMeta.fromJson(jsonList.first);
-      } else {
-        throw Exception("列表获取失败：${response.statusCode}");
-      }
-      return true;
+      latest = await _fetchLatestReleases();
     } catch (e) {
-      debugPrint(e.toString());
-      return false;
+      addLogAndPrint(.warning, '获取最新版本列表失败：$e');
+      latest = const [];
+      if (snapshot.isEmpty) return false;
     }
+
+    _versionList
+      ..clear()
+      ..addAll(MindustryVersionSnapshot.merge(snapshot, latest));
+
+    //be 的 build 太多，只取最新一条，其余走「下载指定 build」
+    try {
+      _latestBeta = await _fetchLatestBeta();
+    } catch (e) {
+      addLogAndPrint(.warning, '获取最新 be 版本失败：$e');
+      _latestBeta = null;
+    }
+    return true;
+  }
+
+  /// 取官方最新一页 release（一页 100 条，够覆盖新版本）
+  Future<List<MindustryGithubMeta>> _fetchLatestReleases() async {
+    final response = await cio.get<List<dynamic>>(
+      '$githubMindustryUrl?per_page=$mindustryVersionPageSize',
+      headers: gameDownloadHeaders,
+    );
+    return [
+      for (final release in response.data!)
+        MindustryGithubMeta.fromJson(release as Map<String, dynamic>),
+    ];
+  }
+
+  Future<MindustryGithubMeta> _fetchLatestBeta() async {
+    final response = await cio.get<List<dynamic>>(
+      '$githubBeUrl?per_page=1',
+      headers: gameDownloadHeaders,
+    );
+    return MindustryGithubMeta.fromJson(
+      response.data!.first as Map<String, dynamic>,
+    );
   }
 
   /// 取某时代的正式版：无 assets 的 release 本来就下不了，直接排除
@@ -131,7 +139,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     final Widget title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('正式版 · ${era.label}(${versions.length.toString()})'),
+        Text('${era.label}(${versions.length.toString()})'),
         Text(era.summary, style: theme.textTheme.bodySmall),
       ],
     );
@@ -166,31 +174,30 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     _buildDownloadPopup(mindustryMeta);
   }
 
+  /// 手动刷新：清掉内存里的列表与 be，交给 [build] 重新走一遍获取流程
+  void _refreshVersions() {
+    setState(() {
+      _versionList.clear();
+      _latestBeta = null;
+    });
+  }
+
   Widget _buildVersionView() {
+    final latestBeta = _latestBeta;
+
     return ListContentPanel(
       items: [
-        ContentPanelModule(
-          title: '最新版本',
-          child: ReboundListTile(
-            pressedScale: 0.98,
-            padding: EdgeInsets.all(8),
-            borderRadius: BorderRadius.circular(4),
-            leading: Image.asset('assets/images/logo.png', width: 48),
-            title: Text(_versionList.first.name),
-            subtitle: Row(
-              spacing: 8,
-              children: [
-                Icon(Icons.date_range_outlined, size: 18),
-                Text(_versionList.first.releaseDate.split('T').first),
-              ],
-            ),
-            onTap: () {
-              _buildDownloadPopup(_versionList.first);
-            },
+        Align(
+          alignment: Alignment.centerRight,
+          child: IconTextButton(
+            icon: Icons.refresh,
+            content: '刷新版本列表',
+            onTap: _refreshVersions,
           ),
         ),
+        // 最新正式版与最新预览版并排，其余版本按时代分段列在下面
         ContentPanelModule(
-          title: '开发版（BE）',
+          title: '最新版本',
           child: Column(
             spacing: 8,
             children: [
@@ -199,35 +206,55 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
                 padding: EdgeInsets.all(8),
                 borderRadius: BorderRadius.circular(4),
                 leading: Image.asset('assets/images/logo.png', width: 48),
-                title: Text(_latestBeta.name),
+                title: Text(_versionList.first.name),
                 subtitle: Row(
                   spacing: 8,
                   children: [
                     Icon(Icons.date_range_outlined, size: 18),
-                    Text(_latestBeta.releaseDate.split('T').first),
+                    Text(_versionList.first.releaseDate.split('T').first),
                   ],
                 ),
                 onTap: () {
-                  _buildDownloadPopup(_latestBeta);
+                  _buildDownloadPopup(_versionList.first);
                 },
               ),
-              ReboundListTile(
-                pressedScale: 0.98,
-                padding: EdgeInsets.all(8),
-                borderRadius: BorderRadius.circular(4),
-                leading: SizedBox(
-                  width: 48,
-                  child: Icon(Icons.tag, size: 32),
+              if (latestBeta != null)
+                ReboundListTile(
+                  pressedScale: 0.98,
+                  padding: EdgeInsets.all(8),
+                  borderRadius: BorderRadius.circular(4),
+                  leading: Image.asset('assets/images/logo.png', width: 48),
+                  title: Text('预览版 ${latestBeta.name}'),
+                  subtitle: Row(
+                    spacing: 8,
+                    children: [
+                      Icon(Icons.date_range_outlined, size: 18),
+                      Text(latestBeta.releaseDate.split('T').first),
+                    ],
+                  ),
+                  onTap: () {
+                    _buildDownloadPopup(latestBeta);
+                  },
                 ),
-                title: Text('下载指定 build'),
-                subtitle: Text('输入 build 号，例如 27793'),
-                onTap: _openBeBuildDownload,
-              ),
             ],
           ),
         ),
         for (final era in MindustryVersionEra.values)
           _buildEraVersionList(era, _versionsOfEra(era)),
+
+        // 指定 build 入口放最后：be 的 build 太多，不适合跟正式版一起列
+        ContentPanelModule(
+          title: '预览版（BE）',
+          child: ReboundListTile(
+            pressedScale: 0.98,
+            padding: EdgeInsets.all(8),
+            borderRadius: BorderRadius.circular(4),
+            leading: SizedBox(width: 48, child: Icon(Icons.tag, size: 32)),
+            title: Text('下载指定 build'),
+            subtitle: Text('输入 build 号，例如 27793'),
+            onTap: _openBeBuildDownload,
+          ),
+        ),
         SizedBox(height: 40),
       ],
     );

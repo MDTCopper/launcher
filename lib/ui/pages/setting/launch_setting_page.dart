@@ -239,7 +239,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
         ),
         ReboundCheckbox(
           value: versionIsolationSet.contains(VersionIsolation.be),
-          label: '测试版',
+          label: '预览版',
           onChange: (value) {
             setState(() {
               if (value) {
@@ -293,7 +293,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
         topWidget: DropdownLayer.allSelectOrClearTopWidget(),
         textBuilder: DropdownLayer.allLabelsText(),
         options: [
-          DropdownOption(value: .be, label: '测试版'),
+          DropdownOption(value: .be, label: '预览版'),
           DropdownOption(value: .mindustry, label: '正式版'),
           DropdownOption(value: .copper, label: 'Copper'),
         ],

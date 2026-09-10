@@ -4,11 +4,11 @@
 /// - v97（2019-10-24）模组系统诞生，Java 模组同版本起支持
 enum MindustryVersionEra {
   /// v97 起：支持模组
-  modern(label: '现代版', summary: 'v97 起 · 支持模组', downloadHint: null),
+  modern(label: '正式版', summary: 'v97 起 · 支持模组', downloadHint: null),
 
-  /// v70–v96：像素风已结束，但还没有模组系统
+  /// v70–v96：像素风已结束，但还没有模组系统（Classic 是官方叫法，不翻译）
   classic(
-    label: '经典',
+    label: 'Classic',
     summary: 'v70–v96 · 不支持模组',
     downloadHint: '不支持载入模组（模组系统 v97 起才有）',
   ),

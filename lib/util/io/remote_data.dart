@@ -32,6 +32,14 @@ class RemoteData {
         await _saveCache(githubMirrorsFile, mirrorContent);
       }
 
+      // 拉取官方版本列表快照（历史版本，改动少）
+      final versionsContent = await _fetch(
+        remoteRawBase + mindustryVersionsFile,
+      );
+      if (versionsContent != null) {
+        await _saveCache(mindustryVersionsFile, versionsContent);
+      }
+
       // 按索引拉取各版本设置 json
       try {
         final parsed = hjson.hjsonDecode(index) as Map<String, dynamic>;
