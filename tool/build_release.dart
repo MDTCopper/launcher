@@ -59,10 +59,28 @@ enum BuildPlatform {
   final List<String> flutterTargets;
 }
 
-/// 构建完的打包方式（以后加 setup / dmg 就在这里加一项）
+/// 构建模式
+enum BuildMode {
+  release('正式', 'release', 'Release'),
+  debug('调试', 'debug', 'Debug'),
+  profile('性能分析', 'profile', 'Profile');
+
+  const BuildMode(this.label, this.flutterMode, this.outputFolderName);
+
+  final String label;
+
+  /// 传给 `flutter build --<mode>` 的值
+  final String flutterMode;
+
+  /// Windows 产物目录名（build/windows/x64/runner/<名字>）
+  final String outputFolderName;
+}
+
+/// 构建完的打包方式（以后加 dmg / tar.gz 就在这里加一项）
 enum PackageFormat {
   none('不打包'),
-  zip('Zip（解压即用）');
+  zip('Zip（解压即用）'),
+  setup('Setup（安装包）');
 
   const PackageFormat(this.label);
 
@@ -75,9 +93,13 @@ class BuildOptions {
   ReleaseChannel? channel;
   bool? countBuildNumber;
   BuildPlatform? platform;
+  BuildMode? mode;
   PackageFormat? packageFormat;
   bool skipBuild = false;
   bool skipConfirm = false;
+
+  /// 构建前跑 flutter analyze + test 当门禁
+  bool runChecks = false;
 
   /// 构建完是否打开产物文件夹；null = 交互模式提问 / --yes 模式不问也不开
   bool? openFolder;
@@ -100,15 +122,29 @@ Future<void> main(List<String> args) async {
   final options = _parseArgs(args);
   if (options == null) return; // --help
 
+  final mode =
+      options.mode ??
+      _askChoice(
+        question: '构建模式',
+        values: BuildMode.values,
+        defaultValue: BuildMode.release,
+        labelOf: (mode) => mode.label,
+      );
+  final platform = options.platform ?? _askPlatform();
+
+  // 调试构建只是拿个能跑的包，不改版本号、不打包
+  if (mode == BuildMode.debug) {
+    return _runBuildOnly(options: options, mode: mode, platform: platform);
+  }
+
   final current = _readCurrentVersion();
   stdout.writeln(
-    '当前版本：v${current.versionName}（build ${current.buildNumber}，${current.buildTime}）\n',
+    '\n当前版本：v${current.versionName}（build ${current.buildNumber}，${current.buildTime}）',
   );
 
   final versionName = options.versionName ?? _askVersionName(current.versionName);
   final channel = options.channel ?? _askChannel();
   final countBuildNumber = options.countBuildNumber ?? _askCountBuildNumber();
-  final platform = options.platform ?? _askPlatform();
 
   // 只改版本号（不构建）：--no-build / --version-only 跳过提问，交互模式下问一步
   final shouldBuild = options.skipBuild
@@ -131,7 +167,7 @@ Future<void> main(List<String> args) async {
   stdout.writeln('  appBuildTime    = $buildTime');
   stdout.writeln('  pubspec version = $versionName+$pubspecBuildTime');
   stdout.writeln(
-    '  构建            = ${shouldBuild ? platform.label : '否（只写版本信息）'}',
+    '  构建            = ${shouldBuild ? '${platform.label} · ${mode.label}' : '否（只写版本信息）'}',
   );
 
   if (!options.skipConfirm && !_askYesNo('\n确认执行？')) {
@@ -150,46 +186,103 @@ Future<void> main(List<String> args) async {
 
   if (!shouldBuild) return;
 
-  for (final target in platform.flutterTargets) {
-    stdout.writeln('\n> flutter build $target --release');
-    final process = await Process.start(
-      'flutter',
-      ['build', target, '--release'],
-      mode: ProcessStartMode.inheritStdio,
-      runInShell: Platform.isWindows,
-    );
-    final exitCode = await process.exitCode;
-    if (exitCode != 0) {
-      stderr.writeln('flutter build $target 失败（退出码 $exitCode）');
-      exit(exitCode);
-    }
-  }
+  if (!await _runChecks(options)) return;
+  if (!await _buildTargets(platform, mode)) return;
   stdout.writeln('\n构建完成');
 
-  final outputFolders = _outputFolders(platform);
+  final outputFolders = _outputFolders(platform, mode);
   for (final folder in outputFolders) {
     stdout.writeln('产物目录：${_normalizePath(folder.path)}');
   }
 
   final archive = await _packageIfNeeded(
     options: options,
+    mode: mode,
     versionName: versionName,
     channel: channel,
     buildNumber: buildNumber,
   );
 
-  final foldersToOpen = <Directory>[
-    ...outputFolders,
-    if (archive != null) archive.parent,
-  ];
-  if (foldersToOpen.isEmpty) return;
+  await _openFoldersIfWanted(
+    options: options,
+    folders: [
+      ...outputFolders,
+      if (archive != null) archive.parent,
+    ],
+  );
+}
 
-  // --yes 免交互时不主动弹文件管理器，只认 --open-folder
+/// 调试构建：不改版本信息，构建完只提供打开产物目录
+Future<void> _runBuildOnly({
+  required BuildOptions options,
+  required BuildMode mode,
+  required BuildPlatform platform,
+}) async {
+  if (!await _runChecks(options)) return;
+  if (!await _buildTargets(platform, mode)) return;
+  stdout.writeln('\n构建完成（${mode.label}，未改动版本信息）');
+
+  final outputFolders = _outputFolders(platform, mode);
+  for (final folder in outputFolders) {
+    stdout.writeln('产物目录：${_normalizePath(folder.path)}');
+  }
+  await _openFoldersIfWanted(options: options, folders: outputFolders);
+}
+
+/// 构建前的可选质量门禁（analyze + test），不过就中止
+Future<bool> _runChecks(BuildOptions options) async {
+  if (!options.runChecks) return true;
+
+  for (final task in ['analyze', 'test']) {
+    stdout.writeln('\n> flutter $task');
+    final exitCode = await _runFlutter([task]);
+    if (exitCode != 0) {
+      stderr.writeln('flutter $task 未通过（退出码 $exitCode），中止构建');
+      return false;
+    }
+  }
+  return true;
+}
+
+/// 逐个平台目标构建；失败返回 false
+Future<bool> _buildTargets(BuildPlatform platform, BuildMode mode) async {
+  for (final target in platform.flutterTargets) {
+    stdout.writeln('\n> flutter build $target --${mode.flutterMode}');
+    final exitCode = await _runFlutter([
+      'build',
+      target,
+      '--${mode.flutterMode}',
+    ]);
+    if (exitCode != 0) {
+      stderr.writeln('flutter build $target 失败（退出码 $exitCode）');
+      return false;
+    }
+  }
+  return true;
+}
+
+Future<int> _runFlutter(List<String> arguments) async {
+  final process = await Process.start(
+    'flutter',
+    arguments,
+    mode: ProcessStartMode.inheritStdio,
+    runInShell: Platform.isWindows,
+  );
+  return process.exitCode;
+}
+
+/// 按需打开产物目录；--yes 免交互时不主动弹文件管理器，只认 --open-folder
+Future<void> _openFoldersIfWanted({
+  required BuildOptions options,
+  required List<Directory> folders,
+}) async {
+  if (folders.isEmpty) return;
+
   final shouldOpenFolder =
       options.openFolder ??
       (!options.skipConfirm && _askYesNo('打开产物文件夹？'));
   if (!shouldOpenFolder) return;
-  for (final folder in foldersToOpen) {
+  for (final folder in folders) {
     await _openFolder(folder.path);
   }
 }
@@ -219,6 +312,12 @@ BuildOptions? _parseArgs(List<String> args) {
         options.countBuildNumber = false;
       case '--platform':
         options.platform = _platformOf(nextValue());
+      case '--mode':
+        options.mode = _modeOf(nextValue());
+      case '--check':
+        options.runChecks = true;
+      case '--no-check':
+        options.runChecks = false;
       case '--package':
         options.packageFormat = _packageFormatOf(nextValue());
       case '--no-package':
@@ -240,7 +339,9 @@ BuildOptions? _parseArgs(List<String> args) {
           '  --channel <release|alpha|beta>  发布类型（也认首字母 r/a/b）\n'
           '  --bump / --no-bump       本次是否计入 build number\n'
           '  --platform <windows|android|both>  也认首字母 w/a/b\n'
-          '  --package <zip|none>     构建完打包（也认首字母 z/n）\n'
+          '  --mode <release|debug|profile>  构建模式（也认首字母 r/d/p）\n'
+          '  --check / --no-check     构建前跑 flutter analyze + test\n'
+          '  --package <zip|setup|none>  构建完打包（也认首字母 z/s/n）\n'
           '  --yes                    不再确认（也不问打包与产物文件夹）\n'
           '  --open-folder            构建完直接打开产物文件夹\n'
           '  --no-open-folder         构建完不打开、也不问\n'
@@ -274,9 +375,17 @@ BuildPlatform _platformOf(String value) {
 PackageFormat _packageFormatOf(String value) {
   final format = _matchEnum(PackageFormat.values, value);
   if (format == null) {
-    throw ArgumentError('打包方式只能是 zip / none，收到：$value');
+    throw ArgumentError('打包方式只能是 zip / setup / none，收到：$value');
   }
   return format;
+}
+
+BuildMode _modeOf(String value) {
+  final mode = _matchEnum(BuildMode.values, value);
+  if (mode == null) {
+    throw ArgumentError('构建模式只能是 release / debug / profile，收到：$value');
+  }
+  return mode;
 }
 
 /// 按 名称 / 唯一前缀（含首字母）匹配枚举值；匹配不到或有歧义返回 null
@@ -362,9 +471,17 @@ String _ask(String question, String defaultValue, {String? options}) {
     stdout.writeln('$question：$options');
     stdout.write('选择 [$defaultValue]: ');
   }
-  final input = stdin.readLineSync()?.trim();
-  if (input == null || input.isEmpty) return defaultValue;
-  return input;
+
+  final String? line;
+  try {
+    line = stdin.readLineSync()?.trim();
+  } on StdinException {
+    // 没有可用终端（stdin 被重定向 / 无效句柄）：取默认值，别直接崩
+    stdout.writeln('（读不到输入，取默认值 $defaultValue）');
+    return defaultValue;
+  }
+  if (line == null || line.isEmpty) return defaultValue;
+  return line;
 }
 
 /// 是否提问：Y/y/yes/1/是 为真，n/no/0/否 为假，其它重问
@@ -382,17 +499,17 @@ bool _askYesNo(String question) {
 // ---------------------------------------------------------------------------
 
 /// 各平台的产物目录；老版本 Flutter 的 windows 输出路径不同，取第一个存在的
-List<Directory> _outputFolders(BuildPlatform platform) {
+List<Directory> _outputFolders(BuildPlatform platform, BuildMode mode) {
   return [
-    if (platform != BuildPlatform.android) ?_windowsReleaseFolder(),
+    if (platform != BuildPlatform.android) ?_windowsOutputFolder(mode),
     if (platform != BuildPlatform.windows) ?_androidOutputFolder(),
   ];
 }
 
-/// Windows 产物目录（老版本 Flutter 是 build/windows/runner/Release）
-Directory? _windowsReleaseFolder() => _firstExistingFolder([
-  'build/windows/x64/runner/Release',
-  'build/windows/runner/Release',
+/// Windows 产物目录（老版本 Flutter 是 build/windows/runner/<模式>）
+Directory? _windowsOutputFolder(BuildMode mode) => _firstExistingFolder([
+  'build/windows/x64/runner/${mode.outputFolderName}',
+  'build/windows/runner/${mode.outputFolderName}',
 ]);
 
 /// Android 产物目录
@@ -409,11 +526,12 @@ Directory? _firstExistingFolder(List<String> candidates) {
   return null;
 }
 
-/// 构建后按需打包；返回压缩包文件，没打包返回 null
+/// 构建后按需打包；返回产物文件，没打包返回 null
 ///
 /// --yes 免交互时不主动打包，只认 --package
 Future<File?> _packageIfNeeded({
   required BuildOptions options,
+  required BuildMode mode,
   required String versionName,
   required ReleaseChannel channel,
   required int buildNumber,
@@ -430,29 +548,37 @@ Future<File?> _packageIfNeeded({
             ));
   if (packageFormat == PackageFormat.none) return null;
 
-  final sourceFolder = _windowsReleaseFolder();
+  final sourceFolder = _windowsOutputFolder(mode);
   if (sourceFolder == null) {
     stderr.writeln('没找到 Windows 产物目录，跳过打包');
     return null;
   }
 
-  final fileName = _archiveFileName(
+  final distFolder = Directory('build/dist');
+  final baseName = _packageBaseName(
     versionName: versionName,
     channel: channel,
     buildNumber: buildNumber,
     sourceFolder: sourceFolder,
   );
-  final zipPath = '${_normalizePath(Directory('build/dist').absolute.path)}'
-      '${Platform.pathSeparator}$fileName';
+  final appVersion = channel.suffix.isEmpty
+      ? versionName
+      : '$versionName-${channel.suffix}$buildNumber';
 
-  stdout.writeln('\n正在打包 ${_normalizePath(sourceFolder.path)} → $fileName');
-  final archive = await _zipFolder(sourceFolder, zipPath);
-  stdout.writeln('打包产物：${_normalizePath(archive.path)}');
-  return archive;
+  return switch (packageFormat) {
+    PackageFormat.zip => _packageZip(sourceFolder, distFolder, baseName),
+    PackageFormat.setup => _packageSetup(
+      sourceFolder,
+      distFolder,
+      baseName,
+      appVersion,
+    ),
+    PackageFormat.none => null,
+  };
 }
 
-/// 压缩包名：copper-launcher-v0.0.2-alpha2-windows-x64.zip
-String _archiveFileName({
+/// 产物名（不含后缀）：copper-launcher-v0.0.2-alpha2-windows-x64
+String _packageBaseName({
   required String versionName,
   required ReleaseChannel channel,
   required int buildNumber,
@@ -464,18 +590,110 @@ String _archiveFileName({
   final platformPart = sourceFolder.path.contains('x64')
       ? 'windows-x64'
       : 'windows';
-  return 'copper-launcher-v$versionName$channelPart-$platformPart.zip';
+  return 'copper-launcher-v$versionName$channelPart-$platformPart';
 }
 
-/// 把目录压成 zip（包内直接是目录内容，解压即用）
-Future<File> _zipFolder(Directory sourceFolder, String zipPath) async {
-  final zipFile = File(zipPath);
+/// 打包 Zip（包内直接是目录内容，解压即用）
+Future<File> _packageZip(
+  Directory sourceFolder,
+  Directory distFolder,
+  String baseName,
+) async {
+  final zipFile = File('${distFolder.path}/$baseName.zip');
   await zipFile.parent.create(recursive: true);
   if (await zipFile.exists()) await zipFile.delete();
 
+  stdout.writeln('\n正在打包 Zip：$baseName.zip');
   final encoder = ZipFileEncoder();
-  await encoder.zipDirectory(sourceFolder, filename: zipPath);
+  await encoder.zipDirectory(sourceFolder, filename: zipFile.path);
+  stdout.writeln('打包产物：${_normalizePath(zipFile.path)}');
   return zipFile;
+}
+
+/// 打包 Setup 安装包（Inno Setup 编译 tool/windows_installer.iss）
+Future<File?> _packageSetup(
+  Directory sourceFolder,
+  Directory distFolder,
+  String baseName,
+  String appVersion,
+) async {
+  final iscc = _findInnoSetupCompiler();
+  if (iscc == null) {
+    stderr.writeln(
+      '没找到 Inno Setup 的 ISCC.exe，跳过 Setup 打包\n'
+      '  安装：winget install JRSoftware.InnoSetup（或 https://jrsoftware.org/isdl.php）',
+    );
+    return null;
+  }
+
+  await distFolder.create(recursive: true);
+  // Inno 的 OutputBaseFilename 只能是文件名，不能带路径
+  final outputBaseName = '$baseName-setup';
+  final setupFile = File(
+    '${distFolder.path}${Platform.pathSeparator}$outputBaseName.exe',
+  );
+  if (await setupFile.exists()) await setupFile.delete();
+
+  stdout.writeln('\n正在编译 Setup：$outputBaseName.exe');
+  final scriptPath = File('tool/windows_installer.iss').absolute.path;
+  final result = await Process.run(iscc, [
+    '/DAppVersion=$appVersion',
+    '/DSourceDir=${_normalizePath(sourceFolder.absolute.path)}',
+    '/DOutputDir=${_normalizePath(distFolder.absolute.path)}',
+    '/DOutputBaseName=$outputBaseName',
+    '/DSetupIconFile=${_normalizePath(File('windows/runner/resources/app_icon.ico').absolute.path)}',
+    _normalizePath(scriptPath),
+  ]);
+
+  if (result.exitCode != 0 || !await setupFile.exists()) {
+    stderr.writeln('Inno Setup 编译失败（退出码 ${result.exitCode}）');
+    if ('${result.stdout}'.trim().isNotEmpty) stdout.writeln(result.stdout);
+    if ('${result.stderr}'.trim().isNotEmpty) stderr.writeln(result.stderr);
+    return null;
+  }
+  stdout.writeln('打包产物：${_normalizePath(setupFile.path)}');
+  return setupFile;
+}
+
+/// 找 Inno Setup 的编译器：PATH 优先，再找默认安装目录（含用户级安装）
+String? _findInnoSetupCompiler() {
+  const folderNames = ['Inno Setup 7', 'Inno Setup 6', 'Inno Setup 5'];
+  final appData = Platform.environment['LOCALAPPDATA'];
+  final candidates = <String>[
+    'iscc',
+    for (final folder in folderNames) ...[
+      '${Platform.environment['ProgramFiles']}\\$folder\\ISCC.exe',
+      '${Platform.environment['ProgramFiles(x86)']}\\$folder\\ISCC.exe',
+      if (appData != null) '$appData\\Programs\\$folder\\ISCC.exe',
+    ],
+  ];
+
+  for (final candidate in candidates) {
+    if (!candidate.contains(Platform.pathSeparator)) {
+      // 裸命令：交给 PATH 解析，找不到就是 null
+      final resolved = _resolveOnPath(candidate);
+      if (resolved != null) return resolved;
+      continue;
+    }
+    if (File(candidate).existsSync()) return candidate;
+  }
+  return null;
+}
+
+/// 在 PATH 里找可执行文件
+String? _resolveOnPath(String command) {
+  final pathValue = Platform.environment['PATH'] ?? '';
+  final extensions = Platform.isWindows
+      ? (Platform.environment['PATHEXT'] ?? '.EXE').split(';')
+      : [''];
+  for (final folder in pathValue.split(Platform.isWindows ? ';' : ':')) {
+    if (folder.trim().isEmpty) continue;
+    for (final extension in extensions) {
+      final file = File('$folder$Platform.pathSeparator$command$extension');
+      if (file.existsSync()) return file.path;
+    }
+  }
+  return null;
 }
 
 /// 用系统文件管理器打开目录

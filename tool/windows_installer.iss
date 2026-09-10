@@ -1,0 +1,62 @@
+; Copper Launcher Windows 安装包脚本（Inno Setup 6）
+;
+; 由 tool/build_release.dart 用 ISCC 编译，版本 / 目录 / 图标都从命令行 /D 注入，
+; 平时不需要改这份模板：
+;   ISCC.exe /DAppVersion=... /DSourceDir=... /DOutputDir=... /DOutputBaseName=... /DSetupIconFile=... windows_installer.iss
+
+#ifndef AppVersion
+  #define AppVersion "0.0.0"
+#endif
+#ifndef SourceDir
+  #define SourceDir "..\build\windows\x64\runner\Release"
+#endif
+#ifndef OutputDir
+  #define OutputDir "..\build\dist"
+#endif
+#ifndef OutputBaseName
+  #define OutputBaseName "copper-launcher-setup"
+#endif
+
+[Setup]
+; AppId 固定不变，升级安装才会识别成同一个应用（换了它就会变成两个程序）
+AppId={{8F2A6C41-7B3E-4E7A-9C1D-5A0B7E4F2C93}
+AppName=Copper Launcher
+AppVersion={#AppVersion}
+AppVerName=Copper Launcher {#AppVersion}
+; 默认「仅为我安装」：不触发 UAC，双击就能装
+;   {autopf} 会跟着降级成 %LOCALAPPDATA%\Programs，图标/开始菜单也走用户目录
+; 向导里仍能改选「为所有用户安装」（那时才会弹 UAC，装到 Program Files）
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog commandline
+DefaultDirName={autopf}\Copper Launcher
+DefaultGroupName=Copper Launcher
+DisableProgramGroupPage=yes
+OutputDir={#OutputDir}
+OutputBaseFilename={#OutputBaseName}
+Compression=lzma2
+SolidCompression=yes
+WizardStyle=modern
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+; 未做代码签名：安装包会触发 SmartScreen 提示（详见项目进度文档）
+#ifdef SetupIconFile
+SetupIconFile={#SetupIconFile}
+#endif
+UninstallDisplayIcon={app}\copper_launcher.exe
+
+[Languages]
+Name: "chinese"; MessagesFile: "compiler:Default.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: unchecked
+
+[Files]
+; 整个 Release 目录（exe + dll + data）都装进去
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\Copper Launcher"; Filename: "{app}\copper_launcher.exe"
+Name: "{autodesktop}\Copper Launcher"; Filename: "{app}\copper_launcher.exe"; Tasks: desktopicon
+
+[Run]
+Filename: "{app}\copper_launcher.exe"; Description: "立即运行 Copper Launcher"; Flags: nowait postinstall skipifsilent
