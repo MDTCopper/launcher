@@ -1,4 +1,5 @@
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
+import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
@@ -157,6 +158,9 @@ class TestState extends State<Test> {
     0,
   );
 
+  // ── 第 15 区演示状态（CapsuleActionBar 胶囊操作栏）──
+  String _capsuleLastAction = '还没点过'; // 记录点了哪个动作
+
   @override
   void dispose() {
     listController.dispose();
@@ -213,6 +217,7 @@ class TestState extends State<Test> {
           _switchSliderSection(),
           _dragSelectSection(),
           _modMetaSection(),
+          _capsuleActionBarSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -558,6 +563,40 @@ class TestState extends State<Test> {
     if (bytes < mb) return '${(bytes / kb).toStringAsFixed(1)} KB';
     if (bytes < gb) return '${(bytes / mb).toStringAsFixed(1)} MB';
     return '${(bytes / gb).toStringAsFixed(1)} GB';
+  }
+
+  // ════════ 15. 胶囊操作栏（CapsuleActionBar） ════════
+  Widget _capsuleActionBarSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('15. CapsuleActionBar（胶囊操作栏）'),
+        _card(
+          title: '图标按钮装在一颗胶囊里：收纳 / 向下展开',
+          desc:
+              '顶部键控制收纳（收纳后只剩它）；展开时向下长出其余按钮，胶囊跟着变长。'
+              '按钮只有图标，作用靠 HintLayer 提示（桌面悬停、移动端长按）。'
+              '最近点击：$_capsuleLastAction。',
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: CapsuleActionBar(
+              actions: [
+                CapsuleAction(
+                  icon: Icons.refresh,
+                  hint: '刷新版本列表',
+                  onTap: () => setState(() => _capsuleLastAction = '刷新版本列表'),
+                ),
+                CapsuleAction(
+                  icon: Icons.tag,
+                  hint: '下载指定 build',
+                  onTap: () => setState(() => _capsuleLastAction = '下载指定 build'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

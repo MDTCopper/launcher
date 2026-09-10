@@ -5,7 +5,7 @@ import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
-import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
@@ -37,6 +37,10 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
 
   /// 最新 be；拿不到（网络 / 限流）时为 null，页面不显示该入口
   static MindustryGithubMeta? _latestBeta;
+
+  /// 列表只在这里建一次 future，手动刷新才重建；
+  /// 若写在 build 里，任何 setState 都会让 FutureBuilder 回到 waiting、列表闪加载圈
+  late Future<bool> _versionFuture = _fetchVersionAssets();
 
   /// 版本列表：先读 remote 快照（历史版本基本不变，不用反复问 API），
   /// 再用 API 取最新一页合并；API 挂了就只用快照，至少老版本还能下
@@ -174,11 +178,12 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     _buildDownloadPopup(mindustryMeta);
   }
 
-  /// 手动刷新：清掉内存里的列表与 be，交给 [build] 重新走一遍获取流程
+  /// 手动刷新：清掉内存里的列表与 be，重建 future 重新拉一遍
   void _refreshVersions() {
     setState(() {
       _versionList.clear();
       _latestBeta = null;
+      _versionFuture = _fetchVersionAssets();
     });
   }
 
@@ -186,15 +191,9 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     final latestBeta = _latestBeta;
 
     return ListContentPanel(
+      // 顶部留出浮动胶囊的位置，列表从它下面开始
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
       items: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: IconTextButton(
-            icon: Icons.refresh,
-            content: '刷新版本列表',
-            onTap: _refreshVersions,
-          ),
-        ),
         // 最新正式版与最新预览版并排，其余版本按时代分段列在下面
         ContentPanelModule(
           title: '最新版本',
@@ -241,20 +240,6 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
         ),
         for (final era in MindustryVersionEra.values)
           _buildEraVersionList(era, _versionsOfEra(era)),
-
-        // 指定 build 入口放最后：be 的 build 太多，不适合跟正式版一起列
-        ContentPanelModule(
-          title: '预览版（BE）',
-          child: ReboundListTile(
-            pressedScale: 0.98,
-            padding: EdgeInsets.all(8),
-            borderRadius: BorderRadius.circular(4),
-            leading: SizedBox(width: 48, child: Icon(Icons.tag, size: 32)),
-            title: Text('下载指定 build'),
-            subtitle: Text('输入 build 号，例如 27793'),
-            onTap: _openBeBuildDownload,
-          ),
-        ),
         SizedBox(height: 40),
       ],
     );
@@ -263,7 +248,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   @override
   Widget build(BuildContext context) {
     final child = FutureBuilder<bool>(
-      future: _fetchVersionAssets(),
+      future: _versionFuture,
       builder: (context, snapshot) {
         late Widget widget;
 
@@ -274,7 +259,32 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
           );
         } else {
           if (snapshot.data ?? false) {
-            widget = _buildVersionView();
+            // 列表上浮一层放胶囊操作，滚动时停在右上角
+            widget = Stack(
+              children: [
+                _buildVersionView(),
+                Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 20, right: 40),
+                    child: CapsuleActionBar(
+                      actions: [
+                        CapsuleAction(
+                          icon: Icons.refresh,
+                          hint: '刷新版本列表',
+                          onTap: _refreshVersions,
+                        ),
+                        CapsuleAction(
+                          icon: Icons.tag,
+                          hint: '下载指定 build',
+                          onTap: _openBeBuildDownload,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
           } else {
             widget = Card(
               child: Padding(
@@ -292,10 +302,8 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
                       ),
                     ),
                     ReboundButton(
+                      onTap: _refreshVersions,
                       child: Icon(Icons.refresh, color: Colors.red, size: 40),
-                      onTap: () {
-                        setState(() {});
-                      },
                     ),
                   ],
                 ),
