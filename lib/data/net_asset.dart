@@ -1,5 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
+import '../util/mindustry_version_era.dart';
+
 part 'net_asset.g.dart';
 
 ///api.github返回格式
@@ -76,6 +78,13 @@ class MindustryGithubMeta extends GithubApiRelease {
     instance.isBe = json['reactions'] == null;
     return instance;
   }
+
+  /// 该 release 所属的版本时代，按 tag 里的 build 号判定
+  ///
+  /// 正式版 tag 形如 `v159.7`，be 版 tag 是 build 号本身；
+  /// 解析不出的按现代版算，避免误标成远古版
+  MindustryVersionEra get era =>
+      MindustryVersionEra.ofTag(tag) ?? MindustryVersionEra.modern;
 
   /// 桌面端游戏本体 jar：正式版 asset 名为 `Mindustry.jar`，
   /// be 版（MindustryBuilds）为 `Mindustry-BE-Desktop-<build>.jar`

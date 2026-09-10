@@ -16,6 +16,7 @@ import '../../../core/app_config.dart';
 import '../../../core/app_constant.dart';
 import '../../../domain/task_manager.dart';
 import '../../../domain/tasks/download_mindustry.dart';
+import '../../../util/mindustry_version_era.dart';
 import '../../../util/validate/windows_file_name_validator.dart';
 
 import '../../vars.dart';
@@ -83,14 +84,23 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     }
   }
 
-  Widget _buildVersionList(
-    String title,
+  /// 取某时代的正式版：无 assets 的 release 本来就下不了，直接排除
+  List<MindustryGithubMeta> _versionsOfEra(MindustryVersionEra era) {
+    return [
+      for (final version in _versionList)
+        if (version.assets.isNotEmpty && version.era == era) version,
+    ];
+  }
+
+  /// 一个时代一段：标题带数量，下面跟一句该时代的说明
+  Widget _buildEraVersionList(
+    MindustryVersionEra era,
     List<MindustryGithubMeta> versionList,
   ) {
+    final theme = Theme.of(context);
     List<Widget> versions = [];
 
     for (var version in versionList) {
-      if (version.assets.isEmpty) continue;
       final Widget subtitle = Row(
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
@@ -117,9 +127,16 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
       );
       versions.add(widget);
     }
-    title = '$title(${versions.length.toString()})';
 
-    return AnimatedExpansion(title: Text(title), children: versions);
+    final Widget title = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('正式版 · ${era.label}(${versions.length.toString()})'),
+        Text(era.summary, style: theme.textTheme.bodySmall),
+      ],
+    );
+
+    return AnimatedExpansion(title: title, children: versions);
   }
 
   void _buildDownloadPopup(MindustryGithubMeta mindustry) {
@@ -209,7 +226,8 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
             ],
           ),
         ),
-        _buildVersionList('正式版', _versionList),
+        for (final era in MindustryVersionEra.values)
+          _buildEraVersionList(era, _versionsOfEra(era)),
         SizedBox(height: 40),
       ],
     );
@@ -382,6 +400,27 @@ class _DownloadMindustryPopupPageState
                   error: error,
                   controller: textEditingController,
                 ),
+
+                // 老版本的能力缺失提示，只提示不拦下载
+                if (mindustryMeta.era.downloadHint case final hint?)
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        size: 18,
+                        color: theme.colorScheme.error,
+                      ),
+                      Flexible(
+                        child: Text(
+                          hint,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
