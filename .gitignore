@@ -54,6 +54,7 @@ app.*.map.json
 opencode.json
 项目情况与进度.md
 .dsh/
+.workbuddy/
 
 # copperlauncher
 versions/
