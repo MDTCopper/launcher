@@ -1,14 +1,17 @@
 // 一键构建版本脚本
 //
 // 做三件事：
-//   1. 交互式收集本次构建信息（版本号 / 发布类型 / 是否计入 build number / 构建平台）
+//   1. 交互式收集本次构建信息（版本号 / 发布类型 / 是否计入 build number / 构建目标）
 //   2. 写入 lib/core/app_constant.dart 的版本信息块与 pubspec.yaml 的 version
-//   3. 调 flutter build <平台> --release
+//   3. 调 flutter build <目标> --release
 //
 // 用法：
 //   dart tool/build_release.dart                 // 全交互（回车用默认值）
 //   dart tool/build_release.dart --no-build      // 只写版本信息，不构建
-//   dart tool/build_release.dart --version 0.0.2 --channel alpha --bump --platform both --yes
+//   dart tool/build_release.dart --version 0.0.2 --channel alpha --bump --platform windows,android --yes
+//
+// 构建目标可多选（windows / android / linux / macos），但桌面目标只能在对应宿主上
+// 构建——选了不匹配的目标会跳过并提示，不会中止其它目标的构建
 //
 // 放 tool/ 下是有原因的：Dart-Code 只认 bin / tool / .dart_tool 为「Dart 程序」，
 // 放别处（如 .script/）在 Flutter 项目里会被当 Flutter 会话跑，而 Flutter 会话
@@ -24,7 +27,7 @@ const appConstantPath = 'lib/core/app_constant.dart';
 /// pubspec 的 version 段 = 版本号 + YYMMDD
 const pubspecPath = 'pubspec.yaml';
 
-/// 记住上次选的构建平台（本地状态，不入库）
+/// 记住上次选的构建目标（本地状态，不入库）
 const statePath = 'tool/build_release_state.json';
 
 /// 版本信息块的边界标记
@@ -45,19 +48,47 @@ enum ReleaseChannel {
   final String suffix;
 }
 
-/// 构建平台
-enum BuildPlatform {
-  windows('Windows', ['windows']),
-  android('Android', ['apk']),
-  both('两者', ['windows', 'apk']);
+/// 构建目标
+///
+/// 桌面目标只能在对应宿主上构建（Flutter 不支持交叉构建），[requiredHost] 为 null
+/// 表示任意宿主都能构建；一次可以选多个目标
+enum BuildTarget {
+  windows('Windows', 'windows', 'windows'),
+  android('Android', 'apk', null),
+  linux('Linux', 'linux', 'linux'),
+  macos('macOS', 'macos', 'macos');
 
-  const BuildPlatform(this.label, this.flutterTargets);
+  const BuildTarget(this.label, this.flutterTarget, this.requiredHost);
 
   final String label;
 
   /// `flutter build` 的目标名
-  final List<String> flutterTargets;
+  final String flutterTarget;
+
+  /// 必须在这个宿主上构建；null = 任意宿主
+  final String? requiredHost;
+
+  /// 该目标支持的打包方式（不含「不打包」），apk 本身就是产物、无需再打包
+  List<PackageFormat> get packageFormats => switch (this) {
+    BuildTarget.windows => const [
+      PackageFormat.zip,
+      PackageFormat.setup,
+      PackageFormat.both,
+    ],
+    BuildTarget.linux => const [PackageFormat.tarball],
+    BuildTarget.macos => const [PackageFormat.dmg],
+    BuildTarget.android => const [],
+  };
 }
+
+/// 当前宿主系统，叫法与 [BuildTarget.requiredHost] 一致
+String get _currentHost => Platform.isWindows
+    ? 'windows'
+    : Platform.isMacOS
+    ? 'macos'
+    : Platform.isLinux
+    ? 'linux'
+    : Platform.operatingSystem;
 
 /// 构建模式
 enum BuildMode {
@@ -76,12 +107,14 @@ enum BuildMode {
   final String outputFolderName;
 }
 
-/// 构建完的打包方式（以后加 dmg / tar.gz 就在这里加一项）
+/// 构建完的打包方式；可选范围由已构建的目标决定（见 [BuildTarget.packageFormats]）
 enum PackageFormat {
   none('不打包'),
   zip('Zip（解压即用）'),
   setup('Setup（安装包）'),
-  both('Zip + Setup');
+  both('Zip + Setup'),
+  tarball('tar.gz（解压即用）'),
+  dmg('dmg（磁盘映像）');
 
   const PackageFormat(this.label);
 
@@ -93,7 +126,7 @@ class BuildOptions {
   String? versionName;
   ReleaseChannel? channel;
   bool? countBuildNumber;
-  BuildPlatform? platform;
+  List<BuildTarget>? targets;
   BuildMode? mode;
   PackageFormat? packageFormat;
   bool skipBuild = false;
@@ -131,11 +164,11 @@ Future<void> main(List<String> args) async {
         defaultValue: BuildMode.release,
         labelOf: (mode) => mode.label,
       );
-  final platform = options.platform ?? _askPlatform();
+  final targets = options.targets ?? _askTargets();
 
   // 调试构建只是拿个能跑的包，不改版本号、不打包
   if (mode == BuildMode.debug) {
-    return _runBuildOnly(options: options, mode: mode, platform: platform);
+    return _runBuildOnly(options: options, mode: mode, targets: targets);
   }
 
   final current = _readCurrentVersion();
@@ -168,7 +201,7 @@ Future<void> main(List<String> args) async {
   stdout.writeln('  appBuildTime    = $buildTime');
   stdout.writeln('  pubspec version = $versionName+$pubspecBuildTime');
   stdout.writeln(
-    '  构建            = ${shouldBuild ? '${platform.label} · ${mode.label}' : '否（只写版本信息）'}',
+    '  构建            = ${shouldBuild ? '${targets.map((target) => target.label).join(' + ')} · ${mode.label}' : '否（只写版本信息）'}',
   );
 
   if (!options.skipConfirm && !_askYesNo('\n确认执行？')) {
@@ -182,16 +215,17 @@ Future<void> main(List<String> args) async {
     buildTime: buildTime,
   );
   _writePubspecVersion('$versionName+$pubspecBuildTime');
-  _savePlatform(platform);
+  _saveTargets(targets);
   stdout.writeln('\n版本信息已写入 $appConstantPath / $pubspecPath');
 
   if (!shouldBuild) return;
 
   if (!await _runChecks(options)) return;
-  if (!await _buildTargets(platform, mode)) return;
+  final builtTargets = await _buildTargets(targets, mode);
+  if (builtTargets == null) return;
   stdout.writeln('\n构建完成');
 
-  final outputFolders = _outputFolders(platform, mode);
+  final outputFolders = _outputFolders(builtTargets, mode);
   for (final folder in outputFolders) {
     stdout.writeln('产物目录：${_normalizePath(folder.path)}');
   }
@@ -202,6 +236,7 @@ Future<void> main(List<String> args) async {
     versionName: versionName,
     channel: channel,
     buildNumber: buildNumber,
+    builtTargets: builtTargets,
   );
 
   await _openFoldersIfWanted(
@@ -214,13 +249,14 @@ Future<void> main(List<String> args) async {
 Future<void> _runBuildOnly({
   required BuildOptions options,
   required BuildMode mode,
-  required BuildPlatform platform,
+  required List<BuildTarget> targets,
 }) async {
   if (!await _runChecks(options)) return;
-  if (!await _buildTargets(platform, mode)) return;
+  final builtTargets = await _buildTargets(targets, mode);
+  if (builtTargets == null) return;
   stdout.writeln('\n构建完成（${mode.label}，未改动版本信息）');
 
-  final outputFolders = _outputFolders(platform, mode);
+  final outputFolders = _outputFolders(builtTargets, mode);
   for (final folder in outputFolders) {
     stdout.writeln('产物目录：${_normalizePath(folder.path)}');
   }
@@ -242,21 +278,42 @@ Future<bool> _runChecks(BuildOptions options) async {
   return true;
 }
 
-/// 逐个平台目标构建；失败返回 false
-Future<bool> _buildTargets(BuildPlatform platform, BuildMode mode) async {
-  for (final target in platform.flutterTargets) {
-    stdout.writeln('\n> flutter build $target --${mode.flutterMode}');
+/// 逐个目标构建，返回实际构建成功的目标
+///
+/// 目标要求的宿主与当前宿主不一致时跳过并提示（Flutter 不支持交叉构建）；
+/// 构建失败或一个目标都没构建成时返回 null
+Future<List<BuildTarget>?> _buildTargets(
+  List<BuildTarget> targets,
+  BuildMode mode,
+) async {
+  final host = _currentHost;
+  final builtTargets = <BuildTarget>[];
+
+  for (final target in targets) {
+    final requiredHost = target.requiredHost;
+    if (requiredHost != null && requiredHost != host) {
+      stdout.writeln('\n跳过 ${target.label}：只能在 $requiredHost 上构建（当前 $host）');
+      continue;
+    }
+
+    stdout.writeln('\n> flutter build ${target.flutterTarget} --${mode.flutterMode}');
     final exitCode = await _runFlutter([
       'build',
-      target,
+      target.flutterTarget,
       '--${mode.flutterMode}',
     ]);
     if (exitCode != 0) {
-      stderr.writeln('flutter build $target 失败（退出码 $exitCode）');
-      return false;
+      stderr.writeln('flutter build ${target.flutterTarget} 失败（退出码 $exitCode）');
+      return null;
     }
+    builtTargets.add(target);
   }
-  return true;
+
+  if (builtTargets.isEmpty) {
+    stderr.writeln('\n所选目标都要在对应宿主上构建，当前 $host 一个都跑不了，中止构建');
+    return null;
+  }
+  return builtTargets;
 }
 
 Future<int> _runFlutter(List<String> arguments) async {
@@ -309,7 +366,7 @@ BuildOptions? _parseArgs(List<String> args) {
       case '--no-bump':
         options.countBuildNumber = false;
       case '--platform':
-        options.platform = _platformOf(nextValue());
+        options.targets = _targetsOf(nextValue());
       case '--mode':
         options.mode = _modeOf(nextValue());
       case '--check':
@@ -336,10 +393,12 @@ BuildOptions? _parseArgs(List<String> args) {
           '  --version <大.小.热修>   版本号，如 0.0.2\n'
           '  --channel <release|alpha|beta>  发布类型（也认首字母 r/a/b）\n'
           '  --bump / --no-bump       本次是否计入 build number\n'
-          '  --platform <windows|android|both>  也认首字母 w/a/b\n'
+          '  --platform <windows,android,linux,macos>  构建目标，可多选、逗号分隔（也认首字母 w/a/l/m）\n'
+          '                            交互提问只会列出当前宿主能构建的目标；桌面目标选了不匹配的会跳过\n'
           '  --mode <release|debug|profile>  构建模式（也认首字母 r/d/p）\n'
           '  --check / --no-check     构建前跑 flutter analyze + test\n'
-          '  --package <zip|setup|none>  构建完打包（也认首字母 z/s/n）\n'
+          '  --package <zip|setup|both|tarball|dmg|none>  构建完打包（也认首字母）\n'
+          '                            Windows 出 zip / Setup，Linux 出 tar.gz，macOS 出 dmg\n'
           '  --yes                    不再确认（也不问打包与产物文件夹）\n'
           '  --open-folder            构建完直接打开产物文件夹\n'
           '  --no-open-folder         构建完不打开、也不问\n'
@@ -362,18 +421,27 @@ ReleaseChannel _channelOf(String value) {
   return channel;
 }
 
-BuildPlatform _platformOf(String value) {
-  final platform = _matchEnum(BuildPlatform.values, value);
-  if (platform == null) {
-    throw ArgumentError('构建平台只能是 windows / android / both，收到：$value');
+/// 解析逗号分隔的构建目标列表，可填名称或首字母
+List<BuildTarget> _targetsOf(String value) {
+  final targets = <BuildTarget>[];
+  for (final part in value.split(RegExp(r'[,\s]+'))) {
+    if (part.isEmpty) continue;
+    final target = _matchEnum(BuildTarget.values, part);
+    if (target == null) {
+      throw ArgumentError('构建目标只能是 windows / android / linux / macos，收到：$part');
+    }
+    if (!targets.contains(target)) targets.add(target);
   }
-  return platform;
+  if (targets.isEmpty) throw ArgumentError('--platform 至少要给一个目标');
+  return targets;
 }
 
 PackageFormat _packageFormatOf(String value) {
   final format = _matchEnum(PackageFormat.values, value);
   if (format == null) {
-    throw ArgumentError('打包方式只能是 zip / setup / none，收到：$value');
+    throw ArgumentError(
+      '打包方式只能是 none / zip / setup / both / tarball / dmg，收到：$value',
+    );
   }
   return format;
 }
@@ -420,12 +488,76 @@ ReleaseChannel _askChannel() => _askChoice(
 
 bool _askCountBuildNumber() => _askYesNo('本次是否计入 build number（不计入则沿用上次）');
 
-BuildPlatform _askPlatform() => _askChoice(
-  question: '构建平台',
-  values: BuildPlatform.values,
-  defaultValue: _loadPlatform() ?? BuildPlatform.windows,
-  labelOf: (platform) => platform.label,
-);
+/// 构建目标多选：只列出当前宿主能构建的目标，逗号或空格分隔，可填序号 / 名称 / 首字母
+List<BuildTarget> _askTargets() {
+  final buildableTargets = _buildableTargets;
+  final defaultTargets = _defaultTargets(buildableTargets);
+  final defaultText = defaultTargets.map((target) => target.name).join(',');
+  final optionLine = [
+    for (var index = 0; index < buildableTargets.length; index++)
+      '${index + 1}) ${buildableTargets[index].label}(${buildableTargets[index].name})',
+  ].join('  ');
+  final buildableText = buildableTargets.map((target) => target.label).join(' / ');
+
+  stdout.writeln('检测到宿主：$_currentHost，可构建目标：$buildableText');
+  while (true) {
+    final input = _ask('构建目标（可多选，逗号分隔）', defaultText, options: optionLine);
+    final targets = _parseTargetInput(input, buildableTargets);
+    if (targets.isNotEmpty) return targets;
+    stdout.writeln('至少选一个，可选：$buildableText');
+  }
+}
+
+/// 当前宿主能构建的目标，宿主自身的桌面目标排最前
+///
+/// apk 不需要宿主匹配，桌面目标只能在对应宿主上构建（Flutter 不支持交叉构建）
+List<BuildTarget> get _buildableTargets {
+  final buildable = [
+    for (final target in BuildTarget.values)
+      if (target.requiredHost == null || target.requiredHost == _currentHost)
+        target,
+  ];
+  final hostTargets = [
+    for (final target in buildable)
+      if (target.requiredHost == _currentHost) target,
+  ];
+  return [
+    ...hostTargets,
+    for (final target in buildable)
+      if (!hostTargets.contains(target)) target,
+  ];
+}
+
+/// 默认目标：优先沿用上次选过的（先滤掉本机构建不了的），没有可沿用的就用宿主桌面目标
+List<BuildTarget> _defaultTargets(List<BuildTarget> buildableTargets) {
+  final savedTargets = [
+    for (final target in _loadTargets() ?? const <BuildTarget>[])
+      if (buildableTargets.contains(target)) target,
+  ];
+  return savedTargets.isNotEmpty ? savedTargets : [buildableTargets.first];
+}
+
+/// 解析多选输入：序号（1 起，对应列出的可选项）/ 名称 / 首字母，逗号或空格分隔
+List<BuildTarget> _parseTargetInput(
+  String input,
+  List<BuildTarget> buildableTargets,
+) {
+  final targets = <BuildTarget>[];
+  for (final part in input.split(RegExp(r'[,\s]+'))) {
+    if (part.isEmpty) continue;
+    final target = _targetOfToken(part, buildableTargets);
+    if (target != null && !targets.contains(target)) targets.add(target);
+  }
+  return targets;
+}
+
+/// 单个目标输入：先按序号（1 起，对应可选项列表）解析，不是序号再按名称 / 首字母匹配
+BuildTarget? _targetOfToken(String token, List<BuildTarget> buildableTargets) {
+  final index = int.tryParse(token);
+  if (index == null) return _matchEnum(buildableTargets, token);
+  if (index < 1 || index > buildableTargets.length) return null;
+  return buildableTargets[index - 1];
+}
 
 /// 选项提问：序号（1 起）/ 首字母 / 名称 都能选，回车取默认项
 T _askChoice<T extends Enum>({
@@ -496,25 +628,30 @@ bool _askYesNo(String question) {
 // 构建产物与文件管理器
 // ---------------------------------------------------------------------------
 
-/// 各平台的产物目录；老版本 Flutter 的 windows 输出路径不同，取第一个存在的
-List<Directory> _outputFolders(BuildPlatform platform, BuildMode mode) {
-  return [
-    if (platform != BuildPlatform.android) ?_windowsOutputFolder(mode),
-    if (platform != BuildPlatform.windows) ?_androidOutputFolder(),
-  ];
-}
+/// 各目标的产物目录；老版本 Flutter 的输出路径不同，取第一个存在的
+List<Directory> _outputFolders(List<BuildTarget> targets, BuildMode mode) => [
+  for (final target in targets) ?_outputFolderOf(target, mode),
+];
 
-/// Windows 产物目录（老版本 Flutter 是 build/windows/runner/<模式>）
-Directory? _windowsOutputFolder(BuildMode mode) => _firstExistingFolder([
-  'build/windows/x64/runner/${mode.outputFolderName}',
-  'build/windows/runner/${mode.outputFolderName}',
-]);
-
-/// Android 产物目录
-Directory? _androidOutputFolder() => _firstExistingFolder([
-  'build/app/outputs/flutter-apk',
-  'build/app/outputs/apk/release',
-]);
+Directory? _outputFolderOf(BuildTarget target, BuildMode mode) => switch (target) {
+  // 老版本 Flutter 是 build/windows/runner/<模式>
+  BuildTarget.windows => _firstExistingFolder([
+    'build/windows/x64/runner/${mode.outputFolderName}',
+    'build/windows/runner/${mode.outputFolderName}',
+  ]),
+  BuildTarget.android => _firstExistingFolder([
+    'build/app/outputs/flutter-apk',
+    'build/app/outputs/apk/release',
+  ]),
+  // Linux 的产物名不带模式大写，目录是 build/linux/<架构>/<小写模式>/bundle
+  BuildTarget.linux => _firstExistingFolder([
+    'build/linux/x64/${mode.flutterMode}/bundle',
+    'build/linux/${mode.flutterMode}/bundle',
+  ]),
+  BuildTarget.macos => _firstExistingFolder([
+    'build/macos/Build/Products/${mode.outputFolderName}',
+  ]),
+};
 
 Directory? _firstExistingFolder(List<String> candidates) {
   for (final candidate in candidates) {
@@ -526,6 +663,8 @@ Directory? _firstExistingFolder(List<String> candidates) {
 
 /// 构建后按需打包；返回产物所在目录，没打包返回 null
 ///
+/// 打包方式随已构建的目标而定：Windows 沿用 zip / Setup 提问，
+/// Linux / macOS 各自固定为 tar.gz / dmg、不额外提问；
 /// --yes 免交互时不主动打包，只认 --package
 Future<Directory?> _packageIfNeeded({
   required BuildOptions options,
@@ -533,45 +672,104 @@ Future<Directory?> _packageIfNeeded({
   required String versionName,
   required ReleaseChannel channel,
   required int buildNumber,
+  required List<BuildTarget> builtTargets,
 }) async {
-  final packageFormat =
-      options.packageFormat ??
-      (options.skipConfirm
-          ? PackageFormat.none
-          : _askChoice(
-              question: '是否打包',
-              values: PackageFormat.values,
-              defaultValue: PackageFormat.none,
-              labelOf: (format) => format.label,
-            ));
+  // apk 本身就是产物，一个可打包的桌面目标都没有就直接结束
+  final packagableTargets = [
+    for (final target in builtTargets)
+      if (target.packageFormats.isNotEmpty) target,
+  ];
+  if (packagableTargets.isEmpty) return null;
+
+  final packageFormat = _resolvePackageFormat(
+    options: options,
+    packagableTargets: packagableTargets,
+  );
   if (packageFormat == PackageFormat.none) return null;
 
-  final sourceFolder = _windowsOutputFolder(mode);
-  if (sourceFolder == null) {
-    stderr.writeln('没找到 Windows 产物目录，跳过打包');
-    return null;
-  }
-
   final distFolder = Directory('build/dist');
-  final baseName = _packageBaseName(
-    versionName: versionName,
-    channel: channel,
-    buildNumber: buildNumber,
-    sourceFolder: sourceFolder,
-  );
-  final appVersion = channel.suffix.isEmpty
-      ? versionName
-      : '$versionName-${channel.suffix}$buildNumber';
-
-  if (packageFormat == PackageFormat.zip ||
-      packageFormat == PackageFormat.both) {
-    await _packageZip(sourceFolder, distFolder, baseName);
-  }
-  if (packageFormat == PackageFormat.setup ||
-      packageFormat == PackageFormat.both) {
-    await _packageSetup(sourceFolder, distFolder, baseName, appVersion);
+  for (final target in packagableTargets) {
+    final sourceFolder = _outputFolderOf(target, mode);
+    if (sourceFolder == null) {
+      stderr.writeln('没找到 ${target.label} 产物目录，跳过打包');
+      continue;
+    }
+    await _packageTarget(
+      target: target,
+      packageFormat: packageFormat,
+      sourceFolder: sourceFolder,
+      distFolder: distFolder,
+      baseName: _packageBaseName(
+        versionName: versionName,
+        channel: channel,
+        buildNumber: buildNumber,
+        target: target,
+        sourceFolder: sourceFolder,
+      ),
+      appVersion: channel.suffix.isEmpty
+          ? versionName
+          : '$versionName-${channel.suffix}$buildNumber',
+    );
   }
   return distFolder;
+}
+
+/// 决定打包方式：可选项跟着已构建的桌面目标走
+PackageFormat _resolvePackageFormat({
+  required BuildOptions options,
+  required List<BuildTarget> packagableTargets,
+}) {
+  final supportedFormats = [
+    for (final target in packagableTargets) ...target.packageFormats,
+  ];
+
+  final requested = options.packageFormat;
+  if (requested != null) {
+    if (requested == PackageFormat.none || supportedFormats.contains(requested)) {
+      return requested;
+    }
+    // 指定的方式在当前目标上用不上，退回该目标的固定格式
+    stdout.writeln(
+      '打包方式 ${requested.name} 不适用于本次构建，改用 ${supportedFormats.first.name}',
+    );
+    return supportedFormats.first;
+  }
+
+  if (options.skipConfirm) return PackageFormat.none;
+  return _askChoice(
+    question: '是否打包',
+    values: [PackageFormat.none, ...supportedFormats],
+    defaultValue: PackageFormat.none,
+    labelOf: (format) => format.label,
+  );
+}
+
+/// 按目标打包：Windows 走 zip / Setup，Linux 走 tar.gz，macOS 走 dmg
+Future<void> _packageTarget({
+  required BuildTarget target,
+  required PackageFormat packageFormat,
+  required Directory sourceFolder,
+  required Directory distFolder,
+  required String baseName,
+  required String appVersion,
+}) async {
+  switch (target) {
+    case BuildTarget.windows:
+      if (packageFormat == PackageFormat.zip ||
+          packageFormat == PackageFormat.both) {
+        await _packageZip(sourceFolder, distFolder, baseName);
+      }
+      if (packageFormat == PackageFormat.setup ||
+          packageFormat == PackageFormat.both) {
+        await _packageSetup(sourceFolder, distFolder, baseName, appVersion);
+      }
+    case BuildTarget.linux:
+      await _packageTarball(sourceFolder, distFolder, baseName);
+    case BuildTarget.macos:
+      await _packageDmg(sourceFolder, distFolder, baseName);
+    case BuildTarget.android:
+      break; // 打包前已排除，这里只是为了穷尽分支
+  }
 }
 
 /// 产物名（不含后缀）：copper-launcher-v0.0.2-alpha2-windows-x64
@@ -579,15 +777,131 @@ String _packageBaseName({
   required String versionName,
   required ReleaseChannel channel,
   required int buildNumber,
+  required BuildTarget target,
   required Directory sourceFolder,
 }) {
   final channelPart = channel.suffix.isEmpty
       ? ''
       : '-${channel.suffix}$buildNumber';
-  final platformPart = sourceFolder.path.contains('x64')
-      ? 'windows-x64'
-      : 'windows';
-  return 'copper-launcher-v$versionName$channelPart-$platformPart';
+  return 'copper-launcher-v$versionName$channelPart-${_platformPartOf(target, sourceFolder)}';
+}
+
+/// 产物名的平台段：`build/linux/x64/...` 这类带架构的目录标出 x64
+String _platformPartOf(BuildTarget target, Directory sourceFolder) {
+  final architecturePart = sourceFolder.path.contains('x64') ? '-x64' : '';
+  return switch (target) {
+    BuildTarget.windows => 'windows$architecturePart',
+    BuildTarget.android => 'android',
+    BuildTarget.linux => 'linux$architecturePart',
+    BuildTarget.macos => 'macos',
+  };
+}
+
+/// 打包 Linux 产物为 tar.gz
+///
+/// 用系统 tar 而不是 Dart 的归档实现：tar 保留符号链接与可执行权限位，
+/// 更贴近 Linux 产物的语义（Dart 归档会跟随符号链接、把内容展开）
+Future<File?> _packageTarball(
+  Directory sourceFolder,
+  Directory distFolder,
+  String baseName,
+) async {
+  final archiveFile = File(
+    '${distFolder.path}${Platform.pathSeparator}$baseName.tar.gz',
+  );
+  await distFolder.create(recursive: true);
+  if (await archiveFile.exists()) await archiveFile.delete();
+
+  // tar 的顶层目录名跟着被归档目录的目录名走（这里是 bundle）；
+  // 先把 bundle 改成发布名，打完包在 finally 里改回来（同盘改名，开销可忽略）
+  final releaseFolder = sourceFolder.parent;
+  final stagedFolder = Directory(
+    '${releaseFolder.path}${Platform.pathSeparator}$baseName',
+  );
+  if (await stagedFolder.exists()) await stagedFolder.delete(recursive: true);
+  await sourceFolder.rename(stagedFolder.path);
+
+  stdout.writeln('\n正在打包 tar.gz：$baseName.tar.gz');
+  try {
+    final result = await Process.run('tar', [
+      '-czf',
+      archiveFile.absolute.path,
+      '-C',
+      releaseFolder.absolute.path,
+      baseName,
+    ]);
+    if (result.exitCode != 0) {
+      stderr.writeln('tar 打包失败（退出码 ${result.exitCode}）');
+      if ('${result.stderr}'.trim().isNotEmpty) stderr.writeln(result.stderr);
+      return null;
+    }
+  } finally {
+    await stagedFolder.rename(sourceFolder.path);
+  }
+
+  stdout.writeln('打包产物：${_normalizePath(archiveFile.path)}');
+  return archiveFile;
+}
+
+/// 打包 macOS 产物为 dmg
+///
+/// 用系统 hdiutil（macOS 自带）从 .app 直接生成压缩磁盘映像，镜像里就是 .app 本体
+Future<File?> _packageDmg(
+  Directory releaseFolder,
+  Directory distFolder,
+  String baseName,
+) async {
+  final appBundle = _firstExistingAppBundle(releaseFolder);
+  if (appBundle == null) {
+    stderr.writeln(
+      '没在 ${_normalizePath(releaseFolder.path)} 里找到 .app，跳过 dmg 打包',
+    );
+    return null;
+  }
+
+  final dmgFile = File(
+    '${distFolder.path}${Platform.pathSeparator}$baseName.dmg',
+  );
+  await distFolder.create(recursive: true);
+  if (await dmgFile.exists()) await dmgFile.delete();
+
+  stdout.writeln('\n正在打包 dmg：$baseName.dmg');
+  final result = await Process.run('hdiutil', [
+    'create',
+    '-volname',
+    _appDisplayName(appBundle),
+    '-srcfolder',
+    appBundle.absolute.path,
+    '-ov',
+    '-format',
+    'UDZO',
+    dmgFile.absolute.path,
+  ]);
+  if (result.exitCode != 0) {
+    stderr.writeln('hdiutil 打包失败（退出码 ${result.exitCode}）');
+    if ('${result.stderr}'.trim().isNotEmpty) stderr.writeln(result.stderr);
+    return null;
+  }
+
+  stdout.writeln('打包产物：${_normalizePath(dmgFile.path)}');
+  return dmgFile;
+}
+
+/// 在产物目录里找 .app：产物名跟着 PRODUCT_NAME 走，不写死
+Directory? _firstExistingAppBundle(Directory folder) {
+  for (final entity in folder.listSync()) {
+    if (entity is Directory &&
+        entity.path.toLowerCase().endsWith('.app')) {
+      return entity;
+    }
+  }
+  return null;
+}
+
+/// .app 挂成磁盘映像后的卷名：去掉 .app 后缀
+String _appDisplayName(Directory appBundle) {
+  final bundleName = appBundle.path.split(Platform.pathSeparator).last;
+  return bundleName.replaceAll(RegExp(r'\.app$', caseSensitive: false), '');
 }
 
 /// 打包 Zip（包内直接是目录内容，解压即用）
@@ -829,21 +1143,35 @@ String _formatPubspecBuildTime(DateTime now) {
   return '${two(now.year % 100)}${two(now.month)}${two(now.day)}';
 }
 
-BuildPlatform? _loadPlatform() {
+/// 读上次选的构建目标；旧版本状态文件存的是单值 `platform`，一并兼容
+List<BuildTarget>? _loadTargets() {
   final file = File(statePath);
   if (!file.existsSync()) return null;
   try {
     final state = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-    final name = state['platform'] as String?;
-    return _platformOf(name ?? '');
+    final raw = state['targets'] ?? state['platform'];
+    final names = switch (raw) {
+      List<dynamic>() => raw.cast<String>(),
+      String() => [raw],
+      _ => const <String>[],
+    };
+
+    final targets = <BuildTarget>[];
+    for (final name in names) {
+      final target = _matchEnum(BuildTarget.values, name);
+      if (target != null && !targets.contains(target)) targets.add(target);
+    }
+    return targets.isEmpty ? null : targets;
   } catch (_) {
     return null;
   }
 }
 
-void _savePlatform(BuildPlatform platform) {
+void _saveTargets(List<BuildTarget> targets) {
   File(statePath).writeAsStringSync(
-    const JsonEncoder.withIndent('  ').convert({'platform': platform.name}),
+    const JsonEncoder.withIndent('  ').convert({
+      'targets': [for (final target in targets) target.name],
+    }),
     flush: true,
   );
 }
