@@ -1,70 +1,108 @@
 | 支持语言 | Support Language  |
 |:--:|:--:|
-| [中文](README.md) | [English](README-en.md) | 
+| [中文](README.md) | [English](README-en.md) |
+
+<p align="center">
+  <img src="assets/images/copper.png" alt="Copper Launcher">
+</p>
 
 # Copper Launcher
 
-A multi-platform game launcher for [Mindustry](https://github.com/Anuken/Mindustry), developed with **Flutter**.  
-**Currently under development. English is not supported for now**
+A multi-platform game launcher for [Mindustry](https://github.com/Anuken/Mindustry), built with **Flutter**.
+
+> **Under active development**: features and UI are still changing fast. No stable release yet.
+
+## Table of Contents
+
+- [Copper Launcher](#copper-launcher)
+  - [Table of Contents](#table-of-contents)
+  - [Supported Platforms](#supported-platforms)
+  - [Features](#features)
+    - [Version Management](#version-management)
+    - [Launching the Game](#launching-the-game)
+    - [Mod Management](#mod-management)
+    - [Network & Downloads](#network--downloads)
+    - [Interface](#interface)
+  - [Building from Source](#building-from-source)
+  - [Acknowledgements](#acknowledgements)
 
 ## Supported Platforms
 
-- **Desktop**  
-  Supports **Windows**, **Linux**, and **macOS**, with full access to all launcher features.
-- **Android**  
-  require the installation of CopperModLoader to function.
-- **iOS is NOT supported**  
-  Due to significant platform restrictions and the inability to run Java mods on iOS, development for this platform is not planned.
+| Platform | Status |
+|:--|:--|
+| **Windows / Linux / macOS** | Fully supported, all launcher features available |
+| **Android** | Requires **CopperModLoader** to work properly |
+| **iOS** | Not supported. Heavy platform restrictions, and Java mods cannot run there anyway |
 
-## Core Features
+## Features
 
-### Game & Community Resource Management
+### Version Management
 
-- Fetch game versions directly from the official GitHub repository.
+- Manage multiple game versions side by side, with **isolated save data** per version
+- The version list comes from the official GitHub repository, with a bundled snapshot so history stays browsable when the network fails
+- Grouped by **era** (Modern / Classic / Legacy), with notes on what each era supports (e.g. whether mods work)
+- Download a specific build, or preview builds (BE)
+- Import / export resources (saves, maps, mods, blueprints); importing is still being finished
+- View and export game crash logs
+- Track play time and last launch time per version
+- Generate launch scripts (`.bat` / `.sh`) so the game can start without the launcher
 
-- One-click retrieval and parsing of mod lists from both official MindustryMods and CopperLauncher sources, with automatic dependency tracking and downloads.
-- Download maps and blueprints from community map sites.  
-*Note: This sites is a specialized for users in mainland China.*
-- Built-in GitHub mirrors for faster game downloads (repositories are updated periodically).  
-*Note: Some nodes may be unavailable in certain regions. This mirror is primarily optimized for users in mainland China.*
-- Configure network proxies, multi-threaded downloads, and download speed limits.
+### Launching the Game
 
-You're welcome to try mirror note ,blueprints and maps, but your mileage may vary!
+- Configure JVM arguments before launch, with **automatic heap allocation** (estimated from available memory and the size of enabled mods)
+- Manage multiple Java runtimes, download from Adoptium when a runtime is missing, and pick a Java version compatible with each game version (Java 8 is safest for old versions)
+- Override in-game settings and the multiplayer username
+- Move the launcher into the **system tray** while playing, then restore the window when the game exits (desktop)
+- Single-instance: launching again brings the existing window back
 
-### Launching Mindustry
+### Mod Management
 
-- Configure JVM settings before launch, such as automatic heap memory allocation.
+- Browse and download mods: the list comes from the official MindustryMods repository, with jar / zip downloads; for non-Java mods the launcher can fetch source and name it automatically
+- Enable / disable mods by writing both the game settings and the file extension, so the official loader never picks up disabled mods
+- Batch operations: multi-select, drag-to-select, search and category filters
+- Drag and drop files to import on desktop
+- Dedicated support for **CopperModLoader**
 
-- Monitor game processes, analyze logs, and provide potential crash diagnostics.
-- Override in-game settings and multiplayer usernames.
+### Network & Downloads
 
-### Multi-Version Management
+- Unified network layer: automatic user agent, GitHub API token injection, chunked multi-threaded downloads with resume, and speed limits
+- **GitHub mirror acceleration**: direct connection first, automatic fallback to mirrors on network errors, with node speed tests and custom nodes
+- Three proxy modes: follow system / custom / disabled
 
-- Manage multiple game versions simultaneously with isolated save data for each.
+### Interface
 
-- Import local game files.
-- Export and import game saves (including mods, maps, etc.).
-- Desktop support for drag-and-drop import of multiple files.
-- Quickly update game versions and their associated mods.
-
-### Built-in Tools
-
-- A collection of practical built-in utilities.
-
-- Help documentation.
-
-### CopperModLoader
-
-- Special support for the Copper Mod Loader.
-
-### Plugins (Planned)
-
-- Support for adding plugins will be available.
-
-- Built-in plugin marketplace.  
-
+- Custom UI style (not strictly Material 3), with its own press-rebound, overlay, dropdown and slide-menu components
+- Multiple accent colors, plus dark / light / follow-system themes
+- Background task drawer for download and extraction progress, with task logs
 
 ~~And an extremely good-looking UI with smooth animations~~
 
+## Building from Source
 
-<sub>This README was translated with the help of Qwen AI.</sub>
+Requires **Flutter** (Dart SDK `^3.11.5`). Desktop targets can only be built on their own host OS.
+
+```bash
+flutter pub get
+flutter run -d windows     # dev run (use -d linux / -d macos instead)
+flutter test               # tests
+flutter analyze            # static analysis, aiming for 0 errors
+```
+
+For release builds and packaging, use `tool/build_release.dart` — interactively, or with arguments:
+
+```bash
+dart tool/build_release.dart --version 0.0.2 --channel alpha --bump --platform windows,android --package both
+```
+
+- Targets are multi-select: `windows` / `android` / `linux` / `macos`. The interactive prompt only lists targets the current host can build; targets passed on the command line that do not match the host are skipped with a notice
+- Packaging follows the platform: Zip / Setup on Windows, tar.gz on Linux, dmg on macOS. Artifacts land in `build/dist/`
+
+Some data ships outside the launcher (version snapshot, GitHub mirror nodes, per-version settings adapter tables). It lives in the `remote/` directory of this repository and is fetched at startup to overwrite the bundled copies.
+
+## Acknowledgements
+
+This project mainly draws on the design of third-party Minecraft launchers:
+
+1. **PCL2**: UI design and page flow
+2. **LauncherX**: background task system
+3. **HMCL**: parts of the backend logic
