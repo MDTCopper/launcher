@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:encrypt/encrypt.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -83,9 +84,19 @@ class TokenEncryptor {
   }
 
   /// 按需解密：如果是密文则解密，明文则原样返回
+  ///
+  /// 解不开时按「没有 token」处理、不往外抛：secure storage 的目录是
+  /// `%APPDATA%\<CompanyName>\<ProductName>`，改过应用标识就会整体搬家，
+  /// 新目录里读不到 key 会重新生成一把，旧密文随即解不开——
+  /// 抛出去会在 `initAppConfig` 里变成整个启动崩溃
   static String decryptIfNeeded(String token) {
     if (token.isEmpty) return token;
     if (!isEncrypted(token)) return token;
-    return decryptToken(token);
+    try {
+      return decryptToken(token);
+    } catch (error) {
+      addLog(.warning, '已保存的 token 无法解密，按未设置处理：$error');
+      return '';
+    }
   }
 }

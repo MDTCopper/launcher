@@ -21,7 +21,7 @@ void addCustomLogAndPrint(String message) {
 
 ///运行时日志，记录程序运行时的事件和错误，需先初始化
 abstract class Log {
-  static late File file;
+  static File? _file;
 
   static Future<void> init() async {
     final logDir = Directory(AppPaths.logs);
@@ -29,27 +29,34 @@ abstract class Log {
     // 每次启动时清理一周前的日志
     await cleanOutdatedLogs();
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.log';
-    file = File(p.join(logDir.path, fileName));
-    await file.create();
+    final logFile = File(p.join(logDir.path, fileName));
+    await logFile.create();
     final platform = Platform.operatingSystem;
     final version = Platform.operatingSystemVersion;
-    await file.writeAsString(
+    await logFile.writeAsString(
       'Copper Launcher Run Time Log\n\n'
       'Launch Time : ${DateTime.now().toIso8601String()}\n'
       'Platform : $platform ($version)\n'
       '------------------\n',
     );
+    // 全部就绪后再挂上，避免中途失败留下半初始化的日志文件
+    _file = logFile;
   }
 
   static Future<void> add(RunTimeLogType type, String message) async {
-    await file.writeAsString(
+    // 未初始化（例如单测里直接调用）时静默跳过，别让记日志反而把调用方搞崩
+    final logFile = _file;
+    if (logFile == null) return;
+    await logFile.writeAsString(
       '[${DateTime.now().toIso8601String()}]-[${type.name}] $message\n',
       mode: .append,
     );
   }
 
   static Future<void> addCustom(String message) async {
-    await file.writeAsString(
+    final logFile = _file;
+    if (logFile == null) return;
+    await logFile.writeAsString(
       '[${DateTime.now().toIso8601String()}] $message\n',
       mode: .append,
     );
