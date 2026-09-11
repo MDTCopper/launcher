@@ -1,4 +1,6 @@
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
@@ -297,11 +299,14 @@ class NavigationRailState extends State<NavigationRail> {
     return Container(
       alignment: .centerLeft,
       padding: EdgeInsets.only(left: 4, bottom: 3),
-      child: Text(
-        config.version,
-        maxLines: 1,
-        overflow: .ellipsis,
-        style: theme.textTheme.labelSmall,
+      child: HintLayer(
+        hint: 'build $appBuildNumber at $appBuildTime',
+        child: Text(
+          appVersion,
+          maxLines: 1,
+          overflow: .ellipsis,
+          style: theme.textTheme.labelSmall,
+        ),
       ),
     );
   }
