@@ -132,7 +132,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       for (final json in jsons) {
         try {
           printOnDebug('$url/assets/mod.$json');
-          final res = await cio.get('$url/mod.$json');
+          final res = await cio.get('$url/assets/mod.$json');
 
           if (res.statusCode != 200) continue;
           final content = res.data as String;
