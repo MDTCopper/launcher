@@ -130,6 +130,12 @@ class ModOfficialListMeta {
   @JsonKey(includeFromJson: false)
   String? iconUrlCache;
 
+  /// 已经探测过、确认没有图标（与 [iconUrlCache] 互斥）
+  ///
+  /// 只缓存命中会有个问题：没有图标的 mod 每次重建都会把整轮 HEAD 探测重跑一遍
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  bool iconMissingCache = false;
+
   @JsonKey(includeFromJson: false)
   int? starsDifferenceCache;
 
