@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:async/async.dart';
 import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/data/min_game_versions.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -111,9 +112,9 @@ class _ModViewPageState extends State<ModViewPage> {
       v = version.toDouble();
     }
 
-    final minGameVersion = minModGameVersionModifier.resultOf(v);
+    final minGameVersion = MinGameVersions.instance.mod.resultOf(v);
 
-    final minJavaGameVersion = minJavaModGameVersionModifier.resultOf(v);
+    final minJavaGameVersion = MinGameVersions.instance.java.resultOf(v);
 
     final l = modMetas.toList();
     return l.where((it) {

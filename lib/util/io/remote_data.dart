@@ -14,7 +14,8 @@ import 'package:path/path.dart' as p;
 /// - 数据源仓库：`MDTCopper/launcher` main 分支的 `remote/` 目录
 /// - 本地：内置一份在 assets（打包），启动时每次尝试拉取仓库 raw 覆盖缓存
 ///   （`AppPaths.remoteData`），拉取失败/离线回落缓存或内置
-/// - 请求走统一网络入口 [cio]；mmgvm / github_mirrors 等数据后续接入
+/// - 请求走统一网络入口 [cio]（自带 github 镜像回退与系统代理）；
+///   github_mirrors / mmgvm / 版本快照 / 设置适配表均已接入
 class RemoteData {
   /// 每次启动异步拉取 remote 数据到本地缓存。
   ///
@@ -30,6 +31,12 @@ class RemoteData {
       final mirrorContent = await _fetch(remoteRawBase + githubMirrorsFile);
       if (mirrorContent != null) {
         await _saveCache(githubMirrorsFile, mirrorContent);
+      }
+
+      // 拉取模组版本门禁（mmgvm）
+      final mmgvmContent = await _fetch(remoteRawBase + mmgvmFile);
+      if (mmgvmContent != null) {
+        await _saveCache(mmgvmFile, mmgvmContent);
       }
 
       // 拉取官方版本列表快照（历史版本，改动少）

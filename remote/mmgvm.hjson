@@ -1,2 +1,11 @@
-// Min game version modified 
-update_time: 2026-06-05
+// Min game version modified
+// 各游戏版本区间对应的模组版本门禁：mod = 普通模组（脚本）最低版本，java = Java 模组最低版本
+// 规则按顺序匹配，第一条命中即返回；max 为开区间，缺省表示无上限
+update_time: 2026-09-11
+rules: [
+    { min: 97, max: 105, mod: 97, java: 97 }
+    { min: 105, max: 136, mod: 105, java: 105 }
+    { min: 136, max: 147, mod: 136, java: 136 }
+    { min: 147, max: 154.2, mod: 136, java: 147 }
+    { min: 154.2, mod: 136, java: 154 }
+]

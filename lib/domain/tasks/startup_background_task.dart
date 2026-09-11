@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/min_game_versions.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/animation/eased_progress_bar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -29,7 +30,7 @@ class StartupBackgroundTask extends Task {
   final bool _includeJavaCheck = isDesktop;
 
   ///总步骤数，每完成一步进度前进一步
-  int get _totalSteps => _includeJavaCheck ? 4 : 3;
+  int get _totalSteps => _includeJavaCheck ? 5 : 4;
 
   StartupBackgroundTask() {
     type = TaskType.check;
@@ -41,6 +42,8 @@ class StartupBackgroundTask extends Task {
   @override
   Future<void> runTask() async {
     await _runStep('正在刷新远程数据', RemoteData.refresh);
+    if (_shouldStop) return;
+    await _runStep('正在同步模组版本门禁', MinGameVersions.instance.loadFromRemote);
     if (_shouldStop) return;
     await _runStep('正在加载镜像节点', GithubMirror.instance.load);
     if (_shouldStop) return;

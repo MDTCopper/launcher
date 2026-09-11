@@ -1,5 +1,6 @@
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/min_game_versions.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/download_mod.dart';
@@ -182,13 +183,13 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
           bool support;
           final modMin = double.parse(s.data!.substring(1));
           if (modListMeta.hasJava) {
-            final minGameVersion = minJavaModGameVersionModifier.resultOf(
+            final minGameVersion = MinGameVersions.instance.java.resultOf(
               version.releaseDouble,
             );
             support =
                 modMin >= minGameVersion && modMin <= version.releaseDouble;
           } else {
-            final minGameVersion = minModGameVersionModifier.resultOf(
+            final minGameVersion = MinGameVersions.instance.mod.resultOf(
               version.releaseDouble,
             );
             support =
