@@ -28,7 +28,10 @@ Future<void> _initialize() async {
   await AppPaths.init();
   await Log.init();
   if (AppPaths.isUsingFallbackDataPath) {
-    addLogAndPrint(.warning, '工作目录不可写，数据目录改用 ${AppPaths.copperLauncher}');
+    addLogAndPrint(
+      .warning,
+      'exe 目录不能放数据（系统目录或不可写），数据目录改用 ${AppPaths.copperLauncher}',
+    );
   }
   // 单实例：该包在 Windows / Linux / macOS 都能判定
   if (!await FlutterSingleInstance().isFirstInstance()) {

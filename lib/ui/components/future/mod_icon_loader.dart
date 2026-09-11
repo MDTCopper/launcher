@@ -28,10 +28,6 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
   static const _formatCandidates = ['png', 'jpg', 'jpeg'];
 
   /// 探测图标地址的 Future，只建一次
-  ///
-  /// 原来直接在 build 里调 `_fetchIconUrl()`，每次重建都新建 Future、重跑整轮
-  /// HEAD 探测；模组页一页 25 个 tile 而且都是常驻的，任何 setState（改筛选、
-  /// 翻页、选择）都会放大成几百次请求
   late Future<String?> _iconUrlFuture;
 
   @override
@@ -112,9 +108,7 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
               s.data!,
               height: widget.size,
               width: widget.size,
-              headers: {
-                'User-Agent': 'MindustryModDownloader',
-              },
+              headers: {'User-Agent': 'MindustryModDownloader'},
               errorBuilder: (_, _, _) => onError,
             );
         }

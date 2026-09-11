@@ -8,15 +8,16 @@ import 'package:path_provider/path_provider.dart';
 abstract class AppPaths {
   static late String applicationSupportPath;
 
-  /// 数据根目录：桌面端优先用可执行文件所在目录（绿色版，配置跟着 exe 走），
-  /// 不可写时退回 [applicationSupportPath]；未 [init] 时为 null（测试环境按工作目录算）
+  /// 数据根目录：桌面端优先用 exe 所在目录（绿色版，配置跟着 exe 走），
+  /// debug 产物回项目根、系统目录或 exe 目录不可写时退回 [applicationSupportPath]；
+  /// 未 [init] 时为 null（测试环境按工作目录算）
   static String? _copperLauncher;
 
   static String? _defaultGameDataPath;
 
-  /// 是否退回了应用支持目录（装到 Program Files 这类只读位置时为 true）
+  /// 是否没有把数据放在 exe 旁边（系统目录 / exe 目录不可写，回退了应用支持目录）
   static bool get isUsingFallbackDataPath =>
-      _copperLauncher != null && _copperLauncher != p.current;
+      _copperLauncher != null && _copperLauncher == applicationSupportPath;
 
   static Future<void> init() async {
     final appSupportDir = await getApplicationSupportDirectory();
@@ -27,18 +28,65 @@ abstract class AppPaths {
 
   /// 决定数据根目录
   ///
-  /// 装到 Program Files 且非管理员运行时，exe 目录写不进去，
-  /// 日志 / 配置 / 远程数据缓存都会失败（表现为双击后进程秒退），
-  /// 所以这里实测一次可写性，不可写就整体改用 %APPDATA%
+  /// 以 **exe 所在目录**为锚，而不是工作目录：`p.current` 是进程工作目录，
+  /// 管理员启动时 UAC 会把它设成 C:\Windows\System32（对管理员可写），
+  /// 数据就会写进系统目录；快捷方式"起始位置"不同也会让数据目录漂移。
+  ///
+  /// - exe 在系统目录（Program Files / Windows）下 → 用 [applicationSupportPath]，
+  ///   那里的可写性随提权变化，不能当稳定依据
+  /// - exe 是 Flutter 项目里的 debug 产物（向上能找到 pubspec.yaml）→ 用项目根，
+  ///   这样 flutter clean 删掉 build/ 也不影响数据
+  /// - 其余（绿色版装在普通目录）→ 跟着 exe 走；目录不可写（只读盘等）时
+  ///   仍退回 [applicationSupportPath]，避免双击后进程秒退
   static Future<String> _resolveCopperLauncherPath() async {
     if (Platform.isAndroid || !isDesktop) return applicationSupportPath;
 
-    final workingDir = p.current;
-    if (await _isWritable(workingDir)) return workingDir;
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
+    if (isProtectedDir(exeDir)) return applicationSupportPath;
 
-    debugPrint('数据目录不可写[$workingDir]，改用[$applicationSupportPath]');
+    final projectRoot = await findProjectRoot(exeDir);
+    if (projectRoot != null) return projectRoot;
+
+    if (await _isWritable(exeDir)) return exeDir;
+
+    debugPrint('数据目录不可写[$exeDir]，改用[$applicationSupportPath]');
     return applicationSupportPath;
   }
+
+  /// 判断 [dir] 是否在系统受保护目录（Program Files / Windows）之下
+  ///
+  /// 受保护目录的可写性随提权变化，不能作为数据目录的稳定依据
+  @visibleForTesting
+  static bool isProtectedDir(String dir) {
+    final normalized = _normalizeDir(dir);
+    const protectedRootEnvNames = [
+      'ProgramFiles',
+      'ProgramFiles(x86)',
+      'ProgramW6432',
+      'WinDir',
+    ];
+    for (final name in protectedRootEnvNames) {
+      final root = Platform.environment[name];
+      if (root == null || root.isEmpty) continue;
+      if (normalized.startsWith(_normalizeDir(root))) return true;
+    }
+    return false;
+  }
+
+  /// 从 [startDir] 一路向上找含 pubspec.yaml 的目录（Flutter 项目根）
+  @visibleForTesting
+  static Future<String?> findProjectRoot(String startDir) async {
+    var dir = p.normalize(startDir);
+    while (true) {
+      if (await File(p.join(dir, 'pubspec.yaml')).exists()) return dir;
+      final parent = p.dirname(dir);
+      if (parent == dir) return null;
+      dir = parent;
+    }
+  }
+
+  static String _normalizeDir(String dir) =>
+      '${p.normalize(dir).toLowerCase()}\\';
 
   /// 实测目录可写性：直接写一个探针文件再删掉，比看权限位可靠
   static Future<bool> _isWritable(String dir) async {
