@@ -25,14 +25,12 @@ void main() async {
 ///必要的基础初始化完成后即进入 app
 Future<void> _initialize() async {
   _checkPlatform();
-  // 数据目录要先定下来（可能因 exe 目录不可写而退回 %APPDATA%）
   await AppPaths.init();
   await Log.init();
   if (AppPaths.isUsingFallbackDataPath) {
     addLogAndPrint(.warning, '工作目录不可写，数据目录改用 ${AppPaths.copperLauncher}');
   }
-  // 单实例：该包在 Windows / Linux / macOS 都能判定（其它平台永远报告为第一个实例）
-  // 注意它 Debug 构建默认总是报告第一个实例（方便开发时开多个），release 才是真判定
+  // 单实例：该包在 Windows / Linux / macOS 都能判定
   if (!await FlutterSingleInstance().isFirstInstance()) {
     addLogAndPrint(.info, '已有实例在运行，通知它显示窗口后退出');
     final error = await FlutterSingleInstance().focus();
@@ -40,7 +38,6 @@ Future<void> _initialize() async {
     // 留一点时间让上面的日志落盘
     await Future.delayed(const Duration(milliseconds: 200));
     // 用结束进程而不是 exit(0)：实测 Flutter 引擎里 exit(0) 之后进程会挂着不退
-    // （无窗口、白占线程），这里本来就什么都没做，直接结束最干净
     if (!Process.killPid(pid)) exit(0);
     return;
   }
@@ -49,6 +46,7 @@ Future<void> _initialize() async {
     addLogAndPrint(.info, '收到第二次启动，显示主窗口（参数 $metadata）');
     unawaited(LauncherTray.instance.showMainWindow());
   };
+
   await TokenEncryptor.init();
   await initAppConfig();
   //config 就绪后同步网络设置（代理/token/限速/线程/镜像），此后新建请求即生效
@@ -56,7 +54,7 @@ Future<void> _initialize() async {
   await _initPlatformView();
   //窗口就绪后应用托盘模式（依赖 config + windowManager）
   await LauncherTray.instance.applyMode();
-  //后台初始化任务：不阻塞，进任务抽屉自跑
+  //后台初始化任务，不阻塞，进任务抽屉自跑
   addTask(StartupBackgroundTask());
 }
 
@@ -79,7 +77,6 @@ Future<void> _initWindows() async {
 
   const windowOptions = WindowOptions(
     size: Size(880, 495),
-    // 移动端尺寸 Size(760, 360),
     minimumSize: Size(760, 450),
     center: true,
     titleBarStyle: TitleBarStyle.hidden,
