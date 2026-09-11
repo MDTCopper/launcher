@@ -161,6 +161,12 @@ class DownloadMindustryTask extends Task {
       addLogAndPrint(.warning, '读取游戏版本元数据失败：$e');
     }
 
+    // 隔离与否取设置页的「游戏默认隔离设置」，不再写死
+    final isolation = config.setting.launchOptions.isIsolatedByDefault(
+      isBe: mindustryMeta.isBe,
+      launcher: LauncherType.mindustry,
+    );
+
     final mindustry = Mindustry(
       id: id,
       launcher: LauncherType.mindustry,
@@ -170,7 +176,7 @@ class DownloadMindustryTask extends Task {
       path: path,
       release: mindustryMeta.tag,
       addTime: DateTime.now(),
-      isolation: false,
+      isolation: isolation,
       versionNumber: versionNumber,
     );
     final foldIndex = config.versionOptions.versionFolds.indexWhere(

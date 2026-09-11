@@ -360,6 +360,18 @@ class LaunchOptions {
     this.javaOptions = javaOptions ?? JavaOptions.fromJson({});
   }
 
+  /// 「游戏默认隔离设置」是否命中该版本——下载 / 导入创建版本时用它定 [Mindustry.isolation]
+  ///
+  /// 预览版对应 [VersionIsolation.be]，Copper 版本对应 [VersionIsolation.copper]，
+  /// 其余正式版对应 [VersionIsolation.mindustry]；三项都不勾就是一律不隔离
+  bool isIsolatedByDefault({required bool isBe, required LauncherType launcher}) {
+    if (isBe) return versionIsolationSet.contains(VersionIsolation.be);
+    if (launcher == LauncherType.copper) {
+      return versionIsolationSet.contains(VersionIsolation.copper);
+    }
+    return versionIsolationSet.contains(VersionIsolation.mindustry);
+  }
+
   factory LaunchOptions.fromJson(Map<String, dynamic> json) {
     final instance = _$LaunchOptionsFromJson(json);
     return instance;

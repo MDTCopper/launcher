@@ -298,6 +298,12 @@ class _VersionSelectPageState extends State<VersionSelectPage>
         ? 'v${meta.version} Build ${meta.build}'
         : 'Build ${meta.build}';
 
+    // 隔离与否取设置页的「游戏默认隔离设置」，不再写死
+    final isolation = config.setting.launchOptions.isIsolatedByDefault(
+      isBe: isBe,
+      launcher: LauncherType.mindustry,
+    );
+
     return Mindustry(
       id: const Uuid().v4(),
       launcher: LauncherType.mindustry,
@@ -307,7 +313,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       path: folderPath,
       release: isBe ? meta.build : 'v${meta.build}',
       addTime: DateTime.now(),
-      isolation: false,
+      isolation: isolation,
     );
   }
 
@@ -388,6 +394,12 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       return;
     }
 
+    // 隔离与否取设置页的「游戏默认隔离设置」，不再写死
+    final isolation = config.setting.launchOptions.isIsolatedByDefault(
+      isBe: isBe,
+      launcher: LauncherType.mindustry,
+    );
+
     final mindustry = Mindustry(
       id: const Uuid().v4(),
       launcher: LauncherType.mindustry, //TODO 等待后续接入Copper Loader
@@ -398,7 +410,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
 
       release: isBe ? meta.build : 'v${meta.build}',
       addTime: DateTime.now(),
-      isolation: false,
+      isolation: isolation,
     );
     if (mounted) setState(() => fold.versions.add(mindustry));
     config.save();
