@@ -67,4 +67,6 @@ flutter:
   assets:
     - assets/images/
     - remote/
+    # 目录条目不递归，子目录要单独列（setting_adapter/ 下的适配表靠这行才会打进包）
+    - remote/setting_adapter/
   uses-material-design: true
