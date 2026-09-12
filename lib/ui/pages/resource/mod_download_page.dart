@@ -100,8 +100,6 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     _fetchFuture = null;
   });
 
-  /// 版本列表拉取失败的占位：区分网络问题与接口问题（都提供重试），
-  /// 不要显示成「该模组没有发布任何版本」
   Widget _buildFetchFailedPanel(ModMetaFetchStatus status) {
     final theme = Theme.of(context);
     final network = status == ModMetaFetchStatus.networkError;
@@ -116,10 +114,11 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
           ),
           Text(
             network
-                ? '网络连接失败，没能获取版本列表。'
+                ? '网络连接失败，没能获取版本列表\n'
                       '如果是刚关闭/开启代理，等几秒让网络恢复后点「重试」'
                 : 'GitHub 接口请求失败，可能触发了访问频率限制（匿名 60 次/小时）',
             style: theme.textTheme.bodyLarge,
+            textAlign: .center,
           ),
           IconTextButton(
             icon: Icons.refresh,
@@ -156,7 +155,6 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       } else {
         modMetasMapCache[modListMeta.repo]!.addAll(modMetas);
       }
-      // 刷新头部「最新版本/下载源码」按钮文案（依赖 metas 是否有 release）
       if (mounted) setState(() {});
       return _status(ModMetaFetchStatus.ok);
     } on DioException catch (e) {
