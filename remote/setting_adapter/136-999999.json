@@ -21,7 +21,8 @@
       "title": "游戏提示",
       "type": "bool",
       "categories": [
-        "game"
+        "game",
+        "common"
       ]
     },
     {
@@ -30,7 +31,8 @@
       "type": "bool",
       "categories": [
         "graphics",
-        "info"
+        "info",
+        "common"
       ]
     },
     {
@@ -46,7 +48,8 @@
       "title": "显示小地图",
       "type": "bool",
       "categories": [
-        "graphics"
+        "graphics",
+        "common"
       ]
     },
     {
@@ -58,15 +61,8 @@
       "step": 5,
       "unit": "%",
       "categories": [
-        "graphics"
-      ]
-    },
-    {
-      "key": "fullscreen",
-      "title": "全屏",
-      "type": "bool",
-      "categories": [
-        "graphics"
+        "graphics",
+        "common"
       ]
     },
     {
@@ -115,7 +111,7 @@
     },
     {
       "key": "savecreate",
-      "title": "创建保存",
+      "title": "自动创建存档",
       "type": "bool",
       "categories": [
         "game"
@@ -166,7 +162,8 @@
       "title": "双击采矿",
       "type": "bool",
       "categories": [
-        "game"
+        "game",
+        "common"
       ]
     },
     {
@@ -215,7 +212,8 @@
       "displayRatio": 0.25,
       "categories": [
         "game",
-        "graphics"
+        "graphics",
+        "common"
       ]
     },
     {
@@ -229,7 +227,8 @@
       "displayRatio": 25.0,
       "categories": [
         "game",
-        "graphics"
+        "graphics",
+        "common"
       ]
     },
     {
@@ -242,7 +241,8 @@
       "unit": "x",
       "categories": [
         "game",
-        "graphics"
+        "graphics",
+        "common"
       ]
     },
     {
@@ -268,7 +268,8 @@
       "unit": "%",
       "categories": [
         "game",
-        "graphics"
+        "graphics",
+        "common"
       ]
     },
     {
@@ -281,7 +282,8 @@
       "unit": "%",
       "categories": [
         "game",
-        "graphics"
+        "graphics",
+        "common"
       ]
     },
     {
@@ -289,7 +291,8 @@
       "title": "垂直同步",
       "type": "bool",
       "categories": [
-        "graphics"
+        "graphics",
+        "common"
       ]
     },
     {
@@ -305,7 +308,8 @@
       "title": "强制横屏（移动端）",
       "type": "bool",
       "categories": [
-        "graphics"
+        "graphics",
+        "common"
       ]
     },
     {
@@ -405,7 +409,8 @@
       "step": 5,
       "unit": "%",
       "categories": [
-        "info"
+        "info",
+        "common"
       ]
     },
     {
@@ -429,7 +434,8 @@
       "title": "显示建筑状态",
       "type": "bool",
       "categories": [
-        "info"
+        "info",
+        "common"
       ]
     },
     {
@@ -445,15 +451,17 @@
       "title": "玩家指示器",
       "type": "bool",
       "categories": [
-        "info"
+        "info",
+        "common"
       ]
     },
     {
       "key": "indicators",
-      "title": "显示标记",
+      "title": "敌人指示器",
       "type": "bool",
       "categories": [
-        "info"
+        "info",
+        "common"
       ]
     },
     {
@@ -545,7 +553,8 @@
           "title": "Mac 刘海屏适配",
           "type": "bool",
           "categories": [
-            "graphics"
+            "graphics",
+            "common"
           ]
         }
       ]
@@ -600,7 +609,8 @@
           "unit": "%",
           "categories": [
             "game",
-            "graphics"
+            "graphics",
+            "common"
           ]
         },
         {
@@ -613,7 +623,8 @@
           "unit": "%",
           "categories": [
             "game",
-            "graphics"
+            "graphics",
+            "common"
           ]
         },
         {
@@ -626,7 +637,8 @@
           "unit": "%",
           "categories": [
             "game",
-            "graphics"
+            "graphics",
+            "common"
           ]
         }
       ]
@@ -639,7 +651,8 @@
           "title": "自由视角",
           "type": "bool",
           "categories": [
-            "graphics"
+            "graphics",
+            "common"
           ]
         }
       ]
@@ -711,6 +724,27 @@
       ],
       "remove": [
         "steampublichost"
+      ]
+    },
+    {
+      "build": 160,
+      "add": [
+        {
+          "key": "logiclocalization",
+          "title": "逻辑本地化",
+          "categories": [
+            "graphics"
+          ],
+          "type": "bool"
+        },
+        {
+          "key": "touchscreen",
+          "title": "触屏模式（移动端）",
+          "categories": [
+            "game"
+          ],
+          "type": "bool"
+        }
       ]
     }
   ]

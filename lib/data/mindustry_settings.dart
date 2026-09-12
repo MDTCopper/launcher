@@ -126,6 +126,8 @@ class MindustrySettings {
       'showotherbuildplans': true,
       'showpings': true,
       'uiEdgePadding': 0,
+      'logiclocalization': true,
+      'touchscreen': false,
 
       // ── 音频 ──
       'alwaysmusic': false,
@@ -254,7 +256,7 @@ class MindustrySettings {
 
   set communityServers(bool v) => _data['communityservers'] = v;
 
-  /// 创建保存。
+  /// 自动创建存档。
   bool get saveCreate => _data['savecreate'] as bool? ?? true;
 
   set saveCreate(bool v) => _data['savecreate'] = v;
@@ -579,6 +581,16 @@ class MindustrySettings {
 
   set uiEdgePadding(int v) => _data['uiEdgePadding'] = v;
 
+  /// 逻辑本地化。
+  bool get logicLocalization => _data['logiclocalization'] as bool? ?? true;
+
+  set logicLocalization(bool v) => _data['logiclocalization'] = v;
+
+  /// 触屏模式（移动端）。
+  bool get touchscreen => _data['touchscreen'] as bool? ?? false;
+
+  set touchscreen(bool v) => _data['touchscreen'] = v;
+
   // ── 音频设置 ──
 
   /// 始终播放音乐。
@@ -790,7 +802,7 @@ class MindustrySettingsPatch {
   @JsonKey(name: 'communityServers')
   bool? communityServers;
 
-  /// 创建保存。
+  /// 自动创建存档。
   @JsonKey(name: 'saveCreate')
   bool? saveCreate;
 
@@ -1044,6 +1056,14 @@ class MindustrySettingsPatch {
   @JsonKey(name: 'uiEdgePadding')
   int? uiEdgePadding;
 
+  /// 逻辑本地化。
+  @JsonKey(name: 'logicLocalization')
+  bool? logicLocalization;
+
+  /// 触屏模式（移动端）。
+  @JsonKey(name: 'touchscreen')
+  bool? touchscreen;
+
   // ── 音频 ──
 
   /// 始终播放背景音乐（即使窗口失焦）。
@@ -1237,6 +1257,10 @@ class MindustrySettingsPatch {
         return showPings;
       case 'uiEdgePadding':
         return uiEdgePadding;
+      case 'logiclocalization':
+        return logicLocalization;
+      case 'touchscreen':
+        return touchscreen;
       case 'alwaysmusic':
         return alwaysMusic;
       case 'musicvol':
@@ -1385,6 +1409,10 @@ class MindustrySettingsPatch {
         showPings = value as bool?;
       case 'uiEdgePadding':
         uiEdgePadding = value as int?;
+      case 'logiclocalization':
+        logicLocalization = value as bool?;
+      case 'touchscreen':
+        touchscreen = value as bool?;
       case 'alwaysmusic':
         alwaysMusic = value as bool?;
       case 'musicvol':
@@ -1497,6 +1525,8 @@ class MindustrySettingsPatch {
     }
     if (showPings != null) target.showPings = showPings!;
     if (uiEdgePadding != null) target.uiEdgePadding = uiEdgePadding!;
+    if (logicLocalization != null) target.logicLocalization = logicLocalization!;
+    if (touchscreen != null) target.touchscreen = touchscreen!;
 
     // 音频
     if (alwaysMusic != null) target.alwaysMusic = alwaysMusic!;

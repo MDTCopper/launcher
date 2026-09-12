@@ -91,7 +91,9 @@ MindustrySettingsPatch _$MindustrySettingsPatchFromJson(
   ..showPerformance = json['showPerformance'] as bool?
   ..showOtherBuildPlans = json['showOtherBuildPlans'] as bool?
   ..showPings = json['showPings'] as bool?
-  ..uiEdgePadding = (json['uiEdgePadding'] as num?)?.toInt();
+  ..uiEdgePadding = (json['uiEdgePadding'] as num?)?.toInt()
+  ..logicLocalization = json['logicLocalization'] as bool?
+  ..touchscreen = json['touchscreen'] as bool?;
 
 Map<String, dynamic> _$MindustrySettingsPatchToJson(
   MindustrySettingsPatch instance,
@@ -177,4 +179,6 @@ Map<String, dynamic> _$MindustrySettingsPatchToJson(
   'showOtherBuildPlans': instance.showOtherBuildPlans,
   'showPings': instance.showPings,
   'uiEdgePadding': instance.uiEdgePadding,
+  'logicLocalization': instance.logicLocalization,
+  'touchscreen': instance.touchscreen,
 };
