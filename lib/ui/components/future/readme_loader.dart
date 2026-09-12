@@ -1,11 +1,10 @@
 import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/ui/components/future/mod_readme_view.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:markdown/markdown.dart' as md;
 
 import '../../vars.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -77,7 +76,8 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
     return null;
   }
 
-  Widget _buildHtml(String? data) {
+  /// README 内容：交给自研渲染器（[ModReadmeView]）
+  Widget _buildContent(String? data) {
     final size = MediaQuery.of(context).size;
 
     return SizedBox(
@@ -88,50 +88,10 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
         child: SingleChildScrollView(
           controller: controller,
           physics: NeverScrollableScrollPhysics(),
-          child: Column(
-            children: [
-              SizedBox(height: 28),
-              Html(
-                data: data,
-                shrinkWrap: true,
-                style: {
-                  'hr': Style(
-                    margin: Margins.only(top: 6, bottom: 2),
-                    height: Height(1),
-                  ),
-                },
-                extensions: [
-                  ImageExtension(
-                    assetSchema: '',
-                    builder: (c) {
-                      final url = c.attributes['src'] ?? '';
-
-                      final width = c.attributes['width'] != null
-                          ? double.parse(c.attributes['width']!)
-                          : null;
-
-                      final height = c.attributes['height'] != null
-                          ? double.parse(c.attributes['height']!)
-                          : null;
-
-                      return ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: size.width * 0.75,
-                          maxHeight: size.height * 0.6,
-                        ),
-                        child: ModReadmeNetworkImage(
-                          uri: Uri.parse(url),
-                          mod: widget.mod,
-                          width: width,
-                          height: height,
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
+          padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
+          child: data == null
+              ? Text('没有找到 README', style: Theme.of(context).textTheme.bodyLarge)
+              : ModReadmeView(data: data, mod: widget.mod),
         ),
       ),
     );
@@ -164,11 +124,7 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
                         child: Text('载入中'),
                       );
                     case ConnectionState.done:
-                      final h = md.markdownToHtml(
-                        s.data ?? 'wu',
-                        extensionSet: md.ExtensionSet.gitHubFlavored,
-                      );
-                      return _buildHtml(h);
+                      return _buildContent(s.data);
                   }
                 },
               ),
