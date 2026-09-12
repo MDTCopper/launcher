@@ -234,7 +234,7 @@ class CopperIO {
     if (!_initialized) {
       _recreateClient();
       _initialized = true;
-      unawaited(_detectWindowsSystemProxyOnce());
+      unawaited(_detectWindowsSystemProxy());
     }
   }
 
@@ -360,29 +360,47 @@ class CopperIO {
     }
 
     if (Platform.isWindows) {
-      //异步检测完成前先直连；之后读缓存值（含「无代理」结果）
+      //缓存过期时后台重检一次（reg 是进程调用，不能阻塞请求路径）；
+      //本次连接仍用旧值，后续连接生效——代理软件开关后最多一个保鲜期内自愈
+      if (shouldRedetectSystemProxy(
+        checked: _windowsSystemProxyChecked,
+        at: _windowsSystemProxyAt,
+        refreshing: _windowsSystemProxyRefreshing,
+        now: DateTime.now(),
+      )) {
+        unawaited(_detectWindowsSystemProxy());
+      }
       return _windowsSystemProxyChecked ? _windowsSystemProxy : null;
     }
 
     return null;
   }
 
-  ///Windows 系统代理检测结果（null = 无代理）；仅由异步检测填充
+  ///Windows 系统代理检测结果（null = 无代理）；由异步检测填充
   String? _windowsSystemProxy;
 
-  ///是否已完成异步检测（区分「未检测」与「无代理」两种 null）
+  ///是否已完成过检测（区分「未检测」与「无代理」两种 null）
   bool _windowsSystemProxyChecked = false;
 
-  bool _windowsSystemProxyDetectionStarted = false;
+  ///最近一次检测完成的时间，用于缓存保鲜期判断
+  DateTime? _windowsSystemProxyAt;
 
-  ///异步检测一次 Windows 系统代理。
+  ///是否正在后台重检
+  bool _windowsSystemProxyRefreshing = false;
+
+  ///系统代理缓存的保鲜期：过期后请求路径会触发后台重检。
+  ///否则代理软件开关后，注册表里已变化的代理会被一直使用
+  static const _systemProxyTtl = Duration(seconds: 30);
+
+  ///异步检测 Windows 系统代理并缓存结果。
   ///
   ///`reg` 是进程调用，不能在请求路径同步执行——否则每个连接都
-  ///`Process.runSync` 阻塞主 isolate 导致 UI 卡顿。启动时异步检测一次并
-  ///缓存即可，系统代理不会频繁变化。
-  Future<void> _detectWindowsSystemProxyOnce() async {
-    if (_windowsSystemProxyDetectionStarted) return;
-    _windowsSystemProxyDetectionStarted = true;
+  ///`Process.runSync` 阻塞主 isolate 导致 UI 卡顿。启动时检测一次，
+  ///缓存过期（[_systemProxyTtl]）后由请求路径再次触发，保证代理软件
+  ///开关后注册表的变化能在保鲜期之内被感知。
+  Future<void> _detectWindowsSystemProxy() async {
+    if (_windowsSystemProxyRefreshing) return;
+    _windowsSystemProxyRefreshing = true;
     try {
       final result = await Process.run('reg', [
         'query',
@@ -391,8 +409,27 @@ class CopperIO {
       if (result.exitCode == 0) {
         _windowsSystemProxy = parseWindowsSystemProxy(result.stdout.toString());
       }
-    } catch (_) {}
-    _windowsSystemProxyChecked = true;
+    } catch (_) {
+      //检测失败保持旧值（可能只是 reg 暂时不可用），下个保鲜期再试
+    } finally {
+      _windowsSystemProxyRefreshing = false;
+      _windowsSystemProxyChecked = true;
+      _windowsSystemProxyAt = DateTime.now();
+    }
+  }
+
+  ///是否需要（重新）检测系统代理：没检测过、结果过期时为 true；
+  ///已有检测在跑时不重复触发
+  @visibleForTesting
+  static bool shouldRedetectSystemProxy({
+    required bool checked,
+    required DateTime? at,
+    required bool refreshing,
+    required DateTime now,
+  }) {
+    if (refreshing) return false;
+    if (!checked || at == null) return true;
+    return now.difference(at) >= _systemProxyTtl;
   }
 
   ///从 `reg query` 输出解析系统代理。
