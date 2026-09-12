@@ -445,7 +445,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                         ],
                       ),
                     ),
-                    if (_typeFromReleases() case final type?)
+                    if (_typesOfMeta() case final type?)
                       _buildDetailRow(
                         theme,
                         colors,
@@ -497,19 +497,16 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     );
   }
 
-  /// 从 release 附件推断模组类型：有 `.jar` → Java，其余附件（源码包等）→ 脚本。
+  /// 类型文本：只用官方列表声明的 hasScripts / hasJava。
   ///
-  /// 最新版本没有附件时类型无从判断，往更早的版本找；全都没有附件时返回 null
-  /// （调用方据此不显示「类型」行）
-  String? _typeFromReleases() {
-    for (final meta in metas) {
-      if (meta.assets.isEmpty) continue;
-      final hasJar = meta.assets.any(
-        (asset) => asset.name.toLowerCase().endsWith('.jar'),
-      );
-      return hasJar ? 'Java' : '脚本';
-    }
-    return null;
+  /// 不回看历史 release 去猜类型——模组自己不维护发布（最新版本没附件等）
+  /// 是模组的问题；官方列表也没声明时返回 null（调用方不显示该行）
+  String? _typesOfMeta() {
+    final types = [
+      if (modListMeta.hasScripts) '脚本',
+      if (modListMeta.hasJava) 'Java',
+    ];
+    return types.isEmpty ? null : types.join(' + ');
   }
 
   Widget _buildDetailRow(
