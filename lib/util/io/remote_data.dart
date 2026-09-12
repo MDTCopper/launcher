@@ -5,6 +5,8 @@ import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/io/print_on_debug.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:hjson_dart/hjson_dart.dart' as hjson;
 import 'package:path/path.dart' as p;
@@ -16,12 +18,19 @@ import 'package:path/path.dart' as p;
 ///   （`AppPaths.remoteData`），拉取失败/离线回落缓存或内置
 /// - 请求走统一网络入口 [cio]（自带 github 镜像回退与系统代理）；
 ///   github_mirrors / mmgvm / 版本快照 / 设置适配表均已接入
+/// - **debug 模式优先本地数据**：跳过拉取、内置 assets 优先于缓存——
+///   改 `remote/` 下的文件重启即生效，不被旧缓存 / 远端遮蔽
 class RemoteData {
   /// 每次启动异步拉取 remote 数据到本地缓存。
   ///
   /// 先拉索引，再按索引的 `file` 字段拉 `setting_adapter/<file>` 各版本配置；
   /// 失败静默（保持旧缓存），不阻塞启动流程。
+  /// debug 模式直接跳过（本地 `remote/` 优先，见 [load]）。
   static Future<void> refresh() async {
+    if (kDebugMode) {
+      printOnDebug('debug 模式跳过 remote 拉取，优先使用本地数据');
+      return;
+    }
     try {
       final index = await _fetch(remoteRawBase + settingAdapterIndexFile);
       if (index == null) return;
@@ -67,15 +76,27 @@ class RemoteData {
     }
   }
 
-  /// 读取 remote 文件内容：缓存（AppPaths.remoteData）优先，回退内置 assets。
+  /// 读取 remote 文件内容。
   ///
   /// [relativePath] 相对 remote/ 目录，如 `setting_adapter_index.hjson`、
   /// `setting_adapter/136-999999.json`
+  ///
+  /// - **debug**：内置 `remote/`（assets）优先——改本地文件重启即生效，
+  ///   不被缓存 / 远端遮蔽；assets 缺失时回退缓存
+  /// - **release**：缓存（AppPaths.remoteData）优先，assets 兜底
   static Future<String?> load(String relativePath) async {
+    if (kDebugMode) {
+      final bundled = await _loadAsset(relativePath);
+      if (bundled != null) return bundled;
+    }
     final cacheFile = File(p.join(AppPaths.remoteData, relativePath));
     if (await cacheFile.exists()) {
       return cacheFile.readAsString();
     }
+    return _loadAsset(relativePath);
+  }
+
+  static Future<String?> _loadAsset(String relativePath) async {
     try {
       return await rootBundle.loadString('remote/$relativePath');
     } catch (_) {
