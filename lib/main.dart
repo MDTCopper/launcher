@@ -33,22 +33,9 @@ Future<void> _initialize() async {
       'exe 目录不能放数据（系统目录或不可写），数据目录改用 ${AppPaths.copperLauncher}',
     );
   }
-  // 单实例：该包在 Windows / Linux / macOS 都能判定
-  if (!await FlutterSingleInstance().isFirstInstance()) {
-    addLogAndPrint(.info, '已有实例在运行，通知它显示窗口后退出');
-    final error = await FlutterSingleInstance().focus();
-    if (error != null) addLogAndPrint(.warning, '唤醒已有实例失败：$error');
-    // 留一点时间让上面的日志落盘
-    await Future.delayed(const Duration(milliseconds: 200));
-    // 用结束进程而不是 exit(0)：实测 Flutter 引擎里 exit(0) 之后进程会挂着不退
-    if (!Process.killPid(pid)) exit(0);
-    return;
-  }
-  // 第二个实例发来的唤醒请求：把窗口从托盘 / 最小化状态拉回来
-  FlutterSingleInstance.onFocus = (metadata) {
-    addLogAndPrint(.info, '收到第二次启动，显示主窗口（参数 $metadata）');
-    unawaited(LauncherTray.instance.showMainWindow());
-  };
+
+  final multipleStartup = !await _initSingleInctance();
+  if (multipleStartup) return;
 
   await TokenEncryptor.init();
   await initAppConfig();
@@ -64,6 +51,26 @@ Future<void> _initialize() async {
 void _checkPlatform() {
   if (kIsWeb) throw Exception('Web不支持');
   if (Platform.isIOS) throw Exception('IOS平台不支持');
+}
+
+Future<bool> _initSingleInctance() async {
+  // 单实例：该包在 Windows / Linux / macOS 都能判定
+  if (!await FlutterSingleInstance().isFirstInstance()) {
+    addLogAndPrint(.info, '已有实例在运行，通知它显示窗口后退出');
+    final error = await FlutterSingleInstance().focus();
+    if (error != null) addLogAndPrint(.warning, '唤醒已有实例失败：$error');
+    // 留一点时间让上面的日志落盘
+    await Future.delayed(const Duration(milliseconds: 200));
+    // 用结束进程而不是 exit(0)：实测 Flutter 引擎里 exit(0) 之后进程会挂着不退
+    if (!Process.killPid(pid)) exit(0);
+    return false;
+  }
+  // 第二个实例发来的唤醒请求：把窗口从托盘 / 最小化状态拉回来
+  FlutterSingleInstance.onFocus = (metadata) {
+    addLogAndPrint(.info, '收到第二次启动，显示主窗口（参数 $metadata）');
+    unawaited(LauncherTray.instance.showMainWindow());
+  };
+  return true;
 }
 
 ///平台视图初始化：桌面端建窗口，移动端设置系统 UI

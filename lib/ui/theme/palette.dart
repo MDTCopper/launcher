@@ -26,16 +26,16 @@ abstract class Palette {
   // 钛色系
   // ═══════════════════════════════════════════════════════════
 
-  static const titanium50 = Color.fromARGB(255, 246, 250, 253);
-  static const titanium100 = Color.fromARGB(255, 240, 245, 249);
+  static const titanium50 = Color.fromARGB(255, 246, 249, 253);
+  static const titanium100 = Color.fromARGB(255, 240, 244, 249);
   static const titanium200 = Color.fromARGB(255, 229, 237, 245);
-  static const titanium300 = Color.fromARGB(255, 224, 232, 240);
-  static const titanium400 = Color.fromARGB(255, 160, 185, 217);
-  static const titanium500 = Color.fromARGB(255, 110, 147, 200);
-  static const titanium600 = Color.fromARGB(255, 88, 122, 200);
-  static const titanium700 = Color.fromARGB(255, 62, 78, 184);
-  static const titanium800 = Color.fromARGB(255, 48, 79, 158);
-  static const titanium900 = Color.fromARGB(255, 34, 68, 122);
+  static const titanium300 = Color.fromARGB(255, 214, 227, 241);
+  static const titanium400 = Color.fromARGB(255, 173, 199, 233);
+  static const titanium500 = Color.fromARGB(255, 129, 176, 227);
+  static const titanium600 = Color.fromARGB(255, 101, 147, 216);
+  static const titanium700 = Color.fromARGB(255, 75, 117, 207);
+  static const titanium800 = Color.fromARGB(255, 37, 76, 175);
+  static const titanium900 = Color.fromARGB(255, 17, 56, 165);
 
   // ═══════════════════════════════════════════════════════════
   // 钍色系
@@ -44,13 +44,13 @@ abstract class Palette {
   static const thorium50 = Color.fromARGB(255, 253, 246, 253);
   static const thorium100 = Color.fromARGB(255, 249, 240, 248);
   static const thorium200 = Color.fromARGB(255, 245, 229, 244);
-  static const thorium300 = Color.fromARGB(255, 240, 224, 240);
-  static const thorium400 = Color.fromARGB(255, 217, 160, 211);
-  static const thorium500 = Color.fromARGB(255, 200, 110, 192);
-  static const thorium600 = Color.fromARGB(255, 200, 88, 194);
-  static const thorium700 = Color.fromARGB(255, 180, 62, 184);
-  static const thorium800 = Color.fromARGB(255, 158, 48, 154);
-  static const thorium900 = Color.fromARGB(255, 122, 34, 115);
+  static const thorium300 = Color.fromARGB(255, 240, 209, 240);
+  static const thorium400 = Color.fromARGB(255, 228, 164, 221);
+  static const thorium500 = Color.fromARGB(255, 229, 135, 221);
+  static const thorium600 = Color.fromARGB(255, 230, 113, 224);
+  static const thorium700 = Color.fromARGB(255, 214, 80, 219);
+  static const thorium800 = Color.fromARGB(255, 206, 48, 201);
+  static const thorium900 = Color.fromARGB(255, 191, 19, 177);
 
   // ═══════════════════════════════════════════════════════════
   // 塑钢色系

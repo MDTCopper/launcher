@@ -283,7 +283,7 @@ class AppColors extends ThemeExtension<AppColors> {
     barrier: Palette.barrier,
   );
 
-  //thorium Pink 粉钍
+  //thorium Pink 钍粉
   static const thoriumPinkLight = AppColors(
     // 背景
     pageBackground: Palette.neutral200,
