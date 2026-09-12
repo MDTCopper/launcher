@@ -400,10 +400,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         Center(child: ModNetReadmeLoader(mod: modListMeta)),
   );
 
-  /// 模组详情：完整描述 + 兼容性 + 最新版本 + 动作入口
-  ///
-  /// 列表卡片上的描述只显示 3 行，这里给完整信息，且把「最低游戏版本是否
-  /// 满足当前选中版本」直接判出来（阈值与版本列表同一套 [MinGameVersions]）
+  /// 模组详情
   void _showDetail() => showAnimatedDialog(
     context: context,
     pageBuilder: (dialogContext, _, _) =>
@@ -412,7 +409,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
   /// [dialogContext] 必须是弹窗自己的 context：主题 / MediaQuery 依赖要落在
   /// 弹窗元素上——若借用页面的 context，关闭弹窗后页面仍带着 MediaQuery 依赖，
-  /// 一调整窗口就会反复重建页面（列表反复刷新、switcher 动画重复触发）
+  /// 一调整窗口就会反复重建页面
   Widget _buildModDetailPanel(BuildContext dialogContext) {
     final theme = Theme.of(dialogContext);
     final colors = AppColors.of(dialogContext);
@@ -554,10 +551,10 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     );
   }
 
-  /// 类型文本：只用官方列表声明的 hasScripts / hasJava。
+  /// 类型文本：只用官方列表声明的 hasScripts / hasJava
   ///
   /// 不回看历史 release 去猜类型——模组自己不维护发布（最新版本没附件等）
-  /// 是模组的问题；官方列表也没声明时返回 null（调用方不显示该行）
+  /// 是模组的问题；官方列表也没声明时返回 null
   String? _typesOfMeta() {
     final types = [
       if (modListMeta.hasScripts) '脚本',
@@ -791,8 +788,6 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
             } else if (metas.isEmpty &&
                 s.data != null &&
                 s.data != ModMetaFetchStatus.ok) {
-              //拉取失败：不能说成「该模组没有发布任何版本」——那是把网络/接口
-              //问题误报成模组的问题
               child = _buildFetchFailedPanel(s.data!);
             } else if (metas.isEmpty) {
               child = ContentPanelModule(
