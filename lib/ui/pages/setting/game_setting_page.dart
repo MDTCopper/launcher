@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/mindustry_settings.dart';
@@ -22,6 +24,12 @@ import 'package:flutter/material.dart';
 class GameSettingPage extends StatefulWidget {
   const GameSettingPage({super.key});
 
+  /// 分类切换的滑动方向（[SwitcherBuilders.fadeSlide] 的参数）：
+  /// 目标在右侧（往右切）→ -1，内容向左滑入、整体右移；在左侧 → +1，整体左移
+  @visibleForTesting
+  static Offset slideOffsetFor(int fromIndex, int toIndex) =>
+      Offset(toIndex >= fromIndex ? -1 : 1, 0);
+
   @override
   State<StatefulWidget> createState() => _GameSettingPageState();
 }
@@ -38,6 +46,10 @@ class _GameSettingPageState extends State<GameSettingPage> {
   List<SettingSpec> _specs = mindustrySettingCatalog;
 
   SettingCategory _category = SettingCategory.common;
+
+  /// 分类切换的滑动方向（[SwitcherBuilders.fadeSlide] 的参数）；
+  /// 初值无实际作用，每次切换由 [slideOffsetFor] 计算
+  Offset _slideOffset = const Offset(-1, 0);
 
   /// 编辑版本下拉的可选列表：无适配数据的版本（低版本）自动剔除
   List<Mindustry> _editableVersions = const [];
@@ -66,12 +78,15 @@ class _GameSettingPageState extends State<GameSettingPage> {
 
     if (!mounted) return;
     setState(() {
-      _specs = specs ?? mindustrySettingCatalog;
+      //只保留适用于当前平台（或全平台）的设置项
+      _specs = (specs ?? mindustrySettingCatalog).where(_appliesHere).toList();
       //版本下拉自动移除不适用的版本（低于适配覆盖范围，settings 覆写无效）
       _editableVersions = [
         for (final fold in config.versionOptions.versionFolds)
           for (final v in fold.versions)
-            if (_supportedMinBuild == null || v.releaseInt >= _supportedMinBuild!) v,
+            if (_supportedMinBuild == null ||
+                v.releaseInt >= _supportedMinBuild!)
+              v,
       ];
       //切到第一个仍有设置的分类
       final present = _specs.expand((s) => s.categories).toSet();
@@ -86,11 +101,40 @@ class _GameSettingPageState extends State<GameSettingPage> {
     );
   }
 
+  /// 该设置项是否适用于当前平台（[SettingSpec.platforms] 为空 = 全平台）
+  static bool _appliesHere(SettingSpec spec) {
+    if (spec.platforms.isEmpty) return true;
+    if (Platform.isAndroid) {
+      return spec.platforms.contains(SettingPlatform.android);
+    }
+    if (Platform.isMacOS) {
+      return spec.platforms.contains(SettingPlatform.desktop) ||
+          spec.platforms.contains(SettingPlatform.macos);
+    }
+    // Windows / Linux
+    return spec.platforms.contains(SettingPlatform.desktop);
+  }
+
+  /// 切换分类：按目标分类与当前分类的先后决定滑动方向，
+  /// 让内容顺着切换方向平移（往右切内容右移、往左切左移）
+  void _selectCategory(SettingCategory category) {
+    if (category == _category) return;
+    final categories = _presentCategories;
+    setState(() {
+      _slideOffset = GameSettingPage.slideOffsetFor(
+        categories.indexOf(_category),
+        categories.indexOf(category),
+      );
+      _category = category;
+    });
+  }
+
   /// 当前分类的条目：调整条（滑块）在前、下拉次之、开关在后，
   /// 同类型内保持数据原顺序
   List<SettingSpec> get _categorySpecs {
-    final specs =
-        _specs.where((s) => s.categories.contains(_category)).toList();
+    final specs = _specs
+        .where((s) => s.categories.contains(_category))
+        .toList();
     int rank(SettingSpec s) => switch (s.type) {
       SettingType.int => 0,
       SettingType.options => 1,
@@ -319,7 +363,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
                 backgroundColor: _category == category
                     ? colors.interactive.withAlpha(40)
                     : null,
-                onTap: () => setState(() => _category = category),
+                onTap: () => _selectCategory(category),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
@@ -372,7 +416,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
         ),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 400),
-          transitionBuilder: SwitcherBuilders.fadeSlide(),
+          transitionBuilder: SwitcherBuilders.fadeSlide(_slideOffset),
           layoutBuilder: (currentChild, previousChildren) => Stack(
             alignment: .topCenter,
             children: [...previousChildren, ?currentChild],
