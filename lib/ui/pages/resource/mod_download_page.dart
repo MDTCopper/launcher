@@ -47,6 +47,12 @@ import '../../vars.dart';
 /// 2.有历史源码，但没有构筑资源 => tag拼接 => 没有下载量信息
 ///
 /// 3.根本没发布版本 => 提供源码下载方法
+/// 版本列表拉取结果
+///
+/// 用于区分「网络 / 接口失败」与「模组确实没有发布版本」——前者不能说成
+/// 模组的问题（[ModMetaFetchStatus.networkError] 尤其常见于代理刚变动时）
+enum ModMetaFetchStatus { ok, networkError, apiError }
+
 class ModDownloadPage extends StatefulWidget {
   const ModDownloadPage({super.key});
 
@@ -68,14 +74,20 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
   bool endPage = false;
 
+  /// 最近一次版本列表拉取的结果（详情弹窗据此区分「没发布」与「获取失败」）
+  ModMetaFetchStatus _lastFetchStatus = ModMetaFetchStatus.ok;
+
+  ModMetaFetchStatus _status(ModMetaFetchStatus status) =>
+      _lastFetchStatus = status;
+
   /// 当前页的加载 Future，按页缓存。
   ///
   /// 若在 build 里直接 `_fetchModMetas(page: index)`，每次重建都会新建 Future，
   /// FutureBuilder 会退回 waiting 再完成——列表闪烁、动画重复触发
-  Future<bool>? _fetchFuture;
+  Future<ModMetaFetchStatus>? _fetchFuture;
   int _fetchFuturePage = -1;
 
-  Future<bool> get _fetchFutureOfCurrentPage {
+  Future<ModMetaFetchStatus> get _fetchFutureOfCurrentPage {
     if (_fetchFuture == null || _fetchFuturePage != index) {
       _fetchFuturePage = index;
       _fetchFuture = _fetchModMetas(page: index);
@@ -83,11 +95,47 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     return _fetchFuture!;
   }
 
-  Future<bool> _fetchModMetas({int page = 1}) async {
+  /// 重试当前页的版本列表拉取
+  void _retryFetch() => setState(() {
+    _fetchFuture = null;
+  });
+
+  /// 版本列表拉取失败的占位：区分网络问题与接口问题（都提供重试），
+  /// 不要显示成「该模组没有发布任何版本」
+  Widget _buildFetchFailedPanel(ModMetaFetchStatus status) {
+    final theme = Theme.of(context);
+    final network = status == ModMetaFetchStatus.networkError;
+
+    return ContentPanelModule(
+      child: Column(
+        spacing: 8,
+        children: [
+          Text(
+            network ? '(*´･д･)?' : '(・_・;)',
+            style: theme.textTheme.titleLarge,
+          ),
+          Text(
+            network
+                ? '网络连接失败，没能获取版本列表。'
+                      '如果是刚关闭/开启代理，等几秒让网络恢复后点「重试」'
+                : 'GitHub 接口请求失败，可能触发了访问频率限制（匿名 60 次/小时）',
+            style: theme.textTheme.bodyLarge,
+          ),
+          IconTextButton(
+            icon: Icons.refresh,
+            content: '重试',
+            onTap: _retryFetch,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<ModMetaFetchStatus> _fetchModMetas({int page = 1}) async {
     final length = modMetasMapCache[modListMeta.repo]?.length ?? 0;
-    if (length >= page * 25) return true;
+    if (length >= page * 25) return _status(ModMetaFetchStatus.ok);
     if (length % 100 != 0) endPage = true;
-    if (endPage) return true;
+    if (endPage) return _status(ModMetaFetchStatus.ok);
 
     var repo = 'https://api.github.com/repos/${modListMeta.repo}/releases';
     try {
@@ -110,10 +158,19 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       }
       // 刷新头部「最新版本/下载源码」按钮文案（依赖 metas 是否有 release）
       if (mounted) setState(() {});
-      return true;
+      return _status(ModMetaFetchStatus.ok);
+    } on DioException catch (e) {
+      printOnDebug(e);
+      //连接类失败（断网 / 代理不可用）与接口失败（限流、5xx）分开，
+      //前者会随 cio 的系统代理保鲜期自愈，后者要看 API 配额
+      return _status(
+        isNetworkFailure(e)
+            ? ModMetaFetchStatus.networkError
+            : ModMetaFetchStatus.apiError,
+      );
     } catch (e) {
       printOnDebug(e);
-      return false;
+      return _status(ModMetaFetchStatus.apiError);
     }
   }
 
@@ -458,7 +515,9 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                       '最新版本',
                       Text(
                         latest == null
-                            ? '未发布任何版本'
+                            ? (_lastFetchStatus == ModMetaFetchStatus.ok
+                                  ? '未发布任何版本'
+                                  : '获取失败（网络或接口问题）')
                             : [
                                 latest.tag,
                                 //没有附件的版本不显示体积
@@ -724,13 +783,19 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         ),
 
         _buildWarningBar(),
-        FutureBuilder<bool>(
+        FutureBuilder<ModMetaFetchStatus>(
           future: _fetchFutureOfCurrentPage,
           builder: (_, s) {
             Widget child;
 
             if (s.connectionState == ConnectionState.waiting) {
               child = CircularProgressIndicator();
+            } else if (metas.isEmpty &&
+                s.data != null &&
+                s.data != ModMetaFetchStatus.ok) {
+              //拉取失败：不能说成「该模组没有发布任何版本」——那是把网络/接口
+              //问题误报成模组的问题
+              child = _buildFetchFailedPanel(s.data!);
             } else if (metas.isEmpty) {
               child = ContentPanelModule(
                 child: Column(

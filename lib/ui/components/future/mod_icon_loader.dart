@@ -46,16 +46,6 @@ class ModNetworkIcon extends StatefulWidget {
     this.onNetworkError,
   });
 
-  /// 是否连接类失败（网络问题、可重试），区别于 404 这类「资源不存在」
-  @visibleForTesting
-  static bool isNetworkFailure(DioException error) => switch (error.type) {
-    DioExceptionType.connectionError ||
-    DioExceptionType.connectionTimeout ||
-    DioExceptionType.sendTimeout ||
-    DioExceptionType.receiveTimeout => true,
-    _ => false,
-  };
-
   @override
   State<StatefulWidget> createState() => _ModNetworkIconState();
 }
@@ -113,7 +103,7 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
         }
       } on DioException catch (e) {
         // 网络类失败：不是「没有图标」，立即中止探测且**不写缺失缓存**
-        if (ModNetworkIcon.isNetworkFailure(e)) {
+        if (isNetworkFailure(e)) {
           return const ModIconResult.networkError();
         }
         // 404 等：该候选不存在，换下一个

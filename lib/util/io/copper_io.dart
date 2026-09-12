@@ -1054,3 +1054,15 @@ class _Chunk {
   _Chunk(this.path, this.index, this.start, this.end, this.received, this.size)
     : status = HttpChunkStatus.pending;
 }
+
+/// 是否连接类失败（网络不通 / 代理不可用，属于「可重试」的网络问题）。
+///
+/// 与 404 这类「资源不存在」、403 这类「接口拒绝」区分开——UI 侧据此决定
+/// 显示「网络问题（可重试）」还是「确实没有资源」
+bool isNetworkFailure(DioException error) => switch (error.type) {
+  DioExceptionType.connectionError ||
+  DioExceptionType.connectionTimeout ||
+  DioExceptionType.sendTimeout ||
+  DioExceptionType.receiveTimeout => true,
+  _ => false,
+};
