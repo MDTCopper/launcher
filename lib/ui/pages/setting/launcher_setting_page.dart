@@ -126,6 +126,16 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
                   )
                 : const SizedBox.shrink(),
           ),
+          SwitchSettingBar(
+            title: '动态背景（低配 / 大窗口建议关闭）',
+            value: personalizationOptions.colorfulBackgroundAnimated,
+            onChanged: (value) {
+              setState(() {
+                personalizationOptions.colorfulBackgroundAnimated = value;
+              });
+              config.save();
+            },
+          ),
         ],
       ),
     );

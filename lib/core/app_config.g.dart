@@ -193,6 +193,8 @@ PersonalizationOptions _$PersonalizationOptionsFromJson(
       ) ??
       LauncherPostLaunchBehavior.none,
   restoreWindowOnGameExit: json['restoreWindowOnGameExit'] as bool? ?? true,
+  colorfulBackgroundAnimated:
+      json['colorfulBackgroundAnimated'] as bool? ?? true,
 );
 
 Map<String, dynamic> _$PersonalizationOptionsToJson(
@@ -205,6 +207,7 @@ Map<String, dynamic> _$PersonalizationOptionsToJson(
   'launcherPostLaunchBehavior':
       _$LauncherPostLaunchBehaviorEnumMap[instance.launcherPostLaunchBehavior]!,
   'restoreWindowOnGameExit': instance.restoreWindowOnGameExit,
+  'colorfulBackgroundAnimated': instance.colorfulBackgroundAnimated,
 };
 
 const _$ThemeModeEnumMap = {

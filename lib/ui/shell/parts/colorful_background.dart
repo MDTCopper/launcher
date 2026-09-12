@@ -43,6 +43,12 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
     duration: widget.duration,
   );
 
+  /// 上一次实际绘制到的动画进度（阶梯值）
+  double _lastPainted = -1;
+
+  /// 重绘步进：进度跨过它才真正重绘（按窗口大小动态调整）
+  double _step = 0.0036;
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +65,7 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
     }
     if (oldWidget.duration != widget.duration) {
       _controller.duration = widget.duration;
+      _updateStep();
     }
   }
 
@@ -78,15 +85,32 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
         // 光效层
         Positioned.fill(
           child: RepaintBoundary(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (_, _) => CustomPaint(
-                painter: _ColorfulBackgroundPainter(
-                  colors: colors,
-                  progress: _controller.value,
-                  intensity: widget.intensity,
-                ),
-              ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                _updateStep();
+                return AnimatedBuilder(
+                  animation: _controller,
+                  builder: (_, _) {
+                    final value = _controller.value;
+                    // 按窗口大小决定的步进节流：进度跨过一步才更新绘制值，
+                    // 其余帧 painter 的 shouldRepaint 为 false，不产生重绘。
+                    // 没有节流时，这个全窗口图层每帧都全屏重绘，
+                    // 重绘成本随像素数线性增长——窗口越大越卡
+                    if (_lastPainted < 0 ||
+                        value < _lastPainted ||
+                        value - _lastPainted >= _step) {
+                      _lastPainted = value;
+                    }
+                    return CustomPaint(
+                      painter: _ColorfulBackgroundPainter(
+                        colors: colors,
+                        progress: _lastPainted < 0 ? 0 : _lastPainted,
+                        intensity: widget.intensity,
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
         ),
@@ -94,6 +118,24 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
       ],
     );
   }
+
+  /// 按窗口大小决定重绘步进：窗口越大，每帧重绘的像素越多，步进越大
+  /// （重绘频率越低）。光斑漂移缓慢，低帧率视觉上几乎无差别
+  void _updateStep() {
+    _step = repaintStepFor(MediaQuery.sizeOf(context), widget.duration);
+  }
+}
+
+/// 依据窗口逻辑面积计算重绘步进（进度跨过该值才重绘一次）
+@visibleForTesting
+double repaintStepFor(Size size, Duration duration) {
+  final interval = switch (size.width * size.height) {
+    < 500000 => 33.0, // 小窗 ~30fps
+    < 1200000 => 50.0, // ~20fps
+    < 2200000 => 83.0, // ~12fps
+    _ => 125.0, // 大窗 / 4K ~8fps
+  };
+  return (interval / duration.inMilliseconds).clamp(0.001, 1.0);
 }
 
 /// 光点配置

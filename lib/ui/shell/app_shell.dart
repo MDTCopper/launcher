@@ -309,6 +309,8 @@ class AppShellState extends State<AppShell> {
           // ── 右侧内容区 ──
           Expanded(
             child: ColorfulBackground(
+              animate: config
+                  .setting.personalizationOptions.colorfulBackgroundAnimated,
               child: Column(
                 children: [
                   _buildTopbar(),

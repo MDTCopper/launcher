@@ -469,6 +469,10 @@ class PersonalizationOptions {
   @JsonKey(defaultValue: true)
   bool restoreWindowOnGameExit;
 
+  ///动态背景（多彩流光）：关闭后背景为静态渐变（低配 / 大窗口下省性能）
+  @JsonKey(defaultValue: true)
+  bool colorfulBackgroundAnimated;
+
   PersonalizationOptions({
     required this.themeMode,
     required this.themeColor,
@@ -476,6 +480,7 @@ class PersonalizationOptions {
     required this.subNavigationCollapse,
     required this.launcherPostLaunchBehavior,
     required this.restoreWindowOnGameExit,
+    this.colorfulBackgroundAnimated = true,
   });
 
   factory PersonalizationOptions.fromJson(Map<String, dynamic> json) =>
