@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -37,7 +38,7 @@ class ColorfulBackground extends StatefulWidget {
 }
 
 class _ColorfulBackgroundState extends State<ColorfulBackground>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: widget.duration,
@@ -49,10 +50,31 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
   /// 重绘步进：进度跨过它才真正重绘（按窗口大小动态调整）
   double _step = 0.0036;
 
+  /// 调整窗口结束后的恢复延迟
+  static const _resizeResumeDelay = Duration(milliseconds: 500);
+
+  Timer? _resizeResumeTimer;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (widget.animate) _controller.repeat();
+  }
+
+  @override
+  void didChangeMetrics() {
+    // 调整窗口 / 最大化时暂停动画：每帧重绘成本 ∝ 像素数，resize 期间
+    // 尺寸连续变化会让全窗口图层连续重绘。尺寸稳定一段时间后恢复
+    if (widget.animate && _controller.isAnimating) {
+      _controller.stop();
+    }
+    _resizeResumeTimer?.cancel();
+    if (!widget.animate) return;
+    _resizeResumeTimer = Timer(_resizeResumeDelay, () {
+      if (!mounted || !widget.animate) return;
+      if (!_controller.isAnimating) _controller.repeat();
+    });
   }
 
   @override
@@ -62,6 +84,7 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
       _controller.repeat();
     } else if (!widget.animate && _controller.isAnimating) {
       _controller.stop();
+      _resizeResumeTimer?.cancel();
     }
     if (oldWidget.duration != widget.duration) {
       _controller.duration = widget.duration;
@@ -71,6 +94,8 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
 
   @override
   void dispose() {
+    _resizeResumeTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
