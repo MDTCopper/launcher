@@ -26,6 +26,30 @@ enum SettingType {
   options, // 固定字符串选项（如语言）
 }
 
+/// 设置所属平台。
+///
+/// - [desktop]：任意桌面系统（Windows / Linux / macOS）
+/// - [macos]：仅 macOS（如刘海屏适配）
+/// - [android]：仅 Android
+///
+/// 列表为空表示全平台；iOS 不在考虑范围（上游 iOS 专属项不纳入数据）。
+enum SettingPlatform {
+  desktop('桌面端'),
+  macos('macOS'),
+  android('Android');
+
+  const SettingPlatform(this.title);
+
+  final String title;
+
+  static final Map<String, SettingPlatform> _byName = {
+    for (final value in values) value.name: value,
+  };
+
+  /// 按名字解析；未知返回 null
+  static SettingPlatform? tryParse(String name) => _byName[name];
+}
+
 /// 单条设置元数据：驱动 game_setting_page 数据化渲染。
 ///
 /// key 为 Mindustry settings.bin 的原始键名；title 为中文标题；
@@ -53,6 +77,9 @@ class SettingSpec {
   /// options 类型的候选项；其它类型为 null。
   final List<String>? options;
 
+  /// 归属平台；空列表 = 全平台
+  final List<SettingPlatform> platforms;
+
   const SettingSpec._({
     required this.key,
     required this.title,
@@ -64,17 +91,20 @@ class SettingSpec {
     this.unit = '',
     this.displayRatio = 1.0,
     this.options,
+    this.platforms = const [],
   });
 
   const SettingSpec.bool(
     String key,
     String title,
-    List<SettingCategory> categories,
-  ) : this._(
+    List<SettingCategory> categories, {
+    List<SettingPlatform> platforms = const [],
+  }) : this._(
         key: key,
         title: title,
         categories: categories,
         type: SettingType.bool,
+        platforms: platforms,
       );
 
   const SettingSpec.intSlider(
@@ -86,6 +116,7 @@ class SettingSpec {
     int step = 1,
     String unit = '',
     double displayRatio = 1.0,
+    List<SettingPlatform> platforms = const [],
   }) : this._(
          key: key,
          title: title,
@@ -96,6 +127,7 @@ class SettingSpec {
          step: step,
          unit: unit,
          displayRatio: displayRatio,
+         platforms: platforms,
        );
 
   const SettingSpec.options(
@@ -103,12 +135,14 @@ class SettingSpec {
     String title,
     List<SettingCategory> categories, {
     required List<String> options,
+    List<SettingPlatform> platforms = const [],
   }) : this._(
          key: key,
          title: title,
          categories: categories,
          type: SettingType.options,
          options: options,
+         platforms: platforms,
        );
 
   Map<String, dynamic> toJson() => {
@@ -121,6 +155,7 @@ class SettingSpec {
     if (step != null) 'step': step,
     if (unit.isNotEmpty) 'unit': unit,
     if (displayRatio != 1.0) 'displayRatio': displayRatio,
+    if (platforms.isNotEmpty) 'platforms': platforms.map((p) => p.name).toList(),
     if (options != null) 'options': options,
   };
 
@@ -142,9 +177,15 @@ class SettingSpec {
         .toList();
     if (categories.isEmpty) return null;
 
+    // platforms 为平台名列表；缺省 = 全平台
+    final platforms = (json['platforms'] as List<dynamic>? ?? const [])
+        .map((e) => SettingPlatform.tryParse(e.toString()))
+        .whereType<SettingPlatform>()
+        .toList();
+
     switch (type) {
       case SettingType.bool:
-        return SettingSpec.bool(key, title, categories);
+        return SettingSpec.bool(key, title, categories, platforms: platforms);
       case SettingType.int:
         return SettingSpec.intSlider(
           key,
@@ -155,6 +196,7 @@ class SettingSpec {
           step: (json['step'] as num?)?.toInt() ?? 1,
           unit: (json['unit'] as String?) ?? '',
           displayRatio: (json['displayRatio'] as num?)?.toDouble() ?? 1.0,
+          platforms: platforms,
         );
       case SettingType.options:
         return SettingSpec.options(
@@ -164,6 +206,7 @@ class SettingSpec {
           options: (json['options'] as List<dynamic>? ?? const [])
               .map((e) => e.toString())
               .toList(),
+          platforms: platforms,
         );
     }
   }
@@ -178,54 +221,52 @@ class SettingSpec {
 /// 此目录只代表最新版本，作为无适配数据时的兜底。
 const List<SettingSpec> mindustrySettingCatalog = [
   // ── 游戏 ──
-  SettingSpec.intSlider('saveinterval', '自动保存时间', [.game], min: 10, max: 600, step: 10, unit: '秒'),
+  SettingSpec.intSlider('saveinterval', '自动保存间隔', [.game], min: 10, max: 600, step: 10, unit: '秒'),
   SettingSpec.bool('hints', '游戏提示', [.game, .common]),
-  SettingSpec.bool('autotarget', '自动瞄准（移动端）', [.game]),
-  SettingSpec.bool('keyboard', '键盘模式（移动端）', [.game]),
+  SettingSpec.bool('autotarget', '自动瞄准（移动端）', [.game], platforms: [.android]),
+  SettingSpec.bool('keyboard', '鼠标+键盘操控（移动端）', [.game], platforms: [.android]),
   SettingSpec.bool('savecreate', '自动创建存档', [.game]),
-  SettingSpec.bool('blockreplace', '自动选择合适的建筑', [.game]),
-  SettingSpec.bool('conveyorpathfinding', '传送带寻路', [.game]),
-  SettingSpec.bool('backgroundpause', '后台暂停', [.game]),
-  SettingSpec.bool('buildautopause', '建造自动暂停', [.game]),
+  SettingSpec.bool('blockreplace', '自动推荐合适的建筑', [.game]),
+  SettingSpec.bool('conveyorpathfinding', '传送带自动寻路', [.game]),
+  SettingSpec.bool('backgroundpause', '游戏在后台时自动暂停', [.game], platforms: [.desktop]),
+  SettingSpec.bool('buildautopause', '自动暂停建造', [.game], platforms: [.desktop]),
   SettingSpec.bool('doubletapmine', '双击采矿', [.game, .common]),
   SettingSpec.bool('commandmodehold', '长按保持指挥模式', [.game]),
-  SettingSpec.bool('modcrashdisable', 'Mod 崩溃时禁用', [.game]),
-  SettingSpec.intSlider('playerlimit', '联机玩家上限', [.game], min: 2, max: 32, step: 1),
-  SettingSpec.bool('console', '内置控制台', [.game]),
+  SettingSpec.bool('modcrashdisable', '游戏启动崩溃后禁用模组', [.game]),
+  SettingSpec.intSlider('playerlimit', '玩家数量限制', [.game], min: 2, max: 32, step: 1, platforms: [.desktop]),
+  SettingSpec.bool('console', '启用控制台', [.game]),
   SettingSpec.intSlider('screenshake', '屏幕抖动', [.game, .graphics, .common], min: 0, max: 8, step: 1, unit: 'x', displayRatio: 0.25),
   SettingSpec.intSlider('bloomintensity', '光效强度', [.game, .graphics, .common], min: 0, max: 16, step: 1, unit: '%', displayRatio: 25.0),
   SettingSpec.intSlider('bloomblur', '光效模糊', [.game, .graphics, .common], min: 1, max: 16, step: 1, unit: 'x'),
   SettingSpec.intSlider('fpscap', '最大帧数', [.game, .graphics], min: 10, max: 245, step: 5, unit: 'fps'),
   SettingSpec.intSlider('lasersopacity', '电力连接线不透明度', [.game, .graphics, .common], min: 0, max: 100, step: 5, unit: '%'),
   SettingSpec.intSlider('bridgeopacity', '桥梁不透明度', [.game, .graphics, .common], min: 0, max: 100, step: 5, unit: '%'),
-  SettingSpec.bool('communityservers', '显示社区服务器', [.game]),
-  SettingSpec.bool('distinctcontrolgroups', '每单位限制一个编队', [.game]),
+  SettingSpec.bool('communityservers', '获取社区服务器列表', [.game]),
+  SettingSpec.bool('distinctcontrolgroups', '每单位限制一个编队', [.game], platforms: [.desktop]),
   SettingSpec.intSlider('maxmagnificationmultiplierpercent', '最小视距（最大缩放）', [.game, .graphics, .common], min: 100, max: 200, step: 25, unit: '%'),
   SettingSpec.intSlider('minmagnificationmultiplierpercent', '最大视距（最小缩放）', [.game, .graphics, .common], min: 100, max: 300, step: 25, unit: '%'),
   SettingSpec.intSlider('unitlaseropacity', '单位采矿光束不透明度', [.game, .graphics, .common], min: 0, max: 100, step: 5, unit: '%'),
-  SettingSpec.bool('touchscreen', '触屏模式（移动端）', [.game]),
   // ── 图像 ──
   SettingSpec.bool('fps', '显示帧数和网络延迟', [.graphics, .info, .common]),
   SettingSpec.bool('smoothcamera', '平滑镜头', [.graphics]),
   SettingSpec.bool('minimap', '显示小地图', [.graphics, .common]),
   SettingSpec.intSlider('uiscale', '界面缩放比例', [.graphics, .common], min: 25, max: 300, step: 5, unit: '%'),
   SettingSpec.bool('position', '显示玩家坐标', [.graphics]),
-  SettingSpec.bool('vsync', '垂直同步', [.graphics, .common]),
-  SettingSpec.bool('landscape', '强制横屏（移动端）', [.graphics, .common]),
+  SettingSpec.bool('vsync', '垂直同步', [.graphics, .common], platforms: [.desktop]),
+  SettingSpec.bool('landscape', '锁定横屏（移动端）', [.graphics, .common], platforms: [.android]),
   SettingSpec.bool('effects', '建筑特效', [.graphics]),
   SettingSpec.bool('atmosphere', '显示行星大气层', [.graphics]),
   SettingSpec.bool('destroyedblocks', '显示已摧毁的建筑', [.graphics]),
   SettingSpec.bool('showweather', '显示天气效果', [.graphics]),
   SettingSpec.bool('animatedwater', '动态液体', [.graphics]),
-  SettingSpec.bool('animatedshields', '动态力场', [.graphics]),
   SettingSpec.bool('bloom', '光效', [.graphics]),
   SettingSpec.bool('pixelate', '像素画面', [.graphics]),
   SettingSpec.bool('linear', '抗锯齿', [.graphics]),
   SettingSpec.bool('skipcoreanimation', '跳过核心发射/着陆动画', [.graphics]),
-  SettingSpec.bool('swapdiagonal', '对角交换（移动端）', [.graphics]),
-  SettingSpec.bool('macnotch', 'Mac 刘海屏适配', [.graphics, .common]),
+  SettingSpec.bool('swapdiagonal', '始终斜线建造（移动端）', [.graphics], platforms: [.android]),
+  SettingSpec.bool('macnotch', 'Mac 刘海屏适配', [.graphics, .common], platforms: [.macos]),
   SettingSpec.bool('drawlight', '绘制阴影/光照', [.graphics]),
-  SettingSpec.bool('detach-camera', '自由视角', [.graphics, .common]),
+  SettingSpec.bool('detach-camera', '自由视角', [.graphics, .common], platforms: [.desktop]),
   SettingSpec.bool('showotherbuildplans', '显示其他玩家的建筑规划', [.graphics]),
   SettingSpec.bool('showpings', '显示标记', [.graphics]),
   SettingSpec.intSlider('uiEdgePadding', 'UI 内边距', [.graphics], min: 0, max: 100, step: 1, unit: 'px'),
@@ -234,9 +275,9 @@ const List<SettingSpec> mindustrySettingCatalog = [
   // ── 信息 ──
   SettingSpec.intSlider('chatopacity', '聊天界面不透明度', [.info, .common], min: 0, max: 100, step: 5, unit: '%'),
   SettingSpec.bool('playerchat', '显示玩家聊天气泡', [.info]),
-  SettingSpec.bool('coreitems', '显示核心物资', [.info]),
+  SettingSpec.bool('coreitems', '显示核心物资', [.info], platforms: [.desktop]),
   SettingSpec.bool('blockstatus', '显示建筑状态', [.info, .common]),
-  SettingSpec.bool('mouseposition', '显示鼠标坐标', [.info]),
+  SettingSpec.bool('mouseposition', '显示鼠标坐标', [.info], platforms: [.desktop]),
   SettingSpec.bool('playerindicators', '玩家指示器', [.info, .common]),
   SettingSpec.bool('indicators', '敌人指示器', [.info, .common]),
   SettingSpec.bool('hidedisplays', '不显示逻辑绘图', [.info]),

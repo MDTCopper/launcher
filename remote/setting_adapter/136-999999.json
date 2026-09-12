@@ -6,7 +6,7 @@
   "base": [
     {
       "key": "saveinterval",
-      "title": "自动保存时间",
+      "title": "自动保存间隔",
       "type": "int",
       "min": 10,
       "max": 600,
@@ -91,14 +91,20 @@
       "type": "bool",
       "categories": [
         "game"
+      ],
+      "platforms": [
+        "android"
       ]
     },
     {
       "key": "keyboard",
-      "title": "键盘模式（移动端）",
+      "title": "鼠标+键盘操控（移动端）",
       "type": "bool",
       "categories": [
         "game"
+      ],
+      "platforms": [
+        "android"
       ]
     },
     {
@@ -119,7 +125,7 @@
     },
     {
       "key": "blockreplace",
-      "title": "自动选择合适的建筑",
+      "title": "自动推荐合适的建筑",
       "type": "bool",
       "categories": [
         "game"
@@ -127,7 +133,7 @@
     },
     {
       "key": "conveyorpathfinding",
-      "title": "传送带寻路",
+      "title": "传送带自动寻路",
       "type": "bool",
       "categories": [
         "game"
@@ -143,18 +149,24 @@
     },
     {
       "key": "backgroundpause",
-      "title": "后台暂停",
+      "title": "游戏在后台时自动暂停",
       "type": "bool",
       "categories": [
         "game"
+      ],
+      "platforms": [
+        "desktop"
       ]
     },
     {
       "key": "buildautopause",
-      "title": "建造自动暂停",
+      "title": "自动暂停建造",
       "type": "bool",
       "categories": [
         "game"
+      ],
+      "platforms": [
+        "desktop"
       ]
     },
     {
@@ -176,7 +188,7 @@
     },
     {
       "key": "modcrashdisable",
-      "title": "Mod 崩溃时禁用",
+      "title": "游戏启动崩溃后禁用模组",
       "type": "bool",
       "categories": [
         "game"
@@ -184,18 +196,21 @@
     },
     {
       "key": "playerlimit",
-      "title": "联机玩家上限",
+      "title": "玩家数量限制",
       "type": "int",
       "min": 2,
       "max": 32,
       "step": 1,
       "categories": [
         "game"
+      ],
+      "platforms": [
+        "desktop"
       ]
     },
     {
       "key": "console",
-      "title": "内置控制台",
+      "title": "启用控制台",
       "type": "bool",
       "categories": [
         "game"
@@ -293,6 +308,9 @@
       "categories": [
         "graphics",
         "common"
+      ],
+      "platforms": [
+        "desktop"
       ]
     },
     {
@@ -305,11 +323,14 @@
     },
     {
       "key": "landscape",
-      "title": "强制横屏（移动端）",
+      "title": "锁定横屏（移动端）",
       "type": "bool",
       "categories": [
         "graphics",
         "common"
+      ],
+      "platforms": [
+        "android"
       ]
     },
     {
@@ -394,10 +415,13 @@
     },
     {
       "key": "swapdiagonal",
-      "title": "对角交换（移动端）",
+      "title": "始终斜线建造（移动端）",
       "type": "bool",
       "categories": [
         "graphics"
+      ],
+      "platforms": [
+        "android"
       ]
     },
     {
@@ -427,6 +451,9 @@
       "type": "bool",
       "categories": [
         "info"
+      ],
+      "platforms": [
+        "desktop"
       ]
     },
     {
@@ -444,6 +471,9 @@
       "type": "bool",
       "categories": [
         "info"
+      ],
+      "platforms": [
+        "desktop"
       ]
     },
     {
@@ -555,6 +585,9 @@
           "categories": [
             "graphics",
             "common"
+          ],
+          "platforms": [
+            "macos"
           ]
         }
       ]
@@ -585,7 +618,7 @@
         },
         {
           "key": "communityservers",
-          "title": "显示社区服务器",
+          "title": "获取社区服务器列表",
           "type": "bool",
           "categories": [
             "game"
@@ -597,6 +630,9 @@
           "type": "bool",
           "categories": [
             "game"
+          ],
+          "platforms": [
+            "desktop"
           ]
         },
         {
@@ -653,6 +689,9 @@
           "categories": [
             "graphics",
             "common"
+          ],
+          "platforms": [
+            "desktop"
           ]
         }
       ]
@@ -736,15 +775,11 @@
             "graphics"
           ],
           "type": "bool"
-        },
-        {
-          "key": "touchscreen",
-          "title": "触屏模式（移动端）",
-          "categories": [
-            "game"
-          ],
-          "type": "bool"
         }
+      ],
+      "remove": [
+        "animatedshields",
+        "touchscreen"
       ]
     }
   ]
