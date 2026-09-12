@@ -142,14 +142,11 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         '$repo?page=${page ~/ 4 + 1}&per_page=100',
         headers: modDownloadHeaders,
       );
-      //print('$repo?page=${page ~/ 4 + 1}&per_page=100');
-
       final modMetas = res.data!
           .map<ModGithubMeta>((it) => ModGithubMeta.fromJson(it))
           .toList();
       if (modMetas.length < 100) endPage = true;
       if (modMetas.isEmpty && index > 1) index--; //发现没有新的内容添加就直接减1
-      //print(modAssets.length);
       if (modMetasMapCache[modListMeta.repo] == null) {
         modMetasMapCache[modListMeta.repo] = modMetas;
       } else {
@@ -188,9 +185,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     Map<String, dynamic> map = {};
     for (final json in jsons) {
       try {
-        printOnDebug('$url/mod.$json');
         final res = await cio.get('$url/mod.$json');
-
         if (res.statusCode != 200) continue;
         final content = res.data as String;
         map.addAll(hjsonDecode(content, strict: false) as Map<String, dynamic>);
@@ -667,6 +662,144 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     await launchUrl(uri, mode: LaunchMode.inAppWebView);
   }
 
+  Widget _buildHead() {
+    final args = ModalRoute.of(context)?.settings.arguments as Map?;
+    modListMeta = args!['mod']!;
+    final theme = Theme.of(context);
+
+    final title = LayoutBuilder(
+      builder: (_, c) {
+        final nameP = TextPainter(
+          text: TextSpan(
+            text: modListMeta.name,
+            style: theme.textTheme.displayMedium,
+          ),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+        )..layout();
+
+        final sartP = TextPainter(
+          text: TextSpan(
+            text: modListMeta.stars.toString(),
+            style: theme.textTheme.headlineMedium,
+          ),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+        )..layout();
+
+        final enough =
+            c.maxWidth - nameP.width - 16 - 32 - 4 - sartP.width - 16 > 100;
+
+        Widget name = Text(
+          modListMeta.name,
+          style: theme.textTheme.displayMedium,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        );
+        Widget author = Text(
+          generalizeText(modListMeta.author),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        );
+
+        if (!enough) {
+          name = Expanded(child: name);
+        } else {
+          author = Expanded(child: author);
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            name,
+            SizedBox(width: 16),
+            Icon(Icons.star),
+            SizedBox(width: 4),
+            Text(
+              modListMeta.stars.toString(),
+              style: theme.textTheme.headlineMedium,
+            ),
+            SizedBox(width: 16),
+            author,
+          ],
+        );
+      },
+    );
+
+    return ContentPanelModule(
+      child: Row(
+        children: [
+          SizedBox(
+            height: 96,
+            width: 96,
+            child: ModNetworkIcon(modMeta: modListMeta, size: 96),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              spacing: 4,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                Text(
+                  generalizeText(modListMeta.description),
+                  style: TextStyle(height: 1.25),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    IconTextButton(
+                      icon: Icons.info_outline,
+                      content: '模组详情',
+                      onTap: _showDetail,
+                    ),
+                    IconTextButton(
+                      icon: LineIcons.readme,
+                      content: 'README',
+                      onTap: () => _showReadme(),
+                    ),
+                    IconTextButton(
+                      icon: Icons.file_open_outlined,
+                      content: '源码仓库',
+                      onTap: () =>
+                          _goToUrl('https://github.com/${modListMeta.repo}'),
+                    ),
+                    IconTextButton(
+                      icon: FontAwesomeIcons.github.data,
+                      content: '作者主页',
+                      onTap: () => _goToUrl(
+                        'https://github.com/${modListMeta.repo.split('/').first}',
+                      ),
+                    ),
+                    IconTextButton(
+                      icon: Icons.download,
+                      content: (modListMeta.hasJava && metas.isEmpty)
+                          ? '下载源码'
+                          : '最新版本',
+                      onTap: () {
+                        final latest = metas.firstOrNull;
+                        // 非java：最新版本行为=下载最新源码（tag 常过时）；
+                        // java 有 release → 版本详情选 asset；无 release → 源码下载
+                        if (modListMeta.hasJava && latest != null) {
+                          _buildDownloadPopup(latest);
+                        } else {
+                          _buildDownloadPopup(null, downloadSource: true);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
@@ -674,102 +807,8 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     final theme = Theme.of(context);
     return ListContentPanel(
       items: [
-        ContentPanelModule(
-          child: Row(
-            children: [
-              SizedBox(
-                height: 96,
-                width: 96,
-                child: ModNetworkIcon(modMeta: modListMeta, size: 96),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  spacing: 4,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          modListMeta.name,
-                          style: theme.textTheme.displayMedium,
-                        ),
-                        SizedBox(width: 16),
-                        Icon(Icons.star_border_sharp),
-                        SizedBox(width: 4),
-                        Text(
-                          modListMeta.stars.toString(),
-                          style: theme.textTheme.titleLarge?.copyWith(),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: Text(
-                            generalizeText(modListMeta.author),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      generalizeText(modListMeta.description),
-                      style: TextStyle(height: 1.25),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        IconTextButton(
-                          icon: Icons.info_outline,
-                          content: '模组详情',
-                          onTap: _showDetail,
-                        ),
-                        IconTextButton(
-                          icon: LineIcons.readme,
-                          content: 'README',
-                          onTap: () => _showReadme(),
-                        ),
-                        IconTextButton(
-                          icon: Icons.file_open_outlined,
-                          content: '源码仓库',
-                          onTap: () => _goToUrl(
-                            'https://github.com/${modListMeta.repo}',
-                          ),
-                        ),
-                        IconTextButton(
-                          icon: FontAwesomeIcons.github.data,
-                          content: '作者主页',
-                          onTap: () => _goToUrl(
-                            'https://github.com/${modListMeta.repo.split('/').first}',
-                          ),
-                        ),
-                        IconTextButton(
-                          icon: Icons.download,
-                          content: (modListMeta.hasJava && metas.isEmpty)
-                              ? '下载源码'
-                              : '最新版本',
-                          onTap: () {
-                            final latest = metas.firstOrNull;
-                            // 非java：最新版本行为=下载最新源码（tag 常过时）；
-                            // java 有 release → 版本详情选 asset；无 release → 源码下载
-                            if (modListMeta.hasJava && latest != null) {
-                              _buildDownloadPopup(latest);
-                            } else {
-                              _buildDownloadPopup(null, downloadSource: true);
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        _buildHead(),
+
         Center(
           child: Text(
             '如果有条件，请到github给模组们sart!',
