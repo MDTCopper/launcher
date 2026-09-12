@@ -90,10 +90,35 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     super.dispose();
   }
 
-  List<md.Node> _parse(String data) => md.Document(
+  List<md.Node> _parse(String data) => parseMarkdown(data);
+
+  /// 按 GitHub 的规则解析 README：
+  ///
+  /// - `ExtensionSet.gitHubFlavored`：表格 / 删除线 / 自动链接 / 任务清单 / 脚注定义
+  /// - 额外启用 emoji 短代码（`:tada:`）与脚注引用——GitHub 都支持
+  /// - `encodeHtml: false`：直写 HTML 以 `UnparsedContent` 原样给出，
+  ///   由渲染器按 GitHub 的白名单自行处理（class/style 属性 GitHub 会剥掉，
+  ///   所以 README 在 GitHub 上从来不依赖它们，这里也无需支持）
+  @visibleForTesting
+  static List<md.Node> parseMarkdown(String data) => md.Document(
     extensionSet: md.ExtensionSet.gitHubFlavored,
     encodeHtml: false,
+    // FootnoteRefSyntax 未被 markdown 包导出，脚注引用暂按字面文本处理
+    inlineSyntaxes: [md.EmojiSyntax()],
   ).parseLines(const LineSplitter().convert(data));
+
+  /// GitHub tagfilter 明确禁用、会转义成字面文本展示的标签
+  static const _disallowedHtmlTags = {
+    'iframe',
+    'textarea',
+    'style',
+    'title',
+    'xmp',
+    'noembed',
+    'noframes',
+    'plaintext',
+    'script',
+  };
 
   ThemeData get _theme => Theme.of(context);
 
@@ -145,7 +170,10 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         );
 
       case 'p':
-        return _paragraph(node.children ?? const <md.Node>[], colors);
+        return _alignWrap(
+          node.attributes,
+          _paragraph(node.children ?? const <md.Node>[], colors),
+        );
 
       case 'ul':
       case 'ol':
@@ -176,24 +204,40 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         return Divider(color: colors.border, height: 20);
 
       case 'table':
-        return _buildTable(node, colors);
+        return _alignWrap(node.attributes, _buildTable(node, colors));
 
       case 'details':
         return _buildDetails(node, colors);
 
       default:
-        // 未知块级：透明处理，只渲染内容（避免标签字面量漏到界面上）
+        // 未知块级：透明处理，只渲染内容（避免标签字面量漏到界面上），
+        // align 属性照常生效（GitHub 允许 div/p/table 的 align）
         final children = node.children ?? const <md.Node>[];
         if (children.isEmpty) return null;
-        return Column(
+        final body = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 8,
-          children: [
-            for (final child in children)
-              ?_buildBlock(child, colors),
-          ],
+          children: [for (final child in children) ?_buildBlock(child, colors)],
         );
+        return _alignWrap(node.attributes, body);
     }
+  }
+
+  /// `align="center|left|right"` → 对齐方式（GitHub 白名单里保留的属性，
+  /// class/style 会被 GitHub 剥掉，所以 README 只会靠 align 做布局）
+  Alignment? _alignOf(Map<String, String> attributes) =>
+      switch (attributes['align']?.toLowerCase()) {
+        'center' => Alignment.center,
+        'left' => Alignment.centerLeft,
+        'right' => Alignment.centerRight,
+        _ => null,
+      };
+
+  Widget _alignWrap(Map<String, String> attributes, Widget child) {
+    final alignment = _alignOf(attributes);
+    return alignment == null
+        ? child
+        : Align(alignment: alignment, child: child);
   }
 
   Widget _paragraph(List<md.Node> children, AppColors colors) => Text.rich(
@@ -487,6 +531,54 @@ class _ModReadmeViewState extends State<ModReadmeView> {
             style: const TextStyle(decoration: TextDecoration.lineThrough),
           ),
         );
+      case 's':
+      case 'strike':
+        spans.add(
+          TextSpan(
+            children: _inlines(children, colors),
+            style: const TextStyle(decoration: TextDecoration.lineThrough),
+          ),
+        );
+      case 'ins':
+      case 'u':
+        spans.add(
+          TextSpan(
+            children: _inlines(children, colors),
+            style: const TextStyle(decoration: TextDecoration.underline),
+          ),
+        );
+      case 'kbd':
+      case 'samp':
+      case 'tt':
+      case 'var':
+        spans.add(
+          TextSpan(
+            children: _inlines(children, colors),
+            style: _theme.textTheme.bodySmall?.copyWith(
+              fontFamily: 'monospace',
+            ),
+          ),
+        );
+      case 'mark':
+        spans.add(
+          TextSpan(
+            children: _inlines(children, colors),
+            style: TextStyle(
+              backgroundColor: _theme.colorScheme.secondaryContainer,
+            ),
+          ),
+        );
+      case 'q':
+        final quoted = _inlines(children, colors);
+        spans.add(
+          TextSpan(
+            children: [
+              const TextSpan(text: '“'),
+              ...quoted,
+              const TextSpan(text: '”'),
+            ],
+          ),
+        );
       case 'code':
         spans.add(
           TextSpan(
@@ -561,6 +653,12 @@ class _ModReadmeViewState extends State<ModReadmeView> {
       return;
     }
 
+    // GitHub tagfilter：这些标签会被转义成字面文本展示
+    if (_disallowedHtmlTags.contains(node.tag)) {
+      spans.add(TextSpan(text: '<${node.tag}>${node.rawText}</${node.tag}>'));
+      return;
+    }
+
     List<InlineSpan> children() {
       final list = <InlineSpan>[];
       for (final child in node.children) {
@@ -595,6 +693,44 @@ class _ModReadmeViewState extends State<ModReadmeView> {
             style: _theme.textTheme.bodySmall?.copyWith(
               fontFamily: 'monospace',
               backgroundColor: _theme.colorScheme.surfaceContainerHighest,
+            ),
+          ),
+        );
+      case 's':
+      case 'strike':
+      case 'del':
+        spans.add(
+          TextSpan(
+            children: children(),
+            style: const TextStyle(decoration: TextDecoration.lineThrough),
+          ),
+        );
+      case 'ins':
+      case 'u':
+        spans.add(
+          TextSpan(
+            children: children(),
+            style: const TextStyle(decoration: TextDecoration.underline),
+          ),
+        );
+      case 'kbd':
+      case 'samp':
+      case 'tt':
+      case 'var':
+        spans.add(
+          TextSpan(
+            children: children(),
+            style: _theme.textTheme.bodySmall?.copyWith(
+              fontFamily: 'monospace',
+            ),
+          ),
+        );
+      case 'mark':
+        spans.add(
+          TextSpan(
+            children: children(),
+            style: TextStyle(
+              backgroundColor: _theme.colorScheme.secondaryContainer,
             ),
           ),
         );
@@ -731,6 +867,12 @@ class ReadmeHtmlNode {
 
   const ReadmeHtmlNode.element(this.tag, this.attributes, this.children)
     : text = '';
+
+  /// 还原成源码文本（GitHub tagfilter 的字面展示用）
+  String get rawText => tag == null
+      ? text
+      : '<$tag${attributes.entries.map((it) => ' ${it.key}="${it.value}"').join()}>'
+            '${children.map((child) => child.rawText).join()}</$tag>';
 }
 
 /// 自闭合（无内容）标签

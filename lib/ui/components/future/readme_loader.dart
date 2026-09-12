@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/components/future/mod_readme_view.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
@@ -221,95 +223,76 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
 
   late final Future<Widget?> imageCache;
   Future<Widget?> _fetchImage() async {
-    //特别处理img.shields.io
     final uri = widget.uri;
-    if (widget.uri.host.contains('img.shields.io')) {
+
+    // shields.io 徽章：直接改用 PNG 端点。flutter_svg 对徽章文字（transform
+    // scale + 字距）渲染不可靠，fixSvgTextScale 只是部分缓解，服务端栅格化最稳
+    if (uri.host.contains('img.shields.io')) {
+      final png = uri.toString().replaceFirst(RegExp(r'\.svg(?=$|\?)'), '.png');
+      return _raster(png);
+    }
+
+    String url;
+    if (uri.isAbsolute) {
+      url = uri.toString();
+      return _byContentType(url);
+    }
+
+    // 相对路径：按仓库解析（缓存的分支优先，再回退 main/master）
+    final repo = 'https://raw.githubusercontent.com/${widget.mod.repo}';
+    if (widget.mod.mainBranchCache != null) {
+      final result = await _byContentType(
+        '$repo/${widget.mod.mainBranchCache}/${uri.toString()}',
+      );
+      if (result != null) return result;
+    }
+    for (final branch in ['main', 'master']) {
+      final result = await _byContentType('$repo/$branch/${uri.toString()}');
+      if (result != null) return result;
+    }
+    return null;
+  }
+
+  /// 按 content-type 决定渲染方式：栅格图走 cio 拉字节（代理与镜像可达），
+  /// SVG 拉文本做 transform 修正后交给 flutter_svg
+  Future<Widget?> _byContentType(String url) async {
+    final isSvg = await _checkIsSvgFrom(url);
+    if (isSvg == null) return null;
+
+    if (isSvg) {
       try {
-        final res = await cio.getUri(
-          uri,
-          headers: gameDownloadHeaders,
-        );
+        final res = await cio.get<String>(url, headers: modDownloadHeaders);
         if (res.statusCode != 200) return null;
         return SvgPicture.string(
-          fixSvgTextScale(res.data),
+          fixSvgTextScale(res.data.toString()),
+          height: widget.height,
+          width: widget.width,
           errorBuilder: (_, _, _) => onError,
         );
       } catch (_) {
         return null;
       }
     }
+    return _raster(url);
+  }
 
-    String url;
-    if (uri.isAbsolute) {
-      url = uri.toString();
-      var isSvg = await _checkIsSvgFrom(url);
-      if (isSvg == null) return null;
-      if (isSvg) {
-        return SvgPicture.network(
-          url,
-          allowDrawingOutsideViewBox: true,
-          height: widget.height,
-          width: widget.width,
-          errorBuilder: (_, _, _) => onError,
-        );
-      } else {
-        return Image.network(
-          url,
-          height: widget.height,
-          width: widget.width,
-          errorBuilder: (_, _, _) => onError,
-        );
-      }
-    } else {
-      final repo = 'https://raw.githubusercontent.com/${widget.mod.repo}';
-
-      if (widget.mod.mainBranchCache != null) {
-        try {
-          url = '$repo/${widget.mod.mainBranchCache}/${uri.toString()}';
-          var isSvg = await _checkIsSvgFrom(url);
-          if (isSvg != null) {
-            if (isSvg) {
-              return SvgPicture.network(
-                url,
-                height: widget.height,
-                width: widget.width,
-                errorBuilder: (_, _, _) => onError,
-              );
-            } else {
-              return Image.network(
-                url,
-                height: widget.height,
-                width: widget.width,
-                errorBuilder: (_, _, _) => onError,
-              );
-            }
-          }
-        } catch (_) {}
-      }
-
-      for (var branch in ['main', 'master']) {
-        try {
-          url = '$repo$branch/${uri.toString()}';
-          var isSvg = await _checkIsSvgFrom(url);
-          if (isSvg == null) continue;
-          if (isSvg) {
-            return SvgPicture.network(
-              url,
-              height: widget.height,
-              width: widget.width,
-              theme: SvgTheme(xHeight: 100),
-              errorBuilder: (_, _, _) => onError,
-            );
-          } else {
-            return Image.network(
-              url,
-              height: widget.height,
-              width: widget.width,
-              errorBuilder: (_, _, _) => onError,
-            );
-          }
-        } catch (_) {}
-      }
+  /// 栅格图：走 cio（代理与镜像可达），不走 Image.network 直连
+  Future<Widget?> _raster(String url) async {
+    try {
+      final res = await cio.get<Uint8List>(
+        url,
+        headers: modDownloadHeaders,
+        responseType: ResponseType.bytes,
+      );
+      final data = res.data;
+      if (res.statusCode != 200 || data == null || data.isEmpty) return null;
+      return Image.memory(
+        data,
+        height: widget.height,
+        width: widget.width,
+        errorBuilder: (_, _, _) => onError,
+      );
+    } catch (_) {
       return null;
     }
   }
