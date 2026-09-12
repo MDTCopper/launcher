@@ -15,7 +15,7 @@ part 'mindustry_settings.g.dart';
 ///
 /// ```dart
 ///
-///使用 Patch 批量修改（null 保留原值）
+/////使用 Patch 批量修改（null 保留原值）
 /// settings.applyPatch(MindustrySettingsPatch()
 ///   ..uiScale = 150
 ///   ..fullscreen = true,
@@ -121,6 +121,11 @@ class MindustrySettings {
       'hidedisplays': false,
       'macnotch': false,
       'swapdiagonal': false,
+      'drawhitboxes': false,
+      'showperformance': false,
+      'showotherbuildplans': true,
+      'showpings': true,
+      'uiEdgePadding': 0,
 
       // ── 音频 ──
       'alwaysmusic': false,
@@ -548,6 +553,31 @@ class MindustrySettings {
   bool get swapDiagonal => _data['swapdiagonal'] as bool? ?? false;
 
   set swapDiagonal(bool v) => _data['swapdiagonal'] = v;
+
+  /// 显示碰撞箱（开发者）。
+  bool get drawHitBoxes => _data['drawhitboxes'] as bool? ?? false;
+
+  set drawHitBoxes(bool v) => _data['drawhitboxes'] = v;
+
+  /// 显示性能表现（开发者）。
+  bool get showPerformance => _data['showperformance'] as bool? ?? false;
+
+  set showPerformance(bool v) => _data['showperformance'] = v;
+
+  /// 显示其他玩家的建筑规划。
+  bool get showOtherBuildPlans => _data['showotherbuildplans'] as bool? ?? true;
+
+  set showOtherBuildPlans(bool v) => _data['showotherbuildplans'] = v;
+
+  /// 显示标记。
+  bool get showPings => _data['showpings'] as bool? ?? true;
+
+  set showPings(bool v) => _data['showpings'] = v;
+
+  /// UI 内边距 (0-100)。
+  int get uiEdgePadding => _data['uiEdgePadding'] as int? ?? 0;
+
+  set uiEdgePadding(int v) => _data['uiEdgePadding'] = v;
 
   // ── 音频设置 ──
 
@@ -994,6 +1024,26 @@ class MindustrySettingsPatch {
   @JsonKey(name: 'swapDiagonal')
   bool? swapDiagonal;
 
+  /// 显示碰撞箱（开发者）。
+  @JsonKey(name: 'drawHitBoxes')
+  bool? drawHitBoxes;
+
+  /// 显示性能表现（开发者）。
+  @JsonKey(name: 'showPerformance')
+  bool? showPerformance;
+
+  /// 显示其他玩家的建筑规划。
+  @JsonKey(name: 'showOtherBuildPlans')
+  bool? showOtherBuildPlans;
+
+  /// 显示标记。
+  @JsonKey(name: 'showPings')
+  bool? showPings;
+
+  /// UI 内边距 (0-100)。
+  @JsonKey(name: 'uiEdgePadding')
+  int? uiEdgePadding;
+
   // ── 音频 ──
 
   /// 始终播放背景音乐（即使窗口失焦）。
@@ -1177,6 +1227,16 @@ class MindustrySettingsPatch {
         return macNotch;
       case 'swapdiagonal':
         return swapDiagonal;
+      case 'drawhitboxes':
+        return drawHitBoxes;
+      case 'showperformance':
+        return showPerformance;
+      case 'showotherbuildplans':
+        return showOtherBuildPlans;
+      case 'showpings':
+        return showPings;
+      case 'uiEdgePadding':
+        return uiEdgePadding;
       case 'alwaysmusic':
         return alwaysMusic;
       case 'musicvol':
@@ -1315,6 +1375,16 @@ class MindustrySettingsPatch {
         macNotch = value as bool?;
       case 'swapdiagonal':
         swapDiagonal = value as bool?;
+      case 'drawhitboxes':
+        drawHitBoxes = value as bool?;
+      case 'showperformance':
+        showPerformance = value as bool?;
+      case 'showotherbuildplans':
+        showOtherBuildPlans = value as bool?;
+      case 'showpings':
+        showPings = value as bool?;
+      case 'uiEdgePadding':
+        uiEdgePadding = value as int?;
       case 'alwaysmusic':
         alwaysMusic = value as bool?;
       case 'musicvol':
@@ -1420,6 +1490,13 @@ class MindustrySettingsPatch {
     if (hideDisplays != null) target.hideDisplays = hideDisplays!;
     if (macNotch != null) target.macNotch = macNotch!;
     if (swapDiagonal != null) target.swapDiagonal = swapDiagonal!;
+    if (drawHitBoxes != null) target.drawHitBoxes = drawHitBoxes!;
+    if (showPerformance != null) target.showPerformance = showPerformance!;
+    if (showOtherBuildPlans != null) {
+      target.showOtherBuildPlans = showOtherBuildPlans!;
+    }
+    if (showPings != null) target.showPings = showPings!;
+    if (uiEdgePadding != null) target.uiEdgePadding = uiEdgePadding!;
 
     // 音频
     if (alwaysMusic != null) target.alwaysMusic = alwaysMusic!;

@@ -11,7 +11,6 @@ import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
-import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 
 /// 游戏内设置页（数据驱动）。
@@ -39,6 +38,12 @@ class _GameSettingPageState extends State<GameSettingPage> {
 
   SettingCategory _category = SettingCategory.common;
 
+  /// 编辑版本下拉的可选列表：无适配数据的版本（低版本）自动剔除
+  List<Mindustry> _editableVersions = const [];
+
+  /// 适配数据覆盖的最小 build；null = 未知（离线等），不过滤
+  int? _supportedMinBuild;
+
   /// 整数滑块在「未覆盖」时展示的缓存值
   final Map<String, int> _intCache = {};
 
@@ -56,11 +61,19 @@ class _GameSettingPageState extends State<GameSettingPage> {
     if (build != null) {
       specs = await SettingAdapter.loadForBuild(build);
     }
+    _supportedMinBuild = await SettingAdapter.minSupportedBuild();
+
     if (!mounted) return;
     setState(() {
       _specs = specs ?? mindustrySettingCatalog;
+      //版本下拉自动移除不适用的版本（低于适配覆盖范围，settings 覆写无效）
+      _editableVersions = [
+        for (final fold in config.versionOptions.versionFolds)
+          for (final v in fold.versions)
+            if (_supportedMinBuild == null || v.releaseInt >= _supportedMinBuild!) v,
+      ];
       //切到第一个仍有设置的分类
-      final present = _specs.map((s) => s.category).toSet();
+      final present = _specs.expand((s) => s.categories).toSet();
       if (!present.contains(_category)) {
         _category = present.isEmpty ? SettingCategory.common : present.first;
       }
@@ -68,10 +81,10 @@ class _GameSettingPageState extends State<GameSettingPage> {
   }
 
   List<SettingSpec> get _categorySpecs =>
-      _specs.where((s) => s.category == _category).toList();
+      _specs.where((s) => s.categories.contains(_category)).toList();
 
   List<SettingCategory> get _presentCategories => SettingCategory.values
-      .where((c) => _specs.any((s) => s.category == c))
+      .where((c) => _specs.any((s) => s.categories.contains(c)))
       .toList();
 
   // ── 写回 ──
@@ -209,8 +222,11 @@ class _GameSettingPageState extends State<GameSettingPage> {
           underline: const SizedBox(),
           items: [
             const DropdownMenuItem(value: 'default', child: Text('游戏默认')),
+            //数据里的 options 若含 default 会与上面的「游戏默认」同值，
+            //DropdownButton 断言同值只能有一项，这里过滤掉
             for (final option in spec.options ?? const <String>[])
-              DropdownMenuItem(value: option, child: Text(option)),
+              if (option != 'default')
+                DropdownMenuItem(value: option, child: Text(option)),
           ],
           onChanged: override ? (v) => _setValue(spec, v) : null,
         ),
@@ -251,9 +267,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
 
   Widget _buildHeader() {
     final colors = AppColors.of(context);
-    final versions = <Mindustry>[
-      for (final fold in config.versionOptions.versionFolds) ...fold.versions,
-    ];
+    final versions = _editableVersions;
 
     return Column(
       spacing: 8,

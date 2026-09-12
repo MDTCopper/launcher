@@ -86,7 +86,12 @@ MindustrySettingsPatch _$MindustrySettingsPatchFromJson(
   ..locale = json['locale'] as String?
   ..blockSync = json['blockSync'] as bool?
   ..lastBuild = (json['lastBuild'] as num?)?.toInt()
-  ..lastBuildString = json['lastBuildString'] as String?;
+  ..lastBuildString = json['lastBuildString'] as String?
+  ..drawHitBoxes = json['drawHitBoxes'] as bool?
+  ..showPerformance = json['showPerformance'] as bool?
+  ..showOtherBuildPlans = json['showOtherBuildPlans'] as bool?
+  ..showPings = json['showPings'] as bool?
+  ..uiEdgePadding = (json['uiEdgePadding'] as num?)?.toInt();
 
 Map<String, dynamic> _$MindustrySettingsPatchToJson(
   MindustrySettingsPatch instance,
@@ -167,4 +172,9 @@ Map<String, dynamic> _$MindustrySettingsPatchToJson(
   'blockSync': instance.blockSync,
   'lastBuild': instance.lastBuild,
   'lastBuildString': instance.lastBuildString,
+  'drawHitBoxes': instance.drawHitBoxes,
+  'showPerformance': instance.showPerformance,
+  'showOtherBuildPlans': instance.showOtherBuildPlans,
+  'showPings': instance.showPings,
+  'uiEdgePadding': instance.uiEdgePadding,
 };
