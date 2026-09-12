@@ -68,6 +68,21 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
   bool endPage = false;
 
+  /// 当前页的加载 Future，按页缓存。
+  ///
+  /// 若在 build 里直接 `_fetchModMetas(page: index)`，每次重建都会新建 Future，
+  /// FutureBuilder 会退回 waiting 再完成——列表闪烁、动画重复触发
+  Future<bool>? _fetchFuture;
+  int _fetchFuturePage = -1;
+
+  Future<bool> get _fetchFutureOfCurrentPage {
+    if (_fetchFuture == null || _fetchFuturePage != index) {
+      _fetchFuturePage = index;
+      _fetchFuture = _fetchModMetas(page: index);
+    }
+    return _fetchFuture!;
+  }
+
   Future<bool> _fetchModMetas({int page = 1}) async {
     final length = modMetasMapCache[modListMeta.repo]?.length ?? 0;
     if (length >= page * 25) return true;
@@ -336,13 +351,17 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
   /// 满足当前选中版本」直接判出来（阈值与版本列表同一套 [MinGameVersions]）
   void _showDetail() => showAnimatedDialog(
     context: context,
-    pageBuilder: (_, _, _) => Center(child: _buildModDetailPanel()),
+    pageBuilder: (dialogContext, _, _) =>
+        Center(child: _buildModDetailPanel(dialogContext)),
   );
 
-  Widget _buildModDetailPanel() {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final size = MediaQuery.of(context).size;
+  /// [dialogContext] 必须是弹窗自己的 context：主题 / MediaQuery 依赖要落在
+  /// 弹窗元素上——若借用页面的 context，关闭弹窗后页面仍带着 MediaQuery 依赖，
+  /// 一调整窗口就会反复重建页面（列表反复刷新、switcher 动画重复触发）
+  Widget _buildModDetailPanel(BuildContext dialogContext) {
+    final theme = Theme.of(dialogContext);
+    final colors = AppColors.of(dialogContext);
+    final size = MediaQuery.of(dialogContext).size;
     final latest = metas.firstOrNull;
 
     return ClipRRect(
@@ -727,7 +746,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
         _buildWarningBar(),
         FutureBuilder<bool>(
-          future: _fetchModMetas(page: index),
+          future: _fetchFutureOfCurrentPage,
           builder: (_, s) {
             Widget child;
 
