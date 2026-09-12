@@ -10,6 +10,8 @@ import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
+import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 
 /// 游戏内设置页（数据驱动）。
@@ -68,10 +70,9 @@ class _GameSettingPageState extends State<GameSettingPage> {
   List<SettingSpec> get _categorySpecs =>
       _specs.where((s) => s.category == _category).toList();
 
-  List<SettingCategory> get _presentCategories =>
-      SettingCategory.values
-          .where((c) => _specs.any((s) => s.category == c))
-          .toList();
+  List<SettingCategory> get _presentCategories => SettingCategory.values
+      .where((c) => _specs.any((s) => s.category == c))
+      .toList();
 
   // ── 写回 ──
 
@@ -211,9 +212,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
             for (final option in spec.options ?? const <String>[])
               DropdownMenuItem(value: option, child: Text(option)),
           ],
-          onChanged: override
-              ? (v) => _setValue(spec, v)
-              : null,
+          onChanged: override ? (v) => _setValue(spec, v) : null,
         ),
         SizedBox(width: 8),
         _buildOverrideIcon(
@@ -263,8 +262,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
         Row(
           spacing: 8,
           children: [
-            Icon(Icons.games_outlined, size: 18),
-            Text('编辑版本：'),
+            Text('编辑版本 '),
             DropdownLayer<Mindustry?>(
               width: 220,
               initialValue: _version,
@@ -321,8 +319,8 @@ class _GameSettingPageState extends State<GameSettingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
+    return ListContentPanel(
+      items: [
         ContentPanelModule(
           title: '覆盖',
           child: Column(
@@ -342,19 +340,24 @@ class _GameSettingPageState extends State<GameSettingPage> {
             ],
           ),
         ),
-        Expanded(
-          child: ListContentPanel(
-            items: [
-              ContentPanelModule(
-                title: _category.title,
-                child: Column(
-                  spacing: 8,
-                  children: [
-                    for (final spec in _categorySpecs) _buildSpecBar(spec),
-                  ],
-                ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          transitionBuilder: SwitcherBuilders.fadeSlide(),
+          layoutBuilder: (currentChild, previousChildren) => Stack(
+            alignment: .topCenter,
+            children: [...previousChildren, ?currentChild],
+          ),
+          child: KeyedSubtree(
+            key: ValueKey(_category.title),
+            child: ContentPanelModule(
+              title: _category.title,
+              child: Column(
+                spacing: 8,
+                children: [
+                  for (final spec in _categorySpecs) _buildSpecBar(spec),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ],

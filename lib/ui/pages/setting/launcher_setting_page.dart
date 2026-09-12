@@ -1,9 +1,9 @@
 import 'package:copper_launcher/core/app_config.dart';
 
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
+import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/app_theme.dart';
 
@@ -132,23 +132,108 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   }
 
   Widget _buildThemeColorOptions() {
+    final style = Theme.of(context).textTheme.bodyLarge;
     return Row(
       children: [
-        ReboundButton(
-          child: Text('Copper'),
-          onTap: () => setState(() => themeSwitchTo(themeMode, .copper)),
+        Expanded(
+          flex: 10,
+          child: _ThemeOptionWidget<ThemeColor>(
+            spacing: 4,
+            padding: const EdgeInsets.all(8),
+            selected: themeColor == .copper,
+            mode: .copper,
+            onTap: () => setState(() => themeSwitchTo(themeMode, .copper)),
+            icon: Image.asset(Images.copper, height: 24),
+            label: '黄铜',
+            style: style,
+          ),
         ),
-        ReboundButton(
-          child: Text('titanium'),
-          onTap: () => setState(() => themeSwitchTo(themeMode, .titanium)),
+        Expanded(child: SizedBox()),
+        Expanded(
+          flex: 10,
+          child: _ThemeOptionWidget<ThemeColor>(
+            spacing: 4,
+            padding: const EdgeInsets.all(8),
+            selected: themeColor == .titanium,
+            mode: .titanium,
+            onTap: () => setState(() => themeSwitchTo(themeMode, .titanium)),
+            icon: Image.asset(Images.titanium, height: 24),
+            label: '钛蓝',
+            style: style,
+          ),
         ),
-        ReboundButton(
-          child: Text('thorium'),
-          onTap: () => setState(() => themeSwitchTo(themeMode, .thorium)),
+        Expanded(child: SizedBox()),
+        Expanded(
+          flex: 10,
+          child: _ThemeOptionWidget<ThemeColor>(
+            spacing: 4,
+            padding: const EdgeInsets.all(8),
+            selected: themeColor == .thorium,
+            mode: .thorium,
+            onTap: () => setState(() => themeSwitchTo(themeMode, .thorium)),
+            icon: Image.asset(Images.thorium, height: 24),
+            label: '钍粉',
+            style: style,
+          ),
         ),
-        ReboundButton(
-          child: Text('plastanium'),
-          onTap: () => setState(() => themeSwitchTo(themeMode, .plastanium)),
+        Expanded(child: SizedBox()),
+        Expanded(
+          flex: 10,
+          child: _ThemeOptionWidget<ThemeColor>(
+            spacing: 4,
+            padding: const EdgeInsets.all(8),
+            selected: themeColor == .plastanium,
+            mode: .plastanium,
+            onTap: () => setState(() => themeSwitchTo(themeMode, .plastanium)),
+            icon: Image.asset(Images.plastanium, height: 24),
+            label: '塑钢绿',
+            style: style,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildThemeModeOptions() {
+    return Row(
+      children: [
+        Expanded(
+          flex: 10,
+          child: _ThemeOptionWidget(
+            spacing: 8,
+            padding: const EdgeInsets.all(20),
+            selected: themeMode == .dark,
+            mode: ThemeMode.dark,
+            onTap: () => setState(() => themeSwitchTo(.dark, themeColor)),
+            icon: Icon(Icons.dark_mode),
+            label: '深色模式',
+          ),
+        ),
+        Expanded(child: SizedBox()),
+        Expanded(
+          flex: 10,
+          child: _ThemeOptionWidget(
+            spacing: 8,
+            padding: const EdgeInsets.all(20),
+            selected: themeMode == .system,
+            mode: ThemeMode.system,
+            onTap: () => setState(() => themeSwitchTo(.system, themeColor)),
+            icon: Icon(Symbols.routine),
+            label: '跟随系统',
+          ),
+        ),
+        Expanded(child: SizedBox()),
+        Expanded(
+          flex: 10,
+          child: _ThemeOptionWidget(
+            spacing: 8,
+            padding: const EdgeInsets.all(20),
+            selected: themeMode == .light,
+            mode: ThemeMode.light,
+            onTap: () => setState(() => themeSwitchTo(.light, themeColor)),
+            icon: Icon(Icons.light_mode),
+            label: '浅色模式',
+          ),
         ),
       ],
     );
@@ -165,46 +250,8 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
             spacing: 8,
             children: [
               _buildThemeColorOptions(),
-              SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 10,
-                    child: _ThemeModeOptionWidget(
-                      selected: themeMode == .dark,
-                      mode: ThemeMode.dark,
-                      onTap: () =>
-                          setState(() => themeSwitchTo(.dark, themeColor)),
-                      icon: Icons.dark_mode,
-                      label: '深色模式',
-                    ),
-                  ),
-                  Expanded(child: SizedBox()),
-                  Expanded(
-                    flex: 10,
-                    child: _ThemeModeOptionWidget(
-                      selected: themeMode == .system,
-                      mode: ThemeMode.system,
-                      onTap: () =>
-                          setState(() => themeSwitchTo(.system, themeColor)),
-                      icon: Symbols.routine,
-                      label: '跟随系统',
-                    ),
-                  ),
-                  Expanded(child: SizedBox()),
-                  Expanded(
-                    flex: 10,
-                    child: _ThemeModeOptionWidget(
-                      selected: themeMode == .light,
-                      mode: ThemeMode.light,
-                      onTap: () =>
-                          setState(() => themeSwitchTo(.light, themeColor)),
-                      icon: Icons.light_mode,
-                      label: '浅色模式',
-                    ),
-                  ),
-                ],
-              ),
+              Divider(indent: 40, endIndent: 40),
+              _buildThemeModeOptions(),
               if (kDebugMode)
                 SwitchSettingBar(
                   title: '特殊主题',
@@ -229,26 +276,32 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   }
 }
 
-class _ThemeModeOptionWidget extends StatefulWidget {
-  const _ThemeModeOptionWidget({
+class _ThemeOptionWidget<T> extends StatefulWidget {
+  const _ThemeOptionWidget({
     required this.selected,
     required this.mode,
     required this.onTap,
     required this.icon,
     required this.label,
+    required this.padding,
+    required this.spacing,
+    this.style,
   });
 
   final bool selected;
-  final ThemeMode mode;
+  final T mode;
   final VoidCallback onTap;
-  final IconData icon;
+  final Widget icon;
+  final double spacing;
   final String label;
+  final EdgeInsets padding;
+  final TextStyle? style;
 
   @override
-  State<StatefulWidget> createState() => _ThemeModeOptionWidgetState();
+  State<StatefulWidget> createState() => _ThemeOptionWidgetState();
 }
 
-class _ThemeModeOptionWidgetState extends State<_ThemeModeOptionWidget>
+class _ThemeOptionWidgetState extends State<_ThemeOptionWidget>
     with SingleTickerProviderStateMixin {
   late final AnimationController controller;
 
@@ -260,7 +313,7 @@ class _ThemeModeOptionWidgetState extends State<_ThemeModeOptionWidget>
   }
 
   @override
-  void didUpdateWidget(covariant _ThemeModeOptionWidget oldWidget) {
+  void didUpdateWidget(covariant _ThemeOptionWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.selected) {
       controller.forward();
@@ -273,6 +326,8 @@ class _ThemeModeOptionWidgetState extends State<_ThemeModeOptionWidget>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
+
+    final style = widget.style ?? theme.textTheme.headlineMedium;
 
     Widget child;
 
@@ -300,16 +355,19 @@ class _ThemeModeOptionWidgetState extends State<_ThemeModeOptionWidget>
               border: Border.all(color: colors.border),
             ),
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: widget.padding,
               child: Column(
                 children: [
-                  Icon(widget.icon, size: 32, color: itemColorA.value),
-                  const SizedBox(height: 8),
+                  IconTheme(
+                    data: IconTheme.of(
+                      context,
+                    ).copyWith(size: 32, color: itemColorA.value),
+                    child: widget.icon,
+                  ),
+                  SizedBox(height: widget.spacing),
                   Text(
                     widget.label,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: itemColorA.value,
-                    ),
+                    style: style?.copyWith(color: itemColorA.value),
                   ),
                 ],
               ),
