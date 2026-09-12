@@ -60,6 +60,199 @@ class ModReadmeView extends StatefulWidget {
         : '$repo/tree/$branch/$path';
   }
 
+  /// 按 GitHub 的规则解析 README：
+  ///
+  /// - `ExtensionSet.gitHubFlavored`：表格 / 删除线 / 自动链接 / 任务清单 / 脚注定义
+  /// - 额外启用 emoji 短代码（`:tada:`）与脚注引用——GitHub 都支持
+  /// - `encodeHtml: false`：直写 HTML 以 `UnparsedContent` 原样给出，
+  ///   由渲染器按 GitHub 的白名单自行处理（class/style 属性 GitHub 会剥掉，
+  ///   所以 README 在 GitHub 上从来不依赖它们，这里也无需支持）
+  @visibleForTesting
+  static List<md.Node> parseMarkdown(String data) => _mergeHtmlContainers(
+    md.Document(
+      extensionSet: md.ExtensionSet.gitHubFlavored,
+      encodeHtml: false,
+      // FootnoteRefSyntax 未被 markdown 包导出，脚注引用暂按字面文本处理
+      inlineSyntaxes: [md.EmojiSyntax()],
+    ).parseLines(const LineSplitter().convert(data)),
+  );
+
+  /// 可跨块包裹内容的开标签（GitHub 上 markdown 在这些标签内照常渲染）
+  static const _openableContainers = {'div', 'center'};
+
+  /// 跨块的 HTML 容器合并。
+  ///
+  /// CommonMark 的 HTML 块在空行处结束，所以 `<div align=center>`、
+  /// `markdown 内容`、`</div>` 会成为三个独立块；GitHub 上由浏览器完成
+  /// 标签配对把内容包进容器，这里在块间维持同样的开/闭上下文
+  static List<md.Node> _mergeHtmlContainers(List<md.Node> blocks) {
+    final out = <md.Node>[];
+    final open = <md.Element>[];
+
+    List<md.Node> current() => open.isEmpty ? out : open.last.children!;
+
+    void closeOne() {
+      if (open.isEmpty) return;
+      final element = open.removeLast();
+      current().add(element);
+    }
+
+    for (final node in blocks) {
+      // 块级 HTML 在 markdown 7.x 里是 Text（内容为标签源码）
+      final source = node is md.Text
+          ? node.text.trim()
+          : node is md.UnparsedContent
+          ? node.textContent.trim()
+          : null;
+
+      // 纯闭标签：收掉最近一层容器
+      final closeMatch = source == null
+          ? null
+          : RegExp(r'^\s*</\s*([a-zA-Z][a-zA-Z0-9]*)\s*>\s*$').firstMatch(source);
+      if (closeMatch != null) {
+        closeOne();
+        current().add(node);
+        continue;
+      }
+
+      // 纯开标签（可包裹容器）：压栈，后续块成为它的子内容
+      final openMatch = source == null
+          ? null
+          : RegExp(
+              r'^\s*<([a-zA-Z][a-zA-Z0-9]*)((?:\s+[^<>]*?)?)>\s*$',
+            ).firstMatch(source);
+      if (openMatch != null &&
+          _openableContainers.contains(openMatch.group(1)!.toLowerCase())) {
+        open.add(
+          md.Element(openMatch.group(1)!, <md.Node>[])
+            ..attributes.addAll(_parseAttributes(openMatch.group(2) ?? '')),
+        );
+        continue;
+      }
+      current().add(node);
+    }
+    while (open.isNotEmpty) {
+      closeOne();
+    }
+    return out;
+  }
+
+  /// 把行内节点序列按 `<br>` 拆成多行（空行会被丢弃，由调用方补空隙）
+  @visibleForTesting
+  static List<List<md.Node>> splitInlineOnBr(List<md.Node> nodes) {
+    final lines = <List<md.Node>>[[]];
+    for (final node in nodes) {
+      final isBr =
+          (node is md.Element && node.tag == 'br') ||
+          (node is md.Text &&
+              RegExp(r'^<br\s*/?>$', caseSensitive: false).hasMatch(
+                node.text.trim(),
+              ));
+      if (isBr) {
+        lines.add([]);
+        continue;
+      }
+      lines.last.add(node);
+    }
+    return [for (final line in lines) if (line.isNotEmpty) line];
+  }
+
+  /// 直写 HTML 的小树 → markdown 风格节点（复用既有的块级 / 行内渲染）
+  @visibleForTesting
+  static List<md.Node> convertHtmlNode(ReadmeHtmlNode node) {
+    if (node.tag == null) {
+      return node.text.isEmpty ? const [] : [md.Text(node.text)];
+    }
+    switch (node.tag) {
+      case 'br':
+        return [md.Element.empty('br')];
+      case 'hr':
+        return [md.Element.empty('hr')];
+      case 'img':
+      case 'input':
+        return [
+          md.Element(node.tag!, null)..attributes.addAll(node.attributes),
+        ];
+      default:
+        final children = [
+          for (final child in node.children) ...convertHtmlNode(child),
+        ];
+        return [
+          md.Element(node.tag!, children)..attributes.addAll(node.attributes),
+        ];
+    }
+  }
+
+  /// GitHub tagfilter 明确禁用、会转义成字面文本展示的标签
+  static const _disallowedHtmlTags = {    'iframe',
+    'textarea',
+    'style',
+    'title',
+    'xmp',
+    'noembed',
+    'noframes',
+    'plaintext',
+    'script',
+  };
+
+  /// 会开新块的直写 HTML 标签
+  static const _blockHtmlTags = {
+    'div',
+    'p',
+    'table',
+    'ul',
+    'ol',
+    'details',
+    'pre',
+    'blockquote',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'hr',
+    'dl',
+    'center',
+  };
+
+  /// 行内 HTML 标签
+  static const _inlineHtmlTags = {
+    'a',
+    'img',
+    'b',
+    'strong',
+    'i',
+    'em',
+    'code',
+    'del',
+    's',
+    'strike',
+    'ins',
+    'u',
+    'br',
+    'span',
+    'sub',
+    'sup',
+    'kbd',
+    'samp',
+    'tt',
+    'var',
+    'mark',
+    'q',
+    'small',
+    'font',
+    'time',
+    'abbr',
+    'ruby',
+    'rt',
+    'rp',
+    'bdi',
+    'bdo',
+    'wbr',
+    'input',
+  };
+
   /// HTML 小解析器（暴露出来给测试用）
   @visibleForTesting
   static List<ReadmeHtmlNode>? parseHtml(String html) => _parseHtml(html);
@@ -90,48 +283,18 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     super.dispose();
   }
 
-  List<md.Node> _parse(String data) => parseMarkdown(data);
-
-  /// 按 GitHub 的规则解析 README：
-  ///
-  /// - `ExtensionSet.gitHubFlavored`：表格 / 删除线 / 自动链接 / 任务清单 / 脚注定义
-  /// - 额外启用 emoji 短代码（`:tada:`）与脚注引用——GitHub 都支持
-  /// - `encodeHtml: false`：直写 HTML 以 `UnparsedContent` 原样给出，
-  ///   由渲染器按 GitHub 的白名单自行处理（class/style 属性 GitHub 会剥掉，
-  ///   所以 README 在 GitHub 上从来不依赖它们，这里也无需支持）
-  @visibleForTesting
-  static List<md.Node> parseMarkdown(String data) => md.Document(
-    extensionSet: md.ExtensionSet.gitHubFlavored,
-    encodeHtml: false,
-    // FootnoteRefSyntax 未被 markdown 包导出，脚注引用暂按字面文本处理
-    inlineSyntaxes: [md.EmojiSyntax()],
-  ).parseLines(const LineSplitter().convert(data));
-
-  /// GitHub tagfilter 明确禁用、会转义成字面文本展示的标签
-  static const _disallowedHtmlTags = {
-    'iframe',
-    'textarea',
-    'style',
-    'title',
-    'xmp',
-    'noembed',
-    'noframes',
-    'plaintext',
-    'script',
-  };
+  List<md.Node> _parse(String data) => ModReadmeView.parseMarkdown(data);
 
   ThemeData get _theme => Theme.of(context);
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    //顶层也是「行内 + 块级」混排（如整段的直写 HTML 与裸图片行），统一走混排拆分
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 10,
-      children: [
-        for (final node in _blocks)
-          ?_buildBlock(node, colors),
-      ],
+      children: _buildMixedBlocks(_blocks, colors),
     );
   }
 
@@ -183,22 +346,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         return _buildCodeBlock(node);
 
       case 'blockquote':
-        return Container(
-          padding: const EdgeInsets.only(left: 12),
-          decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(color: colors.border, width: 3),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 8,
-            children: [
-              for (final child in node.children ?? const <md.Node>[])
-                ?_buildBlock(child, colors),
-            ],
-          ),
-        );
+        return _buildBlockquote(node, colors);
 
       case 'hr':
         return Divider(color: colors.border, height: 20);
@@ -210,17 +358,194 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         return _buildDetails(node, colors);
 
       default:
-        // 未知块级：透明处理，只渲染内容（避免标签字面量漏到界面上），
-        // align 属性照常生效（GitHub 允许 div/p/table 的 align）
+        // 未知块级（div 等）：透明处理，只渲染内容；`<center>` 与 align 照常生效。
+        // 内容是「行内 + 块级」混排的（div 里常见 <br> / 图片 / 链接），
+        // 交给混排拆分器处理
         final children = node.children ?? const <md.Node>[];
         if (children.isEmpty) return null;
         final body = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 8,
-          children: [for (final child in children) ?_buildBlock(child, colors)],
+          children: _buildMixedBlocks(children, colors),
         );
-        return _alignWrap(node.attributes, body);
+        final alignment = node.tag == 'center'
+            ? Alignment.center
+            : _alignOf(node.attributes);
+        return alignment == null
+            ? body
+            : Align(alignment: alignment, child: body);
     }
+  }
+
+  /// 把「行内 + 块级」混排的节点列表拆成块：
+  /// - 行内的聚成段落（按 `<br>` 断行，连续 `<br>` 出空隙）
+  /// - 块级的递归 `_buildBlock`
+  List<Widget> _buildMixedBlocks(List<md.Node> nodes, AppColors colors) {
+    final widgets = <Widget>[];
+    final inline = <md.Node>[];
+    var inlineHasContent = false;
+
+    void flushInline() {
+      if (!inlineHasContent) {
+        inline.clear();
+        return;
+      }
+      for (final line in ModReadmeView.splitInlineOnBr(inline)) {
+        widgets.add(_paragraph(line, colors));
+      }
+      inline.clear();
+      inlineHasContent = false;
+    }
+
+    for (final node in nodes) {
+      if (node is md.UnparsedContent) {
+        // 直写 HTML：含块级标签就当块处理，否则并入行内
+        final tree = _parseHtml(node.textContent);
+        final isBlockHtml = tree != null &&
+            tree.any(
+              (it) =>
+                  it.tag != null &&
+                  ModReadmeView._blockHtmlTags.contains(it.tag) &&
+                  // 纯 `<br>` 不算块
+                  it.tag != 'br',
+            );
+        if (isBlockHtml) {
+          flushInline();
+          final converted = [
+            for (final it in tree) ...ModReadmeView.convertHtmlNode(it),
+          ];
+          widgets.addAll(_buildMixedBlocks(converted, colors));
+          continue;
+        }
+        inline.add(node);
+        inlineHasContent = true;
+        continue;
+      }
+      if (node is md.Text) {
+        if (node.text.trim().isEmpty) continue;
+        inline.add(node);
+        inlineHasContent = true;
+        continue;
+      }
+      if (node is md.Element && node.tag == 'br') {
+        // 行内的 <br>：先结束当前段落，连续出现时产生空隙
+        if (inlineHasContent) {
+          for (final line in ModReadmeView.splitInlineOnBr(inline)) {
+            widgets.add(_paragraph(line, colors));
+          }
+          inline.clear();
+          inlineHasContent = false;
+        }
+        widgets.add(const SizedBox(height: 8));
+        continue;
+      }
+      if (node is md.Element && !ModReadmeView._inlineHtmlTags.contains(node.tag)) {
+        flushInline();
+        if (_buildBlock(node, colors) case final widget?) {
+          widgets.add(widget);
+        }
+        continue;
+      }
+      inline.add(node);
+      inlineHasContent = true;
+    }
+    flushInline();
+    return widgets;
+  }
+
+  /// GitHub 提示框：引用块以 `[!NOTE]` / `[!TIP]` / `[!IMPORTANT]` /
+  /// `[!WARNING]` / `[!CAUTION]` 开头时渲染成带图标的色块
+  Widget _buildBlockquote(md.Element node, AppColors colors) {
+    final children = [...(node.children ?? const <md.Node>[])];
+
+    // 检测 alert 标记（在第一个段落的首个文本里）
+    (String, Color, IconData)? alert;
+    for (var i = 0; i < children.length; i++) {
+      final child = children[i];
+      if (child is! md.Element || child.tag != 'p') continue;
+      final pChildren = [...(child.children ?? const <md.Node>[])];
+      for (var j = 0; j < pChildren.length; j++) {
+        final it = pChildren[j];
+        if (it is! md.Text) continue;
+        final match = RegExp(
+          r'^\s*\[!(note|tip|important|warning|caution)\]\s*',
+          caseSensitive: false,
+        ).firstMatch(it.text);
+        if (match == null) break;
+        final kind = match.group(1)!.toLowerCase();
+        alert = switch (kind) {
+          'note' => ('NOTE', const Color(0xFF4493F8), Icons.info_outline),
+          'tip' => ('TIP', const Color(0xFF3FB950), Icons.lightbulb_outline),
+          'important' => (
+            'IMPORTANT',
+            const Color(0xFFAB7DF8),
+            Icons.priority_high_outlined,
+          ),
+          'warning' => (
+            'WARNING',
+            const Color(0xFFD29922),
+            Icons.warning_amber_outlined,
+          ),
+          _ => ('CAUTION', const Color(0xFFF85149), Icons.report_outlined),
+        };
+        // 去掉标记文本（含其后的换行）
+        final rest = it.text.substring(match.end).replaceFirst(RegExp(r'^\n+'), '');
+        if (rest.isEmpty) {
+          pChildren.removeAt(j);
+        } else {
+          pChildren[j] = md.Text(rest);
+        }
+        children[i] = md.Element('p', pChildren)..attributes.addAll(child.attributes);
+        break;
+      }
+      break;
+    }
+
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 8,
+      children: _buildMixedBlocks(children, colors),
+    );
+
+    if (alert == null) {
+      return Container(
+        padding: const EdgeInsets.only(left: 12),
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: colors.border, width: 3)),
+        ),
+        child: body,
+      );
+    }
+
+    final (title, color, icon) = alert;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withAlpha(28),
+        borderRadius: BorderRadius.circular(6),
+        border: Border(left: BorderSide(color: color, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 6,
+        children: [
+          Row(
+            spacing: 8,
+            children: [
+              Icon(icon, size: 16, color: color),
+              Text(
+                title,
+                style: _theme.textTheme.titleSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          body,
+        ],
+      ),
+    );
   }
 
   /// `align="center|left|right"` → 对齐方式（GitHub 白名单里保留的属性，
@@ -491,10 +816,20 @@ class _ModReadmeViewState extends State<ModReadmeView> {
   List<InlineSpan> _inlines(List<md.Node> nodes, AppColors colors) {
     final spans = <InlineSpan>[];
     for (final node in nodes) {
+      // markdown 7.x 把行内直写 HTML 放在 Text 里（源码形式），
+      // 交给 HTML 渲染（<br> / <b> / <a><img> 都在这类节点里）
+      if (node is md.Text && _looksLikeHtml(node.text)) {
+        _appendHtml(node.text, colors, spans);
+        continue;
+      }
       _appendInline(node, colors, spans);
     }
     return spans;
   }
+
+  static final _looksLikeHtmlPattern = RegExp(r'<\s*/?\s*[a-zA-Z]');
+
+  bool _looksLikeHtml(String text) => _looksLikeHtmlPattern.hasMatch(text);
 
   void _appendInline(md.Node node, AppColors colors, List<InlineSpan> spans) {
     if (node is md.Text) {
@@ -654,7 +989,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     }
 
     // GitHub tagfilter：这些标签会被转义成字面文本展示
-    if (_disallowedHtmlTags.contains(node.tag)) {
+    if (ModReadmeView._disallowedHtmlTags.contains(node.tag)) {
       spans.add(TextSpan(text: '<${node.tag}>${node.rawText}</${node.tag}>'));
       return;
     }
@@ -948,12 +1283,18 @@ List<ReadmeHtmlNode>? _parseHtml(String html) {
 
 Map<String, String> _parseAttributes(String raw) {
   final map = <String, String>{};
-  final pattern = RegExp(r'([a-zA-Z-]+)\s*=\s*"([^"]*)"');
+  // 带值属性：双引号 / 单引号 / 裸值（GitHub 上常见 `align = center` 这种无引号写法）
+  final pattern = RegExp(
+    r'([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s"<>\x27]+))',
+  );
+  var rest = raw;
   for (final match in pattern.allMatches(raw)) {
-    map[match.group(1)!.toLowerCase()] = _decodeEntities(match.group(2)!);
+    final value = match.group(2) ?? match.group(3) ?? match.group(4) ?? '';
+    map[match.group(1)!.toLowerCase()] = _decodeEntities(value);
+    rest = rest.replaceFirst(match.group(0)!, ' ');
   }
-  // 无值属性（checked / open 等）
-  for (final match in RegExp(r'(?:^|\s)([a-zA-Z-]+)(?=\s|$)').allMatches(raw)) {
+  // 无值属性（checked / open 等）：只在去掉带值属性后的剩余部分里找
+  for (final match in RegExp(r'(?:^|\s)([a-zA-Z-]+)(?=\s|$)').allMatches(rest)) {
     map.putIfAbsent(match.group(1)!.toLowerCase(), () => '');
   }
   return map;

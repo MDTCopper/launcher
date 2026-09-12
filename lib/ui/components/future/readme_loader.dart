@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/ui/components/future/mod_icon_loader.dart';
 import 'package:copper_launcher/ui/components/future/mod_readme_view.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -225,11 +226,12 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
   Future<Widget?> _fetchImage() async {
     final uri = widget.uri;
 
-    // shields.io 徽章：直接改用 PNG 端点。flutter_svg 对徽章文字（transform
-    // scale + 字距）渲染不可靠，fixSvgTextScale 只是部分缓解，服务端栅格化最稳
+    // shields.io 徽章：统一转成 PNG 端点。flutter_svg 对徽章文字（transform
+    // scale + 字距）渲染不可靠，fixSvgTextScale 只是部分缓解，服务端栅格化最稳。
+    // 很多徽章 URL 没有后缀（/badge/…、/static/v1?…、/github/downloads/…?…），
+    // 所以是「替换或追加 .png」，query 保持不变
     if (uri.host.contains('img.shields.io')) {
-      final png = uri.toString().replaceFirst(RegExp(r'\.svg(?=$|\?)'), '.png');
-      return _raster(png);
+      return _raster(ModNetworkIcon.shieldsPngUrl(uri.toString()));
     }
 
     String url;
