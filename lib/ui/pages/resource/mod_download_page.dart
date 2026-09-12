@@ -21,7 +21,9 @@ import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/future/readme_loader.dart';
 import 'package:copper_launcher/ui/components/pager.dart';
+import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/format/time_since.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:flutter/material.dart';
@@ -328,6 +330,269 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         Center(child: ModNetReadmeLoader(mod: modListMeta)),
   );
 
+  /// 模组详情：完整描述 + 兼容性 + 最新版本 + 动作入口
+  ///
+  /// 列表卡片上的描述只显示 3 行，这里给完整信息，且把「最低游戏版本是否
+  /// 满足当前选中版本」直接判出来（阈值与版本列表同一套 [MinGameVersions]）
+  void _showDetail() => showAnimatedDialog(
+    context: context,
+    pageBuilder: (_, _, _) => Center(child: _buildModDetailPanel()),
+  );
+
+  Widget _buildModDetailPanel() {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final size = MediaQuery.of(context).size;
+    final latest = metas.firstOrNull;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Material(
+        color: theme.colorScheme.secondaryContainer,
+        elevation: 2,
+        child: SizedBox(
+          width: (size.width * 0.55).clamp(420.0, 760.0),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 14,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 72,
+                      width: 72,
+                      child: ModNetworkIcon(modMeta: modListMeta, size: 72),
+                    ),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 6,
+                        children: [
+                          Text(
+                            modListMeta.name,
+                            style: theme.textTheme.headlineMedium,
+                          ),
+                          Text(
+                            '${modListMeta.author}   ·   ${modListMeta.repo}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colors.itemSecondary,
+                            ),
+                          ),
+                          Row(
+                            spacing: 6,
+                            children: [
+                              Icon(Icons.star_border_sharp, size: 16),
+                              Text(
+                                '${modListMeta.stars}',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                '更新于 ${timeSince(modListMeta.lastUpdated)}',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: colors.itemHint,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                //最低游戏版本 + 兼容性、类型、最新版本
+                Column(
+                  spacing: 8,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildDetailRow(
+                      theme,
+                      colors,
+                      '最低游戏版本',
+                      Row(
+                        spacing: 10,
+                        children: [
+                          Text(
+                            modListMeta.minGameVersion,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          _buildCompatBadge(theme),
+                        ],
+                      ),
+                    ),
+                    _buildDetailRow(
+                      theme,
+                      colors,
+                      '类型',
+                      Text(
+                        [
+                          if (modListMeta.hasScripts) '脚本',
+                          if (modListMeta.hasJava) 'Java',
+                        ].join(' + '),
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ),
+                    _buildDetailRow(
+                      theme,
+                      colors,
+                      '最新版本',
+                      Text(
+                        latest == null
+                            ? '未发布任何版本'
+                            : '${latest.tag}   ·   '
+                                  '${_sizeText(_largestAssetSize(latest))}   ·   '
+                                  '${latest.releaseDate.split('T').first}',
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ),
+                  ],
+                ),
+
+                //描述（列表里截断，这里给完整内容）
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: size.height * 0.3),
+                  child: CopperSingleChildScrollView(
+                    child: Column(
+                      spacing: 6,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('描述', style: theme.textTheme.titleMedium),
+                        Text(
+                          generalizeText(modListMeta.description),
+                          style: const TextStyle(height: 1.35),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    IconTextButton(
+                      icon: LineIcons.readme,
+                      content: 'README',
+                      onTap: _showReadme,
+                    ),
+                    IconTextButton(
+                      icon: Icons.file_open_outlined,
+                      content: '源码仓库',
+                      onTap: () => _goToUrl(
+                        'https://github.com/${modListMeta.repo}',
+                      ),
+                    ),
+                    IconTextButton(
+                      icon: FontAwesomeIcons.github.data,
+                      content: '作者主页',
+                      onTap: () => _goToUrl(
+                        'https://github.com/${modListMeta.repo.split('/').first}',
+                      ),
+                    ),
+                    if (latest != null)
+                      IconTextButton(
+                        icon: Icons.download,
+                        content: '下载 ${latest.tag}',
+                        onTap: () => _buildDownloadPopup(latest),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(
+    ThemeData theme,
+    AppColors colors,
+    String label,
+    Widget value,
+  ) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      SizedBox(
+        width: 96,
+        child: Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(color: colors.itemHint),
+        ),
+      ),
+      Expanded(child: value),
+    ],
+  );
+
+  /// 兼容性徽标：该模组声明的最低游戏版本能否在当前选中版本上跑
+  Widget _buildCompatBadge(ThemeData theme) {
+    final support = _compatForSelectedVersion();
+    final version = selectedVersion;
+    final (text, color) = switch (support) {
+      true => ('支持', theme.colorScheme.primary),
+      false => ('不支持', theme.colorScheme.error),
+      null => ('未选择版本', theme.colorScheme.outline),
+    };
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 6,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: color.withAlpha(30),
+            border: Border.all(color: color),
+          ),
+          child: Text(
+            text,
+            style: theme.textTheme.labelMedium?.copyWith(color: color),
+          ),
+        ),
+        if (support != null && version != null)
+          Text(
+            '当前版本 ${version.release}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 该模组在当前选中版本下是否可用；未选版本 / 版本号无法解析时返回 null
+  ///
+  /// 判定与版本列表一致：Java 模组用 java 门槛，其余用脚本门槛
+  bool? _compatForSelectedVersion() {
+    final version = selectedVersion;
+    if (version == null) return null;
+    final modMin = double.tryParse(modListMeta.minGameVersion);
+    if (modMin == null) return null;
+
+    final threshold = modListMeta.hasJava
+        ? MinGameVersions.instance.java.resultOf(version.releaseDouble)
+        : MinGameVersions.instance.mod.resultOf(version.releaseDouble);
+    return modMin >= threshold && modMin <= version.releaseDouble;
+  }
+
+  /// release 中最大附件的体积（一般为模组本体）
+  int _largestAssetSize(ModGithubMeta meta) =>
+      meta.assets.fold(0, (max, asset) => asset.size > max ? asset.size : max);
+
+  String _sizeText(int bytes) {
+    if (bytes >= GB) return '${(bytes / GB).toStringAsFixed(2)} GB';
+    if (bytes >= MB) return '${(bytes / MB).toStringAsFixed(1)} MB';
+    if (bytes >= KB) return '${(bytes / KB).toStringAsFixed(0)} KB';
+    return '$bytes B';
+  }
+
   void _buildDownloadPopup(ModGithubMeta? mod, {bool downloadSource = false}) {
     showAnimatedDialog(
       context: context,
@@ -408,7 +673,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                         IconTextButton(
                           icon: Icons.info_outline,
                           content: '模组详情',
-                          onTap: () {},
+                          onTap: _showDetail,
                         ),
                         IconTextButton(
                           icon: LineIcons.readme,
