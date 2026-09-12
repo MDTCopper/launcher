@@ -445,18 +445,13 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                         ],
                       ),
                     ),
-                    _buildDetailRow(
-                      theme,
-                      colors,
-                      '类型',
-                      Text(
-                        [
-                          if (modListMeta.hasScripts) '脚本',
-                          if (modListMeta.hasJava) 'Java',
-                        ].join(' + '),
-                        style: theme.textTheme.bodyLarge,
+                    if (_typeFromReleases() case final type?)
+                      _buildDetailRow(
+                        theme,
+                        colors,
+                        '类型',
+                        Text(type, style: theme.textTheme.bodyLarge),
                       ),
-                    ),
                     _buildDetailRow(
                       theme,
                       colors,
@@ -464,9 +459,13 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                       Text(
                         latest == null
                             ? '未发布任何版本'
-                            : '${latest.tag}   ·   '
-                                  '${_sizeText(_largestAssetSize(latest))}   ·   '
-                                  '${latest.releaseDate.split('T').first}',
+                            : [
+                                latest.tag,
+                                //没有附件的版本不显示体积
+                                if (_largestAssetSize(latest) > 0)
+                                  _sizeText(_largestAssetSize(latest)),
+                                latest.releaseDate.split('T').first,
+                              ].join('   ·   '),
                         style: theme.textTheme.bodyLarge,
                       ),
                     ),
@@ -490,44 +489,27 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                     ),
                   ),
                 ),
-
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    IconTextButton(
-                      icon: LineIcons.readme,
-                      content: 'README',
-                      onTap: _showReadme,
-                    ),
-                    IconTextButton(
-                      icon: Icons.file_open_outlined,
-                      content: '源码仓库',
-                      onTap: () => _goToUrl(
-                        'https://github.com/${modListMeta.repo}',
-                      ),
-                    ),
-                    IconTextButton(
-                      icon: FontAwesomeIcons.github.data,
-                      content: '作者主页',
-                      onTap: () => _goToUrl(
-                        'https://github.com/${modListMeta.repo.split('/').first}',
-                      ),
-                    ),
-                    if (latest != null)
-                      IconTextButton(
-                        icon: Icons.download,
-                        content: '下载 ${latest.tag}',
-                        onTap: () => _buildDownloadPopup(latest),
-                      ),
-                  ],
-                ),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// 从 release 附件推断模组类型：有 `.jar` → Java，其余附件（源码包等）→ 脚本。
+  ///
+  /// 最新版本没有附件时类型无从判断，往更早的版本找；全都没有附件时返回 null
+  /// （调用方据此不显示「类型」行）
+  String? _typeFromReleases() {
+    for (final meta in metas) {
+      if (meta.assets.isEmpty) continue;
+      final hasJar = meta.assets.any(
+        (asset) => asset.name.toLowerCase().endsWith('.jar'),
+      );
+      return hasJar ? 'Java' : '脚本';
+    }
+    return null;
   }
 
   Widget _buildDetailRow(
