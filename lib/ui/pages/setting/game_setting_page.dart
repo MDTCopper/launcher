@@ -11,6 +11,7 @@ import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
+import 'package:copper_launcher/util/io/print_on_debug.dart';
 import 'package:flutter/material.dart';
 
 /// 游戏内设置页（数据驱动）。
@@ -78,10 +79,25 @@ class _GameSettingPageState extends State<GameSettingPage> {
         _category = present.isEmpty ? SettingCategory.common : present.first;
       }
     });
+    printOnDebug(
+      '[GameSettingPage] build=$build 适配项=${_specs.length} '
+      '常用=${_specs.where((s) => s.categories.contains(SettingCategory.common)).length} '
+      '来源=${specs != null ? "适配文件" : "内置目录兜底"}',
+    );
   }
 
-  List<SettingSpec> get _categorySpecs =>
-      _specs.where((s) => s.categories.contains(_category)).toList();
+  /// 当前分类的条目：调整条（滑块）在前、下拉次之、开关在后，
+  /// 同类型内保持数据原顺序
+  List<SettingSpec> get _categorySpecs {
+    final specs =
+        _specs.where((s) => s.categories.contains(_category)).toList();
+    int rank(SettingSpec s) => switch (s.type) {
+      SettingType.int => 0,
+      SettingType.options => 1,
+      SettingType.bool => 2,
+    };
+    return specs..sort((a, b) => rank(a).compareTo(rank(b)));
+  }
 
   List<SettingCategory> get _presentCategories => SettingCategory.values
       .where((c) => _specs.any((s) => s.categories.contains(c)))
