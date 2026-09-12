@@ -3,19 +3,58 @@ import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
 
+/// 图标探测结果：把「确认没有图标」和「网络失败」分开。
+///
+/// 两者在 UI 上要给不同的占位，且**网络失败不能写入缺失缓存**——
+/// 否则一次网络抖动会把图标永久判定为缺失（直到重启）。
+enum ModIconResultType { found, missing, networkError }
+
+class ModIconResult {
+  final ModIconResultType type;
+
+  /// [ModIconResultType.found] 时有效
+  final String? url;
+
+  const ModIconResult._(this.type, [this.url]);
+
+  const ModIconResult.found(String url) : this._(ModIconResultType.found, url);
+
+  const ModIconResult.missing() : this._(ModIconResultType.missing);
+
+  const ModIconResult.networkError() : this._(ModIconResultType.networkError);
+}
+
 class ModNetworkIcon extends StatefulWidget {
   final ModOfficialListMeta modMeta;
   final double size;
+
+  /// 探测中占位（默认转圈）
   final Widget? onWaiting;
-  final Widget? onError;
+
+  /// 该模组确实没有图标（候选地址全不存在）时的占位
+  final Widget? onMissing;
+
+  /// 网络失败（断网 / 代理不通）时的占位，可与「没有图标」区分显示
+  final Widget? onNetworkError;
 
   const ModNetworkIcon({
     super.key,
     required this.modMeta,
     this.size = 64,
     this.onWaiting,
-    this.onError,
+    this.onMissing,
+    this.onNetworkError,
   });
+
+  /// 是否连接类失败（网络问题、可重试），区别于 404 这类「资源不存在」
+  @visibleForTesting
+  static bool isNetworkFailure(DioException error) => switch (error.type) {
+    DioExceptionType.connectionError ||
+    DioExceptionType.connectionTimeout ||
+    DioExceptionType.sendTimeout ||
+    DioExceptionType.receiveTimeout => true,
+    _ => false,
+  };
 
   @override
   State<StatefulWidget> createState() => _ModNetworkIconState();
@@ -28,12 +67,12 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
   static const _formatCandidates = ['png', 'jpg', 'jpeg'];
 
   /// 探测图标地址的 Future，只建一次
-  late Future<String?> _iconUrlFuture;
+  late Future<ModIconResult> _iconFuture;
 
   @override
   void initState() {
     super.initState();
-    _iconUrlFuture = _fetchIconUrl();
+    _iconFuture = _probeIcon();
   }
 
   @override
@@ -41,76 +80,93 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
     super.didUpdateWidget(oldWidget);
     // 翻页 / 改筛选时同一位置的 element 会换到另一个 mod，得重新探测
     if (oldWidget.modMeta != widget.modMeta) {
-      _iconUrlFuture = _fetchIconUrl();
+      _iconFuture = _probeIcon();
     }
   }
 
-  Future<String?> _fetchIconUrl() async {
-    final meta = widget.modMeta;
-
-    if (meta.iconUrlCache != null) return meta.iconUrlCache;
-    // 探过且确认没有图标：直接返回，别再跑一轮
-    if (meta.iconMissingCache) return null;
-
-    final repoUrl = 'https://raw.githubusercontent.com/${meta.repo}';
+  /// 候选图标地址（分支 × 路径 × 后缀）
+  Iterable<({String url, String branch})> _candidateUrls(String repoUrl) sync* {
     for (final format in _formatCandidates) {
       for (final branch in _branchCandidates) {
         for (final path in _pathCandidates) {
-          final url = '$repoUrl/$branch/$path.$format';
-          try {
-            final res = await cio.head(url, headers: modDownloadHeaders);
-            if (res.data != null) {
-              meta.iconUrlCache = url;
-              meta.mainBranchCache = branch;
-              return url;
-            }
-          } catch (_) {
-            continue;
-          }
+          yield (url: '$repoUrl/$branch/$path.$format', branch: branch);
         }
+      }
+    }
+  }
+
+  Future<ModIconResult> _probeIcon() async {
+    final meta = widget.modMeta;
+
+    if (meta.iconUrlCache != null) return ModIconResult.found(meta.iconUrlCache!);
+    // 探过且确认没有图标：直接返回，别再跑一轮
+    if (meta.iconMissingCache) return const ModIconResult.missing();
+
+    final repoUrl = 'https://raw.githubusercontent.com/${meta.repo}';
+    for (final candidate in _candidateUrls(repoUrl)) {
+      try {
+        final res = await cio.head(candidate.url, headers: modDownloadHeaders);
+        if (res.statusCode == 200 || res.data != null) {
+          meta.iconUrlCache = candidate.url;
+          meta.mainBranchCache = candidate.branch;
+          return ModIconResult.found(candidate.url);
+        }
+      } on DioException catch (e) {
+        // 网络类失败：不是「没有图标」，立即中止探测且**不写缺失缓存**
+        if (ModNetworkIcon.isNetworkFailure(e)) {
+          return const ModIconResult.networkError();
+        }
+        // 404 等：该候选不存在，换下一个
+      } catch (_) {
+        // 其它异常同样按候选不存在处理
       }
     }
 
     meta.iconMissingCache = true;
-    return null;
+    return const ModIconResult.missing();
   }
+
+  Widget _defaultPlaceholder(IconData icon, {Color? color}) => Icon(
+    icon,
+    size: widget.size * 0.5,
+    color: color ?? Theme.of(context).colorScheme.outline,
+  );
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<String?>(
-      future: _iconUrlFuture,
+    final scheme = Theme.of(context).colorScheme;
+    final onWaiting =
+        widget.onWaiting ??
+        CircularProgressIndicator(padding: EdgeInsets.all(widget.size * 0.25));
+    //没有图标：中性（该模组就是没放图标）
+    final onMissing =
+        widget.onMissing ?? _defaultPlaceholder(Icons.extension_outlined);
+    //网络失败：警示色，与「没有图标」拉开差距
+    final onNetworkError =
+        widget.onNetworkError ??
+        _defaultPlaceholder(Icons.cloud_off_outlined, color: scheme.error);
+
+    return FutureBuilder<ModIconResult>(
+      future: _iconFuture,
       builder: (_, s) {
-        if (s.hasError) {
-          return widget.onError ??
-              Icon(Icons.broken_image_outlined, size: widget.size * 0.5);
-        }
+        if (s.hasError) return onNetworkError;
+        if (s.connectionState != ConnectionState.done) return onWaiting;
 
-        final onWaiting =
-            widget.onWaiting ??
-            CircularProgressIndicator(
-              padding: EdgeInsets.all(widget.size * 0.25),
-            );
-
-        final onError =
-            widget.onError ??
-            Icon(Icons.broken_image_outlined, size: widget.size * 0.5);
-
-        switch (s.connectionState) {
-          case ConnectionState.none:
-          case ConnectionState.active:
-          case ConnectionState.waiting:
-            return onWaiting;
-          case ConnectionState.done:
-            if (!s.hasData) {
-              return onError;
-            }
+        final result = s.data;
+        switch (result?.type) {
+          case ModIconResultType.found:
             return Image.network(
-              s.data!,
+              result!.url!,
               height: widget.size,
               width: widget.size,
               headers: {'User-Agent': 'MindustryModDownloader'},
-              errorBuilder: (_, _, _) => onError,
+              errorBuilder: (_, _, _) => onNetworkError,
             );
+          case ModIconResultType.missing:
+            return onMissing;
+          case ModIconResultType.networkError:
+          case null:
+            return onNetworkError;
         }
       },
     );
