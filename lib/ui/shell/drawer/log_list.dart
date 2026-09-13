@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
@@ -152,6 +153,37 @@ class _TaskLogListState extends State<TaskLogList> {
   Widget _buildItem(LogEntry logEntry) {
     final colors = AppColors.of(context);
     final theme = Theme.of(context);
+
+    final describe = LayoutBuilder(
+      builder: (_, c) {
+        final describeP = TextPainter(
+          text: TextSpan(
+            text: logEntry.describe,
+            style: theme.textTheme.bodyMedium,
+          ),
+          textDirection: .ltr,
+        )..layout();
+        Widget describe = Text(
+          logEntry.describe,
+          style: theme.textTheme.bodyMedium,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        );
+        //超出大小添加hint
+        if (describeP.width > c.maxWidth) {
+          describe = HintLayer(
+            showOnTap: true,
+            preferPosition: .left,
+            gap: 30,
+            hint: logEntry.describe,
+            child: describe,
+          );
+        }
+
+        return describe;
+      },
+    );
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -163,21 +195,11 @@ class _TaskLogListState extends State<TaskLogList> {
         children: [
           Icon(_typeIcon(logEntry.type), size: 18, color: colors.itemHint),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              logEntry.describe,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.itemPrimary,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+          Expanded(child: describe),
           const SizedBox(width: 8),
           Text(
             _timeFormat.format(logEntry.time),
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.itemSecondary,
-            ),
+            style: theme.textTheme.labelSmall,
           ),
         ],
       ),
