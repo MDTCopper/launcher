@@ -1,15 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:copper_launcher/ui/components/animation/reveal_list_view.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
+import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/data/local_asset.dart' show Mindustry;
 import 'package:copper_launcher/util/app_paths.dart';
-import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../../util/format/string_cleaner.dart';
@@ -197,34 +194,6 @@ class ResourceImporterState extends State<ResourceImporter> {
     }
   }
 
-  ///给资源瓦片包上滑动 / 右键菜单：勾选切换 + 打开所在文件夹
-  Widget _menuTile(int index, FileReader it, bool checked, Widget tile) {
-    return ActionMenu(
-      enableSwipe: true,
-      menuBuilder: (_, controller) => [
-        MenuButton(
-          icon: Icon(checked ? Icons.check_box : Icons.check_box_outline_blank),
-          label: checked ? '取消勾选' : '勾选',
-          onTap: () {
-            controller.dismiss();
-            setState(() {
-              checked ? _selected.remove(index) : _selected.add(index);
-            });
-          },
-        ),
-        MenuButton(
-          icon: const Icon(Icons.folder_open_outlined),
-          label: '打开所在文件夹',
-          onTap: () {
-            controller.dismiss();
-            PathSelector.openFolder(File(it.path).parent.path);
-          },
-        ),
-      ],
-      child: tile,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -264,20 +233,24 @@ class ResourceImporterState extends State<ResourceImporter> {
         SizedBox(height: 8),
         if (importList.isNotEmpty)
           Expanded(
-            child: RevealListView(
-              delay: 300,
-              appearDuration: const Duration(milliseconds: 350),
-              offset: Offset(-0.1, 0.0),
-              items: importList.asMap().entries.map((entry) {
-                final index = entry.key;
-                final it = entry.value;
+            child: DragSelectList(
+              itemCount: importList.length,
+              selected: _selected,
+              itemSpacing: 4,
+              onToggle: (index, selected) {
+                setState(() {
+                  selected ? _selected.add(index) : _selected.remove(index);
+                });
+              },
+              itemBuilder: (context, index, _) {
+                final it = importList[index];
                 final checked = _selected.contains(index);
                 switch (it.type) {
                   case null:
                     return SizedBox();
                   case ResourceType.mindustry:
                     final m = it.mindustry!;
-                    final tile = ReboundListTile(
+                    return ReboundListTile(
                       selected: checked,
                       elevation: checked ? 1 : 0,
                       onTap: () {
@@ -296,7 +269,6 @@ class ResourceImporterState extends State<ResourceImporter> {
                         ],
                       ),
                     );
-                    return _menuTile(index, it, checked, tile);
                   case ResourceType.mod:
                     final mod = it.mod!;
 
@@ -311,7 +283,7 @@ class ResourceImporterState extends State<ResourceImporter> {
                       );
                     }
 
-                    final tile = ReboundListTile(
+                    return ReboundListTile(
                       selected: checked,
                       elevation: checked ? 1 : 0,
                       onTap: () {
@@ -336,10 +308,9 @@ class ResourceImporterState extends State<ResourceImporter> {
                         ],
                       ),
                     );
-                    return _menuTile(index, it, checked, tile);
                   case ResourceType.mapSave:
                     final m = it.mapSave!;
-                    final tile = ReboundListTile(
+                    return ReboundListTile(
                       selected: checked,
                       elevation: checked ? 1 : 0,
                       onTap: () {
@@ -354,10 +325,9 @@ class ResourceImporterState extends State<ResourceImporter> {
                       ),
                       subtitle: Text(formatPathForWrap(m.path ?? ''), style: theme.textTheme.bodySmall),
                     );
-                    return _menuTile(index, it, checked, tile);
                   case ResourceType.schematic:
                     final m = it.schematic!;
-                    final tile = ReboundListTile(
+                    return ReboundListTile(
                       selected: checked,
                       elevation: checked ? 1 : 0,
                       onTap: () {
@@ -372,7 +342,6 @@ class ResourceImporterState extends State<ResourceImporter> {
                       ),
                       subtitle: Text(formatPathForWrap(m.path ?? ''), style: theme.textTheme.bodySmall),
                     );
-                    return _menuTile(index, it, checked, tile);
                   case ResourceType.settings:
                     return ReboundListTile(
                       leading: Icon(Icons.settings_outlined, size: 64),
@@ -380,7 +349,7 @@ class ResourceImporterState extends State<ResourceImporter> {
                       subtitle: Text(formatPathForWrap(it.path)),
                     );
                 }
-              }).toList(),
+              },
             ),
           ),
         if (importList.isNotEmpty)
