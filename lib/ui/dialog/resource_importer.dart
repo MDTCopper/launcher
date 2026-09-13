@@ -103,7 +103,8 @@ class ResourceImporterState extends State<ResourceImporter> {
 
   bool get _allSelected => _selected.length == importList.length;
 
-  ///把 [source] 复制到 [dir]，同名文件自动加序号，不覆盖已有内容
+  ///把 [source] 复制到 [dir]，同名文件自动加序号，不覆盖已有内容；
+  ///返回 null 表示复制成功，否则为失败原因（与 [_importOne] 的返回值契约一致）
   Future<String?> _copyInto(String dir, String source) async {
     try {
       final target = Directory(dir);
@@ -121,9 +122,9 @@ class ResourceImporterState extends State<ResourceImporter> {
         index++;
       }
       await File(source).copy(dest);
-      return dest;
-    } catch (_) {
       return null;
+    } catch (error) {
+      return '复制失败：$error';
     }
   }
 
