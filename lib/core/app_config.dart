@@ -41,6 +41,9 @@ Future<void> initAppConfig() async {
       jsonDecode(utf8.decode(base64Decode(encodedData))),
     );
   }
+  //配置里记的启动器版本跟上当前构建：`AppConfig.version` 原先只在首次创建配置时
+  //写入过一次（构造函数默认值），之后一直被文件里的旧值覆盖，永远停在那个版本
+  config.version = appVersion;
   await config.save();
 }
 
