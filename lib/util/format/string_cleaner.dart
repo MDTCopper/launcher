@@ -90,58 +90,103 @@ String generalizeText(String str, {bool removeNewLine = false}) {
 
 
 
+/// 修正 SVG 里被 `transform="scale(...)"` 缩放的文字。
+///
+/// shields.io 这类徽章有两种写法：
+/// - `<text transform="scale(.1)">`（缩放写在 text 上）
+/// - `<g transform="scale(.1)"><text …></g>`（缩放写在祖先 g 上）
+///
+/// flutter_svg 对后者不生效（g 的缩放没作用到文字），文字会按原始字号
+/// 直接画出来——于是「徽章上的字超大、徽标大小正常」。这里把累计缩放
+/// 烘焙进 text 的 font-size / x / y / textLength，并去掉这些 scale
+final _scalePattern = RegExp(r'scale\s*\(\s*([\d.]+)\s*\)');
+
+/// 元素内部是否只有文本相关节点（没有图形 / 图片）
+bool _svgOnlyTextInside(XmlElement element) => element.descendantElements.every(
+  (it) => const {'g', 'text', 'title', 'tspan', 'desc'}.contains(it.name.local),
+);
+
+/// 向上找最近的 font-size（自身优先）
+double? _svgInheritedFontSize(XmlElement element) {
+  var current = element;
+  while (current.parent != null) {
+    final value = current.getAttribute('font-size');
+    final number = value == null ? null : double.tryParse(value);
+    if (number != null) return number;
+    final parent = current.parentElement;
+    if (parent == null) break;
+    current = parent;
+  }
+  return null;
+}
+
+/// 去掉 transform 里的 scale(...)；没有别的内容就删除整个属性
+void _svgStripScale(XmlElement element) {
+  final transform = element.getAttribute('transform');
+  if (transform == null) return;
+  final left = transform.replaceAll(RegExp(r'scale\s*\([^)]*\)'), '').trim();
+  if (left.isEmpty) {
+    element.removeAttribute('transform');
+  } else {
+    element.setAttribute('transform', left);
+  }
+}
+
 String fixSvgTextScale(String svgString) {
   try {
     final document = XmlDocument.parse(svgString);
-    final gNodeScaleMap = <XmlElement, double>{};
 
-    // 1. 收集所有带 transform scale 的 text 节点，找到父 g 节点
     for (final textNode in document.findAllElements('text')) {
-      final transform = textNode.getAttribute('transform');
-      if (transform == null || !transform.contains('scale')) continue;
+      // 1. 累计自身与祖先上的 scale
+      final holders = <XmlElement>{};
+      var scale = 1.0;
 
-      final match = RegExp(r'scale\(([\d.]+)\)').firstMatch(transform);
-      if (match == null) continue;
-      final scale = double.parse(match.group(1)!);
-
-      // 向上找最近的 <g> 父节点
-      XmlElement? parentG = textNode.parentElement;
-      while (parentG != null && parentG.name.local != 'g') {
-        parentG = parentG.parentElement;
-      }
-
-      if (parentG != null && !gNodeScaleMap.containsKey(parentG)) {
-        gNodeScaleMap[parentG] = scale;
-      }
-    }
-
-    // 2. 每个 g 节点只改一次 fontSize
-    for (final g in gNodeScaleMap.entries) {
-      final fontSizeStr = g.key.getAttribute('font-size');
-      if (fontSizeStr == null) continue;
-      final fontSize = double.parse(fontSizeStr);
-      g.key.setAttribute('font-size', (fontSize * g.value).toStringAsFixed(1));
-    }
-
-    // 3. 修正所有 text 的 x/y/textLength，并移除 transform
-    for (final textNode in document.findAllElements('text')) {
-      final transform = textNode.getAttribute('transform');
-      if (transform == null || !transform.contains('scale')) continue;
-
-      final match = RegExp(r'scale\(([\d.]+)\)').firstMatch(transform);
-      if (match == null) continue;
-      final scale = double.parse(match.group(1)!);
-
-      final attrs = const ['x', 'y', 'textLength'];
-      for (final attr in attrs) {
-        final val = textNode.getAttribute(attr);
-        if (val == null) continue;
-        final numVal = double.tryParse(val);
-        if (numVal != null) {
-          textNode.setAttribute(attr, (numVal * scale).toStringAsFixed(1));
+      void collect(XmlElement element) {
+        final transform = element.getAttribute('transform');
+        if (transform == null) return;
+        for (final match in _scalePattern.allMatches(transform)) {
+          scale *= double.parse(match.group(1)!);
+          holders.add(element);
         }
       }
-      textNode.removeAttribute('transform');
+
+      collect(textNode);
+      var parent = textNode.parentElement;
+      while (parent != null) {
+        collect(parent);
+        parent = parent.parentElement;
+      }
+      if (scale == 1.0 || holders.isEmpty) continue;
+
+      // 2. 祖先里若还画了别的东西（徽标 / 图形），去掉它的缩放会牵连它们 → 放弃
+      if (holders.any(
+        (it) => !identical(it, textNode) && !_svgOnlyTextInside(it),
+      )) {
+        continue;
+      }
+
+      // 3. 字号：继承值 × 累计缩放，显式写到 text 上
+      final inherited = _svgInheritedFontSize(textNode);
+      if (inherited != null) {
+        textNode.setAttribute(
+          'font-size',
+          (inherited * scale).toStringAsFixed(2),
+        );
+      }
+
+      // 4. x / y / textLength 同步缩放
+      for (final attr in const ['x', 'y', 'textLength']) {
+        final value = textNode.getAttribute(attr);
+        final number = value == null ? null : double.tryParse(value);
+        if (number != null) {
+          textNode.setAttribute(attr, (number * scale).toStringAsFixed(2));
+        }
+      }
+
+      // 5. 去掉这些元素上的 scale（保留 translate 等其它变换）
+      for (final holder in holders) {
+        _svgStripScale(holder);
+      }
     }
 
     return document.toXmlString();
