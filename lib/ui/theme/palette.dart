@@ -88,7 +88,7 @@ abstract class Palette {
   // 暗色模式专用灰阶
   // ═══════════════════════════════════════════════════════════
 
-  static const darkPage = Color(0xFF0F0F0F); // 页面底（不纯黑）
+  static const darkPage = Color.fromARGB(255, 18, 18, 18); // 页面底（不纯黑）
   static const darkCard = Color(0xFF1A1A1A); // 卡片 / 容器
   static const darkElevated = Color(0xFF252525); // 悬浮 / 选中浮层
   static const darkBorder = Color(0xFF2A2A2A); // 边框（暗色）
