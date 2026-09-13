@@ -255,13 +255,13 @@ class ResourceImporterState extends State<ResourceImporter> {
                         });
                       },
                       leading: Image.asset(Images.mindustry),
-                      title: Text('Mindustry v${m.version}'),
+                      title: Text('Mindustry v${m.version}', style: theme.textTheme.bodyMedium),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('build ${m.build}  (${m.type})'),
-                          Text(formatPathForWrap(m.path ?? '')),
+                          Text('build ${m.build}  (${m.type})', style: theme.textTheme.bodySmall),
+                          Text(formatPathForWrap(m.path ?? ''), style: theme.textTheme.bodySmall),
                         ],
                       ),
                     );
@@ -271,11 +271,11 @@ class ResourceImporterState extends State<ResourceImporter> {
                     Widget leading;
                     final icon = mod.icon;
                     if (icon == null) {
-                      leading = Icon(Icons.question_mark, size: 40);
+                      leading = Icon(Icons.question_mark, size: 32);
                     } else {
                       leading = ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: Image.memory(icon, height: 40, width: 40),
+                        child: Image.memory(icon, height: 32, width: 32),
                       );
                     }
 
@@ -290,6 +290,7 @@ class ResourceImporterState extends State<ResourceImporter> {
                       leading: leading,
                       title: Text(
                         '模组  ${generalizeText(mod.name)}  |  作者  ${generalizeText(mod.author)}',
+                        style: theme.textTheme.bodyMedium,
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,6 +298,7 @@ class ResourceImporterState extends State<ResourceImporter> {
                         children: [
                           Text(
                             '版本  ${mod.version}   |   minGameVersion ${mod.minGameVersion}',
+                            style: theme.textTheme.bodySmall,
                           ),
                           Text(formatPathForWrap(mod.path ?? '')),
                         ],
@@ -312,11 +314,12 @@ class ResourceImporterState extends State<ResourceImporter> {
                           checked ? _selected.remove(index) : _selected.add(index);
                         });
                       },
-                      leading: Icon(Icons.map_outlined, size: 40),
+                      leading: Icon(Icons.map_outlined, size: 32),
                       title: Text(
                         '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
+                        style: theme.textTheme.bodyMedium,
                       ),
-                      subtitle: Text(formatPathForWrap(m.path ?? '')),
+                      subtitle: Text(formatPathForWrap(m.path ?? ''), style: theme.textTheme.bodySmall),
                     );
                   case ResourceType.schematic:
                     final m = it.schematic!;
@@ -328,16 +331,17 @@ class ResourceImporterState extends State<ResourceImporter> {
                           checked ? _selected.remove(index) : _selected.add(index);
                         });
                       },
-                      leading: Icon(Icons.paste, size: 40),
+                      leading: Icon(Icons.paste, size: 32),
                       title: Text(
                         '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
+                        style: theme.textTheme.bodyMedium,
                       ),
-                      subtitle: Text(formatPathForWrap(m.path ?? '')),
+                      subtitle: Text(formatPathForWrap(m.path ?? ''), style: theme.textTheme.bodySmall),
                     );
                   case ResourceType.settings:
                     return ReboundListTile(
                       leading: Icon(Icons.settings_outlined, size: 64),
-                      title: Text('设置文件（暂不支持导入）'),
+                      title: Text('设置文件（暂不支持导入）', style: theme.textTheme.bodyMedium),
                       subtitle: Text(formatPathForWrap(it.path)),
                     );
                 }
