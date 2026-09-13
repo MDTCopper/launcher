@@ -243,7 +243,7 @@ pause
           ].whereType<String>().toList();
     if (paths.isEmpty) return;
     if (!mounted) return;
-    showResourceImporter(paths);
+    showResourceImporter(paths, mindustry: _mindustry);
   }
 
   /// 收藏 / 取消收藏当前版本

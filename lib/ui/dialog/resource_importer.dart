@@ -6,6 +6,7 @@ import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/data/local_asset.dart' show Mindustry;
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:flutter/material.dart';
 
@@ -21,7 +22,7 @@ bool isImporting = false;
 ///弹出本地资源导入对话框。
 ///
 ///返回是否成功导入了至少一个资源；同屏只允许一个导入流程
-Future<bool> showResourceImporter(List<String> files) async {
+Future<bool> showResourceImporter(List<String> files, {Mindustry? mindustry}) async {
   if (isImporting) return true;
   if (files.isEmpty) return false;
   isImporting = true;
@@ -29,7 +30,11 @@ Future<bool> showResourceImporter(List<String> files) async {
   final result = Completer<bool>();
   showDefaultDialogPopup(
     pageBuilder: (_, _, _) {
-      return ResourceImporter(files: files, onFinished: result.complete);
+      return ResourceImporter(
+        files: files,
+        mindustry: mindustry,
+        onFinished: result.complete,
+      );
     },
   );
 
@@ -39,9 +44,17 @@ Future<bool> showResourceImporter(List<String> files) async {
 }
 
 class ResourceImporter extends StatefulWidget {
-  const ResourceImporter({super.key, required this.files, required this.onFinished});
+  const ResourceImporter({
+    super.key,
+    required this.files,
+    required this.onFinished,
+    this.mindustry,
+  });
 
   final List<String> files;
+
+  ///目标游戏版本：提供时导入到该版本的独立数据目录（版本隔离感知）
+  final Mindustry? mindustry;
 
   ///导入流程结束时回调（是否成功导入至少一个资源）
   final ValueChanged<bool> onFinished;
@@ -113,7 +126,9 @@ class ResourceImporterState extends State<ResourceImporter> {
 
   ///把单个资源导入对应目录，返回 null 表示成功，否则为失败原因
   Future<String?> _importOne(FileReader reader) async {
-    final gameData = AppPaths.defaultGameData;
+    //目标数据目录：指定版本 → 该版本的独立数据目录（版本隔离感知）；
+    //未指定 → 默认游戏数据目录
+    final gameData = widget.mindustry?.dataPath ?? AppPaths.defaultGameData;
     switch (reader.type) {
       case ResourceType.mod:
         if (reader.mod?.path == null || gameData == null) {
