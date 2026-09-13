@@ -271,11 +271,11 @@ class ResourceImporterState extends State<ResourceImporter> {
                     Widget leading;
                     final icon = mod.icon;
                     if (icon == null) {
-                      leading = Icon(Icons.question_mark, size: 48);
+                      leading = Icon(Icons.question_mark, size: 40);
                     } else {
                       leading = ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: Image.memory(icon, height: 48, width: 48),
+                        child: Image.memory(icon, height: 40, width: 40),
                       );
                     }
 
@@ -312,7 +312,7 @@ class ResourceImporterState extends State<ResourceImporter> {
                           checked ? _selected.remove(index) : _selected.add(index);
                         });
                       },
-                      leading: Icon(Icons.map_outlined, size: 48),
+                      leading: Icon(Icons.map_outlined, size: 40),
                       title: Text(
                         '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
                       ),
@@ -328,7 +328,7 @@ class ResourceImporterState extends State<ResourceImporter> {
                           checked ? _selected.remove(index) : _selected.add(index);
                         });
                       },
-                      leading: Icon(Icons.paste, size: 48),
+                      leading: Icon(Icons.paste, size: 40),
                       title: Text(
                         '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
                       ),
