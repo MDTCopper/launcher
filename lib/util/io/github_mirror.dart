@@ -103,8 +103,9 @@ class GithubMirror {
   }
 
   ///同步 config 的开关（启动 / 设置页变更时调用）。
-  void applySettings() {
-    _enabled = config.setting.mirrorOptions.enabled;
+  ///应用镜像设置（由调用方注入，不读全局 config）
+  void applySettings(MirrorOptions options) {
+    _enabled = options.enabled;
   }
 
   ///仅供测试：清空单例状态，隔离用例（GithubMirror 是单例，无外部重置入口）。

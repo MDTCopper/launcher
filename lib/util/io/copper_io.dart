@@ -180,6 +180,9 @@ class CopperIO {
   ///github token（明文），请求 api.github.com 时自动附加
   String _githubToken = '';
 
+  ///镜像使用策略（由 [applySettings] 注入，默认优先官方源）
+  MirrorStrategy _mirrorStrategy = MirrorStrategy.githubFirst;
+
   Duration _connectTimeout = const Duration(seconds: 20);
   Duration _receiveTimeout = const Duration(seconds: 600);
 
@@ -187,20 +190,24 @@ class CopperIO {
 
   String get userAgent => 'CopperLauncher/$appVersion';
 
-  ///按 config 同步 token / 代理 / 下载默认值。
+  ///应用设置：token / 代理 / 下载默认值 / 镜像策略全部由**入参**提供，
+  ///cio 自身不读全局 config（便于测试与其它调用方复用）。
   ///
   ///启动在 [initAppConfig] 之后调用；下载设置页每次改动 config 后也调用，
   ///保证新请求（含新开始的下载）即时生效。
-  void applySettings() {
-    final setting = config.setting;
+  void applySettings(Setting setting) {
     //trim 防止历史配置残留空白 token（`token   ` 也会触发 GitHub 401）
     _githubToken = setting.githubToken.trim();
     _defaultSpeedLimitBytes = setting.downloadOptions.speedLimitBytes;
     _defaultChunkCount = setting.downloadOptions.maxTread;
+    _mirrorStrategy = setting.mirrorOptions.strategy;
 
     applyProxySetting(setting.proxyOptions);
-    GithubMirror.instance.applySettings();
+    GithubMirror.instance.applySettings(setting.mirrorOptions);
   }
+
+  /// 当前镜像策略（供调试 / 测试查看）
+  MirrorStrategy get mirrorStrategy => _mirrorStrategy;
 
   ///应用配置里的代理（跟随系统 / 自定义 / 关闭三种模式）。
   void applyProxySetting(ProxyOptions options) {
@@ -297,35 +304,61 @@ class CopperIO {
     );
   }
 
-  ///官方直连失败（网络类错误）后，选最优镜像重试一次。
+  ///按镜像策略决定 GitHub 请求走哪条路。
   ///
-  ///对齐 Mindustry 的错误驱动回退：直连优先，网络不通才走镜像。
-  ///镜像优先用 TTL 缓存（10 分钟），过期才重新分级测速，避免每次回退
-  ///都对全量节点发起探测。
+  /// - [MirrorStrategy.githubFirst]（默认）：直连优先，网络类错误才回退镜像
+  ///   （对齐 Mindustry 的错误驱动回退；镜像用 TTL 缓存 10 分钟，过期才测速）
+  /// - [MirrorStrategy.mirrorFirst]：先走镜像（校园网 / 直连不通时更快），
+  ///   失败再回退官方源
+  /// - [MirrorStrategy.githubOnly]：只用官方源
   Future<R> _githubFallback<R>(
     String url,
     Future<R> Function(String effectiveUrl) send,
   ) async {
-    try {
-      return await send(url);
-    } catch (e) {
-      if (!_shouldFallbackToMirror(e, url)) rethrow;
+    if (!GithubMirror.isGithubUrl(url)) return send(url);
 
-      final mirror = GithubMirror.instance;
-      if (!mirror.enabled || !GithubMirror.isGithubUrl(url)) rethrow;
+    switch (_mirrorStrategy) {
+      case MirrorStrategy.githubOnly:
+        return send(url);
 
-      String? prefix = mirror.freshBestMirror;
-      if (prefix == null) {
+      case MirrorStrategy.mirrorFirst:
+        if (!GithubMirror.instance.enabled) return send(url);
         try {
-          prefix = await mirror.selectBestMirror(url);
+          return await _sendViaMirror(url, send);
         } catch (_) {
-          //测速失败不阻塞，用现有最优镜像继续
-          prefix = mirror.bestMirror;
+          //镜像失败（含拿不到节点）→ 回退官方源
+          return send(url);
         }
-      }
-      if (prefix == null) rethrow;
-      return await send('$prefix$url');
+
+      case MirrorStrategy.githubFirst:
+        try {
+          return await send(url);
+        } catch (e) {
+          if (!_shouldFallbackToMirror(e, url)) rethrow;
+          return _sendViaMirror(url, send);
+        }
     }
+  }
+
+  ///经镜像发一次请求：取最优节点前缀（TTL 缓存优先，过期才测速）后重发
+  Future<R> _sendViaMirror<R>(
+    String url,
+    Future<R> Function(String effectiveUrl) send,
+  ) async {
+    final mirror = GithubMirror.instance;
+    if (!mirror.enabled) throw StateError('镜像未启用');
+
+    String? prefix = mirror.freshBestMirror;
+    if (prefix == null) {
+      try {
+        prefix = await mirror.selectBestMirror(url);
+      } catch (_) {
+        //测速失败不阻塞，用现有最优镜像继续
+        prefix = mirror.bestMirror;
+      }
+    }
+    if (prefix == null) throw StateError('无可用镜像节点');
+    return send('$prefix$url');
   }
 
   ///是否值得回退镜像：网络类错误一律回退；GitHub 的 401/403（空/失效 token、

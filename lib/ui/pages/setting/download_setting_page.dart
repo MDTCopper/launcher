@@ -107,7 +107,7 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
   ///写回 config 并同步网络单例（新请求/新下载即时生效）
   void _persistAndSync() {
     config.save();
-    cio.applySettings();
+    cio.applySettings(config.setting);
   }
 
   ///当前限速在档位列表中的下标
@@ -396,8 +396,30 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
               _persistAndSync();
             },
           ),
+          OptionSettingBar<MirrorStrategy>(
+            title: '镜像策略',
+            hintText: 'GitHub 请求优先走哪条路',
+            initialValue: config.setting.mirrorOptions.strategy,
+            options: const [
+              DropdownOption(
+                value: MirrorStrategy.githubFirst,
+                label: '优先官方源（失败才走镜像）',
+              ),
+              DropdownOption(
+                value: MirrorStrategy.mirrorFirst,
+                label: '优先镜像（直连不通时更快）',
+              ),
+              DropdownOption(value: MirrorStrategy.githubOnly, label: '只用官方源'),
+            ],
+            onSelect: (value) {
+              setState(() {
+                config.setting.mirrorOptions.strategy = value;
+              });
+              _persistAndSync();
+            },
+          ),
           Text(
-            '官方直连失败时自动走最快的镜像\n预设节点 $presetCount 个，自定义节点 ${customs.length} 个',
+            '预设节点 $presetCount 个，自定义节点 ${customs.length} 个',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           Row(

@@ -274,13 +274,23 @@ MirrorOptions _$MirrorOptionsFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           [],
+      strategy:
+          $enumDecodeNullable(_$MirrorStrategyEnumMap, json['strategy']) ??
+          MirrorStrategy.githubFirst,
     );
 
 Map<String, dynamic> _$MirrorOptionsToJson(MirrorOptions instance) =>
     <String, dynamic>{
       'enabled': instance.enabled,
       'customNodes': instance.customNodes,
+      'strategy': _$MirrorStrategyEnumMap[instance.strategy]!,
     };
+
+const _$MirrorStrategyEnumMap = {
+  MirrorStrategy.githubFirst: 'githubFirst',
+  MirrorStrategy.mirrorFirst: 'mirrorFirst',
+  MirrorStrategy.githubOnly: 'githubOnly',
+};
 
 VersionOptions _$VersionOptionsFromJson(Map<String, dynamic> json) =>
     VersionOptions(

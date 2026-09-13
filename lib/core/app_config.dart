@@ -552,20 +552,40 @@ class ProxyOptions {
 
 ///github 镜像加速配置。
 ///
+///镜像使用策略
+enum MirrorStrategy {
+  ///优先官方源：直连 GitHub，失败（连接类错误）才回退镜像（默认，最省流量）
+  githubFirst,
+
+  ///优先镜像：GitHub 地址先走镜像，失败再回退官方源（校园网 / 直连不通时更快）
+  mirrorFirst,
+
+  ///只用官方源，完全不碰镜像
+  githubOnly,
+}
+
 ///预设节点（官方仓库 `remote/github_mirrors.hjson` + 从 github.akams.cn 拉取的
 ///节点）单独管理，不落 config；只有用户手动添加的 [customNodes] 存在这里，
 ///与预设节点分开。
 @JsonSerializable()
 class MirrorOptions {
-  MirrorOptions({required this.enabled, required this.customNodes});
+  MirrorOptions({
+    required this.enabled,
+    required this.customNodes,
+    required this.strategy,
+  });
 
-  ///是否启用镜像加速（官方直连失败时才走镜像）。
+  ///是否启用镜像加速
   @JsonKey(defaultValue: true)
   bool enabled;
 
   ///用户自定义节点（完整前缀，如 `https://ghfast.top/`）。
   @JsonKey(defaultValue: [])
   List<String> customNodes;
+
+  ///镜像使用策略：优先官方源 / 优先镜像 / 只用官方源
+  @JsonKey(defaultValue: MirrorStrategy.githubFirst)
+  MirrorStrategy strategy;
 
   factory MirrorOptions.fromJson(Map<String, dynamic> json) =>
       _$MirrorOptionsFromJson(json);

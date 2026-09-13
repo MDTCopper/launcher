@@ -40,7 +40,7 @@ Future<void> _initialize() async {
   await TokenEncryptor.init();
   await initAppConfig();
   //config 就绪后同步网络设置（代理/token/限速/线程/镜像），此后新建请求即生效
-  cio.applySettings();
+  cio.applySettings(config.setting);
   await _initPlatformView();
   //窗口就绪后应用托盘模式（依赖 config + windowManager）
   await LauncherTray.instance.applyMode();
