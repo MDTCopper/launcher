@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
@@ -21,7 +22,10 @@ bool isImporting = false;
 ///弹出本地资源导入对话框。
 ///
 ///返回是否成功导入了至少一个资源；同屏只允许一个导入流程
-Future<bool> showResourceImporter(List<String> files, {Mindustry? mindustry}) async {
+Future<bool> showResourceImporter(
+  List<String> files, {
+  Mindustry? mindustry,
+}) async {
   if (isImporting) return true;
   if (files.isEmpty) return false;
   isImporting = true;
@@ -133,12 +137,18 @@ class ResourceImporterState extends State<ResourceImporter> {
         if (reader.mod?.path == null || gameData == null) {
           return '未找到游戏数据目录';
         }
-        return await _copyInto('$gameData${Platform.pathSeparator}mods', reader.mod!.path!);
+        return await _copyInto(
+          '$gameData${Platform.pathSeparator}mods',
+          reader.mod!.path!,
+        );
       case ResourceType.mapSave:
         if (reader.mapSave?.path == null || gameData == null) {
           return '未找到游戏数据目录';
         }
-        return await _copyInto('$gameData${Platform.pathSeparator}maps', reader.mapSave!.path!);
+        return await _copyInto(
+          '$gameData${Platform.pathSeparator}maps',
+          reader.mapSave!.path!,
+        );
       case ResourceType.schematic:
         if (reader.schematic?.path == null || gameData == null) {
           return '未找到游戏数据目录';
@@ -194,14 +204,36 @@ class ResourceImporterState extends State<ResourceImporter> {
     }
   }
 
+  ///全选 / 取消全选（头部按钮）
+  void _toggleAllSelected() {
+    setState(() {
+      if (_allSelected) {
+        _selected.clear();
+      } else {
+        _selected.addAll([for (var i = 0; i < importList.length; i++) i]);
+      }
+    });
+  }
+
+  ///点击瓦片切换该项的选中态（拖动连续选择走 [DragSelectList] 的 onToggle）
+  void _toggleSelected(int index) {
+    setState(() {
+      _selected.contains(index)
+          ? _selected.remove(index)
+          : _selected.add(index);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 8,
       children: [
         Row(
+          spacing: 8,
           children: [
             ReboundButton(
               onTap: () {
@@ -210,173 +242,169 @@ class ResourceImporterState extends State<ResourceImporter> {
               },
               child: Icon(Icons.arrow_back),
             ),
-            SizedBox(width: 8),
-            Text('导入本地资源', style: theme.textTheme.bodyLarge),
+            Text('导入本地资源', style: theme.textTheme.titleLarge),
             Spacer(),
             if (importList.isNotEmpty)
               ReboundButton(
-                onTap: () {
-                  setState(() {
-                    if (_allSelected) {
-                      _selected.clear();
-                    } else {
-                      _selected.addAll([
-                        for (var i = 0; i < importList.length; i++) i,
-                      ]);
-                    }
-                  });
-                },
+                //次级操作：贴合对话框按钮的常规边距
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                onTap: _toggleAllSelected,
                 child: Text(_allSelected ? '取消全选' : '全选'),
               ),
           ],
         ),
-        SizedBox(height: 8),
-        if (importList.isNotEmpty)
+        if (importList.isNotEmpty) ...[
+          //列表自身不带滚动条：外套项目滚动容器（自研滚动条 + 渐隐遮罩）；
+          //DragSelectList 拿到的高度无界 → 其内层滚动视图不滚动，滚轮与滚动条由外层接管
           Expanded(
-            child: DragSelectList(
-              itemCount: importList.length,
-              selected: _selected,
-              itemSpacing: 4,
-              onToggle: (index, selected) {
-                setState(() {
-                  selected ? _selected.add(index) : _selected.remove(index);
-                });
-              },
-              itemBuilder: (context, index, _) {
-                final it = importList[index];
-                final checked = _selected.contains(index);
-                switch (it.type) {
-                  case null:
-                    return SizedBox();
-                  case ResourceType.mindustry:
-                    final m = it.mindustry!;
-                    return ReboundListTile(
-                      selected: checked,
-                      elevation: checked ? 1 : 0,
-                      onTap: () {
-                        setState(() {
-                          checked ? _selected.remove(index) : _selected.add(index);
-                        });
-                      },
-                      leading: Image.asset(Images.mindustry),
-                      title: Text('Mindustry v${m.version}', style: theme.textTheme.bodyMedium),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('build ${m.build}  (${m.type})', style: theme.textTheme.bodySmall),
-                          Text(formatPathForWrap(m.path ?? ''), style: theme.textTheme.bodySmall),
-                        ],
-                      ),
-                    );
-                  case ResourceType.mod:
-                    final mod = it.mod!;
-
-                    Widget leading;
-                    final icon = mod.icon;
-                    if (icon == null) {
-                      leading = Icon(Icons.question_mark, size: 32);
-                    } else {
-                      leading = ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Image.memory(icon, height: 32, width: 32),
-                      );
-                    }
-
-                    return ReboundListTile(
-                      selected: checked,
-                      elevation: checked ? 1 : 0,
-                      onTap: () {
-                        setState(() {
-                          checked ? _selected.remove(index) : _selected.add(index);
-                        });
-                      },
-                      leading: leading,
-                      title: Text(
-                        '模组  ${generalizeText(mod.name)}  |  作者  ${generalizeText(mod.author)}',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '版本  ${mod.version}   |   minGameVersion ${mod.minGameVersion}',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          Text(formatPathForWrap(mod.path ?? '')),
-                        ],
-                      ),
-                    );
-                  case ResourceType.mapSave:
-                    final m = it.mapSave!;
-                    return ReboundListTile(
-                      selected: checked,
-                      elevation: checked ? 1 : 0,
-                      onTap: () {
-                        setState(() {
-                          checked ? _selected.remove(index) : _selected.add(index);
-                        });
-                      },
-                      leading: Icon(Icons.map_outlined, size: 32),
-                      title: Text(
-                        '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      subtitle: Text(formatPathForWrap(m.path ?? ''), style: theme.textTheme.bodySmall),
-                    );
-                  case ResourceType.schematic:
-                    final m = it.schematic!;
-                    return ReboundListTile(
-                      selected: checked,
-                      elevation: checked ? 1 : 0,
-                      onTap: () {
-                        setState(() {
-                          checked ? _selected.remove(index) : _selected.add(index);
-                        });
-                      },
-                      leading: Icon(Icons.paste, size: 32),
-                      title: Text(
-                        '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      subtitle: Text(formatPathForWrap(m.path ?? ''), style: theme.textTheme.bodySmall),
-                    );
-                  case ResourceType.settings:
-                    return ReboundListTile(
-                      leading: Icon(Icons.settings_outlined, size: 64),
-                      title: Text('设置文件（暂不支持导入）', style: theme.textTheme.bodyMedium),
-                      subtitle: Text(formatPathForWrap(it.path)),
-                    );
-                }
-              },
+            child: CopperSingleChildScrollView(
+              child: DragSelectList(
+                itemCount: importList.length,
+                selected: _selected,
+                itemSpacing: 4,
+                onToggle: (index, selected) {
+                  setState(() {
+                    selected ? _selected.add(index) : _selected.remove(index);
+                  });
+                },
+                itemBuilder: (context, index, _) => _buildResourceTile(index),
+              ),
             ),
           ),
-        if (importList.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Row(
-              children: [
-                Text(
-                  '已选 ${_selected.length} / ${importList.length}',
-                  style: theme.textTheme.bodySmall,
+          Row(
+            spacing: 8,
+            children: [
+              Text(
+                '已选 ${_selected.length} / ${importList.length}',
+                style: theme.textTheme.bodySmall,
+              ),
+              Spacer(),
+              ReboundButton(
+                //主操作：比次级操作厚一档，拉开层级
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
                 ),
-                Spacer(),
-                ReboundButton(
-                  onTap: _importing || _selected.isEmpty ? null : _importSelected,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      _importing
-                          ? '导入中...'
-                          : '导入选中（${_selected.length}）',
-                    ),
-                  ),
+                onTap: _importing || _selected.isEmpty ? null : _importSelected,
+                child: Text(
+                  _importing ? '导入中...' : '导入选中（${_selected.length}）',
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ],
       ],
     );
+  }
+
+  ///单个资源瓦片：按类型给图标与信息，选中态与列表联动
+  Widget _buildResourceTile(int index) {
+    final theme = Theme.of(context);
+    final reader = importList[index];
+    final checked = _selected.contains(index);
+
+    switch (reader.type) {
+      case null:
+        return const SizedBox.shrink();
+      case ResourceType.mindustry:
+        final mindustry = reader.mindustry!;
+        return ReboundListTile(
+          selected: checked,
+          elevation: checked ? 1 : 0,
+          onTap: () => _toggleSelected(index),
+          leading: Image.asset(Images.mindustry),
+          title: Text(
+            'Mindustry v${mindustry.version}',
+            style: theme.textTheme.bodyMedium,
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'build ${mindustry.build}  (${mindustry.type})',
+                style: theme.textTheme.bodySmall,
+              ),
+              Text(
+                formatPathForWrap(mindustry.path ?? ''),
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
+        );
+      case ResourceType.mod:
+        final mod = reader.mod!;
+
+        Widget leading;
+        final icon = mod.icon;
+        if (icon == null) {
+          leading = Icon(Icons.question_mark, size: 48);
+        } else {
+          leading = ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Image.memory(icon, height: 48, width: 48),
+          );
+        }
+
+        return ReboundListTile(
+          selected: checked,
+          elevation: checked ? 1 : 0,
+          onTap: () => _toggleSelected(index),
+          leading: leading,
+          title: Text(
+            '模组  ${generalizeText(mod.name)}  |  作者  ${generalizeText(mod.author)}',
+            style: theme.textTheme.bodyMedium,
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '版本  ${mod.version}   |   minGameVersion ${mod.minGameVersion}',
+                style: theme.textTheme.bodySmall,
+              ),
+              Text(formatPathForWrap(mod.path ?? '')),
+            ],
+          ),
+        );
+      case ResourceType.mapSave:
+        final mapState = reader.mapSave!;
+        return ReboundListTile(
+          selected: checked,
+          elevation: checked ? 1 : 0,
+          onTap: () => _toggleSelected(index),
+          leading: Icon(Icons.map_outlined, size: 48),
+          title: Text(
+            '地图  ${generalizeText(mapState.name)}  |  作者  ${generalizeText(mapState.author)}',
+            style: theme.textTheme.bodyMedium,
+          ),
+          subtitle: Text(
+            formatPathForWrap(mapState.path ?? ''),
+            style: theme.textTheme.bodySmall,
+          ),
+        );
+      case ResourceType.schematic:
+        final schematic = reader.schematic!;
+        return ReboundListTile(
+          selected: checked,
+          elevation: checked ? 1 : 0,
+          onTap: () => _toggleSelected(index),
+          leading: Icon(Icons.paste, size: 48),
+          title: Text(
+            '蓝图  ${generalizeText(schematic.name)}  |  作者  ${generalizeText(schematic.author)}',
+            style: theme.textTheme.bodyMedium,
+          ),
+          subtitle: Text(
+            formatPathForWrap(schematic.path ?? ''),
+            style: theme.textTheme.bodySmall,
+          ),
+        );
+      case ResourceType.settings:
+        return ReboundListTile(
+          leading: Icon(Icons.settings_outlined, size: 48),
+          title: Text('设置文件（暂不支持导入）', style: theme.textTheme.bodyMedium),
+          subtitle: Text(formatPathForWrap(reader.path)),
+        );
+    }
   }
 }
