@@ -1,13 +1,12 @@
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/components/future/mod_readme_view.dart';
+import 'package:copper_launcher/ui/components/future/shields_badge.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
-import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 
 import '../../vars.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -226,6 +225,12 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
   Future<Widget?> _fetchImage() async {
     final uri = widget.uri;
 
+    // shields.io 徽章：优先用 JSON 数据自绘（样式无关、不依赖 SVG 引擎）
+    if (uri.isAbsolute && uri.host.endsWith('shields.io')) {
+      final badge = await _shieldsBadge(uri.toString());
+      if (badge != null) return badge;
+    }
+
     // 相对路径：按仓库解析（缓存的分支优先，再回退 main/master）；
     // 绝对路径：直接按 content-type 分流
     if (uri.isAbsolute) {
@@ -256,53 +261,58 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
     return _raster(url);
   }
 
-  /// SVG：按 DPR 栅格化后，**按逻辑尺寸显示**
-  ///
-  /// 位图分辨率高于显示尺寸所以在高分屏依然清晰；但显示尺寸必须用逻辑尺寸
-  /// ——否则位图会按像素 1:1 铺开，在 DPI>100% 时整个徽章被放大（字变得超大）
-  Future<Widget?> _svgImage(String url) async {
-    ui.Picture? sourcePicture;
-    ui.Image? image;
-    // DPR 在异步间隙前取好（避免跨 async 使用 BuildContext）
-    final scale = MediaQuery.devicePixelRatioOf(context).clamp(1.0, 3.0);
+  /// shields.io 徽章：取 JSON 后自绘；任何一步失败都返回 null（回退 SVG 路径）
+  Future<Widget?> _shieldsBadge(String url) async {
     try {
-      final res = await cio.get<String>(url, headers: modDownloadHeaders);
-      if (res.statusCode != 200) return null;
-
-      final pictureInfo = await vg.loadPicture(
-        SvgStringLoader(fixSvgTextScale(res.data.toString())),
-        null,
+      final uri = Uri.parse(url);
+      final res = await cio.get<String>(
+        ShieldsBadge.jsonUrlOf(url),
+        headers: modDownloadHeaders,
       );
-      sourcePicture = pictureInfo.picture;
+      final body = res.statusCode == 200 ? res.data?.toString() : null;
+      if (body == null) return null;
+      final data = ShieldsBadge.parse(body);
+      if (data == null) return null;
 
-      final width = (pictureInfo.size.width * scale).ceil();
-      final height = (pictureInfo.size.height * scale).ceil();
-      if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
-        return null;
-      }
-
-      final recorder = ui.PictureRecorder();
-      Canvas(recorder)
-        ..scale(scale)
-        ..drawPicture(sourcePicture);
-      image = await recorder.endRecording().toImage(width, height);
-      final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      final bytes = data?.buffer.asUint8List();
-      if (bytes == null) return null;
-
-      return Image.memory(
-        bytes,
-        // 显示尺寸取逻辑尺寸；HTML 的 width/height 属性优先
-        width: widget.width ?? pictureInfo.size.width,
-        height: widget.height ?? pictureInfo.size.height,
-        filterQuality: FilterQuality.medium,
-        errorBuilder: (_, _, _) => onError,
+      return ShieldsBadge(
+        data: data,
+        style: uri.queryParameters['style'] ?? 'flat',
+        logo: uri.queryParameters['logo'],
+        logoColor: uri.queryParameters['logoColor'],
       );
     } catch (_) {
       return null;
-    } finally {
-      sourcePicture?.dispose();
-      image?.dispose();
+    }
+  }
+
+  /// SVG：交给 jovial_svg 渲染。
+  ///
+  /// 之前用 flutter_svg，但它对**内嵌图像（base64 `<image>`）**、**属性继承
+  /// （fill / font-size）**、**祖先 transform** 的支持都有缺口——徽章的徽标
+  /// 渲染不出来、文字颜色错、字号被放大，只能靠逐个打补丁（fixSvgTextScale）。
+  /// jovial_svg 这几项都支持，且是矢量渲染，无需自己按 DPR 栅格化
+  Future<Widget?> _svgImage(String url) async {
+    try {
+      final res = await cio.get<String>(url, headers: modDownloadHeaders);
+      final svg = res.statusCode == 200 ? res.data?.toString() : null;
+      if (svg == null || svg.isEmpty) return null;
+
+      final image = ScalableImage.fromSvgString(
+        svg,
+        // README 里的 SVG 常有引擎不支持的特性（滤镜、pattern 等），不打印告警
+        warnF: (_) {},
+      );
+      // 预解码内嵌图像（徽标等）
+      await image.prepareImages();
+
+      return SizedBox(
+        // 未指定尺寸时用 SVG 自身的视口尺寸，保证徽章按原始大小显示
+        width: widget.width ?? image.width,
+        height: widget.height ?? image.height,
+        child: ScalableImageWidget(si: image),
+      );
+    } catch (_) {
+      return null;
     }
   }
 

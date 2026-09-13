@@ -20,6 +20,7 @@ dependencies:
   path: ^1.8.3
   font_awesome_flutter: ^11.0.0
   flutter_svg: ^2.2.1
+  jovial_svg: ^1.1.29
   line_icons: ^2.0.3
   json_annotation: ^4.9.0
   system_info2: ^4.1.0
