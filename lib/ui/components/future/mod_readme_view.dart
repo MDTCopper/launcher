@@ -813,16 +813,20 @@ class _ModReadmeViewState extends State<ModReadmeView> {
 
   // ── 行内 ──
 
-  List<InlineSpan> _inlines(List<md.Node> nodes, AppColors colors) {
+  List<InlineSpan> _inlines(
+    List<md.Node> nodes,
+    AppColors colors, {
+    String? linkUrl,
+  }) {
     final spans = <InlineSpan>[];
     for (final node in nodes) {
       // markdown 7.x 把行内直写 HTML 放在 Text 里（源码形式），
       // 交给 HTML 渲染（<br> / <b> / <a><img> 都在这类节点里）
       if (node is md.Text && _looksLikeHtml(node.text)) {
-        _appendHtml(node.text, colors, spans);
+        _appendHtml(node.text, colors, spans, linkUrl: linkUrl);
         continue;
       }
-      _appendInline(node, colors, spans);
+      _appendInline(node, colors, spans, linkUrl: linkUrl);
     }
     return spans;
   }
@@ -831,7 +835,12 @@ class _ModReadmeViewState extends State<ModReadmeView> {
 
   bool _looksLikeHtml(String text) => _looksLikeHtmlPattern.hasMatch(text);
 
-  void _appendInline(md.Node node, AppColors colors, List<InlineSpan> spans) {
+  void _appendInline(
+    md.Node node,
+    AppColors colors,
+    List<InlineSpan> spans, {
+    String? linkUrl,
+  }) {
     if (node is md.Text) {
       if (node.text.isNotEmpty) spans.add(TextSpan(text: node.text));
       return;
@@ -929,7 +938,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         final url = href == null
             ? null
             : ModReadmeView.resolveLink(widget.mod, href);
-        final text = _inlines(children, colors);
+        final text = _inlines(children, colors, linkUrl: url);
         if (url == null) {
           spans.add(TextSpan(children: text));
         } else {
@@ -942,7 +951,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
           );
         }
       case 'img':
-        spans.add(_imageSpan(node, colors));
+        spans.add(_imageSpan(node, colors, linkUrl: linkUrl));
       case 'br':
         spans.add(const TextSpan(text: '\n'));
       case 'input':
@@ -966,7 +975,12 @@ class _ModReadmeViewState extends State<ModReadmeView> {
   }
 
   /// 直写 HTML 片段：先解析成小树，再按标签渲染；解析不了就剥标签留文本
-  void _appendHtml(String html, AppColors colors, List<InlineSpan> spans) {
+  void _appendHtml(
+    String html,
+    AppColors colors,
+    List<InlineSpan> spans, {
+    String? linkUrl,
+  }) {
     final tree = _parseHtml(html);
     if (tree == null) {
       final plain = html.replaceAll(RegExp(r'<[^>]*>'), '').trim();
@@ -974,15 +988,16 @@ class _ModReadmeViewState extends State<ModReadmeView> {
       return;
     }
     for (final node in tree) {
-      _renderHtmlNode(node, colors, spans);
+      _renderHtmlNode(node, colors, spans, linkUrl: linkUrl);
     }
   }
 
   void _renderHtmlNode(
     ReadmeHtmlNode node,
     AppColors colors,
-    List<InlineSpan> spans,
-  ) {
+    List<InlineSpan> spans, {
+    String? linkUrl,
+  }) {
     if (node.tag == null) {
       if (node.text.isNotEmpty) spans.add(TextSpan(text: node.text));
       return;
@@ -1078,9 +1093,13 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         final url = href == null
             ? null
             : ModReadmeView.resolveLink(widget.mod, href);
+        final childSpans = <InlineSpan>[];
+        for (final child in node.children) {
+          _renderHtmlNode(child, colors, childSpans, linkUrl: url);
+        }
         spans.add(
           TextSpan(
-            children: children(),
+            children: childSpans,
             style: url == null
                 ? null
                 : TextStyle(color: _theme.colorScheme.primary),
@@ -1094,6 +1113,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
             double.tryParse(node.attributes['width'] ?? ''),
             double.tryParse(node.attributes['height'] ?? ''),
             colors,
+            linkUrl: linkUrl,
           ),
         );
       default:
@@ -1112,40 +1132,56 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     ),
   );
 
-  InlineSpan _imageSpan(md.Element node, AppColors colors) {
+  InlineSpan _imageSpan(
+    md.Element node,
+    AppColors colors, {
+    String? linkUrl,
+  }) {
     final src = node.attributes['src'];
     if (src == null || src.trim().isEmpty) {
       return const TextSpan(text: '');
     }
     final width = double.tryParse(node.attributes['width'] ?? '');
     final height = double.tryParse(node.attributes['height'] ?? '');
-    return _imageSpanOf(src, width, height, colors);
+    return _imageSpanOf(src, width, height, colors, linkUrl: linkUrl);
   }
 
   InlineSpan _imageSpanOf(
     String src,
     double? width,
     double? height,
-    AppColors colors,
-  ) {
+    AppColors colors, {
+    String? linkUrl,
+  }) {
     final uri = Uri.tryParse(src.trim());
     if (uri == null) return const TextSpan(text: '');
+
+    Widget image = ModReadmeNetworkImage(
+      uri: uri,
+      mod: widget.mod,
+      width: width,
+      height: height,
+      onError: Icon(
+        Icons.broken_image_outlined,
+        size: 16,
+        color: colors.itemHint,
+      ),
+    );
+
+    // <a><img></a>：图片是真实 widget，父 TextSpan 的 recognizer 管不到它，
+    // 必须自己包手势才能点击
+    if (linkUrl != null) {
+      image = GestureDetector(
+        onTap: () => _openLink(linkUrl),
+        child: image,
+      );
+    }
 
     return WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
-        child: ModReadmeNetworkImage(
-          uri: uri,
-          mod: widget.mod,
-          width: width,
-          height: height,
-          onError: Icon(
-            Icons.broken_image_outlined,
-            size: 16,
-            color: colors.itemHint,
-          ),
-        ),
+        child: image,
       ),
     );
   }

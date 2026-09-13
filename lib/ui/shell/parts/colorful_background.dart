@@ -16,6 +16,7 @@ class ColorfulBackground extends StatefulWidget {
   const ColorfulBackground({
     super.key,
     required this.child,
+    this.colorful = true,
     this.animate = true,
     this.duration = const Duration(seconds: 14),
     this.intensity = 1.0,
@@ -23,6 +24,9 @@ class ColorfulBackground extends StatefulWidget {
 
   /// 前景内容，绘制在所有光效之上
   final Widget child;
+
+  /// 是否渲染流光层；false 时只留底色（零每帧开销）
+  final bool colorful;
 
   /// 是否播放缓慢的漂移 / 流动动画
   final bool animate;
@@ -59,20 +63,20 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (widget.animate) _controller.repeat();
+    if (widget.animate && widget.colorful) _controller.repeat();
   }
 
   @override
   void didChangeMetrics() {
     // 调整窗口 / 最大化时暂停动画：每帧重绘成本 ∝ 像素数，resize 期间
     // 尺寸连续变化会让全窗口图层连续重绘。尺寸稳定一段时间后恢复
-    if (widget.animate && _controller.isAnimating) {
+    if (widget.animate && widget.colorful && _controller.isAnimating) {
       _controller.stop();
     }
     _resizeResumeTimer?.cancel();
-    if (!widget.animate) return;
+    if (!widget.animate || !widget.colorful) return;
     _resizeResumeTimer = Timer(_resizeResumeDelay, () {
-      if (!mounted || !widget.animate) return;
+      if (!mounted || !widget.animate || !widget.colorful) return;
       if (!_controller.isAnimating) _controller.repeat();
     });
   }
@@ -103,6 +107,15 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    if (!widget.colorful) {
+      // 直接关闭：只留底色，不渲染流光层（零每帧开销）
+      return Stack(
+        children: [
+          Positioned.fill(child: ColoredBox(color: colors.pageBackground)),
+          widget.child,
+        ],
+      );
+    }
     return Stack(
       children: [
         // 底色

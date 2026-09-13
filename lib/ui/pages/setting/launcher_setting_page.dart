@@ -1,4 +1,5 @@
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -127,12 +128,14 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
                 : const SizedBox.shrink(),
           ),
           SwitchSettingBar(
-            title: '动态背景（低配 / 大窗口建议关闭）',
-            value: personalizationOptions.colorfulBackgroundAnimated,
+            title: '多彩背景（大窗口 / 低配建议关闭）',
+            value: personalizationOptions.colorfulBackground,
             onChanged: (value) {
               setState(() {
-                personalizationOptions.colorfulBackgroundAnimated = value;
+                personalizationOptions.colorfulBackground = value;
               });
+              //根组件重建，背景层立即生效
+              PageKeyProvider.themeKey.currentState?.updateTheme();
               config.save();
             },
           ),
