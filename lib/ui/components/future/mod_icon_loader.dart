@@ -46,20 +46,6 @@ class ModNetworkIcon extends StatefulWidget {
     this.onNetworkError,
   });
 
-  /// shields.io 的徽章地址统一转成 PNG：路径已有 `.svg` 就替换，
-  /// 没有后缀（`/badge/…`、`/static/v1?…`、`/github/v/release/…?…`）就补 `.png`，
-  /// query 保持不变。flutter_svg 对徽章文字渲染不可靠，服务端栅格化最稳
-  static String shieldsPngUrl(String url) {
-    final queryIndex = url.indexOf('?');
-    final path = queryIndex < 0 ? url : url.substring(0, queryIndex);
-    final query = queryIndex < 0 ? '' : url.substring(queryIndex);
-
-    final newPath = path.toLowerCase().endsWith('.svg')
-        ? '${path.substring(0, path.length - 4)}.png'
-        : '$path.png';
-    return newPath + query;
-  }
-
   @override
   State<StatefulWidget> createState() => _ModNetworkIconState();
 }

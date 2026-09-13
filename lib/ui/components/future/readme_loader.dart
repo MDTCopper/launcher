@@ -1,7 +1,7 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:copper_launcher/data/net_asset.dart';
-import 'package:copper_launcher/ui/components/future/mod_icon_loader.dart';
 import 'package:copper_launcher/ui/components/future/mod_readme_view.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -226,21 +226,12 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
   Future<Widget?> _fetchImage() async {
     final uri = widget.uri;
 
-    // shields.io 徽章：统一转成 PNG 端点。flutter_svg 对徽章文字（transform
-    // scale + 字距）渲染不可靠，fixSvgTextScale 只是部分缓解，服务端栅格化最稳。
-    // 很多徽章 URL 没有后缀（/badge/…、/static/v1?…、/github/downloads/…?…），
-    // 所以是「替换或追加 .png」，query 保持不变
-    if (uri.host.contains('img.shields.io')) {
-      return _raster(ModNetworkIcon.shieldsPngUrl(uri.toString()));
-    }
-
-    String url;
+    // 相对路径：按仓库解析（缓存的分支优先，再回退 main/master）；
+    // 绝对路径：直接按 content-type 分流
     if (uri.isAbsolute) {
-      url = uri.toString();
-      return _byContentType(url);
+      return _byContentType(uri.toString());
     }
 
-    // 相对路径：按仓库解析（缓存的分支优先，再回退 main/master）
     final repo = 'https://raw.githubusercontent.com/${widget.mod.repo}';
     if (widget.mod.mainBranchCache != null) {
       final result = await _byContentType(
@@ -256,7 +247,7 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
   }
 
   /// 按 content-type 决定渲染方式：栅格图走 cio 拉字节（代理与镜像可达），
-  /// SVG 拉文本做 transform 修正后交给 flutter_svg
+  /// SVG 拉文本按 DPR 栅格化（见 [_svgToRaster]）
   Future<Widget?> _byContentType(String url) async {
     final isSvg = await _checkIsSvgFrom(url);
     if (isSvg == null) return null;
@@ -265,8 +256,10 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
       try {
         final res = await cio.get<String>(url, headers: modDownloadHeaders);
         if (res.statusCode != 200) return null;
-        return SvgPicture.string(
-          fixSvgTextScale(res.data.toString()),
+        final bytes = await _svgToRaster(fixSvgTextScale(res.data.toString()));
+        if (bytes == null) return null;
+        return Image.memory(
+          bytes,
           height: widget.height,
           width: widget.width,
           errorBuilder: (_, _, _) => onError,
@@ -276,6 +269,39 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
       }
     }
     return _raster(url);
+  }
+
+  /// 把 SVG 按 devicePixelRatio 栅格化成 PNG 字节。
+  ///
+  /// shields 的 PNG 端点是 1x 位图，高分屏 / 显示缩放 >100% 时被拉伸发糊；
+  /// 矢量按物理像素栅格化则始终清晰（等同「请求大尺寸手动缩小」）
+  Future<Uint8List?> _svgToRaster(String svg) async {
+    ui.Picture? sourcePicture;
+    ui.Image? image;
+    // DPR 在异步间隙前取好（避免跨 async 使用 BuildContext）
+    final scale = MediaQuery.devicePixelRatioOf(context).clamp(1.0, 3.0);
+    try {
+      final pictureInfo = await vg.loadPicture(SvgStringLoader(svg), null);
+      sourcePicture = pictureInfo.picture;
+      final width = (pictureInfo.size.width * scale).ceil();
+      final height = (pictureInfo.size.height * scale).ceil();
+      if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
+        return null;
+      }
+
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder)
+        ..scale(scale)
+        ..drawPicture(sourcePicture);
+      image = await recorder.endRecording().toImage(width, height);
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      return data?.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    } finally {
+      sourcePicture?.dispose();
+      image?.dispose();
+    }
   }
 
   /// 栅格图：走 cio（代理与镜像可达），不走 Image.network 直连
