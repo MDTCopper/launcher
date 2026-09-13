@@ -1,6 +1,5 @@
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
@@ -8,7 +7,6 @@ import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
-import 'package:material_symbols_icons/material_symbols_icons.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -99,6 +97,7 @@ class AboutPage extends StatelessWidget {
             ],
           ),
         ),
+        //目前没有
         if (kDebugMode)
           ContentPanelModule(
             title: '鸣谢',
@@ -115,6 +114,7 @@ class AboutPage extends StatelessWidget {
             ],
           ),
           ),
+        //开源许可
         ContentPanelModule(
           title: '许可证',
           child: Column(spacing: 12, children: [

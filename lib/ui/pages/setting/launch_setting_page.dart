@@ -219,7 +219,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     return CheckboxSettingBar(
       title: '游戏默认隔离设置',
       hint: '在下载或导入游戏时，给游戏的默认隔离设置',
-      optionsWidth: 247,
+      optionsWidth: 252,
       options: [
         ReboundCheckbox(
           value: versionIsolationSet.isEmpty,

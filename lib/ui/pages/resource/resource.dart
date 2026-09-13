@@ -2,6 +2,7 @@ import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
 
@@ -69,13 +70,15 @@ class _ResourcePageState extends State<ResourcePage>
             selected: _index == 0,
             collapse: collapse,
           ),
-          NavigationTile(
-            icon: Icon(Icons.token_outlined),
-            content: '整合包',
-            onTap: () => moveTo(1),
-            selected: _index == 1,
-            collapse: collapse,
-          ),
+          //TODO 标准待定
+          if (kDebugMode)
+            NavigationTile(
+              icon: Icon(Icons.token_outlined),
+              content: '整合包',
+              onTap: () => moveTo(1),
+              selected: _index == 1,
+              collapse: collapse,
+            ),
           NavigationTile(
             icon: Icon(Icons.paste_outlined),
             content: '蓝图',

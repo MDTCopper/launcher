@@ -9,7 +9,12 @@ class MapViewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
-      items: [ContentPanelModule(title: '地图', child: Text('todo 地图浏览'))],
+      items: [
+        ContentPanelModule(
+          title: '地图',
+          child: Text('目前没有接入相关内容，非常欢迎各路大能提供相关内容'),
+        ),
+      ],
     );
   }
 }
