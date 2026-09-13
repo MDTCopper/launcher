@@ -121,6 +121,15 @@ class ResourceImporterState extends State<ResourceImporter> {
 
   bool get _allSelected => _selected.length == importList.length;
 
+  ///导入的目标数据目录。[Mindustry.dataPath] 本身是版本隔离感知的——
+  ///隔离版本用它自己的数据目录，未隔离 / 没指定版本用默认游戏数据目录
+  String get _targetDataPath =>
+      widget.mindustry?.dataPath ?? AppPaths.defaultGameData ?? '';
+
+  ///指定了目标版本但它没开隔离：资源会落到默认数据目录
+  bool get _isTargetNotIsolated =>
+      widget.mindustry != null && !widget.mindustry!.isolation;
+
   ///把 [source] 复制到 [dir]，同名文件自动加序号，不覆盖已有内容；
   ///返回 null 表示复制成功，否则为失败原因（与 [_importOne] 的返回值契约一致）
   Future<String?> _copyInto(String dir, String source) async {
@@ -273,6 +282,15 @@ class ResourceImporterState extends State<ResourceImporter> {
           ],
         ),
         if (importList.isNotEmpty) ...[
+          Text(
+            '目标目录：${formatPathForWrap(_targetDataPath)}',
+            style: theme.textTheme.bodySmall,
+          ),
+          if (_isTargetNotIsolated)
+            Text(
+              '当前版本未隔离，将导入默认数据目录，建议到设置中开启隔离',
+              style: theme.textTheme.labelMedium,
+            ),
           //列表自身不带滚动条：外套项目滚动容器（自研滚动条 + 渐隐遮罩）；
           //DragSelectList 拿到的高度无界 → 其内层滚动视图不滚动，滚轮与滚动条由外层接管
           Expanded(

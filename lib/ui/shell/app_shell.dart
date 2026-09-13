@@ -123,7 +123,12 @@ class AppShellState extends State<AppShell> {
   }
 
   void _handleDragFile(DropDoneDetails d) async {
-    await showResourceImporter(d.files.map((it) => it.path).toList());
+    //拖入是全局入口，拿不到"正在看的版本"，目标跟随启动页当前选中的版本——
+    //隔离版本会落到它自己的数据目录，未选版本才落默认数据目录
+    await showResourceImporter(
+      d.files.map((it) => it.path).toList(),
+      mindustry: config.versionOptions.selectedVersion,
+    );
   }
 
   // ── 构建 ──
