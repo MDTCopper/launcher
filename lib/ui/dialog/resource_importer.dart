@@ -31,19 +31,23 @@ Future<bool> showResourceImporter(
   isImporting = true;
 
   final result = Completer<bool>();
-  showDefaultDialogPopup(
+  //等弹窗路由关闭（点遮罩 / Esc / 返回键同样算关闭）而不是只等 Completer，
+  //否则非正常关闭时 onFinished 不会被调用，导入锁永远解不开
+  await showDefaultDialogPopup(
     pageBuilder: (_, _, _) {
       return ResourceImporter(
         files: files,
         mindustry: mindustry,
-        onFinished: result.complete,
+        onFinished: (imported) {
+          if (!result.isCompleted) result.complete(imported);
+        },
       );
     },
   );
-
-  final ok = await result.future;
   isImporting = false;
-  return ok;
+
+  if (!result.isCompleted) return false;
+  return await result.future;
 }
 
 class ResourceImporter extends StatefulWidget {
