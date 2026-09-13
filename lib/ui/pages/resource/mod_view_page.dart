@@ -12,9 +12,9 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
-import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/format/time_since.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
 import 'package:string_similarity/string_similarity.dart';
@@ -363,47 +363,14 @@ class _ModViewPageState extends State<ModViewPage> {
           });
         },
         options: [
-          DropdownOption(value: 'copper', label: 'Copper'),
+          //TODO 接入CopperLoader后打开
+          if (kDebugMode) DropdownOption(value: 'copper', label: 'Copper'),
           DropdownOption(value: 'java', label: 'Java'),
           DropdownOption(value: 'js', label: 'JavaScript'),
           DropdownOption(value: 'json', label: 'Json'),
         ],
-        // 场景自建“全选 / 重置”工具栏，位于菜单顶部
-        topWidget: (context, controller) {
-          final colors = AppColors.of(context);
-          return Row(
-            children: [
-              Expanded(child: Divider(height: 6, color: colors.border)),
-              ReboundButton(
-                pressedScale: 0.9,
-                borderRadius: BorderRadius.circular(4),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                onTap: controller.isAllSelected
-                    ? controller.reset
-                    : controller.selectAll,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      controller.isAllSelected
-                          ? Icons.restart_alt
-                          : Icons.select_all,
-                      size: 14,
-                      color: colors.itemSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      controller.isAllSelected ? '重置' : '全选',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.itemSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
+
+        topWidget: DropdownLayer.allSelectOrClearTopWidget(),
       ),
     );
 
@@ -442,19 +409,21 @@ class _ModViewPageState extends State<ModViewPage> {
                   child: ColoredBox(color: theme.colorScheme.primary),
                 ),
                 SizedBox(),
-                ReboundCheckbox(
-                  label: 'Copper',
-                  value: modTypeSet.contains('copper'),
-                  onChange: (v) {
-                    setState(() {
-                      if (v == true) {
-                        modTypeSet.add('copper');
-                      } else {
-                        modTypeSet.remove('copper');
-                      }
-                    });
-                  },
-                ),
+                //TODO 接入CopperLoader后打开
+                if (kDebugMode)
+                  ReboundCheckbox(
+                    label: 'Copper',
+                    value: modTypeSet.contains('copper'),
+                    onChange: (v) {
+                      setState(() {
+                        if (v == true) {
+                          modTypeSet.add('copper');
+                        } else {
+                          modTypeSet.remove('copper');
+                        }
+                      });
+                    },
+                  ),
                 ReboundCheckbox(
                   label: 'Java',
                   value: modTypeSet.contains('java'),

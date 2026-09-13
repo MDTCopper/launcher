@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:copper_launcher/ui/components/animation/reveal_list_view.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/util/app_paths.dart';
 import 'package:flutter/material.dart';
 
 import '../../util/format/string_cleaner.dart';
@@ -13,22 +18,33 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 bool isImporting = false;
 
+///弹出本地资源导入对话框。
+///
+///返回是否成功导入了至少一个资源；同屏只允许一个导入流程
 Future<bool> showResourceImporter(List<String> files) async {
   if (isImporting) return true;
   if (files.isEmpty) return false;
+  isImporting = true;
+
+  final result = Completer<bool>();
   showDefaultDialogPopup(
     pageBuilder: (_, _, _) {
-      return ResourceImporter(files: files);
+      return ResourceImporter(files: files, onFinished: result.complete);
     },
   );
 
-  return false;
+  final ok = await result.future;
+  isImporting = false;
+  return ok;
 }
 
 class ResourceImporter extends StatefulWidget {
-  const ResourceImporter({super.key, required this.files});
+  const ResourceImporter({super.key, required this.files, required this.onFinished});
 
   final List<String> files;
+
+  ///导入流程结束时回调（是否成功导入至少一个资源）
+  final ValueChanged<bool> onFinished;
 
   @override
   State<ResourceImporter> createState() => ResourceImporterState();
@@ -36,6 +52,11 @@ class ResourceImporter extends StatefulWidget {
 
 class ResourceImporterState extends State<ResourceImporter> {
   final List<FileReader> importList = [];
+
+  ///每个资源的勾选状态（默认全选）
+  final Set<int> _selected = {};
+
+  bool _importing = false;
 
   @override
   void initState() {
@@ -60,10 +81,104 @@ class ResourceImporterState extends State<ResourceImporter> {
       if (b.type == ResourceType.schematic) return 1;
       return 0;
     });
+    _selected.addAll([for (var i = 0; i < importList.length; i++) i]);
     setState(() {});
   }
 
-  var test = false;
+  bool get _allSelected => _selected.length == importList.length;
+
+  ///把 [source] 复制到 [dir]，同名文件自动加序号，不覆盖已有内容
+  Future<String?> _copyInto(String dir, String source) async {
+    try {
+      final target = Directory(dir);
+      if (!target.existsSync()) target.createSync(recursive: true);
+
+      final name = source.split(Platform.pathSeparator).last;
+      final dot = name.lastIndexOf('.');
+      final stem = dot < 0 ? name : name.substring(0, dot);
+      final ext = dot < 0 ? '' : name.substring(dot);
+
+      var dest = '$dir${Platform.pathSeparator}$name';
+      var index = 1;
+      while (File(dest).existsSync()) {
+        dest = '$dir${Platform.pathSeparator}$stem ($index)$ext';
+        index++;
+      }
+      await File(source).copy(dest);
+      return dest;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  ///把单个资源导入对应目录，返回 null 表示成功，否则为失败原因
+  Future<String?> _importOne(FileReader reader) async {
+    final gameData = AppPaths.defaultGameData;
+    switch (reader.type) {
+      case ResourceType.mod:
+        if (reader.mod?.path == null || gameData == null) {
+          return '未找到游戏数据目录';
+        }
+        return await _copyInto('$gameData${Platform.pathSeparator}mods', reader.mod!.path!);
+      case ResourceType.mapSave:
+        if (reader.mapSave?.path == null || gameData == null) {
+          return '未找到游戏数据目录';
+        }
+        return await _copyInto('$gameData${Platform.pathSeparator}maps', reader.mapSave!.path!);
+      case ResourceType.schematic:
+        if (reader.schematic?.path == null || gameData == null) {
+          return '未找到游戏数据目录';
+        }
+        return await _copyInto(
+          '$gameData${Platform.pathSeparator}schematics',
+          reader.schematic!.path!,
+        );
+      case ResourceType.mindustry:
+        if (reader.mindustry?.path == null) return '未找到源文件';
+        return await _copyInto(AppPaths.mindustrys, reader.mindustry!.path!);
+      case ResourceType.settings:
+        return '暂不支持导入设置文件';
+      case null:
+        return '无法识别的资源';
+    }
+  }
+
+  Future<void> _importSelected() async {
+    if (_importing || _selected.isEmpty) return;
+    _importing = true;
+    setState(() {});
+
+    var ok = 0;
+    final failures = <String>[];
+    for (final index in _selected) {
+      final reader = importList[index];
+      final error = await _importOne(reader);
+      if (error == null) {
+        ok++;
+      } else {
+        failures.add('${reader.type?.name ?? '未知'}：$error');
+      }
+    }
+
+    _importing = false;
+    if (!mounted) return;
+
+    addNotice(
+      icon: ok > 0 ? Icons.check_circle_outline : Icons.error_outline,
+      title: '资源导入',
+      content: failures.isEmpty
+          ? '成功导入 $ok 个资源'
+          : '成功 $ok 个，失败 ${failures.length} 个：${failures.join('；')}',
+      duration: const Duration(seconds: 6),
+    );
+
+    if (ok > 0) {
+      widget.onFinished(true);
+      Navigator.pop(context);
+    } else {
+      setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,12 +191,29 @@ class ResourceImporterState extends State<ResourceImporter> {
           children: [
             ReboundButton(
               onTap: () {
+                widget.onFinished(false);
                 Navigator.pop(context);
               },
               child: Icon(Icons.arrow_back),
             ),
             SizedBox(width: 8),
             Text('导入本地资源', style: theme.textTheme.bodyLarge),
+            Spacer(),
+            if (importList.isNotEmpty)
+              ReboundButton(
+                onTap: () {
+                  setState(() {
+                    if (_allSelected) {
+                      _selected.clear();
+                    } else {
+                      _selected.addAll([
+                        for (var i = 0; i < importList.length; i++) i,
+                      ]);
+                    }
+                  });
+                },
+                child: Text(_allSelected ? '取消全选' : '全选'),
+              ),
           ],
         ),
         SizedBox(height: 8),
@@ -91,9 +223,11 @@ class ResourceImporterState extends State<ResourceImporter> {
               delay: 300,
               appearDuration: const Duration(milliseconds: 350),
               offset: Offset(-0.1, 0.0),
-              items: importList.map((it) {
-                final type = it.type;
-                switch (type) {
+              items: importList.asMap().entries.map((entry) {
+                final index = entry.key;
+                final it = entry.value;
+                final checked = _selected.contains(index);
+                switch (it.type) {
                   case null:
                     return SizedBox();
                   case ResourceType.mindustry:
@@ -109,12 +243,14 @@ class ResourceImporterState extends State<ResourceImporter> {
                           Text(formatPathForWrap(m.path ?? '')),
                         ],
                       ),
-                      trailing: ReboundCheckChangeBox(value: test),
-                      onTap: () {
-                        setState(() {
-                          test = !test;
-                        });
-                      },
+                      trailing: ReboundCheckChangeBox(
+                        value: checked,
+                        onChange: (value) {
+                          setState(() {
+                            value ? _selected.add(index) : _selected.remove(index);
+                          });
+                        },
+                      ),
                     );
                   case ResourceType.mod:
                     final mod = it.mod!;
@@ -142,8 +278,14 @@ class ResourceImporterState extends State<ResourceImporter> {
                           Text(formatPathForWrap(mod.path ?? '')),
                         ],
                       ),
-
-                      onTap: () {},
+                      trailing: ReboundCheckChangeBox(
+                        value: checked,
+                        onChange: (value) {
+                          setState(() {
+                            value ? _selected.add(index) : _selected.remove(index);
+                          });
+                        },
+                      ),
                     );
                   case ResourceType.mapSave:
                     final m = it.mapSave!;
@@ -153,7 +295,14 @@ class ResourceImporterState extends State<ResourceImporter> {
                         '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
                       ),
                       subtitle: Text(formatPathForWrap(m.path ?? '')),
-                      onTap: () {},
+                      trailing: ReboundCheckChangeBox(
+                        value: checked,
+                        onChange: (value) {
+                          setState(() {
+                            value ? _selected.add(index) : _selected.remove(index);
+                          });
+                        },
+                      ),
                     );
                   case ResourceType.schematic:
                     final m = it.schematic!;
@@ -163,13 +312,47 @@ class ResourceImporterState extends State<ResourceImporter> {
                         '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
                       ),
                       subtitle: Text(formatPathForWrap(m.path ?? '')),
-                      onTap: () {},
+                      trailing: ReboundCheckChangeBox(
+                        value: checked,
+                        onChange: (value) {
+                          setState(() {
+                            value ? _selected.add(index) : _selected.remove(index);
+                          });
+                        },
+                      ),
                     );
                   case ResourceType.settings:
-                    // TODO: Handle this case.
-                    throw UnimplementedError();
+                    return ReboundListTile(
+                      leading: Icon(Icons.settings_outlined, size: 64),
+                      title: Text('设置文件（暂不支持导入）'),
+                      subtitle: Text(formatPathForWrap(it.path)),
+                    );
                 }
               }).toList(),
+            ),
+          ),
+        if (importList.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Row(
+              children: [
+                Text(
+                  '已选 ${_selected.length} / ${importList.length}',
+                  style: theme.textTheme.bodySmall,
+                ),
+                Spacer(),
+                ReboundButton(
+                  onTap: _importing || _selected.isEmpty ? null : _importSelected,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      _importing
+                          ? '导入中...'
+                          : '导入选中（${_selected.length}）',
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
       ],
