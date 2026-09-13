@@ -226,7 +226,9 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         children: [
           Icon(icon),
           SizedBox(width: 2),
-          Text(data, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Expanded(
+            child: Text(data, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
         ],
       );
     }
@@ -277,7 +279,6 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     );
 
     final tile = ReboundListTile(
-      hoverElevation: 4,
       borderRadius: BorderRadius.circular(4),
       onTap: () => _buildDownloadPopup(mod),
       title: Text(mod.name, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -300,7 +301,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
                 PriorityRowItem(
                   priority: 2,
-                  width: 90,
+                  width: 100,
                   child: buildOverView(
                     Icons.update,
                     mod.releaseDate.split('T').first,
@@ -310,7 +311,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                 if (mod.assets.firstOrNull != null)
                   PriorityRowItem(
                     priority: 1,
-                    width: 120,
+                    width: 110,
                     child: buildOverView(
                       Icons.arrow_downward,
                       mod.assets.first.downloadCount.toString(),
@@ -399,17 +400,108 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
   void _showDetail() => showAnimatedDialog(
     context: context,
     pageBuilder: (dialogContext, _, _) =>
-        Center(child: _buildModDetailPanel(dialogContext)),
+        Center(child: buildModDetailPanel(dialogContext)),
   );
 
   /// [dialogContext] 必须是弹窗自己的 context：主题 / MediaQuery 依赖要落在
   /// 弹窗元素上——若借用页面的 context，关闭弹窗后页面仍带着 MediaQuery 依赖，
   /// 一调整窗口就会反复重建页面
-  Widget _buildModDetailPanel(BuildContext dialogContext) {
+  Widget buildModDetailPanel(BuildContext dialogContext) {
     final theme = Theme.of(dialogContext);
     final colors = AppColors.of(dialogContext);
     final size = MediaQuery.of(dialogContext).size;
     final latest = metas.firstOrNull;
+
+    /// 类型文本：只用官方列表声明的 hasScripts / hasJava
+    ///
+    /// 不回看历史 release 去猜类型——模组自己不维护发布（最新版本没附件等）
+    /// 是模组的问题；官方列表也没声明时返回 null
+    String? typesOfMeta() {
+      final types = [
+        if (modListMeta.hasScripts) '脚本',
+        if (modListMeta.hasJava) 'Java',
+      ];
+      return types.isEmpty ? null : types.join(' + ');
+    }
+
+    Widget buildDetailRow(
+      ThemeData theme,
+      AppColors colors,
+      String label,
+      Widget value,
+    ) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 96,
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(color: colors.itemHint),
+          ),
+        ),
+        Expanded(child: value),
+      ],
+    );
+
+    /// 该模组在当前选中版本下是否可用；未选版本 / 版本号无法解析时返回 null
+    ///
+    /// 判定与版本列表一致：Java 模组用 java 门槛，其余用脚本门槛
+    bool? compatForSelectedVersion() {
+      final version = selectedVersion;
+      if (version == null) return null;
+      final modMin = double.tryParse(modListMeta.minGameVersion);
+      if (modMin == null) return null;
+
+      final threshold = modListMeta.hasJava
+          ? MinGameVersions.instance.java.resultOf(version.releaseDouble)
+          : MinGameVersions.instance.mod.resultOf(version.releaseDouble);
+      return modMin >= threshold && modMin <= version.releaseDouble;
+    }
+
+    /// 兼容性徽标：该模组声明的最低游戏版本能否在当前选中版本上跑
+    Widget buildCompatBadge(ThemeData theme) {
+      final support = compatForSelectedVersion();
+      final version = selectedVersion;
+      final (text, color) = switch (support) {
+        true => ('支持', theme.colorScheme.primary),
+        false => ('不支持', theme.colorScheme.error),
+        null => ('未选择版本', theme.colorScheme.outline),
+      };
+
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 6,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: color.withAlpha(30),
+              border: Border.all(color: color),
+            ),
+            child: Text(
+              text,
+              style: theme.textTheme.labelMedium?.copyWith(color: color),
+            ),
+          ),
+          if (support != null && version != null)
+            Text('当前版本 ${version.release}', style: theme.textTheme.labelMedium),
+        ],
+      );
+    }
+
+    /// release 中最大附件的体积（一般为模组本体）
+    int largestAssetSize(ModGithubMeta meta) => meta.assets.fold(
+      0,
+      (max, asset) => asset.size > max ? asset.size : max,
+    );
+
+    String sizeText(int bytes) {
+      if (bytes >= GB) return '${(bytes / GB).toStringAsFixed(2)} GB';
+      if (bytes >= MB) return '${(bytes / MB).toStringAsFixed(1)} MB';
+      if (bytes >= KB) return '${(bytes / KB).toStringAsFixed(0)} KB';
+      return '$bytes B';
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
@@ -443,11 +535,33 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                             modListMeta.name,
                             style: theme.textTheme.headlineMedium,
                           ),
-                          Text(
-                            '${modListMeta.author}   ·   ${modListMeta.repo}',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colors.itemSecondary,
-                            ),
+                          Wrap(
+                            spacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              GestureDetector(
+                                onTap: () => _goToUrl(
+                                  'https://github.com/${modListMeta.repo.split('/').first}',
+                                ),
+                                child: Text(
+                                  generalizeText(modListMeta.author),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                              Text('·', style: theme.textTheme.bodyMedium),
+                              GestureDetector(
+                                onTap: () =>
+                                    _goToUrl('https://github.com/${modListMeta.repo}'),
+                                child: Text(
+                                  modListMeta.repo,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           Row(
                             spacing: 6,
@@ -477,7 +591,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                   spacing: 8,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildDetailRow(
+                    buildDetailRow(
                       theme,
                       colors,
                       '最低游戏版本',
@@ -488,18 +602,18 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                             modListMeta.minGameVersion,
                             style: theme.textTheme.titleMedium,
                           ),
-                          _buildCompatBadge(theme),
+                          buildCompatBadge(theme),
                         ],
                       ),
                     ),
-                    if (_typesOfMeta() case final type?)
-                      _buildDetailRow(
+                    if (typesOfMeta() case final type?)
+                      buildDetailRow(
                         theme,
                         colors,
                         '类型',
                         Text(type, style: theme.textTheme.bodyLarge),
                       ),
-                    _buildDetailRow(
+                    buildDetailRow(
                       theme,
                       colors,
                       '最新版本',
@@ -511,8 +625,8 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                             : [
                                 latest.tag,
                                 //没有附件的版本不显示体积
-                                if (_largestAssetSize(latest) > 0)
-                                  _sizeText(_largestAssetSize(latest)),
+                                if (largestAssetSize(latest) > 0)
+                                  sizeText(largestAssetSize(latest)),
                                 latest.releaseDate.split('T').first,
                               ].join('   ·   '),
                         style: theme.textTheme.bodyLarge,
@@ -544,100 +658,6 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         ),
       ),
     );
-  }
-
-  /// 类型文本：只用官方列表声明的 hasScripts / hasJava
-  ///
-  /// 不回看历史 release 去猜类型——模组自己不维护发布（最新版本没附件等）
-  /// 是模组的问题；官方列表也没声明时返回 null
-  String? _typesOfMeta() {
-    final types = [
-      if (modListMeta.hasScripts) '脚本',
-      if (modListMeta.hasJava) 'Java',
-    ];
-    return types.isEmpty ? null : types.join(' + ');
-  }
-
-  Widget _buildDetailRow(
-    ThemeData theme,
-    AppColors colors,
-    String label,
-    Widget value,
-  ) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      SizedBox(
-        width: 96,
-        child: Text(
-          label,
-          style: theme.textTheme.bodyMedium?.copyWith(color: colors.itemHint),
-        ),
-      ),
-      Expanded(child: value),
-    ],
-  );
-
-  /// 兼容性徽标：该模组声明的最低游戏版本能否在当前选中版本上跑
-  Widget _buildCompatBadge(ThemeData theme) {
-    final support = _compatForSelectedVersion();
-    final version = selectedVersion;
-    final (text, color) = switch (support) {
-      true => ('支持', theme.colorScheme.primary),
-      false => ('不支持', theme.colorScheme.error),
-      null => ('未选择版本', theme.colorScheme.outline),
-    };
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 6,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            color: color.withAlpha(30),
-            border: Border.all(color: color),
-          ),
-          child: Text(
-            text,
-            style: theme.textTheme.labelMedium?.copyWith(color: color),
-          ),
-        ),
-        if (support != null && version != null)
-          Text(
-            '当前版本 ${version.release}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// 该模组在当前选中版本下是否可用；未选版本 / 版本号无法解析时返回 null
-  ///
-  /// 判定与版本列表一致：Java 模组用 java 门槛，其余用脚本门槛
-  bool? _compatForSelectedVersion() {
-    final version = selectedVersion;
-    if (version == null) return null;
-    final modMin = double.tryParse(modListMeta.minGameVersion);
-    if (modMin == null) return null;
-
-    final threshold = modListMeta.hasJava
-        ? MinGameVersions.instance.java.resultOf(version.releaseDouble)
-        : MinGameVersions.instance.mod.resultOf(version.releaseDouble);
-    return modMin >= threshold && modMin <= version.releaseDouble;
-  }
-
-  /// release 中最大附件的体积（一般为模组本体）
-  int _largestAssetSize(ModGithubMeta meta) =>
-      meta.assets.fold(0, (max, asset) => asset.size > max ? asset.size : max);
-
-  String _sizeText(int bytes) {
-    if (bytes >= GB) return '${(bytes / GB).toStringAsFixed(2)} GB';
-    if (bytes >= MB) return '${(bytes / MB).toStringAsFixed(1)} MB';
-    if (bytes >= KB) return '${(bytes / KB).toStringAsFixed(0)} KB';
-    return '$bytes B';
   }
 
   void _buildDownloadPopup(ModGithubMeta? mod, {bool downloadSource = false}) {
@@ -678,7 +698,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
           maxLines: 1,
         )..layout();
 
-        final sartP = TextPainter(
+        final starsP = TextPainter(
           text: TextSpan(
             text: modListMeta.stars.toString(),
             style: theme.textTheme.headlineMedium,
@@ -688,7 +708,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         )..layout();
 
         final enough =
-            c.maxWidth - nameP.width - 16 - 32 - 4 - sartP.width - 16 > 100;
+            c.maxWidth - nameP.width - 16 - 32 - 4 - starsP.width - 16 > 100;
 
         Widget name = Text(
           modListMeta.name,
@@ -703,7 +723,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         );
 
         if (!enough) {
-          name = Expanded(child: name);
+          name = Flexible(child: name);
         } else {
           author = Expanded(child: author);
         }
@@ -759,7 +779,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                     IconTextButton(
                       icon: LineIcons.readme,
                       content: 'README',
-                      onTap: () => _showReadme(),
+                      onTap: _showReadme,
                     ),
                     IconTextButton(
                       icon: Icons.file_open_outlined,
@@ -811,7 +831,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
         Center(
           child: Text(
-            '如果有条件，请到github给模组们sart!',
+            '如果有条件，请到github给模组们stars!',
             style: theme.textTheme.labelMedium,
           ),
         ),
