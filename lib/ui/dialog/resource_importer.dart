@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/ui/components/animation/reveal_list_view.dart';
-import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
@@ -248,6 +247,13 @@ class ResourceImporterState extends State<ResourceImporter> {
                   case ResourceType.mindustry:
                     final m = it.mindustry!;
                     return ReboundListTile(
+                      selected: checked,
+                      elevation: checked ? 1 : 0,
+                      onTap: () {
+                        setState(() {
+                          checked ? _selected.remove(index) : _selected.add(index);
+                        });
+                      },
                       leading: Image.asset(Images.mindustry),
                       title: Text('Mindustry v${m.version}'),
                       subtitle: Column(
@@ -257,14 +263,6 @@ class ResourceImporterState extends State<ResourceImporter> {
                           Text('build ${m.build}  (${m.type})'),
                           Text(formatPathForWrap(m.path ?? '')),
                         ],
-                      ),
-                      trailing: ReboundCheckChangeBox(
-                        value: checked,
-                        onChange: (value) {
-                          setState(() {
-                            value ? _selected.add(index) : _selected.remove(index);
-                          });
-                        },
                       ),
                     );
                   case ResourceType.mod:
@@ -279,6 +277,13 @@ class ResourceImporterState extends State<ResourceImporter> {
                     }
 
                     return ReboundListTile(
+                      selected: checked,
+                      elevation: checked ? 1 : 0,
+                      onTap: () {
+                        setState(() {
+                          checked ? _selected.remove(index) : _selected.add(index);
+                        });
+                      },
                       leading: leading,
                       title: Text(
                         '模组  ${generalizeText(mod.name)}  |  作者  ${generalizeText(mod.author)}',
@@ -293,48 +298,38 @@ class ResourceImporterState extends State<ResourceImporter> {
                           Text(formatPathForWrap(mod.path ?? '')),
                         ],
                       ),
-                      trailing: ReboundCheckChangeBox(
-                        value: checked,
-                        onChange: (value) {
-                          setState(() {
-                            value ? _selected.add(index) : _selected.remove(index);
-                          });
-                        },
-                      ),
                     );
                   case ResourceType.mapSave:
                     final m = it.mapSave!;
                     return ReboundListTile(
+                      selected: checked,
+                      elevation: checked ? 1 : 0,
+                      onTap: () {
+                        setState(() {
+                          checked ? _selected.remove(index) : _selected.add(index);
+                        });
+                      },
                       leading: Icon(Icons.map_outlined, size: 64),
                       title: Text(
                         '地图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
                       ),
                       subtitle: Text(formatPathForWrap(m.path ?? '')),
-                      trailing: ReboundCheckChangeBox(
-                        value: checked,
-                        onChange: (value) {
-                          setState(() {
-                            value ? _selected.add(index) : _selected.remove(index);
-                          });
-                        },
-                      ),
                     );
                   case ResourceType.schematic:
                     final m = it.schematic!;
                     return ReboundListTile(
+                      selected: checked,
+                      elevation: checked ? 1 : 0,
+                      onTap: () {
+                        setState(() {
+                          checked ? _selected.remove(index) : _selected.add(index);
+                        });
+                      },
                       leading: Icon(Icons.paste, size: 64),
                       title: Text(
                         '蓝图  ${generalizeText(m.name)}  |  作者  ${generalizeText(m.author)}',
                       ),
                       subtitle: Text(formatPathForWrap(m.path ?? '')),
-                      trailing: ReboundCheckChangeBox(
-                        value: checked,
-                        onChange: (value) {
-                          setState(() {
-                            value ? _selected.add(index) : _selected.remove(index);
-                          });
-                        },
-                      ),
                     );
                   case ResourceType.settings:
                     return ReboundListTile(
