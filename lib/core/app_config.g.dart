@@ -195,6 +195,9 @@ PersonalizationOptions _$PersonalizationOptionsFromJson(
   restoreWindowOnGameExit: json['restoreWindowOnGameExit'] as bool? ?? true,
   colorfulBackground:
       json['colorfulBackground'] as bool? ?? true,
+  windowCloseAction:
+      $enumDecodeNullable(_$WindowCloseActionEnumMap, json['windowCloseAction']) ??
+      WindowCloseAction.exit,
 );
 
 Map<String, dynamic> _$PersonalizationOptionsToJson(
@@ -208,6 +211,7 @@ Map<String, dynamic> _$PersonalizationOptionsToJson(
       _$LauncherPostLaunchBehaviorEnumMap[instance.launcherPostLaunchBehavior]!,
   'restoreWindowOnGameExit': instance.restoreWindowOnGameExit,
   'colorfulBackground': instance.colorfulBackground,
+  'windowCloseAction': _$WindowCloseActionEnumMap[instance.windowCloseAction]!,
 };
 
 const _$ThemeModeEnumMap = {
@@ -285,6 +289,11 @@ Map<String, dynamic> _$MirrorOptionsToJson(MirrorOptions instance) =>
       'customNodes': instance.customNodes,
       'strategy': _$MirrorStrategyEnumMap[instance.strategy]!,
     };
+
+const _$WindowCloseActionEnumMap = {
+  WindowCloseAction.exit: 'exit',
+  WindowCloseAction.minimizeToTray: 'minimizeToTray',
+};
 
 const _$MirrorStrategyEnumMap = {
   MirrorStrategy.githubFirst: 'githubFirst',

@@ -8,6 +8,8 @@ import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/app_theme.dart';
 
+import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
+import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/util/io/os.dart';
@@ -126,18 +128,6 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
                     },
                   )
                 : const SizedBox.shrink(),
-          ),
-          SwitchSettingBar(
-            title: '多彩背景（大窗口 / 低配建议关闭）',
-            value: personalizationOptions.colorfulBackground,
-            onChanged: (value) {
-              setState(() {
-                personalizationOptions.colorfulBackground = value;
-              });
-              //根组件重建，背景层立即生效
-              PageKeyProvider.themeKey.currentState?.updateTheme();
-              config.save();
-            },
           ),
         ],
       ),
@@ -265,6 +255,38 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
               _buildThemeColorOptions(),
               Divider(indent: 40, endIndent: 40),
               _buildThemeModeOptions(),
+              OptionSettingBar<WindowCloseAction>(
+                title: '关闭窗口时',
+                hintText: '点击主窗口关闭按钮的行为',
+                initialValue: personalizationOptions.windowCloseAction,
+                options: const [
+                  DropdownOption(value: WindowCloseAction.exit, label: '直接退出'),
+                  DropdownOption(
+                    value: WindowCloseAction.minimizeToTray,
+                    label: '最小化到托盘',
+                  ),
+                ],
+                onSelect: (value) {
+                  setState(() {
+                    personalizationOptions.windowCloseAction = value;
+                  });
+                  config.save();
+                  //立即重应用托盘模式（图标常驻 / 关窗拦截）
+                  LauncherTray.instance.applyMode();
+                },
+              ),
+              SwitchSettingBar(
+                title: '多彩背景',
+                value: personalizationOptions.colorfulBackground,
+                onChanged: (value) {
+                  setState(() {
+                    personalizationOptions.colorfulBackground = value;
+                  });
+                  //根组件重建，背景层立即生效
+                  PageKeyProvider.themeKey.currentState?.updateTheme();
+                  config.save();
+                },
+              ),
               if (kDebugMode)
                 SwitchSettingBar(
                   title: '特殊主题',

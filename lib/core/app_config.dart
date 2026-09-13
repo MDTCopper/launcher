@@ -473,7 +473,12 @@ class PersonalizationOptions {
   @JsonKey(defaultValue: true)
   bool colorfulBackground;
 
+  ///主窗口关闭按钮的行为：直接退出 / 收进托盘
+  @JsonKey(defaultValue: WindowCloseAction.exit)
+  WindowCloseAction windowCloseAction;
+
   PersonalizationOptions({
+    this.windowCloseAction = WindowCloseAction.exit,
     required this.themeMode,
     required this.themeColor,
     required this.navigationCollapse,
@@ -552,6 +557,15 @@ class ProxyOptions {
 
 ///github 镜像加速配置。
 ///
+///主窗口关闭按钮的行为
+enum WindowCloseAction {
+  ///直接退出应用
+  exit,
+
+  ///点击关闭 → 隐藏主窗口收进托盘
+  minimizeToTray,
+}
+
 ///镜像使用策略
 enum MirrorStrategy {
   ///优先官方源：直连 GitHub，失败（连接类错误）才回退镜像（默认，最省流量）

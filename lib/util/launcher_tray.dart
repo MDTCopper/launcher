@@ -32,6 +32,9 @@ class LauncherTray extends TrayListener with WindowListener {
 
   bool get trayMode => _trayMode;
 
+  ///关窗行为：收进托盘（否则直接退出）
+  bool _closeToTray = false;
+
   ///托盘图标资源：Windows 的 `LoadImage` 只认 .ico，macOS/Linux 用 png
   String get _iconAsset => Platform.isWindows
       ? 'assets/images/app_icon.ico'
@@ -39,13 +42,17 @@ class LauncherTray extends TrayListener with WindowListener {
 
   ///按 config 应用托盘模式
   Future<void> applyMode() async {
+    final personalization = config.setting.personalizationOptions;
+    _closeToTray =
+        personalization.windowCloseAction == WindowCloseAction.minimizeToTray;
     _trayMode =
         isDesktop &&
-        config.setting.personalizationOptions.launcherPostLaunchBehavior ==
-            LauncherPostLaunchBehavior.tray;
+        (_closeToTray ||
+            personalization.launcherPostLaunchBehavior ==
+                LauncherPostLaunchBehavior.tray);
     if (!isDesktop) return;
 
-    //托盘模式下关闭窗口不退出（收进托盘），否则正常退出
+    //托盘常驻或关窗进托盘时，拦截关闭按钮（收进托盘），否则正常退出
     await windowManager.setPreventClose(_trayMode);
 
     if (_trayMode) {
@@ -220,8 +227,8 @@ class LauncherTray extends TrayListener with WindowListener {
   // WindowListener
   @override
   void onWindowClose() {
-    //托盘模式下点关闭 → 收进托盘（进程保留监听游戏退出）
-    if (_trayMode) {
+    //关窗进托盘 / 托盘模式下点关闭 → 收进托盘（进程保留监听游戏退出）
+    if (_trayMode || _closeToTray) {
       windowManager.hide();
       windowManager.setSkipTaskbar(true);
     } else {
