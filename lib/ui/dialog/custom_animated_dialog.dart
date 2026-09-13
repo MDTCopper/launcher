@@ -246,7 +246,7 @@ Future<T?> showDefaultDialogPopup<T extends Object?>({
 
   final size = MediaQuery.of(context).size;
 
-  final width = (boxRate?.width ?? 0.6) * size.width;
+  final width = (boxRate?.width ?? 0.75) * size.width;
   final height = (boxRate?.height ?? 0.6) * size.height;
 
   final c = constraints ?? BoxConstraints(maxWidth: width, maxHeight: height);

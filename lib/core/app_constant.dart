@@ -51,6 +51,10 @@ const githubModMetaUrl = '$githubRAW/Anuken/MindustryMods/master/mods.json';
 const github3MonthsModMetaUrl =
     '$githubRAW/Anuken/MindustryMods/@{3months}/mods.json';
 
+/// mindustry.top 资源站地图接口基址（站点拥有者公开的接口，前端可直连）；
+/// 站点页面 www.mindustry.top/map 经 Nuxt 服务端把 /api 前缀代理到此处
+const mindustryTopApiBase = 'https://api.mindustry.top';
+
 // 模组版本门禁（各游戏版本 → 模组最低版本）已外置到 remote/mmgvm.hjson，
 // 由 lib/data/min_game_versions.dart 加载，此处不再硬编码
 
