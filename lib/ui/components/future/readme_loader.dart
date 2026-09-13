@@ -252,37 +252,29 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
     final isSvg = await _checkIsSvgFrom(url);
     if (isSvg == null) return null;
 
-    if (isSvg) {
-      try {
-        final res = await cio.get<String>(url, headers: modDownloadHeaders);
-        if (res.statusCode != 200) return null;
-        final bytes = await _svgToRaster(fixSvgTextScale(res.data.toString()));
-        if (bytes == null) return null;
-        return Image.memory(
-          bytes,
-          height: widget.height,
-          width: widget.width,
-          errorBuilder: (_, _, _) => onError,
-        );
-      } catch (_) {
-        return null;
-      }
-    }
+    if (isSvg) return _svgImage(url);
     return _raster(url);
   }
 
-  /// 把 SVG 按 devicePixelRatio 栅格化成 PNG 字节。
+  /// SVG：按 DPR 栅格化后，**按逻辑尺寸显示**
   ///
-  /// shields 的 PNG 端点是 1x 位图，高分屏 / 显示缩放 >100% 时被拉伸发糊；
-  /// 矢量按物理像素栅格化则始终清晰（等同「请求大尺寸手动缩小」）
-  Future<Uint8List?> _svgToRaster(String svg) async {
+  /// 位图分辨率高于显示尺寸所以在高分屏依然清晰；但显示尺寸必须用逻辑尺寸
+  /// ——否则位图会按像素 1:1 铺开，在 DPI>100% 时整个徽章被放大（字变得超大）
+  Future<Widget?> _svgImage(String url) async {
     ui.Picture? sourcePicture;
     ui.Image? image;
     // DPR 在异步间隙前取好（避免跨 async 使用 BuildContext）
     final scale = MediaQuery.devicePixelRatioOf(context).clamp(1.0, 3.0);
     try {
-      final pictureInfo = await vg.loadPicture(SvgStringLoader(svg), null);
+      final res = await cio.get<String>(url, headers: modDownloadHeaders);
+      if (res.statusCode != 200) return null;
+
+      final pictureInfo = await vg.loadPicture(
+        SvgStringLoader(fixSvgTextScale(res.data.toString())),
+        null,
+      );
       sourcePicture = pictureInfo.picture;
+
       final width = (pictureInfo.size.width * scale).ceil();
       final height = (pictureInfo.size.height * scale).ceil();
       if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
@@ -295,7 +287,17 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
         ..drawPicture(sourcePicture);
       image = await recorder.endRecording().toImage(width, height);
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      return data?.buffer.asUint8List();
+      final bytes = data?.buffer.asUint8List();
+      if (bytes == null) return null;
+
+      return Image.memory(
+        bytes,
+        // 显示尺寸取逻辑尺寸；HTML 的 width/height 属性优先
+        width: widget.width ?? pictureInfo.size.width,
+        height: widget.height ?? pictureInfo.size.height,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, _, _) => onError,
+      );
     } catch (_) {
       return null;
     } finally {

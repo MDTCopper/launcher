@@ -833,6 +833,9 @@ class _ModReadmeViewState extends State<ModReadmeView> {
 
   static final _looksLikeHtmlPattern = RegExp(r'<\s*/?\s*[a-zA-Z]');
 
+  /// 段内软换行按 markdown 语义折叠为空格（硬换行走 Element('br')，不受影响）
+  static String _plainText(String text) => text.replaceAll('\n', ' ');
+
   bool _looksLikeHtml(String text) => _looksLikeHtmlPattern.hasMatch(text);
 
   void _appendInline(
@@ -842,7 +845,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     String? linkUrl,
   }) {
     if (node is md.Text) {
-      if (node.text.isNotEmpty) spans.add(TextSpan(text: node.text));
+      if (node.text.isNotEmpty) spans.add(TextSpan(text: _plainText(node.text)));
       return;
     }
     // 直写 HTML：逐段解析成 span / widget
@@ -999,7 +1002,9 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     String? linkUrl,
   }) {
     if (node.tag == null) {
-      if (node.text.isNotEmpty) spans.add(TextSpan(text: node.text));
+      if (node.text.isNotEmpty) {
+        spans.add(TextSpan(text: _plainText(node.text)));
+      }
       return;
     }
 
