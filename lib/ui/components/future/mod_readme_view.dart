@@ -595,12 +595,17 @@ class _ModReadmeViewState extends State<ModReadmeView> {
             if (it is! md.Text || it.text.trim().isNotEmpty) it,
       ];
 
-      // li 内可能直接嵌 子列表：拆开单独渲染，其余按行内/段落处理
+      // li 的子节点分三类：子列表 / 块级（段落、代码块、表格…）/ 行内。
+      // 块级必须单独成块，否则「标题 + 空行 + 图片」会被压到同一行
       final nested = <md.Element>[];
+      final blocks = <md.Node>[];
       final inline = <md.Node>[];
       for (final it in rest) {
         if (it is md.Element && (it.tag == 'ul' || it.tag == 'ol')) {
           nested.add(it);
+        } else if (it is md.Element &&
+            !ModReadmeView._inlineHtmlTags.contains(it.tag)) {
+          blocks.add(it);
         } else {
           inline.add(it);
         }
@@ -634,14 +639,16 @@ class _ModReadmeViewState extends State<ModReadmeView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: 4,
                   children: [
-                    Text.rich(
-                      TextSpan(
-                        children: _inlines(inline, colors),
-                        style: _theme.textTheme.bodyMedium?.copyWith(
-                          height: 1.5,
+                    if (inline.isNotEmpty)
+                      Text.rich(
+                        TextSpan(
+                          children: _inlines(inline, colors),
+                          style: _theme.textTheme.bodyMedium?.copyWith(
+                            height: 1.5,
+                          ),
                         ),
                       ),
-                    ),
+                    for (final block in blocks) ?_buildBlock(block, colors),
                     for (final sub in nested)
                       _buildList(sub, colors, depth: depth + 1),
                   ],
