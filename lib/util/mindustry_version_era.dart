@@ -41,6 +41,15 @@ enum MindustryVersionEra {
   /// v97：模组系统诞生
   static const double modernStartBuild = 97;
 
+  /// v126：官方加入 `MINDUSTRY_DATA_DIR`，数据目录自此可被外部指定
+  /// （更早的版本只能靠 `AppData` / `XDG_DATA_HOME` 之类的隐式覆盖，
+  /// 数据会被套一层 `Mindustry` 子目录）
+  static const double dataDirOverrideStartBuild = 126;
+
+  /// 数据目录能否被外部指定——决定「把文件放进版本数据目录」这类操作是否成立
+  static bool supportsDataDirOverride(double build) =>
+      build >= dataDirOverrideStartBuild;
+
   /// 按 build 号判定时代
   static MindustryVersionEra ofBuild(double build) {
     if (build >= modernStartBuild) return MindustryVersionEra.modern;

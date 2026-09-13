@@ -556,31 +556,38 @@ pause
             spacing: 8,
             crossAxisAlignment: .start,
             children: [
-              Text('支持导入游戏地图、蓝图和模组', style: theme.textTheme.bodyMedium),
-              Row(
-                spacing: 8,
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  IconTextButton(
-                    icon: Icons.layers_outlined,
-                    content: '导入资源',
-                    onTap: () => _importResources(batch: false),
-                  ),
-                  IconTextButton(
-                    icon: Icons.folder_outlined,
-                    content: '批量导入',
-                    onTap: () => _importResources(batch: true),
-                  ),
-                ],
+              Text(
+                _mindustry.supportsResourceImport
+                    ? '支持导入游戏地图、蓝图和模组'
+                    : '该版本不支持导入：v126 之前的版本无法指定游戏数据目录，导入的资源游戏读不到',
+                style: theme.textTheme.bodyMedium,
               ),
-
-              if (isDesktop)
-                Center(
-                  child: Text(
-                    'tip:可以将资源或游戏本体拖动至copper快捷导入',
-                    style: theme.textTheme.labelMedium,
-                  ),
+              if (_mindustry.supportsResourceImport) ...[
+                Row(
+                  spacing: 8,
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    IconTextButton(
+                      icon: Icons.layers_outlined,
+                      content: '导入资源',
+                      onTap: () => _importResources(batch: false),
+                    ),
+                    IconTextButton(
+                      icon: Icons.folder_outlined,
+                      content: '批量导入',
+                      onTap: () => _importResources(batch: true),
+                    ),
+                  ],
                 ),
+
+                if (isDesktop)
+                  Center(
+                    child: Text(
+                      'tip:可以将资源或游戏本体拖动至copper快捷导入',
+                      style: theme.textTheme.labelMedium,
+                    ),
+                  ),
+              ],
             ],
           ),
         ),

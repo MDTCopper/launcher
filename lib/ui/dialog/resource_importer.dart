@@ -28,6 +28,20 @@ Future<bool> showResourceImporter(
 }) async {
   if (isImporting) return true;
   if (files.isEmpty) return false;
+
+  //v126 之前的版本游戏读不到外部指定的数据目录（数据实际在 `<dataPath>/Mindustry`），
+  //导进去也是白拷一份，直接拒绝
+  if (mindustry != null && !mindustry.supportsResourceImport) {
+    addNotice(
+      icon: Icons.error_outline,
+      title: '不支持导入',
+      content:
+          '[${mindustry.tag}] 是 v126 之前的版本，无法指定游戏数据目录，导入后游戏读不到',
+      duration: const Duration(seconds: 6),
+    );
+    return false;
+  }
+
   isImporting = true;
 
   final result = Completer<bool>();

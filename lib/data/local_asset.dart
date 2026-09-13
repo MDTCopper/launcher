@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'package:path/path.dart' as p;
 
 import '../util/app_paths.dart';
+import '../util/mindustry_version_era.dart';
 
 part 'local_asset.g.dart';
 
@@ -91,6 +92,11 @@ class Mindustry {
     if (isolation) return p.join(foldPath, 'data');
     return AppPaths.defaultGameData!; //默认存储位置
   }
+
+  ///能否把资源导入到该版本：v126 之前游戏无法被指定数据目录（数据实际落在
+  ///`<dataPath>/Mindustry`），导入的文件游戏读不到，因此这些版本不支持导入
+  bool get supportsResourceImport =>
+      MindustryVersionEra.supportsDataDirOverride(releaseDouble);
 
   String get modsPath => p.join(dataPath, 'mods');
 
