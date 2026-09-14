@@ -4,6 +4,7 @@ import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/components/future/mod_readme_view.dart';
 import 'package:copper_launcher/ui/components/future/shields_badge.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
 import 'package:jovial_svg/jovial_svg.dart';
@@ -78,8 +79,8 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
     return null;
   }
 
-  /// README 内容：交给自研渲染器（[ModReadmeView]）
-  Widget _buildContent(String? data) {
+  /// 弹窗外框：载入骨架与内容共用同一套尺寸与滚动容器，载入完成时不会跳一下
+  Widget _buildFrame(Widget child) {
     final size = MediaQuery.of(context).size;
 
     return SizedBox(
@@ -91,13 +92,18 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
           controller: controller,
           physics: NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
-          child: data == null
-              ? Text('没有找到 README', style: Theme.of(context).textTheme.bodyLarge)
-              : ModReadmeView(data: data, mod: widget.mod),
+          child: child,
         ),
       ),
     );
   }
+
+  /// README 内容：交给自研渲染器（[ModReadmeView]）
+  Widget _buildContent(String? data) => _buildFrame(
+    data == null
+        ? Text('没有找到 README', style: Theme.of(context).textTheme.bodyLarge)
+        : ModReadmeView(data: data, mod: widget.mod),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -120,11 +126,7 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
                     case ConnectionState.none:
                     case ConnectionState.waiting:
                     case ConnectionState.active:
-                      return SizedBox(
-                        width: 100,
-                        height: 100,
-                        child: Text('载入中'),
-                      );
+                      return _buildFrame(const ReadmeSkeleton());
                     case ConnectionState.done:
                       return _buildContent(s.data);
                   }
@@ -180,6 +182,111 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// README 载入中的骨架：按 README 的常见结构摆占位块
+/// （徽标行 / 标题 / 正文行 / 图片块），整体做缓慢的呼吸式明暗变化
+///
+/// 尺寸交给 [_ModNetReadmeLoaderState._buildFrame]，与内容共用一框，
+/// 所以载入完成时不会先小后大地跳一下
+class ReadmeSkeleton extends StatefulWidget {
+  const ReadmeSkeleton({super.key});
+
+  @override
+  State<ReadmeSkeleton> createState() => ReadmeSkeletonState();
+}
+
+class ReadmeSkeletonState extends State<ReadmeSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _breath.dispose();
+    super.dispose();
+  }
+
+  /// 一条占位块（宽度不给就占满一行）
+  Widget _bar(
+    Color color, {
+    double? width,
+    double height = 12,
+    double radius = 4,
+  }) {
+    return Container(
+      width: width ?? double.infinity,
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+
+  /// 一段正文：几行宽窄不一的占位行（宽度按可用的比例给）
+  Widget _paragraph(Color color, List<double> widthFactors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 8,
+      children: [
+        for (final factor in widthFactors)
+          FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: factor,
+            child: _bar(color),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    //骨架块用主题的次要提示色，两端透明度之间来回，深浅主题都成立
+    final hint = AppColors.of(context).itemHint;
+
+    return AnimatedBuilder(
+      animation: _breath,
+      builder: (context, _) {
+        final barColor = Color.lerp(
+          hint.withAlpha(24),
+          hint.withAlpha(72),
+          Curves.easeInOut.transform(_breath.value),
+        )!;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: [
+            //顶部徽标行
+            Row(
+              spacing: 8,
+              children: [
+                _bar(barColor, width: 54, height: 20, radius: 10),
+                _bar(barColor, width: 62, height: 20, radius: 10),
+                _bar(barColor, width: 48, height: 20, radius: 10),
+                _bar(barColor, width: 58, height: 20, radius: 10),
+              ],
+            ),
+            //标题
+            FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: 0.42,
+              child: _bar(barColor, height: 24, radius: 6),
+            ),
+            _paragraph(barColor, const [1, 0.94, 0.98, 0.62]),
+            //配图
+            _bar(barColor, height: 120, radius: 8),
+            _paragraph(barColor, const [1, 0.9, 0.55]),
+            _bar(barColor, height: 96, radius: 8),
+            _paragraph(barColor, const [1, 0.86, 0.7, 0.44]),
+          ],
+        );
+      },
     );
   }
 }

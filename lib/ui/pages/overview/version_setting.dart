@@ -560,7 +560,8 @@ pause
               Text(
                 _mindustry.supportsResourceImport
                     ? '支持导入游戏地图、蓝图和模组'
-                    : '该版本不支持导入：v126 之前的版本无法指定游戏数据目录，导入的资源游戏读不到',
+                    : '该版本不支持导入资源：v126 之前的版本无法指定游戏数据目录，资源游戏读不到'
+                          '（游戏本体可以，到版本列表用「导入本地游戏」加入）',
                 style: theme.textTheme.bodyMedium,
               ),
               if (_mindustry.supportsResourceImport) ...[

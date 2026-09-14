@@ -3,6 +3,7 @@ import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
+import 'package:copper_launcher/ui/components/future/readme_loader.dart';
 import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
 import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
@@ -218,6 +219,7 @@ class TestState extends State<Test> {
           _dragSelectSection(),
           _modMetaSection(),
           _capsuleActionBarSection(),
+          _readmeSkeletonSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -592,6 +594,32 @@ class TestState extends State<Test> {
                   onTap: () => setState(() => _capsuleLastAction = '下载指定 build'),
                 ),
               ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════ 16. README 载入骨架（ReadmeSkeleton） ════════
+  Widget _readmeSkeletonSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('16. ReadmeSkeleton（README 载入骨架）'),
+        _card(
+          title: 'README 弹窗载入期间的占位骨架',
+          desc:
+              '按 README 的常见结构摆占位块（徽标行 / 标题 / 正文行 / 图片块），'
+              '整体做缓慢的呼吸式明暗变化。实际使用时尺寸由 README 弹窗给定'
+              '（0.85 宽 × 0.75 高），这里用固定高度预览，改块高 / 圆角 / 呼吸快慢看这里。',
+          child: SizedBox(
+            height: 420,
+            child: CopperSingleChildScrollView(
+              child: const Padding(
+                padding: EdgeInsets.fromLTRB(20, 28, 20, 16),
+                child: ReadmeSkeleton(),
+              ),
             ),
           ),
         ),
