@@ -6,6 +6,7 @@ import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/util/io/os.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -51,6 +52,11 @@ class LauncherTray extends TrayListener with WindowListener {
             personalization.launcherPostLaunchBehavior ==
                 LauncherPostLaunchBehavior.tray);
     if (!isDesktop) return;
+    //托盘行为都是"看不见的副作用"，生效条件与结果记一条，免得关窗没进托盘还得翻设置
+    addLog(
+      .info,
+      '托盘模式：${_trayMode ? '常驻' : '关闭'}（关窗行为：${_closeToTray ? '收进托盘' : '退出程序'}）',
+    );
 
     //托盘常驻或关窗进托盘时，拦截关闭按钮（收进托盘），否则正常退出
     await windowManager.setPreventClose(_trayMode);
@@ -126,6 +132,7 @@ class LauncherTray extends TrayListener with WindowListener {
   ///启动游戏成功后调用：托盘模式下收进托盘，其它模式无操作
   Future<void> hideIfTrayMode() async {
     if (!_trayMode) return;
+    addLog(.info, '游戏已启动，启动器收进托盘');
     await windowManager.hide();
     await windowManager.setSkipTaskbar(true);
     await _refreshMenu(); //游戏运行中，菜单切到「停止当前游戏」
@@ -139,6 +146,7 @@ class LauncherTray extends TrayListener with WindowListener {
     if (!restore) return;
     //窗口仍可见则不再弹出，避免重复
     if (await windowManager.isVisible()) return;
+    addLog(.info, '游戏已退出，恢复启动器窗口');
     await _showFromTray();
   }
 
@@ -164,6 +172,7 @@ class LauncherTray extends TrayListener with WindowListener {
   Future<void> _quickLaunchRecent() async {
     final version = _recentVersion();
     if (version == null || _isGameRunning()) return;
+    addLog(.info, '托盘：启动最近游玩 [${version.tag}]');
     addTask(LaunchMindustryTask(version));
     //窗口本就在托盘隐藏状态，无需再收进；刷新菜单反映运行状态
     await _refreshMenu();
@@ -179,15 +188,18 @@ class LauncherTray extends TrayListener with WindowListener {
 
     if (!_confirmStopArmed) {
       _confirmStopArmed = true;
+      addLog(.info, '托盘：点了停止当前游戏，等待二次确认');
       _refreshMenu();
       return;
     }
     _confirmStopArmed = false;
+    addLog(.info, '托盘：确认停止当前游戏');
     running.first.cancel();
     _refreshMenu();
   }
 
   Future<void> _quit() async {
+    addLog(.info, '托盘：退出启动器');
     await trayManager.destroy();
     await windowManager.destroy();
   }
@@ -218,6 +230,10 @@ class LauncherTray extends TrayListener with WindowListener {
         personalization.restoreWindowOnGameExit =
             !personalization.restoreWindowOnGameExit;
         config.save();
+        addLog(
+          .info,
+          '托盘：游戏退出后恢复窗口 → ${personalization.restoreWindowOnGameExit ? '开' : '关'}',
+        );
         _refreshMenu();
       case 'quit':
         _quit();
@@ -229,9 +245,11 @@ class LauncherTray extends TrayListener with WindowListener {
   void onWindowClose() {
     //关窗进托盘 / 托盘模式下点关闭 → 收进托盘（进程保留监听游戏退出）
     if (_trayMode || _closeToTray) {
+      addLog(.info, '关闭窗口：收进托盘（进程保留，继续监听游戏退出）');
       windowManager.hide();
       windowManager.setSkipTaskbar(true);
     } else {
+      addLog(.info, '关闭窗口：退出启动器');
       trayManager.destroy();
     }
   }

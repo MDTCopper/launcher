@@ -680,15 +680,29 @@ class VersionOptions {
     final stillReferenced = versionFolds
         .expand((fold) => fold.versions)
         .any((v) => v.jarPath == version.jarPath);
-    if (stillReferenced) return true;
+    if (stillReferenced) {
+      addLog(
+        .info,
+        '删除版本 [${version.tag}]：jar 仍被其它版本引用，只删记录、保留 ${version.jarPath}',
+      );
+      return true;
+    }
 
     // 4. 唯一引用：删除 jar 本体；文件本就不存在视为成功
     final jar = File(version.jarPath);
-    if (!await jar.exists()) return true;
+    if (!await jar.exists()) {
+      addLog(.info, '删除版本 [${version.tag}]：jar 已不存在，只删记录');
+      return true;
+    }
     try {
       await jar.delete();
+      addLog(.info, '删除版本 [${version.tag}]：无其它引用，已删除 jar ${version.jarPath}');
       return true;
-    } catch (_) {
+    } catch (error) {
+      addLog(
+        .error,
+        '删除版本 [${version.tag}]：jar 删除失败 ${version.jarPath}，$error',
+      );
       return false;
     }
   }

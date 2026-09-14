@@ -9,6 +9,7 @@ import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -748,6 +749,11 @@ class _SettingState extends State<_Setting> {
           _mindustry.isolation = value;
           config.save();
         });
+        //数据目录跟着开关走，记一条免得事后要翻 config 才知道改动何时发生
+        addLog(
+          .info,
+          '[${_mindustry.tag}] 存档隔离${value ? '开启' : '关闭'}，数据目录：${_mindustry.dataPath}',
+        );
       },
     );
   }
@@ -1128,9 +1134,18 @@ class _ModsState extends State<_Mods> {
       settings.setModEnabled(entry.mod.internalName, enabled);
       settings.saveAsync();
     } catch (e) {
+      addLog(
+        .error,
+        '写入模组启用状态失败：[${_mindustry.tag}] ${entry.mod.internalName}，$e',
+      );
       debugPrint('写入模组启用状态失败：$e');
     }
 
+    //启停是"重命名文件 + 写 settings"两件事，出问题时日志能看出做到哪一步
+    addLog(
+      .info,
+      '[${_mindustry.tag}] 模组 ${entry.mod.internalName} 已${enabled ? '启用' : '禁用'}，文件：$targetPath',
+    );
     setState(() => entry.enabled = enabled);
   }
 

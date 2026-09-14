@@ -33,6 +33,9 @@ Future<void> _initialize() async {
       'exe 目录不能放数据（系统目录或不可写），数据目录改用 ${AppPaths.copperLauncher}',
     );
   }
+  //数据目录是排查「东西写到哪去了」的第一现场，每次启动都记下来
+  addLog(.info, '数据根目录：${AppPaths.copperLauncher}');
+  addLog(.info, '游戏默认数据目录：${AppPaths.defaultGameData}');
 
   final multipleStartup = !await _initSingleInctance();
   if (multipleStartup) return;

@@ -185,6 +185,11 @@ class DownloadMindustryTask extends Task {
     if (foldIndex != -1) {
       config.versionOptions.versionFolds[foldIndex].versions.add(mindustry);
       config.saveAsJson();
+      //版本建在哪、隔离开没开——后续「导入/存档跑到别处去了」都要靠这条对账
+      addLog(
+        .info,
+        '创建版本 [${mindustry.tag}]（下载），存档隔离${isolation ? '开启' : '关闭'}，数据目录：${mindustry.dataPath}',
+      );
     } else {
       //todo 新的路径可以询问玩家是否创建，不创建就移入默认文件夹
       addLogAndPrint(.error, '无法同步配置文件');

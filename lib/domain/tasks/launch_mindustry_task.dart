@@ -8,6 +8,7 @@ import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/java/java_compat.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 
 import 'package:copper_launcher/util/system_info.dart';
@@ -170,6 +171,14 @@ class LaunchMindustryTask extends Task {
     if (supportsSettingsOverride && setting.data.isNotEmpty) {
       await setting.saveAsync();
     }
+    //启动前的决策（Java / 内存 / 数据目录 / 覆写）是"改了没生效"的第一现场，记一条
+    addLog(
+      .info,
+      '启动 [${mindustry.tag}]：Java=$javaPath，内存=$maxMemory，'
+      '数据目录=${mindustry.dataPath}，隔离=${mindustry.isolation ? '开' : '关'}，'
+      'settings 覆写=${supportsSettingsOverride && config.setting.mindustrySettingsOverride ? '是' : '否'}',
+    );
+
     // 记录本次启动时刻，游戏退出时回写 lastLaunchTime 与 playTime
     _launchStartTime = DateTime.now();
     await launcher.start(

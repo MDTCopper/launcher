@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 
 import '../../util/format/string_cleaner.dart';
 import '../../util/io/file_reader.dart';
+import '../../util/io/log.dart';
 import '../../util/format/path_format.dart';
 import '../feature/images.dart';
 
@@ -149,8 +150,11 @@ class ResourceImporterState extends State<ResourceImporter> {
         index++;
       }
       await File(source).copy(dest);
+      //导入到哪去了是对账的关键，成功失败都记一条
+      addLog(.info, '导入资源：$source → $dest');
       return null;
     } catch (error) {
+      addLog(.error, '导入资源失败：$source，$error');
       return '复制失败：$error';
     }
   }
@@ -200,6 +204,8 @@ class ResourceImporterState extends State<ResourceImporter> {
     _importing = true;
     setState(() {});
 
+    addLog(.info, '开始导入 ${_selected.length} 个资源，目标目录：$_targetDataPath');
+
     var ok = 0;
     final failures = <String>[];
     for (final index in _selected) {
@@ -210,6 +216,15 @@ class ResourceImporterState extends State<ResourceImporter> {
       } else {
         failures.add('${reader.type?.name ?? '未知'}：$error');
       }
+    }
+
+    if (failures.isEmpty) {
+      addLog(.info, '导入完成：成功 $ok 个');
+    } else {
+      addLog(
+        .warning,
+        '导入完成：成功 $ok 个，失败 ${failures.length} 个；${failures.join('；')}',
+      );
     }
 
     _importing = false;
