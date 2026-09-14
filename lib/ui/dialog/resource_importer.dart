@@ -7,6 +7,8 @@ import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/data/local_asset.dart' show Mindustry;
+import 'package:copper_launcher/domain/local_game_importer.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:flutter/material.dart';
 
@@ -22,6 +24,9 @@ bool isImporting = false;
 
 ///弹出本地资源导入对话框。
 ///
+///列表里带**游戏本体**（Mindustry jar）时不开资源列表，而是走建版本流程
+///（[importLocalGame]）：游戏本体不是"资源"，它有 tag 命名、隔离设置这些自己的事
+///
 ///返回是否成功导入了至少一个资源；同屏只允许一个导入流程
 Future<bool> showResourceImporter(
   List<String> files, {
@@ -30,14 +35,25 @@ Future<bool> showResourceImporter(
   if (isImporting) return true;
   if (files.isEmpty) return false;
 
+  //识别放在前面：游戏本体要在这里分流，常规资源也省得在弹窗里再读一遍盘
+  final readers = await _readResources(files);
+  FileReader? gameReader;
+  for (final reader in readers) {
+    if (reader.type == ResourceType.mindustry) {
+      gameReader = reader;
+      break;
+    }
+  }
+  if (gameReader != null) return _importGameInstead(readers, gameReader);
+
   //v126 之前的版本游戏读不到外部指定的数据目录（数据实际在 `<dataPath>/Mindustry`），
-  //导进去也是白拷一份，直接拒绝
+  //导进去也是白拷一份，直接拒绝；注意这里只拦"资源"，游戏本体走上面的分流不受影响
   if (mindustry != null && !mindustry.supportsResourceImport) {
     addNotice(
       icon: Icons.error_outline,
-      title: '不支持导入',
+      title: '不支持导入资源',
       content:
-          '[${mindustry.tag}] 是 v126 之前的版本，无法指定游戏数据目录，导入后游戏读不到',
+          '[${mindustry.tag}] 是 v126 之前的版本，无法指定游戏数据目录，资源导入后游戏读不到',
       duration: const Duration(seconds: 6),
     );
     return false;
@@ -51,7 +67,7 @@ Future<bool> showResourceImporter(
   await showDefaultDialogPopup(
     pageBuilder: (_, _, _) {
       return ResourceImporter(
-        files: files,
+        readers: readers,
         mindustry: mindustry,
         onFinished: (imported) {
           if (!result.isCompleted) result.complete(imported);
@@ -65,15 +81,75 @@ Future<bool> showResourceImporter(
   return await result.future;
 }
 
+///把文件路径识别成资源，识别不出的（`type == null`）直接丢掉
+Future<List<FileReader>> _readResources(List<String> files) async {
+  final readers = <FileReader>[];
+  for (final path in files) {
+    final reader = await FileReader.fromPath(path);
+    if (reader.type == null) continue;
+    readers.add(reader);
+  }
+  return readers;
+}
+
+///列表里有游戏本体：这趟只建一个版本（多个本体只取第一个，其余提示未处理），
+///建好后若还带着 mod / 地图 / 蓝图，问一句要不要顺手导进刚建的版本
+Future<bool> _importGameInstead(
+  List<FileReader> readers,
+  FileReader gameReader,
+) async {
+  if (isImporting) return true;
+  isImporting = true;
+
+  Mindustry? version;
+  try {
+    version = await importLocalGame(reader: gameReader);
+  } finally {
+    //先解锁：下面「导入其余资源」还要走 showResourceImporter
+    isImporting = false;
+  }
+
+  if (version == null) return false;
+
+  final games = readers.where((r) => r.type == ResourceType.mindustry).length;
+  final others = [
+    for (final reader in readers)
+      if (reader.type != null && reader.type != ResourceType.mindustry)
+        reader.path,
+  ];
+
+  addNotice(
+    icon: Icons.check_circle_outline,
+    title: '导入游戏',
+    content: games > 1
+        ? '[${version.tag}] 导入完成；本次还有 ${games - 1} 个游戏本体未处理'
+        : '[${version.tag}] 导入完成',
+  );
+
+  final navContext = PageKeyProvider.shellKey.currentContext;
+  if (others.isNotEmpty && navContext != null && navContext.mounted) {
+    showConfirmationPopup(
+      context: navContext,
+      type: ConfirmationType.notification,
+      title: '还有 ${others.length} 个资源',
+      content: '要一起导入到刚建的 [${version.tag}] 吗？',
+      action: () => unawaited(showResourceImporter(others, mindustry: version)),
+    );
+  }
+  return true;
+}
+
 class ResourceImporter extends StatefulWidget {
   const ResourceImporter({
     super.key,
-    required this.files,
+    required this.readers,
     required this.onFinished,
     this.mindustry,
   });
 
-  final List<String> files;
+  ///已识别好的资源：识别在 [showResourceImporter] 里做（列表含游戏本体时会被分流，
+  ///根本走不到这个弹窗）
+  final List<FileReader> readers;
 
   ///目标游戏版本：提供时导入到该版本的独立数据目录（版本隔离感知）
   final Mindustry? mindustry;
@@ -99,12 +175,8 @@ class ResourceImporterState extends State<ResourceImporter> {
     init();
   }
 
-  void init() async {
-    for (var path in widget.files) {
-      final reader = await FileReader.fromPath(path);
-      if (reader.type == null) continue;
-      importList.add(reader);
-    }
+  void init() {
+    importList.addAll(widget.readers);
     importList.sort((a, b) {
       if (a.type == ResourceType.mindustry) return -1;
       if (b.type == ResourceType.mindustry) return 1;
@@ -190,8 +262,8 @@ class ResourceImporterState extends State<ResourceImporter> {
           reader.schematic!.path!,
         );
       case ResourceType.mindustry:
-        if (reader.mindustry?.path == null) return '未找到源文件';
-        return await _copyInto(AppPaths.mindustrys, reader.mindustry!.path!);
+        //分流后走不到这里：列表里有游戏本体时 showResourceImporter 直接去建版本了
+        return '游戏本体请用「导入游戏」或拖入启动器';
       case ResourceType.settings:
         return '暂不支持导入设置文件';
       case null:
