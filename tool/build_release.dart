@@ -20,6 +20,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
+import 'package:path/path.dart' as p;
 
 /// 版本信息写在这个文件的标记块里
 const appConstantPath = 'lib/core/app_constant.dart';
@@ -828,6 +829,9 @@ Future<File?> _packageTarball(
       archiveFile.absolute.path,
       '-C',
       releaseFolder.absolute.path,
+      // 不打构建目录里的运行时数据（见 [_isRuntimeData]）；
+      // tar 的 --exclude 不含分隔符时按名字匹配，子目录里的同名项也会排除
+      ..._runtimeDataNames.map((name) => '--exclude=$name'),
       baseName,
     ]);
     if (result.exitCode != 0) {
@@ -904,6 +908,32 @@ String _appDisplayName(Directory appBundle) {
   return bundleName.replaceAll(RegExp(r'\.app$', caseSensitive: false), '');
 }
 
+/// 启动器运行时数据的名字（见 AppPaths 的数据根：绿色版下这些数据生成在 exe 旁边）
+///
+/// 构建目录里这些是本机调试残留，`flutter build` 不会清理目录。打进发布包后，
+/// 解压出来的启动器会发现 exe 旁边有 config → 数据根跟着落到解压目录，
+/// 版本路径还指向构建机的 versions 目录；构建目标不同机器时就是一串错路径
+const _runtimeDataNames = <String>{
+  'config.json',
+  'config.bin',
+  'control.lock',
+  'single_instance.port',
+  'logs',
+  'remote_data',
+  'versions',
+  'versionsFolds',
+  'mindustrys',
+  'java',
+};
+
+/// [path] 是否落在启动器运行时数据里：任一层目录名 / 文件名命中就算
+///
+/// 按"任一层"判定是为了排除掉 `logs` 这类目录后，它下面的文件不会被逐个收回来
+bool _isRuntimeData(String path) {
+  final segments = p.split(p.normalize(path));
+  return segments.any(_runtimeDataNames.contains);
+}
+
 /// 打包 Zip（包内直接是目录内容，解压即用）
 Future<File> _packageZip(
   Directory sourceFolder,
@@ -915,8 +945,22 @@ Future<File> _packageZip(
   if (await zipFile.exists()) await zipFile.delete();
 
   stdout.writeln('\n正在打包 Zip：$baseName.zip');
+  final excluded = <String>{};
   final encoder = ZipFileEncoder();
-  await encoder.zipDirectory(sourceFolder, filename: zipFile.path);
+  await encoder.zipDirectory(
+    sourceFolder,
+    filename: zipFile.path,
+    filter: (entity, _) {
+      if (!_isRuntimeData(entity.path)) return ZipFileOperation.include;
+      // 报告里只记顶层名字，免得 logs 底下的日志文件刷一屏
+      final relative = p.relative(entity.path, from: sourceFolder.path);
+      excluded.add(p.split(relative).first);
+      return ZipFileOperation.skip;
+    },
+  );
+  if (excluded.isNotEmpty) {
+    stdout.writeln('  已排除运行时数据：${excluded.join('、')}');
+  }
   stdout.writeln('打包产物：${_normalizePath(zipFile.path)}');
   return zipFile;
 }

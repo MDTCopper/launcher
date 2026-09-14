@@ -60,7 +60,9 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 
 [Files]
 ; 整个 Release 目录（exe + dll + data）都装进去
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Excludes：不带构建目录里的启动器运行时数据（config 等本机调试残留，
+; 打进包会让安装后的启动器把数据目录落到安装目录，版本路径指向构建机）
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "config.json,config.bin,control.lock,single_instance.port,logs,remote_data,versions,versionsFolds,mindustrys,java"
 
 [Icons]
 Name: "{group}\Copper Launcher"; Filename: "{app}\copper_launcher.exe"
