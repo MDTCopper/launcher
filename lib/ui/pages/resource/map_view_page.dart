@@ -41,6 +41,15 @@ String _modeLabel(MindustryTopMapMode mode) => switch (mode) {
   MindustryTopMapMode.unknown => '未标注',
 };
 
+/// 已加载地图列表的进程内缓存：资源页切 tab / 离开再回来时复用，不从头拉。
+///
+/// 只缓存**未搜索**的默认列表——搜索结果是一次性的，不落缓存。
+/// 点「刷新」会清空重拉并覆盖这里。
+class _MapListCache {
+  static final List<MindustryTopMapMeta> maps = [];
+  static bool hasMore = true;
+}
+
 class _MapViewPageState extends State<MapViewPage> {
   /// 已加载的地图（跨页累积，翻页在此基础上继续取）
   final List<MindustryTopMapMeta> _maps = [];
@@ -64,7 +73,13 @@ class _MapViewPageState extends State<MapViewPage> {
   @override
   void initState() {
     super.initState();
-    _loadMore(reset: true);
+    // 有缓存就复用，不再从头拉；要重来点「刷新」
+    if (_MapListCache.maps.isEmpty) {
+      _loadMore(reset: true);
+    } else {
+      _maps.addAll(_MapListCache.maps);
+      _hasMore = _MapListCache.hasMore;
+    }
   }
 
   @override
@@ -77,6 +92,7 @@ class _MapViewPageState extends State<MapViewPage> {
   Future<void> _loadMore({bool reset = false}) async {
     if (_loading) return;
     final seq = ++_requestSeq;
+    final search = _searchController.text.trim();
     setState(() {
       _loading = true;
       _error = null;
@@ -89,7 +105,7 @@ class _MapViewPageState extends State<MapViewPage> {
     try {
       final page = await MindustryTopMapApi.list(
         begin: reset ? 0 : _maps.length,
-        search: _searchController.text.trim(),
+        search: search,
       );
       if (!mounted || seq != _requestSeq) return;
       setState(() {
@@ -97,6 +113,7 @@ class _MapViewPageState extends State<MapViewPage> {
         _hasMore = page.length >= MindustryTopMapApi.pageSize;
         _loading = false;
       });
+      _cacheIfDefault(search);
     } catch (error) {
       if (!mounted || seq != _requestSeq) return;
       MindustryTopMapApi.logFailure(error, context: '列表');
@@ -105,6 +122,15 @@ class _MapViewPageState extends State<MapViewPage> {
         _loading = false;
       });
     }
+  }
+
+  /// 默认列表（未搜索）才写缓存，搜索结果不落
+  void _cacheIfDefault(String search) {
+    if (search.isNotEmpty) return;
+    _MapListCache.maps
+      ..clear()
+      ..addAll(_maps);
+    _MapListCache.hasMore = _hasMore;
   }
 
   /// 模式筛过之后真正展示的条目
@@ -117,10 +143,7 @@ class _MapViewPageState extends State<MapViewPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ListContentPanel(
-      showBackToTop: false,
-      items: [_buildHeadBar(), _buildList()],
-    );
+    return ListContentPanel(items: [_buildHeadBar(), _buildList()]);
   }
 
   Widget _buildHeadBar() {
@@ -217,9 +240,7 @@ class _MapViewPageState extends State<MapViewPage> {
               ),
             ),
           if (!_loading && !_hasMore && _maps.isNotEmpty)
-            Center(
-              child: Text('已经到底了', style: theme.textTheme.labelMedium),
-            ),
+            Center(child: Text('已经到底了', style: theme.textTheme.labelMedium)),
         ],
       ),
     );
@@ -228,7 +249,8 @@ class _MapViewPageState extends State<MapViewPage> {
   /// 点瓦片看详情：列表里只有站点给的摘要，作者 / 保存时间 / 波次 / 依赖 mod
   /// 这些得拉一次详情接口，弹窗里先展示已知信息、详情回来再补
   Future<void> _showMapDetail(MindustryTopMapMeta map) => showAnimatedDialog(
-    pageBuilder: (_, _, _) => _MapDetailPanel(map: map, onDownload: _downloadMap),
+    pageBuilder: (_, _, _) =>
+        _MapDetailPanel(map: map, onDownload: _downloadMap),
   );
 
   /// 下载地图到当前选中版本的地图目录
@@ -277,13 +299,7 @@ class _MapViewPageState extends State<MapViewPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            [
-              _modeLabel(map.mode),
-              map.sizeText,
-              ?versionTag,
-            ].join('  |  '),
-          ),
+          Text([_modeLabel(map.mode), map.sizeText, ?versionTag].join('  |  ')),
           if (map.description.isNotEmpty)
             Text(map.description, maxLines: 2, overflow: TextOverflow.ellipsis),
         ],
@@ -339,7 +355,8 @@ class _MapPreviewImageState extends State<_MapPreviewImage> {
               fit: BoxFit.cover,
               //按显示尺寸解码：列表里几十张缩略图，按原图分辨率解一遍太浪费
               cacheWidth:
-                  (MediaQuery.devicePixelRatioOf(context) * widget.width).round(),
+                  (MediaQuery.devicePixelRatioOf(context) * widget.width)
+                      .round(),
             );
           },
         ),
