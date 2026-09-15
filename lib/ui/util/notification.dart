@@ -2,8 +2,20 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
+/// 失败语义的通知图标：这类通知除了弹出来，还会落一条运行日志
+///
+/// 通知会自动消失，用户关掉 / 错过就查不到原因——失败类一律同时进日志
+final _failureNoticeIcons = <IconData>{
+  Icons.close,
+  Icons.error,
+  Icons.error_outline,
+  Icons.delete_forever,
+};
 
 void addNotice({
   IconData? icon,
@@ -56,6 +68,14 @@ class NotificationManager {
     VoidCallback? onTap,
     Duration duration = const Duration(seconds: 5),
   }) async {
+    // 失败类通知同时落盘（消息先压成一行，异常原文常带换行）
+    if (icon != null && _failureNoticeIcons.contains(icon)) {
+      final message = [
+        ?title,
+        ?content,
+      ].where((text) => text.isNotEmpty).join('：');
+      addLog(.error, removeNewlines(message), tag: 'Notice');
+    }
     context ??= PageKeyProvider.shellKey.currentContext;
     await _show(context!).then((_) {
       _globalKey.currentState!.addItem(icon, title, content, onTap, duration);
