@@ -325,8 +325,11 @@ class CopperIO {
         if (!GithubMirror.instance.enabled) return send(url);
         try {
           return await _sendViaMirror(url, send);
-        } catch (_) {
-          //镜像失败（含拿不到节点）→ 回退官方源
+        } catch (e) {
+          //镜像拿到真实 HTTP 响应（404 等）就原样抛出，别再回退直连：
+          //否则「资源不存在」会被伪装成连接错误，且直连 raw 在部分网络注定失败
+          if (e is DioException && !isNetworkFailure(e)) rethrow;
+          //镜像不可用 / 无可用节点 → 回退官方源兜底
           return send(url);
         }
 
@@ -351,7 +354,9 @@ class CopperIO {
     String? prefix = mirror.freshBestMirror;
     if (prefix == null) {
       try {
-        prefix = await mirror.selectBestMirror(url);
+        //用固定探针测节点，不用本次请求 URL：目标自身不存在（404）会让所有节点
+        //「测速失败」，节点选择被整个带偏
+        prefix = await mirror.selectBestMirror(GithubMirror.probeUrl);
       } catch (_) {
         //测速失败不阻塞，用现有最优镜像继续
         prefix = mirror.bestMirror;
