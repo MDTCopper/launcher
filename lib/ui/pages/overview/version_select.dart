@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/domain/local_game_importer.dart';
+import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
@@ -402,6 +403,19 @@ class _VersionSelectPageState extends State<VersionSelectPage>
           onTap: () {
             controller.dismiss();
             _collect(version);
+          },
+        ),
+        MenuButton(
+          icon: Icon(Icons.copy_all),
+          label: '新建变体',
+          onTap: () async {
+            controller.dismiss();
+            final created = await createVersionVariant(
+              source: version,
+              context: context,
+            );
+            if (created == null || !mounted) return;
+            _updateView();
           },
         ),
         MenuButton(

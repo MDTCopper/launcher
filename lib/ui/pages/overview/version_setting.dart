@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/mindustry_settings.dart';
+import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
@@ -230,6 +231,13 @@ pause
       }
     }
     PathSelector.openFolder(folderPath);
+  }
+
+  /// 以当前版本为模板新建变体（流程见 createVersionVariant）
+  ///
+  /// 当前页只认 [_mindustry]，新版本会出现在版本列表里，所以这里不用刷新
+  Future<void> _createVariant() async {
+    await createVersionVariant(source: _mindustry, context: context);
   }
 
   /// 导入资源：逐个识别 jar/mod/地图/蓝图 文件并导入
@@ -547,6 +555,25 @@ pause
                     onTap: _viewCrashLogs,
                   ),
                 ],
+              ),
+            ],
+          ),
+        ),
+        ContentPanelModule(
+          title: '新建变体',
+          child: Column(
+            spacing: 8,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '以当前版本为模板新建一个版本：游戏本体共用（不复制），新版本默认开启存档隔离；'
+                '模组 / 存档 / 地图 / 蓝图 / 游戏设置可以分别勾选继承',
+                style: theme.textTheme.bodyMedium,
+              ),
+              IconTextButton(
+                icon: Icons.copy_all,
+                content: '新建变体',
+                onTap: _createVariant,
               ),
             ],
           ),
