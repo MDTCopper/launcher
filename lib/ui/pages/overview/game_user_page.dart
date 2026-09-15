@@ -3,6 +3,7 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -15,11 +16,8 @@ import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:flutter/material.dart';
 
-///账户管理页路由（左侧主导航「概览 > 账户」）。
 const gameUserPageRouteKey = '/user';
 
-///账户管理页面。
-///
 ///页面首先读取当前选中版本的 settings.bin 中的玩家信息
 ///（`name` / `uuid` / `color-0`）作为临时用户信息，可编辑后保存为账户；
 ///游戏内用户保存在 config（[Setting.gameUsers]）中。
@@ -38,9 +36,6 @@ class _GameUserPageState extends State<GameUserPage> {
 
   final _nameController = TextEditingController();
 
-  ///玩家 UUID：来自设置 / 被编辑的账户，**不显示、不手填**
-  ///
-  ///它是联机身份，露出来能被照抄、改错会顶掉别人的身份，所以界面一律不带
   String _uuid = '';
 
   int _color = 0;
@@ -48,7 +43,7 @@ class _GameUserPageState extends State<GameUserPage> {
   ///正在编辑的已存账户；null 表示保存时新建一条
   GameUser? _editing;
 
-  ///正在播删除动画的用户 id（动画播完才真删）
+  ///正在播删除动画的用户 id
   String? _removingUserId;
 
   @override
@@ -63,14 +58,14 @@ class _GameUserPageState extends State<GameUserPage> {
     super.dispose();
   }
 
-  ///读取当前版本 settings.bin（失败或未选择版本时返回 null）。
+  ///读取当前版本 settings.bin
   MindustrySettings? _readSetting() {
     final mindustry = _mindustry;
     if (mindustry == null) return null;
     return MindustrySettings.fromFile(mindustry.settingPath);
   }
 
-  ///从 settings 载入临时用户信息（同时退出编辑态）。
+  ///从 settings 载入临时用户信息
   void _loadFromSetting() {
     final setting = _readSetting();
     _nameController.text = setting?.name ?? '';
@@ -79,9 +74,7 @@ class _GameUserPageState extends State<GameUserPage> {
     _editing = null;
   }
 
-  ///保存：编辑态更新该用户，否则新建一条并选中。
-  ///
-  ///UUID 不取界面输入（界面根本没有），编辑时保持原值、新建时沿用来源设置
+  ///保存：编辑态更新该用户，否则新建一条并选中
   void _saveGameUser() {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
@@ -165,9 +158,7 @@ class _GameUserPageState extends State<GameUserPage> {
     final editing = _editing;
 
     return ContentPanelModule(
-      title: editing == null
-          ? '临时信息'
-          : '临时信息（正在编辑 [${editing.name}]）',
+      title: editing == null ? '临时信息' : '临时信息（正在编辑 [${editing.name}]）',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -241,6 +232,7 @@ class _GameUserPageState extends State<GameUserPage> {
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 4,
               children: [
                 for (final user in users)
                   _GameUserTile(
@@ -292,44 +284,26 @@ class _GameUserPageState extends State<GameUserPage> {
 
     // 整行点击选择
     row = ReboundButton(
-      padding: EdgeInsets.zero,
+      pressedScale: 0.98,
+
       borderRadius: BorderRadius.circular(8),
       onTap: () => _selectGameUser(user),
       child: row,
     );
 
-    // 左滑露出删除动作（移动端风格）
-    row = ActionSlideLayer(
-      // 露出的菜单按行圆角裁剪，形状与瓦片对齐
-      borderRadius: BorderRadius.circular(8),
+    row = ActionMenu(
       actions: [
-        SizedBox(
-          width: 72,
-          child: Container(
-            color: colors.error,
-            alignment: Alignment.center,
-            child: SlideActionButton(
-              icon: const Icon(Icons.delete_outline),
-              label: '删除',
-              color: Colors.white,
-              onTap: () => _deleteGameUser(user),
-            ),
-          ),
+        SlideActionButton(
+          icon: const Icon(Icons.delete_outline),
+          label: '删除',
+          onTap: () => _deleteGameUser(user),
         ),
       ],
-      child: row,
-    );
-
-    // 右键 / 长按弹出操作菜单（桌面端风格）
-    // key 标识账户：删除某项后 Flutter 按 key 复用 Element，
-    // 避免 ActionSlideLayer 的打开状态串到下一个组件。
-    return MenuLayer(
-      key: ValueKey(user.id),
-      child: row,
       menuBuilder: (context, controller) => [
         _menuItem(
           context,
           icon: Icons.check,
+
           label: '设为当前',
           onTap: () {
             _selectGameUser(user);
@@ -356,7 +330,10 @@ class _GameUserPageState extends State<GameUserPage> {
           },
         ),
       ],
+      child: row,
     );
+
+    return row;
   }
 
   Widget _menuItem(
