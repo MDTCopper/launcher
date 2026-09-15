@@ -351,15 +351,15 @@ class CopperIO {
     final mirror = GithubMirror.instance;
     if (!mirror.enabled) throw StateError('镜像未启用');
 
-    String? prefix = mirror.freshBestMirror;
+    String? prefix = mirror.freshBestMirrorFor(url);
     if (prefix == null) {
       try {
-        //用固定探针测节点，不用本次请求 URL：目标自身不存在（404）会让所有节点
-        //「测速失败」，节点选择被整个带偏
-        prefix = await mirror.selectBestMirror(GithubMirror.probeUrl);
+        //按目标域名选探针（api / raw 节点能力不同），但不用本次请求 URL 本身：
+        //目标自身不存在（404）会让所有节点「测速失败」，节点选择被带偏
+        prefix = await mirror.selectBestMirror(GithubMirror.probeUrlFor(url));
       } catch (_) {
-        //测速失败不阻塞，用现有最优镜像继续
-        prefix = mirror.bestMirror;
+        //测速失败不阻塞，用现有同类最优镜像继续
+        prefix = mirror.bestMirrorFor(url);
       }
     }
     if (prefix == null) throw StateError('无可用镜像节点');

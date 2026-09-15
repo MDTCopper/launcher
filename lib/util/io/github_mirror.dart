@@ -37,9 +37,17 @@ class GithubMirror {
     'raw.githubusercontent.com',
   };
 
-  ///镜像测速 / 爬取预检用的探测 URL（小文件，HEAD 往返即可）
+  ///镜像测速 / 爬取预检用的探测 URL（小文件，往返即可）
   static const probeUrl =
       'https://raw.githubusercontent.com/Anuken/Mindustry/master/README.md';
+
+  ///api 域名的独立探针：部分节点只代理 raw、不代理 `api.github.com`
+  ///（会回自己的健康页，如 `ok`），必须单独验一次
+  static const apiProbeUrl = 'https://api.github.com/repos/Anuken/Mindustry';
+
+  ///按目标 URL 选探针：api 用 [apiProbeUrl]，其余（raw / github.com）用 [probeUrl]
+  static String probeUrlFor(String url) =>
+      Uri.tryParse(url)?.host == 'api.github.com' ? apiProbeUrl : probeUrl;
 
   ///测速用独立 Dio（避免与 copper_io 相互依赖 / 循环）
   final Dio _probeDio = Dio(
@@ -63,6 +71,12 @@ class GithubMirror {
   ///当前选出的最优镜像前缀；null 表示尚未测速
   String? _bestMirror;
 
+  ///[_bestMirror] 是为哪个探针选出来的（raw / api 是不同家族）
+  ///
+  ///节点能力按域名分：只代理 raw 的节点对 api 请求是坏的，
+  ///所以选出的节点只对同探针的请求有效
+  String? _bestMirrorProbe;
+
   ///最优镜像的选定时刻，用于 TTL 缓存（避免每次回退都全量测速）
   DateTime? _bestMirrorAt;
 
@@ -73,9 +87,13 @@ class GithubMirror {
 
   String? get bestMirror => _bestMirror;
 
-  ///缓存仍有效的最优镜像；过期或未选定时返回 null。
-  String? get freshBestMirror {
-    final best = _bestMirror;
+  ///该 URL 对应的最优镜像（探针家族要一致），没有返回 null
+  String? bestMirrorFor(String url) =>
+      _bestMirrorProbe == probeUrlFor(url) ? _bestMirror : null;
+
+  ///该 URL 对应且仍在 TTL 内的最优镜像；过期 / 家族不符返回 null
+  String? freshBestMirrorFor(String url) {
+    final best = bestMirrorFor(url);
     final at = _bestMirrorAt;
     if (best == null || at == null) return null;
     if (DateTime.now().difference(at) > _bestMirrorTtl) return null;
@@ -115,6 +133,7 @@ class GithubMirror {
     _crawledNodes = [];
     crawledLatencies = {};
     _bestMirror = null;
+    _bestMirrorProbe = null;
     _bestMirrorAt = null;
     _enabled = true;
   }
@@ -238,7 +257,7 @@ class GithubMirror {
     if (!_enabled) return null;
     if (!isGithubUrl(url)) return null;
     final nodes = allNodes;
-    final best = _bestMirror ?? (nodes.isEmpty ? null : nodes.first);
+    final best = bestMirrorFor(url) ?? (nodes.isEmpty ? null : nodes.first);
     return best;
   }
 
@@ -249,18 +268,36 @@ class GithubMirror {
     return '$prefix$url';
   }
 
-  ///对单个节点测速（HEAD 到 前缀+探测URL），返回耗时毫秒；失败返回 null。
+  ///对单个节点测速，返回耗时毫秒；不能用作镜像返回 null。
+  ///
+  ///用 GET 而非 HEAD：要**看响应内容**——有些节点只代理 raw、不代理
+  ///`api.github.com`，对它发 api 请求会回自己的健康页（如 `ok`）且状态码 200，
+  ///光看状态码会把这种坏节点误判为可用
   Future<int?> measure(String nodePrefix, String probeUrl) async {
     final url = '$nodePrefix$probeUrl';
     final stopwatch = Stopwatch()..start();
     try {
-      final response = await _probeDio.head(url);
+      final response = await _probeDio.get<String>(
+        url,
+        options: Options(responseType: ResponseType.plain),
+      );
       final code = response.statusCode;
-      if (code != null && code >= 200 && code < 400) {
-        return stopwatch.elapsedMilliseconds;
-      }
+      if (code == null || code < 200 || code >= 400) return null;
+      if (!_isRealProbePayload(probeUrl, response.data)) return null;
+      return stopwatch.elapsedMilliseconds;
     } catch (_) {}
     return null;
+  }
+
+  ///探针响应像不像真内容：空响应、健康页（`ok` 之类）判为坏节点。
+  ///api 探针额外要求是 JSON（`{` / `[` 开头）
+  static bool _isRealProbePayload(String probeUrl, String? body) {
+    final text = body?.trim();
+    if (text == null || text.isEmpty) return false;
+    if (probeUrl.startsWith('https://api.github.com')) {
+      return text.startsWith('{') || text.startsWith('[');
+    }
+    return true;
   }
 
   ///对全部节点分级测速，选最快者作为后续使用的镜像（带 TTL 缓存标记）。
@@ -271,6 +308,7 @@ class GithubMirror {
   Future<String?> selectBestMirror(String probeUrl) async {
     final previousBest = _bestMirror;
     _bestMirror = null;
+    _bestMirrorProbe = null;
     _bestMirrorAt = null;
 
     final priorityNodes = <String>{
@@ -282,6 +320,7 @@ class GithubMirror {
     final priorityBest = await _measureFastest(priorityNodes, probeUrl);
     if (priorityBest != null) {
       _bestMirror = priorityBest;
+      _bestMirrorProbe = probeUrl;
       _bestMirrorAt = DateTime.now();
       return priorityBest;
     }
@@ -289,6 +328,7 @@ class GithubMirror {
     final crawledBest = await _measureFastest(_crawledNodes, probeUrl);
     if (crawledBest != null) {
       _bestMirror = crawledBest;
+      _bestMirrorProbe = probeUrl;
       _bestMirrorAt = DateTime.now();
       return crawledBest;
     }
