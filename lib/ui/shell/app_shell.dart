@@ -4,6 +4,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
@@ -421,8 +422,21 @@ class _RouteWatcher extends RouteObserver {
   }
 
   void _notify(Route route) {
-    debugPrint('当前路由 [${route.settings.name} , ${route.settings.arguments}]');
-    onChanged(route.settings.name, route.settings.arguments);
+    final name = route.settings.name;
+    final args = route.settings.arguments;
+    debugPrint('当前路由 [$name , $args]');
+    addLog(.debug, '路由切换：$name${_argsSummary(args)}', tag: 'Route');
+    onChanged(name, args);
+  }
+
+  /// 路由参数摘要：只取面包屑用的 lead / title，别把整个对象（可能很大）塞进日志
+  static String _argsSummary(dynamic args) {
+    if (args is! Map) return '';
+    final parts = [
+      if (args['lead'] != null) 'lead=${args['lead']}',
+      if (args['title'] != null) 'title=${args['title']}',
+    ];
+    return parts.isEmpty ? '' : '（${parts.join(', ')}）';
   }
 }
 
