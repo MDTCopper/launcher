@@ -79,13 +79,15 @@ class _ResourcePageState extends State<ResourcePage>
               selected: _index == 1,
               collapse: collapse,
             ),
-          NavigationTile(
-            icon: Icon(Icons.paste_outlined),
-            content: '蓝图',
-            onTap: () => moveTo(2),
-            selected: _index == 2,
-            collapse: collapse,
-          ),
+          //TODO 蓝图站还没接，预览版先隐藏
+          if (kDebugMode)
+            NavigationTile(
+              icon: Icon(Icons.paste_outlined),
+              content: '蓝图',
+              onTap: () => moveTo(2),
+              selected: _index == 2,
+              collapse: collapse,
+            ),
           NavigationTile(
             icon: Icon(Icons.map_outlined),
             content: '地图',

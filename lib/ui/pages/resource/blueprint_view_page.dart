@@ -8,7 +8,12 @@ class BlueprintViewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
-      items: [ContentPanelModule(title: '蓝图', child: Text('todo 蓝图浏览'))],
+      items: [
+        ContentPanelModule(
+          title: '蓝图',
+          child: Text('蓝图站接入中，暂未开放'),
+        ),
+      ],
     );
   }
 }
