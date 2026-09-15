@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:encrypt/encrypt.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 class TokenEncryptor {
   static late final Encrypter _encrypter;
@@ -95,7 +96,7 @@ class TokenEncryptor {
     try {
       return decryptToken(token);
     } catch (error) {
-      addLog(.warning, '已保存的 token 无法解密，按未设置处理：$error');
+      addLog(.warning, '已保存的 token 无法解密，按未设置处理：${removeNewlines('$error')}', tag: 'Token');
       return '';
     }
   }

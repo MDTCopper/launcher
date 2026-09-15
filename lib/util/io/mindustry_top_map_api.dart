@@ -4,6 +4,7 @@ import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/mindustry_top_map.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 /// mindustry.top 资源站的地图接口封装（站点拥有者公开的接口）。
 ///
@@ -79,6 +80,6 @@ class MindustryTopMapApi {
   /// 下载失败时记一条运行日志（网络问题与站点 4xx/5xx 分开描述）
   static void logFailure(Object error, {String? context}) {
     final statusText = error is DioException ? '（HTTP ${error.response?.statusCode ?? '无响应'}）' : '';
-    addLogAndPrint(.error, 'mindustry.top 地图${context ?? '请求'}失败$statusText：$error');
+    addLogAndPrint(.error, 'mindustry.top 地图${context ?? '请求'}失败$statusText：${removeNewlines('$error')}', tag: 'MapDownload');
   }
 }

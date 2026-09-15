@@ -7,6 +7,7 @@ import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:path/path.dart' as p;
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 /// 自动分配内存估算
 ///
@@ -103,7 +104,7 @@ Future<int> sumEnabledModSizes(String modsPath, {String? settingsPath}) async {
           settingsFile.path,
         ).modStates;
       } catch (e) {
-        addLogAndPrint(.warning, '读取模组启用状态失败，按文件名判断：$e');
+        addLogAndPrint(.warning, '读取模组启用状态失败，按文件名判断：${removeNewlines('$e')}', tag: 'Memory');
       }
     }
   }

@@ -781,6 +781,7 @@ class _SettingState extends State<_Setting> {
         addLog(
           .info,
           '[${_mindustry.tag}] 存档隔离${value ? '开启' : '关闭'}，数据目录：${_mindustry.dataPath}',
+          tag: 'Version',
         );
       },
     );
@@ -1164,7 +1165,8 @@ class _ModsState extends State<_Mods> {
     } catch (e) {
       addLog(
         .error,
-        '写入模组启用状态失败：[${_mindustry.tag}] ${entry.mod.internalName}，$e',
+        '写入模组启用状态失败：[${_mindustry.tag}] ${entry.mod.internalName}，${removeNewlines('$e')}',
+        tag: 'Version',
       );
       debugPrint('写入模组启用状态失败：$e');
     }
@@ -1173,6 +1175,7 @@ class _ModsState extends State<_Mods> {
     addLog(
       .info,
       '[${_mindustry.tag}] 模组 ${entry.mod.internalName} 已${enabled ? '启用' : '禁用'}，文件：$targetPath',
+      tag: 'Version',
     );
     setState(() => entry.enabled = enabled);
   }

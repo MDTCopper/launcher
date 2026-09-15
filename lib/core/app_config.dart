@@ -14,6 +14,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import '../util/app_paths.dart';
 import '../util/io/token_encryptor.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 part 'app_config.g.dart';
 
@@ -112,7 +113,7 @@ class AppConfig {
       await file.writeAsString(formattedJson, flush: true);
     } catch (e) {
       debugPrint('配置保存失败: $e');
-      Log.add(.error, '配置保存失败: $e');
+      addLog(.error, '配置保存失败: ${removeNewlines('$e')}', tag: 'Version');
     }
   }
 
@@ -128,7 +129,7 @@ class AppConfig {
       await file.writeAsString(encodedData, flush: true);
     } catch (e) {
       debugPrint('配置保存失败: $e');
-      Log.add(.error, '配置保存失败: $e');
+      addLog(.error, '配置保存失败: ${removeNewlines('$e')}', tag: 'Version');
     }
   }
 }
@@ -684,6 +685,7 @@ class VersionOptions {
       addLog(
         .info,
         '删除版本 [${version.tag}]：jar 仍被其它版本引用，只删记录、保留 ${version.jarPath}',
+        tag: 'Version',
       );
       return true;
     }
@@ -691,17 +693,18 @@ class VersionOptions {
     // 4. 唯一引用：删除 jar 本体；文件本就不存在视为成功
     final jar = File(version.jarPath);
     if (!await jar.exists()) {
-      addLog(.info, '删除版本 [${version.tag}]：jar 已不存在，只删记录');
+      addLog(.info, '删除版本 [${version.tag}]：jar 已不存在，只删记录', tag: 'Version');
       return true;
     }
     try {
       await jar.delete();
-      addLog(.info, '删除版本 [${version.tag}]：无其它引用，已删除 jar ${version.jarPath}');
+      addLog(.info, '删除版本 [${version.tag}]：无其它引用，已删除 jar ${version.jarPath}', tag: 'Version');
       return true;
     } catch (error) {
       addLog(
         .error,
-        '删除版本 [${version.tag}]：jar 删除失败 ${version.jarPath}，$error',
+        '删除版本 [${version.tag}]：jar 删除失败 ${version.jarPath}，${removeNewlines('$error')}',
+        tag: 'Version',
       );
       return false;
     }

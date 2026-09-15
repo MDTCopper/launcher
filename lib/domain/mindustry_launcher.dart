@@ -7,6 +7,7 @@ import 'package:copper_launcher/util/io/log.dart';
 import 'package:path/path.dart' as p;
 
 import '../core/app_config.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 class MindustryLauncher {
   Process? _jarProcess;
@@ -40,7 +41,7 @@ class MindustryLauncher {
       return errorOutput.contains('java version') ||
           errorOutput.contains('openjdk version');
     } catch (e) {
-      addLogAndPrint(.warning, 'Java 环境校验失败：$e');
+      addLogAndPrint(.warning, 'Java 环境校验失败：${removeNewlines('$e')}', tag: 'Launch');
       return false;
     }
   }
@@ -56,14 +57,14 @@ class MindustryLauncher {
     // 先校验 Java 环境
     final isJavaAvailable = await _checkJavaEnv(javaExecutable: javaExecutable);
     if (!isJavaAvailable) {
-      addLogAndPrint(.warning, '未检测到 Java 环境，请先安装并配置 Java');
+      addLogAndPrint(.warning, '未检测到 Java 环境，请先安装并配置 Java', tag: 'Launch');
       return false;
     }
 
     // 校验 Jar 文件是否存在
     final jarFile = File(mindustry.jarPath);
     if (!await jarFile.exists()) {
-      addLogAndPrint(.warning, 'mindustry.jar 不存在，路径：${mindustry.jarPath}');
+      addLogAndPrint(.warning, 'mindustry.jar 不存在，路径：${mindustry.jarPath}', tag: 'Launch');
       return false;
     }
 
@@ -132,6 +133,7 @@ class MindustryLauncher {
       addLogAndPrint(
         .info,
         '进程 ID：${_jarProcess?.pid}，命令：java ${args.join(' ')}',
+        tag: 'Launch',
       );
 
       // 监听进程日志（stdout + stderr）
@@ -163,7 +165,7 @@ class MindustryLauncher {
     _jarProcess!.stdout.transform(systemEncoding.decoder).listen((log) {
       if (log.isNotEmpty) {
         _logController?.add('[游戏日志] ${log.trim()}');
-        addLogAndPrint(.info, '[游戏日志] ${log.trim()}');
+        addLogAndPrint(.info, '[游戏日志] ${log.trim()}', tag: 'Launch');
       }
     });
 
@@ -171,7 +173,7 @@ class MindustryLauncher {
     _jarProcess!.stderr.transform(systemEncoding.decoder).listen((error) {
       if (error.isNotEmpty) {
         _logController?.add('[错误] ${error.trim()}');
-        addLogAndPrint(.warning, '[错误] ${error.trim()}');
+        addLogAndPrint(.warning, '[错误] ${error.trim()}', tag: 'Launch');
       }
     });
   }
@@ -183,12 +185,12 @@ class MindustryLauncher {
       _stoppedByLauncher = true; // 主动停止：退出后清理残留哨兵
       _jarProcess!.kill(ProcessSignal.sigterm);
       await _jarProcess!.exitCode;
-      addLogAndPrint(.info, 'Mindustry Jar 进程已关闭');
+      addLogAndPrint(.info, 'Mindustry Jar 进程已关闭', tag: 'Launch');
       _logController?.close();
       _jarProcess = null;
       return true;
     } catch (e) {
-      addLogAndPrint(.warning, '关闭 Jar 进程失败：$e');
+      addLogAndPrint(.warning, '关闭 Jar 进程失败：${removeNewlines('$e')}', tag: 'Launch');
       return false;
     }
   }
@@ -239,10 +241,10 @@ class MindustryLauncher {
     try {
       if (await sentinel.exists()) {
         await sentinel.delete();
-        addLogAndPrint(.info, '启动时打断, 已删除残留的 launchid.dat');
+        addLogAndPrint(.info, '启动时打断, 已删除残留的 launchid.dat', tag: 'Launch');
       }
     } catch (e) {
-      addLogAndPrint(.info, '删除 launchid.dat 失败：$e');
+      addLogAndPrint(.info, '删除 launchid.dat 失败：${removeNewlines('$e')}', tag: 'Launch');
     }
   }
 }

@@ -35,6 +35,7 @@ import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../feature/images.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 ////version_select
 const versionSelectPageRouteKey = '/version_select';
@@ -204,9 +205,9 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     // 扫描目录内可能的游戏版本，作为新目录的初始版本
     final scanned = await _scanGameVersions(path);
     if (!mounted) return;
-    Log.add(.info, '已添加目录[$path]');
+    addLog(.info, '已添加目录[$path]', tag: 'Version');
     if (scanned.isNotEmpty) {
-      Log.add(.info, '目录[$path] 扫描到 ${scanned.length} 个游戏版本');
+      addLog(.info, '目录[$path] 扫描到 ${scanned.length} 个游戏版本', tag: 'Version');
     }
     addNotice(
       icon: Icons.search,
@@ -246,14 +247,14 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     try {
       await Directory(folderPath).create(recursive: true);
     } catch (e) {
-      Log.add(.error, '创建分类文件夹失败[$folderPath]:$e');
+      addLog(.error, '创建分类文件夹失败[$folderPath]:${removeNewlines('$e')}', tag: 'Version');
       if (mounted) {
         addNotice(icon: Icons.close, title: '新建失败', content: '无法在应用目录下创建分类文件夹');
       }
       return;
     }
 
-    Log.add(.info, '已新建分类[$tag] 路径[$folderPath]');
+    addLog(.info, '已新建分类[$tag] 路径[$folderPath]', tag: 'Version');
     setState(() {
       _versionFolds.add(VersionFold(tag: tag, path: folderPath, versions: []));
       _index = _versionFolds.length - 1;
@@ -339,7 +340,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   Future<void> _importLocalGame() async {
     if (!isDesktop) return;
 
-    Log.add(.info, '导入外部游戏文件：');
+    addLog(.info, '导入外部游戏文件：', tag: 'Version');
 
     final path = await PathSelector.selectFile(
       acceptedTypeGroups: const [

@@ -223,10 +223,10 @@ class ResourceImporterState extends State<ResourceImporter> {
       }
       await File(source).copy(dest);
       //导入到哪去了是对账的关键，成功失败都记一条
-      addLog(.info, '导入资源：$source → $dest');
+      addLog(.info, '导入资源：$source → $dest', tag: 'Import');
       return null;
     } catch (error) {
-      addLog(.error, '导入资源失败：$source，$error');
+      addLog(.error, '导入资源失败：$source，${removeNewlines('$error')}', tag: 'Import');
       return '复制失败：$error';
     }
   }
@@ -276,7 +276,7 @@ class ResourceImporterState extends State<ResourceImporter> {
     _importing = true;
     setState(() {});
 
-    addLog(.info, '开始导入 ${_selected.length} 个资源，目标目录：$_targetDataPath');
+    addLog(.info, '开始导入 ${_selected.length} 个资源，目标目录：$_targetDataPath', tag: 'Import');
 
     var ok = 0;
     final failures = <String>[];
@@ -291,11 +291,12 @@ class ResourceImporterState extends State<ResourceImporter> {
     }
 
     if (failures.isEmpty) {
-      addLog(.info, '导入完成：成功 $ok 个');
+      addLog(.info, '导入完成：成功 $ok 个', tag: 'Import');
     } else {
       addLog(
         .warning,
         '导入完成：成功 $ok 个，失败 ${failures.length} 个；${failures.join('；')}',
+        tag: 'Import',
       );
     }
 

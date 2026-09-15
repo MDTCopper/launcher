@@ -88,6 +88,7 @@ Future<Mindustry?> createVersionVariant({
     .info,
     '新建变体 [${version.tag}]：本体与 [${source.tag}] 共用 ${version.jarPath}，'
     '数据目录 ${version.dataPath}，继承${copied.isEmpty ? '无' : copied.join('、')}',
+    tag: 'Version',
   );
   addNotice(
     icon: Icons.check_box_outlined,

@@ -51,6 +51,7 @@ class DownloadMapTask extends Task {
     addLog(
       .info,
       '下载地图 [${map.name}]（id ${map.id}）到 [${version.tag}]：$savePath',
+      tag: 'MapDownload',
     );
 
     try {

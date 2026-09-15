@@ -16,6 +16,7 @@ import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 ///启动后台初始化任务：刷新 remote 数据、加载镜像节点、校验 Java 配置、
 ///检查游戏文件完整性。由 main 在进入 app 前添加，进任务抽屉自跑，不阻塞首帧。
@@ -74,7 +75,7 @@ class StartupBackgroundTask extends Task {
   Future<void> _checkConfiguredJavas() async {
     final invalid = await JavaFinder.validateConfiguredJavas();
     if (invalid > 0) {
-      addLogAndPrint(.warning, '$invalid 个 Java 配置路径失效，已标记并在选中时回退自动');
+      addLogAndPrint(.warning, '$invalid 个 Java 配置路径失效，已标记并在选中时回退自动', tag: 'Startup');
       await config.save();
     }
   }
@@ -92,13 +93,13 @@ class StartupBackgroundTask extends Task {
         //空 fold 目录未创建不算丢失（首启默认文件夹尚无版本），跳过不误报
         if (fold.versions.isEmpty) continue;
         missingFolds.add(fold);
-        Log.add(.warning, '游戏目录不存在: [${fold.tag}] ${fold.path}');
+        addLog(.warning, '游戏目录不存在: [${fold.tag}] ${fold.path}', tag: 'Startup');
         continue;
       }
       for (final version in fold.versions) {
         if (!await File(version.jarPath).exists()) {
           missingVersions.add(version);
-          Log.add(.warning, '游戏版本缺少 jar: [${version.tag}] ${version.jarPath}');
+          addLog(.warning, '游戏版本缺少 jar: [${version.tag}] ${version.jarPath}', tag: 'Startup');
         }
       }
     }
@@ -161,20 +162,20 @@ class StartupBackgroundTask extends Task {
           action: () async {
             for (final fold in missingFolds) {
               config.versionOptions.versionFolds.remove(fold);
-              Log.add(.info, '已删除缺失目录记录: [${fold.tag}]');
+              addLog(.info, '已删除缺失目录记录: [${fold.tag}]', tag: 'Startup');
             }
             for (final version in missingVersions) {
               for (final fold in config.versionOptions.versionFolds) {
                 fold.versions.remove(version);
               }
-              Log.add(.info, '已删除缺失版本记录: [${version.tag}]');
+              addLog(.info, '已删除缺失版本记录: [${version.tag}]', tag: 'Startup');
             }
             for (final jar in orphanJars) {
               try {
                 await File(jar).delete();
-                Log.add(.info, '已删除无引用本体: $jar');
+                addLog(.info, '已删除无引用本体: $jar', tag: 'Startup');
               } catch (e) {
-                Log.add(.warning, '删除无引用本体失败: $jar $e');
+                addLog(.warning, '删除无引用本体失败: $jar ${removeNewlines('$e')}', tag: 'Startup');
               }
             }
             await config.save();

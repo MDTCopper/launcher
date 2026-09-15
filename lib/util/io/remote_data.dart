@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:hjson_dart/hjson_dart.dart' as hjson;
 import 'package:path/path.dart' as p;
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 /// remote 数据源（不随 copper launcher 版本更新的数据，如各版本 settings 适配表）。
 ///
@@ -69,10 +70,10 @@ class RemoteData {
           }
         }
       } catch (e) {
-        addLogAndPrint(.warning, '解析 remote setting_adapter 索引失败：$e');
+        addLogAndPrint(.warning, '解析 remote setting_adapter 索引失败：${removeNewlines('$e')}', tag: 'RemoteData');
       }
     } catch (e) {
-      addLogAndPrint(.info, 'remote 数据拉取失败，使用本地数据：$e');
+      addLogAndPrint(.info, 'remote 数据拉取失败，使用本地数据：${removeNewlines('$e')}', tag: 'RemoteData');
     }
   }
 

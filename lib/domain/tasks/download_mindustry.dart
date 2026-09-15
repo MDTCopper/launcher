@@ -15,6 +15,7 @@ import '../../util/app_paths.dart';
 import '../../util/format/byte_unit.dart';
 import '../../util/io/file_reader.dart';
 import '../task.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 ///官方渠道下载，path路径默认为 [项目//version]
 class DownloadMindustryTask extends Task {
@@ -85,7 +86,7 @@ class DownloadMindustryTask extends Task {
       }
       final String url = jarAsset.url;
 
-      addLog(.info, '下载游戏[$tag],$url');
+      addLog(.info, '下载游戏[$tag],$url', tag: 'GameDownload');
 
       await cio.download(
         url: url,
@@ -114,7 +115,7 @@ class DownloadMindustryTask extends Task {
         content: '[$tag]下载完成，存储路径[$path]',
       );
       TaskLogManager.addLog(LogEntry(LogType.info, '[$tag]下载完成，存储路径[$path]'));
-      addLog(.info, '[$tag]下载完成，存储路径[$path],');
+      addLog(.info, '[$tag]下载完成，存储路径[$path],', tag: 'GameDownload');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -128,14 +129,14 @@ class DownloadMindustryTask extends Task {
 
           addTaskLog(LogEntry(LogType.info, '已取消下载'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
-          addLog(.info, '已取消下载[$tag]');
+          addLog(.info, '已取消下载[$tag]', tag: 'GameDownload');
         }
       } else {
         status = TaskStatus.failed;
         debugPrint('网络错误：$e');
         addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
-        addLog(.warning, '网络错误:$e');
+        addLog(.warning, '网络错误:${removeNewlines('$e')}', tag: 'GameDownload');
         await file.delete();
       }
     } catch (e) {
@@ -143,7 +144,7 @@ class DownloadMindustryTask extends Task {
       debugPrint('未知错误$e');
       addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
       addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
-      addLog(.error, '未知错误:$e');
+      addLog(.error, '未知错误:${removeNewlines('$e')}', tag: 'GameDownload');
       await file.delete();
     } finally {
       updateDisplay();
@@ -158,7 +159,7 @@ class DownloadMindustryTask extends Task {
       final meta = reader.mindustry;
       versionNumber = int.tryParse(meta?.version ?? '');
     } catch (e) {
-      addLogAndPrint(.warning, '读取游戏版本元数据失败：$e');
+      addLogAndPrint(.warning, '读取游戏版本元数据失败：${removeNewlines('$e')}', tag: 'GameDownload');
     }
 
     // 隔离与否取设置页的「游戏默认隔离设置」，不再写死
@@ -189,10 +190,11 @@ class DownloadMindustryTask extends Task {
       addLog(
         .info,
         '创建版本 [${mindustry.tag}]（下载），存档隔离${isolation ? '开启' : '关闭'}，数据目录：${mindustry.dataPath}',
+        tag: 'GameDownload',
       );
     } else {
       //todo 新的路径可以询问玩家是否创建，不创建就移入默认文件夹
-      addLogAndPrint(.error, '无法同步配置文件');
+      addLogAndPrint(.error, '无法同步配置文件', tag: 'GameDownload');
     }
   }
 

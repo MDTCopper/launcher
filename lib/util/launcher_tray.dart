@@ -56,6 +56,7 @@ class LauncherTray extends TrayListener with WindowListener {
     addLog(
       .info,
       '托盘模式：${_trayMode ? '常驻' : '关闭'}（关窗行为：${_closeToTray ? '收进托盘' : '退出程序'}）',
+      tag: 'Tray',
     );
 
     //托盘常驻或关窗进托盘时，拦截关闭按钮（收进托盘），否则正常退出
@@ -132,7 +133,7 @@ class LauncherTray extends TrayListener with WindowListener {
   ///启动游戏成功后调用：托盘模式下收进托盘，其它模式无操作
   Future<void> hideIfTrayMode() async {
     if (!_trayMode) return;
-    addLog(.info, '游戏已启动，启动器收进托盘');
+    addLog(.info, '游戏已启动，启动器收进托盘', tag: 'Tray');
     await windowManager.hide();
     await windowManager.setSkipTaskbar(true);
     await _refreshMenu(); //游戏运行中，菜单切到「停止当前游戏」
@@ -146,7 +147,7 @@ class LauncherTray extends TrayListener with WindowListener {
     if (!restore) return;
     //窗口仍可见则不再弹出，避免重复
     if (await windowManager.isVisible()) return;
-    addLog(.info, '游戏已退出，恢复启动器窗口');
+    addLog(.info, '游戏已退出，恢复启动器窗口', tag: 'Tray');
     await _showFromTray();
   }
 
@@ -172,7 +173,7 @@ class LauncherTray extends TrayListener with WindowListener {
   Future<void> _quickLaunchRecent() async {
     final version = _recentVersion();
     if (version == null || _isGameRunning()) return;
-    addLog(.info, '托盘：启动最近游玩 [${version.tag}]');
+    addLog(.info, '托盘：启动最近游玩 [${version.tag}]', tag: 'Tray');
     addTask(LaunchMindustryTask(version));
     //窗口本就在托盘隐藏状态，无需再收进；刷新菜单反映运行状态
     await _refreshMenu();
@@ -188,18 +189,18 @@ class LauncherTray extends TrayListener with WindowListener {
 
     if (!_confirmStopArmed) {
       _confirmStopArmed = true;
-      addLog(.info, '托盘：点了停止当前游戏，等待二次确认');
+      addLog(.info, '托盘：点了停止当前游戏，等待二次确认', tag: 'Tray');
       _refreshMenu();
       return;
     }
     _confirmStopArmed = false;
-    addLog(.info, '托盘：确认停止当前游戏');
+    addLog(.info, '托盘：确认停止当前游戏', tag: 'Tray');
     running.first.cancel();
     _refreshMenu();
   }
 
   Future<void> _quit() async {
-    addLog(.info, '托盘：退出启动器');
+    addLog(.info, '托盘：退出启动器', tag: 'Tray');
     await trayManager.destroy();
     await windowManager.destroy();
   }
@@ -233,6 +234,7 @@ class LauncherTray extends TrayListener with WindowListener {
         addLog(
           .info,
           '托盘：游戏退出后恢复窗口 → ${personalization.restoreWindowOnGameExit ? '开' : '关'}',
+          tag: 'Tray',
         );
         _refreshMenu();
       case 'quit':
@@ -245,11 +247,11 @@ class LauncherTray extends TrayListener with WindowListener {
   void onWindowClose() {
     //关窗进托盘 / 托盘模式下点关闭 → 收进托盘（进程保留监听游戏退出）
     if (_trayMode || _closeToTray) {
-      addLog(.info, '关闭窗口：收进托盘（进程保留，继续监听游戏退出）');
+      addLog(.info, '关闭窗口：收进托盘（进程保留，继续监听游戏退出）', tag: 'Tray');
       windowManager.hide();
       windowManager.setSkipTaskbar(true);
     } else {
-      addLog(.info, '关闭窗口：退出启动器');
+      addLog(.info, '关闭窗口：退出启动器', tag: 'Tray');
       trayManager.destroy();
     }
   }

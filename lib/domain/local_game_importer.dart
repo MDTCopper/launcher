@@ -33,7 +33,7 @@ Future<Mindustry?> importLocalGame({
       title: '类型错误',
       content: '该文件不是有效的 Mindustry 游戏文件，请确认文件存在',
     );
-    Log.add(.warning, '类型错误:文件[${reader.path}]不是有效的 Mindustry 游戏文件');
+    addLog(.warning, '类型错误:文件[${reader.path}]不是有效的 Mindustry 游戏文件', tag: 'Import');
     return null;
   }
 
@@ -71,7 +71,7 @@ Future<Mindustry?> importLocalGame({
       title: '导入失败',
       content: '无法写入目标目录，请选择合适的路径',
     );
-    Log.add(.warning, '导入失败:文件[${reader.path}]无法写入目标目录[$targetDir]');
+    addLog(.warning, '导入失败:文件[${reader.path}]无法写入目标目录[$targetDir]', tag: 'Import');
     return null;
   }
 
@@ -92,9 +92,10 @@ Future<Mindustry?> importLocalGame({
   );
   fold.versions.add(version);
   config.save();
-  Log.add(
+  addLog(
     .info,
     '导入本地游戏 [${version.tag}]：本体 $jarPath，存档隔离${version.isolation ? '开启' : '关闭'}',
+    tag: 'Import',
   );
   return version;
 }

@@ -177,6 +177,7 @@ class LaunchMindustryTask extends Task {
       '启动 [${mindustry.tag}]：Java=$javaPath，内存=$maxMemory，'
       '数据目录=${mindustry.dataPath}，隔离=${mindustry.isolation ? '开' : '关'}，'
       'settings 覆写=${supportsSettingsOverride && config.setting.mindustrySettingsOverride ? '是' : '否'}',
+      tag: 'Launch',
     );
 
     // 记录本次启动时刻，游戏退出时回写 lastLaunchTime 与 playTime

@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_single_instance/flutter_single_instance.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,11 +32,12 @@ Future<void> _initialize() async {
     addLogAndPrint(
       .warning,
       'exe 目录不能放数据（系统目录或不可写），数据目录改用 ${AppPaths.copperLauncher}',
+      tag: 'Startup',
     );
   }
   //数据目录是排查「东西写到哪去了」的第一现场，每次启动都记下来
-  addLog(.info, '数据根目录：${AppPaths.copperLauncher}');
-  addLog(.info, '游戏默认数据目录：${AppPaths.defaultGameData}');
+  addLog(.info, '数据根目录：${AppPaths.copperLauncher}', tag: 'Startup');
+  addLog(.info, '游戏默认数据目录：${AppPaths.defaultGameData}', tag: 'Startup');
 
   final multipleStartup = !await _initSingleInctance();
   if (multipleStartup) return;
@@ -59,9 +61,15 @@ void _checkPlatform() {
 Future<bool> _initSingleInctance() async {
   // 单实例：该包在 Windows / Linux / macOS 都能判定
   if (!await FlutterSingleInstance().isFirstInstance()) {
-    addLogAndPrint(.info, '已有实例在运行，通知它显示窗口后退出');
+    addLogAndPrint(.info, '已有实例在运行，通知它显示窗口后退出', tag: 'Startup');
     final error = await FlutterSingleInstance().focus();
-    if (error != null) addLogAndPrint(.warning, '唤醒已有实例失败：$error');
+    if (error != null) {
+      addLogAndPrint(
+        .warning,
+        '唤醒已有实例失败：${removeNewlines(error)}',
+        tag: 'Startup',
+      );
+    }
     // 留一点时间让上面的日志落盘
     await Future.delayed(const Duration(milliseconds: 200));
     // 用结束进程而不是 exit(0)：实测 Flutter 引擎里 exit(0) 之后进程会挂着不退
@@ -70,7 +78,7 @@ Future<bool> _initSingleInctance() async {
   }
   // 第二个实例发来的唤醒请求：把窗口从托盘 / 最小化状态拉回来
   FlutterSingleInstance.onFocus = (metadata) {
-    addLogAndPrint(.info, '收到第二次启动，显示主窗口（参数 $metadata）');
+    addLogAndPrint(.info, '收到第二次启动，显示主窗口（参数 $metadata）', tag: 'Startup');
     unawaited(LauncherTray.instance.showMainWindow());
   };
   return true;
