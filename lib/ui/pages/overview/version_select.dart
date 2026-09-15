@@ -132,6 +132,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
 
   void _select(Mindustry version) async {
     config.versionOptions.selectedVersion = version;
+    addLog(.info, '切换版本：[${version.tag}]（${version.release}）', tag: 'Version');
     Navigator.pop(context);
     await config.save();
   }

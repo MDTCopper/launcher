@@ -7,6 +7,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.d
 import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/util/io/log.dart';
 
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:flutter/material.dart';
@@ -82,12 +83,14 @@ class _AccountPageState extends State<AccountPage> {
     config.setting.accounts.add(account);
     config.setting.selectAccount(account);
     config.save();
+    addLog(.info, '新建账户：${account.name}', tag: 'Account');
     setState(() {});
   }
 
   void _selectAccount(Account account) {
     config.setting.selectAccount(account);
     config.save();
+    addLog(.info, '切换账户：${account.name}', tag: 'Account');
     setState(() {});
   }
 
@@ -97,6 +100,7 @@ class _AccountPageState extends State<AccountPage> {
       config.setting.currentAccountId = '';
     }
     config.save();
+    addLog(.info, '删除账户：${account.name}', tag: 'Account');
     setState(() {});
   }
 

@@ -16,6 +16,7 @@ import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/github_mirror.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
 
 class DownloadSettingPage extends StatefulWidget {
@@ -108,6 +109,13 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
   void _persistAndSync() {
     config.save();
     cio.applySettings(config.setting);
+    addLog(
+      .info,
+      '下载设置已更新：代理=${cio.proxyInfo}，'
+      '镜像=${config.setting.mirrorOptions.enabled ? config.setting.mirrorOptions.strategy.name : '关闭'}，'
+      '限速=${downloadOptions.speedLimitBytes}，线程=${downloadOptions.maxTread}',
+      tag: 'Setting',
+    );
   }
 
   ///当前限速在档位列表中的下标

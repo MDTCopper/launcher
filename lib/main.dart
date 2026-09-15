@@ -46,6 +46,13 @@ Future<void> _initialize() async {
   await initAppConfig();
   //config 就绪后同步网络设置（代理/token/限速/线程/镜像），此后新建请求即生效
   cio.applySettings(config.setting);
+  addLog(
+    .info,
+    '网络设置：代理=${cio.proxyInfo}，'
+    '镜像=${config.setting.mirrorOptions.enabled ? config.setting.mirrorOptions.strategy.name : '关闭'}，'
+    'GitHub token=${config.setting.githubToken.isEmpty ? '未设置' : '已设置'}',
+    tag: 'Startup',
+  );
   await _initPlatformView();
   //窗口就绪后应用托盘模式（依赖 config + windowManager）
   await LauncherTray.instance.applyMode();
