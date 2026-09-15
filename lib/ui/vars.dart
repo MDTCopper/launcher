@@ -8,6 +8,7 @@ import 'package:copper_launcher/ui/pages/resource/mod_download_page.dart';
 import 'package:copper_launcher/ui/pages/resource/resource.dart';
 import 'package:copper_launcher/ui/pages/overview/launch.dart';
 import 'package:copper_launcher/ui/pages/setting/setting.dart';
+import 'package:copper_launcher/ui/pages/setting/license_page.dart';
 import 'package:copper_launcher/ui/pages/test.dart';
 import 'package:copper_launcher/ui/pages/tools.dart';
 import 'package:flutter/cupertino.dart';
@@ -47,6 +48,7 @@ const Map<String, Widget> routeMap = {
   otherSettingPageRouteKey: SettingPage(),
   helpPageRouteKey: SettingPage(),
   aboutPageRouteKey: SettingPage(),
+  licensePageRouteKey: OpenSourceLicensePage(),
 };
 
 //token 注入统一由 cio 拦截器处理：仅 api.github.com、且 token 非空才附加，
