@@ -5,9 +5,10 @@ import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
+import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/feature/feature_curve.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
@@ -177,6 +178,7 @@ class _GameUserPageState extends State<GameUserPage> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               for (final color in _presetColors)
                 _ColorDot(
@@ -185,6 +187,7 @@ class _GameUserPageState extends State<GameUserPage> {
                   showCheck: true,
                   onTap: () => setState(() => _color = color),
                 ),
+              _buildCustomColorChip(),
             ],
           ),
           const SizedBox(height: 12),
@@ -214,6 +217,63 @@ class _GameUserPageState extends State<GameUserPage> {
     );
   }
 
+  /// 「自定义」胶囊：当前色不在预设里时高亮并显示该色小圆点
+  Widget _buildCustomColorChip() {
+    final colors = AppColors.of(context);
+    final isCustom = !_presetColors.contains(_color);
+
+    return ReboundContainer(
+      borderRadius: BorderRadius.circular(16),
+      backgroundColor: isCustom ? colors.interactive.withAlpha(40) : null,
+      onTap: _pickCustomColor,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 6,
+            children: [
+              if (isCustom)
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: _arcToFlutter(_color),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: colors.border),
+                  ),
+                )
+              else
+                Icon(Icons.colorize, size: 14, color: colors.itemPrimary),
+              Text(
+                '自定义',
+                style: TextStyle(
+                  color: isCustom ? colors.interactive : colors.itemPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 取色：结果写回 arc `rgba8888`
+  Future<void> _pickCustomColor() async {
+    // 未设色（0）时从游戏默认橙起调，免得从全透明开始
+    final initial = _color == 0 ? 0xFFA108FF : _color;
+    final picked = await showColorPickerDialog(
+      context: context,
+      initialColor: _arcToFlutter(initial),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _color = _flutterToArc(picked));
+  }
+
   // ── 已保存账户区 ──
 
   Widget _buildGameUsersPanel() {
@@ -221,12 +281,12 @@ class _GameUserPageState extends State<GameUserPage> {
     final currentId = config.setting.currentGameUserId;
 
     return ContentPanelModule(
-      title: '已保存的游戏内用户（启动时自动使用选中的用户）',
+      title: '已保存的游戏内用户',
       child: users.isEmpty
           ? Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                '暂无用户，在上方填写信息后点击「保存为用户」',
+                '暂无用户，在上方填写信息后点击',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             )
@@ -253,7 +313,7 @@ class _GameUserPageState extends State<GameUserPage> {
     final colors = AppColors.of(context);
 
     // 行内容：色点 + 名称/UUID + 选中标记
-    Widget row = Container(
+    Widget child = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
@@ -283,19 +343,21 @@ class _GameUserPageState extends State<GameUserPage> {
     );
 
     // 整行点击选择
-    row = ReboundButton(
+    child = ReboundButton(
       pressedScale: 0.98,
 
       borderRadius: BorderRadius.circular(8),
       onTap: () => _selectGameUser(user),
-      child: row,
+      child: child,
     );
 
-    row = ActionMenu(
+    child = ActionMenu(
       actions: [
         SlideActionButton(
           icon: const Icon(Icons.delete_outline),
           label: '删除',
+          color: Colors.white,
+          backgroundColor: colors.error,
           onTap: () => _deleteGameUser(user),
         ),
       ],
@@ -330,10 +392,10 @@ class _GameUserPageState extends State<GameUserPage> {
           },
         ),
       ],
-      child: row,
+      child: child,
     );
 
-    return row;
+    return child;
   }
 
   Widget _menuItem(
@@ -401,6 +463,15 @@ Color _arcToFlutter(int arc) => Color.fromARGB(
   (arc >> 16) & 0xFF,
   (arc >> 8) & 0xFF,
 );
+
+/// Flutter Color → arc `rgba8888`（取色器给的是 Color，存回 config 要 arc 编码）
+int _flutterToArc(Color color) {
+  final argb = color.toARGB32();
+  return ((argb >> 16 & 0xFF) << 24) |
+      ((argb >> 8 & 0xFF) << 16) |
+      ((argb & 0xFF) << 8) |
+      (argb >> 24 & 0xFF);
+}
 
 ///颜色圆点（选择器与账户列表共用）。
 class _ColorDot extends StatelessWidget {
