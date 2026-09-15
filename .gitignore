@@ -68,6 +68,7 @@ config.*
 analyze_out.txt
 remote_data/
 java/
+.project_status/
 
 #不需要开发iOS 和 Web端
 ios/
