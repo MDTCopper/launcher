@@ -82,6 +82,8 @@ class _LaunchPageState extends State<LaunchPage> {
           fontWeight: FontWeight.w900,
           fontSize: 28,
         ),
+        maxLines: 1,
+        overflow: .ellipsis,
       ),
       subtitle: Text(
         selectedVersion.release,
