@@ -4,12 +4,12 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/mindustry_top_map.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/download_map.dart';
-import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
@@ -24,7 +24,8 @@ import 'package:path/path.dart' as p;
 /// mindustry.top 社区地图站
 ///
 /// 列表按 offset 翻页（站点每页 15 条，越界返回 400 由 api 层折算成空列表）；
-/// 搜索走服务端 `search` 参数；玩法模式接口没有筛选参数，所以按已加载的条目筛
+/// 搜索走服务端 `search` 参数；玩法 / 版本没有筛选参数，只能筛已加载条目——
+/// 版本选项也取自已加载条目（站点按最新发布排序，翻到后面才见老版本）
 class MapViewPage extends StatefulWidget {
   const MapViewPage({super.key});
 
@@ -56,8 +57,11 @@ class _MapViewPageState extends State<MapViewPage> {
 
   final TextEditingController _searchController = TextEditingController();
 
-  /// 选中的玩法模式（空 = 不限）
-  final Set<MindustryTopMapMode> _modeFilter = {};
+  /// 选中的玩法模式（null = 不限）；与版本同为单选胶囊
+  MindustryTopMapMode? _modeFilter;
+
+  /// 选中的游戏版本（null = 不限）；选项取自已加载条目
+  String? _versionFilter;
 
   bool _loading = false;
 
@@ -133,13 +137,24 @@ class _MapViewPageState extends State<MapViewPage> {
     _MapListCache.hasMore = _hasMore;
   }
 
-  /// 模式筛过之后真正展示的条目
-  List<MindustryTopMapMeta> get _visibleMaps => _modeFilter.isEmpty
-      ? _maps
-      : [
-          for (final map in _maps)
-            if (_modeFilter.contains(map.mode)) map,
-        ];
+  /// 已加载条目里出现过的游戏版本（去重；版本号高的在前）
+  List<String> get _availableVersions {
+    final versions = <String>{};
+    for (final map in _maps) {
+      final tag = map.gameVersionTag;
+      if (tag != null) versions.add(tag.label);
+    }
+    return versions.toList()..sort((a, b) => b.compareTo(a));
+  }
+
+  /// 玩法 / 版本筛过之后真正展示的条目
+  List<MindustryTopMapMeta> get _visibleMaps => [
+    for (final map in _maps)
+      if ((_modeFilter == null || map.mode == _modeFilter) &&
+          (_versionFilter == null ||
+              map.gameVersionTag?.label == _versionFilter))
+        map,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -147,6 +162,8 @@ class _MapViewPageState extends State<MapViewPage> {
   }
 
   Widget _buildHeadBar() {
+    final versions = _availableVersions;
+
     return ContentPanelModule(
       title: '搜索与筛选',
       child: Column(
@@ -172,33 +189,97 @@ class _MapViewPageState extends State<MapViewPage> {
                 content: '刷新',
                 onTap: () {
                   _searchController.clear();
-                  setState(_modeFilter.clear);
+                  setState(() {
+                    _modeFilter = null;
+                    _versionFilter = null;
+                  });
                   _loadMore(reset: true);
                 },
               ),
             ],
           ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final mode in MindustryTopMapMode.values)
-                ActionButton(
-                  content: Text(_modeLabel(mode)),
-                  selected: _modeFilter.contains(mode),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+          _buildFilterRow(
+            '玩法',
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final mode in MindustryTopMapMode.values)
+                  _buildFilterChip(
+                    label: _modeLabel(mode),
+                    selected: _modeFilter == mode,
+                    onTap: () => setState(
+                      () => _modeFilter = _modeFilter == mode ? null : mode,
+                    ),
                   ),
-                  onTap: () => setState(() {
-                    _modeFilter.contains(mode)
-                        ? _modeFilter.remove(mode)
-                        : _modeFilter.add(mode);
-                  }),
-                ),
-            ],
+              ],
+            ),
           ),
+          // 版本选项取自已加载条目：站点按最新发布排序，翻到后面才见老版本
+          if (versions.isNotEmpty)
+            _buildFilterRow(
+              '版本',
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final version in versions)
+                    _buildFilterChip(
+                      label: version,
+                      selected: _versionFilter == version,
+                      onTap: () => setState(
+                        () => _versionFilter = _versionFilter == version
+                            ? null
+                            : version,
+                      ),
+                    ),
+                ],
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  /// 一行筛选：左侧定宽标签 + 右侧控件
+  Widget _buildFilterRow(String label, Widget control) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        SizedBox(
+          width: 44,
+          child: Text(label, style: theme.textTheme.bodyMedium),
+        ),
+        Expanded(child: control),
+      ],
+    );
+  }
+
+  /// 筛选胶囊：样式与交互对齐 gameSettingPage 的分类 chips（单选、圆角 16）
+  Widget _buildFilterChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final colors = AppColors.of(context);
+    return ReboundContainer(
+      borderRadius: BorderRadius.circular(16),
+      backgroundColor: selected ? colors.interactive.withAlpha(40) : null,
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? colors.interactive : colors.itemPrimary,
+            ),
+          ),
+        ),
       ),
     );
   }
