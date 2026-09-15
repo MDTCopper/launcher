@@ -9,6 +9,7 @@ import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
@@ -55,7 +56,11 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     try {
       latest = await _fetchLatestReleases();
     } catch (e) {
-      addLogAndPrint(.warning, '获取最新版本列表失败：$e');
+      addLogAndPrint(
+        .warning,
+        '获取最新版本列表失败：${removeNewlines('$e')}',
+        tag: 'MindustryDownload',
+      );
       latest = const [];
       if (snapshot.isEmpty) return false;
     }
@@ -68,7 +73,11 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     try {
       _latestBeta = await _fetchLatestBeta();
     } catch (e) {
-      addLogAndPrint(.warning, '获取最新 be 版本失败：$e');
+      addLogAndPrint(
+        .warning,
+        '获取最新 be 版本失败：${removeNewlines('$e')}',
+        tag: 'MindustryDownload',
+      );
       _latestBeta = null;
     }
     return true;
