@@ -22,14 +22,14 @@ Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
   'versionOptions': instance.versionOptions,
 };
 
-Account _$AccountFromJson(Map<String, dynamic> json) => Account(
+GameUser _$GameUserFromJson(Map<String, dynamic> json) => GameUser(
   id: json['id'] as String? ?? '',
   name: json['name'] as String? ?? '',
   uuid: json['uuid'] as String? ?? '',
   color: (json['color'] as num?)?.toInt() ?? 0,
 );
 
-Map<String, dynamic> _$AccountToJson(Account instance) => <String, dynamic>{
+Map<String, dynamic> _$GameUserToJson(GameUser instance) => <String, dynamic>{
   'id': instance.id,
   'name': instance.name,
   'uuid': instance.uuid,
@@ -65,10 +65,10 @@ Setting _$SettingFromJson(Map<String, dynamic> json) => Setting(
   mirrorOptions: json['mirrorOptions'] == null
       ? null
       : MirrorOptions.fromJson(json['mirrorOptions'] as Map<String, dynamic>),
-  accounts: (json['accounts'] as List<dynamic>?)
-      ?.map((e) => Account.fromJson(e as Map<String, dynamic>))
+  gameUsers: (json['accounts'] as List<dynamic>?)
+      ?.map((e) => GameUser.fromJson(e as Map<String, dynamic>))
       .toList(),
-  currentAccountId: json['currentAccountId'] as String? ?? '',
+  currentGameUserId: json['currentAccountId'] as String? ?? '',
 );
 
 Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
@@ -77,8 +77,8 @@ Map<String, dynamic> _$SettingToJson(Setting instance) => <String, dynamic>{
   'mindustrySettingsOverride': instance.mindustrySettingsOverride,
   'githubToken': instance.githubToken,
   'customSetting': instance.customSetting,
-  'accounts': instance.accounts,
-  'currentAccountId': instance.currentAccountId,
+  'accounts': instance.gameUsers,
+  'currentAccountId': instance.currentGameUserId,
   'personalizationOptions': instance.personalizationOptions,
   'downloadOptions': instance.downloadOptions,
   'proxyOptions': instance.proxyOptions,

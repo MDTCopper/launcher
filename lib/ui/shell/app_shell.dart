@@ -44,7 +44,7 @@ class AppShellState extends State<AppShell> {
       label: '概览',
       items: [
         RailItem(label: '主页', icon: Icons.home_filled, route: '/'),
-        RailItem(label: '账户', icon: Icons.person_outline, route: '/user'),
+        RailItem(label: '游戏内用户', icon: Icons.person_outline, route: '/user'),
       ],
     ),
 

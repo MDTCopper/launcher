@@ -134,12 +134,12 @@ class AppConfig {
   }
 }
 
-/// 启动器管理的游戏账户，对应 Mindustry settings 中的玩家身份信息。
+/// 启动器管理的游戏内用户，对应 Mindustry settings 中的玩家身份信息。
 ///
-/// 启动游戏时，选中的账户会覆盖 settings 的 `name` / `uuid` / `color-0`。
+/// 启动游戏时，选中的用户会覆盖 settings 的 `name` / `uuid` / `color-0`。
 @JsonSerializable()
-class Account {
-  /// 账户唯一标识（启动器本地生成，用于选中与区分账户）。
+class GameUser {
+  /// 用户唯一标识（启动器本地生成，用于选中与区分用户）。
   @JsonKey(defaultValue: '')
   final String id;
 
@@ -147,7 +147,7 @@ class Account {
   @JsonKey(defaultValue: '')
   String name;
 
-  /// 玩家身份 UUID（对应 settings `uuid`）。
+  /// 玩家身份 UUID（对应 settings `uuid`）；界面不展示也不提供编辑。
   @JsonKey(defaultValue: '')
   String uuid;
 
@@ -155,17 +155,17 @@ class Account {
   @JsonKey(defaultValue: 0)
   int color;
 
-  Account({
+  GameUser({
     required this.id,
     required this.name,
     required this.uuid,
     this.color = 0,
   });
 
-  factory Account.fromJson(Map<String, dynamic> json) =>
-      _$AccountFromJson(json);
+  factory GameUser.fromJson(Map<String, dynamic> json) =>
+      _$GameUserFromJson(json);
 
-  Map<String, dynamic> toJson() => _$AccountToJson(this);
+  Map<String, dynamic> toJson() => _$GameUserToJson(this);
 }
 
 @JsonSerializable()
@@ -183,12 +183,13 @@ class Setting {
   @JsonKey(defaultValue: {})
   final Map<String, dynamic> customSetting; //这个用来存储一些不太用得着置变量，比如某些提示的开关记忆
 
-  ///已保存的游戏账户列表。
-  late final List<Account> accounts;
+  ///已保存的游戏内用户列表（JSON 键沿用 `accounts`，避免老配置丢数据）。
+  @JsonKey(name: 'accounts')
+  late final List<GameUser> gameUsers;
 
-  ///当前选中的账户 id，对应 [currentAccount]。
-  @JsonKey(defaultValue: '')
-  String currentAccountId;
+  ///当前选中的用户 id，对应 [currentGameUser]（JSON 键沿用 `currentAccountId`）。
+  @JsonKey(name: 'currentAccountId', defaultValue: '')
+  String currentGameUserId;
 
   late final PersonalizationOptions personalizationOptions;
 
@@ -208,8 +209,8 @@ class Setting {
     DownloadOptions? downloadOptions,
     ProxyOptions? proxyOptions,
     MirrorOptions? mirrorOptions,
-    List<Account>? accounts,
-    this.currentAccountId = '',
+    List<GameUser>? gameUsers,
+    this.currentGameUserId = '',
   }) {
     this.launchOptions = launchOptions ?? LaunchOptions.fromJson({});
     this.mindustrySettings = mindustrySettings ?? MindustrySettingsPatch();
@@ -218,20 +219,20 @@ class Setting {
     this.downloadOptions = downloadOptions ?? DownloadOptions.fromJson({});
     this.proxyOptions = proxyOptions ?? ProxyOptions.fromJson({});
     this.mirrorOptions = mirrorOptions ?? MirrorOptions.fromJson({});
-    this.accounts = accounts ?? [];
+    this.gameUsers = gameUsers ?? [];
   }
 
-  ///当前选中的账户；未选择或账户不存在时返回 null。
-  Account? get currentAccount {
-    for (final account in accounts) {
-      if (account.id == currentAccountId) return account;
+  ///当前选中的游戏内用户；未选择或用户不存在时返回 null。
+  GameUser? get currentGameUser {
+    for (final user in gameUsers) {
+      if (user.id == currentGameUserId) return user;
     }
     return null;
   }
 
-  ///选中 [account] 为当前账户。
-  void selectAccount(Account account) {
-    currentAccountId = account.id;
+  ///选中 [user] 为当前游戏内用户。
+  void selectGameUser(GameUser user) {
+    currentGameUserId = user.id;
   }
 
   dynamic getCustomSetting(String key, dynamic defaultSetting) {

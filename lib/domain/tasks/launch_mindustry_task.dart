@@ -158,14 +158,14 @@ class LaunchMindustryTask extends Task {
       setting.applyPatch(config.setting.mindustrySettings);
     }
 
-    //应用当前选中的账户：覆盖玩家的 name / uuid / color-0
-    //（放在通用设置之后，账户信息优先）
-    final account = config.setting.currentAccount;
-    if (supportsSettingsOverride && account != null) {
-      setting.name = account.name;
-      // 禁止
-      // setting.uuid = account.uuid;
-      setting.color0 = account.color;
+    //应用当前选中的游戏内用户：覆盖玩家的 name / color-0
+    //（放在通用设置之后，用户信息优先）
+    final user = config.setting.currentGameUser;
+    if (supportsSettingsOverride && user != null) {
+      setting.name = user.name;
+      // 禁止：UUID 是联机身份，不随用户覆写
+      // setting.uuid = user.uuid;
+      setting.color0 = user.color;
     }
 
     if (supportsSettingsOverride && setting.data.isNotEmpty) {
