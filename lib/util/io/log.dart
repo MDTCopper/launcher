@@ -7,17 +7,26 @@ import 'package:path/path.dart' as p;
 import '../../core/app_constant.dart';
 import '../app_paths.dart';
 
-///日志时间戳统一到秒（够用且短），形如 `2026-09-14T21:46:12`
+///日志内容里的时间戳统一到秒（够用且短），形如 `2026-09-14T21:46:12`
 final DateFormat _logStampFormat = DateFormat("yyyy-MM-dd'T'HH:mm:ss");
+
+///日志文件名格式：**不记年份**——日志最多保留 7 天，跨年也活不过保留期
+final DateFormat _logFileNameFormat = DateFormat('MM-ddTHH-mm-ss.SSS');
 
 String _logTimestamp([DateTime? now]) =>
     _logStampFormat.format(now ?? DateTime.now());
 
-void addLog(RunTimeLogType type, String message) => Log.add(type, message);
+///一条日志的固定格式：`[时间]-[级别]-[模块] 内容`（模块可缺省）
+String _logLine(RunTimeLogType type, String message, String? tag) =>
+    '[${_logTimestamp()}]-[${type.name}]${tag == null ? '' : '-[$tag]'} $message';
 
-void addLogAndPrint(RunTimeLogType type, String message) {
-  Log.add(type, message);
-  debugPrint('[${_logTimestamp()}]-[${type.name}] $message\n');
+///写运行时日志。[tag] 是模块标识，约定用英文短名（如 `ModIcon` / `Download`）以便过滤
+void addLog(RunTimeLogType type, String message, {String? tag}) =>
+    Log.add(type, message, tag: tag);
+
+void addLogAndPrint(RunTimeLogType type, String message, {String? tag}) {
+  Log.add(type, message, tag: tag);
+  debugPrint('${_logLine(type, message, tag)}\n');
 }
 
 void addCustomLog(String message) => Log.addCustom(message);
@@ -40,7 +49,7 @@ abstract class Log {
     await logDir.create(recursive: true);
     // 每次启动时清理一周前的日志
     await cleanOutdatedLogs();
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}.log';
+    final fileName = '${_logFileNameFormat.format(DateTime.now())}.log';
     final logFile = File(p.join(logDir.path, fileName));
     await logFile.create();
     final platform = Platform.operatingSystem;
@@ -56,8 +65,8 @@ abstract class Log {
     _file = logFile;
   }
 
-  static Future<void> add(RunTimeLogType type, String message) =>
-      _append('[${_logTimestamp()}]-[${type.name}] $message\n');
+  static Future<void> add(RunTimeLogType type, String message, {String? tag}) =>
+      _append('${_logLine(type, message, tag)}\n');
 
   static Future<void> addCustom(String message) =>
       _append('[${_logTimestamp()}] $message\n');
@@ -86,17 +95,14 @@ abstract class Log {
     await for (final entity in logDir.list()) {
       if (entity is! File) continue;
 
-      // 解析文件名中的创建时间戳；非时间戳命名的文件跳过（容错）
-      final createdMs = int.tryParse(p.basenameWithoutExtension(entity.path));
-      if (createdMs == null) continue;
+      // 文件名不带年份，没法从名字解析创建时间，统一按修改时间算保留期；
+      // 旧命名（毫秒纪元）的文件也因此一视同仁，超期即清
+      if (now.difference(entity.statSync().modified) <= retention) continue;
 
-      final created = DateTime.fromMillisecondsSinceEpoch(createdMs);
-      if (now.difference(created) > retention) {
-        try {
-          await entity.delete();
-        } catch (_) {
-          // 删除失败忽略（文件可能被占用）
-        }
+      try {
+        await entity.delete();
+      } catch (_) {
+        // 删除失败忽略（文件可能被占用）
       }
     }
   }
