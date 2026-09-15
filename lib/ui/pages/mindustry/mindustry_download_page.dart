@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:copper_launcher/data/mindustry_version_snapshot.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -85,24 +87,53 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
 
   /// 取官方最新一页 release（一页 100 条，够覆盖新版本）
   Future<List<MindustryGithubMeta>> _fetchLatestReleases() async {
-    final response = await cio.get<List<dynamic>>(
+    final releases = await _fetchReleaseArray(
       '$githubMindustryUrl?per_page=$mindustryVersionPageSize',
-      headers: gameDownloadHeaders,
     );
     return [
-      for (final release in response.data!)
+      for (final release in releases)
         MindustryGithubMeta.fromJson(release as Map<String, dynamic>),
     ];
   }
 
   Future<MindustryGithubMeta> _fetchLatestBeta() async {
-    final response = await cio.get<List<dynamic>>(
-      '$githubBeUrl?per_page=1',
-      headers: gameDownloadHeaders,
-    );
+    final releases = await _fetchReleaseArray('$githubBeUrl?per_page=1');
     return MindustryGithubMeta.fromJson(
-      response.data!.first as Map<String, dynamic>,
+      releases.first as Map<String, dynamic>,
     );
+  }
+
+  /// 取 release 数组，防御式解析。
+  ///
+  /// 不能直接用 `cio.get<List<dynamic>>`：dio 只在响应 content-type 是 JSON 时
+  /// 才 `jsonDecode`，而镜像节点回包有时带非 json 的 content-type（或直接是 HTML
+  /// 错误页）——此时 data 是 String，强转就会抛
+  /// `type 'String' is not a subtype of type 'List<dynamic>?'`。这里拿原始串自己
+  /// 解析，内容不对抛清晰错误（调用方回退快照）
+  Future<List<dynamic>> _fetchReleaseArray(String url) async {
+    final response = await cio.get<String>(
+      url,
+      headers: gameDownloadHeaders,
+      responseType: ResponseType.plain,
+    );
+    final raw = response.data ?? '';
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } catch (_) {
+      throw FormatException('release 响应不是 JSON：${_preview(raw)}');
+    }
+    if (decoded is! List) {
+      throw FormatException('release 响应不是 JSON 数组：${_preview(raw)}');
+    }
+    return decoded;
+  }
+
+  /// 异常信息里的响应预览：压成一行并截断，别把整页 HTML 打进日志
+  static String _preview(String raw) {
+    final text = removeNewlines(raw);
+    return text.length <= 120 ? text : '${text.substring(0, 120)}…';
   }
 
   /// 取某时代的正式版：无 assets 的 release 本来就下不了，直接排除
