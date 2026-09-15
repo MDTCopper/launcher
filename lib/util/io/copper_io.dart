@@ -688,18 +688,25 @@ class CopperIO {
     final effectiveSpeedLimit = speedLimit ?? _defaultSpeedLimitBytes;
     final effectiveChunkCount = max(1, chunkCount ?? _defaultChunkCount);
 
-    final headResp = await _dio!.head(
-      url,
-      options: Options(headers: headers),
-      cancelToken: cancelToken,
-    );
-
-    final int totalSize = int.parse(
-      headResp.headers.value('content-length') ?? '0',
-    );
-
-    final bool rangeSupported =
-        headResp.headers.value('accept-ranges')?.toLowerCase() == 'bytes';
+    // HEAD 只为探大小 / Range 支持，失败不该让整个下载失败：有些站点（如
+    // api.mindustry.top）不允许 HEAD，会返回 405。此时按「未知大小、无 Range」
+    // 退化为单流，大小改由 GET 响应头补齐（见 _downloadSingleStream）
+    var totalSize = 0;
+    var rangeSupported = false;
+    try {
+      final headResp = await _dio!.head(
+        url,
+        options: Options(headers: headers),
+        cancelToken: cancelToken,
+      );
+      totalSize =
+          int.tryParse(headResp.headers.value('content-length') ?? '0') ?? 0;
+      rangeSupported =
+          headResp.headers.value('accept-ranges')?.toLowerCase() == 'bytes';
+    } on DioException catch (e) {
+      // 用户取消照旧抛出；HEAD 被拒 / 网络类失败则退化为单流，不在这里终止
+      if (CancelToken.isCancel(e)) rethrow;
+    }
 
     if (totalSize <= 0 || !rangeSupported || totalSize < 2 * MB) {
       await _downloadSingleStream(
