@@ -18,7 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
-///启动后台初始化任务：刷新 remote 数据、加载镜像节点、校验 Java 配置、
+///启动后台初始化任务：刷新 remote 数据、加载镜像节点、检查 Java 环境、
 ///检查游戏文件完整性。由 main 在进入 app 前添加，进任务抽屉自跑，不阻塞首帧。
 class StartupBackgroundTask extends Task {
   ///当前步骤描述
@@ -27,7 +27,7 @@ class StartupBackgroundTask extends Task {
   ///已完成步骤数，用于折算进度
   int _completedSteps = 0;
 
-  ///是否包含 Java 配置校验步骤：仅桌面端（移动端用自带 loader，无桌面 Java 路径）
+  ///是否包含 Java 环境检查步骤：仅桌面端（移动端用自带 loader，无桌面 Java 路径）
   final bool _includeJavaCheck = isDesktop;
 
   ///总步骤数，每完成一步进度前进一步
@@ -51,7 +51,7 @@ class StartupBackgroundTask extends Task {
     await _runStep('正在同步模组版本门禁', MinGameVersions.instance.loadFromRemote);
     if (_shouldStop) return;
     if (_includeJavaCheck) {
-      await _runStep('正在校验 Java 配置', _checkConfiguredJavas);
+      await _runStep('正在检查 Java 环境', _checkJavaEnvironment);
       if (_shouldStop) return;
     }
     await _runStep('正在检查游戏文件', _checkAndPromptGameIssues);
@@ -73,8 +73,25 @@ class StartupBackgroundTask extends Task {
     updateDisplay();
   }
 
-  ///校验配置里的 javas：失效项标记，选中失效则回退自动选择，有变更才保存
-  Future<void> _checkConfiguredJavas() async {
+  ///检查 Java 环境：一处都没登记过就先浅扫一遍常见位置（首启即自动就绪，
+  ///否则「自动选择」在空列表里挑不出东西，第一次点启动只会报缺 Java）；
+  ///已登记的则校验失效项，选中失效时回退自动选择
+  Future<void> _checkJavaEnvironment() async {
+    final javaOptions = config.setting.launchOptions.javaOptions;
+
+    if (javaOptions.javas.isEmpty) {
+      //浅扫即可（环境变量 + 常见安装目录）；深扫是全盘递归，不能放启动路径上
+      final found = await JavaFinder.getJavaInstallationsInfo();
+      if (found.isEmpty) {
+        addLogAndPrint(.warning, '常见位置未找到可用 Java，启动游戏前需手动添加或下载', tag: 'Startup');
+        return;
+      }
+      javaOptions.javas = found;
+      await config.save();
+      addLogAndPrint(.info, '自动登记 ${found.length} 个可用 Java', tag: 'Startup');
+      return;
+    }
+
     final invalid = await JavaFinder.validateConfiguredJavas();
     if (invalid > 0) {
       addLogAndPrint(.warning, '$invalid 个 Java 配置路径失效，已标记并在选中时回退自动', tag: 'Startup');
