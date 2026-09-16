@@ -49,7 +49,7 @@ class _LaunchPageState extends State<LaunchPage> {
           );
         },
         title: SizedBox(
-          height: 48,
+          height: 40,
           child: Center(
             child: Text(
               '未选择版本',
@@ -70,6 +70,7 @@ class _LaunchPageState extends State<LaunchPage> {
       padding: EdgeInsets.all(8),
       borderRadius: BorderRadius.circular(8),
       onTap: () {
+        if (selectedVersion != _selectedVersion) return;
         Navigator.pushNamed(
           context,
           '/version_select',
@@ -112,15 +113,18 @@ class _LaunchPageState extends State<LaunchPage> {
           color: Theme.of(context).iconTheme.color,
           size: 50,
         ),
-        onTap: () => Navigator.pushNamed(
-          context,
-          '/version_setting',
-          arguments: {
-            'lead': '版本设置',
-            'version': selectedVersion,
-            'title': selectedVersion.tag,
-          },
-        ),
+        onTap: () {
+          if (selectedVersion != _selectedVersion) return;
+          Navigator.pushNamed(
+            context,
+            '/version_setting',
+            arguments: {
+              'lead': '版本设置',
+              'version': selectedVersion,
+              'title': selectedVersion.tag,
+            },
+          );
+        },
       ),
     );
     Widget child = selectedVersion == null
@@ -330,7 +334,7 @@ class _LaunchPageState extends State<LaunchPage> {
             builder: (context, selectVersion, _) {
               return Row(
                 //下方操作条
-                crossAxisAlignment: .end,
+                crossAxisAlignment: .center,
                 children: [
                   Expanded(child: _buildVersionTile(selectVersion)),
                   _buildLaunchButton(),
