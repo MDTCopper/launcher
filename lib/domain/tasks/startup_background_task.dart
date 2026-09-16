@@ -42,11 +42,13 @@ class StartupBackgroundTask extends Task {
 
   @override
   Future<void> runTask() async {
+    //镜像节点必须先加载：后面几步要拉 github 文件，直连 raw 不通的网络只能靠镜像兜底，
+    //而节点列表只有这里 load() 会填（顺序反了就是「无可用镜像节点」）
+    await _runStep('正在加载镜像节点', GithubMirror.instance.load);
+    if (_shouldStop) return;
     await _runStep('正在刷新远程数据', RemoteData.refresh);
     if (_shouldStop) return;
     await _runStep('正在同步模组版本门禁', MinGameVersions.instance.loadFromRemote);
-    if (_shouldStop) return;
-    await _runStep('正在加载镜像节点', GithubMirror.instance.load);
     if (_shouldStop) return;
     if (_includeJavaCheck) {
       await _runStep('正在校验 Java 配置', _checkConfiguredJavas);
