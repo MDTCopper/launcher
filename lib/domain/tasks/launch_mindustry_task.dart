@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
@@ -5,6 +6,9 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/dialog/java_download_dialog.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/java/java_compat.dart';
@@ -138,12 +142,9 @@ class LaunchMindustryTask extends Task {
       );
     }
     if (javaPath == null) {
-      addNotice(
-        icon: Icons.error_outline,
-        title: '缺少Java',
-        content: '未找到可用Java，请到设置中下载或添加',
-      );
       addTaskLog(LogEntry(LogType.error, '未找到可用Java，无法启动'));
+      addLog(.error, '未找到可用 Java，无法启动', tag: 'Launch');
+      unawaited(_promptJavaMissing());
       status = TaskStatus.failed;
       updateDisplay();
       return;
@@ -247,6 +248,34 @@ class LaunchMindustryTask extends Task {
         updateDisplay();
       }
     });
+  }
+
+  ///缺 Java 时给出口：确认后直接开项目现成的 Java 下载弹窗（Adoptium，
+  ///装完会自动写进配置的 javas），否则用户只能自己摸到「设置 - 启动」去点
+  Future<void> _promptJavaMissing() async {
+    final context = PageKeyProvider.navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+
+    final recommended = JavaCompat.recommendedFor(
+      mindustry.versionNumber ?? mindustry.releaseInt,
+    );
+
+    showConfirmationPopup(
+      context: context,
+      type: ConfirmationType.warning,
+      title: '缺少 Java',
+      content:
+          '本机没有找到可用的 Java，游戏无法启动。\n'
+          '可以现在下载一个（推荐 Java $recommended，装好会自动加入列表），'
+          '也可以到「设置 - 启动」里手动添加已有的 Java。',
+      action: () {
+        //等确认弹窗自己收完再推下载弹窗，否则会被它随后那次 pop 一并关掉
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) return;
+          showJavaDownloadDialog(context, recommendedVersion: recommended);
+        });
+      },
+    );
   }
 
   /// 自动选择 Java：按游戏版本查推荐大版本，优先主版本精确匹配，
