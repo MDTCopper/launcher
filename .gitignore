@@ -55,6 +55,8 @@ opencode.json
 项目情况与进度.md
 .dsh/
 .workbuddy/
+.tmp-dsh-opencode-session/
+.npm-cache/
 
 # copperlauncher
 versions/

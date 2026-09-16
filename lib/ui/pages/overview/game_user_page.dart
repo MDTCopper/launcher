@@ -72,9 +72,16 @@ class _GameUserPageState extends State<GameUserPage> {
     final setting = _readSetting();
     _nameController.text = setting?.name ?? '';
     _uuid = setting?.uuid ?? '';
-    _color = setting?.color0 ?? 0;
+    _color = _resolveColor(setting?.color0 ?? 0);
     _editing = null;
   }
+
+  /// 把「未设色」（0 / 透明）当没设，回落到游戏默认色
+  ///
+  /// 全新版本没有 settings.bin，`color-0` 读出来是 0（全透明）；
+  /// 直接用会让保存下来的用户名字渲染成全透明、看着像空的
+  int _resolveColor(int color) =>
+      (color & 0xFF) == 0 ? _defaultPlayerColor : color;
 
   ///保存：编辑态更新该用户，否则新建一条并选中
   void _saveGameUser() {
@@ -158,7 +165,7 @@ class _GameUserPageState extends State<GameUserPage> {
   void _loadToEdit(GameUser user) {
     _nameController.text = user.name;
     _uuid = user.uuid;
-    _color = user.color;
+    _color = _resolveColor(user.color);
     setState(() => _editing = user);
   }
 
@@ -274,11 +281,9 @@ class _GameUserPageState extends State<GameUserPage> {
 
   /// 取色：结果写回 arc `rgba8888`
   Future<void> _pickCustomColor() async {
-    // 未设色（0）时从游戏默认橙起调，免得从全透明开始
-    final initial = _color == 0 ? 0xFFA108FF : _color;
     final picked = await showColorPickerDialog(
       context: context,
-      initialColor: _arcToFlutter(initial),
+      initialColor: _arcToFlutter(_color),
     );
     if (picked == null || !mounted) return;
     setState(() => _color = _flutterToArc(picked));
@@ -321,23 +326,21 @@ class _GameUserPageState extends State<GameUserPage> {
 
   Widget _buildGameUserItem(GameUser user, {required bool current}) {
     final colors = AppColors.of(context);
+    // 老数据可能存着 0（未设色）：直接用会让名字渲染成全透明、看着像空的
+    final userColor = _arcToFlutter(_resolveColor(user.color));
 
-    // 行内容：色点 + 名称/UUID + 选中标记
+    // 行内容：色点 + 名称 + 选中标记
     Widget child = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
-          _ColorDot(
-            color: _arcToFlutter(user.color),
-            size: 28,
-            selected: current,
-          ),
+          _ColorDot(color: userColor, size: 28, selected: current),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               user.name,
               style: TextStyle(
-                color: _arcToFlutter(user.color),
+                color: userColor,
                 fontWeight: FontWeight.bold,
               ),
               maxLines: 1,
@@ -441,6 +444,9 @@ class _GameUserPageState extends State<GameUserPage> {
     );
   }
 }
+
+/// 游戏默认玩家色（Mindustry `Vars.playerColors[8]`）：没设过色时拿它兜底
+const _defaultPlayerColor = 0xFFA108FF;
 
 /// 游戏里可选的玩家色：与 Mindustry `Vars.playerColors` 一致的 16 个
 ///

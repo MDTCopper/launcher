@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
 
@@ -25,11 +27,14 @@ class _LaunchPageState extends State<LaunchPage> {
   Mindustry? get _selectedVersion => config.versionOptions.selectedVersion;
 
   Widget _buildVersionTile(Mindustry? selectedVersion) {
+    final colors = AppColors.of(context);
+    final theme = Theme.of(context);
+
     Widget buildEmptyTile() {
       final hasVersion =
           config.versionOptions.versionFolds.firstOrNull?.versions.isNotEmpty ??
           false;
-      final addtion = hasVersion
+      final addtion = !hasVersion
           ? ''
           : isDesktop
           ? '或右键'
@@ -44,15 +49,19 @@ class _LaunchPageState extends State<LaunchPage> {
           );
         },
         title: SizedBox(
-          height: 80,
+          height: 48,
           child: Center(
             child: Text(
-              '未选择版本，点击$addtion以选择游戏版本',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontSize: 32),
+              '未选择版本',
+              style: theme.textTheme.displayLarge?.copyWith(
+                color: colors.itemHint,
+              ),
             ),
           ),
+        ),
+        subtitle: SizedBox(
+          height: 16,
+          child: Center(child: Text('点击$addtion以选择游戏版本')),
         ),
       );
     }
@@ -103,17 +112,15 @@ class _LaunchPageState extends State<LaunchPage> {
           color: Theme.of(context).iconTheme.color,
           size: 50,
         ),
-        onTap: () {
-          Navigator.pushNamed(
-            context,
-            '/version_setting',
-            arguments: {
-              'lead': '版本设置',
-              'version': selectedVersion,
-              'title': selectedVersion.tag,
-            },
-          );
-        },
+        onTap: () => Navigator.pushNamed(
+          context,
+          '/version_setting',
+          arguments: {
+            'lead': '版本设置',
+            'version': selectedVersion,
+            'title': selectedVersion.tag,
+          },
+        ),
       ),
     );
     Widget child = selectedVersion == null
@@ -122,6 +129,10 @@ class _LaunchPageState extends State<LaunchPage> {
 
     child = AnimatedSwitcher(
       duration: const Duration(milliseconds: 700),
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: .bottomCenter,
+        children: [...previousChildren, ?currentChild],
+      ),
       transitionBuilder: (child, animation) {
         final isForward = !animation.status.isForwardOrCompleted;
 
@@ -265,38 +276,45 @@ class _LaunchPageState extends State<LaunchPage> {
     ];
   }
 
-  Widget? _buildLaunchButton(Mindustry? selectedVersion) {
-    if (_selectedVersion == null) return null;
-
-    return SizedBox(
-      height: 80,
-      width: 225,
-      child: ReboundButton(
-        pressedScale: 0.9,
-        borderRadius: BorderRadius.circular(8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          spacing: 16,
-          children: [
-            Icon(
-              Icons.play_arrow,
-              size: 50,
-              color: Theme.of(context).iconTheme.color,
-            ),
-            Text(
-              "启动游戏",
-              style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                color: Theme.of(context).colorScheme.secondary,
+  Widget _buildLaunchButton() {
+    Widget? child = _selectedVersion == null
+        ? null
+        : Padding(
+            padding: EdgeInsets.only(left: 8),
+            child: SizedBox(
+              height: 80,
+              width: 225,
+              child: ReboundButton(
+                pressedScale: 0.9,
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  spacing: 16,
+                  children: [
+                    Icon(
+                      Icons.play_arrow,
+                      size: 50,
+                      color: Theme.of(context).iconTheme.color,
+                    ),
+                    Text(
+                      "启动游戏",
+                      style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                    ),
+                    SizedBox(),
+                  ],
+                ),
+                onTap: () {
+                  if (_selectedVersion == null) return;
+                  addTask(LaunchMindustryTask(_selectedVersion!));
+                },
               ),
             ),
-            SizedBox(),
-          ],
-        ),
-        onTap: () async {
-          addTask(LaunchMindustryTask(_selectedVersion!));
-        },
-      ),
-    );
+          );
+
+    child = AnimatedOpacitySize(child: child);
+    return child;
   }
 
   @override
@@ -312,14 +330,10 @@ class _LaunchPageState extends State<LaunchPage> {
             builder: (context, selectVersion, _) {
               return Row(
                 //下方操作条
-                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: .end,
                 children: [
                   Expanded(child: _buildVersionTile(selectVersion)),
-                  if (_buildLaunchButton(selectVersion)
-                      case final launchButton?) ...[
-                    SizedBox(width: 8),
-                    launchButton,
-                  ],
+                  _buildLaunchButton(),
                 ],
               );
             },
