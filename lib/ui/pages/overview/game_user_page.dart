@@ -9,6 +9,7 @@ import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
+import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/feature/feature_curve.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
@@ -128,10 +129,19 @@ class _GameUserPageState extends State<GameUserPage> {
     setState(() {});
   }
 
-  ///删除：先播退场动画，动画播完才真正落库（见 [_finishDeleteGameUser]）
+  ///删除：二次确认 → 播退场动画 → 动画播完才真正落库（见 [_finishDeleteGameUser]）
   void _deleteGameUser(GameUser user) {
     if (_removingUserId != null) return;
-    setState(() => _removingUserId = user.id);
+    showConfirmationPopup(
+      context: context,
+      type: ConfirmationType.warning,
+      title: '确定要删除用户 [${user.name}] ？',
+      content: '删除后不再出现在列表里（游戏内的玩家名 / 颜色不受影响）',
+      action: () {
+        if (!mounted) return;
+        setState(() => _removingUserId = user.id);
+      },
+    );
   }
 
   void _finishDeleteGameUser(GameUser user) {
