@@ -7,7 +7,13 @@ import 'package:path/path.dart' as p;
 import '../../core/app_constant.dart';
 import '../app_paths.dart';
 
-///日志内容里的时间戳统一到秒（够用且短），形如 `2026-09-14T21:46:12`
+///日志内容里的时间只写到秒（日期靠跨天时插的那行区分），形如 `21:46:12`
+final DateFormat _logTimeFormat = DateFormat('HH:mm:ss');
+
+///跨天时插的日期行，形如 `2026-09-14`
+final DateFormat _logDateFormat = DateFormat('yyyy-MM-dd');
+
+///文件头里的启动时间（唯一带完整日期的地方），形如 `2026-09-14T21:46:12`
 final DateFormat _logStampFormat = DateFormat("yyyy-MM-dd'T'HH:mm:ss");
 
 ///日志文件名格式：**不记年份**——日志最多保留 7 天，跨年也活不过保留期
@@ -16,9 +22,37 @@ final DateFormat _logFileNameFormat = DateFormat('MM-ddTHH-mm-ss.SSS');
 String _logTimestamp([DateTime? now]) =>
     _logStampFormat.format(now ?? DateTime.now());
 
+///最后一条日志所在的日子：换天时先插一行日期，之后的行只写时间
+String? _lastLogDay;
+
+///拼一条日志：跨天先插 `[日期]` 行；内容里的换行保留，续行缩进四格以示同属一条
+String _withLogPrefix(String header, String message) {
+  final day = _logDateFormat.format(DateTime.now());
+  final isNewDay = day != _lastLogDay;
+  _lastLogDay = day;
+
+  final lines = message.split('\n');
+  final buffer = StringBuffer();
+  if (isNewDay) buffer.writeln('[$day]');
+  buffer.write('$header ${lines.first}');
+  for (final line in lines.skip(1)) {
+    buffer.write('\n    $line');
+  }
+  return buffer.toString();
+}
+
 ///一条日志的固定格式：`[时间]-[级别]-[模块] 内容`（模块可缺省）
-String _logLine(RunTimeLogType type, String message, String? tag) =>
-    '[${_logTimestamp()}]-[${type.name}]${tag == null ? '' : '-[$tag]'} $message';
+String _logLine(RunTimeLogType type, String message, String? tag) {
+  final time = _logTimeFormat.format(DateTime.now());
+  return _withLogPrefix(
+    '[$time]-[${type.name}]${tag == null ? '' : '-[$tag]'}',
+    message,
+  );
+}
+
+///自定义日志（无级别与模块）：`[时间] 内容`
+String _logCustomLine(String message) =>
+    _withLogPrefix('[${_logTimeFormat.format(DateTime.now())}]', message);
 
 ///写运行时日志。[tag] 是模块标识，约定用英文短名（如 `ModIcon` / `Download`）以便过滤
 void addLog(RunTimeLogType type, String message, {String? tag}) =>
@@ -33,7 +67,7 @@ void addCustomLog(String message) => Log.addCustom(message);
 
 void addCustomLogAndPrint(String message) {
   Log.addCustom(message);
-  debugPrint('[${_logTimestamp()}] $message\n');
+  debugPrint('${_logCustomLine(message)}\n');
 }
 
 ///运行时日志，记录程序运行时的事件和错误，需先初始化
@@ -63,13 +97,15 @@ abstract class Log {
     );
     // 全部就绪后再挂上，避免中途失败留下半初始化的日志文件
     _file = logFile;
+    // 文件头已经带了完整启动时间，首条日志不必再插一行日期
+    _lastLogDay = _logDateFormat.format(DateTime.now());
   }
 
   static Future<void> add(RunTimeLogType type, String message, {String? tag}) =>
       _append('${_logLine(type, message, tag)}\n');
 
   static Future<void> addCustom(String message) =>
-      _append('[${_logTimestamp()}] $message\n');
+      _append('${_logCustomLine(message)}\n');
 
   ///把一行排进写入队列（串行 append，避免并发写同一文件丢行）
   static Future<void> _append(String line) {
