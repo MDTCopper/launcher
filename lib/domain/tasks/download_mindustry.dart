@@ -93,7 +93,7 @@ class DownloadMindustryTask extends Task {
 
         NotificationManager.addNotice(
           icon: Icons.check_box_outlined,
-          title: '复用已有本体',
+          title: '复用已有游戏本体',
           content: '本体库中已有 [$tag] 的游戏本体，未重复下载',
         );
         TaskLogManager.addLog(LogEntry(LogType.info, '复用本体库中已有的 [$tag] 游戏本体'));
@@ -145,7 +145,7 @@ class DownloadMindustryTask extends Task {
       NotificationManager.addNotice(
         icon: Icons.check_box_outlined,
         title: '下载完成',
-        content: '[$tag]下载完成，本体 ${file.path}',
+        content: '[$tag] 下载完成：游戏本体 ${file.path}',
       );
       TaskLogManager.addLog(LogEntry(LogType.info, '[$tag] 下载完成，游戏本体 ${file.path}'));
       addLog(.info, '[$tag] 下载完成：游戏本体 ${file.path}，版本目录 $path', tag: 'GameDownload');
@@ -158,7 +158,7 @@ class DownloadMindustryTask extends Task {
           Future.delayed(Duration(milliseconds: 300), () async {
             if (isFreshDownload) await file.delete();
           });
-          debugPrint('取消下载:$e');
+          debugPrint('取消下载：$e');
 
           addTaskLog(LogEntry(LogType.info, '已取消下载'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
@@ -168,7 +168,7 @@ class DownloadMindustryTask extends Task {
         status = TaskStatus.failed;
         debugPrint('网络错误：$e');
         addTaskLog(LogEntry(LogType.error, '网络错误：$e'));
-        addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
+        addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误：$e');
         addLog(.warning, '网络错误：${removeNewlines('$e')}', tag: 'GameDownload');
         if (isFreshDownload) await file.delete();
       }
@@ -176,7 +176,7 @@ class DownloadMindustryTask extends Task {
       status = TaskStatus.failed;
       debugPrint('未知错误$e');
       addTaskLog(LogEntry(LogType.error, '未知错误：$e'));
-      addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
+      addNotice(icon: Icons.error_outline, title: '致命错误', content: '$e');
       addLog(.error, '未知错误：${removeNewlines('$e')}', tag: 'GameDownload');
       if (isFreshDownload) await file.delete();
     } finally {

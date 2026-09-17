@@ -61,14 +61,14 @@ class DownloadJavaModTask extends Task {
     NotificationManager.addNotice(
       icon: Icons.download,
       title: '下载',
-      content: '正在下载模组[$modTag)]',
+      content: '正在下载模组 [$modTag]',
     );
-    TaskLogManager.addLog(LogEntry(LogType.info, '正在下载模组[$modTag]'));
+    TaskLogManager.addLog(LogEntry(LogType.info, '正在下载模组 [$modTag]'));
     addLog(.info, '下载模组 [$modTag]：类型 Java', tag: 'ModDownload');
 
     try {
       if (modMeta.assets.isEmpty) {
-        throw Exception('assets为空:模组元数据提供的assets为空,元数据: ${modMeta.assets}');
+        throw Exception('模组元数据未提供 assets：${modMeta.assets}');
       }
 
       final asset = modMeta.assets[mainAssetIndex];
@@ -101,14 +101,14 @@ class DownloadJavaModTask extends Task {
         throw Exception('文件可能在合并过程中损坏');
       }
       final reader = await FileReader.fromPath(path);
-      if (reader.mod == null) throw Exception('mod.json未能成功解析');
+      if (reader.mod == null) throw Exception('mod.json 解析失败');
 
       status = TaskStatus.completed;
 
       NotificationManager.addNotice(
         icon: Icons.check_box_outlined,
         title: '下载完成',
-        content: '[$modTag]下载完成，存储路径[$path]',
+        content: '[$modTag] 下载完成，存储路径 [$path]',
       );
       TaskLogManager.addLog(
         LogEntry(LogType.info, '[$modTag] 下载完成，存储路径 [$path]'),
@@ -122,7 +122,7 @@ class DownloadJavaModTask extends Task {
           Future.delayed(Duration(milliseconds: 300), () async {
             await file.delete();
           });
-          debugPrint('取消下载:$e');
+          debugPrint('取消下载：$e');
 
           addTaskLog(LogEntry(LogType.info, '已取消下载'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
@@ -131,7 +131,7 @@ class DownloadJavaModTask extends Task {
         status = TaskStatus.failed;
         debugPrint('网络错误：$e');
         addTaskLog(LogEntry(LogType.error, '网络错误：$e'));
-        addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
+        addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误：$e');
 
         await file.delete();
       }
@@ -143,12 +143,12 @@ class DownloadJavaModTask extends Task {
         addNotice(
           icon: Icons.error_outline,
           title: '错误',
-          content: '模组元数据提供的下载链接为空，可能是模组未编译java并发布',
+          content: '模组元数据未提供下载链接：可能未编译 Java 并发布',
         );
         addLog(.warning, removeNewlines(e.toString()), tag: 'ModDownload');
       } else {
         addTaskLog(LogEntry(LogType.error, '错误：$e'));
-        addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
+        addNotice(icon: Icons.error_outline, title: '致命错误', content: '$e');
         addLog(.error, removeNewlines('$e'), tag: 'ModDownload');
       }
       await file.delete();
@@ -327,7 +327,7 @@ class DownloadZipModTask extends Task {
     NotificationManager.addNotice(
       icon: Icons.download,
       title: '下载',
-      content: '正在下载模组[$modTag]',
+      content: '正在下载模组 [$modTag]',
     );
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载模组[$modTag]'));
     addLog(.info, '下载模组 [$modTag]：类型 Zip', tag: 'ModDownload');
@@ -337,7 +337,7 @@ class DownloadZipModTask extends Task {
       NotificationManager.addNotice(
         icon: Icons.error,
         title: '错误',
-        content: '模组元数据提供的下载链接为空，可能是模组未正常发布',
+        content: '模组元数据未提供下载链接：可能未正常发布',
       );
       status = .failed;
       updateDisplay();
@@ -374,7 +374,7 @@ class DownloadZipModTask extends Task {
       }
 
       final reader = await FileReader.fromPath(path);
-      if (reader.mod == null) throw Exception('mod.json未能成功解析');
+      if (reader.mod == null) throw Exception('mod.json 解析失败');
 
       await _progressMoveTo100();
 
@@ -382,7 +382,7 @@ class DownloadZipModTask extends Task {
       NotificationManager.addNotice(
         icon: Icons.check_box_outlined,
         title: '下载完成',
-        content: '[$modTag]下载完成，存储路径[$file.path]',
+        content: '[$modTag] 下载完成，存储路径 [$file.path]',
       );
       TaskLogManager.addLog(
         LogEntry(LogType.info, '[$modTag] 下载完成，存储路径 [$file.path]'),
@@ -404,14 +404,14 @@ class DownloadZipModTask extends Task {
       } else {
         status = TaskStatus.failed;
         addTaskLog(LogEntry(LogType.error, '网络错误：$e'));
-        addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
+        addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误：$e');
         addLog(.warning, '网络错误：${removeNewlines('$e')}', tag: 'ModDownload');
         await file.delete();
       }
     } catch (e) {
       status = TaskStatus.failed;
       addTaskLog(LogEntry(LogType.error, '错误：$e'));
-      addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
+      addNotice(icon: Icons.error_outline, title: '致命错误', content: '$e');
       addLog(.error, '错误：${removeNewlines('$e')}', tag: 'ModDownload');
       await file.delete();
       rethrow;
@@ -566,7 +566,7 @@ class DownloadSourceModTask extends Task {
     NotificationManager.addNotice(
       icon: Icons.download,
       title: '下载源码',
-      content: '正在下载源码[$modTag]',
+      content: '正在下载源码 [$modTag]',
     );
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载源码[$modTag]'));
     addLog(.info, '下载源码 [$modTag]：类型 ${modListMeta.hasJava ? 'Java' : 'Zip'}', tag: 'ModDownload');
@@ -648,7 +648,7 @@ class DownloadSourceModTask extends Task {
       NotificationManager.addNotice(
         icon: Icons.check_box_outlined,
         title: '下载完成',
-        content: '[$modTag]源码下载完成，存储路径[${file.path}]',
+        content: '[$modTag] 源码下载完成，存储路径 [${file.path}]',
       );
       TaskLogManager.addLog(
         LogEntry(LogType.info, '[$modTag] 源码下载完成，存储路径 [${file.path}]'),
@@ -670,14 +670,14 @@ class DownloadSourceModTask extends Task {
       } else {
         status = TaskStatus.failed;
         addTaskLog(LogEntry(LogType.error, '网络错误：$e'));
-        addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
+        addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误：$e');
         addLog(.warning, '网络错误：${removeNewlines('$e')}', tag: 'ModDownload');
         await file.delete();
       }
     } catch (e) {
       status = TaskStatus.failed;
       addTaskLog(LogEntry(LogType.error, '错误：$e'));
-      addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
+      addNotice(icon: Icons.error_outline, title: '致命错误', content: '$e');
       addLog(.error, '错误：${removeNewlines('$e')}', tag: 'ModDownload');
       await file.delete();
       rethrow;

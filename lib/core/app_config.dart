@@ -112,7 +112,7 @@ class AppConfig {
       ).convert(toJson()); //格式化
       await file.writeAsString(formattedJson, flush: true);
     } catch (e) {
-      debugPrint('配置保存失败: $e');
+      debugPrint('配置保存失败：$e');
       addLog(.error, '配置保存失败：${removeNewlines('$e')}', tag: 'Version');
     }
   }
@@ -128,7 +128,7 @@ class AppConfig {
 
       await file.writeAsString(encodedData, flush: true);
     } catch (e) {
-      debugPrint('配置保存失败: $e');
+      debugPrint('配置保存失败：$e');
       addLog(.error, '配置保存失败：${removeNewlines('$e')}', tag: 'Version');
     }
   }

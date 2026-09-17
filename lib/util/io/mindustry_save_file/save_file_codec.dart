@@ -79,7 +79,7 @@ class SaveFileCodec {
 
     final chunkLength = reader.i32();
     if (chunkLength <= 0) {
-      throw FormatException('无效的 meta 区域长度: $chunkLength');
+      throw FormatException('无效的 meta 区域长度：$chunkLength');
     }
 
     final entryCount = reader.u16();

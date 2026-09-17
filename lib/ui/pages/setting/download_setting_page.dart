@@ -111,9 +111,9 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
     cio.applySettings(config.setting);
     addLog(
       .info,
-      '下载设置已更新：代理=${cio.proxyInfo}，'
-      '镜像=${config.setting.mirrorOptions.enabled ? config.setting.mirrorOptions.strategy.name : '关闭'}，'
-      '限速=${downloadOptions.speedLimitBytes}，线程=${downloadOptions.maxTread}',
+      '下载设置已更新：代理：${cio.proxyInfo}；'
+      '镜像：${config.setting.mirrorOptions.enabled ? config.setting.mirrorOptions.strategy.name : '关闭'}；'
+      '限速：${downloadOptions.speedLimitBytes}；线程：${downloadOptions.maxTread}',
       tag: 'Setting',
     );
   }

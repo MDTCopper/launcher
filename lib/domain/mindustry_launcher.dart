@@ -185,12 +185,12 @@ class MindustryLauncher {
       _stoppedByLauncher = true; // 主动停止：退出后清理残留哨兵
       _jarProcess!.kill(ProcessSignal.sigterm);
       await _jarProcess!.exitCode;
-      addLogAndPrint(.info, '游戏本体进程已关闭', tag: 'Launch');
+      addLogAndPrint(.info, '游戏进程已关闭', tag: 'Launch');
       _logController?.close();
       _jarProcess = null;
       return true;
     } catch (e) {
-      addLogAndPrint(.warning, '关闭游戏本体进程失败：${removeNewlines('$e')}', tag: 'Launch');
+      addLogAndPrint(.warning, '关闭游戏进程失败：${removeNewlines('$e')}', tag: 'Launch');
       return false;
     }
   }

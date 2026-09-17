@@ -1021,7 +1021,7 @@ class CopperIO {
         } else {
           chunk.status = HttpChunkStatus.failed;
           refreshChunkStats();
-          throw Exception('分块[${chunk.index}]下载失败');
+          throw Exception('分块 [${chunk.index}] 下载失败');
         }
       }
     }

@@ -162,14 +162,14 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     if (list.isEmpty) {
       addNotice(
         icon: Icons.close,
-        title: '搜索Java',
-        content: '没有找到任何可用Java，可以尝试手动添加Java',
+        title: '搜索 Java',
+        content: '没有找到可用的 Java：可手动添加',
       );
     } else {
       addNotice(
         icon: Icons.info_outline,
-        title: '搜索Java',
-        content: '共找到了${list.length}个可用Java版本',
+        title: '搜索 Java',
+        content: '共找到可用 Java：${list.length} 个',
       );
     }
 
@@ -182,7 +182,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     if (javaPath == null) return;
     final version = await JavaFinder.getJavaVersion(javaPath);
     if (version == null) {
-      addNotice(icon: Icons.close, title: '添加失败', content: '该文件不是Java');
+      addNotice(icon: Icons.close, title: '添加失败', content: '该文件不是 Java');
       return;
     } else {
       javaOptions.javas.add(JavaInfo(path: javaPath, version: version));
@@ -190,7 +190,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
       addNotice(
         icon: Icons.check,
         title: '添加成功',
-        content: '添加成功Java $version\n (路径 $javaPath) ',
+        content: '添加成功 Java $version\n（路径 $javaPath）',
       );
       if (mounted) setState(() {});
     }

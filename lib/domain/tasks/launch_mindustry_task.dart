@@ -206,9 +206,9 @@ class LaunchMindustryTask extends Task {
     //启动前的决策（Java / 内存 / 数据目录 / 覆写）是"改了没生效"的第一现场，记一条
     addLog(
       .info,
-      '启动 [${mindustry.tag}]：Java=$javaPath，内存=$maxMemory，'
-      '数据目录=${mindustry.dataPath}，隔离=${mindustry.isolation ? '开' : '关'}，'
-      'settings 覆写=${supportsSettingsOverride && config.setting.mindustrySettingsOverride ? '是' : '否'}',
+      '启动决策 [${mindustry.tag}]：Java：$javaPath；内存：$maxMemory；'
+      '数据目录：${mindustry.dataPath}；隔离：${mindustry.isolation ? '开' : '关'}；'
+      'settings 覆写：${supportsSettingsOverride && config.setting.mindustrySettingsOverride ? '是' : '否'}',
       tag: 'Launch',
     );
 

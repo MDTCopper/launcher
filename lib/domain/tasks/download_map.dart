@@ -50,7 +50,7 @@ class DownloadMapTask extends Task {
     addTaskLog(LogEntry(LogType.info, '开始下载地图 [${map.name}]'));
     addLog(
       .info,
-      '下载地图 [${map.name}]（id ${map.id}）到 [${version.tag}]：$savePath',
+      '下载地图 [${map.name}] → [${version.tag}]：$savePath',
       tag: 'MapDownload',
     );
 
@@ -78,7 +78,7 @@ class DownloadMapTask extends Task {
       addNotice(
         icon: Icons.error_outline,
         title: '地图下载失败',
-        content: '可能是网络或代理问题，稍后重试',
+        content: '网络或代理问题：稍后重试',
       );
       updateDisplay();
       return;

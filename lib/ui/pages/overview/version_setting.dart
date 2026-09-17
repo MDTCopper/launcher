@@ -269,8 +269,8 @@ pause
     showConfirmationPopup(
       context: context,
       type: ConfirmationType.warning,
-      title: '确定要删除 [$tag] ？',
-      content: '[$tag] 游戏文件及其独立附属的存档，mod，整合包，蓝图，地图都会被删除！',
+      title: '确定删除 [$tag]？',
+      content: '[$tag] 的游戏文件与它的存档 / mod / 整合包 / 蓝图 / 地图都会被删除',
       action: () async {
         final deleted = await config.versionOptions.deleteVersion(_mindustry);
         if (!deleted) {

@@ -240,7 +240,7 @@ Future<T?> showDefaultDialogPopup<T extends Object?>({
 }) {
   final key = PageKeyProvider.shellKey;
   final context = key.currentContext;
-  if (context == null) throw Exception('未能找到全局context');
+  if (context == null) throw Exception('未找到全局 context');
   final theme = Theme.of(context);
   final colors = AppColors.of(context);
 

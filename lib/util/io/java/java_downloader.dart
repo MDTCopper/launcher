@@ -165,7 +165,7 @@ class JavaDownloader {
       onStatus?.call('Java ${info.version} 安装完成');
       return javaExe;
     } catch (e) {
-      onStatus?.call('安装失败: $e');
+      onStatus?.call('安装失败：$e');
       if (await File(archivePath).exists()) {
         await File(archivePath).delete();
       }

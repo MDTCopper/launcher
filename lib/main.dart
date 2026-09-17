@@ -48,9 +48,9 @@ Future<void> _initialize() async {
   cio.applySettings(config.setting);
   addLog(
     .info,
-    '网络设置：代理=${cio.proxyInfo}，'
-    '镜像=${config.setting.mirrorOptions.enabled ? config.setting.mirrorOptions.strategy.name : '关闭'}，'
-    'GitHub token=${config.setting.githubToken.isEmpty ? '未设置' : '已设置'}',
+    '网络设置：代理：${cio.proxyInfo}；'
+    '镜像：${config.setting.mirrorOptions.enabled ? config.setting.mirrorOptions.strategy.name : '关闭'}；'
+    'GitHub token：${config.setting.githubToken.isEmpty ? '未设置' : '已设置'}',
     tag: 'Startup',
   );
   await _initPlatformView();
@@ -61,8 +61,8 @@ Future<void> _initialize() async {
 }
 
 void _checkPlatform() {
-  if (kIsWeb) throw Exception('Web不支持');
-  if (Platform.isIOS) throw Exception('IOS平台不支持');
+  if (kIsWeb) throw Exception('Web 不支持');
+  if (Platform.isIOS) throw Exception('iOS 平台不支持');
 }
 
 Future<bool> _initSingleInctance() async {

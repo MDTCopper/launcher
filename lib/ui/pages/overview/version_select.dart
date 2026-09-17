@@ -65,8 +65,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     showConfirmationPopup(
       context: context,
       type: ConfirmationType.warning,
-      title: '确定要删除 [$tag] ？',
-      content: '[$tag] 游戏文件及其独立附属的存档，mod，整合包，蓝图，地图都会被删除！',
+      title: '确定删除 [$tag]？',
+      content: '[$tag] 的游戏文件与它的存档 / mod / 整合包 / 蓝图 / 地图都会被删除',
       action: () async {
         // 统一删除逻辑（含共享 jar 检查：同一 jarPath 被其它版本引用时不删本体）
         final deleted = await config.versionOptions.deleteVersion(version);

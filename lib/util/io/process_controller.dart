@@ -513,7 +513,7 @@ class WindowProcessController {
       );
     } catch (e) {
       // ignore: avoid_print
-      print('[WindowProcessController] 启动失败: $e');
+      print('[WindowProcessController] 启动失败：$e');
       _process = null;
       return false;
     }
