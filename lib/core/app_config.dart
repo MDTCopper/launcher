@@ -667,6 +667,10 @@ class VersionOptions {
   /// 落在版本自己目录里的；库外的本体是用户自己的文件（「添加目录」扫描到的 jar），
   /// 一律只删记录、不碰文件。
   ///
+  /// 版本自己的目录（隔离的 mods / saves / 地图 / 蓝图等就在里面）跟着删，与确认
+  /// 弹窗的承诺一致；库外扫描来的版本只有在数据目录确实存在（是我们写进去的）时
+  /// 才动，免得删到用户目录里恰好同名的文件夹。
+  ///
   /// 共享检查基于当前配置中的全部版本（跨 fold 统计）。返回 `true` 表示
   /// 配置删除成功；若唯一引用且 jar 删除失败返回 `false`（记录已移除，调用方提示）。
   Future<bool> deleteVersion(Mindustry version) async {
@@ -682,7 +686,7 @@ class VersionOptions {
       selectedVersionNotifier.value = null;
     }
 
-    // 3. jar 仍被其它版本引用（共享 jar）→ 只删记录，不动本体
+    // 3. jar 仍被其它版本引用（共享 jar）→ 只删记录，不动本体，也不动它所在的目录
     final stillReferenced = versionFolds
         .expand((fold) => fold.versions)
         .any((v) => v.jarPath == version.jarPath);
@@ -695,33 +699,71 @@ class VersionOptions {
       return true;
     }
 
-    // 4. 库外的本体是用户自己的文件（「添加目录」扫描到的 jar）：只删记录
-    if (!version.isBodyInLibrary && !version.isBodyInOwnFolder) {
+    // 4. 本体：启动器自己放的（本体库内 / 老布局在版本目录里）才删文件；
+    //    库外的是用户自己的文件（「添加目录」扫描到的 jar），只删记录
+    if (version.isBodyInLibrary || version.isBodyInOwnFolder) {
+      final jar = File(version.jarPath);
+      if (!await jar.exists()) {
+        addLog(.info, '删除版本 [${version.tag}]：jar 已不存在，只删记录', tag: 'Version');
+      } else {
+        try {
+          await jar.delete();
+          addLog(
+            .info,
+            '删除版本 [${version.tag}]：无其它引用，已删除 jar ${version.jarPath}',
+            tag: 'Version',
+          );
+        } catch (error) {
+          addLog(
+            .error,
+            '删除版本 [${version.tag}]：jar 删除失败 ${version.jarPath}，${removeNewlines('$error')}',
+            tag: 'Version',
+          );
+          return false;
+        }
+      }
+    } else {
       addLog(
         .info,
         '删除版本 [${version.tag}]：本体在版本目录之外 ${version.jarPath}，只删记录、不动文件',
         tag: 'Version',
       );
-      return true;
     }
 
-    // 5. 唯一引用：删除 jar 本体；文件本就不存在视为成功
-    final jar = File(version.jarPath);
-    if (!await jar.exists()) {
-      addLog(.info, '删除版本 [${version.tag}]：jar 已不存在，只删记录', tag: 'Version');
-      return true;
+    // 5. 版本自己的目录跟着删（隔离数据在 `<fold>/<tag>/data` 下）
+    await _deleteVersionFolder(version);
+    return true;
+  }
+
+  /// 删掉版本自己的目录 `<fold>/<tag>`
+  ///
+  /// 只在目录确实归启动器用时才删：本体放在里面（老布局），或隔离开着且 `data`
+  /// 已存在（那是启动器 / 游戏写进去的）；非隔离又没本体在里面的目录不动，
+  /// 「添加目录」扫描来的版本可能撞上用户自己的同名文件夹
+  Future<void> _deleteVersionFolder(Mindustry version) async {
+    var isFolderOwned = version.isBodyInOwnFolder;
+    if (!isFolderOwned && version.isolation) {
+      isFolderOwned = await Directory(version.dataPath).exists();
     }
+    if (!isFolderOwned) return;
+
+    final folder = Directory(version.foldPath);
+    if (!await folder.exists()) return;
+
     try {
-      await jar.delete();
-      addLog(.info, '删除版本 [${version.tag}]：无其它引用，已删除 jar ${version.jarPath}', tag: 'Version');
-      return true;
-    } catch (error) {
+      await folder.delete(recursive: true);
       addLog(
-        .error,
-        '删除版本 [${version.tag}]：jar 删除失败 ${version.jarPath}，${removeNewlines('$error')}',
+        .info,
+        '删除版本 [${version.tag}]：版本目录已删除 ${version.foldPath}',
         tag: 'Version',
       );
-      return false;
+    } catch (error) {
+      // 目录没删掉不算删除失败：记录与本体都已处理，这里只提示残留
+      addLog(
+        .warning,
+        '删除版本 [${version.tag}]：版本目录删除失败 ${version.foldPath}，${removeNewlines('$error')}',
+        tag: 'Version',
+      );
     }
   }
 
