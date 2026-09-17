@@ -80,6 +80,15 @@ enum BuildTarget {
     BuildTarget.macos => const [PackageFormat.dmg],
     BuildTarget.android => const [],
   };
+
+  /// 该目标额外的构建参数
+  ///
+  /// android 拆 ABI：不拆的话 Flutter 默认吐 universal（fat）APK，v7a + arm64 +
+  /// x86_64 三个 ABI 打一起约 70MB；拆完每个 ABI 一个包，用户按机型装
+  List<String> get extraBuildArgs => switch (this) {
+    BuildTarget.android => const ['--split-per-abi'],
+    BuildTarget.windows || BuildTarget.linux || BuildTarget.macos => const [],
+  };
 }
 
 /// 当前宿主系统，叫法与 [BuildTarget.requiredHost] 一致
@@ -240,9 +249,20 @@ Future<void> main(List<String> args) async {
     builtTargets: builtTargets,
   );
 
+  // apk 本身就是产物、没有打包环节，但拆 ABI 后是多个 `app-<abi>-release.apk`，
+  // 收进 build/dist 并统一命名，免得几个同风格的 app-*.apk 混在构建目录里
+  final apkFolder = builtTargets.contains(BuildTarget.android)
+      ? await _collectAndroidApks(
+          mode: mode,
+          versionName: versionName,
+          channel: channel,
+          buildNumber: buildNumber,
+        )
+      : null;
+
   await _openFoldersIfWanted(
     options: options,
-    folders: [...outputFolders, ?distFolder],
+    folders: [...outputFolders, ?distFolder, ?apkFolder],
   );
 }
 
@@ -297,12 +317,14 @@ Future<List<BuildTarget>?> _buildTargets(
       continue;
     }
 
-    stdout.writeln('\n> flutter build ${target.flutterTarget} --${mode.flutterMode}');
-    final exitCode = await _runFlutter([
+    final buildArguments = [
       'build',
       target.flutterTarget,
       '--${mode.flutterMode}',
-    ]);
+      ...target.extraBuildArgs,
+    ];
+    stdout.writeln('\n> flutter ${buildArguments.join(' ')}');
+    final exitCode = await _runFlutter(buildArguments);
     if (exitCode != 0) {
       stderr.writeln('flutter build ${target.flutterTarget} 失败（退出码 $exitCode）');
       return null;
@@ -713,6 +735,83 @@ Future<Directory?> _packageIfNeeded({
     );
   }
   return distFolder;
+}
+
+/// 收集 Android 产物：`--split-per-abi` 后产物是多个 `app-<abi>-release.apk`，
+/// 统一改名成 `copper-launcher-v<版本><渠道>-android-<abi>.apk` 收进 build/dist
+///
+/// 拆 ABI 前（或指定了别的 target-platform）是单个 universal 包，名字里不带 ABI 段；
+/// apk 不走打包环节，这里只做「归拢 + 改名」，原文件留在构建目录里不动
+Future<Directory?> _collectAndroidApks({
+  required BuildMode mode,
+  required String versionName,
+  required ReleaseChannel channel,
+  required int buildNumber,
+}) async {
+  final sourceFolder = _outputFolderOf(BuildTarget.android, mode);
+  if (sourceFolder == null) {
+    stderr.writeln('没找到 Android 产物目录，跳过 APK 收集');
+    return null;
+  }
+
+  final apks = [
+    for (final entity in sourceFolder.listSync())
+      if (entity is File && entity.path.toLowerCase().endsWith('.apk')) entity,
+  ];
+  if (apks.isEmpty) {
+    stderr.writeln('${_normalizePath(sourceFolder.path)} 里没有 apk，跳过收集');
+    return null;
+  }
+
+  // 拆 ABI 的构建不会产出 universal 包：构建目录里同时有 `app-release.apk` 时，
+  // 那是上一次没拆 ABI 的残留（`flutter build` 不清目录），收进来会被当成本次产物
+  final splitApks = [
+    for (final apk in apks)
+      if (_abiPartOfApk(apk).isNotEmpty) apk,
+  ];
+  final universalApks = [
+    for (final apk in apks)
+      if (_abiPartOfApk(apk).isEmpty) apk,
+  ];
+  if (splitApks.isNotEmpty) {
+    for (final stale in universalApks) {
+      stdout.writeln(
+        '  跳过构建目录里的 universal 包（拆 ABI 构建不会产出它，应是旧构建残留）：'
+        '${_normalizePath(stale.path)}',
+      );
+    }
+  }
+  final collectedApks = splitApks.isNotEmpty ? splitApks : universalApks;
+
+  final baseName = _packageBaseName(
+    versionName: versionName,
+    channel: channel,
+    buildNumber: buildNumber,
+    target: BuildTarget.android,
+    sourceFolder: sourceFolder,
+  );
+  final distFolder = Directory('build/dist');
+  await distFolder.create(recursive: true);
+
+  for (final apk in collectedApks) {
+    final targetPath = p.join(
+      distFolder.path,
+      '$baseName${_abiPartOfApk(apk)}.apk',
+    );
+    final targetFile = File(targetPath);
+    if (await targetFile.exists()) await targetFile.delete();
+    await apk.copy(targetPath);
+    stdout.writeln('APK 产物：${_normalizePath(targetPath)}');
+  }
+  return distFolder;
+}
+
+/// APK 文件名里的 ABI 段：`app-arm64-v8a-release.apk` → `-arm64-v8a`；
+/// universal 包（`app-release.apk`）没有 ABI 段，返回空串
+String _abiPartOfApk(File apk) {
+  final name = p.basenameWithoutExtension(apk.path);
+  final architecture = RegExp(r'^app-(.+)-release$').firstMatch(name)?.group(1);
+  return architecture == null ? '' : '-$architecture';
 }
 
 /// 决定打包方式：可选项跟着已构建的桌面目标走
