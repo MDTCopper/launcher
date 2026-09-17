@@ -7,6 +7,7 @@ import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/dialog/java_missing_prompt.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/java/java_compat.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -65,7 +66,25 @@ class LaunchMindustryTask extends Task {
   @override
   void pause() => cancel();
 
-  void _launch() async {
+  ///意外异常（读配置 / 读本体 / 建进程）也要收尾：任务卡在 process 就会一直
+  ///挂在抽屉里显示「游戏运行中」，而游戏根本没起来
+  Future<void> _launch() async {
+    try {
+      await _launchGame();
+    } catch (e) {
+      addTaskLog(LogEntry(LogType.error, '启动失败：${removeNewlines('$e')}'));
+      addLog(.error, '启动失败：${removeNewlines('$e')}', tag: 'Launch');
+      NotificationManager.addNotice(
+        icon: Icons.error_outline,
+        title: '启动失败',
+        content: '详见运行日志',
+      );
+      status = TaskStatus.failed;
+      updateDisplay();
+    }
+  }
+
+  Future<void> _launchGame() async {
     NotificationManager.addNotice(
       icon: Icons.rocket_launch_outlined,
       title: '启动',

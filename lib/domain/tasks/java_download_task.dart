@@ -106,7 +106,9 @@ class JavaDownloadTask extends Task {
               ),
             ),
             Expanded(child: SizedBox()),
-            ReboundButton(onTap: cancel, child: Icon(Icons.close)),
+            if (statusLabel != null)
+              Text(statusLabel!, style: theme.textTheme.bodySmall),
+            if (canCancel) ReboundButton(onTap: cancel, child: Icon(Icons.close)),
           ],
         ),
         LinearProgressIndicator(value: progress),

@@ -64,10 +64,17 @@ class StartupBackgroundTask extends Task {
   }
 
   ///执行单个步骤：先更新描述，完成后折算进度
+  ///
+  ///单步失败（远程拉取超时之类）只记一条继续下一步：这几步互相独立，
+  ///一步失败不该连累后面的 Java / 文件检查；抛出去还会让任务卡在「进行中」
   Future<void> _runStep(String label, Future<void> Function() step) async {
     describe = '$label（${_completedSteps + 1}/$_totalSteps）';
     updateDisplay();
-    await step();
+    try {
+      await step();
+    } catch (e) {
+      addLogAndPrint(.warning, '$label失败：${removeNewlines('$e')}', tag: 'Startup');
+    }
     _completedSteps++;
     progress = _completedSteps / _totalSteps;
     updateDisplay();
@@ -225,7 +232,9 @@ class StartupBackgroundTask extends Task {
               ),
             ),
             Expanded(child: SizedBox()),
-            ReboundButton(onTap: cancel, child: Icon(Icons.close)),
+            if (statusLabel != null)
+              Text(statusLabel!, style: theme.textTheme.bodySmall),
+            if (canCancel) ReboundButton(onTap: cancel, child: Icon(Icons.close)),
           ],
         ),
         EasedProgressBar(value: progress),

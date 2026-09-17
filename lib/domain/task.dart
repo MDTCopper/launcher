@@ -57,6 +57,22 @@ abstract class Task implements Listenable {
     return '${(progress! * 100).toStringAsFixed(1)} %';
   }
 
+  ///是否还能取消：只有进行中才有意义，任务结束后请求 / 进程都不在了
+  bool get canCancel => status == TaskStatus.process;
+
+  ///状态简称，标在卡片标题右侧；进行中不显示（正常形态就是「正在做某事」）
+  ///
+  ///抽屉只列进行中的任务，任务结束 / 失败那一刻卡片还要播 800ms 移出动画，
+  ///期间会按旧状态再渲染几帧——文案和按钮都得跟 [status] 走，别写死
+  String? get statusLabel => switch (status) {
+    TaskStatus.pending => '待启动',
+    TaskStatus.process => null,
+    TaskStatus.completed => '已完成',
+    TaskStatus.failed => '失败',
+    TaskStatus.paused => '已暂停',
+    TaskStatus.cancel => '已取消',
+  };
+
   ///需更新任务呈现信息时调用
   void updateDisplay() {
     for (var it in listeners) {
@@ -160,7 +176,10 @@ class SimpleTask extends Task {
               ),
             ),
             Expanded(child: SizedBox()),
-            ReboundButton(onTap: cancel, child: Icon(Icons.close)),
+            if (statusLabel != null)
+              Text(statusLabel!, style: theme.textTheme.bodySmall),
+            if (canCancel)
+              ReboundButton(onTap: cancel, child: Icon(Icons.close)),
           ],
         ),
         LinearProgressIndicator(value: progress),
