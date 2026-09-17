@@ -6,7 +6,7 @@ const appVersion = 'v0.0.1 alpha 2';
 const appBuildNumber = 2;
 
 ///本次构建时间
-const appBuildTime = '2026-09-16 19:54';
+const appBuildTime = '2026-09-16 22:25';
 // ===== 版本信息结束 =====
 
 ///https://api.github.com
