@@ -33,10 +33,23 @@ class LaunchMindustryTask extends Task {
 
   @override
   Widget buildDisplayWidget(BuildContext context) {
+    //文案跟着状态走：抽屉只列进行中的任务，失败/结束的那一刻这一格会播 800ms 移出动画，
+    //期间仍按旧文案渲染——写死「游戏运行中」就会在启动失败时骗人
+    final statusText = switch (status) {
+      TaskStatus.pending => '准备启动',
+      TaskStatus.process => '游戏运行中',
+      TaskStatus.completed => '游戏已退出',
+      TaskStatus.failed => '启动失败',
+      TaskStatus.paused => '已暂停',
+      TaskStatus.cancel => '已停止',
+    };
+
     return Row(
       children: [
-        Text('游戏运行中'),
-        IconTextButton(icon: Icons.close, content: '关闭', onTap: cancel),
+        Text(statusText),
+        //只有进程还在时「关闭」才有意义
+        if (status == TaskStatus.process)
+          IconTextButton(icon: Icons.close, content: '关闭', onTap: cancel),
       ],
     );
   }
@@ -182,7 +195,10 @@ class LaunchMindustryTask extends Task {
 
     // 记录本次启动时刻，游戏退出时回写 lastLaunchTime 与 playTime
     _launchStartTime = DateTime.now();
-    await launcher.start(
+    //start() 失败只返回 false、不抛异常（Java 校验不过、本体不存在、进程起不来），
+    //没收尾的话任务会一直停在 process：抽屉里挂着「游戏运行中」，而且接着读 logStream
+    //还会踩空指针（失败路径上 _logController 根本没建）
+    final isLaunchStarted = await launcher.start(
       mindustry,
       maximize: maximize,
       windowSize: winSize,
@@ -190,6 +206,19 @@ class LaunchMindustryTask extends Task {
       javaExecutable: javaPath,
       extraArgs: args,
     );
+
+    if (!isLaunchStarted) {
+      addTaskLog(LogEntry(LogType.error, '启动失败：Java 环境或游戏本体不可用'));
+      addLog(.error, '启动失败：Java 环境或游戏本体不可用', tag: 'Launch');
+      NotificationManager.addNotice(
+        icon: Icons.error_outline,
+        title: '启动失败',
+        content: 'Java 环境或游戏本体不可用，详见运行日志',
+      );
+      status = TaskStatus.failed;
+      updateDisplay();
+      return;
+    }
 
     //todo 后续可以尝试做一个脱离
     //监听游戏状态
@@ -249,8 +278,6 @@ class LaunchMindustryTask extends Task {
     });
   }
 
-  ///缺 Java 时给出口：确认后直接开项目现成的 Java 下载弹窗（Adoptium，
-  ///装完会自动写进配置的 javas），否则用户只能自己摸到「设置 - 启动」去点
   /// 自动选择 Java：按游戏版本查推荐大版本，优先主版本精确匹配，
   /// 没有则取「高于目标的最低可用」，再兜底任意已发现 JVM。
   String? _autoPickJava(List<JavaInfo> javas, int releaseInt) {
