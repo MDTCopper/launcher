@@ -56,6 +56,14 @@ class Mindustry {
   /// 下载时由 FileReader 解析填入，老配置缺失时启动会自动补读
   int? versionNumber;
 
+  ///本体是不是**用户自己的文件**：「添加目录」扫描来的版本为 true
+  ///
+  ///下载 / 导入 / 变体建的版本都是 false（本体由启动器收进本体库）。
+  ///删版本靠它决定动不动文件——光看路径会猜错：老布局（启动器早期下载的）与
+  ///「添加目录」扫到的目录形态可以长得一模一样（`<fold>/<tag>/xxx.jar`）
+  @JsonKey(defaultValue: false)
+  bool bodyIsUserFile;
+
   @JsonKey(includeToJson: false, includeFromJson: false)
   Memory? get memory {
     if (memorySize == null) return null;
@@ -140,6 +148,7 @@ class Mindustry {
     this.useBetterGPU,
     this.memorySize,
     this.versionNumber,
+    this.bodyIsUserFile = false,
   });
 
   factory Mindustry.fromJson(Map<String, dynamic> json) =>

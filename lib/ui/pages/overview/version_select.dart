@@ -132,7 +132,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
 
   void _select(Mindustry version) async {
     config.versionOptions.selectedVersion = version;
-    addLog(.info, '切换版本：[${version.tag}]（${version.release}）', tag: 'Version');
+    addLog(.info, '切换版本 [${version.tag}]：${version.release}', tag: 'Version');
     Navigator.pop(context);
     await config.save();
   }
@@ -206,9 +206,9 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     // 扫描目录内可能的游戏版本，作为新目录的初始版本
     final scanned = await _scanGameVersions(path);
     if (!mounted) return;
-    addLog(.info, '已添加目录[$path]', tag: 'Version');
+    addLog(.info, '已添加目录：$path', tag: 'Version');
     if (scanned.isNotEmpty) {
-      addLog(.info, '目录[$path] 扫描到 ${scanned.length} 个游戏版本', tag: 'Version');
+      addLog(.info, '扫描目录 [$path]：${scanned.length} 个游戏版本', tag: 'Version');
     }
     addNotice(
       icon: Icons.search,
@@ -248,14 +248,14 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     try {
       await Directory(folderPath).create(recursive: true);
     } catch (e) {
-      addLog(.error, '创建分类文件夹失败[$folderPath]:${removeNewlines('$e')}', tag: 'Version');
+      addLog(.error, '创建分类文件夹失败：$folderPath，${removeNewlines('$e')}', tag: 'Version');
       if (mounted) {
         addNotice(icon: Icons.close, title: '新建失败', content: '无法在应用目录下创建分类文件夹');
       }
       return;
     }
 
-    addLog(.info, '已新建分类[$tag] 路径[$folderPath]', tag: 'Version');
+    addLog(.info, '已新建分类 [$tag]：路径 $folderPath', tag: 'Version');
     setState(() {
       _versionFolds.add(VersionFold(tag: tag, path: folderPath, versions: []));
       _index = _versionFolds.length - 1;
@@ -318,6 +318,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       release: isBe ? meta.build : 'v${meta.build}',
       addTime: DateTime.now(),
       isolation: isolation,
+      // 扫来的是用户自己的本体：启动器不复制，删版本时也不碰文件
+      bodyIsUserFile: true,
     );
   }
 
@@ -341,7 +343,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   Future<void> _importLocalGame() async {
     if (!isDesktop) return;
 
-    addLog(.info, '导入外部游戏文件：', tag: 'Version');
+    addLog(.info, '导入外部游戏文件', tag: 'Version');
 
     final path = await PathSelector.selectFile(
       acceptedTypeGroups: const [
