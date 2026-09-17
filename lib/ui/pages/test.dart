@@ -17,6 +17,7 @@ import 'package:copper_launcher/util/format/byte_unit.dart';
 
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
+import 'package:copper_launcher/ui/dialog/java_missing_prompt.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 
 import 'package:flutter/material.dart';
@@ -220,6 +221,7 @@ class TestState extends State<Test> {
           _modMetaSection(),
           _capsuleActionBarSection(),
           _readmeSkeletonSection(),
+          _javaMissingPromptSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -621,6 +623,42 @@ class TestState extends State<Test> {
                 child: ReadmeSkeleton(),
               ),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════ 17. 缺 Java 提示（确认弹窗 → 下载弹窗） ════════
+  Widget _javaMissingPromptSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('17. 缺 Java 提示'),
+        _card(
+          title: '启动时没找到可用 Java：确认弹窗 → 确定 → 下载弹窗',
+          desc:
+              '走的是启动任务同一个入口 showJavaMissingPrompt（没有第二份实现），'
+              '所以这里的观感就是启动失败时的观感；重点看确认弹窗收掉之后，'
+              '下载弹窗有没有被它那次 pop 一并关掉。'
+              '两个按钮只是传不同的大版本，用来对照推荐 Java 版本的变化（v8→17、v4→8）；'
+              '下载弹窗里可以直接关掉，不会真的装东西。',
+          child: Row(
+            children: [
+              IconTextButton(
+                icon: Icons.rocket_launch_outlined,
+                content: 'v8（推荐 Java 17）',
+                onTap: () =>
+                    showJavaMissingPrompt(releaseInt: 8, context: context),
+              ),
+              const SizedBox(width: 12),
+              IconTextButton(
+                icon: Icons.history,
+                content: 'v4 老版本（推荐 Java 8）',
+                onTap: () =>
+                    showJavaMissingPrompt(releaseInt: 4, context: context),
+              ),
+            ],
           ),
         ),
       ],
