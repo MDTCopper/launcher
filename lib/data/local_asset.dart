@@ -87,6 +87,15 @@ class Mindustry {
   ///游戏目录路径
   String get foldPath => p.join(path, tag);
 
+  ///本体是否在启动器本体库（[AppPaths.mindustrys]）里。
+  ///
+  ///库外的本体是**用户自己的文件**——「添加目录」扫描到的 jar、以及早期落在各自
+  ///版本目录里的那份：启动器不复制，删版本时也不碰（只删记录）
+  bool get isBodyInLibrary => _isPathWithin(AppPaths.mindustrys, jarPath);
+
+  ///老布局：本体就放在版本自己的目录 `[foldPath]` 里（当时的下载 / 导入落点）
+  bool get isBodyInOwnFolder => _isPathWithin(foldPath, jarPath);
+
   ///游戏数据路径mods,saves,maps,schematics
   String get dataPath {
     if (isolation) return p.join(foldPath, 'data');
@@ -140,6 +149,12 @@ class Mindustry {
     return 'Mindustry{ id:$id , tag:$tag , build:$release }';
   }
 }
+
+///[child] 是否落在 [root] 目录内（Windows 路径大小写不敏感，统一小写后再比）
+bool _isPathWithin(String root, String child) => p.isWithin(
+  p.normalize(root).toLowerCase(),
+  p.normalize(child).toLowerCase(),
+);
 
 ///下面的数据类通过源文件实时解析
 class SaveData {

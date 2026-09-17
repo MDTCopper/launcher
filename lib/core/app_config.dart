@@ -663,6 +663,10 @@ class VersionOptions {
   /// 统一删除版本：退出所有折叠中该版本的记录，并把 jarPath 引用数≥2
   /// （同一 jar 被多个版本共享）时保留 jar 本体。
   ///
+  /// 本体删不删还要看它归谁：**只删启动器自己放的那份**——本体库里的、或老布局
+  /// 落在版本自己目录里的；库外的本体是用户自己的文件（「添加目录」扫描到的 jar），
+  /// 一律只删记录、不碰文件。
+  ///
   /// 共享检查基于当前配置中的全部版本（跨 fold 统计）。返回 `true` 表示
   /// 配置删除成功；若唯一引用且 jar 删除失败返回 `false`（记录已移除，调用方提示）。
   Future<bool> deleteVersion(Mindustry version) async {
@@ -691,7 +695,17 @@ class VersionOptions {
       return true;
     }
 
-    // 4. 唯一引用：删除 jar 本体；文件本就不存在视为成功
+    // 4. 库外的本体是用户自己的文件（「添加目录」扫描到的 jar）：只删记录
+    if (!version.isBodyInLibrary && !version.isBodyInOwnFolder) {
+      addLog(
+        .info,
+        '删除版本 [${version.tag}]：本体在版本目录之外 ${version.jarPath}，只删记录、不动文件',
+        tag: 'Version',
+      );
+      return true;
+    }
+
+    // 5. 唯一引用：删除 jar 本体；文件本就不存在视为成功
     final jar = File(version.jarPath);
     if (!await jar.exists()) {
       addLog(.info, '删除版本 [${version.tag}]：jar 已不存在，只删记录', tag: 'Version');

@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/domain/mindustry_body.dart';
 import 'package:copper_launcher/ui/components/input/tag_input_dialog.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
@@ -8,14 +11,13 @@ import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 ///把本地 Mindustry 游戏文件（jar / zip）导入为一个版本
 ///
-/// 流程：让用户命名 tag（默认按 jar 里的版本信息给）→ 把本体拷进
-/// `<fold.path>/<tag>/`（版本自包含）→ 按设置页的「游戏默认隔离设置」定隔离 →
-/// 建版本记录并保存
+/// 流程：让用户命名 tag（默认按 jar 里的版本信息给）→ 把本体收进本体库
+/// （[AppPaths.mindustrys]，与下载共用一份）→ 按设置页的「游戏默认隔离设置」
+/// 定隔离 → 建版本记录并保存
 ///
 /// [reader] 是已经识别过的文件（游戏本体动辄上百 MB，不重复读盘）
 /// [targetFold] 不传时落到默认文件夹（[AppPaths.versions]，与下载落点一致）
@@ -63,15 +65,26 @@ Future<Mindustry?> importLocalGame({
   );
   if (tag == null) return null;
 
-  final targetDir = p.join(fold.path, tag);
-  final jarPath = await reader.importTo(targetDir);
+  //本体收进本体库集中存放（同一份文件重复导入时直接复用库内那份）；
+  //版本目录只留版本自己的数据，不再往里塞本体
+  final bodyIdentity = isBe
+      ? 'Build ${meta.build}'
+      : 'v${meta.version} Build ${meta.build}';
+  final jarPath = await MindustryBody.importIntoLibrary(
+    File(reader.path),
+    identity: bodyIdentity,
+  );
   if (jarPath == null) {
     addNotice(
       icon: Icons.close,
       title: '导入失败',
-      content: '无法写入目标目录，请选择合适的路径',
+      content: '无法把游戏本体写入本体库，请检查磁盘空间与写入权限',
     );
-    addLog(.warning, '导入失败:文件[${reader.path}]无法写入目标目录[$targetDir]', tag: 'Import');
+    addLog(
+      .warning,
+      '导入失败:文件[${reader.path}]无法写入本体库[${AppPaths.mindustrys}]',
+      tag: 'Import',
+    );
     return null;
   }
 

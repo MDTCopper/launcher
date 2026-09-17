@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 
 import '../../core/app_config.dart';
 import '../../data/local_asset.dart';
@@ -14,6 +13,7 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import '../../util/app_paths.dart';
 import '../../util/format/byte_unit.dart';
 import '../../util/io/file_reader.dart';
+import '../mindustry_body.dart';
 import '../task.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
@@ -30,6 +30,9 @@ class DownloadMindustryTask extends Task {
   // final String copper;//todo CopperLoader下载
   final CancelToken cancelToken = CancelToken();
   late File file;
+
+  ///本次是否真下了新文件：出错只清自己下的那份，本体库里复用来的绝不删
+  bool isFreshDownload = false;
   int totalSize = 0;
   int downloadedSize = 0;
   double speed = 0.0;
@@ -72,12 +75,29 @@ class DownloadMindustryTask extends Task {
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载游戏[$tag]'));
 
     try {
-      final jarName = 'mindustry-${mindustryMeta.tag}.jar';
-      final jarPath = p.join(path, tag, jarName);
+      //本体库里已有这个版本的可用本体就直接复用，不再下一次（重复下载同一个版本、或变体共用本体都走这里）
+      final reusableVersion = MindustryBody.findUsableLibraryBody(
+        isBe: mindustryMeta.isBe,
+        release: mindustryMeta.tag,
+      );
+      if (reusableVersion != null) {
+        file = File(reusableVersion.jarPath);
+        addLog(
+          .info,
+          '本体库中已有 [$tag] 的本体，直接复用 ${file.path}',
+          tag: 'GameDownload',
+        );
+        await _addIntoConfig(jarPath: reusableVersion.jarPath);
+        progress = 1.0;
+        status = TaskStatus.completed;
 
-      file = File(jarPath);
-      if (!await file.exists()) {
-        await file.create(recursive: true);
+        NotificationManager.addNotice(
+          icon: Icons.check_box_outlined,
+          title: '复用已有本体',
+          content: '本体库中已有 [$tag] 的游戏本体，未重复下载',
+        );
+        TaskLogManager.addLog(LogEntry(LogType.info, '复用本体库中已有的[$tag]本体'));
+        return;
       }
 
       final jarAsset = mindustryMeta.desktopJarAsset;
@@ -85,6 +105,19 @@ class DownloadMindustryTask extends Task {
         throw Exception('该版本 release 中没有游戏本体 jar，无法下载');
       }
       final String url = jarAsset.url;
+
+      //本体进本体库集中存放（与导入共用一份，变体直接引用）；文件名带来源 hash，
+      //同一 URL 永远落到同一路径，断点续传不受影响
+      file = File(
+        await MindustryBody.downloadPath(
+          identity: mindustryMeta.tag,
+          sourceUrl: url,
+        ),
+      );
+      if (!await file.exists()) {
+        await file.create(recursive: true);
+      }
+      isFreshDownload = true;
 
       addLog(.info, '下载游戏[$tag],$url', tag: 'GameDownload');
 
@@ -112,10 +145,10 @@ class DownloadMindustryTask extends Task {
       NotificationManager.addNotice(
         icon: Icons.check_box_outlined,
         title: '下载完成',
-        content: '[$tag]下载完成，存储路径[$path]',
+        content: '[$tag]下载完成，本体 ${file.path}',
       );
-      TaskLogManager.addLog(LogEntry(LogType.info, '[$tag]下载完成，存储路径[$path]'));
-      addLog(.info, '[$tag]下载完成，存储路径[$path],', tag: 'GameDownload');
+      TaskLogManager.addLog(LogEntry(LogType.info, '[$tag]下载完成，本体${file.path}'));
+      addLog(.info, '[$tag]下载完成，本体${file.path}，版本目录$path', tag: 'GameDownload');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -123,7 +156,7 @@ class DownloadMindustryTask extends Task {
         } else if (e.toString().contains('cancel')) {
           status = TaskStatus.cancel;
           Future.delayed(Duration(milliseconds: 300), () async {
-            await file.delete();
+            if (isFreshDownload) await file.delete();
           });
           debugPrint('取消下载:$e');
 
@@ -137,7 +170,7 @@ class DownloadMindustryTask extends Task {
         addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
         addLog(.warning, '网络错误:${removeNewlines('$e')}', tag: 'GameDownload');
-        await file.delete();
+        if (isFreshDownload) await file.delete();
       }
     } catch (e) {
       status = TaskStatus.failed;
@@ -145,17 +178,20 @@ class DownloadMindustryTask extends Task {
       addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
       addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
       addLog(.error, '未知错误:${removeNewlines('$e')}', tag: 'GameDownload');
-      await file.delete();
+      if (isFreshDownload) await file.delete();
     } finally {
       updateDisplay();
     }
   }
 
-  Future<void> _addIntoConfig() async {
+  Future<void> _addIntoConfig({String? jarPath}) async {
+    // 复用本体库里已有本体时，jar 路径由调用方给进来（此时 file 不由本次下载产生）
+    final bodyPath = jarPath ?? file.path;
+
     // 大版本号从 jar 的 version.properties 读（FileReader 已实现），github tag 只有 build 号
     int? versionNumber;
     try {
-      final reader = await FileReader.fromPath(file.path);
+      final reader = await FileReader.fromPath(bodyPath);
       final meta = reader.mindustry;
       versionNumber = int.tryParse(meta?.version ?? '');
     } catch (e) {
@@ -172,7 +208,7 @@ class DownloadMindustryTask extends Task {
       id: id,
       launcher: LauncherType.mindustry,
       tag: tag,
-      jarPath: file.path,
+      jarPath: bodyPath,
       isBe: mindustryMeta.isBe,
       path: path,
       release: mindustryMeta.tag,
