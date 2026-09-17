@@ -93,7 +93,10 @@ class Mindustry {
   ///版本目录里的那份：启动器不复制，删版本时也不碰（只删记录）
   bool get isBodyInLibrary => _isPathWithin(AppPaths.mindustrys, jarPath);
 
-  ///老布局：本体就放在版本自己的目录 `[foldPath]` 里（当时的下载 / 导入落点）
+  ///本体就在版本自己的目录 `[foldPath]` 里：老布局的下载 / 导入落点，
+  ///以及「添加目录」扫到的 `<目录>/<tag>/xxx.jar` 形态。
+  ///
+  ///两种都算**库外**——文件是用户自己的，删版本时本体和目录都要避开
   bool get isBodyInOwnFolder => _isPathWithin(foldPath, jarPath);
 
   ///游戏数据路径mods,saves,maps,schematics

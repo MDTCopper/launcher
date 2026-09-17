@@ -663,9 +663,10 @@ class VersionOptions {
   /// 统一删除版本：退出所有折叠中该版本的记录，并把 jarPath 引用数≥2
   /// （同一 jar 被多个版本共享）时保留 jar 本体。
   ///
-  /// 本体删不删还要看它归谁：**只删启动器自己放的那份**——本体库里的、或老布局
-  /// 落在版本自己目录里的；库外的本体是用户自己的文件（「添加目录」扫描到的 jar），
-  /// 一律只删记录、不碰文件。
+  /// 本体删不删还要看它归谁：**只删本体库里那份**（下载 / 导入由启动器放进去的）。
+  /// 库外的一律只删记录、不碰文件——「添加目录」扫描到的是用户自己的 jar，
+  /// 老布局落在版本目录里的那份也归用户自己清（判据从「路径推测」收成只看库内，
+  /// 免得扫描到的目录恰好与 tag 同名时误删用户的文件）。
   ///
   /// 版本自己的目录（隔离的 mods / saves / 地图 / 蓝图等就在里面）跟着删，与确认
   /// 弹窗的承诺一致；库外扫描来的版本只有在数据目录确实存在（是我们写进去的）时
@@ -699,9 +700,10 @@ class VersionOptions {
       return true;
     }
 
-    // 4. 本体：启动器自己放的（本体库内 / 老布局在版本目录里）才删文件；
-    //    库外的是用户自己的文件（「添加目录」扫描到的 jar），只删记录
-    if (version.isBodyInLibrary || version.isBodyInOwnFolder) {
+    // 4. 本体：只删本体库里那份（下载 / 导入由启动器放进去的）；
+    //    库外的一律只删记录——「添加目录」扫描到的是用户自己的 jar，
+    //    老布局落在版本目录里的那份也留给用户自己清
+    if (version.isBodyInLibrary) {
       final jar = File(version.jarPath);
       if (!await jar.exists()) {
         addLog(.info, '删除版本 [${version.tag}]：jar 已不存在，只删记录', tag: 'Version');
@@ -725,7 +727,7 @@ class VersionOptions {
     } else {
       addLog(
         .info,
-        '删除版本 [${version.tag}]：本体在版本目录之外 ${version.jarPath}，只删记录、不动文件',
+        '删除版本 [${version.tag}]：本体不在本体库 ${version.jarPath}，只删记录、不动文件',
         tag: 'Version',
       );
     }
@@ -737,15 +739,21 @@ class VersionOptions {
 
   /// 删掉版本自己的目录 `<fold>/<tag>`
   ///
-  /// 只在目录确实归启动器用时才删：本体放在里面（老布局），或隔离开着且 `data`
-  /// 已存在（那是启动器 / 游戏写进去的）；非隔离又没本体在里面的目录不动，
-  /// 「添加目录」扫描来的版本可能撞上用户自己的同名文件夹
+  /// 三个条件都满足才删：隔离版本（非隔离的数据不在版本目录里）、数据目录确实
+  /// 存在（那是启动器 / 游戏写进去的）、且目录里**没有**这个版本的库外本体
+  /// （老布局 / 「添加目录」扫描来的 jar 可能就躺在里面，那是用户的文件，
+  /// 整个目录都不能动）
   Future<void> _deleteVersionFolder(Mindustry version) async {
-    var isFolderOwned = version.isBodyInOwnFolder;
-    if (!isFolderOwned && version.isolation) {
-      isFolderOwned = await Directory(version.dataPath).exists();
+    if (!version.isolation) return;
+    if (version.isBodyInOwnFolder) {
+      addLog(
+        .info,
+        '删除版本 [${version.tag}]：版本目录里放着库外本体，只删记录、不动目录',
+        tag: 'Version',
+      );
+      return;
     }
-    if (!isFolderOwned) return;
+    if (!await Directory(version.dataPath).exists()) return;
 
     final folder = Directory(version.foldPath);
     if (!await folder.exists()) return;
