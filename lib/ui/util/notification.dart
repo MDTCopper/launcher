@@ -77,8 +77,11 @@ class NotificationManager {
       addLog(.error, removeNewlines(message), tag: 'Notice');
     }
     context ??= PageKeyProvider.shellKey.currentContext;
-    await _show(context!).then((_) {
-      _globalKey.currentState!.addItem(icon, title, content, onTap, duration);
+    //shell 还没挂上（启动早期 / 退出阶段 / 单测）时静默跳过：这是 fire-and-forget
+    //调用，异步里抛出来就是未捕获异常
+    if (context == null) return;
+    await _show(context).then((_) {
+      _globalKey.currentState?.addItem(icon, title, content, onTap, duration);
     });
   }
 
@@ -89,8 +92,10 @@ class NotificationManager {
     Duration duration = const Duration(seconds: 5),
   }) async {
     context ??= PageKeyProvider.shellKey.currentContext;
-    await _show(context!).then((_) {
-      _globalKey.currentState!.addItemWidget(widget, onTap, duration);
+    //同 addNotice：没有 shell 就没人能收到这条通知，直接跳过而不是抛空指针
+    if (context == null) return;
+    await _show(context).then((_) {
+      _globalKey.currentState?.addItemWidget(widget, onTap, duration);
     });
   }
 
