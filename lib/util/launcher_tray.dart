@@ -189,7 +189,7 @@ class LauncherTray extends TrayListener with WindowListener {
 
     if (!_confirmStopArmed) {
       _confirmStopArmed = true;
-      addLog(.info, '托盘：点了停止当前游戏，等待二次确认', tag: 'Tray');
+      addLog(.info, '托盘：请求停止当前游戏，等待二次确认', tag: 'Tray');
       _refreshMenu();
       return;
     }

@@ -64,7 +64,7 @@ class MindustryLauncher {
     // 校验 Jar 文件是否存在
     final jarFile = File(mindustry.jarPath);
     if (!await jarFile.exists()) {
-      addLogAndPrint(.warning, 'mindustry.jar 不存在，路径：${mindustry.jarPath}', tag: 'Launch');
+      addLogAndPrint(.warning, '游戏本体不存在：${mindustry.jarPath}', tag: 'Launch');
       return false;
     }
 
@@ -185,12 +185,12 @@ class MindustryLauncher {
       _stoppedByLauncher = true; // 主动停止：退出后清理残留哨兵
       _jarProcess!.kill(ProcessSignal.sigterm);
       await _jarProcess!.exitCode;
-      addLogAndPrint(.info, 'Mindustry Jar 进程已关闭', tag: 'Launch');
+      addLogAndPrint(.info, '游戏本体进程已关闭', tag: 'Launch');
       _logController?.close();
       _jarProcess = null;
       return true;
     } catch (e) {
-      addLogAndPrint(.warning, '关闭 Jar 进程失败：${removeNewlines('$e')}', tag: 'Launch');
+      addLogAndPrint(.warning, '关闭游戏本体进程失败：${removeNewlines('$e')}', tag: 'Launch');
       return false;
     }
   }
@@ -241,7 +241,7 @@ class MindustryLauncher {
     try {
       if (await sentinel.exists()) {
         await sentinel.delete();
-        addLogAndPrint(.info, '启动时打断, 已删除残留的 launchid.dat', tag: 'Launch');
+        addLogAndPrint(.info, '启动被中断：已删除残留的 launchid.dat', tag: 'Launch');
       }
     } catch (e) {
       addLogAndPrint(.info, '删除 launchid.dat 失败：${removeNewlines('$e')}', tag: 'Launch');

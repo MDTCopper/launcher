@@ -1165,7 +1165,7 @@ class _ModsState extends State<_Mods> {
     } catch (e) {
       addLog(
         .error,
-        '写入模组启用状态失败：[${_mindustry.tag}] ${entry.mod.internalName}，${removeNewlines('$e')}',
+        '写入模组启用状态失败 [${_mindustry.tag}]：${entry.mod.internalName}，${removeNewlines('$e')}',
         tag: 'Version',
       );
       debugPrint('写入模组启用状态失败：$e');

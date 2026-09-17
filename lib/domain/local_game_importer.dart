@@ -35,7 +35,7 @@ Future<Mindustry?> importLocalGame({
       title: '类型错误',
       content: '该文件不是有效的 Mindustry 游戏文件，请确认文件存在',
     );
-    addLog(.warning, '类型错误:文件[${reader.path}]不是有效的 Mindustry 游戏文件', tag: 'Import');
+    addLog(.warning, '类型错误：文件 [${reader.path}] 不是有效的 Mindustry 游戏文件', tag: 'Import');
     return null;
   }
 
@@ -82,7 +82,7 @@ Future<Mindustry?> importLocalGame({
     );
     addLog(
       .warning,
-      '导入失败:文件[${reader.path}]无法写入本体库[${AppPaths.mindustrys}]',
+      '导入失败：文件 [${reader.path}] 无法写入本体库 [${AppPaths.mindustrys}]',
       tag: 'Import',
     );
     return null;
@@ -107,7 +107,7 @@ Future<Mindustry?> importLocalGame({
   config.save();
   addLog(
     .info,
-    '导入本地游戏 [${version.tag}]：本体 $jarPath，存档隔离${version.isolation ? '开启' : '关闭'}',
+    '导入本地游戏 [${version.tag}]：游戏本体 $jarPath，存档隔离${version.isolation ? '开启' : '关闭'}',
     tag: 'Import',
   );
   return version;

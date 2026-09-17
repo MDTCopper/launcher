@@ -64,7 +64,7 @@ class DownloadJavaModTask extends Task {
       content: '正在下载模组[$modTag)]',
     );
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载模组[$modTag]'));
-    addLog(.info, '下载模组[$modTag)]，类型：Java', tag: 'ModDownload');
+    addLog(.info, '下载模组 [$modTag]：类型 Java', tag: 'ModDownload');
 
     try {
       if (modMeta.assets.isEmpty) {
@@ -111,7 +111,7 @@ class DownloadJavaModTask extends Task {
         content: '[$modTag]下载完成，存储路径[$path]',
       );
       TaskLogManager.addLog(
-        LogEntry(LogType.info, '[$modTag]下载完成，存储路径[$path]'),
+        LogEntry(LogType.info, '[$modTag] 下载完成，存储路径 [$path]'),
       );
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
@@ -130,7 +130,7 @@ class DownloadJavaModTask extends Task {
       } else {
         status = TaskStatus.failed;
         debugPrint('网络错误：$e');
-        addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
+        addTaskLog(LogEntry(LogType.error, '网络错误：$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
 
         await file.delete();
@@ -139,7 +139,7 @@ class DownloadJavaModTask extends Task {
       status = TaskStatus.failed;
 
       if (e.toString().contains('assets为空')) {
-        addTaskLog(LogEntry(LogType.error, '模组元数据提供的下载链接为空，可能是模组未编译java并发布'));
+        addTaskLog(LogEntry(LogType.error, '模组元数据未提供下载链接：可能未编译 Java 并发布'));
         addNotice(
           icon: Icons.error_outline,
           title: '错误',
@@ -147,7 +147,7 @@ class DownloadJavaModTask extends Task {
         );
         addLog(.warning, removeNewlines(e.toString()), tag: 'ModDownload');
       } else {
-        addTaskLog(LogEntry(LogType.error, '错误:$e'));
+        addTaskLog(LogEntry(LogType.error, '错误：$e'));
         addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
         addLog(.error, removeNewlines('$e'), tag: 'ModDownload');
       }
@@ -330,7 +330,7 @@ class DownloadZipModTask extends Task {
       content: '正在下载模组[$modTag]',
     );
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载模组[$modTag]'));
-    addLog(.info, '下载模组[$modTag] 类型：Zip', tag: 'ModDownload');
+    addLog(.info, '下载模组 [$modTag]：类型 Zip', tag: 'ModDownload');
 
     if (modMeta.assets.isEmpty || modMeta.assets.length < mainAssetIndex) {
       //一般情况不会触发
@@ -385,9 +385,9 @@ class DownloadZipModTask extends Task {
         content: '[$modTag]下载完成，存储路径[$file.path]',
       );
       TaskLogManager.addLog(
-        LogEntry(LogType.info, '[$modTag]下载完成，存储路径[$file.path]'),
+        LogEntry(LogType.info, '[$modTag] 下载完成，存储路径 [$file.path]'),
       );
-      addLog(.info, '[$modTag]下载完成，存储路径[$file.path]', tag: 'ModDownload');
+      addLog(.info, '[$modTag] 下载完成，存储路径 [$file.path]', tag: 'ModDownload');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -399,20 +399,20 @@ class DownloadZipModTask extends Task {
           });
           addTaskLog(LogEntry(LogType.info, '已取消下载'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
-          addLog(.info, '取消下载[$modTag]', tag: 'ModDownload');
+          addLog(.info, '取消下载 [$modTag]', tag: 'ModDownload');
         }
       } else {
         status = TaskStatus.failed;
-        addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
+        addTaskLog(LogEntry(LogType.error, '网络错误：$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
-        addLog(.warning, '网络错误:${removeNewlines('$e')}', tag: 'ModDownload');
+        addLog(.warning, '网络错误：${removeNewlines('$e')}', tag: 'ModDownload');
         await file.delete();
       }
     } catch (e) {
       status = TaskStatus.failed;
-      addTaskLog(LogEntry(LogType.error, '错误:$e'));
+      addTaskLog(LogEntry(LogType.error, '错误：$e'));
       addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
-      addLog(.error, '错误:${removeNewlines('$e')}', tag: 'ModDownload');
+      addLog(.error, '错误：${removeNewlines('$e')}', tag: 'ModDownload');
       await file.delete();
       rethrow;
     } finally {
@@ -569,7 +569,7 @@ class DownloadSourceModTask extends Task {
       content: '正在下载源码[$modTag]',
     );
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载源码[$modTag]'));
-    addLog(.info, '下载源码[$modTag] 类型：${modListMeta.hasJava ? 'Java' : 'Zip'}', tag: 'ModDownload');
+    addLog(.info, '下载源码 [$modTag]：类型 ${modListMeta.hasJava ? 'Java' : 'Zip'}', tag: 'ModDownload');
 
     var fileName = modMeta == null
         ? '${modListMeta.name}-source'
@@ -651,9 +651,9 @@ class DownloadSourceModTask extends Task {
         content: '[$modTag]源码下载完成，存储路径[${file.path}]',
       );
       TaskLogManager.addLog(
-        LogEntry(LogType.info, '[$modTag]源码下载完成，存储路径[${file.path}]'),
+        LogEntry(LogType.info, '[$modTag] 源码下载完成，存储路径 [${file.path}]'),
       );
-      addLog(.info, '[$modTag]源码下载完成，存储路径[${file.path}]', tag: 'ModDownload');
+      addLog(.info, '[$modTag] 源码下载完成，存储路径 [${file.path}]', tag: 'ModDownload');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -665,20 +665,20 @@ class DownloadSourceModTask extends Task {
           });
           addTaskLog(LogEntry(LogType.info, '已取消下载源码'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载源码');
-          addLog(.info, '取消下载源码[$modTag]', tag: 'ModDownload');
+          addLog(.info, '取消下载源码 [$modTag]', tag: 'ModDownload');
         }
       } else {
         status = TaskStatus.failed;
-        addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
+        addTaskLog(LogEntry(LogType.error, '网络错误：$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
-        addLog(.warning, '网络错误:${removeNewlines('$e')}', tag: 'ModDownload');
+        addLog(.warning, '网络错误：${removeNewlines('$e')}', tag: 'ModDownload');
         await file.delete();
       }
     } catch (e) {
       status = TaskStatus.failed;
-      addTaskLog(LogEntry(LogType.error, '错误:$e'));
+      addTaskLog(LogEntry(LogType.error, '错误：$e'));
       addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
-      addLog(.error, '错误:${removeNewlines('$e')}', tag: 'ModDownload');
+      addLog(.error, '错误：${removeNewlines('$e')}', tag: 'ModDownload');
       await file.delete();
       rethrow;
     } finally {

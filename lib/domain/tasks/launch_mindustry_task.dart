@@ -164,15 +164,15 @@ class LaunchMindustryTask extends Task {
 
     // 启动前兜底：选中路径已失效（被删/移动）则回退自动选择；仍无则中止并提示
     if (javaPath != null && !File(javaPath).existsSync()) {
-      addTaskLog(LogEntry(LogType.warning, 'Java 路径失效: $javaPath，回退自动选择'));
+      addTaskLog(LogEntry(LogType.warning, 'Java 路径失效：$javaPath，回退自动选择'));
       javaPath = _autoPickJava(
         launchOption.javaOptions.javas,
         mindustry.versionNumber ?? mindustry.releaseInt,
       );
     }
     if (javaPath == null) {
-      addTaskLog(LogEntry(LogType.error, '未找到可用Java，无法启动'));
-      addLog(.error, '未找到可用 Java，无法启动', tag: 'Launch');
+      addTaskLog(LogEntry(LogType.error, '未找到可用 Java：无法启动'));
+      addLog(.error, '未找到可用 Java：无法启动', tag: 'Launch');
       showJavaMissingPrompt(
         releaseInt: mindustry.versionNumber ?? mindustry.releaseInt,
       );

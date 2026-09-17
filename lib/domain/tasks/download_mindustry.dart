@@ -84,7 +84,7 @@ class DownloadMindustryTask extends Task {
         file = File(reusableVersion.jarPath);
         addLog(
           .info,
-          '本体库中已有 [$tag] 的本体，直接复用 ${file.path}',
+          '本体库中已有 [$tag] 的游戏本体，复用 ${file.path}',
           tag: 'GameDownload',
         );
         await _addIntoConfig(jarPath: reusableVersion.jarPath);
@@ -96,13 +96,13 @@ class DownloadMindustryTask extends Task {
           title: '复用已有本体',
           content: '本体库中已有 [$tag] 的游戏本体，未重复下载',
         );
-        TaskLogManager.addLog(LogEntry(LogType.info, '复用本体库中已有的[$tag]本体'));
+        TaskLogManager.addLog(LogEntry(LogType.info, '复用本体库中已有的 [$tag] 游戏本体'));
         return;
       }
 
       final jarAsset = mindustryMeta.desktopJarAsset;
       if (jarAsset == null) {
-        throw Exception('该版本 release 中没有游戏本体 jar，无法下载');
+        throw Exception('该版本 release 里没有游戏本体，无法下载');
       }
       final String url = jarAsset.url;
 
@@ -119,7 +119,7 @@ class DownloadMindustryTask extends Task {
       }
       isFreshDownload = true;
 
-      addLog(.info, '下载游戏[$tag],$url', tag: 'GameDownload');
+      addLog(.info, '下载游戏 [$tag]：$url', tag: 'GameDownload');
 
       await cio.download(
         url: url,
@@ -147,8 +147,8 @@ class DownloadMindustryTask extends Task {
         title: '下载完成',
         content: '[$tag]下载完成，本体 ${file.path}',
       );
-      TaskLogManager.addLog(LogEntry(LogType.info, '[$tag]下载完成，本体${file.path}'));
-      addLog(.info, '[$tag]下载完成，本体${file.path}，版本目录$path', tag: 'GameDownload');
+      TaskLogManager.addLog(LogEntry(LogType.info, '[$tag] 下载完成，游戏本体 ${file.path}'));
+      addLog(.info, '[$tag] 下载完成：游戏本体 ${file.path}，版本目录 $path', tag: 'GameDownload');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -162,22 +162,22 @@ class DownloadMindustryTask extends Task {
 
           addTaskLog(LogEntry(LogType.info, '已取消下载'));
           addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
-          addLog(.info, '已取消下载[$tag]', tag: 'GameDownload');
+          addLog(.info, '已取消下载 [$tag]', tag: 'GameDownload');
         }
       } else {
         status = TaskStatus.failed;
         debugPrint('网络错误：$e');
-        addTaskLog(LogEntry(LogType.error, '网络错误:$e'));
+        addTaskLog(LogEntry(LogType.error, '网络错误：$e'));
         addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误:$e');
-        addLog(.warning, '网络错误:${removeNewlines('$e')}', tag: 'GameDownload');
+        addLog(.warning, '网络错误：${removeNewlines('$e')}', tag: 'GameDownload');
         if (isFreshDownload) await file.delete();
       }
     } catch (e) {
       status = TaskStatus.failed;
       debugPrint('未知错误$e');
-      addTaskLog(LogEntry(LogType.error, '未知错误:$e'));
+      addTaskLog(LogEntry(LogType.error, '未知错误：$e'));
       addNotice(icon: Icons.error_outline, title: '致命错误！', content: '$e');
-      addLog(.error, '未知错误:${removeNewlines('$e')}', tag: 'GameDownload');
+      addLog(.error, '未知错误：${removeNewlines('$e')}', tag: 'GameDownload');
       if (isFreshDownload) await file.delete();
     } finally {
       updateDisplay();
@@ -225,7 +225,7 @@ class DownloadMindustryTask extends Task {
       //版本建在哪、隔离开没开——后续「导入/存档跑到别处去了」都要靠这条对账
       addLog(
         .info,
-        '创建版本 [${mindustry.tag}]（下载），存档隔离${isolation ? '开启' : '关闭'}，数据目录：${mindustry.dataPath}',
+        '创建版本 [${mindustry.tag}]（下载）：存档隔离${isolation ? '开启' : '关闭'}，数据目录：${mindustry.dataPath}',
         tag: 'GameDownload',
       );
     } else {

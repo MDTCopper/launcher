@@ -105,12 +105,12 @@ class PathSelector {
       if (result.type != ResultType.done) {
         //兜底
         await OpenFilex.open(folderPath, type: "folder");
-        addLogAndPrint(.warning, "Android文件管理器不支持直接定位，已打开所在文件夹：$folderPath", tag: 'Path');
+        addLogAndPrint(.warning, "Android 文件管理器不支持定位，已打开所在文件夹：$folderPath", tag: 'Path');
       }
     } catch (e) {
       // 最终兜底：打开文件夹
       await OpenFilex.open(folderPath, type: "folder");
-      addLogAndPrint(.warning, "Android文件定位异常，已打开所在文件夹：${removeNewlines('$e')}", tag: 'Path');
+      addLogAndPrint(.warning, "Android 文件定位异常，已打开所在文件夹：${removeNewlines('$e')}", tag: 'Path');
     }
   }
 

@@ -9,6 +9,7 @@ import 'package:copper_launcher/ui/components/animation/eased_progress_bar.dart'
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
+import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/github_mirror.dart';
 import 'package:copper_launcher/util/io/java/java_finder.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -90,18 +91,18 @@ class StartupBackgroundTask extends Task {
       //浅扫即可（环境变量 + 常见安装目录）；深扫是全盘递归，不能放启动路径上
       final found = await JavaFinder.getJavaInstallationsInfo();
       if (found.isEmpty) {
-        addLogAndPrint(.warning, '常见位置未找到可用 Java，启动游戏前需手动添加或下载', tag: 'Startup');
+        addLogAndPrint(.warning, '常见位置未找到可用 Java：启动游戏前需手动添加或下载', tag: 'Startup');
         return;
       }
       javaOptions.javas = found;
       await config.save();
-      addLogAndPrint(.info, '自动登记 ${found.length} 个可用 Java', tag: 'Startup');
+      addLogAndPrint(.info, '自动登记可用 Java：${found.length} 个', tag: 'Startup');
       return;
     }
 
     final invalid = await JavaFinder.validateConfiguredJavas();
     if (invalid > 0) {
-      addLogAndPrint(.warning, '$invalid 个 Java 配置路径失效，已标记并在选中时回退自动', tag: 'Startup');
+      addLogAndPrint(.warning, '$invalid 个 Java 配置路径失效：已标记，选中时回退自动选择', tag: 'Startup');
       await config.save();
     }
   }
@@ -119,13 +120,17 @@ class StartupBackgroundTask extends Task {
         //空 fold 目录未创建不算丢失（首启默认文件夹尚无版本），跳过不误报
         if (fold.versions.isEmpty) continue;
         missingFolds.add(fold);
-        addLog(.warning, '游戏目录不存在: [${fold.tag}] ${fold.path}', tag: 'Startup');
+        addLog(.warning, '游戏目录 [${fold.tag}] 不存在：${fold.path}', tag: 'Startup');
         continue;
       }
       for (final version in fold.versions) {
         if (!await File(version.jarPath).exists()) {
           missingVersions.add(version);
-          addLog(.warning, '游戏版本缺少 jar: [${version.tag}] ${version.jarPath}', tag: 'Startup');
+          addLog(
+            .warning,
+            '版本 [${version.tag}] 缺少游戏本体：${version.jarPath}',
+            tag: 'Startup',
+          );
         }
       }
     }
@@ -164,6 +169,15 @@ class StartupBackgroundTask extends Task {
       considerOrphan(version.jarPath);
     }
 
+    // 本体库里的孤儿：库内文件必然是启动器放的，没被任何记录引用就能清
+    // （「记录还在但文件没了」由上面覆盖，「文件在、记录早没了」只能靠扫目录）
+    final libraryDir = Directory(AppPaths.mindustrys);
+    if (await libraryDir.exists()) {
+      await for (final entity in libraryDir.list()) {
+        if (entity is File) considerOrphan(entity.path);
+      }
+    }
+
     final count =
         missingFolds.length + missingVersions.length + orphanJars.length;
     if (count == 0) return;
@@ -175,8 +189,8 @@ class StartupBackgroundTask extends Task {
         if (navContext == null || !navContext.mounted) return;
         final detail = [
           for (final fold in missingFolds) '目录 [${fold.tag}] 已不存在',
-          for (final version in missingVersions) '版本 [${version.tag}] 缺少 jar',
-          for (final jar in orphanJars) '无引用本体: $jar',
+          for (final version in missingVersions) '版本 [${version.tag}] 缺少游戏本体',
+          for (final jar in orphanJars) '无引用游戏本体：$jar',
         ].join('\n');
         showConfirmationPopup(
           context: navContext,
@@ -184,24 +198,28 @@ class StartupBackgroundTask extends Task {
           title: '检测到缺失或被孤立的游戏文件',
           content:
               '以下记录或文件是否删除？\n$detail\n\n'
-              '（缺失记录仅删记录；无引用本体将删除文件）',
+              '（缺失记录只删记录；无引用的游戏本体将删除文件）',
           action: () async {
             for (final fold in missingFolds) {
               config.versionOptions.versionFolds.remove(fold);
-              addLog(.info, '已删除缺失目录记录: [${fold.tag}]', tag: 'Startup');
+              addLog(.info, '已删除缺失目录记录 [${fold.tag}]', tag: 'Startup');
             }
             for (final version in missingVersions) {
               for (final fold in config.versionOptions.versionFolds) {
                 fold.versions.remove(version);
               }
-              addLog(.info, '已删除缺失版本记录: [${version.tag}]', tag: 'Startup');
+              addLog(.info, '已删除缺失版本记录 [${version.tag}]', tag: 'Startup');
             }
             for (final jar in orphanJars) {
               try {
                 await File(jar).delete();
-                addLog(.info, '已删除无引用本体: $jar', tag: 'Startup');
+                addLog(.info, '已删除无引用游戏本体：$jar', tag: 'Startup');
               } catch (e) {
-                addLog(.warning, '删除无引用本体失败: $jar ${removeNewlines('$e')}', tag: 'Startup');
+                addLog(
+                  .warning,
+                  '无引用游戏本体删除失败：$jar，${removeNewlines('$e')}',
+                  tag: 'Startup',
+                );
               }
             }
             await config.save();
