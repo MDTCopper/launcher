@@ -216,7 +216,9 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       content: scanned.isNotEmpty ? '在目录中找到${scanned.length} 个游戏版本' : null,
     );
     setState(() {
-      _versionFolds.add(VersionFold(tag: tag, path: path, versions: scanned));
+      _versionFolds.add(
+        VersionFold(tag: tag, path: AppPaths.toStoredPath(path), versions: scanned),
+      );
       _index = _versionFolds.length - 1;
     });
     await config.save();
@@ -257,7 +259,13 @@ class _VersionSelectPageState extends State<VersionSelectPage>
 
     addLog(.info, '已新建分类 [$tag]：路径 $folderPath', tag: 'Version');
     setState(() {
-      _versionFolds.add(VersionFold(tag: tag, path: folderPath, versions: []));
+      _versionFolds.add(
+        VersionFold(
+          tag: tag,
+          path: AppPaths.toStoredPath(folderPath),
+          versions: [],
+        ),
+      );
       _index = _versionFolds.length - 1;
     });
     await config.save();
@@ -314,8 +322,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       tag: _uniqueTag(tag),
       // 扫来的是用户自己的本体：数据根外的路径原样记（绝对），根内则记相对
       jarPath: AppPaths.toStoredPath(jarPath),
+      path: AppPaths.toStoredPath(folderPath),
       isBe: isBe,
-      path: folderPath,
       release: isBe ? meta.build : 'v${meta.build}',
       addTime: DateTime.now(),
       isolation: isolation,
@@ -600,7 +608,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
             final tile = NavigationTile(
               icon: Icon(Icons.folder_outlined),
               content: '${fold.tag} (${fold.versions.length})',
-              lable: fold.path,
+              lable: fold.resolvedPath,
               selected: index == _index,
               collapse: collapse,
               onTap: () {

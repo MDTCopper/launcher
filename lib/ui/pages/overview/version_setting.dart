@@ -464,7 +464,8 @@ pause
     if (tag == null || tag == _mindustry.tag || !mounted) return;
 
     final oldFolder = _mindustry.foldPath;
-    final newFolder = p.join(_mindustry.path, tag);
+    // fold 目录算新路径用解析形态；记录里的 [Mindustry.path] 保持记录形态不动
+    final newFolder = p.join(_mindustry.resolvedPath, tag);
     final folderExists = await Directory(oldFolder).exists();
     if (folderExists && oldFolder != newFolder) {
       final newFolderExists = await Directory(newFolder).exists();

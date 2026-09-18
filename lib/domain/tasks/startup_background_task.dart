@@ -125,11 +125,11 @@ class StartupBackgroundTask extends Task {
     final missingFolds = <VersionFold>[];
     final missingVersions = <Mindustry>[];
     for (final fold in folds) {
-      if (!await Directory(fold.path).exists()) {
+      if (!await Directory(fold.resolvedPath).exists()) {
         //空 fold 目录未创建不算丢失
         if (fold.versions.isEmpty) continue;
         missingFolds.add(fold);
-        addLog(.warning, '游戏目录 [${fold.tag}] 不存在：${fold.path}', tag: 'Startup');
+        addLog(.warning, '游戏目录 [${fold.tag}] 不存在：${fold.resolvedPath}', tag: 'Startup');
         continue;
       }
       for (final version in fold.versions) {

@@ -211,14 +211,17 @@ class DownloadMindustryTask extends Task {
       tag: tag,
       jarPath: AppPaths.toStoredPath(bodyPath),
       isBe: mindustryMeta.isBe,
-      path: path,
+      path: AppPaths.toStoredPath(path),
       release: mindustryMeta.tag,
       addTime: DateTime.now(),
       isolation: isolation,
       versionNumber: versionNumber,
     );
+    // 找 fold 用解析后的路径比：记录形态可能是相对、也可能还是老的绝对路径
     final foldIndex = config.versionOptions.versionFolds.indexWhere(
-      (fold) => fold.path == mindustry.path,
+      (fold) =>
+          AppPaths.resolveStoredPath(fold.path) ==
+          AppPaths.resolveStoredPath(mindustry.path),
     );
     if (foldIndex != -1) {
       config.versionOptions.versionFolds[foldIndex].versions.add(mindustry);

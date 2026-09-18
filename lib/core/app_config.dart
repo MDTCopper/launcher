@@ -633,7 +633,7 @@ class VersionOptions {
         [
           VersionFold(
             tag: isDesktop ? '默认文件夹' : '默认分类',
-            path: AppPaths.versions,
+            path: AppPaths.toStoredPath(AppPaths.versions),
             versions: [],
           ),
         ];
@@ -822,10 +822,16 @@ class VersionOptions {
 @JsonSerializable()
 class VersionFold {
   late String tag;
+
+  ///分类目录（记录形态：数据根内记相对、根外记绝对，读目录请用 [resolvedPath]）
   late final String path;
+
   final List<Mindustry> versions;
 
   VersionFold({required this.tag, required this.path, required this.versions});
+
+  ///分类目录的可用形态
+  String get resolvedPath => AppPaths.resolveStoredPath(path);
 
   factory VersionFold.fromJson(Map<String, dynamic> json) =>
       _$VersionFoldFromJson(json);

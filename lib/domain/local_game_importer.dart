@@ -9,6 +9,7 @@ import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:path/path.dart' as p;
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
@@ -115,9 +116,11 @@ Future<Mindustry?> importLocalGame({
 
 ///默认文件夹：与下载落点一致（[AppPaths.versions]）；配置里找不到就用第一个兜底
 VersionFold defaultVersionFold() {
+  final defaultPath = p.normalize(AppPaths.versions);
   final folds = config.versionOptions.versionFolds;
   for (final fold in folds) {
-    if (fold.path == AppPaths.versions) return fold;
+    //按解析后的路径比：记录形态可能是相对、也可能还是老的绝对路径
+    if (p.normalize(fold.resolvedPath) == defaultPath) return fold;
   }
   return folds.first;
 }
