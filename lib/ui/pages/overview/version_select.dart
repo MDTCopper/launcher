@@ -312,7 +312,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       id: const Uuid().v4(),
       launcher: LauncherType.mindustry,
       tag: _uniqueTag(tag),
-      jarPath: jarPath,
+      // 扫来的是用户自己的本体：数据根外的路径原样记（绝对），根内则记相对
+      jarPath: AppPaths.toStoredPath(jarPath),
       isBe: isBe,
       path: folderPath,
       release: isBe ? meta.build : 'v${meta.build}',

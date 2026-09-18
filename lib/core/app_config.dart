@@ -690,11 +690,15 @@ class VersionOptions {
     //    版本目录照删（里面是它自己的隔离数据），但本体就躺在里面时不动目录
     final stillReferenced = versionFolds
         .expand((fold) => fold.versions)
-        .any((v) => v.jarPath == version.jarPath);
+        .any(
+          (v) =>
+              AppPaths.resolveStoredPath(v.jarPath) ==
+              AppPaths.resolveStoredPath(version.jarPath),
+        );
     if (stillReferenced) {
       addLog(
         .info,
-        '删除版本 [${version.tag}]：游戏本体仍被其它版本引用，保留 ${version.jarPath}',
+        '删除版本 [${version.tag}]：游戏本体仍被其它版本引用，保留 ${version.resolvedJarPath}',
         tag: 'Version',
       );
       await _deleteVersionFolder(version, isBodyStillReferenced: true);
@@ -706,7 +710,7 @@ class VersionOptions {
         !version.bodyIsUserFile &&
         (version.isBodyInLibrary || version.isBodyInOwnFolder);
     if (canDeleteBody) {
-      final jar = File(version.jarPath);
+      final jar = File(version.resolvedJarPath);
       if (!await jar.exists()) {
         addLog(.info, '删除版本 [${version.tag}]：游戏本体已不存在，只删记录', tag: 'Version');
       } else {
@@ -714,13 +718,13 @@ class VersionOptions {
           await jar.delete();
           addLog(
             .info,
-            '删除版本 [${version.tag}]：已删除游戏本体 ${version.jarPath}',
+            '删除版本 [${version.tag}]：已删除游戏本体 ${version.resolvedJarPath}',
             tag: 'Version',
           );
         } catch (error) {
           addLog(
             .error,
-            '删除版本 [${version.tag}]：游戏本体删除失败 ${version.jarPath}，${removeNewlines('$error')}',
+            '删除版本 [${version.tag}]：游戏本体删除失败 ${version.resolvedJarPath}，${removeNewlines('$error')}',
             tag: 'Version',
           );
           return false;
@@ -729,7 +733,7 @@ class VersionOptions {
     } else {
       addLog(
         .info,
-        '删除版本 [${version.tag}]：游戏本体是用户文件，只删记录（${version.jarPath}）',
+        '删除版本 [${version.tag}]：游戏本体是用户文件，只删记录（${version.resolvedJarPath}）',
         tag: 'Version',
       );
     }

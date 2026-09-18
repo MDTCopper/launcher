@@ -62,9 +62,9 @@ class MindustryLauncher {
     }
 
     // 校验 Jar 文件是否存在
-    final jarFile = File(mindustry.jarPath);
+    final jarFile = File(mindustry.resolvedJarPath);
     if (!await jarFile.exists()) {
-      addLogAndPrint(.warning, '游戏本体不存在：${mindustry.jarPath}', tag: 'Launch');
+      addLogAndPrint(.warning, '游戏本体不存在：${mindustry.resolvedJarPath}', tag: 'Launch');
       return false;
     }
 
@@ -97,7 +97,7 @@ class MindustryLauncher {
       }
 
       args.add('-jar');
-      args.add(mindustry.jarPath);
+      args.add(mindustry.resolvedJarPath);
 
       args.addAll(
         _buildMindustryArgs(windowSize: windowSize, maximize: maximize),

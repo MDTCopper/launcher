@@ -81,13 +81,13 @@ class DownloadMindustryTask extends Task {
         release: mindustryMeta.tag,
       );
       if (reusableVersion != null) {
-        file = File(reusableVersion.jarPath);
+        file = File(reusableVersion.resolvedJarPath);
         addLog(
           .info,
           '本体库中已有 [$tag] 的游戏本体，复用 ${file.path}',
           tag: 'GameDownload',
         );
-        await _addIntoConfig(jarPath: reusableVersion.jarPath);
+        await _addIntoConfig(bodyFilePath: reusableVersion.resolvedJarPath);
         progress = 1.0;
         status = TaskStatus.completed;
 
@@ -184,9 +184,10 @@ class DownloadMindustryTask extends Task {
     }
   }
 
-  Future<void> _addIntoConfig({String? jarPath}) async {
-    // 复用本体库里已有本体时，jar 路径由调用方给进来（此时 file 不由本次下载产生）
-    final bodyPath = jarPath ?? file.path;
+  Future<void> _addIntoConfig({String? bodyFilePath}) async {
+    // 复用本体库里已有本体时，文件路径由调用方给进来（此时 file 不由本次下载产生）；
+    // 读文件要绝对路径，写进配置走记录形态（数据根内记相对）
+    final bodyPath = bodyFilePath ?? file.path;
 
     // 大版本号从 jar 的 version.properties 读（FileReader 已实现），github tag 只有 build 号
     int? versionNumber;
@@ -208,7 +209,7 @@ class DownloadMindustryTask extends Task {
       id: id,
       launcher: LauncherType.mindustry,
       tag: tag,
-      jarPath: bodyPath,
+      jarPath: AppPaths.toStoredPath(bodyPath),
       isBe: mindustryMeta.isBe,
       path: path,
       release: mindustryMeta.tag,

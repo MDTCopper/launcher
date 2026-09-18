@@ -92,7 +92,7 @@ Future<Mindustry?> importLocalGame({
     id: const Uuid().v4(),
     launcher: LauncherType.mindustry, //TODO 等待后续接入Copper Loader
     tag: tag,
-    jarPath: jarPath,
+    jarPath: AppPaths.toStoredPath(jarPath),
     isBe: isBe,
     path: fold.path,
     release: isBe ? meta.build : 'v${meta.build}',

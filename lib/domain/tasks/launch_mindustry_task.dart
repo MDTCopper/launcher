@@ -99,7 +99,7 @@ class LaunchMindustryTask extends Task {
     if (mindustry.versionNumber == null) {
       try {
         final major = int.tryParse(
-          (await FileReader.fromPath(mindustry.jarPath)).mindustry?.version ??
+          (await FileReader.fromPath(mindustry.resolvedJarPath)).mindustry?.version ??
               '',
         );
         if (major != null) {

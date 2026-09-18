@@ -133,29 +133,29 @@ class StartupBackgroundTask extends Task {
         continue;
       }
       for (final version in fold.versions) {
-        if (!await File(version.jarPath).exists()) {
+        if (!await File(version.resolvedJarPath).exists()) {
           missingVersions.add(version);
           addLog(
             .warning,
-            '版本 [${version.tag}] 缺少游戏本体：${version.jarPath}',
+            '版本 [${version.tag}] 缺少游戏本体：${version.resolvedJarPath}',
             tag: 'Startup',
           );
         }
       }
     }
 
-    // 引用检测
+    // 引用检测（比较与去重都按绝对路径，记录形态可能是相对）
     final brokenLower = <String>{
       for (final fold in missingFolds)
         for (final version in fold.versions)
-          p.normalize(version.jarPath).toLowerCase(),
+          p.normalize(version.resolvedJarPath).toLowerCase(),
       for (final version in missingVersions)
-        p.normalize(version.jarPath).toLowerCase(),
+        p.normalize(version.resolvedJarPath).toLowerCase(),
     };
     final survivingLower = <String>{
       for (final fold in folds)
         for (final version in fold.versions)
-          p.normalize(version.jarPath).toLowerCase(),
+          p.normalize(version.resolvedJarPath).toLowerCase(),
     }..removeAll(brokenLower);
 
     final orphanJars = <String>[];
@@ -171,11 +171,11 @@ class StartupBackgroundTask extends Task {
 
     for (final fold in missingFolds) {
       for (final version in fold.versions) {
-        considerOrphan(version.jarPath);
+        considerOrphan(version.resolvedJarPath);
       }
     }
     for (final version in missingVersions) {
-      considerOrphan(version.jarPath);
+      considerOrphan(version.resolvedJarPath);
     }
 
     // 本体库里的孤儿：库内文件必然是启动器放的，没被任何记录引用就能清

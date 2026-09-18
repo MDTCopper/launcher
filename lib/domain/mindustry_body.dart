@@ -73,7 +73,7 @@ class MindustryBody {
         if (version.isBe != isBe) continue;
         if (!_sameRelease(version.release, release)) continue;
         if (!version.isBodyInLibrary) continue;
-        if (!File(version.jarPath).existsSync()) continue;
+        if (!File(version.resolvedJarPath).existsSync()) continue;
         return version;
       }
     }

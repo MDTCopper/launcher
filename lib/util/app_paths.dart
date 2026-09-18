@@ -143,6 +143,32 @@ abstract class AppPaths {
   /// 版本目录只留版本自己的数据
   static String get mindustrys => p.join(copperLauncher, 'mindustrys');
 
+  /// 模组加载器库 [*\copper_loader\]：loader jar 集中放这里，多版本复用同一份
+  static String get copperLoader => p.join(copperLauncher, 'copper_loader');
+
+  /// 把绝对路径转成**记录形态**：落在数据根里的记相对路径（数据根搬家 / 换盘后
+  /// 配置仍然可用），数据根之外的用户文件（「添加目录」扫来的本体）保持绝对路径
+  static String toStoredPath(String path) {
+    final root = p.normalize(copperLauncher);
+    final normalized = p.normalize(path);
+    if (!_isInside(root, normalized)) return normalized;
+    return p.relative(normalized, from: root);
+  }
+
+  /// 把记录形态还原成可用路径：绝对路径（含老配置）原样返回，相对路径按数据根拼回
+  static String resolveStoredPath(String storedPath) {
+    if (p.isAbsolute(storedPath)) return p.normalize(storedPath);
+    return p.normalize(p.join(copperLauncher, storedPath));
+  }
+
+  /// [child] 是否落在 [root] **里面**（Windows 路径大小写不敏感，统一小写后再比）。
+  /// 根目录自身不算「根内文件」—— 那样会算出空字符串
+  static bool _isInside(String root, String child) {
+    final rootLower = p.normalize(root).toLowerCase();
+    final childLower = p.normalize(child).toLowerCase();
+    return p.isWithin(rootLower, childLower);
+  }
+
   /// [*\logs\]
   static String get logs => p.join(copperLauncher, 'logs');
 

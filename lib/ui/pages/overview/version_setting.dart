@@ -8,6 +8,7 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
+import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -180,7 +181,8 @@ class _AboutState extends State<_About> {
       if (_mindustry.isolation) '-Dmindustry.data.dir=${_mindustry.dataPath}',
       ...jvmParameter.split(' ').where((arg) => arg.isNotEmpty),
       '-jar',
-      _mindustry.jarPath,
+      //脚本里要写可用路径，不能用数据根内的相对记录形态
+      _mindustry.resolvedJarPath,
     ];
 
     final isWindows = Platform.isWindows;
@@ -477,11 +479,12 @@ pause
         debugPrint('重命名版本文件夹失败：$e');
         return;
       }
-      // jar 在旧文件夹内时，jarPath 跟随新位置
-      if (p.isWithin(oldFolder, _mindustry.jarPath)) {
-        _mindustry.jarPath = p.join(
-          newFolder,
-          p.relative(_mindustry.jarPath, from: oldFolder),
+      // 本体在旧文件夹内时，记录跟着挪到新位置（比较与计算都用绝对路径，
+      // 存回去仍走记录形态）
+      final bodyPath = _mindustry.resolvedJarPath;
+      if (p.isWithin(oldFolder, bodyPath)) {
+        _mindustry.jarPath = AppPaths.toStoredPath(
+          p.join(newFolder, p.relative(bodyPath, from: oldFolder)),
         );
       }
     }

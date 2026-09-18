@@ -24,10 +24,10 @@ class Mindustry {
   /// be版 形如 28888
   final String release;
 
-  ///存储路径
+  ///存储路径（记录形态：数据根内记相对、根外记绝对，见 [AppPaths.toStoredPath]）
   final String path;
 
-  ///游戏启动路径
+  ///游戏启动路径（记录形态，读文件请用 [resolvedJarPath]）
 
   String jarPath;
   final LauncherType launcher;
@@ -92,20 +92,26 @@ class Mindustry {
     return int.parse(release.split('.').first);
   }
 
+  ///游戏目录路径（[path] 的可用形态）
+  String get resolvedPath => AppPaths.resolveStoredPath(path);
+
+  ///游戏本体路径（[jarPath] 的可用形态）：读文件 / 起进程都用它
+  String get resolvedJarPath => AppPaths.resolveStoredPath(jarPath);
+
   ///游戏目录路径
-  String get foldPath => p.join(path, tag);
+  String get foldPath => p.join(resolvedPath, tag);
 
   ///本体是否在启动器本体库（[AppPaths.mindustrys]）里。
   ///
   ///库外的本体是**用户自己的文件**——「添加目录」扫描到的 jar、以及早期落在各自
   ///版本目录里的那份：启动器不复制，删版本时也不碰（只删记录）
-  bool get isBodyInLibrary => _isPathWithin(AppPaths.mindustrys, jarPath);
+  bool get isBodyInLibrary => _isPathWithin(AppPaths.mindustrys, resolvedJarPath);
 
   ///本体就在版本自己的目录 `[foldPath]` 里：老布局的下载 / 导入落点，
   ///以及「添加目录」扫到的 `<目录>/<tag>/xxx.jar` 形态。
   ///
   ///两种都算**库外**——文件是用户自己的，删版本时本体和目录都要避开
-  bool get isBodyInOwnFolder => _isPathWithin(foldPath, jarPath);
+  bool get isBodyInOwnFolder => _isPathWithin(foldPath, resolvedJarPath);
 
   ///游戏数据路径mods,saves,maps,schematics
   String get dataPath {
