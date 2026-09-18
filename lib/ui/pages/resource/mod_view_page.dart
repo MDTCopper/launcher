@@ -617,12 +617,13 @@ class _ModViewPageState extends State<ModViewPage> {
     return buildWarningBar(
       context,
       'warning bar of mod page of download page enable',
-      '国内访问github受限，请优先选择国内镜像资源；'
-          '如有条件，可以到设置中添加网络代理',
+      '国内访问github受限，可去设置调整github镜像策略',
       onTap: () => setState(() {}),
-      //文案里说的「到设置里添加代理」就是下载设置页
-      onNavigate: () =>
-          Navigator.pushNamed(context, otherSettingPageRouteKey),
+      onNavigate: () => Navigator.pushNamed(
+        context,
+        otherSettingPageRouteKey,
+        arguments: {'lead': '设置', 'title': 'github镜像策略'},
+      ),
     );
   }
 

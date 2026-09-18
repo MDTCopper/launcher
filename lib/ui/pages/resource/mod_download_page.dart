@@ -387,10 +387,12 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       'warning bar of mod download page enable',
       '由于githubAPI对匿名访问有 60次/小时 的限制，请不要短时间访问多个模组，访问过的模组已经缓存；'
           '如有条件，可以到设置中添加github访问token',
-      onTap: () => setState(() {}), // 关闭后刷新移除本条，与 util 版关闭写入配置的行为配合
-      //文案里说的「到设置里添加 github token」就在下载设置页
-      onNavigate: () =>
-          Navigator.pushNamed(context, otherSettingPageRouteKey),
+      onTap: () => setState(() {}), // 关闭后刷新移除本条
+      onNavigate: () => Navigator.pushNamed(
+        context,
+        otherSettingPageRouteKey,
+        arguments: {'lead': '设置', 'title': 'github token'},
+      ),
     );
   }
 
@@ -556,8 +558,9 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                               ),
                               Text('·', style: theme.textTheme.bodyMedium),
                               GestureDetector(
-                                onTap: () =>
-                                    _goToUrl('https://github.com/${modListMeta.repo}'),
+                                onTap: () => _goToUrl(
+                                  'https://github.com/${modListMeta.repo}',
+                                ),
                                 child: Text(
                                   modListMeta.repo,
                                   style: theme.textTheme.bodyMedium?.copyWith(
