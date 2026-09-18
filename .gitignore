@@ -72,6 +72,7 @@ remote_data/
 # 以后往那两处加新源码会被静默漏掉
 /java/
 .project_status/
+copper_loader/
 
 #不需要开发iOS 和 Web端
 ios/
