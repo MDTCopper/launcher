@@ -85,50 +85,81 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
     );
   }
 
-  Widget _buildPostLaunchModule() {
+  /// 启动器行为：主窗口关窗后做什么 + 游戏启动后启动器自己做什么
+  ///
+  /// 关窗行为原先混在「主题」板块里（它跟主题无关），游戏启动后原先单独一块，
+  /// 两者都是「启动器自己的行为」，归到一块
+  Widget _buildLauncherBehaviorModule() {
+    final theme = Theme.of(context);
     final behavior = personalizationOptions.launcherPostLaunchBehavior;
     final isTray = behavior == LauncherPostLaunchBehavior.tray;
+
     return ContentPanelModule(
-      title: '游戏启动后',
+      title: '启动器行为',
       child: Column(
         spacing: 8,
         children: [
-          Row(
-            spacing: 8,
-            children: [
-              _buildPostLaunchOption(
-                selected: !isTray,
-                label: '无行为',
-                icon: Icons.do_not_disturb_on_outlined,
-                onTap: () =>
-                    _setPostLaunchBehavior(LauncherPostLaunchBehavior.none),
-              ),
-              _buildPostLaunchOption(
-                selected: isTray,
-                label: '系统托盘',
-                icon: Icons.minimize_outlined,
-                onTap: () =>
-                    _setPostLaunchBehavior(LauncherPostLaunchBehavior.tray),
+          OptionSettingBar<WindowCloseAction>(
+            title: '关闭窗口时',
+            hintText: '点击主窗口关闭按钮的行为',
+            initialValue: personalizationOptions.windowCloseAction,
+            options: const [
+              DropdownOption(value: WindowCloseAction.exit, label: '直接退出'),
+              DropdownOption(
+                value: WindowCloseAction.minimizeToTray,
+                label: '最小化到托盘',
               ),
             ],
+            onSelect: (value) {
+              setState(() {
+                personalizationOptions.windowCloseAction = value;
+              });
+              config.save();
+              //立即重应用托盘模式（图标常驻 / 关窗拦截）
+              LauncherTray.instance.applyMode();
+            },
           ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.ease,
-            alignment: Alignment.topCenter,
-            child: isTray
-                ? SwitchSettingBar(
-                    title: '游戏退出后恢复窗口',
-                    value: personalizationOptions.restoreWindowOnGameExit,
-                    onChanged: (value) {
-                      setState(() {
-                        personalizationOptions.restoreWindowOnGameExit = value;
-                      });
-                      config.save();
-                    },
-                  )
-                : const SizedBox.shrink(),
-          ),
+          if (isDesktop) ...[
+            Divider(indent: 40, endIndent: 40),
+            Text('游戏启动后', style: theme.textTheme.titleMedium),
+            Row(
+              spacing: 8,
+              children: [
+                _buildPostLaunchOption(
+                  selected: !isTray,
+                  label: '无行为',
+                  icon: Icons.do_not_disturb_on_outlined,
+                  onTap: () =>
+                      _setPostLaunchBehavior(LauncherPostLaunchBehavior.none),
+                ),
+                _buildPostLaunchOption(
+                  selected: isTray,
+                  label: '系统托盘',
+                  icon: Icons.minimize_outlined,
+                  onTap: () =>
+                      _setPostLaunchBehavior(LauncherPostLaunchBehavior.tray),
+                ),
+              ],
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.ease,
+              alignment: Alignment.topCenter,
+              child: isTray
+                  ? SwitchSettingBar(
+                      title: '游戏退出后恢复窗口',
+                      value: personalizationOptions.restoreWindowOnGameExit,
+                      onChanged: (value) {
+                        setState(() {
+                          personalizationOptions.restoreWindowOnGameExit =
+                              value;
+                        });
+                        config.save();
+                      },
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
         ],
       ),
     );
@@ -246,7 +277,7 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   Widget build(BuildContext context) {
     return ListContentPanel(
       items: [
-        if (isDesktop) _buildPostLaunchModule(),
+        _buildLauncherBehaviorModule(),
         ContentPanelModule(
           title: '主题',
           child: Column(
@@ -255,26 +286,6 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
               _buildThemeColorOptions(),
               Divider(indent: 40, endIndent: 40),
               _buildThemeModeOptions(),
-              OptionSettingBar<WindowCloseAction>(
-                title: '关闭窗口时',
-                hintText: '点击主窗口关闭按钮的行为',
-                initialValue: personalizationOptions.windowCloseAction,
-                options: const [
-                  DropdownOption(value: WindowCloseAction.exit, label: '直接退出'),
-                  DropdownOption(
-                    value: WindowCloseAction.minimizeToTray,
-                    label: '最小化到托盘',
-                  ),
-                ],
-                onSelect: (value) {
-                  setState(() {
-                    personalizationOptions.windowCloseAction = value;
-                  });
-                  config.save();
-                  //立即重应用托盘模式（图标常驻 / 关窗拦截）
-                  LauncherTray.instance.applyMode();
-                },
-              ),
               SwitchSettingBar(
                 title: '多彩背景',
                 value: personalizationOptions.colorfulBackground,
