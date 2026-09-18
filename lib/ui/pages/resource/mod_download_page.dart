@@ -38,6 +38,7 @@ import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import '../../components/future/mod_icon_loader.dart';
 import '../../components/row/priority_row.dart';
 import '../../components/tips/warning_bar.dart';
+import '../setting/setting.dart';
 import '../../vars.dart';
 
 ///模组仓库有三种情况：
@@ -387,6 +388,9 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       '由于githubAPI对匿名访问有 60次/小时 的限制，请不要短时间访问多个模组，访问过的模组已经缓存；'
           '如有条件，可以到设置中添加github访问token',
       onTap: () => setState(() {}), // 关闭后刷新移除本条，与 util 版关闭写入配置的行为配合
+      //文案里说的「到设置里添加 github token」就在下载设置页
+      onNavigate: () =>
+          Navigator.pushNamed(context, otherSettingPageRouteKey),
     );
   }
 

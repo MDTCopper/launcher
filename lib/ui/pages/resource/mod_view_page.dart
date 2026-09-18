@@ -25,6 +25,7 @@ import '../../components/future/mod_icon_loader.dart';
 import '../../components/pager.dart';
 import '../../components/row/priority_row.dart';
 import '../../components/tips/warning_bar.dart';
+import '../setting/setting.dart';
 import '../../vars.dart';
 
 ///模组浏览页面
@@ -619,6 +620,9 @@ class _ModViewPageState extends State<ModViewPage> {
       '国内访问github受限，请优先选择国内镜像资源；'
           '如有条件，可以到设置中添加网络代理',
       onTap: () => setState(() {}),
+      //文案里说的「到设置里添加代理」就是下载设置页
+      onNavigate: () =>
+          Navigator.pushNamed(context, otherSettingPageRouteKey),
     );
   }
 
