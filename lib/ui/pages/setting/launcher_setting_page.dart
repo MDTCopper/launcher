@@ -43,53 +43,11 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
     LauncherTray.instance.applyMode();
   }
 
-  Widget _buildPostLaunchOption({
-    required bool selected,
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    return ReboundContainer(
-      pressedScale: 0.95,
-      borderRadius: BorderRadius.circular(12),
-      backgroundColor: selected ? colors.interactive.withAlpha(40) : null,
-      onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colors.border),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-          child: Column(
-            children: [
-              Icon(
-                icon,
-                size: 28,
-                color: selected ? colors.interactive : colors.itemSecondary,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: selected ? colors.interactive : colors.itemPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   /// 启动器行为：主窗口关窗后做什么 + 游戏启动后启动器自己做什么
   ///
   /// 关窗行为原先混在「主题」板块里（它跟主题无关），游戏启动后原先单独一块，
   /// 两者都是「启动器自己的行为」，归到一块
   Widget _buildLauncherBehaviorModule() {
-    final theme = Theme.of(context);
     final behavior = personalizationOptions.launcherPostLaunchBehavior;
     final isTray = behavior == LauncherPostLaunchBehavior.tray;
 
@@ -264,7 +222,8 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   Widget build(BuildContext context) {
     return ListContentPanel(
       items: [
-        _buildLauncherBehaviorModule(),
+        //关窗行为与托盘相关，移动端没有这些概念，整块只在桌面显示
+        if (isDesktop) _buildLauncherBehaviorModule(),
         ContentPanelModule(
           title: '主题',
           child: Column(
