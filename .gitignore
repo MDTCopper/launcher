@@ -68,7 +68,9 @@ config.*
 /lib/test/
 analyze_out.txt
 remote_data/
-java/
+# 只忽略数据根里的 JDK 目录：写成 `java/` 会连 lib/util/io/java 与安卓的 java 源码目录一起忽略，
+# 以后往那两处加新源码会被静默漏掉
+/java/
 .project_status/
 
 #不需要开发iOS 和 Web端
