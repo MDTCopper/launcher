@@ -10,25 +10,12 @@
 
 基于 **Flutter** 开发的多平台 [Mindustry](https://github.com/Anuken/Mindustry) 游戏启动器
 
+> [!WARNING]
 > **目前处于开发阶段**：功能与界面仍在快速迭代，尚未发布正式版本。
 
 <p align="center">
   <img src=".readme/UI-demo.png" alt="Copper Launcher 界面预览" width="900">
 </p>
-
-## 目录
-
-- [Copper Launcher](#copper-launcher)
-  - [目录](#目录)
-  - [运行平台](#运行平台)
-  - [功能](#功能)
-    - [版本管理](#版本管理)
-    - [启动游戏](#启动游戏)
-    - [模组管理](#模组管理)
-    - [网络与下载](#网络与下载)
-    - [界面](#界面)
-  - [从源码构建](#从源码构建)
-  - [鸣谢](#鸣谢)
 
 ## 运行平台
 
@@ -105,8 +92,18 @@ dart tool/build_release.dart --version 0.0.2 --channel alpha --bump --platform w
 
 ## 鸣谢
 
-该项目主要参考了第三方 Minecraft 启动器的设计：
+该项目主要参考的第三方 Minecraft 启动器的设计：
+  - **PCL2**：UI 设计与页面逻辑
+  - **LauncherX**：后台任务系统
+  - **HMCL**：部分后端逻辑
 
-1. **PCL2**：UI 设计与页面逻辑
-2. **LauncherX**：后台任务系统
-3. **HMCL**：部分后端逻辑
+**国内资源站拥有者wayzer**：提供了项目的地图资源
+
+**github.akams.cn**：github镜像节点提供
+
+## 需要帮助
+
+启动器的**蓝图功能**还缺一个数据来源：需要一个能提供蓝图列表 / 搜索 / 下载的站点或接口（就像模组用官方仓库、地图用 mindustry.top 那样）。
+
+蓝图页已经做好，但因为没有可用的站点一直没有开放。如果你自己运营这类站点，或者知道合适的去处，欢迎开 issue 联系。
+

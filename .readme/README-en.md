@@ -10,6 +10,7 @@
 
 A multi-platform game launcher for [Mindustry](https://github.com/Anuken/Mindustry), built with **Flutter**.
 
+> [!WARNING]
 > **Under active development**: features and UI are still changing fast. No stable release yet.
 
 <p align="center">
@@ -110,3 +111,9 @@ This project mainly draws on the design of third-party Minecraft launchers:
 1. **PCL2**: UI design and page flow
 2. **LauncherX**: background task system
 3. **HMCL**: parts of the backend logic
+
+## Help Wanted
+
+The **blueprint feature** still lacks a data source: it needs a site or API that serves blueprint lists / search / downloads (the way the official repository serves mods and mindustry.top serves maps).
+
+The blueprint page is already built, but it has stayed closed because there is no usable site behind it. If you run such a site, or know a good one, please open an issue.
