@@ -144,16 +144,18 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
     final rankIndex = _speedRankIndex();
     final divisions = speedRankMBList.length - 1;
 
+    final downloadSpeed = rankIndex == 0
+        ? '不限速'
+        : '${speedRankMBList[rankIndex].toStringAsFixed(1)} MB/s';
+
     return ContentPanelModule(
       title: '下载',
       child: Column(
         spacing: 8,
         children: [
           SliderSettingBar(
-            title: '最大下载速度  ',
-            label: rankIndex == 0
-                ? '不限速'
-                : '${speedRankMBList[rankIndex].toStringAsFixed(1)} MB/s',
+            title: '限速      $downloadSpeed',
+            label: downloadSpeed,
             value: rankIndex / divisions,
             divisions: divisions,
             onChanged: (value) {
@@ -166,7 +168,7 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
             },
           ),
           SliderSettingBar(
-            title: '最大线程数   ${downloadOptions.maxTread.toString()}',
+            title: '线程数   ${downloadOptions.maxTread.toString()}',
             label: downloadOptions.maxTread.toString(),
             value: downloadOptions.maxTread.toDouble(),
             min: 1,
@@ -181,6 +183,7 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
           ),
           InputSettingBar(
             title: 'github访问Token',
+
             controller: githubTokenController,
             onEditingComplete: () {
               setState(() {
@@ -409,14 +412,8 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
             hintText: 'GitHub 请求优先走哪条路',
             initialValue: config.setting.mirrorOptions.strategy,
             options: const [
-              DropdownOption(
-                value: MirrorStrategy.githubFirst,
-                label: '优先官方源（失败才走镜像）',
-              ),
-              DropdownOption(
-                value: MirrorStrategy.mirrorFirst,
-                label: '优先镜像（直连不通时更快）',
-              ),
+              DropdownOption(value: MirrorStrategy.githubFirst, label: '优先官方源'),
+              DropdownOption(value: MirrorStrategy.mirrorFirst, label: '优先镜像'),
               DropdownOption(value: MirrorStrategy.githubOnly, label: '只用官方源'),
             ],
             onSelect: (value) {

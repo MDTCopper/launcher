@@ -43,8 +43,7 @@ class StartupBackgroundTask extends Task {
 
   @override
   Future<void> runTask() async {
-    //镜像节点必须先加载：后面几步要拉 github 文件，直连 raw 不通的网络只能靠镜像兜底，
-    //而节点列表只有这里 load() 会填（顺序反了就是「无可用镜像节点」）
+    //镜像节点必须先加载：后面几步要拉 github 文件，直连 raw 不通的网络只能靠镜像兜底
     await _runStep('正在加载镜像节点', GithubMirror.instance.load);
     if (_shouldStop) return;
     await _runStep('正在刷新远程数据', RemoteData.refresh);
@@ -74,7 +73,11 @@ class StartupBackgroundTask extends Task {
     try {
       await step();
     } catch (e) {
-      addLogAndPrint(.warning, '$label失败：${removeNewlines('$e')}', tag: 'Startup');
+      addLogAndPrint(
+        .warning,
+        '$label失败：${removeNewlines('$e')}',
+        tag: 'Startup',
+      );
     }
     _completedSteps++;
     progress = _completedSteps / _totalSteps;
@@ -91,7 +94,11 @@ class StartupBackgroundTask extends Task {
       //浅扫即可（环境变量 + 常见安装目录）；深扫是全盘递归，不能放启动路径上
       final found = await JavaFinder.getJavaInstallationsInfo();
       if (found.isEmpty) {
-        addLogAndPrint(.warning, '常见位置未找到可用 Java：启动游戏前需手动添加或下载', tag: 'Startup');
+        addLogAndPrint(
+          .warning,
+          '常见位置未找到可用 Java：启动游戏前需手动添加或下载',
+          tag: 'Startup',
+        );
         return;
       }
       javaOptions.javas = found;
@@ -102,14 +109,16 @@ class StartupBackgroundTask extends Task {
 
     final invalid = await JavaFinder.validateConfiguredJavas();
     if (invalid > 0) {
-      addLogAndPrint(.warning, '$invalid 个 Java 配置路径失效：已标记，选中时回退自动选择', tag: 'Startup');
+      addLogAndPrint(
+        .warning,
+        '$invalid 个 Java 配置路径失效：已标记，选中时回退自动选择',
+        tag: 'Startup',
+      );
       await config.save();
     }
   }
 
-  ///检查缺失目录/版本，引用检测出孤儿本体，一并询问是否删除。
-  ///
-  ///空 fold（无版本记录）的目录未创建属正常（如首启默认文件夹），不误报。
+  ///检查缺失目录/版本，引用检测出孤儿本体，一并询问是否删除
   Future<void> _checkAndPromptGameIssues() async {
     final folds = config.versionOptions.versionFolds;
 
@@ -117,7 +126,7 @@ class StartupBackgroundTask extends Task {
     final missingVersions = <Mindustry>[];
     for (final fold in folds) {
       if (!await Directory(fold.path).exists()) {
-        //空 fold 目录未创建不算丢失（首启默认文件夹尚无版本），跳过不误报
+        //空 fold 目录未创建不算丢失
         if (fold.versions.isEmpty) continue;
         missingFolds.add(fold);
         addLog(.warning, '游戏目录 [${fold.tag}] 不存在：${fold.path}', tag: 'Startup');
@@ -170,7 +179,6 @@ class StartupBackgroundTask extends Task {
     }
 
     // 本体库里的孤儿：库内文件必然是启动器放的，没被任何记录引用就能清
-    // （「记录还在但文件没了」由上面覆盖，「文件在、记录早没了」只能靠扫目录）
     final libraryDir = Directory(AppPaths.mindustrys);
     if (await libraryDir.exists()) {
       await for (final entity in libraryDir.list()) {
@@ -252,7 +260,8 @@ class StartupBackgroundTask extends Task {
             Expanded(child: SizedBox()),
             if (statusLabel != null)
               Text(statusLabel!, style: theme.textTheme.bodySmall),
-            if (canCancel) ReboundButton(onTap: cancel, child: Icon(Icons.close)),
+            if (canCancel)
+              ReboundButton(onTap: cancel, child: Icon(Icons.close)),
           ],
         ),
         EasedProgressBar(value: progress),
