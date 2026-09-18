@@ -1,4 +1,5 @@
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -50,35 +51,33 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   }) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    return Expanded(
-      child: ReboundContainer(
-        pressedScale: 0.95,
-        borderRadius: BorderRadius.circular(12),
-        backgroundColor: selected ? colors.interactive.withAlpha(40) : null,
-        onTap: onTap,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colors.border),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              children: [
-                Icon(
-                  icon,
-                  size: 28,
-                  color: selected ? colors.interactive : colors.itemSecondary,
+    return ReboundContainer(
+      pressedScale: 0.95,
+      borderRadius: BorderRadius.circular(12),
+      backgroundColor: selected ? colors.interactive.withAlpha(40) : null,
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.border),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                size: 28,
+                color: selected ? colors.interactive : colors.itemSecondary,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: selected ? colors.interactive : colors.itemPrimary,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: selected ? colors.interactive : colors.itemPrimary,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -119,47 +118,35 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
               LauncherTray.instance.applyMode();
             },
           ),
-          if (isDesktop) ...[
-            Divider(indent: 40, endIndent: 40),
-            Text('游戏启动后', style: theme.textTheme.titleMedium),
-            Row(
-              spacing: 8,
-              children: [
-                _buildPostLaunchOption(
-                  selected: !isTray,
-                  label: '无行为',
-                  icon: Icons.do_not_disturb_on_outlined,
-                  onTap: () =>
-                      _setPostLaunchBehavior(LauncherPostLaunchBehavior.none),
-                ),
-                _buildPostLaunchOption(
-                  selected: isTray,
-                  label: '系统托盘',
-                  icon: Icons.minimize_outlined,
-                  onTap: () =>
-                      _setPostLaunchBehavior(LauncherPostLaunchBehavior.tray),
-                ),
-              ],
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.ease,
-              alignment: Alignment.topCenter,
-              child: isTray
-                  ? SwitchSettingBar(
-                      title: '游戏退出后恢复窗口',
-                      value: personalizationOptions.restoreWindowOnGameExit,
-                      onChanged: (value) {
-                        setState(() {
-                          personalizationOptions.restoreWindowOnGameExit =
-                              value;
-                        });
-                        config.save();
-                      },
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ],
+          const SizedBox(),
+          SwitchSettingBar(
+            title: '游戏启动后最小化至托盘',
+            wide: 200,
+            value: isTray,
+            onChanged: (v) {
+              if (v) {
+                _setPostLaunchBehavior(.tray);
+              } else {
+                _setPostLaunchBehavior(.none);
+              }
+            },
+          ),
+          const SizedBox(),
+          AnimatedOpacitySize(
+            alignment: Alignment.topCenter,
+            child: isTray
+                ? SwitchSettingBar(
+                    title: '游戏退出后恢复窗口',
+                    value: personalizationOptions.restoreWindowOnGameExit,
+                    onChanged: (value) {
+                      setState(() {
+                        personalizationOptions.restoreWindowOnGameExit = value;
+                      });
+                      config.save();
+                    },
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
