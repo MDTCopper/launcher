@@ -400,6 +400,9 @@ class JavaInfo {
 
   const JavaInfo({required this.path, this.version, this.isValid = true});
 
+  ///java 可执行文件的可用形态（[path] 是记录形态：数据根内记相对，见 [AppPaths]）
+  String get resolvedPath => AppPaths.resolveStoredPath(path);
+
   factory JavaInfo.fromJson(Map<String, dynamic> json) =>
       _$JavaInfoFromJson(json);
 

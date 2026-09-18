@@ -68,10 +68,14 @@ class JavaDownloadTask extends Task {
       return;
     }
 
-    //写入配置的 javas 列表（路径重复则替换）
+    //写入配置的 javas 列表（路径重复则替换）：启动器自己下的 JDK 在数据根里，
+    //按记录形态存相对路径；比较用解析后的路径，免得相对与老的绝对并存时重复登记
+    final storedJavaPath = AppPaths.toStoredPath(javaExe);
     final javas = config.setting.launchOptions.javaOptions.javas;
-    javas.removeWhere((it) => it.path == javaExe);
-    javas.add(JavaInfo(path: javaExe, version: version));
+    javas.removeWhere(
+      (it) => AppPaths.resolveStoredPath(it.path) == AppPaths.resolveStoredPath(storedJavaPath),
+    );
+    javas.add(JavaInfo(path: storedJavaPath, version: version));
     await config.save();
 
     progress = 1.0;

@@ -678,7 +678,9 @@ class _SettingState extends State<_Setting> {
 
   String? get javaSelect {
     final java = _mindustry.java;
-    final exist = javas.any((it) => it.path == java);
+    //比较用解析后的路径：记录里可能是相对、也可能是老的绝对路径
+    final javaPath = java == null ? null : AppPaths.resolveStoredPath(java);
+    final exist = javas.any((it) => it.resolvedPath == javaPath);
     if (exist) {
       return java;
     } else {
@@ -808,7 +810,7 @@ class _SettingState extends State<_Setting> {
       list.add(
         DropdownOption<String>(
           value: it.path,
-          label: '$label ( "${formatPathForWrap(it.path)}" )',
+          label: '$label ( "${formatPathForWrap(it.resolvedPath)}" )',
         ),
       );
     }

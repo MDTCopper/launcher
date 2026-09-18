@@ -18,6 +18,7 @@ import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dar
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/java/java_compat.dart';
+import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/java/java_finder.dart';
 import 'package:copper_launcher/ui/dialog/java_download_dialog.dart';
 
@@ -185,7 +186,10 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
       addNotice(icon: Icons.close, title: '添加失败', content: '该文件不是 Java');
       return;
     } else {
-      javaOptions.javas.add(JavaInfo(path: javaPath, version: version));
+      javaOptions.javas.add(
+        //手选的 JDK 通常在数据根外（原样绝对）；若恰好点在数据根里就记相对
+        JavaInfo(path: AppPaths.toStoredPath(javaPath), version: version),
+      );
       await config.save();
       addNotice(
         icon: Icons.check,
@@ -477,7 +481,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
       list.add(
         DropdownOption<String>(
           value: it.path,
-          label: '$label ( "${formatPathForWrap(it.path)}" )',
+          label: '$label ( "${formatPathForWrap(it.resolvedPath)}" )',
         ),
       );
     }

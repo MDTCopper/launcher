@@ -6,6 +6,7 @@ import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/dialog/java_missing_prompt.dart';
+import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
@@ -160,6 +161,9 @@ class LaunchMindustryTask extends Task {
         launchOption.javaOptions.javas,
         mindustry.versionNumber ?? mindustry.releaseInt,
       );
+    } else {
+      //记录形态（数据根内的相对路径）要还原成可用路径才能起进程
+      javaPath = AppPaths.resolveStoredPath(javaPath);
     }
 
     // 启动前兜底：选中路径已失效（被删/移动）则回退自动选择；仍无则中止并提示
@@ -299,6 +303,8 @@ class LaunchMindustryTask extends Task {
 
   /// 自动选择 Java：按游戏版本查推荐大版本，优先主版本精确匹配，
   /// 没有则取「高于目标的最低可用」，再兜底任意已发现 JVM。
+  ///
+  ///返回的是**可用路径**（把记录形态解析过），直接可以起进程
   String? _autoPickJava(List<JavaInfo> javas, int releaseInt) {
     final target = JavaCompat.recommendedFor(releaseInt);
 
@@ -319,7 +325,7 @@ class LaunchMindustryTask extends Task {
       if (anyPick == null && it.version != null) anyPick = it;
     }
 
-    return (exact ?? higherPick ?? anyPick)?.path;
+    return (exact ?? higherPick ?? anyPick)?.resolvedPath;
   }
 
   /// 自动分配内存：可用内存 + 启用 mod 体积估算合适的最大堆。

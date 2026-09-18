@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/util/app_paths.dart';
 import 'package:path/path.dart' as path;
 
 class JavaFinder {
@@ -167,8 +168,10 @@ class JavaFinder {
   }
 
   /// 获取 Java 可执行文件的主版本号
+  ///
+  /// 传入的可以是记录形态（数据根内的相对路径）或绝对路径
   static Future<int?> getJavaVersion(String javaPath) async {
-    return _validateAndGetVersion(javaPath);
+    return _validateAndGetVersion(AppPaths.resolveStoredPath(javaPath));
   }
 
   /// 在环境 PATH / JAVA_HOME 中查找 Java 可执行文件
@@ -649,7 +652,7 @@ class JavaFinder {
     for (var i = 0; i < javas.length; i++) {
       final item = javas[i];
       if (!item.isValid) continue;
-      final version = await _validateAndGetVersion(item.path);
+      final version = await _validateAndGetVersion(item.resolvedPath);
       if (version == null) {
         javas[i] = JavaInfo(path: item.path, version: null, isValid: false);
         invalidCount++;
@@ -658,8 +661,10 @@ class JavaFinder {
 
     final options = config.setting.launchOptions.javaOptions;
     if (options.selectedJava != 'auto') {
+      //比较用解析后的路径：记录里可能是相对、也可能是老的绝对路径
+      final selectedPath = AppPaths.resolveStoredPath(options.selectedJava);
       final selectedValid = javas.any(
-        (item) => item.path == options.selectedJava && item.isValid,
+        (item) => item.resolvedPath == selectedPath && item.isValid,
       );
       if (!selectedValid) options.selectedJava = 'auto';
     }
