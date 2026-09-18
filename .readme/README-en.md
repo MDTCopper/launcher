@@ -17,20 +17,6 @@ A multi-platform game launcher for [Mindustry](https://github.com/Anuken/Mindust
   <img src="UI-demo.png" alt="Copper Launcher interface preview" width="900">
 </p>
 
-## Table of Contents
-
-- [Copper Launcher](#copper-launcher)
-  - [Table of Contents](#table-of-contents)
-  - [Supported Platforms](#supported-platforms)
-  - [Features](#features)
-    - [Version Management](#version-management)
-    - [Launching the Game](#launching-the-game)
-    - [Mod Management](#mod-management)
-    - [Network & Downloads](#network--downloads)
-    - [Interface](#interface)
-  - [Building from Source](#building-from-source)
-  - [Acknowledgements](#acknowledgements)
-
 ## Supported Platforms
 
 | Platform | Status |
