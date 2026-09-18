@@ -18,6 +18,10 @@ class JavaCompat {
   /// 老版本默认推荐 Java（低于所有阈值）
   static const int defaultJavaMajor = 8;
 
+  ///模组加载器（Copper）要求的**最低** Java 大版本：Mixin 引擎要 17+，
+  ///低于它启动会直接抛 `UnsupportedClassVersionError`
+  static const int loaderMinJavaMajor = 17;
+
   /// 按游戏主版本号查推荐 Java 大版本
   static int recommendedFor(int releaseInt) {
     var result = defaultJavaMajor;
@@ -27,5 +31,13 @@ class JavaCompat {
       }
     }
     return result;
+  }
+
+  /// 走模组加载器时的推荐 Java：游戏推荐值低于加载器下限时抬到下限
+  static int recommendedForLoader(int releaseInt) {
+    final gameRecommended = recommendedFor(releaseInt);
+    return gameRecommended < loaderMinJavaMajor
+        ? loaderMinJavaMajor
+        : gameRecommended;
   }
 }

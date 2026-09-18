@@ -29,6 +29,7 @@ Mindustry _$MindustryFromJson(Map<String, dynamic> json) =>
         memorySize: (json['memorySize'] as num?)?.toInt(),
         versionNumber: (json['versionNumber'] as num?)?.toInt(),
         bodyIsUserFile: json['bodyIsUserFile'] as bool? ?? false,
+        launcherPath: json['launcherPath'] as String?,
       )
       ..like = json['like'] as bool
       ..autoMemory = json['autoMemory'] as bool?;
@@ -49,6 +50,7 @@ Map<String, dynamic> _$MindustryToJson(Mindustry instance) => <String, dynamic>{
   'java': instance.java,
   'versionNumber': instance.versionNumber,
   'bodyIsUserFile': instance.bodyIsUserFile,
+  'launcherPath': instance.launcherPath,
   'memorySize': instance.memorySize,
   'autoMemory': instance.autoMemory,
   'useBetterGPU': instance.useBetterGPU,

@@ -30,7 +30,8 @@ class Mindustry {
   ///游戏启动路径（记录形态，读文件请用 [resolvedJarPath]）
 
   String jarPath;
-  final LauncherType launcher;
+  ///用哪个加载器启动（官方 Jar / Copper 加载器）：可在版本设置里切换
+  LauncherType launcher;
   final bool isBe;
 
   final DateTime addTime;
@@ -63,6 +64,11 @@ class Mindustry {
   ///「添加目录」扫到的目录形态可以长得一模一样（`<fold>/<tag>/xxx.jar`）
   @JsonKey(defaultValue: false)
   bool bodyIsUserFile;
+
+  ///走模组加载器时用的 loader jar（[launcher] 为 copper 时才有意义）
+  ///
+  ///记录形态：loader 收在 `<数据根>/copper_loader/` 里，多版本复用同一份
+  String? launcherPath;
 
   @JsonKey(includeToJson: false, includeFromJson: false)
   Memory? get memory {
@@ -97,6 +103,14 @@ class Mindustry {
 
   ///游戏本体路径（[jarPath] 的可用形态）：读文件 / 起进程都用它
   String get resolvedJarPath => AppPaths.resolveStoredPath(jarPath);
+
+  ///loader jar 的可用形态（没指定时为 null）
+  String? get resolvedLauncherPath => launcherPath == null
+      ? null
+      : AppPaths.resolveStoredPath(launcherPath!);
+
+  ///是否通过模组加载器启动
+  bool get isViaLoader => launcher == LauncherType.copper;
 
   ///游戏目录路径
   String get foldPath => p.join(resolvedPath, tag);
@@ -155,6 +169,7 @@ class Mindustry {
     this.memorySize,
     this.versionNumber,
     this.bodyIsUserFile = false,
+    this.launcherPath,
   });
 
   factory Mindustry.fromJson(Map<String, dynamic> json) =>

@@ -8,9 +8,11 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
+import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
+import 'package:copper_launcher/util/io/java/java_compat.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -155,6 +157,55 @@ class _AboutState extends State<_About> {
 
   /// 生成启动脚本：把当前版本的完整启动命令写成 .bat / .sh
   ///
+  /// 切换启动方式：官方 Jar ↔ Copper 模组加载器
+  ///
+  /// 切到 Copper 时需要一个 loader jar：库里没有就让你选一个，
+  /// 复制进 `<数据根>/copper_loader/`（多版本复用同一份）
+  Future<void> _toggleLauncherType() async {
+    if (_mindustry.isViaLoader) {
+      setState(() {
+        _mindustry.launcher = LauncherType.mindustry;
+        _mindustry.launcherPath = null;
+      });
+      await config.save();
+      addNotice(
+        icon: Icons.check,
+        title: '已改回官方启动',
+        content: '这个版本会直接用游戏本体启动',
+      );
+      return;
+    }
+
+    var loaderPath = LoaderLibrary.usablePath(_mindustry.resolvedLauncherPath);
+    if (loaderPath == null) {
+      final picked = await PathSelector.selectFile(
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
+        ],
+      );
+      if (picked == null || !mounted) return;
+      try {
+        loaderPath = await LoaderLibrary.importIntoLibrary(File(picked));
+      } catch (e) {
+        addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
+        debugPrint('添加加载器失败：$e');
+        return;
+      }
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _mindustry.launcher = LauncherType.copper;
+      _mindustry.launcherPath = AppPaths.toStoredPath(loaderPath!);
+    });
+    await config.save();
+    addNotice(
+      icon: Icons.check,
+      title: '已切换到 Copper 启动',
+      content: '需要 Java ${JavaCompat.loaderMinJavaMajor}+，首次启动会释放核心模组',
+    );
+  }
+
   /// 内容对齐 [MindustryLauncher.start]：-Xmx 内存 + 隔离数据目录 +
   /// jvm 参数 + -jar，平台差异：Windows .bat（UTF-8 + chcp 65001），
   /// Linux/macOS .sh。保存位置由用户选择。
@@ -176,13 +227,32 @@ class _AboutState extends State<_About> {
     final jvmParameter =
         _mindustry.jvmParameter ?? launchOptions.javaOptions.jvmParameter;
 
+    // 脚本内容与 [MindustryLauncher.start] 对齐：走加载器时是
+    // `-jar <loader> -G <游戏本体> -D <数据目录> --`，否则直接 `-jar <游戏本体>`
+    final loaderPath = _mindustry.isViaLoader
+        ? LoaderLibrary.usablePath(_mindustry.resolvedLauncherPath)
+        : null;
+    if (_mindustry.isViaLoader && loaderPath == null) {
+      addNotice(icon: Icons.close, title: '生成失败', content: '这个版本还没有可用的加载器');
+      return;
+    }
+
     final args = <String>[
       if (memoryMb != null) '-Xmx${memoryMb}m' else '-Xmx512m',
-      if (_mindustry.isolation) '-Dmindustry.data.dir=${_mindustry.dataPath}',
+      //走加载器时数据目录由加载器接管，不再塞 -Dmindustry.data.dir
+      if (!_mindustry.isViaLoader && _mindustry.isolation)
+        '-Dmindustry.data.dir=${_mindustry.dataPath}',
       ...jvmParameter.split(' ').where((arg) => arg.isNotEmpty),
       '-jar',
       //脚本里要写可用路径，不能用数据根内的相对记录形态
-      _mindustry.resolvedJarPath,
+      if (_mindustry.isViaLoader) loaderPath! else _mindustry.resolvedJarPath,
+      if (_mindustry.isViaLoader) ...[
+        '-G',
+        _mindustry.resolvedJarPath,
+        '-D',
+        _mindustry.dataPath,
+        '--',
+      ],
     ];
 
     final isWindows = Platform.isWindows;
@@ -426,6 +496,13 @@ pause
                   icon: Icons.build_circle,
                   content: '生成启动脚本',
                   onTap: _generateLaunchScript,
+                ),
+              //切换启动方式：官方 Jar ↔ Copper 模组加载器
+              if (isDesktop)
+                IconTextButton(
+                  icon: Icons.extension_outlined,
+                  content: _mindustry.isViaLoader ? '改回官方启动' : '转换为 Copper 启动',
+                  onTap: _toggleLauncherType,
                 ),
               IconTextButton(
                 icon: Icons.delete,

@@ -153,14 +153,17 @@ class LaunchMindustryTask extends Task {
     // 自动分配内存：可用内存 + 启用 mod 体积估算合适的最大堆
     maxMemory ??= await _autoAllocateMemory(mindustry);
 
+    // 大版本来自 jar 的 version.properties（已在启动开头补读/下载时存好）；
+    // 走模组加载器时要抬到加载器要求的 Java 下限（Mixin 引擎要 17+）
+    final releaseInt = mindustry.versionNumber ?? mindustry.releaseInt;
+    final targetJavaMajor = mindustry.isViaLoader
+        ? JavaCompat.recommendedForLoader(releaseInt)
+        : JavaCompat.recommendedFor(releaseInt);
+
     String? javaPath = mindustry.java ?? launchOption.javaOptions.selectedJava;
 
     if (javaPath == 'auto') {
-      // 大版本来自 jar 的 version.properties（已在启动开头补读/下载时存好）
-      javaPath = _autoPickJava(
-        launchOption.javaOptions.javas,
-        mindustry.versionNumber ?? mindustry.releaseInt,
-      );
+      javaPath = _autoPickJava(launchOption.javaOptions.javas, targetJavaMajor);
     } else {
       //记录形态（数据根内的相对路径）要还原成可用路径才能起进程
       javaPath = AppPaths.resolveStoredPath(javaPath);
@@ -169,17 +172,12 @@ class LaunchMindustryTask extends Task {
     // 启动前兜底：选中路径已失效（被删/移动）则回退自动选择；仍无则中止并提示
     if (javaPath != null && !File(javaPath).existsSync()) {
       addTaskLog(LogEntry(LogType.warning, 'Java 路径失效：$javaPath，回退自动选择'));
-      javaPath = _autoPickJava(
-        launchOption.javaOptions.javas,
-        mindustry.versionNumber ?? mindustry.releaseInt,
-      );
+      javaPath = _autoPickJava(launchOption.javaOptions.javas, targetJavaMajor);
     }
     if (javaPath == null) {
       addTaskLog(LogEntry(LogType.error, '未找到可用 Java：无法启动'));
       addLog(.error, '未找到可用 Java：无法启动', tag: 'Launch');
-      showJavaMissingPrompt(
-        releaseInt: mindustry.versionNumber ?? mindustry.releaseInt,
-      );
+      showJavaMissingPrompt(releaseInt: releaseInt);
       status = TaskStatus.failed;
       updateDisplay();
       return;
@@ -301,13 +299,11 @@ class LaunchMindustryTask extends Task {
     });
   }
 
-  /// 自动选择 Java：按游戏版本查推荐大版本，优先主版本精确匹配，
-  /// 没有则取「高于目标的最低可用」，再兜底任意已发现 JVM。
+  /// 自动选择 Java：按 [target]（游戏版本推荐值，走加载器时会抬到 17+）
+  /// 优先主版本精确匹配，没有则取「高于目标的最低可用」，再兜底任意已发现 JVM。
   ///
   ///返回的是**可用路径**（把记录形态解析过），直接可以起进程
-  String? _autoPickJava(List<JavaInfo> javas, int releaseInt) {
-    final target = JavaCompat.recommendedFor(releaseInt);
-
+  String? _autoPickJava(List<JavaInfo> javas, int target) {
     JavaInfo? exact;
     var bestHigherVersion = -1;
     JavaInfo? higherPick;

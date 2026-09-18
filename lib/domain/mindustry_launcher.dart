@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:path/path.dart' as p;
 
@@ -54,7 +56,7 @@ class MindustryLauncher {
     String? javaExecutable,
     List<String>? extraArgs = const [],
   }) async {
-    // 先校验 Java 环境
+    // 校验 Java 环境
     final isJavaAvailable = await _checkJavaEnv(javaExecutable: javaExecutable);
     if (!isJavaAvailable) {
       addLogAndPrint(.warning, '未检测到 Java 环境，请先安装并配置 Java', tag: 'Launch');
@@ -68,39 +70,30 @@ class MindustryLauncher {
       return false;
     }
 
+    // 走加载器时先确认 loader jar 在：没有就别硬起（调用方会收尾成启动失败）
+    final loaderPath = mindustry.isViaLoader ? usableLoaderPath(mindustry) : null;
+    if (mindustry.isViaLoader && loaderPath == null) {
+      addLogAndPrint(
+        .warning,
+        '没有可用的模组加载器：${mindustry.launcherPath ?? '（该版本未指定 loader）'}',
+        tag: 'Launch',
+      );
+      return false;
+    }
+
     try {
       // 初始化日志控制器
       if (_logController == null || _logController!.isClosed) {
         _logController = StreamController<String>.broadcast();
       }
 
-      final args = <String>[];
-
-      if (maxMemory != null && maxMemory.inGB > 0.1) {
-        args.add('-Xmx${maxMemory.mb}m');
-      } else {
-        args.add('-Xmx512m');
-      }
-
-      if (mindustry.isolation) {
-        args.add('-Dmindustry.data.dir=${mindustry.dataPath}');
-      }
-
-      // TODO: 安卓相关参数待处理
-      // 可能需要添加安卓相关的JVM参数或环境变量
-
-      // 添加额外的自定义参数
-      if (extraArgs != null) {
-        for (var arg in extraArgs) {
-          if (arg.isNotEmpty) args.add(arg);
-        }
-      }
-
-      args.add('-jar');
-      args.add(mindustry.resolvedJarPath);
-
-      args.addAll(
-        _buildMindustryArgs(windowSize: windowSize, maximize: maximize),
+      final args = buildLaunchArguments(
+        mindustry: mindustry,
+        loaderPath: loaderPath,
+        maxMemory: maxMemory,
+        windowSize: windowSize,
+        maximize: maximize,
+        extraArgs: extraArgs ?? const [],
       );
 
       final javaCmd = javaExecutable ?? 'java';
@@ -109,8 +102,10 @@ class MindustryLauncher {
       // MINDUSTRY_DATA_DIR；更低版本则直接读 MINDUSTRY 环境变量（旧写法）。
       // 实测 v88 类老版本（io.anuke 时代）Windows 数据目录固定取 %APPDATA%\Mindustry，
       // 不认任何数据开关，需用 APPDATA 环境变量定向到隔离容器（新版 -D 优先，APPDATA 无副作用）。
-      // Process.start 传 environment 会整体替换子进程环境，需手动合并父环境，避免丢 PATH 等
-      final environment = mindustry.isolation
+      // Process.start 传 environment 会整体替换子进程环境，需手动合并父环境，避免丢 PATH 等。
+      // 走加载器时不做这套：数据目录由加载器的 -D 接管（它自己给游戏注入 MINDUSTRY_DATA_DIR），
+      // 再叠环境变量只会让两边指的地方不一致
+      final environment = mindustry.isolation && !mindustry.isViaLoader
           ? {
               ...Platform.environment,
               'MINDUSTRY_DATA_DIR': mindustry.dataPath,
@@ -195,7 +190,49 @@ class MindustryLauncher {
     }
   }
 
-  List<String> _buildMindustryArgs({WindowSize? windowSize, bool? maximize}) {
+  /// 组装启动参数（纯函数，方便用例覆盖两种启动方式）
+  ///
+  /// 官方 Jar：`-jar <游戏本体> <游戏参数>`
+  /// 走加载器：`-jar <loader> -G <游戏本体> -D <数据目录> -- <游戏参数>`，
+  /// 数据目录交给加载器（它自己把目录注入游戏），所以不再塞 `-Dmindustry.data.dir`
+  @visibleForTesting
+  static List<String> buildLaunchArguments({
+    required Mindustry mindustry,
+    required String? loaderPath,
+    Memory? maxMemory,
+    WindowSize? windowSize,
+    bool? maximize,
+    List<String> extraArgs = const [],
+  }) {
+    return [
+      if (maxMemory != null && maxMemory.inGB > 0.1)
+        '-Xmx${maxMemory.mb}m'
+      else
+        '-Xmx512m',
+      if (!mindustry.isViaLoader && mindustry.isolation)
+        '-Dmindustry.data.dir=${mindustry.dataPath}',
+      ...extraArgs.where((arg) => arg.isNotEmpty),
+      '-jar',
+      if (mindustry.isViaLoader) loaderPath! else mindustry.resolvedJarPath,
+      if (mindustry.isViaLoader) ...[
+        '-G',
+        mindustry.resolvedJarPath,
+        '-D',
+        mindustry.dataPath,
+        '--',
+      ],
+      ..._buildMindustryArgs(windowSize: windowSize, maximize: maximize),
+    ];
+  }
+
+  /// 取这个版本可用的 loader：优先它自己指定的，其次库里第一个；都没有返回 null
+  static String? usableLoaderPath(Mindustry mindustry) =>
+      LoaderLibrary.usablePath(mindustry.resolvedLauncherPath);
+
+  static List<String> _buildMindustryArgs({
+    WindowSize? windowSize,
+    bool? maximize,
+  }) {
     final args = <String>[];
 
     if (windowSize != null) {
