@@ -1,9 +1,9 @@
 | 支持语言 | Support Language  |
 |:--:|:--:|
-| [中文](README.md) | [English](README-en.md) |
+| [中文](../README.md) | [English](README-en.md) |
 
 <p align="center">
-  <img src="assets/images/copper.png" alt="Copper Launcher">
+  <img src="../assets/images/copper.png" alt="Copper Launcher">
 </p>
 
 # Copper Launcher
@@ -11,6 +11,10 @@
 A multi-platform game launcher for [Mindustry](https://github.com/Anuken/Mindustry), built with **Flutter**.
 
 > **Under active development**: features and UI are still changing fast. No stable release yet.
+
+<p align="center">
+  <img src="UI-demo.png" alt="Copper Launcher interface preview" width="900">
+</p>
 
 ## Table of Contents
 

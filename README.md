@@ -1,6 +1,6 @@
 | 支持语言 | Support Language  |
 |:--:|:--:|
-| [中文](README.md) | [English](README-en.md) |
+| [中文](README.md) | [English](.readme/README-en.md) |
 
 <p align="center">
   <img src="assets/images/copper.png" alt="Copper Launcher">
@@ -11,6 +11,10 @@
 基于 **Flutter** 开发的多平台 [Mindustry](https://github.com/Anuken/Mindustry) 游戏启动器
 
 > **目前处于开发阶段**：功能与界面仍在快速迭代，尚未发布正式版本。
+
+<p align="center">
+  <img src=".readme/UI-demo.png" alt="Copper Launcher 界面预览" width="900">
+</p>
 
 ## 目录
 
