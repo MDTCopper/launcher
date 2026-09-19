@@ -140,16 +140,40 @@ class LoaderLibrary {
     return jars;
   }
 
-  /// 没指定 loader 时的兜底：库里第一个可用的 loader
+  /// 没指定 loader 时的兜底：库里**版本最高**的那个
   ///
-  /// 按文件名升序取第一个（文件名里带版本号，升序即从旧到新）；
-  /// loader 版本适配表做出来之后再按游戏版本挑
-  static String? fallbackPath() {
-    final jars = list();
-    return jars.isEmpty ? null : jars.first.path;
+  /// 取最高而不是文件名第一个：按名字排第一的往往是最老的一版，
+  /// 指定的 loader 丢了时悄悄退回最老版本很坑；以后有适配表了再按游戏版本挑
+  static String? fallbackPath() => newestOf(list())?.path;
+
+  /// 从库内文件里挑版本最高的（纯函数，便于用例覆盖）
+  @visibleForTesting
+  static File? newestOf(List<File> jars) {
+    if (jars.isEmpty) return null;
+    final sorted = [...jars]
+      ..sort((a, b) => compareVersion(versionOf(a), versionOf(b)));
+    return sorted.last;
   }
 
-  /// 取可用的 loader：优先 [recordedPath] 指定的（文件真在才算），其次库里第一个
+  /// 比两个版本号：按数字段逐个比，缺的段当 0；解析不出版本的排最前
+  @visibleForTesting
+  static int compareVersion(String? a, String? b) {
+    if (a == null || b == null) {
+      if (a == b) return 0;
+      return a == null ? -1 : 1;
+    }
+    final left = a.split('.').map(int.tryParse).toList();
+    final right = b.split('.').map(int.tryParse).toList();
+    final length = left.length > right.length ? left.length : right.length;
+    for (var i = 0; i < length; i++) {
+      final l = i < left.length ? (left[i] ?? 0) : 0;
+      final r = i < right.length ? (right[i] ?? 0) : 0;
+      if (l != r) return l.compareTo(r);
+    }
+    return 0;
+  }
+
+  /// 取可用的 loader：优先 [recordedPath] 指定的（文件真在才算），其次库里版本最高的
   static String? usablePath(String? recordedPath) {
     if (recordedPath != null && File(recordedPath).existsSync()) {
       return recordedPath;

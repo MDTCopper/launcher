@@ -6,7 +6,8 @@ import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
-import 'package:copper_launcher/data/local_asset.dart' show Mindustry;
+import 'package:copper_launcher/data/local_asset.dart'
+    show Mindustry, modsDirIn;
 import 'package:copper_launcher/domain/local_game_importer.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/app_paths.dart';
@@ -238,12 +239,15 @@ class ResourceImporterState extends State<ResourceImporter> {
     final gameData = widget.mindustry?.dataPath ?? AppPaths.defaultGameData;
     switch (reader.type) {
       case ResourceType.mod:
-        if (reader.mod?.path == null || gameData == null) {
+        final mod = reader.mod;
+        if (mod?.path == null || gameData == null) {
           return '未找到游戏数据目录';
         }
+        //Copper 原生模组要进 `<数据目录>/copper/mods`：放进 mods 的话加载器
+        //会按原版模组读它（找不到 mod.json），等于没装
         return await _copyInto(
-          '$gameData${Platform.pathSeparator}mods',
-          reader.mod!.path!,
+          modsDirIn(gameData, copper: mod!.copper),
+          mod.path!,
         );
       case ResourceType.mapSave:
         if (reader.mapSave?.path == null || gameData == null) {
@@ -477,7 +481,8 @@ class ResourceImporterState extends State<ResourceImporter> {
           onTap: () => _toggleSelected(index),
           leading: leading,
           title: Text(
-            '模组  ${generalizeText(mod.name)}  |  作者  ${generalizeText(mod.author)}',
+            '${mod.copper ? 'Copper 模组' : '模组'}  ${generalizeText(mod.name)}'
+            '  |  作者  ${generalizeText(mod.author)}',
             style: theme.textTheme.bodyMedium,
           ),
           subtitle: Column(

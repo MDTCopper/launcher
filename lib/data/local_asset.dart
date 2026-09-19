@@ -147,11 +147,15 @@ class Mindustry {
 
   String get modsPath => p.join(dataPath, 'mods');
 
+  /// 某类模组该放哪个目录（Copper 原生的进 `<数据目录>/copper/mods`）
+  String modsPathFor({required bool copper}) =>
+      modsDirIn(dataPath, copper: copper);
+
   /// 模组目录（可能不止一个）：走加载器时 Copper 原生模组在
   /// `<数据目录>/copper/mods`，原版模组仍在 `<数据目录>/mods`，
   /// 加载器两个目录都扫；统计 / 扫描模组都要按这个列表来
   List<String> get modsPaths => isViaLoader
-      ? [p.join(dataPath, 'copper', 'mods'), modsPath]
+      ? [modsPathFor(copper: true), modsPath]
       : [modsPath];
 
   String get savesPath => p.join(dataPath, 'saves');
@@ -282,6 +286,14 @@ enum ModState {
   bool get isEnabled =>
       this == ModState.enabled || this == ModState.contentErrors;
 }
+
+/// 模组该放哪个目录：Copper 原生模组（`copper.mod.json`）进 `<数据目录>/copper/mods`，
+/// 原版模组进 `<数据目录>/mods`
+///
+/// 导入、扫描、估算都从这里取路径，别各写各的
+String modsDirIn(String dataPath, {required bool copper}) => copper
+    ? p.joinAll([dataPath, 'copper', 'mods'])
+    : p.join(dataPath, 'mods');
 
 @JsonSerializable()
 class Mod {
