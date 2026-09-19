@@ -101,8 +101,8 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     final version = config.versionOptions.selectedVersion;
     _autoModTotalBytes = version == null
         ? 0
-        : await sumEnabledModSizes(
-            version.modsPath,
+        : await sumEnabledModSizesIn(
+            version.modsPaths,
             settingsPath: version.settingPath,
           );
   }

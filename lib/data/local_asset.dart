@@ -140,6 +140,13 @@ class Mindustry {
 
   String get modsPath => p.join(dataPath, 'mods');
 
+  /// 模组目录（可能不止一个）：走加载器时 Copper 原生模组在
+  /// `<数据目录>/copper/mods`，原版模组仍在 `<数据目录>/mods`，
+  /// 加载器两个目录都扫；统计 / 扫描模组都要按这个列表来
+  List<String> get modsPaths => isViaLoader
+      ? [p.join(dataPath, 'copper', 'mods'), modsPath]
+      : [modsPath];
+
   String get savesPath => p.join(dataPath, 'saves');
 
   String get schematicsPath => p.join(dataPath, 'schematics');

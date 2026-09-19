@@ -327,8 +327,8 @@ class LaunchMindustryTask extends Task {
   /// 自动分配内存：可用内存 + 启用 mod 体积估算合适的最大堆。
   Future<Memory> _autoAllocateMemory(Mindustry mindustry) async {
     final available = await SysInfo.getUsablePhysicalMemory();
-    final modTotal = await sumEnabledModSizes(
-      mindustry.modsPath,
+    final modTotal = await sumEnabledModSizesIn(
+      mindustry.modsPaths,
       settingsPath: mindustry.settingPath,
     );
     return AutoMemory.estimate(

@@ -85,6 +85,20 @@ class AutoMemory {
   }
 }
 
+/// 统计多个模组目录里启用模组的体积之和
+///
+/// 走加载器时模组分两个目录（`copper/mods` 与原版 `mods`），内存估算要把两边都算上
+Future<int> sumEnabledModSizesIn(
+  List<String> modsPaths, {
+  String? settingsPath,
+}) async {
+  var total = 0;
+  for (final modsPath in modsPaths) {
+    total += await sumEnabledModSizes(modsPath, settingsPath: settingsPath);
+  }
+  return total;
+}
+
 /// 统计 mods 目录下所有启用 mod 的文件体积之和（字节）。
 ///
 /// 传入 [settingsPath]（settings.bin）时按游戏启用状态判断：

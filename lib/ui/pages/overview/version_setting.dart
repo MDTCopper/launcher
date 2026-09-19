@@ -157,6 +157,48 @@ class _AboutState extends State<_About> {
 
   /// 生成启动脚本：把当前版本的完整启动命令写成 .bat / .sh
   ///
+  /// 加载器信息：原版 / Copper Loader（带版本号，loader 文件不在时标出来）
+  String get _loaderInfoText {
+    if (!_mindustry.isViaLoader) return '原版';
+    final loaderPath = LoaderLibrary.usablePath(_mindustry.resolvedLauncherPath);
+    if (loaderPath == null) return 'Copper Loader（加载器缺失）';
+    final version = LoaderLibrary.versionOf(File(loaderPath));
+    return version == null ? 'Copper Loader' : 'Copper Loader $version';
+  }
+
+  /// 更换加载器：选一个本地 loader jar 收进加载器库并指给这个版本
+  ///
+  /// 旧 loader 留在库里不动（别的版本可能还在用，也方便回退）
+  Future<void> _replaceLoader() async {
+    final picked = await PathSelector.selectFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
+      ],
+    );
+    if (picked == null || !mounted) return;
+
+    String imported;
+    try {
+      imported = await LoaderLibrary.importIntoLibrary(File(picked));
+    } catch (e) {
+      addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
+      debugPrint('更换加载器失败：$e');
+      return;
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _mindustry.launcherPath = AppPaths.toStoredPath(imported);
+    });
+    await config.save();
+    final version = LoaderLibrary.versionOf(File(imported));
+    addNotice(
+      icon: Icons.check,
+      title: '已更换加载器',
+      content: version == null ? p.basename(imported) : 'Copper Loader $version',
+    );
+  }
+
   /// 切换启动方式：官方 Jar ↔ Copper 模组加载器
   ///
   /// 切到 Copper 时需要一个 loader jar：库里没有就让你选一个，
@@ -477,10 +519,7 @@ pause
           ),
           const SizedBox(height: 4),
           buildInfo('添加时间', _mindustry.addTime.toString().split('.').first),
-          buildInfo(
-            '模组加载器',
-            _mindustry.launcher == .mindustry ? '原版' : 'Copper Loader',
-          ),
+          buildInfo('模组加载器', _loaderInfoText),
           const SizedBox(height: 4),
           Row(
             mainAxisAlignment: .spaceBetween,
@@ -503,6 +542,13 @@ pause
                   icon: Icons.extension_outlined,
                   content: _mindustry.isViaLoader ? '改回官方启动' : '转换为 Copper 启动',
                   onTap: _toggleLauncherType,
+                ),
+              //换一个 loader（选本地 jar 收进加载器库，多版本复用同一份）
+              if (isDesktop && _mindustry.isViaLoader)
+                IconTextButton(
+                  icon: Icons.swap_horiz,
+                  content: '更换加载器',
+                  onTap: _replaceLoader,
                 ),
               IconTextButton(
                 icon: Icons.delete,
@@ -807,8 +853,8 @@ class _SettingState extends State<_Setting> {
 
   /// 加载该版本启用 mod 的体积之和（自动分配的 mod 依据）
   Future<void> _loadAutoModTotal() async {
-    _autoModTotalBytes = await sumEnabledModSizes(
-      _mindustry.modsPath,
+    _autoModTotalBytes = await sumEnabledModSizesIn(
+      _mindustry.modsPaths,
       settingsPath: _mindustry.settingPath,
     );
   }
@@ -1173,12 +1219,7 @@ class _ModsState extends State<_Mods> {
 
   /// 模组目录：走加载器时 Copper 原生模组在 `<数据目录>/copper/mods`，
   /// 原版模组仍在 `<数据目录>/mods`（加载器两个目录都扫）
-  List<String> get _modsPaths => _mindustry.isViaLoader
-      ? [
-          p.join(_mindustry.dataPath, 'copper', 'mods'),
-          _mindustry.modsPath,
-        ]
-      : [_mindustry.modsPath];
+  List<String> get _modsPaths => _mindustry.modsPaths;
 
   /// 扫描模组目录：jar/zip 为启用态，*.jar.disable / *.zip.disable 为禁用态
   Future<void> _loadMods() async {
