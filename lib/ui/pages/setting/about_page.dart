@@ -2,6 +2,7 @@ import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
+import 'package:copper_launcher/ui/dialog/launcher_update_dialog.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/pages/setting/license_page.dart';
 import 'package:flutter/foundation.dart';
@@ -84,7 +85,7 @@ class AboutPage extends StatelessWidget {
                   IconTextButton(
                     icon: Icons.update,
                     content: '检查更新',
-                    onTap: () {},
+                    onTap: () => showLauncherUpdateCheck(context),
                   ),
                   IconTextButton(
                     icon: LineIcons.github,

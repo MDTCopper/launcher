@@ -199,7 +199,8 @@ class LauncherTray extends TrayListener with WindowListener {
     _refreshMenu();
   }
 
-  Future<void> _quit() async {
+  /// 退出启动器（托盘菜单与「安装更新」共用：先销毁托盘再销毁窗口）
+  Future<void> quitApp() async {
     addLog(.info, '托盘：退出启动器', tag: 'Tray');
     await trayManager.destroy();
     await windowManager.destroy();
@@ -238,7 +239,7 @@ class LauncherTray extends TrayListener with WindowListener {
         );
         _refreshMenu();
       case 'quit':
-        _quit();
+        quitApp();
     }
   }
 
