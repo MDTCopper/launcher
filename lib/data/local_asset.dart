@@ -13,6 +13,18 @@ part 'local_asset.g.dart';
 
 enum LauncherType { mindustry, copper }
 
+/// 按 Copper 的规则算游戏版本的可比形式（2026-09-19 起**去掉了主版本号**）
+///
+/// - 正式版：`<大版本>.<构建号>`（`v159.7` → `159.7`、`v146` → `146`）
+/// - BE：`0.<构建号>`（`0.24369`）
+///
+/// 解析不出数字时返回 null（未知，按「不判断」处理）
+String? gameVersionOf({required String release, required bool isBe}) {
+  final digits = release.trim().replaceFirst(RegExp('^v'), '');
+  if (digits.isEmpty || double.tryParse(digits) == null) return null;
+  return isBe ? '0.$digits' : digits;
+}
+
 ///配置文件存储游戏信息的数据类
 ///游戏版本将以文件夹的形式存储，文件夹内是版本数据，可能包含游戏本体，不包含的将使用其他文件目录下载游戏本体，这样可以省出不必要的下载
 @JsonSerializable()
@@ -112,35 +124,15 @@ class Mindustry {
   ///是否通过模组加载器启动
   bool get isViaLoader => launcher == LauncherType.copper;
 
-  ///Copper 加载器最低兼容的游戏版本（v146）；BE 的 build 号不走 vNNN 这套编号，
-  ///一律按支持处理
+  ///Copper 加载器最低兼容的游戏版本（v146，对应过滤器里的 `>=146`）；
+  ///拿不到适配表时用它兜底提醒
   static const int loaderMinRelease = 146;
 
   ///这个游戏版本能不能走 Copper 加载器
   bool get supportsLoader => isBe || releaseDouble >= loaderMinRelease;
 
-  ///游戏版本的可比形式，按 Copper 的规则拼（见 loader wiki 的 developers/versions）
-  ///
-  /// - 正式版：`<主版本>.<大版本>.<构建号>`（`v159.7` + 主版本 8 → `8.159.7`）
-  /// - BE：`<主版本>.0.<构建号>`（`8.0.27179`）
-  /// - 自定义构建：只有主版本（`8`）
-  ///
-  /// 主版本未知时返回 null（老配置要等启动前补读 version.properties）
-  String? get gameVersionString {
-    final major = versionNumber;
-    if (major == null) return null;
-
-    final releaseText = release.trim();
-    if (isBe) {
-      final build = int.tryParse(releaseText);
-      return build == null ? '$major' : '$major.0.$build';
-    }
-
-    final digits = releaseText.startsWith('v')
-        ? releaseText.substring(1)
-        : releaseText;
-    return digits.isEmpty ? '$major' : '$major.$digits';
-  }
+  ///游戏版本的可比形式，按 Copper 的规则拼（见 [gameVersionOf]）
+  String? get gameVersionString => gameVersionOf(release: release, isBe: isBe);
 
   ///游戏目录路径
   String get foldPath => p.join(resolvedPath, tag);

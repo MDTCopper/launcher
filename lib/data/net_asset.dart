@@ -59,6 +59,35 @@ class GithubApiReleaseAsset {
       _$GithubApiReleaseAssetFromJson(json);
 }
 
+/// 只有 tag（如从 git ref 广告拿到）时拼一份版本元数据
+///
+/// 本体资源名是固定的：正式版 `Mindustry.jar`、BE `Mindustry-BE-Desktop-<build>.jar`；
+/// 名字 / 说明 / 发布时间只有 API 才有，这里用 tag 顶上，体积未知记 0
+MindustryGithubMeta buildMindustryMetaFromTag({
+  required String tag,
+  required bool isBe,
+}) {
+  const releaseRepo = 'Anuken/Mindustry';
+  const beRepo = 'Anuken/MindustryBuilds';
+  final repo = isBe ? beRepo : releaseRepo;
+  final assetName = isBe ? 'Mindustry-BE-Desktop-$tag.jar' : 'Mindustry.jar';
+
+  return MindustryGithubMeta(
+    name: tag,
+    tag: tag,
+    releaseDate: '',
+    describe: '',
+    assets: [
+      GithubApiReleaseAsset(
+        name: assetName,
+        url: 'https://github.com/$repo/releases/download/$tag/$assetName',
+        size: 0,
+        downloadCount: 0,
+      ),
+    ],
+  )..isBe = isBe;
+}
+
 ///游戏版本元数据
 @JsonSerializable()
 class MindustryGithubMeta extends GithubApiRelease {

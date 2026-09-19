@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/mindustry_version_snapshot.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
@@ -17,6 +18,7 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
+import 'package:copper_launcher/util/io/git_refs.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
 
@@ -67,8 +69,10 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
         '获取最新版本列表失败：${removeNewlines('$e')}',
         tag: 'MindustryDownload',
       );
-      latest = const [];
-      if (snapshot.isEmpty) return false;
+      //API 挂了（额度用完 / 网络不通）：退到 git 的 ref 广告只取 tag，
+      //不吃 API 额度；再拿不到就只剩快照里的老版本
+      latest = await _fetchTagsAsReleases();
+      if (snapshot.isEmpty && latest.isEmpty) return false;
     }
 
     _versionList
@@ -105,6 +109,26 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     return MindustryGithubMeta.fromJson(
       releases.first as Map<String, dynamic>,
     );
+  }
+
+  /// 退路：用 git 的 ref 广告拿 tag（不吃匿名 API 额度）
+  ///
+  /// 只有 tag，所以按固定命名拼本体下载地址；拿不到就返回空（只剩快照）
+  Future<List<MindustryGithubMeta>> _fetchTagsAsReleases() async {
+    try {
+      final tags = await GitRefs.fetchTags('Anuken/Mindustry');
+      return [
+        for (final tag in tags)
+          buildMindustryMetaFromTag(tag: tag, isBe: false),
+      ];
+    } catch (e) {
+      addLogAndPrint(
+        .warning,
+        '获取 tag 列表失败：${removeNewlines('$e')}',
+        tag: 'MindustryDownload',
+      );
+      return const [];
+    }
   }
 
   /// 取 release 数组，防御式解析。
@@ -443,11 +467,17 @@ class _DownloadMindustryPopupPageState
   }
 
   /// 选启动方式：原版，或用 Copper 加载器（可挑版本，库里已有的直接复用）
+  ///
+  /// 兼容性标注：版本号形式去掉了主版本后，下载前就能从 release tag 算出来
   Future<void> chooseLauncher() async {
     final picked = await showLoaderPicker(
       context,
       currentLoaderPath: loaderPath,
       allowNone: true,
+      gameVersion: gameVersionOf(
+        release: mindustryMeta.tag,
+        isBe: mindustryMeta.isBe,
+      ),
     );
     if (picked == null || !mounted) return;
     setState(() => loaderPath = picked.loaderPath);
