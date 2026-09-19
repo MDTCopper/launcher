@@ -17,6 +17,35 @@ import '../mindustry_body.dart';
 import '../task.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
+/// 下载完成后要建的版本记录
+///
+/// 启动方式由 [loaderPath] 决定：选了 loader 就建 Copper 版本（loader 按记录形态存），
+/// 没选就是原版启动；抽出来是为了让用例直接验这条规则
+@visibleForTesting
+Mindustry buildDownloadedVersion({
+  required String id,
+  required String tag,
+  required String bodyPath,
+  required String path,
+  required bool isBe,
+  required String release,
+  required bool isolation,
+  int? versionNumber,
+  String? loaderPath,
+}) => Mindustry(
+  id: id,
+  launcher: loaderPath == null ? LauncherType.mindustry : LauncherType.copper,
+  launcherPath: loaderPath == null ? null : AppPaths.toStoredPath(loaderPath),
+  tag: tag,
+  jarPath: AppPaths.toStoredPath(bodyPath),
+  isBe: isBe,
+  path: AppPaths.toStoredPath(path),
+  release: release,
+  addTime: DateTime.now(),
+  isolation: isolation,
+  versionNumber: versionNumber,
+);
+
 ///官方渠道下载，path路径默认为 [项目//version]
 class DownloadMindustryTask extends Task {
   final MindustryGithubMeta mindustryMeta;
@@ -27,7 +56,10 @@ class DownloadMindustryTask extends Task {
   ///需要标签
   final String tag;
 
-  // final String copper;//todo CopperLoader下载
+  ///下载时就选好的 loader（绝对路径）；null = 原版启动。
+  ///选了的话建出来的版本直接是 Copper 版本，省得下完再「换启动器新建」
+  final String? loaderPath;
+
   final CancelToken cancelToken = CancelToken();
   late File file;
 
@@ -42,6 +74,7 @@ class DownloadMindustryTask extends Task {
   DownloadMindustryTask({
     required this.mindustryMeta,
     required this.tag,
+    this.loaderPath,
     String? path,
     // CancelToken? cancelToken//外部取消token
   }) {
@@ -199,24 +232,26 @@ class DownloadMindustryTask extends Task {
       addLogAndPrint(.warning, '读取游戏版本元数据失败：${removeNewlines('$e')}', tag: 'GameDownload');
     }
 
-    // 隔离与否取设置页的「游戏默认隔离设置」，不再写死
-    final isolation = config.setting.launchOptions.isIsolatedByDefault(
-      isBe: mindustryMeta.isBe,
-      launcher: LauncherType.mindustry,
-    );
+    final launcher = loaderPath == null
+        ? LauncherType.mindustry
+        : LauncherType.copper;
 
-    final mindustry = Mindustry(
+    final mindustry = buildDownloadedVersion(
       id: id,
-      launcher: LauncherType.mindustry,
       tag: tag,
-      jarPath: AppPaths.toStoredPath(bodyPath),
+      bodyPath: bodyPath,
+      path: path,
       isBe: mindustryMeta.isBe,
-      path: AppPaths.toStoredPath(path),
       release: mindustryMeta.tag,
-      addTime: DateTime.now(),
-      isolation: isolation,
+      loaderPath: loaderPath,
+      // 隔离与否取设置页的「游戏默认隔离设置」，不再写死
+      isolation: config.setting.launchOptions.isIsolatedByDefault(
+        isBe: mindustryMeta.isBe,
+        launcher: launcher,
+      ),
       versionNumber: versionNumber,
     );
+
     // 找 fold 用解析后的路径比：记录形态可能是相对、也可能还是老的绝对路径
     final foldIndex = config.versionOptions.versionFolds.indexWhere(
       (fold) =>
@@ -226,10 +261,12 @@ class DownloadMindustryTask extends Task {
     if (foldIndex != -1) {
       config.versionOptions.versionFolds[foldIndex].versions.add(mindustry);
       config.saveAsJson();
-      //版本建在哪、隔离开没开——后续「导入/存档跑到别处去了」都要靠这条对账
+      //版本建在哪、用什么启动、隔离开没开——后续「导入/存档跑到别处去了」都要靠这条对账
       addLog(
         .info,
-        '创建版本 [${mindustry.tag}]（下载）：存档隔离${isolation ? '开启' : '关闭'}，数据目录：${mindustry.dataPath}',
+        '创建版本 [${mindustry.tag}]（下载）：启动方式 '
+        '${mindustry.isViaLoader ? 'Copper 加载器' : '原版'}，'
+        '存档隔离${mindustry.isolation ? '开启' : '关闭'}，数据目录：${mindustry.dataPath}',
         tag: 'GameDownload',
       );
     } else {

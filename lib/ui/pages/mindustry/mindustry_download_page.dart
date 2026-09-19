@@ -1,11 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:copper_launcher/data/mindustry_version_snapshot.dart';
 import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/domain/loader_library.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/dialog/loader_picker_dialog.dart';
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
 import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -376,7 +380,12 @@ class _DownloadMindustryPopupPageState
     extends State<_DownloadMindustryPopupPage> {
   late final MindustryGithubMeta mindustryMeta = widget.mindustryMeta;
   late String tag = mindustryMeta.name;
-  String? copperVersion;
+
+  ///选中的 loader 绝对路径；null = 原版启动
+  ///
+  /// 下载前还不知道游戏大版本号（要读 jar 里的 version.properties），
+  /// 所以选择页这里不做适配表标注
+  String? loaderPath;
 
   String? error;
 
@@ -423,8 +432,25 @@ class _DownloadMindustryPopupPageState
   void startDownload() {
     if (error != null) return;
 
-    addTask(DownloadMindustryTask(mindustryMeta: mindustryMeta, tag: tag));
+    addTask(
+      DownloadMindustryTask(
+        mindustryMeta: mindustryMeta,
+        tag: tag,
+        loaderPath: loaderPath,
+      ),
+    );
     Navigator.of(context).pop();
+  }
+
+  /// 选启动方式：原版，或用 Copper 加载器（可挑版本，库里已有的直接复用）
+  Future<void> chooseLauncher() async {
+    final picked = await showLoaderPicker(
+      context,
+      currentLoaderPath: loaderPath,
+      allowNone: true,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => loaderPath = picked.loaderPath);
   }
 
   @override
@@ -474,6 +500,25 @@ class _DownloadMindustryPopupPageState
                   label: '游戏名称',
                   error: error,
                   controller: textEditingController,
+                ),
+
+                //下载时就能选启动方式：选 Copper 的话这个版本直接建好 loader，
+                //不用先下原版再去「换启动器新建」
+                Row(
+                  spacing: 8,
+                  children: [
+                    Text('启动方式', style: theme.textTheme.bodyMedium),
+                    IconTextButton(
+                      icon: loaderPath == null
+                          ? Icons.rocket_launch_outlined
+                          : Icons.extension_outlined,
+                      content: loaderPath == null
+                          ? '原版 Jar'
+                          : 'Copper ${LoaderLibrary.versionOf(File(loaderPath!)) ?? ''}'
+                                .trim(),
+                      onTap: chooseLauncher,
+                    ),
+                  ],
                 ),
 
                 // 老版本的能力缺失提示，只提示不拦下载
