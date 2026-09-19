@@ -167,6 +167,39 @@ class _AboutState extends State<_About> {
     return version == null ? 'Copper Loader' : 'Copper Loader $version';
   }
 
+  /// 这个版本是不是走加载器、但一个可用的 loader 都找不到
+  ///
+  /// （库是空的，或记录里那个 loader 文件被删/数据根搬过）
+  bool get _isLoaderMissing =>
+      _mindustry.isViaLoader &&
+      LoaderLibrary.usablePath(_mindustry.resolvedLauncherPath) == null;
+
+  /// 补齐加载器：给已经转成 Copper 的版本重新指一个 loader
+  ///
+  /// 与「换启动器新建」不是一回事 —— 启动方式不变，只是把缺的文件补上
+  Future<void> _repairLoader() async {
+    final choice = await showAnimatedDialog<_LoaderChoice>(
+      context: context,
+      pageBuilder: (_, _, _) =>
+          const _LoaderPickerDialog(currentLoaderPath: null),
+    );
+    if (choice == null || !mounted) return;
+
+    final loaderPath = await _resolveLoaderChoice(context, choice);
+    if (loaderPath == null || !mounted) return;
+
+    setState(() {
+      _mindustry.launcherPath = AppPaths.toStoredPath(loaderPath);
+    });
+    await config.save();
+    final version = LoaderLibrary.versionOf(File(loaderPath));
+    addNotice(
+      icon: Icons.check,
+      title: '加载器已补齐',
+      content: version == null ? p.basename(loaderPath) : 'Copper Loader $version',
+    );
+  }
+
   /// 内容对齐 [MindustryLauncher.start]：-Xmx 内存 + 隔离数据目录 +
   /// jvm 参数 + -jar，平台差异：Windows .bat（UTF-8 + chcp 65001），
   /// Linux/macOS .sh。保存位置由用户选择。
@@ -474,6 +507,13 @@ pause
                   icon: Icons.build_circle,
                   content: '生成启动脚本',
                   onTap: _generateLaunchScript,
+                ),
+              //加载器文件不在了：给条路补回来，否则这版只能删了重建
+              if (isDesktop && _isLoaderMissing)
+                IconTextButton(
+                  icon: Icons.build_circle_outlined,
+                  content: '补齐加载器',
+                  onTap: _repairLoader,
                 ),
               IconTextButton(
                 icon: Icons.delete,
@@ -1239,48 +1279,53 @@ class _LauncherVariantButtonState extends State<_LauncherVariantButton> {
     );
     if (choice == null || !mounted) return;
 
-    final loaderPath = await _resolveChoice(choice);
+    final loaderPath = await _resolveLoaderChoice(context, choice);
     if (loaderPath == null || !mounted) return;
     widget.onPick(LauncherType.copper, loaderPath);
   }
+}
 
-  /// 把选择结果落成一个可用的 loader 路径
-  Future<String?> _resolveChoice(_LoaderChoice choice) async {
-    if (choice.loaderPath case final path?) return path;
+/// 把 [choice] 落成一个可用的 loader 路径：库内的直接用，本地的收进库，远程的先下
+///
+/// 「换启动器新建」与「补齐加载器」共用
+Future<String?> _resolveLoaderChoice(
+  BuildContext context,
+  _LoaderChoice choice,
+) async {
+  if (choice.loaderPath case final path?) return path;
 
-    if (choice.pickLocalFile) {
-      final picked = await PathSelector.selectFile(
-        acceptedTypeGroups: const [
-          XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
-        ],
-      );
-      if (picked == null || !mounted) return null;
-      try {
-        return await LoaderLibrary.importIntoLibrary(File(picked));
-      } catch (e) {
-        addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
-        debugPrint('添加加载器失败：$e');
-        return null;
-      }
-    }
-
-    final remote = choice.remote;
-    if (remote == null) return null;
-    addNotice(
-      icon: Icons.download,
-      title: '正在下载加载器',
-      content: 'Copper Loader ${remote.tag}',
+  if (choice.pickLocalFile) {
+    final picked = await PathSelector.selectFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
+      ],
     );
+    if (picked == null || !context.mounted) return null;
     try {
-      return await LoaderLibrary.downloadDesktop(
-        tag: remote.tag,
-        url: remote.url,
-      );
+      return await LoaderLibrary.importIntoLibrary(File(picked));
     } catch (e) {
-      addNotice(icon: Icons.close, title: '下载失败', content: '加载器没下下来：稍后再试或选本地 jar');
-      debugPrint('下载加载器失败：$e');
+      addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
+      debugPrint('添加加载器失败：$e');
       return null;
     }
+  }
+
+  final remote = choice.remote;
+  if (remote == null) return null;
+  addNotice(
+    icon: Icons.download,
+    title: '正在下载加载器',
+    content: 'Copper Loader ${remote.tag}',
+  );
+  try {
+    return await LoaderLibrary.downloadDesktop(
+      tag: remote.tag,
+      url: remote.url,
+    );
+  } catch (e) {
+    addNotice(icon: Icons.close, title: '下载失败', content: '加载器没下下来：稍后再试或选本地 jar');
+    debugPrint('下载加载器失败：$e');
+    return null;
   }
 }
 

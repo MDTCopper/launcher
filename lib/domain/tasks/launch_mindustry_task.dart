@@ -229,12 +229,19 @@ class LaunchMindustryTask extends Task {
     );
 
     if (!isLaunchStarted) {
-      addTaskLog(LogEntry(LogType.error, '启动失败：Java 环境或游戏本体不可用'));
-      addLog(.error, '启动失败：Java 环境或游戏本体不可用', tag: 'Launch');
+      //走加载器时常见原因是 loader jar 不在了（数据根搬过 / 手删过库里的文件），
+      //这种情况说成「Java 或本体不可用」会把人带偏
+      final isLoaderMissing =
+          mindustry.isViaLoader &&
+          MindustryLauncher.usableLoaderPath(mindustry) == null;
+      final reason = isLoaderMissing ? '缺少 Copper 加载器' : 'Java 环境或游戏本体不可用';
+      final suggestion = isLoaderMissing ? '到版本设置的模组加载器处补齐' : '详见运行日志';
+      addTaskLog(LogEntry(LogType.error, '启动失败：$reason'));
+      addLog(.error, '启动失败：$reason', tag: 'Launch');
       NotificationManager.addNotice(
         icon: Icons.error_outline,
         title: '启动失败',
-        content: 'Java 环境或游戏本体不可用，详见运行日志',
+        content: '$reason：$suggestion',
       );
       status = TaskStatus.failed;
       updateDisplay();
