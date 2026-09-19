@@ -81,6 +81,3 @@ web/
 
 # Widget Preview related
 .widget_preview/
-
-# CI 先推后：推 workflow 需要令牌带 workflow scope，这个 workflow 暂时只在本地放着
-.github/workflows/build-desktop.yml

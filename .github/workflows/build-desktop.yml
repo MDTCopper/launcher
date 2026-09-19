@@ -1,0 +1,104 @@
+name: 构建桌面端
+
+# 手动跑一次 Linux / macOS 的 release 构建与打包，产物传到 Actions 的 Artifacts
+#
+# 本机（Windows）没法交叉构建这两个平台，用这个 workflow 验证 tar.gz / dmg 链路；
+# 构建统一走 tool/build_release.dart，与本地发布是同一个入口，不另写一套命令
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 版本号（形如 0.0.2），留空则沿用仓库里记录的版本
+        required: false
+        default: ''
+      skip_codesign:
+        description: macOS 报签名错误时勾上（等价于给 xcodebuild 传 CODE_SIGNING_ALLOWED=NO）
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux
+            runs-on: ubuntu-latest
+            platform: linux
+            package: tarball
+          - label: macOS
+            runs-on: macos-latest
+            platform: macos
+            package: dmg
+    steps:
+      - uses: actions/checkout@v4
+
+      # macOS runner 自带 Xcode，不需要额外装东西
+      - name: 安装 Linux 构建依赖
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          cache: true
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      # 全部选项都给全，走的是 build_release.dart 的免交互路径（--yes）
+      # 想让它顺带跑 analyze + test 的话，把 --no-check 换成 --check
+      - name: 构建并打包
+        shell: bash
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+          PLATFORM: ${{ matrix.platform }}
+          PACKAGE: ${{ matrix.package }}
+          SKIP_CODESIGN: ${{ inputs.skip_codesign }}
+        run: |
+          if [ "$SKIP_CODESIGN" = "true" ]; then
+            export FLUTTER_XCODE_CODE_SIGNING_ALLOWED=NO
+          fi
+          build_options=(
+            --mode release
+            --channel release
+            --no-bump
+            --no-check
+            --yes
+            --no-open-folder
+            --platform "$PLATFORM"
+            --package "$PACKAGE"
+          )
+          # 版本号：优先用 workflow 输入，没给就沿用仓库里记录的版本
+          # 一定要显式传进去，否则脚本会走到交互式提问那一步
+          build_version="$VERSION_INPUT"
+          if [ -z "$build_version" ]; then
+            build_version=$(sed -n "s/^const appVersion = 'v\([0-9][0-9.]*\).*/\1/p" lib/core/app_constant.dart | head -1)
+          fi
+          if [ -n "$build_version" ]; then
+            build_options+=(--version "$build_version")
+          fi
+          dart tool/build_release.dart "${build_options[@]}"
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: copper-launcher-${{ matrix.platform }}
+          path: build/dist/*
+          if-no-files-found: error
+          retention-days: 14
