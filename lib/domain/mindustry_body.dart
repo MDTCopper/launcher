@@ -25,7 +25,7 @@ class MindustryBody {
     return 'mindustry-$safe-${hash.substring(0, 8)}.jar';
   }
 
-  /// 文件内容 hash（sha1 十六进制）：防撞与「是不是同一份文件」都靠它
+  /// 文件内容 hash（sha1 十六进制）：防撞
   static Future<String> hashFile(File file) async =>
       (await sha1.bind(file.openRead()).first).toString();
 
@@ -49,7 +49,9 @@ class MindustryBody {
   }) async {
     try {
       final hash = await hashFile(source);
-      final target = File(p.join(AppPaths.mindustrys, fileName(identity, hash)));
+      final target = File(
+        p.join(AppPaths.mindustrys, fileName(identity, hash)),
+      );
       if (await target.exists()) return target.path;
 
       await Directory(AppPaths.mindustrys).create(recursive: true);

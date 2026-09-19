@@ -42,6 +42,7 @@ class Mindustry {
   ///游戏启动路径（记录形态，读文件请用 [resolvedJarPath]）
 
   String jarPath;
+
   ///用哪个加载器启动（官方 Jar / Copper 加载器）：可在版本设置里切换
   LauncherType launcher;
   final bool isBe;
@@ -117,9 +118,8 @@ class Mindustry {
   String get resolvedJarPath => AppPaths.resolveStoredPath(jarPath);
 
   ///loader jar 的可用形态（没指定时为 null）
-  String? get resolvedLauncherPath => launcherPath == null
-      ? null
-      : AppPaths.resolveStoredPath(launcherPath!);
+  String? get resolvedLauncherPath =>
+      launcherPath == null ? null : AppPaths.resolveStoredPath(launcherPath!);
 
   ///是否通过模组加载器启动
   bool get isViaLoader => launcher == LauncherType.copper;
@@ -141,7 +141,8 @@ class Mindustry {
   ///
   ///库外的本体是**用户自己的文件**——「添加目录」扫描到的 jar、以及早期落在各自
   ///版本目录里的那份：启动器不复制，删版本时也不碰（只删记录）
-  bool get isBodyInLibrary => _isPathWithin(AppPaths.mindustrys, resolvedJarPath);
+  bool get isBodyInLibrary =>
+      _isPathWithin(AppPaths.mindustrys, resolvedJarPath);
 
   ///本体就在版本自己的目录 `[foldPath]` 里：老布局的下载 / 导入落点，
   ///以及「添加目录」扫到的 `<目录>/<tag>/xxx.jar` 形态。
@@ -169,9 +170,8 @@ class Mindustry {
   /// 模组目录（可能不止一个）：走加载器时 Copper 原生模组在
   /// `<数据目录>/copper/mods`，原版模组仍在 `<数据目录>/mods`，
   /// 加载器两个目录都扫；统计 / 扫描模组都要按这个列表来
-  List<String> get modsPaths => isViaLoader
-      ? [modsPathFor(copper: true), modsPath]
-      : [modsPath];
+  List<String> get modsPaths =>
+      isViaLoader ? [modsPathFor(copper: true), modsPath] : [modsPath];
 
   String get savesPath => p.join(dataPath, 'saves');
 
@@ -268,7 +268,7 @@ class MindustryMeta {
 
 /// Mod 状态标记，对齐 Mindustry `Mods.ModState`。
 ///
-/// settings.bin 只持久化「是否启用」（`mod-<name>-enabled`），
+/// settings.bin 只持久化是否启用（`mod-<name>-enabled`），
 /// 其余状态（依赖缺失、内容错误等）是游戏加载时的运行时状态
 enum ModState {
   /// 启用。
@@ -306,9 +306,8 @@ enum ModState {
 /// 原版模组进 `<数据目录>/mods`
 ///
 /// 导入、扫描、估算都从这里取路径，别各写各的
-String modsDirIn(String dataPath, {required bool copper}) => copper
-    ? p.joinAll([dataPath, 'copper', 'mods'])
-    : p.join(dataPath, 'mods');
+String modsDirIn(String dataPath, {required bool copper}) =>
+    copper ? p.joinAll([dataPath, 'copper', 'mods']) : p.join(dataPath, 'mods');
 
 @JsonSerializable()
 class Mod {
