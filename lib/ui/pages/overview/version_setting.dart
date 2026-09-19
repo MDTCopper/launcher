@@ -32,6 +32,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
@@ -631,6 +632,7 @@ pause
                   //换启动器（原版 ↔ Copper 加载器）也是建新版本，不是改当前这个
                   if (isDesktop)
                     _LauncherVariantButton(
+                      mindustry: _mindustry,
                       onPick: (launcher, loaderPath) =>
                           _createVariantWithLauncher(
                             launcher: launcher,
@@ -1165,12 +1167,15 @@ class _ModsFolderButtonState extends State<_ModsFolderButton> {
   }
 }
 
-/// 「换启动器新建」按钮：点击弹菜单选启动器；选 Copper 时同一锚点再弹一层选 loader 版本
+/// 「换启动器新建」按钮：点击弹菜单选启动器（原版 / Copper）
 ///
-/// loader 有三处来源：库内已有的（**直接复用、不重复下载**）、远程有但库里没有的
-/// （下载进库）、本地 jar（收进库）。定好启动器与 loader 后回调，由调用方去建版本
+/// 选 Copper 后弹**加载器选择页**（库内已有的直接复用、远程的下载进库、
+/// 也可以选本地 jar），选完 loader 才进新建变体的弹窗；loader 最低兼容
+/// Mindustry v146（[Mindustry.loaderMinRelease]），版本不够就只提示不往下走
 class _LauncherVariantButton extends StatefulWidget {
-  const _LauncherVariantButton({required this.onPick});
+  const _LauncherVariantButton({required this.mindustry, required this.onPick});
+
+  final Mindustry mindustry;
 
   final void Function(LauncherType launcher, String? loaderPath) onPick;
 
@@ -1181,135 +1186,246 @@ class _LauncherVariantButton extends StatefulWidget {
 class _LauncherVariantButtonState extends State<_LauncherVariantButton> {
   final PopupOverlayController _menuController = PopupOverlayController();
 
-  /// 菜单停在哪一层：false = 选启动器，true = 选 loader 版本
-  bool _choosingLoader = false;
-
-  /// 远程可下的 loader 版本（进 loader 那一层时查一次；查不到就只列库内与本地 jar）
-  List<({String tag, String url})> _remoteLoaders = const [];
-
   @override
   Widget build(BuildContext context) {
     return MenuLayer(
       controller: _menuController,
       rightClickTrigger: false,
       longPressTrigger: false,
-      menuBuilder: (_, controller) => _choosingLoader
-          ? _buildLoaderItems(controller)
-          : _buildLauncherItems(controller),
+      menuBuilder: (_, controller) => [
+        MenuButton(
+          icon: const Icon(Icons.rocket_launch_outlined),
+          label: '原版',
+          onTap: () {
+            controller.dismiss();
+            widget.onPick(LauncherType.mindustry, null);
+          },
+        ),
+        MenuButton(
+          icon: const Icon(Icons.extension_outlined),
+          label: 'Copper',
+          onTap: () async {
+            await controller.dismiss();
+            await _chooseLoaderAndPick();
+          },
+        ),
+      ],
       child: IconTextButton(
         icon: Icons.extension_outlined,
         content: '换启动器新建',
-        onTap: () {
-          _choosingLoader = false;
-          _menuController.open();
-        },
+        onTap: _menuController.open,
       ),
     );
   }
 
-  List<Widget> _buildLauncherItems(PopupOverlayController controller) => [
-    MenuButton(
-      icon: const Icon(Icons.rocket_launch_outlined),
-      label: '原版',
-      onTap: () {
-        controller.dismiss();
-        widget.onPick(LauncherType.mindustry, null);
-      },
-    ),
-    MenuButton(
-      icon: const Icon(Icons.extension_outlined),
-      label: 'Copper',
-      onTap: () async {
-        await controller.dismiss();
-        await _openLoaderStage();
-      },
-    ),
-  ];
+  /// 走 Copper：先确认游戏版本够（v146+），再弹加载器选择页
+  Future<void> _chooseLoaderAndPick() async {
+    if (!widget.mindustry.supportsLoader) {
+      addNotice(
+        icon: Icons.close,
+        title: '版本不支持',
+        content:
+            'Copper 加载器最低兼容 Mindustry v${Mindustry.loaderMinRelease}，'
+            '这个版本是 ${widget.mindustry.release}',
+      );
+      return;
+    }
 
-  /// 切到 loader 那一层：先查远程版本，再在同一个锚点上重开菜单
-  Future<void> _openLoaderStage() async {
-    final remote = await LoaderLibrary.fetchReleases();
-    if (!mounted) return;
-    setState(() {
-      _remoteLoaders = remote;
-      _choosingLoader = true;
-    });
-    _menuController.open();
-  }
-
-  List<Widget> _buildLoaderItems(PopupOverlayController controller) {
-    final localVersions = LoaderLibrary.localVersions();
-    final localJars = LoaderLibrary.list();
-
-    return [
-      // 库内已有的：直接复用
-      for (final jar in localJars)
-        IconTextButton(
-          icon: Icons.check_circle_outline,
-          content: '${LoaderLibrary.versionOf(jar) ?? p.basename(jar.path)}（已下载）',
-          onTap: () {
-            controller.dismiss();
-            widget.onPick(LauncherType.copper, jar.path);
-          },
-        ),
-      // 远程有、库里没有的：下载进库
-      for (final release in _remoteLoaders)
-        if (!localVersions.contains(release.tag))
-          IconTextButton(
-            icon: Icons.download,
-            content: '${release.tag}（下载）',
-            onTap: () async {
-              await controller.dismiss();
-              await _downloadAndPick(release);
-            },
-          ),
-      IconTextButton(
-        icon: Icons.folder_open,
-        content: '本地 jar…',
-        onTap: () async {
-          await controller.dismiss();
-          await _pickLocalLoader();
-        },
+    final choice = await showAnimatedDialog<_LoaderChoice>(
+      context: context,
+      pageBuilder: (_, _, _) => _LoaderPickerDialog(
+        currentLoaderPath: widget.mindustry.resolvedLauncherPath,
       ),
-    ];
+    );
+    if (choice == null || !mounted) return;
+
+    final loaderPath = await _resolveChoice(choice);
+    if (loaderPath == null || !mounted) return;
+    widget.onPick(LauncherType.copper, loaderPath);
   }
 
-  /// 下载指定版本的 loader（库里已有会直接复用），拿到路径后回调
-  Future<void> _downloadAndPick(({String tag, String url}) release) async {
+  /// 把选择结果落成一个可用的 loader 路径
+  Future<String?> _resolveChoice(_LoaderChoice choice) async {
+    if (choice.loaderPath case final path?) return path;
+
+    if (choice.pickLocalFile) {
+      final picked = await PathSelector.selectFile(
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
+        ],
+      );
+      if (picked == null || !mounted) return null;
+      try {
+        return await LoaderLibrary.importIntoLibrary(File(picked));
+      } catch (e) {
+        addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
+        debugPrint('添加加载器失败：$e');
+        return null;
+      }
+    }
+
+    final remote = choice.remote;
+    if (remote == null) return null;
     addNotice(
       icon: Icons.download,
       title: '正在下载加载器',
-      content: 'Copper Loader ${release.tag}',
+      content: 'Copper Loader ${remote.tag}',
     );
     try {
-      final path = await LoaderLibrary.downloadDesktop(
-        tag: release.tag,
-        url: release.url,
+      return await LoaderLibrary.downloadDesktop(
+        tag: remote.tag,
+        url: remote.url,
       );
-      if (!mounted) return;
-      widget.onPick(LauncherType.copper, path);
     } catch (e) {
       addNotice(icon: Icons.close, title: '下载失败', content: '加载器没下下来：稍后再试或选本地 jar');
       debugPrint('下载加载器失败：$e');
+      return null;
     }
   }
+}
 
-  /// 选本地 loader jar，收进库后回调
-  Future<void> _pickLocalLoader() async {
-    final picked = await PathSelector.selectFile(
-      acceptedTypeGroups: const [
-        XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
-      ],
+/// 加载器选择结果：库里已有的 / 远程待下载的 / 去挑本地文件
+class _LoaderChoice {
+  const _LoaderChoice.library(this.loaderPath)
+    : remote = null,
+      pickLocalFile = false;
+  const _LoaderChoice.download(this.remote)
+    : loaderPath = null,
+      pickLocalFile = false;
+  const _LoaderChoice.localFile()
+    : loaderPath = null,
+      remote = null,
+      pickLocalFile = true;
+
+  final String? loaderPath;
+  final ({String tag, String url})? remote;
+  final bool pickLocalFile;
+}
+
+/// 加载器选择页：库内已有的（直接复用）／远程可下的（下载）／本地 jar
+///
+/// 远程列表是进页面时异步查的，查不到就只列库内与本地 jar
+class _LoaderPickerDialog extends StatefulWidget {
+  const _LoaderPickerDialog({this.currentLoaderPath});
+
+  ///当前版本在用的 loader（在列表里标出来）
+  final String? currentLoaderPath;
+
+  @override
+  State<_LoaderPickerDialog> createState() => _LoaderPickerDialogState();
+}
+
+class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
+  List<({String tag, String url})>? _remoteLoaders;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRemoteLoaders();
+  }
+
+  Future<void> _loadRemoteLoaders() async {
+    final releases = await LoaderLibrary.fetchReleases();
+    if (!mounted) return;
+    setState(() => _remoteLoaders = releases);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final screen = MediaQuery.of(context).size;
+    final localJars = LoaderLibrary.list();
+    final localVersions = LoaderLibrary.localVersions();
+    final current = widget.currentLoaderPath == null
+        ? null
+        : p.normalize(widget.currentLoaderPath!);
+
+    return Center(
+      child: Material(
+        elevation: 8,
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          constraints: BoxConstraints(
+            maxWidth: screen.width * 0.5,
+            maxHeight: screen.height * 0.8,
+          ),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(8),
+            border: Border(
+              top: BorderSide(color: colors.border, width: 1.5),
+              left: BorderSide(color: colors.border, width: 0.75),
+              right: BorderSide(color: colors.border, width: 0.75),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 12,
+            children: [
+              Text('选择 Copper 加载器', style: theme.textTheme.titleLarge),
+              Text(
+                '最低兼容 Mindustry v${Mindustry.loaderMinRelease}；'
+                '库里已有的直接复用，不重复下载',
+                style: theme.textTheme.bodySmall,
+              ),
+              Flexible(
+                child: CopperSingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 4,
+                    children: [
+                      for (final jar in localJars)
+                        IconTextButton(
+                          icon: Icons.check_circle_outline,
+                          content:
+                              '${LoaderLibrary.versionOf(jar) ?? p.basename(jar.path)}'
+                              '（已下载${p.normalize(jar.path) == current ? '，当前在用' : ''}）',
+                          onTap: () => Navigator.of(context).pop(
+                            _LoaderChoice.library(jar.path),
+                          ),
+                        ),
+                      if (_remoteLoaders == null)
+                        Text('正在查询远程版本…', style: theme.textTheme.bodySmall)
+                      else
+                        for (final release in _remoteLoaders!)
+                          if (!localVersions.contains(release.tag))
+                            IconTextButton(
+                              icon: Icons.download,
+                              content: '${release.tag}（下载）',
+                              onTap: () => Navigator.of(context).pop(
+                                _LoaderChoice.download(release),
+                              ),
+                            ),
+                      IconTextButton(
+                        icon: Icons.folder_open,
+                        content: '选本地 jar…',
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(const _LoaderChoice.localFile()),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconTextButton(
+                    icon: Icons.close,
+                    content: '取消',
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
-    if (picked == null || !mounted) return;
-    try {
-      final path = await LoaderLibrary.importIntoLibrary(File(picked));
-      if (!mounted) return;
-      widget.onPick(LauncherType.copper, path);
-    } catch (e) {
-      addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
-      debugPrint('添加加载器失败：$e');
-    }
   }
 }
 

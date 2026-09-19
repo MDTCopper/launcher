@@ -18,6 +18,7 @@ import 'package:uuid/uuid.dart';
 /// 变体可以从源版本继承的数据（数据目录下的条目）
 enum VersionDataKind {
   mods('模组', 'mods'),
+  copperMods('Copper 模组', 'copper/mods'),
   saves('存档', 'saves'),
   maps('地图', 'maps'),
   schematics('蓝图', 'schematics'),
@@ -27,13 +28,18 @@ enum VersionDataKind {
 
   final String label;
 
-  ///数据目录里的条目名：前四项是目录，游戏设置是文件
+  ///数据目录里的条目名：多数是单层目录，Copper 模组在 `copper/mods`
   final String entryName;
 
   ///在某个数据目录下对应的路径
-  String pathIn(String dataPath) => p.join(dataPath, entryName);
+  String pathIn(String dataPath) =>
+      p.joinAll([dataPath, ...entryName.split('/')]);
 
   bool get isDirectory => this != VersionDataKind.settings;
+
+  ///这类数据是**搬**而不是拷：Copper 模组只有走加载器的版本用得上，
+  ///原版版本留着也没用，复制一份还白占体积（mods 动辄几十 MB）
+  bool get isMoved => this == VersionDataKind.copperMods;
 }
 
 /// 以 [source] 为模板新建一个变体版本
@@ -55,6 +61,12 @@ Future<Mindustry?> createVersionVariant({
   String tagSuffix = '副本',
   String dialogTitle = '新建变体',
 }) async {
+  //不传 launcher 就是照抄源版本（含它用的 loader）；传了则以传入的为准
+  final targetLauncher = launcher ?? source.launcher;
+  final targetLauncherPath = launcher == null
+      ? source.launcherPath
+      : launcherPath;
+
   final options = await showAnimatedDialog<
     ({String tag, Set<VersionDataKind> inherit})
   >(
@@ -64,13 +76,10 @@ Future<Mindustry?> createVersionVariant({
       usedTags: versionTags(),
       tagSuffix: tagSuffix,
       title: dialogTitle,
+      launcher: targetLauncher,
     ),
   );
   if (options == null) return null;
-
-  //不传 launcher 就是照抄源版本（含它用的 loader）；传了则以传入的为准
-  final targetLauncher = launcher ?? source.launcher;
-  final targetLauncherPath = launcher == null ? source.launcherPath : launcherPath;
 
   final fold = targetFold ?? _foldOf(source);
   final version = Mindustry(
@@ -119,7 +128,17 @@ VersionFold _foldOf(Mindustry version) {
   return defaultVersionFold();
 }
 
-/// 把 [kind] 对应的数据从源版本拷到新版本，返回拷进来的条目数
+/// 把 [kind] 对应的数据从源版本拷（[VersionDataKind.isMoved] 的则搬）到新版本，
+/// 返回搬/拷进来的条目数
+///
+/// 变体继承的实现入口，直接暴露出来给用例覆盖「拷」与「搬」两种行为
+@visibleForTesting
+Future<int> inheritVersionData(
+  Mindustry source,
+  Mindustry target,
+  VersionDataKind kind,
+) => _inheritFrom(source, target, kind);
+
 Future<int> _inheritFrom(
   Mindustry source,
   Mindustry target,
@@ -128,6 +147,7 @@ Future<int> _inheritFrom(
   final from = kind.pathIn(source.dataPath);
   final to = kind.pathIn(target.dataPath);
 
+  if (kind.isMoved) return _moveDirectory(from, to);
   if (kind.isDirectory) return _copyDirectory(from, to);
 
   final file = File(from);
@@ -159,11 +179,37 @@ Future<int> _copyDirectory(String from, String to) async {
   return copied;
 }
 
+/// 把整个目录**搬**到目标（同盘是改名，跨盘是复制 + 删源），返回文件数
+///
+/// 只用于源版本用不上的那类数据（见 [VersionDataKind.isMoved]）：
+/// 复制一份既占体积又会让两边各留一份、以后分不清哪份是活的
+Future<int> _moveDirectory(String from, String to) async {
+  final source = Directory(from);
+  if (!await source.exists()) return 0;
+
+  final fileCount = await source
+      .list(recursive: true, followLinks: false)
+      .where((entity) => entity is File)
+      .length;
+
+  await Directory(p.dirname(to)).create(recursive: true);
+  try {
+    await source.rename(to);
+  } on FileSystemException {
+    //跨盘 / 目标已存在等改名失败的情况：退回复制 + 删源
+    final copied = await _copyDirectory(from, to);
+    await source.delete(recursive: true);
+    return copied;
+  }
+  return fileCount;
+}
+
 /// 新建变体的参数弹窗：新 tag + 要继承哪几类数据
 class _VariantDialog extends StatefulWidget {
   const _VariantDialog({
     required this.source,
     required this.usedTags,
+    required this.launcher,
     this.tagSuffix = '副本',
     this.title = '新建变体',
   });
@@ -172,6 +218,9 @@ class _VariantDialog extends StatefulWidget {
 
   ///已占用的版本 tag（跨 fold），用于查重
   final Set<String> usedTags;
+
+  ///新版本用哪个启动器：决定「Copper 模组」这项继不继承（原版版本用不到它）
+  final LauncherType launcher;
 
   ///默认新标签的后缀（换启动器新建时用「Copper」之类更好认）
   final String tagSuffix;
@@ -218,6 +267,17 @@ class _VariantDialogState extends State<_VariantDialog> {
     return null;
   }
 
+  ///能继承的种类：Copper 模组只有走加载器的新版本才列（原版版本用不到它）
+  List<VersionDataKind> get _kinds => [
+    for (final kind in VersionDataKind.values)
+      if (kind != VersionDataKind.copperMods ||
+          widget.launcher == LauncherType.copper)
+        kind,
+  ];
+
+  ///提示用：列表里有没有「搬过去」的那类数据（Copper 模组）
+  bool get _hasMovedKind => _kinds.contains(VersionDataKind.copperMods);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -259,12 +319,15 @@ class _VariantDialogState extends State<_VariantDialog> {
                 controller: _tagController,
                 error: _error,
               ),
-              Text('要继承的数据（点选切换）', style: theme.textTheme.bodySmall),
+              Text(
+                '要继承的数据（点选切换）${_hasMovedKind ? '，Copper 模组是搬过去（原版版本用不到）' : ''}',
+                style: theme.textTheme.bodySmall,
+              ),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final kind in VersionDataKind.values)
+                  for (final kind in _kinds)
                     ActionButton(
                       content: Text(kind.label),
                       selected: _inherit.contains(kind),

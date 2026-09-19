@@ -112,6 +112,13 @@ class Mindustry {
   ///是否通过模组加载器启动
   bool get isViaLoader => launcher == LauncherType.copper;
 
+  ///Copper 加载器最低兼容的游戏版本（v146）；BE 的 build 号不走 vNNN 这套编号，
+  ///一律按支持处理
+  static const int loaderMinRelease = 146;
+
+  ///这个游戏版本能不能走 Copper 加载器
+  bool get supportsLoader => isBe || releaseDouble >= loaderMinRelease;
+
   ///游戏目录路径
   String get foldPath => p.join(resolvedPath, tag);
 
