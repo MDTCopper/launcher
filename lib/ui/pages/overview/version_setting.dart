@@ -1607,6 +1607,11 @@ class _ModsState extends State<_Mods> {
     final labelStyle = theme.textTheme.labelSmall;
     final tags = <Widget>[];
 
+    if (mod.copper) {
+      tags.add(
+        Text('Copper', style: labelStyle?.copyWith(color: colors.interactive)),
+      );
+    }
     if (mod.hidden ?? false) {
       tags.add(Text('插件', style: labelStyle?.copyWith(color: colors.itemHint)));
     }
