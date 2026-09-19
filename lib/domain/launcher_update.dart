@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../core/app_constant.dart';
+import '../util/app_paths.dart';
 import '../util/format/string_cleaner.dart';
 import '../util/io/copper_io.dart';
 import '../util/io/log.dart';
@@ -193,6 +194,14 @@ class LauncherUpdate {
       asset.name.toLowerCase().endsWith('-setup.exe') &&
       isInstalledBuild;
 
+  /// 该不该走「退出后脚本覆盖」：Windows + 下的是 zip + 当前是解压版，
+  /// 且程序目录可写（不可写时数据根已经回退到应用支持目录，就地进行覆盖也写不进去）
+  static bool shouldReplacePortable(LauncherAsset asset) =>
+      Platform.isWindows &&
+      asset.name.toLowerCase().endsWith('.zip') &&
+      !isInstalledBuild &&
+      !AppPaths.isUsingFallbackDataPath;
+
   /// 当前这份是不是 Setup 装出来的（解压版没有卸载器）
   static bool get isInstalledBuild =>
       isInstalledBuildIn(File(Platform.resolvedExecutable).parent.path);
@@ -235,6 +244,83 @@ class LauncherUpdate {
       '/CLOSEAPPLICATIONS',
       '/NORESTART',
     ], mode: ProcessStartMode.detached);
+  }
+
+  /// 解压版的就地覆盖：写一个脚本再拉起它，脚本等本进程退出后解压覆盖并重启启动器
+  ///
+  /// 必须等进程退出：运行中的 exe 与已加载的 dll（flutter_windows / 插件 / app.so）
+  /// 在 Windows 上不允许被覆盖；调用方拉起脚本后应退出启动器
+  static Future<void> runPortableReplace({required String zipPath}) async {
+    final installDir = File(Platform.resolvedExecutable).parent.path;
+    final script = File(p.join(downloadDir.path, 'apply_update.cmd'));
+    await script.writeAsString(
+      buildPortableUpdateScript(
+        zipPath: zipPath,
+        installDir: installDir,
+        exePath: Platform.resolvedExecutable,
+        processId: pid,
+      ),
+      flush: true,
+    );
+
+    addLogAndPrint(.info, '解压版更新：退出后覆盖 $installDir', tag: 'Update');
+    await Process.start('cmd.exe', [
+      '/c',
+      script.path,
+    ], mode: ProcessStartMode.detached);
+  }
+
+  /// 生成解压版的覆盖脚本（纯函数，便于用例核对等待与引号处理）
+  ///
+  /// 流程：轮询 PID 等本进程退出（最多 60 秒）→ 用系统自带的 `tar.exe` 解压覆盖
+  /// （失败就等一秒再试，最多 15 次）→ 重启启动器 → 自删。`tar` 是 Win10 1803+
+  /// 内置的 bsdtar，能直接解 zip，不引第三方依赖；解压只覆盖同名文件、
+  /// 不删任何东西，用户数据都留着
+  @visibleForTesting
+  static String buildPortableUpdateScript({
+    required String zipPath,
+    required String installDir,
+    required String exePath,
+    required int processId,
+  }) {
+    // cmd 脚本用 CRLF；内容保持纯 ASCII，免得控制台代码页把中文编坏
+    const newline = '\r\n';
+    return [
+      '@echo off',
+      'rem Overwrite the portable copy after Copper Launcher (pid $processId) exits.',
+      'set "ZIP=$zipPath"',
+      'set "TARGET=$installDir"',
+      'set "PIDFILE=%~dp0pid_check.txt"',
+      'set /a TRIES=0',
+      ':wait',
+      // 不能写成 `tasklist ... | find ...`：detached（没有控制台）下这条管道会挂住，
+      // 实测卡在这里再也不往下走 —— 先落成文件再 find 才对
+      'tasklist /FI "PID eq $processId" /NH > "%PIDFILE%" 2>nul',
+      'find "$processId" "%PIDFILE%" >nul',
+      'if errorlevel 1 goto apply',
+      'set /a TRIES+=1',
+      'if %TRIES% geq 60 goto apply',
+      // 也不用 timeout：它要求真实的控制台输入句柄，detached 下会直接报错
+      'ping -n 2 127.0.0.1 >nul',
+      'goto wait',
+      ':apply',
+      // 进程没了通常一次就成；万一还有文件被占着，等一秒重来
+      'set /a TRIES=0',
+      ':retry',
+      'tar -xf "%ZIP%" -C "%TARGET%" 2>nul',
+      'if not errorlevel 1 goto started',
+      'set /a TRIES+=1',
+      'if %TRIES% geq 15 goto started',
+      'ping -n 2 127.0.0.1 >nul',
+      'goto retry',
+      ':started',
+      'del "%PIDFILE%" 2>nul',
+      'cd /d "%TARGET%"',
+      'start "" "$exePath"',
+      // 自删放最后一行：删除后 cmd 就不再往下读了，后面不能有别的东西；
+      // 别用 `(goto) 2>nul & del` 那套写法 —— 在这台机器上实测会把脚本挂住
+      'del "%~f0"',
+    ].join(newline);
   }
 
   /// Windows 产物：安装版取 Setup（覆盖安装）、解压版取 zip；要的那种没有时退另一种

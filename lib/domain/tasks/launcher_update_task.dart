@@ -73,8 +73,8 @@ class LauncherUpdateTask extends Task {
     }
   }
 
-  /// 收尾：安装版拉起 Setup 并退出（安装器要替换本进程的文件）；
-  /// 其余情况打开下载目录，说清怎么覆盖
+  /// 收尾：安装版拉起 Setup、解压版写覆盖脚本，两者都要退出启动器
+  /// （运行中的 exe / dll 不能覆盖，必须等进程退出）；其余平台打开下载目录
   Future<void> _finishUpdate(String path) async {
     progress = 1.0;
 
@@ -91,6 +91,23 @@ class LauncherUpdateTask extends Task {
 
       await LauncherUpdate.runInstaller(path);
       // 留一点时间让日志与通知落地，再退出（安装器随后要替换本进程的文件）
+      await Future.delayed(const Duration(seconds: 1));
+      await LauncherTray.instance.quitApp();
+      return;
+    }
+
+    if (LauncherUpdate.shouldReplacePortable(asset)) {
+      statusText = '正在替换文件';
+      status = TaskStatus.completed;
+      addTaskLog(LogEntry(LogType.success, '更新包已下载，退出后由脚本覆盖：$path'));
+      addNotice(
+        icon: Icons.system_update_alt,
+        title: '正在安装更新',
+        content: '启动器会退出并重新打开，用户数据不受影响',
+      );
+      updateDisplay();
+
+      await LauncherUpdate.runPortableReplace(zipPath: path);
       await Future.delayed(const Duration(seconds: 1));
       await LauncherTray.instance.quitApp();
       return;

@@ -189,7 +189,7 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
         Text(
           asset.name.endsWith('-setup.exe')
               ? '将下载安装包并覆盖安装：装完启动器会退出，重新打开即可'
-              : '当前是解压版：会下载 zip，退出启动器后用它覆盖当前目录',
+              : '当前是解压版：会下载 zip，退出后自动覆盖并重新打开（用户数据不受影响）',
           style: theme.textTheme.labelMedium,
         ),
       _buildActions([
