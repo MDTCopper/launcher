@@ -6,7 +6,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../app_paths.dart';
-import 'process_controller.dart';
+import 'explorer_helper.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 class PathSelector {
@@ -19,7 +19,7 @@ class PathSelector {
 
     try {
       if (Platform.isWindows) {
-        WindowProcessController.openExplorer(dir.path);
+        ExplorerHelper.openExplorer(dir.path);
       }
     } catch (e) {
       rethrow;
@@ -35,7 +35,7 @@ class PathSelector {
 
     try {
       if (Platform.isWindows) {
-        WindowProcessController.locateFile(dir.path);
+        ExplorerHelper.locateFile(dir.path);
       } else if (Platform.isAndroid) {
         _locateFileOnAndroid(path);
       }
