@@ -357,12 +357,35 @@ class FileReader {
       }
       map['type'] = 'mod';
 
-      // 依赖：Copper 那边是「id → 版本过滤」的对象，原版是数组；统一成 id 列表
+      // 依赖：Copper 那边是「id → 版本过滤」的对象，原版是数组；统一成 id 列表。
+      // Copper 的 mindustry / loader 是保留 id（游戏本体、加载器版本要求），
+      // 不是模组依赖，取出来单独放
       final dependencies = map['dependencies'];
       if (dependencies is Map) {
-        map['dependencies'] = dependencies.keys.toList();
+        final modIds = <String>[];
+        for (final entry in dependencies.entries) {
+          final id = '${entry.key}';
+          if (id == 'mindustry') {
+            map['gameVersionFilter'] = entry.value;
+          } else if (id != 'loader') {
+            modIds.add(id);
+          }
+        }
+        map['dependencies'] = modIds;
       } else if (dependencies == null) {
         map['dependencies'] = const <String>[];
+      }
+
+      // 冲突：Copper 独有的「id → 版本过滤」对象，摊平成 id 列表
+      // （加载器把它和依赖一起解析，区别是命中即拒绝加载）
+      final conflicts = map['conflicts'];
+      if (conflicts is Map) {
+        map['conflicts'] = conflicts.keys
+            .map((id) => '$id')
+            .where((id) => id != 'mindustry' && id != 'loader')
+            .toList();
+      } else if (conflicts == null) {
+        map['conflicts'] = const <String>[];
       }
 
       // 提取 icon.png 图片字节

@@ -321,6 +321,8 @@ class Mod {
     required this.author,
     required this.hidden,
     required this.dependencies,
+    this.gameVersionFilter,
+    required this.conflicts,
     this.copper = false,
   });
 
@@ -353,6 +355,15 @@ class Mod {
   @JsonKey(defaultValue: [])
   final List<dynamic> dependencies;
 
+  /// Copper 模组对游戏本体的版本要求：`dependencies.mindustry` 的原始过滤表达式
+  /// （单个字符串，或字符串数组 = 精确匹配列表），判定用 `VersionFilter`；
+  /// 原版模组与没写要求的 Copper 模组为 null
+  final dynamic gameVersionFilter;
+
+  /// Copper 的 `conflicts`（显式冲突）摊平后的模组 id 列表；原版没有显式冲突
+  @JsonKey(defaultValue: [])
+  final List<dynamic> conflicts;
+
   /// 是不是 Copper 原生模组（元数据为 `copper.mod.json` / `copper.mod.hjson`）：
   /// 这类模组放在 `<数据目录>/copper/mods/`，由加载器加载
   @JsonKey(defaultValue: false)
@@ -379,7 +390,12 @@ class Mod {
 
   factory Mod.fromJson(Map<String, dynamic> json, {Uint8List? icon}) {
     json = json.map(((key, value) {
-      if (key == 'dependencies') return MapEntry(key, value);
+      //依赖、冲突与游戏版本要求都是多值形态（对象摊平 / 数组），不能当字符串处理
+      if (key == 'dependencies' ||
+          key == 'conflicts' ||
+          key == 'gameVersionFilter') {
+        return MapEntry(key, value);
+      }
       return MapEntry(key, value.toString());
     }));
     json['java'] = bool.tryParse(json['java'] ?? '');

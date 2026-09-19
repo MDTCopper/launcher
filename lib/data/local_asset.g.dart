@@ -88,6 +88,8 @@ Mod _$ModFromJson(Map<String, dynamic> json) => Mod(
   author: json['author'] as String? ?? '未知作者',
   hidden: json['hidden'] as bool?,
   dependencies: json['dependencies'] as List<dynamic>? ?? [],
+  gameVersionFilter: json['gameVersionFilter'],
+  conflicts: json['conflicts'] as List<dynamic>? ?? [],
   copper: json['copper'] as bool? ?? false,
 );
 
@@ -101,6 +103,8 @@ Map<String, dynamic> _$ModToJson(Mod instance) => <String, dynamic>{
   'description': instance.description,
   'hidden': instance.hidden,
   'dependencies': instance.dependencies,
+  'gameVersionFilter': instance.gameVersionFilter,
+  'conflicts': instance.conflicts,
   'copper': instance.copper,
 };
 

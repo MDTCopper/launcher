@@ -14,6 +14,7 @@ import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/version_filter.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -1581,6 +1582,70 @@ class _ModsState extends State<_Mods> {
     }).toList();
   }
 
+  /// 模组副标题：作者与版本一行，下面附上标签行（插件 / 版本不兼容 / 依赖 / 冲突）
+  Widget _buildModSubtitle(_ModEntry entry) {
+    final authorLine = Text(
+      '作者：${removeColorTags(entry.mod.author)}     版本：${generalizeText(entry.mod.version)}',
+    );
+    final tags = _buildModTags(entry.mod);
+    if (tags.isEmpty) return authorLine;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        authorLine,
+        const SizedBox(height: 2),
+        Wrap(spacing: 8, runSpacing: 2, children: tags),
+      ],
+    );
+  }
+
+  /// 模组标签：隐藏模组（Copper 的插件）、游戏版本不兼容、依赖、冲突；
+  /// 一个都没有时返回空列表（不占位）
+  List<Widget> _buildModTags(Mod mod) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final labelStyle = theme.textTheme.labelSmall;
+    final tags = <Widget>[];
+
+    if (mod.hidden ?? false) {
+      tags.add(Text('插件', style: labelStyle?.copyWith(color: colors.itemHint)));
+    }
+    if (!_satisfiesGameVersion(mod)) {
+      tags.add(
+        Text(
+          '不兼容当前游戏版本',
+          style: labelStyle?.copyWith(color: colors.error),
+        ),
+      );
+    }
+    if (mod.dependencies.isNotEmpty) {
+      tags.add(
+        Text(
+          '依赖：${mod.dependencies.join('、')}',
+          style: labelStyle?.copyWith(color: colors.itemHint),
+        ),
+      );
+    }
+    if (mod.conflicts.isNotEmpty) {
+      tags.add(
+        Text(
+          '冲突：${mod.conflicts.join('、')}',
+          style: labelStyle?.copyWith(color: colors.warning),
+        ),
+      );
+    }
+    return tags;
+  }
+
+  /// 模组声明的游戏版本要求（Copper 的 `dependencies.mindustry`）是否满足当前版本；
+  /// 没声明要求、或版本号读不出来时都按满足处理（不判断）
+  bool _satisfiesGameVersion(Mod mod) {
+    final requirement = mod.gameVersionFilter;
+    final gameVersion = _mindustry.gameVersionString;
+    if (requirement == null || gameVersion == null) return true;
+    return VersionFilter.parse(requirement).matches(gameVersion);
+  }
+
   /// 构建单个模组 tile（含选中动画 / 禁用态样式 / 右键与滑动菜单）
   Widget _buildModTile(_ModEntry entry) {
     final theme = Theme.of(context);
@@ -1640,9 +1705,7 @@ class _ModsState extends State<_Mods> {
                 color: theme.textTheme.bodyMedium?.color?.withAlpha(150),
               ),
       ),
-      subtitle: Text(
-        '作者：${removeColorTags(entry.mod.author)}     版本：${generalizeText(entry.mod.version)}',
-      ),
+      subtitle: _buildModSubtitle(entry),
       onTap: () {
         setState(() {
           if (_selectedIds.contains(entry.mod.internalName)) {
