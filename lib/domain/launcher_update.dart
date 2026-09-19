@@ -250,10 +250,15 @@ class LauncherUpdate {
   ///
   /// 必须等进程退出：运行中的 exe 与已加载的 dll（flutter_windows / 插件 / app.so）
   /// 在 Windows 上不允许被覆盖；调用方拉起脚本后应退出启动器
+  ///
+  /// 用 VBS 包一层再拉起：detached 出来的 cmd 自己没有控制台，它拉起的
+  /// `tasklist` / `find` / `tar` / `ping` 会各自新建控制台 → 屏幕上会冒窗口；
+  /// `WScript.Shell.Run(..., 0, ...)` 给 cmd 一个**隐藏**控制台，子进程共用它
   static Future<void> runPortableReplace({required String zipPath}) async {
     final installDir = File(Platform.resolvedExecutable).parent.path;
-    final script = File(p.join(downloadDir.path, 'apply_update.cmd'));
-    await script.writeAsString(
+    final command = File(p.join(downloadDir.path, 'apply_update.cmd'));
+    final launcher = File(p.join(downloadDir.path, 'apply_update.vbs'));
+    await command.writeAsString(
       buildPortableUpdateScript(
         zipPath: zipPath,
         installDir: installDir,
@@ -262,13 +267,37 @@ class LauncherUpdate {
       ),
       flush: true,
     );
+    await launcher.writeAsString(
+      buildPortableUpdateLauncher(command.path),
+      flush: true,
+    );
 
     addLogAndPrint(.info, '解压版更新：退出后覆盖 $installDir', tag: 'Update');
-    await Process.start('cmd.exe', [
-      '/c',
-      script.path,
-    ], mode: ProcessStartMode.detached);
+    try {
+      await Process.start(
+        'wscript.exe',
+        [launcher.path],
+        mode: ProcessStartMode.detached,
+      );
+    } catch (e) {
+      // 极少数环境不让跑 wscript：退回直接拉 cmd（会闪一下窗口，但更新照做）
+      addLogAndPrint(
+        .warning,
+        '隐藏拉起更新脚本失败，改用普通方式：${removeNewlines('$e')}',
+        tag: 'Update',
+      );
+      await Process.start('cmd.exe', [
+        '/c',
+        command.path,
+      ], mode: ProcessStartMode.detached);
+    }
   }
+
+  /// 生成隐藏拉起覆盖脚本的 VBS（纯函数）：窗口样式 0 = 隐藏，
+  /// 这样 cmd 自己与它拉起的 tasklist / find / tar / ping 都不会冒控制台窗口
+  @visibleForTesting
+  static String buildPortableUpdateLauncher(String commandPath) =>
+      'CreateObject("WScript.Shell").Run "cmd.exe /c ""$commandPath""", 0, False\r\n';
 
   /// 生成解压版的覆盖脚本（纯函数，便于用例核对等待与引号处理）
   ///
