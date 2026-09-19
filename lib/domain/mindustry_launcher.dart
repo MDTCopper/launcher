@@ -43,7 +43,11 @@ class MindustryLauncher {
       return errorOutput.contains('java version') ||
           errorOutput.contains('openjdk version');
     } catch (e) {
-      addLogAndPrint(.warning, 'Java 环境校验失败：${removeNewlines('$e')}', tag: 'Launch');
+      addLogAndPrint(
+        .warning,
+        'Java 环境校验失败：${removeNewlines('$e')}',
+        tag: 'Launch',
+      );
       return false;
     }
   }
@@ -66,12 +70,18 @@ class MindustryLauncher {
     // 校验 Jar 文件是否存在
     final jarFile = File(mindustry.resolvedJarPath);
     if (!await jarFile.exists()) {
-      addLogAndPrint(.warning, '游戏本体不存在：${mindustry.resolvedJarPath}', tag: 'Launch');
+      addLogAndPrint(
+        .warning,
+        '游戏本体不存在：${mindustry.resolvedJarPath}',
+        tag: 'Launch',
+      );
       return false;
     }
 
     // 走加载器时先确认 loader jar 在：没有就别硬起（调用方会收尾成启动失败）
-    final loaderPath = mindustry.isViaLoader ? usableLoaderPath(mindustry) : null;
+    final loaderPath = mindustry.isViaLoader
+        ? usableLoaderPath(mindustry)
+        : null;
     if (mindustry.isViaLoader && loaderPath == null) {
       addLogAndPrint(
         .warning,
@@ -99,12 +109,7 @@ class MindustryLauncher {
       final javaCmd = javaExecutable ?? 'java';
 
       // 隔离时补环境变量：官方 ClientLauncher 先读 -Dmindustry.data.dir、读不到退回
-      // MINDUSTRY_DATA_DIR；更低版本则直接读 MINDUSTRY 环境变量（旧写法）。
-      // 实测 v88 类老版本（io.anuke 时代）Windows 数据目录固定取 %APPDATA%\Mindustry，
-      // 不认任何数据开关，需用 APPDATA 环境变量定向到隔离容器（新版 -D 优先，APPDATA 无副作用）。
-      // Process.start 传 environment 会整体替换子进程环境，需手动合并父环境，避免丢 PATH 等。
-      // 走加载器时不做这套：数据目录由加载器的 -D 接管（它自己给游戏注入 MINDUSTRY_DATA_DIR），
-      // 再叠环境变量只会让两边指的地方不一致
+      // MINDUSTRY_DATA_DIR；更低版本则直接读 MINDUSTRY 环境变量
       final environment = mindustry.isolation && !mindustry.isViaLoader
           ? {
               ...Platform.environment,
@@ -185,7 +190,11 @@ class MindustryLauncher {
       _jarProcess = null;
       return true;
     } catch (e) {
-      addLogAndPrint(.warning, '关闭游戏进程失败：${removeNewlines('$e')}', tag: 'Launch');
+      addLogAndPrint(
+        .warning,
+        '关闭游戏进程失败：${removeNewlines('$e')}',
+        tag: 'Launch',
+      );
       return false;
     }
   }
@@ -266,10 +275,6 @@ class MindustryLauncher {
   }
 
   /// 删除残留的 Mindustry 启动哨兵文件 launchid.dat
-  ///
-  /// 该文件由游戏在启动完成（`finishLaunch`）时自行删除；若启动器在游戏
-  /// 完全启动前终止了进程，文件会残留，导致下次启动被 Mindustry 误判为
-  /// 「mod 加载崩溃」而全部禁用 mod
   /// 游戏自身崩溃退出时不清理，保留原生的崩溃保护机制
   Future<void> _removeLaunchSentinelIfAny() async {
     final dataPath = _dataPath;
@@ -281,7 +286,11 @@ class MindustryLauncher {
         addLogAndPrint(.info, '启动被中断：已删除残留的 launchid.dat', tag: 'Launch');
       }
     } catch (e) {
-      addLogAndPrint(.info, '删除 launchid.dat 失败：${removeNewlines('$e')}', tag: 'Launch');
+      addLogAndPrint(
+        .info,
+        '删除 launchid.dat 失败：${removeNewlines('$e')}',
+        tag: 'Launch',
+      );
     }
   }
 }
