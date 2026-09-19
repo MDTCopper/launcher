@@ -31,6 +31,7 @@ import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
@@ -347,27 +348,6 @@ pause
         .map((arg) => arg.contains(' ') ? '"$arg"' : arg)
         .join(' ');
     return '#!/bin/sh\njava $argLine\n';
-  }
-
-  /// 选模组目录：走加载器的版本有两个（Copper 原生 `<数据>/copper/mods` 与原版 `<数据>/mods`），
-  /// 弹一个小菜单让用户挑；只有一个目录时直接用，不打扰
-  Future<({String path, String name})?> _chooseModsFolder() async {
-    final modsPaths = _mindustry.modsPaths;
-    if (modsPaths.isEmpty) return null;
-    if (modsPaths.length == 1) return (path: modsPaths.first, name: 'mods');
-
-    return _showChooser<({String path, String name})>([
-      (
-        label: 'Copper 模组',
-        icon: Icons.extension_outlined,
-        value: (path: modsPaths[0], name: 'copper-mods'),
-      ),
-      (
-        label: '原版模组',
-        icon: Icons.widgets_outlined,
-        value: (path: modsPaths[1], name: 'mods'),
-      ),
-    ]);
   }
 
   Future<void> _openFolder(String folderPath) async {
@@ -715,14 +695,12 @@ pause
                       _openFolder(_mindustry.schematicsPath);
                     },
                   ),
-                  IconTextButton(
+                  _ModsFolderButton(
+                    mindustry: _mindustry,
                     width: 136,
                     icon: LineIcons.puzzlePiece,
-                    content: '模组文件夹',
-                    onTap: () async {
-                      final folder = await _chooseModsFolder();
-                      if (folder != null) await _openFolder(folder.path);
-                    },
+                    label: '模组文件夹',
+                    onPick: (path, _) => _openFolder(path),
                   ),
                   IconTextButton(
                     width: 136,
@@ -833,15 +811,11 @@ pause
                     content: '地图',
                     onTap: () => _exportFolder(_mindustry.mapsPath, 'maps'),
                   ),
-                  IconTextButton(
+                  _ModsFolderButton(
+                    mindustry: _mindustry,
                     icon: LineIcons.puzzlePiece,
-                    content: '模组',
-                    onTap: () async {
-                      final folder = await _chooseModsFolder();
-                      if (folder != null) {
-                        await _exportFolder(folder.path, folder.name);
-                      }
-                    },
+                    label: '模组',
+                    onPick: (path, name) => _exportFolder(path, name),
                   ),
                   IconTextButton(
                     icon: Icons.paste,
@@ -1224,6 +1198,77 @@ class _SettingState extends State<_Setting> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 模组文件夹按钮：走加载器的版本有两个模组目录（Copper 原生 / 原版），
+/// **点击**弹菜单选一个；只有一个目录时直接执行 [onPick]
+///
+/// 用 [MenuLayer] 而不是自己拼弹窗：位置策略、点外部关闭、Esc 关闭都由它负责
+class _ModsFolderButton extends StatefulWidget {
+  const _ModsFolderButton({
+    required this.mindustry,
+    required this.icon,
+    required this.label,
+    required this.onPick,
+    this.width,
+  });
+
+  final Mindustry mindustry;
+  final IconData icon;
+  final String label;
+
+  /// 选中目录后回调：`(目录绝对路径, 建议的导出名)`
+  final void Function(String path, String name) onPick;
+
+  final double? width;
+
+  @override
+  State<_ModsFolderButton> createState() => _ModsFolderButtonState();
+}
+
+class _ModsFolderButtonState extends State<_ModsFolderButton> {
+  final PopupOverlayController _menuController = PopupOverlayController();
+
+  @override
+  Widget build(BuildContext context) {
+    final modsPaths = widget.mindustry.modsPaths;
+
+    final button = IconTextButton(
+      width: widget.width,
+      icon: widget.icon,
+      content: widget.label,
+      onTap: modsPaths.length <= 1
+          ? () => widget.onPick(modsPaths.first, 'mods')
+          : _menuController.open,
+    );
+    if (modsPaths.length <= 1) return button;
+
+    return MenuLayer(
+      controller: _menuController,
+      //点击才开：右键 / 长按保持默认行为（别在这里抢）
+      rightClickTrigger: false,
+      longPressTrigger: false,
+      menuBuilder: (_, controller) => [
+        MenuButton(
+          icon: const Icon(Icons.extension_outlined),
+          label: 'Copper',
+          onTap: () {
+            controller.dismiss();
+            widget.onPick(modsPaths[0], 'copper-mods');
+          },
+        ),
+        MenuButton(
+          icon: const Icon(Icons.widgets_outlined),
+          label: '原版',
+          onTap: () {
+            controller.dismiss();
+            widget.onPick(modsPaths[1], 'mods');
+          },
+        ),
+      ],
+      child: button,
     );
   }
 }

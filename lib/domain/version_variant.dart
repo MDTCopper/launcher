@@ -96,22 +96,17 @@ Future<Mindustry?> createVersionVariant({
 
   fold.versions.add(version);
   config.save();
-  final launcherInfo = targetLauncher == LauncherType.copper
-      ? 'Copper 加载器（${targetLauncherPath ?? '未指定 loader'}）'
-      : '原版';
+  final launcherLabel = targetLauncher == LauncherType.copper ? 'Copper' : '原版';
   addLog(
     .info,
-    '新建变体 [${version.tag}]：游戏本体与 [${source.tag}] 共用，路径 ${version.jarPath}；'
-    '启动方式 $launcherInfo；数据目录 ${version.dataPath}；'
-    '继承${copied.isEmpty ? '无' : copied.join('、')}',
+    '新建变体 [${version.tag}]：本体与 [${source.tag}] 共用，启动方式 $launcherLabel，'
+    '数据目录 ${version.dataPath}，继承${copied.isEmpty ? '无' : copied.join('、')}',
     tag: 'Version',
   );
   addNotice(
     icon: Icons.check_box_outlined,
     title: '已新建变体',
-    content: '[${version.tag}] 已创建（$launcherInfo，存档隔离已开启）'
-        '${copied.isEmpty ? '' : '，继承 ${copied.join('、')}'}',
-    duration: const Duration(seconds: 6),
+    content: '[${version.tag}]（$launcherLabel）',
   );
   return version;
 }
