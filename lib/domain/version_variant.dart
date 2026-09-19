@@ -43,12 +43,17 @@ enum VersionDataKind {
 /// - 默认**开隔离**：不隔离的话新版本会继续用全局数据目录，跟源版本混在一起，"区分"就不成立
 /// - [inherit] 里的数据从源版本的数据目录**拷贝**过去（拷贝而非链接：Windows 下目录符号
 ///   链接要开发者模式或管理员权限）
+/// - [launcher] / [launcherPath] 用于「换一种启动方式建一个版本」：不传就与源版本一致
 ///
 /// 返回新建的版本；用户取消时返回 null
 Future<Mindustry?> createVersionVariant({
   required Mindustry source,
   VersionFold? targetFold,
   BuildContext? context,
+  LauncherType? launcher,
+  String? launcherPath,
+  String tagSuffix = '副本',
+  String dialogTitle = '新建变体',
 }) async {
   final options = await showAnimatedDialog<
     ({String tag, Set<VersionDataKind> inherit})
@@ -57,14 +62,21 @@ Future<Mindustry?> createVersionVariant({
     pageBuilder: (_, _, _) => _VariantDialog(
       source: source,
       usedTags: versionTags(),
+      tagSuffix: tagSuffix,
+      title: dialogTitle,
     ),
   );
   if (options == null) return null;
 
+  //不传 launcher 就是照抄源版本（含它用的 loader）；传了则以传入的为准
+  final targetLauncher = launcher ?? source.launcher;
+  final targetLauncherPath = launcher == null ? source.launcherPath : launcherPath;
+
   final fold = targetFold ?? _foldOf(source);
   final version = Mindustry(
     id: const Uuid().v4(),
-    launcher: source.launcher,
+    launcher: targetLauncher,
+    launcherPath: targetLauncherPath,
     tag: options.tag,
     jarPath: source.jarPath,
     isBe: source.isBe,
@@ -84,16 +96,20 @@ Future<Mindustry?> createVersionVariant({
 
   fold.versions.add(version);
   config.save();
+  final launcherInfo = targetLauncher == LauncherType.copper
+      ? 'Copper 加载器（${targetLauncherPath ?? '未指定 loader'}）'
+      : '原版';
   addLog(
     .info,
     '新建变体 [${version.tag}]：游戏本体与 [${source.tag}] 共用，路径 ${version.jarPath}；'
-    '数据目录 ${version.dataPath}；继承${copied.isEmpty ? '无' : copied.join('、')}',
+    '启动方式 $launcherInfo；数据目录 ${version.dataPath}；'
+    '继承${copied.isEmpty ? '无' : copied.join('、')}',
     tag: 'Version',
   );
   addNotice(
     icon: Icons.check_box_outlined,
     title: '已新建变体',
-    content: '[${version.tag}] 已创建（存档隔离已开启）'
+    content: '[${version.tag}] 已创建（$launcherInfo，存档隔离已开启）'
         '${copied.isEmpty ? '' : '，继承 ${copied.join('、')}'}',
     duration: const Duration(seconds: 6),
   );
@@ -150,12 +166,22 @@ Future<int> _copyDirectory(String from, String to) async {
 
 /// 新建变体的参数弹窗：新 tag + 要继承哪几类数据
 class _VariantDialog extends StatefulWidget {
-  const _VariantDialog({required this.source, required this.usedTags});
+  const _VariantDialog({
+    required this.source,
+    required this.usedTags,
+    this.tagSuffix = '副本',
+    this.title = '新建变体',
+  });
 
   final Mindustry source;
 
   ///已占用的版本 tag（跨 fold），用于查重
   final Set<String> usedTags;
+
+  ///默认新标签的后缀（换启动器新建时用「Copper」之类更好认）
+  final String tagSuffix;
+
+  final String title;
 
   @override
   State<_VariantDialog> createState() => _VariantDialogState();
@@ -163,7 +189,7 @@ class _VariantDialog extends StatefulWidget {
 
 class _VariantDialogState extends State<_VariantDialog> {
   late final TextEditingController _tagController = TextEditingController(
-    text: '${widget.source.tag} 副本',
+    text: '${widget.source.tag} ${widget.tagSuffix}',
   );
 
   late String? _error = _validate(_tagController.text);
@@ -228,7 +254,7 @@ class _VariantDialogState extends State<_VariantDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: 12,
             children: [
-              Text('新建变体', style: theme.textTheme.titleLarge),
+              Text(widget.title, style: theme.textTheme.titleLarge),
               Text(
                 '游戏本体与 [${widget.source.tag}] 共用（不复制），新版本默认开启存档隔离',
                 style: theme.textTheme.bodySmall,

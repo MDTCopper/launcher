@@ -9,12 +9,9 @@ import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
-import 'package:copper_launcher/domain/task.dart';
-import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
-import 'package:copper_launcher/util/io/java/java_compat.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -168,11 +165,11 @@ class _AboutState extends State<_About> {
     return version == null ? 'Copper Loader' : 'Copper Loader $version';
   }
 
-  /// 更换加载器：从仓库下最新，或选本地 jar
-  ///
-  /// 旧 loader 留在库里不动（别的版本可能还在用，也方便回退）
-  Future<void> _replaceLoader() async {
-    final source = await showAnimatedDialog<String>(
+  /// 弹一个居中小选择面板，返回选中项的值（[choices] 的形状与顺序即显示顺序）
+  Future<T?> _showChooser<T>(
+    List<({String label, IconData icon, T value})> choices,
+  ) {
+    return showAnimatedDialog<T>(
       context: context,
       pageBuilder: (dialogContext, _, _) => Center(
         child: Material(
@@ -187,151 +184,80 @@ class _AboutState extends State<_About> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconTextButton(
-                  icon: Icons.cloud_download_outlined,
-                  content: '从 GitHub 下载最新',
-                  onTap: () => Navigator.of(dialogContext).pop('remote'),
-                ),
-                const SizedBox(height: 4),
-                IconTextButton(
-                  icon: Icons.folder_open,
-                  content: '选本地 jar',
-                  onTap: () => Navigator.of(dialogContext).pop('local'),
-                ),
+                for (var i = 0; i < choices.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 4),
+                  IconTextButton(
+                    icon: choices[i].icon,
+                    content: choices[i].label,
+                    onTap: () =>
+                        Navigator.of(dialogContext).pop(choices[i].value),
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
     );
-    if (source == null || !mounted) return;
-
-    if (source == 'local') {
-      await _importLoaderFromFile();
-    } else {
-      await _downloadLatestLoader();
-    }
   }
 
-  /// 从仓库 release 下最新桌面 loader，收进库并指给这个版本
-  Future<void> _downloadLatestLoader() async {
+  /// 取一个可用的 loader 路径：本版本指定过、库里也有就直接用；
+  /// 否则问用户要（从仓库下最新 / 选本地 jar），拿不到返回 null
+  Future<String?> _ensureLoaderPath() async {
+    final existing = LoaderLibrary.usablePath(_mindustry.resolvedLauncherPath);
+    if (existing != null) return existing;
+
+    final source = await _showChooser<String>([
+      (
+        label: '从 GitHub 下载最新',
+        icon: Icons.cloud_download_outlined,
+        value: 'remote',
+      ),
+      (label: '选本地 jar', icon: Icons.folder_open, value: 'local'),
+    ]);
+    if (source == null || !mounted) return null;
+
+    if (source == 'local') {
+      final picked = await PathSelector.selectFile(
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
+        ],
+      );
+      if (picked == null || !mounted) return null;
+      try {
+        return await LoaderLibrary.importIntoLibrary(File(picked));
+      } catch (e) {
+        addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
+        debugPrint('添加加载器失败：$e');
+        return null;
+      }
+    }
+
     final latest = await LoaderLibrary.fetchLatestDesktop();
-    if (!mounted) return;
+    if (!mounted) return null;
     if (latest == null) {
       addNotice(
         icon: Icons.close,
         title: '查询失败',
         content: '没拿到加载器版本信息：稍后再试，或选本地 jar',
       );
-      return;
+      return null;
     }
-
-    addTask(
-      SimpleTask(
-        type: TaskType.download,
-        describe: '正在获取 Copper 加载器 ${latest.tag}',
-        futureTask: (task) async {
-          final path = await LoaderLibrary.downloadDesktop(
-            tag: latest.tag,
-            url: latest.url,
-            onProgress: (progress) {
-              task.progress = progress;
-              task.updateDisplay();
-            },
-          );
-          if (!mounted) return;
-          setState(() {
-            _mindustry.launcherPath = AppPaths.toStoredPath(path);
-          });
-          await config.save();
-        },
-      ),
-    );
     addNotice(
       icon: Icons.download,
       title: '正在下载加载器',
-      content: 'Copper Loader ${latest.tag}：进度见任务抽屉',
+      content: 'Copper Loader ${latest.tag}',
     );
-  }
-
-  /// 选本地 loader jar，收进加载器库并指给这个版本
-  Future<void> _importLoaderFromFile() async {
-    final picked = await PathSelector.selectFile(
-      acceptedTypeGroups: const [
-        XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
-      ],
-    );
-    if (picked == null || !mounted) return;
-
-    String imported;
     try {
-      imported = await LoaderLibrary.importIntoLibrary(File(picked));
+      return await LoaderLibrary.downloadDesktop(
+        tag: latest.tag,
+        url: latest.url,
+      );
     } catch (e) {
-      addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
-      debugPrint('更换加载器失败：$e');
-      return;
+      addNotice(icon: Icons.close, title: '下载失败', content: '加载器没下下来：稍后再试或选本地 jar');
+      debugPrint('下载加载器失败：$e');
+      return null;
     }
-    if (!mounted) return;
-
-    setState(() {
-      _mindustry.launcherPath = AppPaths.toStoredPath(imported);
-    });
-    await config.save();
-    final version = LoaderLibrary.versionOf(File(imported));
-    addNotice(
-      icon: Icons.check,
-      title: '已更换加载器',
-      content: version == null ? p.basename(imported) : 'Copper Loader $version',
-    );
-  }
-
-  /// 切换启动方式：官方 Jar ↔ Copper 模组加载器
-  ///
-  /// 切到 Copper 时需要一个 loader jar：库里没有就让你选一个，
-  /// 复制进 `<数据根>/copper_loader/`（多版本复用同一份）
-  Future<void> _toggleLauncherType() async {
-    if (_mindustry.isViaLoader) {
-      setState(() {
-        _mindustry.launcher = LauncherType.mindustry;
-        _mindustry.launcherPath = null;
-      });
-      await config.save();
-      addNotice(
-        icon: Icons.check,
-        title: '已改回官方启动',
-        content: '这个版本会直接用游戏本体启动',
-      );
-      return;
-    }
-
-    var loaderPath = LoaderLibrary.usablePath(_mindustry.resolvedLauncherPath);
-    if (loaderPath == null) {
-      final picked = await PathSelector.selectFile(
-        acceptedTypeGroups: const [
-          XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
-        ],
-      );
-      if (picked == null || !mounted) return;
-      try {
-        loaderPath = await LoaderLibrary.importIntoLibrary(File(picked));
-      } catch (e) {
-        addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
-        debugPrint('添加加载器失败：$e');
-        return;
-      }
-    }
-    if (!mounted) return;
-
-    setState(() {
-      _mindustry.launcher = LauncherType.copper;
-      _mindustry.launcherPath = AppPaths.toStoredPath(loaderPath!);
-    });
-    await config.save();
-    addNotice(
-      icon: Icons.check,
-      title: '已切换到 Copper 启动',
-      content: '需要 Java ${JavaCompat.loaderMinJavaMajor}+，首次启动会释放核心模组',
-    );
   }
 
   /// 内容对齐 [MindustryLauncher.start]：-Xmx 内存 + 隔离数据目录 +
@@ -430,45 +356,18 @@ pause
     if (modsPaths.isEmpty) return null;
     if (modsPaths.length == 1) return (path: modsPaths.first, name: 'mods');
 
-    final chosen = await showAnimatedDialog<({String path, String name})>(
-      context: context,
-      pageBuilder: (dialogContext, _, _) => Center(
-        child: Material(
-          color: Colors.transparent,
-          elevation: 8,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(dialogContext).colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconTextButton(
-                  icon: Icons.extension_outlined,
-                  content: 'Copper 模组',
-                  onTap: () => Navigator.of(dialogContext).pop((
-                    path: modsPaths[0],
-                    name: 'copper-mods',
-                  )),
-                ),
-                const SizedBox(height: 4),
-                IconTextButton(
-                  icon: Icons.widgets_outlined,
-                  content: '原版模组',
-                  onTap: () => Navigator.of(dialogContext).pop((
-                    path: modsPaths[1],
-                    name: 'mods',
-                  )),
-                ),
-              ],
-            ),
-          ),
-        ),
+    return _showChooser<({String path, String name})>([
+      (
+        label: 'Copper 模组',
+        icon: Icons.extension_outlined,
+        value: (path: modsPaths[0], name: 'copper-mods'),
       ),
-    );
-    return chosen;
+      (
+        label: '原版模组',
+        icon: Icons.widgets_outlined,
+        value: (path: modsPaths[1], name: 'mods'),
+      ),
+    ]);
   }
 
   Future<void> _openFolder(String folderPath) async {
@@ -486,6 +385,41 @@ pause
   /// 当前页只认 [_mindustry]，新版本会出现在版本列表里，所以这里不用刷新
   Future<void> _createVariant() async {
     await createVersionVariant(source: _mindustry, context: context);
+  }
+
+  /// 换一种启动方式，以当前版本为模板新建一个版本
+  ///
+  /// 「换回原版」与「换个加载器」本来就是同一件事：拿这个版本当模板、
+  /// 换一个启动器建新版本，而不是就地改当前版本
+  Future<void> _createVariantWithLauncher() async {
+    final launcher = await _showChooser<LauncherType>([
+      (
+        label: '原版 Jar 启动',
+        icon: Icons.rocket_launch_outlined,
+        value: LauncherType.mindustry,
+      ),
+      (
+        label: 'Copper 加载器启动',
+        icon: Icons.extension_outlined,
+        value: LauncherType.copper,
+      ),
+    ]);
+    if (launcher == null || !mounted) return;
+
+    String? loaderPath;
+    if (launcher == LauncherType.copper) {
+      loaderPath = await _ensureLoaderPath();
+      if (loaderPath == null || !mounted) return;
+    }
+
+    await createVersionVariant(
+      source: _mindustry,
+      context: context,
+      launcher: launcher,
+      launcherPath: loaderPath == null ? null : AppPaths.toStoredPath(loaderPath),
+      tagSuffix: launcher == LauncherType.copper ? 'Copper' : '原版',
+      dialogTitle: '换启动器新建',
+    );
   }
 
   /// 导入资源：逐个识别 jar/mod/地图/蓝图 文件并导入
@@ -670,20 +604,6 @@ pause
                   content: '生成启动脚本',
                   onTap: _generateLaunchScript,
                 ),
-              //切换启动方式：官方 Jar ↔ Copper 模组加载器
-              if (isDesktop)
-                IconTextButton(
-                  icon: Icons.extension_outlined,
-                  content: _mindustry.isViaLoader ? '改回官方启动' : '转换为 Copper 启动',
-                  onTap: _toggleLauncherType,
-                ),
-              //换一个 loader（选本地 jar 收进加载器库，多版本复用同一份）
-              if (isDesktop && _mindustry.isViaLoader)
-                IconTextButton(
-                  icon: Icons.swap_horiz,
-                  content: '更换加载器',
-                  onTap: _replaceLoader,
-                ),
               IconTextButton(
                 icon: Icons.delete,
                 content: '删除版本',
@@ -832,10 +752,22 @@ pause
                 '模组 / 存档 / 地图 / 蓝图 / 游戏设置可以分别勾选继承',
                 style: theme.textTheme.bodyMedium,
               ),
-              IconTextButton(
-                icon: Icons.copy_all,
-                content: '新建变体',
-                onTap: _createVariant,
+              Row(
+                spacing: 8,
+                children: [
+                  IconTextButton(
+                    icon: Icons.copy_all,
+                    content: '新建变体',
+                    onTap: _createVariant,
+                  ),
+                  //换启动器（原版 ↔ Copper 加载器）也是建新版本，不是改当前这个
+                  if (isDesktop)
+                    IconTextButton(
+                      icon: Icons.extension_outlined,
+                      content: '换启动器新建',
+                      onTap: _createVariantWithLauncher,
+                    ),
+                ],
               ),
             ],
           ),
