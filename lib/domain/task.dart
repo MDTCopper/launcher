@@ -148,6 +148,10 @@ class SimpleTask extends Task {
       await futureTask?.call(this);
       progress = 1.0;
       status = TaskStatus.completed;
+    } catch (e) {
+      //任务收尾不能只靠调用方：异常抛出去会让它一直挂在「进行中」（抽屉只列 process）
+      status = TaskStatus.failed;
+      debugPrint('简单任务失败：$e');
     } finally {
       // 完成（或异常中止）后必须广播，否则 manager._notify 收不到 → 进度/列表不刷新
       updateDisplay();

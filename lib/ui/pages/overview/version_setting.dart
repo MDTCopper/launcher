@@ -9,6 +9,8 @@ import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
+import 'package:copper_launcher/domain/task.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
@@ -166,10 +168,94 @@ class _AboutState extends State<_About> {
     return version == null ? 'Copper Loader' : 'Copper Loader $version';
   }
 
-  /// 更换加载器：选一个本地 loader jar 收进加载器库并指给这个版本
+  /// 更换加载器：从仓库下最新，或选本地 jar
   ///
   /// 旧 loader 留在库里不动（别的版本可能还在用，也方便回退）
   Future<void> _replaceLoader() async {
+    final source = await showAnimatedDialog<String>(
+      context: context,
+      pageBuilder: (dialogContext, _, _) => Center(
+        child: Material(
+          color: Colors.transparent,
+          elevation: 8,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(dialogContext).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconTextButton(
+                  icon: Icons.cloud_download_outlined,
+                  content: '从 GitHub 下载最新',
+                  onTap: () => Navigator.of(dialogContext).pop('remote'),
+                ),
+                const SizedBox(height: 4),
+                IconTextButton(
+                  icon: Icons.folder_open,
+                  content: '选本地 jar',
+                  onTap: () => Navigator.of(dialogContext).pop('local'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    if (source == 'local') {
+      await _importLoaderFromFile();
+    } else {
+      await _downloadLatestLoader();
+    }
+  }
+
+  /// 从仓库 release 下最新桌面 loader，收进库并指给这个版本
+  Future<void> _downloadLatestLoader() async {
+    final latest = await LoaderLibrary.fetchLatestDesktop();
+    if (!mounted) return;
+    if (latest == null) {
+      addNotice(
+        icon: Icons.close,
+        title: '查询失败',
+        content: '没拿到加载器版本信息：稍后再试，或选本地 jar',
+      );
+      return;
+    }
+
+    addTask(
+      SimpleTask(
+        type: TaskType.download,
+        describe: '正在获取 Copper 加载器 ${latest.tag}',
+        futureTask: (task) async {
+          final path = await LoaderLibrary.downloadDesktop(
+            tag: latest.tag,
+            url: latest.url,
+            onProgress: (progress) {
+              task.progress = progress;
+              task.updateDisplay();
+            },
+          );
+          if (!mounted) return;
+          setState(() {
+            _mindustry.launcherPath = AppPaths.toStoredPath(path);
+          });
+          await config.save();
+        },
+      ),
+    );
+    addNotice(
+      icon: Icons.download,
+      title: '正在下载加载器',
+      content: 'Copper Loader ${latest.tag}：进度见任务抽屉',
+    );
+  }
+
+  /// 选本地 loader jar，收进加载器库并指给这个版本
+  Future<void> _importLoaderFromFile() async {
     final picked = await PathSelector.selectFile(
       acceptedTypeGroups: const [
         XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
@@ -335,6 +421,54 @@ pause
         .map((arg) => arg.contains(' ') ? '"$arg"' : arg)
         .join(' ');
     return '#!/bin/sh\njava $argLine\n';
+  }
+
+  /// 选模组目录：走加载器的版本有两个（Copper 原生 `<数据>/copper/mods` 与原版 `<数据>/mods`），
+  /// 弹一个小菜单让用户挑；只有一个目录时直接用，不打扰
+  Future<({String path, String name})?> _chooseModsFolder() async {
+    final modsPaths = _mindustry.modsPaths;
+    if (modsPaths.isEmpty) return null;
+    if (modsPaths.length == 1) return (path: modsPaths.first, name: 'mods');
+
+    final chosen = await showAnimatedDialog<({String path, String name})>(
+      context: context,
+      pageBuilder: (dialogContext, _, _) => Center(
+        child: Material(
+          color: Colors.transparent,
+          elevation: 8,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(dialogContext).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconTextButton(
+                  icon: Icons.extension_outlined,
+                  content: 'Copper 模组',
+                  onTap: () => Navigator.of(dialogContext).pop((
+                    path: modsPaths[0],
+                    name: 'copper-mods',
+                  )),
+                ),
+                const SizedBox(height: 4),
+                IconTextButton(
+                  icon: Icons.widgets_outlined,
+                  content: '原版模组',
+                  onTap: () => Navigator.of(dialogContext).pop((
+                    path: modsPaths[1],
+                    name: 'mods',
+                  )),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return chosen;
   }
 
   Future<void> _openFolder(String folderPath) async {
@@ -665,8 +799,9 @@ pause
                     width: 136,
                     icon: LineIcons.puzzlePiece,
                     content: '模组文件夹',
-                    onTap: () {
-                      _openFolder(_mindustry.modsPath);
+                    onTap: () async {
+                      final folder = await _chooseModsFolder();
+                      if (folder != null) await _openFolder(folder.path);
                     },
                   ),
                   IconTextButton(
@@ -769,7 +904,12 @@ pause
                   IconTextButton(
                     icon: LineIcons.puzzlePiece,
                     content: '模组',
-                    onTap: () => _exportFolder(_mindustry.modsPath, 'mods'),
+                    onTap: () async {
+                      final folder = await _chooseModsFolder();
+                      if (folder != null) {
+                        await _exportFolder(folder.path, folder.name);
+                      }
+                    },
                   ),
                   IconTextButton(
                     icon: Icons.paste,
