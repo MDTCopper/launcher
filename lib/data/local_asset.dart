@@ -281,6 +281,7 @@ class Mod {
     required this.author,
     required this.hidden,
     required this.dependencies,
+    this.copper = false,
   });
 
   ///存储路径
@@ -312,6 +313,11 @@ class Mod {
   @JsonKey(defaultValue: [])
   final List<dynamic> dependencies;
 
+  /// 是不是 Copper 原生模组（元数据为 `copper.mod.json` / `copper.mod.hjson`）：
+  /// 这类模组放在 `<数据目录>/copper/mods/`，由加载器加载
+  @JsonKey(defaultValue: false)
+  final bool copper;
+
   /// mod 状态标记。
   ///
   /// 非持久化运行时字段，由 [applyModStates] 设置；默认 [ModState.enabled]。
@@ -338,6 +344,7 @@ class Mod {
     }));
     json['java'] = bool.tryParse(json['java'] ?? '');
     json['hidden'] = bool.tryParse(json['hidden'] ?? '');
+    json['copper'] = bool.tryParse(json['copper'] ?? '');
     return _$ModFromJson(json)..icon = icon;
   }
 

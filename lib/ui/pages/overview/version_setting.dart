@@ -1120,13 +1120,21 @@ class _ModEntry {
   /// 模组文件实际路径（启用态为 mods/xx.jar，禁用态为 mods/xx.jar.disable）
   String filePath;
 
-  /// 模组元数据（从 jar/zip 内 mod.json / mod.hjson 解析，含图标）
+  /// 模组元数据（从 jar/zip 内 mod.json / mod.hjson / copper.mod.json 解析，含图标）
   final Mod mod;
 
   /// 是否启用（settings `mod-<name>-enabled`，缺省 true）
   bool enabled;
 
-  _ModEntry({required this.filePath, required this.mod, required this.enabled});
+  /// 是不是加载器的核心模组（`copper-core.jar`）：不能禁用、不能删
+  final bool isCoreMod;
+
+  _ModEntry({
+    required this.filePath,
+    required this.mod,
+    required this.enabled,
+    this.isCoreMod = false,
+  });
 }
 
 /// 模组分类
@@ -1163,35 +1171,43 @@ class _ModsState extends State<_Mods> {
     super.dispose();
   }
 
-  /// 模组目录：版本数据目录/mods
-  String get _modsPath => _mindustry.modsPath;
+  /// 模组目录：走加载器时 Copper 原生模组在 `<数据目录>/copper/mods`，
+  /// 原版模组仍在 `<数据目录>/mods`（加载器两个目录都扫）
+  List<String> get _modsPaths => _mindustry.isViaLoader
+      ? [
+          p.join(_mindustry.dataPath, 'copper', 'mods'),
+          _mindustry.modsPath,
+        ]
+      : [_mindustry.modsPath];
 
   /// 扫描模组目录：jar/zip 为启用态，*.jar.disable / *.zip.disable 为禁用态
   Future<void> _loadMods() async {
     final entries = <_ModEntry>[];
-    final dir = Directory(_modsPath);
-    if (await dir.exists()) {
-      // settings.bin 中的启用状态（键：mod-<internalName>-enabled）
-      Map<String, bool> settingsStates = {};
-      final settingsFile = File(_mindustry.settingPath);
-      if (await settingsFile.exists()) {
-        try {
-          settingsStates = MindustrySettings.fromFile(
-            settingsFile.path,
-          ).modStates;
-        } catch (e) {
-          debugPrint('读取模组启用状态失败：$e');
-        }
+    // settings.bin 中的启用状态（键：mod-<internalName>-enabled）
+    Map<String, bool> settingsStates = {};
+    final settingsFile = File(_mindustry.settingPath);
+    if (await settingsFile.exists()) {
+      try {
+        settingsStates = MindustrySettings.fromFile(settingsFile.path).modStates;
+      } catch (e) {
+        debugPrint('读取模组启用状态失败：$e');
       }
+    }
+
+    final seenPaths = <String>{};
+    for (final modsPath in _modsPaths) {
+      final dir = Directory(modsPath);
+      if (!await dir.exists()) continue;
 
       await for (final entity in dir.list()) {
         if (entity is! File) continue;
-        final name = entity.path.split(Platform.pathSeparator).last;
+        final name = p.basename(entity.path);
         final disabled = name.endsWith('.disable');
         final baseName = disabled
             ? name.substring(0, name.length - '.disable'.length)
             : name;
         if (!baseName.endsWith('.jar') && !baseName.endsWith('.zip')) continue;
+        if (!seenPaths.add(p.normalize(entity.path).toLowerCase())) continue;
 
         final reader = await FileReader.fromPath(entity.path);
         final mod = reader.mod;
@@ -1200,7 +1216,12 @@ class _ModsState extends State<_Mods> {
         // 启用状态：settings 键为准（缺省 true），禁用态文件名兜底为 false
         final enabled = settingsStates[mod.internalName] ?? !disabled;
         entries.add(
-          _ModEntry(filePath: entity.path, mod: mod, enabled: enabled),
+          _ModEntry(
+            filePath: entity.path,
+            mod: mod,
+            enabled: enabled,
+            isCoreMod: baseName.startsWith('copper-core'),
+          ),
         );
       }
     }
@@ -1217,8 +1238,18 @@ class _ModsState extends State<_Mods> {
   /// 双保险：settings 控制游戏内状态；`.disable` 后缀让游戏 load() 直接
   /// 跳过该文件（官方 load 只扫 jar/zip，不识别 .disable）
   Future<void> _toggleMod(_ModEntry entry, bool enabled) async {
+    if (entry.isCoreMod) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '核心模组',
+        content: 'copper-core 由加载器维护，不能禁用',
+      );
+      return;
+    }
+
     final file = File(entry.filePath);
-    final modsDir = _modsPath;
+    // 模组可能在两个目录里（copper/mods 与 mods），按它自己所在的目录改名
+    final modsDir = p.dirname(entry.filePath);
     final baseName = p.basename(entry.filePath);
 
     final rawName = baseName.endsWith('.disable')
@@ -1265,6 +1296,14 @@ class _ModsState extends State<_Mods> {
 
   /// 删除模组：确认后删文件 + 移除 settings 记录
   void _deleteMod(_ModEntry entry) {
+    if (entry.isCoreMod) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '核心模组',
+        content: 'copper-core 由加载器维护，不能删除',
+      );
+      return;
+    }
     showConfirmationPopup(
       context: context,
       type: ConfirmationType.warning,
@@ -1295,9 +1334,9 @@ class _ModsState extends State<_Mods> {
     );
   }
 
-  /// 全选 / 取消全选当前列表
+  /// 全选 / 取消全选当前列表（核心模组不参与选择）
   void _toggleSelectAll() {
-    final visible = _visibleEntries();
+    final visible = _visibleEntries().where((e) => !e.isCoreMod).toList();
     if (visible.every((e) => _selectedIds.contains(e.mod.internalName))) {
       _selectedIds.removeAll(visible.map((e) => e.mod.internalName));
     } else {
@@ -1306,7 +1345,7 @@ class _ModsState extends State<_Mods> {
     setState(() {});
   }
 
-  /// 批量启停选中模组
+  /// 批量启停选中模组（核心模组会被 [_toggleMod] 自己挡掉）
   void _batchToggle(bool enabled) {
     final targets = _entries
         .where((e) => _selectedIds.contains(e.mod.internalName))
@@ -1317,10 +1356,12 @@ class _ModsState extends State<_Mods> {
     _clearSelection();
   }
 
-  /// 批量删除选中模组
+  /// 批量删除选中模组（核心模组不删）
   void _batchDelete() {
     final targets = _entries
-        .where((e) => _selectedIds.contains(e.mod.internalName))
+        .where(
+          (e) => _selectedIds.contains(e.mod.internalName) && !e.isCoreMod,
+        )
         .toList();
     showConfirmationPopup(
       context: context,
@@ -1363,10 +1404,9 @@ class _ModsState extends State<_Mods> {
           entry.mod.name.toLowerCase().contains(_searchText.toLowerCase()) ||
           entry.mod.author.toLowerCase().contains(_searchText.toLowerCase());
       if (!matchSearch) return false;
-      // Copper 独立筛选（叠加）
-      if (_copperOnly && !entry.mod.name.toLowerCase().contains('copper')) {
-        return false;
-      }
+      // Copper 独立筛选（叠加）：按元数据类型判断（`copper.mod.json`），
+      // 不靠模组名里有没有 "copper"
+      if (_copperOnly && !entry.mod.copper) return false;
       switch (_category) {
         case _ModCategory.all:
           return true;

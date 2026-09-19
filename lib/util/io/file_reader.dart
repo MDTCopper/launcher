@@ -310,17 +310,27 @@ class FileReader {
   }
 
   /// 返回 `(meta, icon)` —— meta 为 mod 元数据，icon 为 icon.png 原始字节。
+  ///
+  /// 原版模组的元数据是 `mod.json` / `mod.hjson`（字段平铺）；
+  /// Copper 原生模组是 `copper.mod.json` / `copper.mod.hjson`，结构为
+  /// `{ "version": 1, "meta": { … } }` —— 这里把 `meta` 摊平，让上层的 [Mod]
+  /// 用同一套字段读，并打上 `copper` 标记
   static ({Map<String, dynamic> meta, Uint8List? icon})? _tryModMeta(
     Uint8List bytes,
   ) {
     try {
+      const mindustryMetaNames = ['mod.json', 'mod.hjson'];
+      const copperMetaNames = ['copper.mod.json', 'copper.mod.hjson'];
+
       final archive = ZipDecoder().decodeBytes(bytes);
-      final modFile = archive.files.cast<ArchiveFile?>().firstWhere((f) {
+      final archiveFiles = archive.files.cast<ArchiveFile?>();
+      final modFile = archiveFiles.firstWhere((f) {
         if (f == null) return false;
         final parts = f.name.split('/');
         if (parts.length > 2) return false;
         final name = parts.last;
-        return name == 'mod.json' || name == 'mod.hjson';
+        return mindustryMetaNames.contains(name) ||
+            copperMetaNames.contains(name);
       }, orElse: () => null);
 
       if (modFile == null) return null;
@@ -329,12 +339,35 @@ class FileReader {
         modFile.content as List<int>,
         allowMalformed: true,
       );
-      final map = hjsonDecode(content, strict: false) as Map<String, dynamic>;
+      final decoded = hjsonDecode(content, strict: false) as Map<String, dynamic>;
+      final isCopper = copperMetaNames.contains(modFile.name.split('/').last);
+      final Map<String, dynamic> map;
+      if (isCopper) {
+        final copperMeta =
+            (decoded['meta'] as Map?)?.cast<String, dynamic>() ??
+            <String, dynamic>{};
+        map = {
+          ...copperMeta,
+          'copper': true,
+          //Copper 模组必须有 Java 主类，不用再探测
+          'java': true,
+        };
+      } else {
+        map = decoded;
+      }
       map['type'] = 'mod';
+
+      // 依赖：Copper 那边是「id → 版本过滤」的对象，原版是数组；统一成 id 列表
+      final dependencies = map['dependencies'];
+      if (dependencies is Map) {
+        map['dependencies'] = dependencies.keys.toList();
+      } else if (dependencies == null) {
+        map['dependencies'] = const <String>[];
+      }
 
       // 提取 icon.png 图片字节
       Uint8List? iconBytes;
-      final iconFile = archive.files.cast<ArchiveFile?>().firstWhere(
+      final iconFile = archiveFiles.firstWhere(
         (f) =>
             f != null &&
             f.name.split('/').last == 'icon.png' &&
@@ -345,16 +378,17 @@ class FileReader {
         iconBytes = Uint8List.fromList(iconFile.content as List<int>);
       }
 
-      // 检测 Java mod: 有 META-INF/ 目录，或有 .class 文件，或 mod.json 中有 main 字段
-      final isJava =
-          archive.files.cast<ArchiveFile?>().any((f) {
-            if (f == null) return false;
-            final name = f.name;
-            return name.startsWith('META-INF/') || name.endsWith('.class');
-          }) ||
-          map.containsKey('main');
-
-      if (isJava) map['java'] = true;
+      // 检测 Java mod（原版）：有 META-INF/ 目录、有 .class 文件、或 mod.json 里有 main
+      if (!isCopper) {
+        final isJava =
+            archiveFiles.any((f) {
+              if (f == null) return false;
+              final name = f.name;
+              return name.startsWith('META-INF/') || name.endsWith('.class');
+            }) ||
+            map.containsKey('main');
+        if (isJava) map['java'] = true;
+      }
 
       return (meta: map, icon: iconBytes);
     } catch (e) {

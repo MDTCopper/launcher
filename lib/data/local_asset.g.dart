@@ -88,6 +88,7 @@ Mod _$ModFromJson(Map<String, dynamic> json) => Mod(
   author: json['author'] as String? ?? '未知作者',
   hidden: json['hidden'] as bool?,
   dependencies: json['dependencies'] as List<dynamic>? ?? [],
+  copper: json['copper'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$ModToJson(Mod instance) => <String, dynamic>{
@@ -100,6 +101,7 @@ Map<String, dynamic> _$ModToJson(Mod instance) => <String, dynamic>{
   'description': instance.description,
   'hidden': instance.hidden,
   'dependencies': instance.dependencies,
+  'copper': instance.copper,
 };
 
 Schematic _$SchematicFromJson(Map<String, dynamic> json) => Schematic(
