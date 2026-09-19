@@ -63,18 +63,17 @@ Future<Mindustry?> createVersionVariant({
       ? source.launcherPath
       : launcherPath;
 
-  final options = await showAnimatedDialog<
-    ({String tag, Set<VersionDataKind> inherit})
-  >(
-    context: context,
-    pageBuilder: (_, _, _) => _VariantDialog(
-      source: source,
-      usedTags: versionTags(),
-      tagSuffix: tagSuffix,
-      title: dialogTitle,
-      launcher: targetLauncher,
-    ),
-  );
+  final options =
+      await showAnimatedDialog<({String tag, Set<VersionDataKind> inherit})>(
+        context: context,
+        pageBuilder: (_, _, _) => _VariantDialog(
+          source: source,
+          usedTags: versionTags(),
+          tagSuffix: tagSuffix,
+          title: dialogTitle,
+          launcher: targetLauncher,
+        ),
+      );
   if (options == null) return null;
 
   final fold = targetFold ?? _foldOf(source);
@@ -174,6 +173,38 @@ Future<int> _copyDirectory(String from, String to) async {
 }
 
 /// 新建变体的参数弹窗：新 tag + 要继承哪几类数据
+///
+/// 给用例留的构造入口：弹窗类是私有的，测试里没法直接 new
+@visibleForTesting
+Widget buildVariantDialogForTest({
+  required Mindustry source,
+  required Set<String> usedTags,
+  LauncherType launcher = LauncherType.mindustry,
+  String tagSuffix = '副本',
+}) => _VariantDialog(
+  source: source,
+  usedTags: usedTags,
+  launcher: launcher,
+  tagSuffix: tagSuffix,
+);
+
+/// 用例入口：完整走一遍参数弹窗并返回结果，但不落盘
+@visibleForTesting
+Future<({String tag, Set<VersionDataKind> inherit})?>
+showVariantDialogForTest({
+  required BuildContext context,
+  required Mindustry source,
+  required Set<String> usedTags,
+  LauncherType launcher = LauncherType.mindustry,
+}) => showAnimatedDialog<({String tag, Set<VersionDataKind> inherit})>(
+  context: context,
+  pageBuilder: (_, _, _) => _VariantDialog(
+    source: source,
+    usedTags: usedTags,
+    launcher: launcher,
+  ),
+);
+
 class _VariantDialog extends StatefulWidget {
   const _VariantDialog({
     required this.source,
@@ -207,7 +238,7 @@ class _VariantDialogState extends State<_VariantDialog> {
 
   late String? _error = _validate(_tagController.text);
 
-  ///默认继承哪几类：模组体积大、也最可能故意不一样，默认不勾，其余勾上
+  ///默认继承哪几类
   final Set<VersionDataKind> _inherit = {
     VersionDataKind.saves,
     VersionDataKind.maps,
@@ -218,9 +249,19 @@ class _VariantDialogState extends State<_VariantDialog> {
   @override
   void initState() {
     super.initState();
+    _sourceHasCopperMods = _hasCopperMods(widget.source);
     _tagController.addListener(
       () => setState(() => _error = _validate(_tagController.text)),
     );
+  }
+
+  ///源版本的数据目录里有没有 Copper 模组（只看顶层有没有东西，不用读完）
+  static bool _hasCopperMods(Mindustry source) {
+    final directory = Directory(
+      VersionDataKind.copperMods.pathIn(source.dataPath),
+    );
+    if (!directory.existsSync()) return false;
+    return directory.listSync().isNotEmpty;
   }
 
   @override
@@ -229,18 +270,29 @@ class _VariantDialogState extends State<_VariantDialog> {
     super.dispose();
   }
 
+  ///校验标签：按去空格后的值判断（输入法常会带出首尾空格），
+  ///创建时用的也是去空格后的值，两边保持一致
   String? _validate(String tag) {
-    final error = WindowsFileNameValidator.tagValidate(tag);
+    final trimmed = tag.trim();
+    final error = WindowsFileNameValidator.tagValidate(trimmed);
     if (error != null) return error;
-    if (widget.usedTags.contains(tag)) return '名称已存在';
+    if (widget.usedTags.contains(trimmed)) return '名称已存在';
     return null;
   }
 
-  ///能继承的种类：Copper 模组只有走加载器的新版本才列（原版版本用不到它）
+  ///源版本有没有 Copper 模组（决定要不要给这个继承项）
+  bool _sourceHasCopperMods = false;
+
+  ///能继承的种类
+  ///
+  /// Copper 模组只在**从 Copper 版本建 Copper 版本**、且源版本确实有 Copper 模组时才列：
+  /// 别的组合要么用不上它，要么搬过去也是空的
   List<VersionDataKind> get _kinds => [
     for (final kind in VersionDataKind.values)
       if (kind != VersionDataKind.copperMods ||
-          widget.launcher == LauncherType.copper)
+          (widget.launcher == LauncherType.copper &&
+              widget.source.isViaLoader &&
+              _sourceHasCopperMods))
         kind,
   ];
 
@@ -277,7 +329,7 @@ class _VariantDialogState extends State<_VariantDialog> {
             children: [
               Text(widget.title, style: theme.textTheme.titleLarge),
               Text(
-                '游戏本体与 [${widget.source.tag}] 共用（不复制），新版本默认开启存档隔离',
+                '游戏本体与 [${widget.source.tag}] 共用，新版本默认开启存档隔离',
                 style: theme.textTheme.bodySmall,
               ),
               OutlinedTextField(
@@ -285,7 +337,7 @@ class _VariantDialogState extends State<_VariantDialog> {
                 controller: _tagController,
                 error: _error,
               ),
-              Text('要继承的数据（点选切换）', style: theme.textTheme.bodySmall),
+              Text('要继承的数据', style: theme.textTheme.bodySmall),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -318,12 +370,24 @@ class _VariantDialogState extends State<_VariantDialog> {
                   IconTextButton(
                     icon: Icons.check,
                     content: '创建',
-                    onTap: _error != null
-                        ? null
-                        : () => Navigator.pop(context, (
-                            tag: _tagController.text.trim(),
-                            inherit: {..._inherit},
-                          )),
+                    //名字不合法时不禁用：点了给一条明确的原因，
+                    //否则按钮看着能点、点了没反应，用户不知道卡在哪
+                    onTap: () {
+                      final error = _validate(_tagController.text);
+                      if (error != null) {
+                        setState(() => _error = error);
+                        addNotice(
+                          icon: Icons.close,
+                          title: '名字不可用',
+                          content: error,
+                        );
+                        return;
+                      }
+                      Navigator.pop(context, (
+                        tag: _tagController.text.trim(),
+                        inherit: {..._inherit},
+                      ));
+                    },
                   ),
                 ],
               ),
