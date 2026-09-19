@@ -11,13 +11,16 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 class GitRefs {
   /// 取 [repo]（`owner/name`）的全部 tag
   static Future<List<String>> fetchTags(String repo) async {
-    final response = await cio.get(
+    //固定按纯文本取：ref 广告是 pkt-line 不是 JSON，别让 dio 按 content-type 去解
+    final response = await cio.get<String>(
       'https://github.com/$repo.git/info/refs?service=git-upload-pack',
+      headers: const {'User-Agent': 'CopperLauncher'},
+      responseType: ResponseType.plain,
     );
     if (response.statusCode != 200) {
       throw Exception('获取 $repo 的 tag 失败：HTTP ${response.statusCode}');
     }
-    return parseTags('${response.data}');
+    return parseTags(response.data ?? '');
   }
 
   /// 从 ref 广告里解析 tag 名（纯函数，便于用例覆盖）

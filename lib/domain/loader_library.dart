@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
+import '../core/app_constant.dart';
 import '../util/app_paths.dart';
 import '../util/format/string_cleaner.dart';
 import '../util/io/copper_io.dart';
@@ -20,14 +20,10 @@ class LoaderLibrary {
   /// 查最新一版的桌面 loader；网络 / 解析失败返回 null
   static Future<({String tag, String url})?> fetchLatestDesktop() async {
     try {
-      final res = await cio.get(
-        'https://api.github.com/repos/$loaderRepo/releases/latest',
+      final decoded = await fetchJsonBody(
+        '$githubAPI/repos/$loaderRepo/releases/latest',
       );
-      if (res.statusCode != 200) {
-        addLogAndPrint(.warning, '查询加载器版本失败：HTTP ${res.statusCode}', tag: 'Loader');
-        return null;
-      }
-      return parseDesktopAsset(jsonDecode(res.data));
+      return parseDesktopAsset(decoded);
     } catch (e) {
       addLogAndPrint(.warning, '查询加载器版本失败：${removeNewlines('$e')}', tag: 'Loader');
       return null;
@@ -39,14 +35,10 @@ class LoaderLibrary {
     int limit = 10,
   }) async {
     try {
-      final res = await cio.get(
-        'https://api.github.com/repos/$loaderRepo/releases?per_page=$limit',
+      final decoded = await fetchJsonBody(
+        '$githubAPI/repos/$loaderRepo/releases?per_page=$limit',
       );
-      if (res.statusCode != 200) {
-        addLogAndPrint(.warning, '查询加载器版本列表失败：HTTP ${res.statusCode}', tag: 'Loader');
-        return const [];
-      }
-      return parseReleases(jsonDecode(res.data));
+      return parseReleases(decoded);
     } catch (e) {
       addLogAndPrint(
         .warning,

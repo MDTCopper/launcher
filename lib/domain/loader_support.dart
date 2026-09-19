@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
@@ -48,16 +47,7 @@ class LoaderSupport {
 
   static Future<LoaderSupport?> _fetch() async {
     try {
-      final response = await cio.get(supportUrl);
-      if (response.statusCode != 200) {
-        addLogAndPrint(
-          .warning,
-          '获取加载器适配表失败：HTTP ${response.statusCode}',
-          tag: 'Loader',
-        );
-        return null;
-      }
-      final parsed = parse(jsonDecode(response.data));
+      final parsed = parse(await fetchJsonBody(supportUrl));
       addLog(.info, '加载器适配表：${parsed.entries.length} 条规则', tag: 'Loader');
       return parsed;
     } catch (e) {

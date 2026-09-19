@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -1111,3 +1112,40 @@ bool isNetworkFailure(DioException error) => switch (error.type) {
   DioExceptionType.receiveTimeout => true,
   _ => false,
 };
+
+/// 把响应体解成对象：已经是对象（dio 帮着解过）就原样返回，别再来一次 [jsonDecode]
+///
+/// 这个坑项目里踩过：dio 只在 content-type 是 JSON 时才帮解析，真 API 上已经解好，
+/// 再 `jsonDecode` 会抛 `type 'List<dynamic>' is not a subtype of type 'String'`
+@visibleForTesting
+Object? decodeJsonBody(Object? data) =>
+    data is String ? jsonDecode(data) : data;
+
+/// 取 JSON 并解析成对象：**固定按纯文本取**，再自己解析
+///
+/// 不能拿 [cio] 返回的 data 直接当对象用：镜像节点回包常常不是 JSON content-type
+/// （甚至是 HTML 错误页），此时 data 是 String，当对象用会抛
+/// `type 'String' is not a subtype of type 'List<dynamic>?'`
+Future<Object?> fetchJsonBody(String url, {Map<String, String>? headers}) async {
+  final response = await cio.get<String>(
+    url,
+    headers: headers ?? const {'User-Agent': 'CopperLauncher'},
+    responseType: ResponseType.plain,
+  );
+  if (response.statusCode != 200) {
+    throw HttpException('HTTP ${response.statusCode}');
+  }
+
+  final raw = response.data ?? '';
+  try {
+    return decodeJsonBody(raw);
+  } catch (_) {
+    throw FormatException('响应不是 JSON：${previewResponseBody(raw)}');
+  }
+}
+
+/// 异常信息里的响应预览：压成一行并截断，别把整页 HTML 打进日志
+String previewResponseBody(String raw) {
+  final text = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return text.length <= 120 ? text : '${text.substring(0, 120)}…';
+}
