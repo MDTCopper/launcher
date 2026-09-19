@@ -4,7 +4,7 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/domain/loader_support.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
-import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
@@ -199,20 +199,19 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
           (a, b) => LoaderLibrary.compareVersion(b.tag, a.tag),
         );
 
-    final items = <Widget>[];
+    /// 下拉里的一项：`value` 直接放 [_LoaderChoice]，选中即返回，省一层 key 映射
+    final items = <({_LoaderChoice choice, String label, IconData icon})>[];
     var recommending = true;
     var anySupported = false;
+    _LoaderChoice? currentChoice;
 
     //不用加载器（下载游戏时可以直接选原版启动）
     if (widget.allowNone) {
-      items.add(
-        IconTextButton(
-          icon: Icons.rocket_launch_outlined,
-          content: '不用加载器（原版启动）',
-          onTap: () =>
-              Navigator.of(context).pop(const _LoaderChoice.none()),
-        ),
-      );
+      items.add((
+        choice: const _LoaderChoice.none(),
+        label: '不用加载器（原版启动）',
+        icon: Icons.rocket_launch_outlined,
+      ));
     }
 
     //库内已有的
@@ -222,19 +221,20 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
       if (supported == true) anySupported = true;
       final isRecommended = supported == true && recommending;
       if (isRecommended) recommending = false;
-      items.add(
-        IconTextButton(
-          icon: supported == false
-              ? Icons.warning_amber_outlined
-              : Icons.check_circle_outline,
-          content:
-              '${version ?? p.basename(jar.path)}'
-              '（已下载${p.normalize(jar.path) == current ? '，当前在用' : ''}）'
-              '${_compatibilityLabel(supported, recommended: isRecommended)}',
-          onTap: () =>
-              Navigator.of(context).pop(_LoaderChoice.library(jar.path)),
-        ),
-      );
+      final isCurrent = p.normalize(jar.path) == current;
+      final choice = _LoaderChoice.library(jar.path);
+      if (isCurrent) currentChoice = choice;
+
+      items.add((
+        choice: choice,
+        label:
+            '${version ?? p.basename(jar.path)}'
+            '（已下载${isCurrent ? '，当前在用' : ''}）'
+            '${_compatibilityLabel(supported, recommended: isRecommended)}',
+        icon: supported == false
+            ? Icons.warning_amber_outlined
+            : Icons.check_circle_outline,
+      ));
     }
 
     //远程有、库里没有的
@@ -243,18 +243,15 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
       if (supported == true) anySupported = true;
       final isRecommended = supported == true && recommending;
       if (isRecommended) recommending = false;
-      items.add(
-        IconTextButton(
-          icon: supported == false
-              ? Icons.warning_amber_outlined
-              : Icons.download,
-          content:
-              '${release.tag}（下载）'
-              '${_compatibilityLabel(supported, recommended: isRecommended)}',
-          onTap: () =>
-              Navigator.of(context).pop(_LoaderChoice.download(release)),
-        ),
-      );
+      items.add((
+        choice: _LoaderChoice.download(release),
+        label:
+            '${release.tag}（下载）'
+            '${_compatibilityLabel(supported, recommended: isRecommended)}',
+        icon: supported == false
+            ? Icons.warning_amber_outlined
+            : Icons.download,
+      ));
     }
 
     final hasCandidate = localJars.isNotEmpty || remoteOnly.isNotEmpty;
@@ -301,29 +298,36 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
                     color: theme.colorScheme.error,
                   ),
                 ),
-              Flexible(
-                child: CopperSingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 4,
-                    children: [
-                      ...items,
-                      if (_remoteLoaders == null)
-                        Text('正在查询远程版本…', style: theme.textTheme.bodySmall),
-                      IconTextButton(
-                        icon: Icons.folder_open,
-                        content: '选本地 jar…',
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(const _LoaderChoice.localFile()),
+              //选项走 DropdownLayer：头部显示当前在用的 / 推荐的那个，点开再挑
+              if (items.isNotEmpty)
+                DropdownLayer<_LoaderChoice>(
+                  width: double.infinity,
+                  initialValue: currentChoice ?? items.first.choice,
+                  hintText: '选一个加载器',
+                  menuHeight: 240,
+                  onSelect: (choice) => Navigator.of(context).pop(choice),
+                  options: [
+                    for (final item in items)
+                      DropdownOption(
+                        value: item.choice,
+                        label: item.label,
+                        leading: Icon(item.icon, size: 18),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
-              ),
+              if (_remoteLoaders == null)
+                Text('正在查询远程版本…', style: theme.textTheme.bodySmall),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
+                spacing: 8,
                 children: [
+                  IconTextButton(
+                    icon: Icons.folder_open,
+                    content: '选本地 jar…',
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(const _LoaderChoice.localFile()),
+                  ),
                   IconTextButton(
                     icon: Icons.close,
                     content: '取消',
