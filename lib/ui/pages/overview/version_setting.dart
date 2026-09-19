@@ -9,6 +9,7 @@ import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
+import 'package:copper_launcher/domain/loader_support.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
@@ -180,8 +181,10 @@ class _AboutState extends State<_About> {
   Future<void> _repairLoader() async {
     final choice = await showAnimatedDialog<_LoaderChoice>(
       context: context,
-      pageBuilder: (_, _, _) =>
-          const _LoaderPickerDialog(currentLoaderPath: null),
+      pageBuilder: (_, _, _) => _LoaderPickerDialog(
+        currentLoaderPath: null,
+        gameVersion: _mindustry.gameVersionString,
+      ),
     );
     if (choice == null || !mounted) return;
 
@@ -1258,23 +1261,23 @@ class _LauncherVariantButtonState extends State<_LauncherVariantButton> {
     );
   }
 
-  /// 走 Copper：先确认游戏版本够（v146+），再弹加载器选择页
+  /// 走 Copper：先提醒版本可能不兼容（不拦，选择页里会按适配表逐项标注），再弹加载器选择页
   Future<void> _chooseLoaderAndPick() async {
     if (!widget.mindustry.supportsLoader) {
       addNotice(
-        icon: Icons.close,
-        title: '版本不支持',
+        icon: Icons.warning_amber_outlined,
+        title: '版本可能不兼容',
         content:
             'Copper 加载器最低兼容 Mindustry v${Mindustry.loaderMinRelease}，'
             '这个版本是 ${widget.mindustry.release}',
       );
-      return;
     }
 
     final choice = await showAnimatedDialog<_LoaderChoice>(
       context: context,
       pageBuilder: (_, _, _) => _LoaderPickerDialog(
         currentLoaderPath: widget.mindustry.resolvedLauncherPath,
+        gameVersion: widget.mindustry.gameVersionString,
       ),
     );
     if (choice == null || !mounted) return;
@@ -1349,12 +1352,15 @@ class _LoaderChoice {
 
 /// 加载器选择页：库内已有的（直接复用）／远程可下的（下载）／本地 jar
 ///
-/// 远程列表是进页面时异步查的，查不到就只列库内与本地 jar
+/// 远程列表与适配表都是进页面时异步查的：查不到就只列库内与本地 jar、不做兼容标注
 class _LoaderPickerDialog extends StatefulWidget {
-  const _LoaderPickerDialog({this.currentLoaderPath});
+  const _LoaderPickerDialog({this.currentLoaderPath, this.gameVersion});
 
   ///当前版本在用的 loader（在列表里标出来）
   final String? currentLoaderPath;
+
+  ///当前游戏版本的可比形式（见 [Mindustry.gameVersionString]），用来判断兼不兼容
+  final String? gameVersion;
 
   @override
   State<_LoaderPickerDialog> createState() => _LoaderPickerDialogState();
@@ -1362,11 +1368,13 @@ class _LoaderPickerDialog extends StatefulWidget {
 
 class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
   List<({String tag, String url})>? _remoteLoaders;
+  LoaderSupport? _support;
 
   @override
   void initState() {
     super.initState();
     _loadRemoteLoaders();
+    _loadSupport();
   }
 
   Future<void> _loadRemoteLoaders() async {
@@ -1375,16 +1383,99 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
     setState(() => _remoteLoaders = releases);
   }
 
+  Future<void> _loadSupport() async {
+    final support = await LoaderSupport.load();
+    if (!mounted) return;
+    setState(() => _support = support);
+  }
+
+  /// 某个 loader 版本能不能配当前游戏版本：true 支持 / false 不支持 / null 未知
+  bool? _supported(String? loaderVersion) => _support?.supports(
+    loaderVersion: loaderVersion,
+    gameVersion: widget.gameVersion,
+  );
+
+  /// 兼容标注：兼容的第一个标「推荐」，明确不兼容的标出来（仍可选）
+  String _compatibilityLabel(bool? supported, {required bool recommended}) {
+    if (supported == true) return recommended ? '  ·  推荐' : '';
+    if (supported == false) return '  ·  不支持当前游戏版本';
+    return '';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     final screen = MediaQuery.of(context).size;
-    final localJars = LoaderLibrary.list();
     final localVersions = LoaderLibrary.localVersions();
     final current = widget.currentLoaderPath == null
         ? null
         : p.normalize(widget.currentLoaderPath!);
+
+    //版本高的排前面；库内的排在前（不用下载）
+    final localJars = [...LoaderLibrary.list()]
+      ..sort(
+        (a, b) => LoaderLibrary.compareVersion(
+          LoaderLibrary.versionOf(b),
+          LoaderLibrary.versionOf(a),
+        ),
+      );
+    final remoteOnly =
+        [
+          for (final release
+              in _remoteLoaders ?? const <({String tag, String url})>[])
+            if (!localVersions.contains(release.tag)) release,
+        ]..sort(
+          (a, b) => LoaderLibrary.compareVersion(b.tag, a.tag),
+        );
+
+    final items = <Widget>[];
+    var recommending = true;
+    var anySupported = false;
+
+    //库内已有的
+    for (final jar in localJars) {
+      final version = LoaderLibrary.versionOf(jar);
+      final supported = _supported(version);
+      if (supported == true) anySupported = true;
+      final isRecommended = supported == true && recommending;
+      if (isRecommended) recommending = false;
+      items.add(
+        IconTextButton(
+          icon: supported == false
+              ? Icons.warning_amber_outlined
+              : Icons.check_circle_outline,
+          content:
+              '${version ?? p.basename(jar.path)}'
+              '（已下载${p.normalize(jar.path) == current ? '，当前在用' : ''}）'
+              '${_compatibilityLabel(supported, recommended: isRecommended)}',
+          onTap: () =>
+              Navigator.of(context).pop(_LoaderChoice.library(jar.path)),
+        ),
+      );
+    }
+
+    //远程有、库里没有的
+    for (final release in remoteOnly) {
+      final supported = _supported(release.tag);
+      if (supported == true) anySupported = true;
+      final isRecommended = supported == true && recommending;
+      if (isRecommended) recommending = false;
+      items.add(
+        IconTextButton(
+          icon: supported == false
+              ? Icons.warning_amber_outlined
+              : Icons.download,
+          content:
+              '${release.tag}（下载）'
+              '${_compatibilityLabel(supported, recommended: isRecommended)}',
+          onTap: () =>
+              Navigator.of(context).pop(_LoaderChoice.download(release)),
+        ),
+      );
+    }
+
+    final hasCandidate = localJars.isNotEmpty || remoteOnly.isNotEmpty;
 
     return Center(
       child: Material(
@@ -1413,38 +1504,30 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
             children: [
               Text('选择 Copper 加载器', style: theme.textTheme.titleLarge),
               Text(
-                '最低兼容 Mindustry v${Mindustry.loaderMinRelease}；'
-                '库里已有的直接复用，不重复下载',
+                widget.gameVersion == null
+                    ? '最低兼容 Mindustry v${Mindustry.loaderMinRelease}；'
+                          '库里已有的直接复用，不重复下载'
+                    : '当前游戏版本 ${widget.gameVersion}；'
+                          '库里已有的直接复用，不重复下载',
                 style: theme.textTheme.bodySmall,
               ),
+              //适配表里一个兼容的都没有：仍允许选，但先把话说清楚
+              if (widget.gameVersion != null && hasCandidate && !anySupported)
+                Text(
+                  '适配表里没有标记兼容 ${widget.gameVersion} 的加载器，选了可能启动失败',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
               Flexible(
                 child: CopperSingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     spacing: 4,
                     children: [
-                      for (final jar in localJars)
-                        IconTextButton(
-                          icon: Icons.check_circle_outline,
-                          content:
-                              '${LoaderLibrary.versionOf(jar) ?? p.basename(jar.path)}'
-                              '（已下载${p.normalize(jar.path) == current ? '，当前在用' : ''}）',
-                          onTap: () => Navigator.of(context).pop(
-                            _LoaderChoice.library(jar.path),
-                          ),
-                        ),
+                      ...items,
                       if (_remoteLoaders == null)
-                        Text('正在查询远程版本…', style: theme.textTheme.bodySmall)
-                      else
-                        for (final release in _remoteLoaders!)
-                          if (!localVersions.contains(release.tag))
-                            IconTextButton(
-                              icon: Icons.download,
-                              content: '${release.tag}（下载）',
-                              onTap: () => Navigator.of(context).pop(
-                                _LoaderChoice.download(release),
-                              ),
-                            ),
+                        Text('正在查询远程版本…', style: theme.textTheme.bodySmall),
                       IconTextButton(
                         icon: Icons.folder_open,
                         content: '选本地 jar…',

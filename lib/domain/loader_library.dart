@@ -156,7 +156,8 @@ class LoaderLibrary {
   }
 
   /// 比两个版本号：按数字段逐个比，缺的段当 0；解析不出版本的排最前
-  @visibleForTesting
+  ///
+  /// 库内排序（[newestOf]）与选择页按版本倒序展示都用它
   static int compareVersion(String? a, String? b) {
     if (a == null || b == null) {
       if (a == b) return 0;

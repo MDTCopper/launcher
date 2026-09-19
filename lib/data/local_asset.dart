@@ -119,6 +119,29 @@ class Mindustry {
   ///这个游戏版本能不能走 Copper 加载器
   bool get supportsLoader => isBe || releaseDouble >= loaderMinRelease;
 
+  ///游戏版本的可比形式，按 Copper 的规则拼（见 loader wiki 的 developers/versions）
+  ///
+  /// - 正式版：`<主版本>.<大版本>.<构建号>`（`v159.7` + 主版本 8 → `8.159.7`）
+  /// - BE：`<主版本>.0.<构建号>`（`8.0.27179`）
+  /// - 自定义构建：只有主版本（`8`）
+  ///
+  /// 主版本未知时返回 null（老配置要等启动前补读 version.properties）
+  String? get gameVersionString {
+    final major = versionNumber;
+    if (major == null) return null;
+
+    final releaseText = release.trim();
+    if (isBe) {
+      final build = int.tryParse(releaseText);
+      return build == null ? '$major' : '$major.0.$build';
+    }
+
+    final digits = releaseText.startsWith('v')
+        ? releaseText.substring(1)
+        : releaseText;
+    return digits.isEmpty ? '$major' : '$major.$digits';
+  }
+
   ///游戏目录路径
   String get foldPath => p.join(resolvedPath, tag);
 
