@@ -69,4 +69,7 @@ Name: "{group}\Copper Launcher"; Filename: "{app}\copper_launcher.exe"
 Name: "{autodesktop}\Copper Launcher"; Filename: "{app}\copper_launcher.exe"; Tasks: desktopicon
 
 [Run]
+; 覆盖式更新的迁移钩子：新版带来的引导脚本先跑（没有这个文件就跳过），
+; 参数是目标版本（与 release tag 同形态），跑完再让用户启动启动器
+Filename: "{app}\update.cmd"; Parameters: "v{#AppVersion}"; Flags: runhidden waituntilterminated skipifdoesntexist
 Filename: "{app}\copper_launcher.exe"; Description: "立即运行 Copper Launcher"; Flags: nowait postinstall skipifsilent

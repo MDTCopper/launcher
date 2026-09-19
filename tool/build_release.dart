@@ -31,6 +31,13 @@ const pubspecPath = 'pubspec.yaml';
 /// 记住上次选的构建目标（本地状态，不入库）
 const statePath = 'tool/build_release_state.json';
 
+/// 更新引导脚本：仓库里的模板，以及它进包后的文件名
+///
+/// 打包时放进产物目录（exe 旁边），更新时由启动器覆盖完新文件后调用，
+/// 用来处理光靠覆盖不行的破坏性变更；契约写在模板头部
+const updateScriptTemplatePath = 'tool/update_script.cmd';
+const updateScriptName = 'update.cmd';
+
 /// 版本信息块的边界标记
 const versionBlockStart = '// ===== 版本信息（由 tool/build_release.dart 生成，勿手改）=====';
 const versionBlockEnd = '// ===== 版本信息结束 =====';
@@ -844,6 +851,26 @@ PackageFormat _resolvePackageFormat({
   );
 }
 
+/// 把仓库里的引导脚本模板复制进产物目录（zip / Setup 都要带上它）
+///
+/// 统一写成 CRLF：cmd 对 LF-only 脚本里的标签 / 跳转处理有坑
+Future<void> _copyUpdateScript(Directory sourceFolder) async {
+  final template = File(updateScriptTemplatePath);
+  if (!await template.exists()) {
+    stderr.writeln(
+      '没找到引导脚本模板 $updateScriptTemplatePath，本次产物不带 $updateScriptName',
+    );
+    return;
+  }
+
+  final content = (await template.readAsString())
+      .replaceAll('\r\n', '\n')
+      .replaceAll('\n', '\r\n');
+  final target = File(p.join(sourceFolder.path, updateScriptName));
+  await target.writeAsString(content, flush: true);
+  stdout.writeln('\n已放入更新引导脚本：${_normalizePath(target.path)}');
+}
+
 /// 按目标打包：Windows 走 zip / Setup，Linux 走 tar.gz，macOS 走 dmg
 Future<void> _packageTarget({
   required BuildTarget target,
@@ -855,6 +882,7 @@ Future<void> _packageTarget({
 }) async {
   switch (target) {
     case BuildTarget.windows:
+      await _copyUpdateScript(sourceFolder);
       if (packageFormat == PackageFormat.zip ||
           packageFormat == PackageFormat.both) {
         await _packageZip(sourceFolder, distFolder, baseName);

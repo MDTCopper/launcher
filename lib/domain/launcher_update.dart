@@ -59,6 +59,10 @@ class LauncherVersion implements Comparable<LauncherVersion> {
     return (build ?? 0).compareTo(other.build ?? 0);
   }
 
+  /// tag 形态（`v0.0.1-alpha5` / `v0.0.2`）：与 release tag、产物名同一套写法，
+  /// 传给更新引导脚本的版本号也用这个形态
+  String get tag => build == null ? 'v$number' : 'v$number-${channel.name}$build';
+
   @override
   String toString() =>
       build == null ? 'v$number' : 'v$number ${channel.name}$build';
@@ -246,15 +250,20 @@ class LauncherUpdate {
     ], mode: ProcessStartMode.detached);
   }
 
-  /// 解压版的就地覆盖：写一个脚本再拉起它，脚本等本进程退出后解压覆盖并重启启动器
+  /// 解压版的就地覆盖：写脚本 + VBS 再拉起，等本进程退出后覆盖、跑引导脚本、重启
   ///
   /// 必须等进程退出：运行中的 exe 与已加载的 dll（flutter_windows / 插件 / app.so）
-  /// 在 Windows 上不允许被覆盖；调用方拉起脚本后应退出启动器
+  /// 在 Windows 上不允许被覆盖；调用方拉起后应退出启动器
   ///
-  /// 用 VBS 包一层再拉起：detached 出来的 cmd 自己没有控制台，它拉起的
-  /// `tasklist` / `find` / `tar` / `ping` 会各自新建控制台 → 屏幕上会冒窗口；
-  /// `WScript.Shell.Run(..., 0, ...)` 给 cmd 一个**隐藏**控制台，子进程共用它
-  static Future<void> runPortableReplace({required String zipPath}) async {
+  /// 用 VBS 包一层：detached 出来的 cmd 自己没有控制台，它拉起的
+  /// `tasklist` / `find` / `tar` / `ping` 会各自新建控制台 → 屏幕上冒窗口；
+  /// `WScript.Shell.Run(..., 0, ...)` 给 cmd 一个**隐藏**控制台，子进程共用它。
+  /// 重启启动器交给 VBS（等 cmd 跑完再拉），这样引导脚本就算硬 `exit` 掉
+  /// cmd，也不会把「重新打开启动器」这步一起吞掉
+  static Future<void> runPortableReplace({
+    required String zipPath,
+    required String toVersion,
+  }) async {
     final installDir = File(Platform.resolvedExecutable).parent.path;
     final command = File(p.join(downloadDir.path, 'apply_update.cmd'));
     final launcher = File(p.join(downloadDir.path, 'apply_update.vbs'));
@@ -262,13 +271,18 @@ class LauncherUpdate {
       buildPortableUpdateScript(
         zipPath: zipPath,
         installDir: installDir,
-        exePath: Platform.resolvedExecutable,
+        toVersion: toVersion,
+        fromVersion: currentVersion?.tag ?? '',
         processId: pid,
       ),
       flush: true,
     );
     await launcher.writeAsString(
-      buildPortableUpdateLauncher(command.path),
+      buildPortableUpdateLauncher(
+        commandPath: command.path,
+        exePath: Platform.resolvedExecutable,
+        installDir: installDir,
+      ),
       flush: true,
     );
 
@@ -293,23 +307,52 @@ class LauncherUpdate {
     }
   }
 
-  /// 生成隐藏拉起覆盖脚本的 VBS（纯函数）：窗口样式 0 = 隐藏，
-  /// 这样 cmd 自己与它拉起的 tasklist / find / tar / ping 都不会冒控制台窗口
+  /// 引导脚本在程序目录里的名字：随每个版本一起下发，覆盖完由更新流程调用
+  ///
+  /// 它处理光靠覆盖不行的破坏性变更（数据布局 / 配置格式变了等），
+  /// 契约见仓库里的模板 `tool/update_script.cmd`
+  static const String bootstrapScriptName = 'update.cmd';
+
+  /// 生成拉起更新用的 VBS（纯函数）
+  ///
+  /// 三步：**隐藏**跑覆盖脚本并等它结束（窗口样式 0）→ 重新启动启动器
+  /// （样式 1，工作目录设为程序目录）→ 自删。cmd 脚本里不再负责重启，
+  /// 这样引导脚本硬 `exit` 也不会把重启吞掉
   @visibleForTesting
-  static String buildPortableUpdateLauncher(String commandPath) =>
-      'CreateObject("WScript.Shell").Run "cmd.exe /c ""$commandPath""", 0, False\r\n';
+  static String buildPortableUpdateLauncher({
+    required String commandPath,
+    required String exePath,
+    required String installDir,
+  }) {
+    // VBS 里两个引号代表一个引号：下面拼出来的命令行是
+    //   cmd.exe /c ""C:\...\apply_update.cmd""   —— 外层再包一层引号，
+    //   路径带空格也不会被拆开
+    final command = 'cmd.exe /c ""$commandPath""'.replaceAll('"', '""');
+    final exe = '"$exePath"'.replaceAll('"', '""');
+    final directory = installDir.replaceAll('"', '""');
+    return [
+      'Set sh = CreateObject("WScript.Shell")',
+      'sh.CurrentDirectory = "$directory"',
+      'sh.Run "$command", 0, True',
+      'sh.Run "$exe", 1, False',
+      'CreateObject("Scripting.FileSystemObject")'
+          '.DeleteFile WScript.ScriptFullName',
+      '',
+    ].join('\r\n');
+  }
 
   /// 生成解压版的覆盖脚本（纯函数，便于用例核对等待与引号处理）
   ///
   /// 流程：轮询 PID 等本进程退出（最多 60 秒）→ 用系统自带的 `tar.exe` 解压覆盖
-  /// （失败就等一秒再试，最多 15 次）→ 重启启动器 → 自删。`tar` 是 Win10 1803+
-  /// 内置的 bsdtar，能直接解 zip，不引第三方依赖；解压只覆盖同名文件、
-  /// 不删任何东西，用户数据都留着
+  /// （失败就等一秒再试，最多 15 次）→ 跑新版带来的引导脚本 `update.cmd`
+  /// → 由 VBS 重启启动器。`tar` 是 Win10 1803+ 内置的 bsdtar，能直接解 zip，
+  /// 不引第三方依赖；解压只覆盖同名文件、不删任何东西，用户数据都留着
   @visibleForTesting
   static String buildPortableUpdateScript({
     required String zipPath,
     required String installDir,
-    required String exePath,
+    required String toVersion,
+    required String fromVersion,
     required int processId,
   }) {
     // cmd 脚本用 CRLF；内容保持纯 ASCII，免得控制台代码页把中文编坏
@@ -319,6 +362,8 @@ class LauncherUpdate {
       'rem Overwrite the portable copy after Copper Launcher (pid $processId) exits.',
       'set "ZIP=$zipPath"',
       'set "TARGET=$installDir"',
+      'set "TO=$toVersion"',
+      'set "FROM=$fromVersion"',
       'set "PIDFILE=%~dp0pid_check.txt"',
       'set /a TRIES=0',
       ':wait',
@@ -337,15 +382,17 @@ class LauncherUpdate {
       'set /a TRIES=0',
       ':retry',
       'tar -xf "%ZIP%" -C "%TARGET%" 2>nul',
-      'if not errorlevel 1 goto started',
+      'if not errorlevel 1 goto migrate',
       'set /a TRIES+=1',
-      'if %TRIES% geq 15 goto started',
+      'if %TRIES% geq 15 goto migrate',
       'ping -n 2 127.0.0.1 >nul',
       'goto retry',
-      ':started',
+      ':migrate',
       'del "%PIDFILE%" 2>nul',
       'cd /d "%TARGET%"',
-      'start "" "$exePath"',
+      // 覆盖完先跑新版带来的引导脚本（破坏性变更的迁移钩子）：传「目标版本 来源版本」，
+      // 用 call 而不是直接执行，脚本里的 exit /b 才能正常返回
+      'if exist "%TARGET%\\$bootstrapScriptName" call "%TARGET%\\$bootstrapScriptName" "%TO%" "%FROM%"',
       // 自删放最后一行：删除后 cmd 就不再往下读了，后面不能有别的东西；
       // 别用 `(goto) 2>nul & del` 那套写法 —— 在这台机器上实测会把脚本挂住
       'del "%~f0"',

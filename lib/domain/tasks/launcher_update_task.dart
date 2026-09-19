@@ -107,7 +107,10 @@ class LauncherUpdateTask extends Task {
       );
       updateDisplay();
 
-      await LauncherUpdate.runPortableReplace(zipPath: path);
+      await LauncherUpdate.runPortableReplace(
+        zipPath: path,
+        toVersion: release.tag,
+      );
       await Future.delayed(const Duration(seconds: 1));
       await LauncherTray.instance.quitApp();
       return;
