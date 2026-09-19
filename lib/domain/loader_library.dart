@@ -27,16 +27,39 @@ class LoaderLibrary {
         addLogAndPrint(.warning, '查询加载器版本失败：HTTP ${res.statusCode}', tag: 'Loader');
         return null;
       }
-      return parseLatestDesktop(jsonDecode(res.data));
+      return parseDesktopAsset(jsonDecode(res.data));
     } catch (e) {
       addLogAndPrint(.warning, '查询加载器版本失败：${removeNewlines('$e')}', tag: 'Loader');
       return null;
     }
   }
 
+  /// 查远程可下的 loader 版本列表（新的在前）；失败返回空列表
+  static Future<List<({String tag, String url})>> fetchReleases({
+    int limit = 10,
+  }) async {
+    try {
+      final res = await cio.get(
+        'https://api.github.com/repos/$loaderRepo/releases?per_page=$limit',
+      );
+      if (res.statusCode != 200) {
+        addLogAndPrint(.warning, '查询加载器版本列表失败：HTTP ${res.statusCode}', tag: 'Loader');
+        return const [];
+      }
+      return parseReleases(jsonDecode(res.data));
+    } catch (e) {
+      addLogAndPrint(
+        .warning,
+        '查询加载器版本列表失败：${removeNewlines('$e')}',
+        tag: 'Loader',
+      );
+      return const [];
+    }
+  }
+
   /// 从 release JSON 里挑桌面产物（纯函数，便于用例覆盖）
   @visibleForTesting
-  static ({String tag, String url})? parseLatestDesktop(dynamic json) {
+  static ({String tag, String url})? parseDesktopAsset(dynamic json) {
     if (json is! Map) return null;
     final tag = json['tag_name'];
     final assets = json['assets'];
@@ -55,7 +78,21 @@ class LoaderLibrary {
     return null;
   }
 
+  /// 从 release 列表 JSON 里挑出所有带桌面产物的版本（纯函数）
+  @visibleForTesting
+  static List<({String tag, String url})> parseReleases(dynamic json) {
+    if (json is! List) return const [];
+    return [for (final release in json) ?parseDesktopAsset(release)];
+  }
+
+  /// 库内已有的 loader 版本号集合（`desktop-0.1.1.jar` → `0.1.1`）
+  static Set<String> localVersions() => {
+    for (final jar in list()) ?versionOf(jar),
+  };
+
   /// 下载桌面 loader 到加载器库，返回库内文件的绝对路径
+  ///
+  /// 库里已有同名文件（同一版本）时**直接复用、不重复下载**
   static Future<String> downloadDesktop({
     required String tag,
     required String url,
@@ -65,6 +102,8 @@ class LoaderLibrary {
     final libraryDir = Directory(AppPaths.copperLoader);
     await libraryDir.create(recursive: true);
     final target = File(p.join(libraryDir.path, 'desktop-$tag.jar'));
+    if (await target.exists()) return target.path;
+
     await cio.download(
       url: url,
       savePath: target.path,

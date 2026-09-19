@@ -166,101 +166,6 @@ class _AboutState extends State<_About> {
     return version == null ? 'Copper Loader' : 'Copper Loader $version';
   }
 
-  /// 弹一个居中小选择面板，返回选中项的值（[choices] 的形状与顺序即显示顺序）
-  Future<T?> _showChooser<T>(
-    List<({String label, IconData icon, T value})> choices,
-  ) {
-    return showAnimatedDialog<T>(
-      context: context,
-      pageBuilder: (dialogContext, _, _) => Center(
-        child: Material(
-          color: Colors.transparent,
-          elevation: 8,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(dialogContext).colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < choices.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 4),
-                  IconTextButton(
-                    icon: choices[i].icon,
-                    content: choices[i].label,
-                    onTap: () =>
-                        Navigator.of(dialogContext).pop(choices[i].value),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 取一个可用的 loader 路径：本版本指定过、库里也有就直接用；
-  /// 否则问用户要（从仓库下最新 / 选本地 jar），拿不到返回 null
-  Future<String?> _ensureLoaderPath() async {
-    final existing = LoaderLibrary.usablePath(_mindustry.resolvedLauncherPath);
-    if (existing != null) return existing;
-
-    final source = await _showChooser<String>([
-      (
-        label: '从 GitHub 下载最新',
-        icon: Icons.cloud_download_outlined,
-        value: 'remote',
-      ),
-      (label: '选本地 jar', icon: Icons.folder_open, value: 'local'),
-    ]);
-    if (source == null || !mounted) return null;
-
-    if (source == 'local') {
-      final picked = await PathSelector.selectFile(
-        acceptedTypeGroups: const [
-          XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
-        ],
-      );
-      if (picked == null || !mounted) return null;
-      try {
-        return await LoaderLibrary.importIntoLibrary(File(picked));
-      } catch (e) {
-        addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
-        debugPrint('添加加载器失败：$e');
-        return null;
-      }
-    }
-
-    final latest = await LoaderLibrary.fetchLatestDesktop();
-    if (!mounted) return null;
-    if (latest == null) {
-      addNotice(
-        icon: Icons.close,
-        title: '查询失败',
-        content: '没拿到加载器版本信息：稍后再试，或选本地 jar',
-      );
-      return null;
-    }
-    addNotice(
-      icon: Icons.download,
-      title: '正在下载加载器',
-      content: 'Copper Loader ${latest.tag}',
-    );
-    try {
-      return await LoaderLibrary.downloadDesktop(
-        tag: latest.tag,
-        url: latest.url,
-      );
-    } catch (e) {
-      addNotice(icon: Icons.close, title: '下载失败', content: '加载器没下下来：稍后再试或选本地 jar');
-      debugPrint('下载加载器失败：$e');
-      return null;
-    }
-  }
-
   /// 内容对齐 [MindustryLauncher.start]：-Xmx 内存 + 隔离数据目录 +
   /// jvm 参数 + -jar，平台差异：Windows .bat（UTF-8 + chcp 65001），
   /// Linux/macOS .sh。保存位置由用户选择。
@@ -369,34 +274,19 @@ pause
 
   /// 换一种启动方式，以当前版本为模板新建一个版本
   ///
-  /// 「换回原版」与「换个加载器」本来就是同一件事：拿这个版本当模板、
-  /// 换一个启动器建新版本，而不是就地改当前版本
-  Future<void> _createVariantWithLauncher() async {
-    final launcher = await _showChooser<LauncherType>([
-      (
-        label: '原版 Jar 启动',
-        icon: Icons.rocket_launch_outlined,
-        value: LauncherType.mindustry,
-      ),
-      (
-        label: 'Copper 加载器启动',
-        icon: Icons.extension_outlined,
-        value: LauncherType.copper,
-      ),
-    ]);
-    if (launcher == null || !mounted) return;
-
-    String? loaderPath;
-    if (launcher == LauncherType.copper) {
-      loaderPath = await _ensureLoaderPath();
-      if (loaderPath == null || !mounted) return;
-    }
-
+  /// 启动器与 loader 的选择在 [_LauncherVariantButton] 的菜单里完成，这里只负责建版本
+  Future<void> _createVariantWithLauncher({
+    required LauncherType launcher,
+    String? loaderPath,
+  }) async {
+    if (!mounted) return;
     await createVersionVariant(
       source: _mindustry,
       context: context,
       launcher: launcher,
-      launcherPath: loaderPath == null ? null : AppPaths.toStoredPath(loaderPath),
+      launcherPath: loaderPath == null
+          ? null
+          : AppPaths.toStoredPath(loaderPath),
       tagSuffix: launcher == LauncherType.copper ? 'Copper' : '原版',
       dialogTitle: '换启动器新建',
     );
@@ -740,10 +630,12 @@ pause
                   ),
                   //换启动器（原版 ↔ Copper 加载器）也是建新版本，不是改当前这个
                   if (isDesktop)
-                    IconTextButton(
-                      icon: Icons.extension_outlined,
-                      content: '换启动器新建',
-                      onTap: _createVariantWithLauncher,
+                    _LauncherVariantButton(
+                      onPick: (launcher, loaderPath) =>
+                          _createVariantWithLauncher(
+                            launcher: launcher,
+                            loaderPath: loaderPath,
+                          ),
                     ),
                 ],
               ),
@@ -1270,6 +1162,154 @@ class _ModsFolderButtonState extends State<_ModsFolderButton> {
       ],
       child: button,
     );
+  }
+}
+
+/// 「换启动器新建」按钮：点击弹菜单选启动器；选 Copper 时同一锚点再弹一层选 loader 版本
+///
+/// loader 有三处来源：库内已有的（**直接复用、不重复下载**）、远程有但库里没有的
+/// （下载进库）、本地 jar（收进库）。定好启动器与 loader 后回调，由调用方去建版本
+class _LauncherVariantButton extends StatefulWidget {
+  const _LauncherVariantButton({required this.onPick});
+
+  final void Function(LauncherType launcher, String? loaderPath) onPick;
+
+  @override
+  State<_LauncherVariantButton> createState() => _LauncherVariantButtonState();
+}
+
+class _LauncherVariantButtonState extends State<_LauncherVariantButton> {
+  final PopupOverlayController _menuController = PopupOverlayController();
+
+  /// 菜单停在哪一层：false = 选启动器，true = 选 loader 版本
+  bool _choosingLoader = false;
+
+  /// 远程可下的 loader 版本（进 loader 那一层时查一次；查不到就只列库内与本地 jar）
+  List<({String tag, String url})> _remoteLoaders = const [];
+
+  @override
+  Widget build(BuildContext context) {
+    return MenuLayer(
+      controller: _menuController,
+      rightClickTrigger: false,
+      longPressTrigger: false,
+      menuBuilder: (_, controller) => _choosingLoader
+          ? _buildLoaderItems(controller)
+          : _buildLauncherItems(controller),
+      child: IconTextButton(
+        icon: Icons.extension_outlined,
+        content: '换启动器新建',
+        onTap: () {
+          _choosingLoader = false;
+          _menuController.open();
+        },
+      ),
+    );
+  }
+
+  List<Widget> _buildLauncherItems(PopupOverlayController controller) => [
+    MenuButton(
+      icon: const Icon(Icons.rocket_launch_outlined),
+      label: '原版',
+      onTap: () {
+        controller.dismiss();
+        widget.onPick(LauncherType.mindustry, null);
+      },
+    ),
+    MenuButton(
+      icon: const Icon(Icons.extension_outlined),
+      label: 'Copper',
+      onTap: () async {
+        await controller.dismiss();
+        await _openLoaderStage();
+      },
+    ),
+  ];
+
+  /// 切到 loader 那一层：先查远程版本，再在同一个锚点上重开菜单
+  Future<void> _openLoaderStage() async {
+    final remote = await LoaderLibrary.fetchReleases();
+    if (!mounted) return;
+    setState(() {
+      _remoteLoaders = remote;
+      _choosingLoader = true;
+    });
+    _menuController.open();
+  }
+
+  List<Widget> _buildLoaderItems(PopupOverlayController controller) {
+    final localVersions = LoaderLibrary.localVersions();
+    final localJars = LoaderLibrary.list();
+
+    return [
+      // 库内已有的：直接复用
+      for (final jar in localJars)
+        IconTextButton(
+          icon: Icons.check_circle_outline,
+          content: '${LoaderLibrary.versionOf(jar) ?? p.basename(jar.path)}（已下载）',
+          onTap: () {
+            controller.dismiss();
+            widget.onPick(LauncherType.copper, jar.path);
+          },
+        ),
+      // 远程有、库里没有的：下载进库
+      for (final release in _remoteLoaders)
+        if (!localVersions.contains(release.tag))
+          IconTextButton(
+            icon: Icons.download,
+            content: '${release.tag}（下载）',
+            onTap: () async {
+              await controller.dismiss();
+              await _downloadAndPick(release);
+            },
+          ),
+      IconTextButton(
+        icon: Icons.folder_open,
+        content: '本地 jar…',
+        onTap: () async {
+          await controller.dismiss();
+          await _pickLocalLoader();
+        },
+      ),
+    ];
+  }
+
+  /// 下载指定版本的 loader（库里已有会直接复用），拿到路径后回调
+  Future<void> _downloadAndPick(({String tag, String url}) release) async {
+    addNotice(
+      icon: Icons.download,
+      title: '正在下载加载器',
+      content: 'Copper Loader ${release.tag}',
+    );
+    try {
+      final path = await LoaderLibrary.downloadDesktop(
+        tag: release.tag,
+        url: release.url,
+      );
+      if (!mounted) return;
+      widget.onPick(LauncherType.copper, path);
+    } catch (e) {
+      addNotice(icon: Icons.close, title: '下载失败', content: '加载器没下下来：稍后再试或选本地 jar');
+      debugPrint('下载加载器失败：$e');
+    }
+  }
+
+  /// 选本地 loader jar，收进库后回调
+  Future<void> _pickLocalLoader() async {
+    final picked = await PathSelector.selectFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    try {
+      final path = await LoaderLibrary.importIntoLibrary(File(picked));
+      if (!mounted) return;
+      widget.onPick(LauncherType.copper, path);
+    } catch (e) {
+      addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
+      debugPrint('添加加载器失败：$e');
+    }
   }
 }
 
