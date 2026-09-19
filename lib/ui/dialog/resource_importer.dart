@@ -12,6 +12,7 @@ import 'package:copper_launcher/domain/local_game_importer.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 import '../../util/format/string_cleaner.dart';
 import '../../util/io/file_reader.dart';
@@ -38,6 +39,26 @@ Future<bool> showResourceImporter(
 
   //识别放在前面：游戏本体要在这里分流，常规资源也省得在弹窗里再读一遍盘
   final readers = await _readResources(files);
+
+  //一个都没识别出来：不进导入页（空列表没意义），只弹窗说一声
+  if (readers.isEmpty) {
+    final navContext = PageKeyProvider.shellKey.currentContext;
+    final content = unrecognizedMessage(files);
+    if (navContext != null && navContext.mounted) {
+      showConfirmationPopup(
+        context: navContext,
+        type: ConfirmationType.notification,
+        title: '没有可导入的资源',
+        content: content,
+        //纯告知，点确认就关
+        action: () {},
+      );
+    } else {
+      addNotice(icon: Icons.info_outline, title: '没有可导入的资源', content: content);
+    }
+    return false;
+  }
+
   FileReader? gameReader;
   for (final reader in readers) {
     if (reader.type == ResourceType.mindustry) {
@@ -91,6 +112,36 @@ Future<List<FileReader>> _readResources(List<String> files) async {
     readers.add(reader);
   }
   return readers;
+}
+
+///全都识别不出来时的提示文案：列前三个文件名，多了报个数
+///
+/// 支持的类型：游戏本体、模组（原版 / Copper）、地图、蓝图
+@visibleForTesting
+String unrecognizedMessage(List<String> files) {
+  const maxListed = 3;
+  final shown = files.take(maxListed).map((path) => p.basename(path)).join('、');
+  final more = files.length > maxListed ? ' 等 ${files.length} 个文件' : '';
+  return '认不出这些文件（$shown$more）：'
+      '支持游戏本体、模组、地图、蓝图';
+}
+
+///Copper 模组导入到不走加载器的版本时的警告；不需要警告时返回 null
+///
+/// Copper 原生模组只有走加载器的版本会读（放在 `<数据目录>/copper/mods`），
+/// 导进原版版本等于白拷一份，导入前先说清楚
+@visibleForTesting
+String? copperModWarning({
+  required int copperModCount,
+  required Mindustry? version,
+}) {
+  if (copperModCount <= 0) return null;
+  if (version == null) {
+    return '这次导入没指定版本：Copper 模组只在走 Copper 加载器的版本里生效';
+  }
+  if (version.isViaLoader) return null;
+  return '[${version.tag}] 没用 Copper 启动，'
+      '这 $copperModCount 个 Copper 模组不会生效';
 }
 
 ///列表里有游戏本体：这趟只建一个版本（多个本体只取第一个，其余提示未处理），
@@ -194,6 +245,12 @@ class ResourceImporterState extends State<ResourceImporter> {
   }
 
   bool get _allSelected => _selected.length == importList.length;
+
+  /// Copper 模组导进不走加载器的版本时提醒一句（不会报错，只是白拷一份）
+  String? get _copperModWarning => copperModWarning(
+    copperModCount: importList.where((r) => r.mod?.copper ?? false).length,
+    version: widget.mindustry,
+  );
 
   ///导入的目标数据目录。[Mindustry.dataPath] 本身是版本隔离感知的——
   ///隔离版本用它自己的数据目录，未隔离 / 没指定版本用默认游戏数据目录
@@ -382,6 +439,31 @@ class ResourceImporterState extends State<ResourceImporter> {
             Text(
               '当前版本未隔离，将导入默认数据目录，建议到设置中开启隔离',
               style: theme.textTheme.labelMedium,
+            ),
+          if (_copperModWarning case final warning?)
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.error.withAlpha(30),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: theme.colorScheme.error.withAlpha(90),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                spacing: 6,
+                children: [
+                  Icon(
+                    Icons.warning_amber_outlined,
+                    size: 18,
+                    color: theme.colorScheme.error,
+                  ),
+                  Expanded(
+                    child: Text(warning, style: theme.textTheme.labelMedium),
+                  ),
+                ],
+              ),
             ),
           //列表自身不带滚动条：外套项目滚动容器（自研滚动条 + 渐隐遮罩）；
           //DragSelectList 拿到的高度无界 → 其内层滚动视图不滚动，滚轮与滚动条由外层接管
