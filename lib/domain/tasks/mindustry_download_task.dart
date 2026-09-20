@@ -355,8 +355,8 @@ class MindustryDownloadTask extends Task {
         tag: remote.tag,
         url: remote.url,
         cancelToken: cancelToken,
-        onProgress: (value) {
-          progress = value;
+        onStatus: (state) {
+          progress = state.progress;
           updateDisplay();
         },
       );

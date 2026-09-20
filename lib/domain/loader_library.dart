@@ -186,18 +186,19 @@ class LoaderLibrary {
     required String tag,
     required String url,
     CancelToken? cancelToken,
-    void Function(double progress)? onProgress,
+    HttpStatusCallback? onStatus,
   }) async {
     final libraryDir = Directory(AppPaths.copperLoader);
     await libraryDir.create(recursive: true);
     final target = File(p.join(libraryDir.path, 'desktop-$tag.jar'));
     if (await target.exists()) return target.path;
 
+    // 状态整份透出去（总大小 / 已下载 / 速度都在里面），调用方要显示具体进度
     await cio.download(
       url: url,
       savePath: target.path,
       cancelToken: cancelToken,
-      onStatus: (state) => onProgress?.call(state.progress),
+      onStatus: onStatus,
     );
     return target.path;
   }

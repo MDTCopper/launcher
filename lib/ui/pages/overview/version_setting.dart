@@ -164,7 +164,9 @@ class _AboutState extends State<_About> {
   /// 加载器信息：原版 / Copper Loader（带版本号，loader 文件不在时标出来）
   String get _loaderInfoText {
     if (!_mindustry.isViaLoader) return '原版';
-    final loaderPath = LoaderLibrary.usablePath(_mindustry.resolvedLauncherPath);
+    final loaderPath = LoaderLibrary.usablePath(
+      _mindustry.resolvedLauncherPath,
+    );
     if (loaderPath == null) return 'Copper Loader（加载器缺失）';
     final version = LoaderLibrary.versionOf(File(loaderPath));
     return version == null ? 'Copper Loader' : 'Copper Loader $version';
@@ -329,10 +331,12 @@ pause
 
   /// 换一种启动方式，以当前版本为模板新建一个版本
   ///
-  /// 启动器与 loader 的选择在 [_LauncherVariantButton] 的菜单里完成，这里只负责建版本
+  /// 启动器与 loader 的选择在 [_LauncherVariantButton] 的菜单里完成，这里只负责建版本；
+  /// [pendingLoader] 是选了远程 loader 时那个还在后台下载的任务（弹窗先开、点创建时等它）
   Future<void> _createVariantWithLauncher({
     required LauncherType launcher,
     String? loaderPath,
+    LoaderDownloadTask? pendingLoader,
   }) async {
     if (!mounted) return;
     await createVersionVariant(
@@ -342,6 +346,7 @@ pause
       launcherPath: loaderPath == null
           ? null
           : AppPaths.toStoredPath(loaderPath),
+      pendingLoader: pendingLoader,
       tagSuffix: launcher == LauncherType.copper ? 'Copper' : '原版',
       dialogTitle: '换启动器新建',
     );
@@ -694,10 +699,11 @@ pause
                   if (isDesktop)
                     _LauncherVariantButton(
                       mindustry: _mindustry,
-                      onPick: (launcher, loaderPath) =>
+                      onPick: (launcher, loaderPath, pendingLoader) =>
                           _createVariantWithLauncher(
                             launcher: launcher,
                             loaderPath: loaderPath,
+                            pendingLoader: pendingLoader,
                           ),
                     ),
                 ],
@@ -1231,14 +1237,23 @@ class _ModsFolderButtonState extends State<_ModsFolderButton> {
 /// 「换启动器新建」按钮：点击弹菜单选启动器（原版 / Copper）
 ///
 /// 选 Copper 后弹**加载器选择页**（库内已有的直接复用、远程的下载进库、
-/// 也可以选本地 jar），选完 loader 才进新建变体的弹窗；loader 最低兼容
-/// Mindustry v146（[Mindustry.loaderMinRelease]），版本不够就只提示不往下走
+/// 也可以选本地 jar）；选完 loader 就进新建变体的弹窗 —— **远程 loader 的下载
+/// 不在这里等**（任务在后台跑，用户可以先填名字与继承，点「创建」时创建流程会等它）；
+/// loader 最低兼容 Mindustry v146（[Mindustry.loaderMinRelease]），版本不够只提示不往下走
 class _LauncherVariantButton extends StatefulWidget {
   const _LauncherVariantButton({required this.mindustry, required this.onPick});
 
   final Mindustry mindustry;
 
-  final void Function(LauncherType launcher, String? loaderPath) onPick;
+  /// 选好了：`(启动器, 库内路径, 还在下载的 loader 任务)`
+  ///
+  /// 选了远程 loader 时前两个是 `(copper, null)`，路径要等任务下完才知道
+  final void Function(
+    LauncherType launcher,
+    String? loaderPath,
+    LoaderDownloadTask? pendingLoader,
+  )
+  onPick;
 
   @override
   State<_LauncherVariantButton> createState() => _LauncherVariantButtonState();
@@ -1259,7 +1274,7 @@ class _LauncherVariantButtonState extends State<_LauncherVariantButton> {
           label: '原版',
           onTap: () {
             controller.dismiss();
-            widget.onPick(LauncherType.mindustry, null);
+            widget.onPick(LauncherType.mindustry, null, null);
           },
         ),
         MenuButton(
@@ -1298,24 +1313,18 @@ class _LauncherVariantButtonState extends State<_LauncherVariantButton> {
     );
     if (choice == null || !mounted) return;
 
-    // 远程版本：下载进任务抽屉（带进度），下完再建变体
+    // 远程版本：**不在这里等** —— 任务在后台下（进抽屉、带进度），立刻进新建变体
+    // 弹窗让用户先填名字与继承；点「创建」时创建流程会等它（见 createVersionVariant）
     if (choice.remote case final remote?) {
-      addTask(
-        LoaderDownloadTask(
-          tag: remote.tag,
-          url: remote.url,
-          afterDownload: (loaderPath) async {
-            if (!mounted) return;
-            widget.onPick(LauncherType.copper, loaderPath);
-          },
-        ),
-      );
+      final task = LoaderDownloadTask(tag: remote.tag, url: remote.url);
+      addTask(task);
+      widget.onPick(LauncherType.copper, null, task);
       return;
     }
 
     final loaderPath = await resolveLoaderChoiceLocally(choice);
     if (loaderPath == null) return;
-    widget.onPick(LauncherType.copper, loaderPath);
+    widget.onPick(LauncherType.copper, loaderPath, null);
   }
 }
 

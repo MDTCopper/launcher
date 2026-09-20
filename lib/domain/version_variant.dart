@@ -3,12 +3,15 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/domain/local_game_importer.dart';
+import 'package:copper_launcher/domain/task.dart';
+import 'package:copper_launcher/domain/tasks/loader_download_task.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:flutter/material.dart';
@@ -46,6 +49,9 @@ enum VersionDataKind {
 /// - [inherit] 里的数据从源版本的数据目录**拷贝**过去（拷贝而非链接：Windows 下目录符号
 ///   链接要开发者模式或管理员权限）
 /// - [launcher] / [launcherPath] 用于「换一种启动方式建一个版本」：不传就与源版本一致
+/// - [pendingLoader] 是「还在后台下载的 loader」：变体弹窗先开、用户在填名字与继承的
+///   时候它在下；点「创建」后如果它还没结束，就先通知一声再等它，下完用真实路径建版本
+///   （失败就不建版本）
 ///
 /// 返回新建的版本；用户取消时返回 null
 Future<Mindustry?> createVersionVariant({
@@ -54,12 +60,13 @@ Future<Mindustry?> createVersionVariant({
   BuildContext? context,
   LauncherType? launcher,
   String? launcherPath,
+  LoaderDownloadTask? pendingLoader,
   String tagSuffix = '副本',
   String dialogTitle = '新建变体',
 }) async {
   //不传 launcher 就是照抄源版本（含它用的 loader）；传了则以传入的为准
   final targetLauncher = launcher ?? source.launcher;
-  final targetLauncherPath = launcher == null
+  var targetLauncherPath = launcher == null
       ? source.launcherPath
       : launcherPath;
 
@@ -75,6 +82,32 @@ Future<Mindustry?> createVersionVariant({
         ),
       );
   if (options == null) return null;
+
+  // 选的是远程 loader：弹窗期间它在后台下，这里等它（用户点创建时可能还没下完）
+  if (pendingLoader != null) {
+    if (pendingLoader.status == TaskStatus.process) {
+      addNotice(
+        icon: Icons.download,
+        title: '等待加载器下载',
+        content: 'Copper Loader ${pendingLoader.tag} 下完就建版本',
+      );
+    }
+    try {
+      targetLauncherPath = await pendingLoader.done;
+    } catch (e) {
+      addNotice(
+        icon: Icons.close,
+        title: '加载器没下下来',
+        content: '没有创建版本：稍后再试，或改选本地 jar',
+      );
+      addLog(
+        .warning,
+        '变体创建中止：加载器没下下来（${removeNewlines('$e')}）',
+        tag: 'Version',
+      );
+      return null;
+    }
+  }
 
   final fold = targetFold ?? _foldOf(source);
   final version = Mindustry(
@@ -190,19 +223,15 @@ Widget buildVariantDialogForTest({
 
 /// 用例入口：完整走一遍参数弹窗并返回结果，但不落盘
 @visibleForTesting
-Future<({String tag, Set<VersionDataKind> inherit})?>
-showVariantDialogForTest({
+Future<({String tag, Set<VersionDataKind> inherit})?> showVariantDialogForTest({
   required BuildContext context,
   required Mindustry source,
   required Set<String> usedTags,
   LauncherType launcher = LauncherType.mindustry,
 }) => showAnimatedDialog<({String tag, Set<VersionDataKind> inherit})>(
   context: context,
-  pageBuilder: (_, _, _) => _VariantDialog(
-    source: source,
-    usedTags: usedTags,
-    launcher: launcher,
-  ),
+  pageBuilder: (_, _, _) =>
+      _VariantDialog(source: source, usedTags: usedTags, launcher: launcher),
 );
 
 class _VariantDialog extends StatefulWidget {

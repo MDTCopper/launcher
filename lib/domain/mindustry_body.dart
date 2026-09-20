@@ -25,6 +25,18 @@ class MindustryBody {
     return 'mindustry-$safe-${hash.substring(0, 8)}.jar';
   }
 
+  static final RegExp _bodyNamePattern = RegExp(
+    r'^mindustry-.+-[0-9a-f]{8}\.jar$',
+    caseSensitive: false,
+  );
+
+  /// 文件名是不是库里的本体（[fileName] 那个形态）
+  ///
+  /// 下载的临时 / 分块文件（`<目标>.temp.<i>`）与半截文件也落在同一个目录里，
+  /// 判断「库内孤儿」时不能把目录里每个文件都算进来（见启动自检）
+  static bool isLibraryBodyName(String fileName) =>
+      _bodyNamePattern.hasMatch(fileName);
+
   /// 文件内容 hash（sha1 十六进制）：防撞
   static Future<String> hashFile(File file) async =>
       (await sha1.bind(file.openRead()).first).toString();

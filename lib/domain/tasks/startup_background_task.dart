@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/min_game_versions.dart';
+import 'package:copper_launcher/domain/mindustry_body.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/animation/eased_progress_bar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -179,10 +180,16 @@ class StartupBackgroundTask extends Task {
     }
 
     // 本体库里的孤儿：库内文件必然是启动器放的，没被任何记录引用就能清
+    //
+    // 只认启动器自己的命名（`mindustry-<身份>-<hash8>.jar`）：下载的临时 / 分块文件
+    // （`<目标>.temp.<i>`）也落在这个目录里，它们不是本体，也不该被列成「无引用」——
+    // 删了等于丢掉续传缓存
     final libraryDir = Directory(AppPaths.mindustrys);
     if (await libraryDir.exists()) {
       await for (final entity in libraryDir.list()) {
-        if (entity is File) considerOrphan(entity.path);
+        if (entity is! File) continue;
+        if (!MindustryBody.isLibraryBodyName(p.basename(entity.path))) continue;
+        considerOrphan(entity.path);
       }
     }
 
