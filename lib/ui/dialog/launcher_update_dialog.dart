@@ -162,7 +162,7 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
   List<Widget> _buildAvailable(ThemeData theme, AppColors colors) {
     final release = _release!;
     final asset = _asset;
-    final channel = release.version?.channel;
+    final channel = release.channel;
 
     return [
       Row(
@@ -174,8 +174,7 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
               color: colors.interactive,
             ),
           ),
-          if (channel != null)
-            Text('· ${channel.label}', style: theme.textTheme.labelMedium),
+          Text('· ${channel.label}', style: theme.textTheme.labelMedium),
         ],
       ),
       if (release.body.trim().isNotEmpty)

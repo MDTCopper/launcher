@@ -149,15 +149,21 @@ class LauncherRelease {
   /// tag 解析出的版本；解析不出来时为 null（选最新一版时排最后）
   LauncherVersion? get version => parseLauncherTag(tag);
 
-  /// 这一版算不算预发布：GitHub 上勾了 pre-release，**或** tag 带通道尾缀
+  /// 这一版属于哪个通道
   ///
-  /// 两个都认：勾选是发布者的本意（正式版用户不该吃到它），而带 `-alpha6` 的 tag
-  /// 就算忘了勾也不该推给正式版，所以只要有任一条成立就按预发布处理
-  bool get isPrerelease {
-    if (prerelease) return true;
+  /// 优先信 tag 尾缀（`v0.1.0-alpha6` → 内测、`v0.1.0-beta1` → 公测）；
+  /// tag 没写通道却勾了 pre-release 时按**内测**处理 —— 宁可把它当最不稳的那级，
+  /// 也别让公测用户吃到来路不明的预发布。两条都不成立就是正式版
+  LauncherChannel get channel {
     final parsed = version;
-    return parsed != null && parsed.channel != LauncherChannel.release;
+    if (parsed != null && parsed.channel != LauncherChannel.release) {
+      return parsed.channel;
+    }
+    return prerelease ? LauncherChannel.alpha : LauncherChannel.release;
   }
+
+  /// 这一版算不算预发布（内测 / 公测）
+  bool get isPrerelease => channel != LauncherChannel.release;
 
   /// 展示用标题
   String get displayName => name.trim().isEmpty ? tag : name.trim();
@@ -198,18 +204,20 @@ class LauncherUpdate {
     }
   }
 
-  /// 本地这份能收到的最新一版：**正式版只看非预发布**，内测 / 公测两者都看
+  /// 本地这份能收到的最新一版
   ///
-  /// 本地版本读不出来时按正式版处理（宁可少提示，也别把内测推给正式版用户）
+  /// 通道阶梯 **内测 < 公测 < 正式**，本地只吃「本级与更稳的」：
+  /// 内测能吃到内测 / 公测 / 正式，公测能吃到公测 / 正式（**不吃内测** ——
+  /// 那是更不稳的一级，哪怕版本号更高），正式版只吃正式版。
+  /// 本地版本读不出来时按正式版处理（宁可少提示，也别把预发布推给正式版用户）
   static LauncherRelease? newestFor({
     required LauncherVersion? local,
     required List<LauncherRelease> releases,
   }) {
-    final acceptsPrerelease =
-        (local?.channel ?? LauncherChannel.release) != LauncherChannel.release;
+    final localChannel = local?.channel ?? LauncherChannel.release;
     return newestOf([
       for (final release in releases)
-        if (acceptsPrerelease || !release.isPrerelease) release,
+        if (release.channel.rank >= localChannel.rank) release,
     ]);
   }
 
