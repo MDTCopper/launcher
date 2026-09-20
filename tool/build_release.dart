@@ -8,7 +8,13 @@
 // 用法：
 //   dart tool/build_release.dart                 // 全交互（回车用默认值）
 //   dart tool/build_release.dart --no-build      // 只写版本信息，不构建
-//   dart tool/build_release.dart --version 0.0.2 --channel alpha --bump --platform windows,android --yes
+//   dart tool/build_release.dart --version 0.2.0 --channel alpha --bump --platform windows,android --yes
+//
+// 版本号与通道（详见 .project_status/architecture.md 的「版本号与发布通道」）：
+//   - 版本号 `X.Y.Z`：`Y` 加功能 / 破坏性变更，`Z` 只在**正式版已发布之后**的修复才动
+//   - 预发布带**通道序号**（`alpha1`…`alphaN`），每通道、每版本各自从 1 开始
+//   - `appBuildNumber` 是**全局构建号**，只增不减（Android versionCode 用它），与通道序号无关
+//   - tag / 显示版本 / 产物名同源：`v0.2.0-alpha1` / `v0.2.0 alpha 1` / `copper-launcher-v0.2.0-alpha1-windows-x64.zip`
 //
 // 构建目标可多选（windows / android / linux / macos），但桌面目标只能在对应宿主上
 // 构建——选了不匹配的目标会跳过并提示，不会中止其它目标的构建
@@ -20,12 +26,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
+import 'package:copper_launcher/util/version_strings.dart';
 import 'package:path/path.dart' as p;
 
 /// 版本信息写在这个文件的标记块里
 const appConstantPath = 'lib/core/app_constant.dart';
 
-/// pubspec 的 version 段 = 版本号 + YYMMDD
+/// pubspec 的 version 段 = 版本号（预发布带通道与序号）+ 全局构建号
 const pubspecPath = 'pubspec.yaml';
 
 /// 记住上次选的构建目标（本地状态，不入库）
@@ -142,6 +149,9 @@ enum PackageFormat {
 class BuildOptions {
   String? versionName;
   ReleaseChannel? channel;
+
+  /// 通道序号（预发布用）；不传则按「同版本同通道上次 +1」推荐
+  int? channelSeq;
   bool? countBuildNumber;
   List<BuildTarget>? targets;
   BuildMode? mode;
@@ -162,11 +172,18 @@ class CurrentVersion {
     required this.versionName,
     required this.buildNumber,
     required this.buildTime,
+    required this.displayVersion,
   });
 
   final String versionName;
+
+  /// 全局构建号：只增不减（Android 拿它当 versionCode），与通道序号不是一回事
   final int buildNumber;
+
   final String buildTime;
+
+  /// 显示版本原文（`v0.2.0 alpha 6`），用来算下一个通道序号
+  final String displayVersion;
 }
 
 Future<void> main(List<String> args) async {
@@ -197,6 +214,22 @@ Future<void> main(List<String> args) async {
   final channel = options.channel ?? _askChannel();
   final countBuildNumber = options.countBuildNumber ?? _askCountBuildNumber();
 
+  // 通道序号（`alpha` / `beta` 后面那个数字）：每通道、每版本各自从 1 开始，
+  // 与全局构建号分开算 —— 后者只增不减（Android 的 versionCode 用它）
+  final channelSuffix = channel.suffix.isEmpty ? null : channel.suffix;
+  int? channelSeq;
+  if (channelSuffix != null) {
+    final suggestedSeq = nextChannelSeq(
+      currentDisplayVersion: current.displayVersion,
+      version: versionName,
+      channel: channelSuffix,
+    );
+    // 免交互（--yes）时不能提问，直接用推荐值
+    channelSeq =
+        options.channelSeq ??
+        (options.skipConfirm ? suggestedSeq : _askChannelSeq(suggestedSeq));
+  }
+
   // 只改版本号（不构建）：--no-build / --version-only 跳过提问，交互模式下问一步
   final shouldBuild = options.skipBuild
       ? false
@@ -207,16 +240,18 @@ Future<void> main(List<String> args) async {
       ? current.buildNumber + 1
       : current.buildNumber;
   final buildTime = _formatBuildTime(DateTime.now());
-  final pubspecBuildTime = _formatPubspecBuildTime(DateTime.now());
-  final displayVersion = channel.suffix.isEmpty
-      ? 'v$versionName'
-      : 'v$versionName ${channel.suffix} $buildNumber';
+  final release = ReleaseVersion(
+    version: versionName,
+    channel: channelSuffix,
+    seq: channelSeq,
+  );
 
   stdout.writeln('\n将要写入：');
-  stdout.writeln('  appVersion      = $displayVersion');
+  stdout.writeln('  appVersion      = ${release.display}');
   stdout.writeln('  appBuildNumber  = $buildNumber');
   stdout.writeln('  appBuildTime    = $buildTime');
-  stdout.writeln('  pubspec version = $versionName+$pubspecBuildTime');
+  stdout.writeln('  pubspec version = ${release.semver}+$buildNumber');
+  stdout.writeln('  release tag     = ${release.tag}');
   stdout.writeln(
     '  构建            = ${shouldBuild ? '${targets.map((target) => target.label).join(' + ')} · ${mode.label}' : '否（只写版本信息）'}',
   );
@@ -227,11 +262,11 @@ Future<void> main(List<String> args) async {
   }
 
   _writeVersionBlock(
-    displayVersion: displayVersion,
+    displayVersion: release.display,
     buildNumber: buildNumber,
     buildTime: buildTime,
   );
-  _writePubspecVersion('$versionName+$pubspecBuildTime');
+  _writePubspecVersion('${release.semver}+$buildNumber');
   _saveTargets(targets);
   stdout.writeln('\n版本信息已写入 $appConstantPath / $pubspecPath');
 
@@ -250,21 +285,14 @@ Future<void> main(List<String> args) async {
   final distFolder = await _packageIfNeeded(
     options: options,
     mode: mode,
-    versionName: versionName,
-    channel: channel,
-    buildNumber: buildNumber,
+    release: release,
     builtTargets: builtTargets,
   );
 
   // apk 本身就是产物、没有打包环节，但拆 ABI 后是多个 `app-<abi>-release.apk`，
   // 收进 build/dist 并统一命名，免得几个同风格的 app-*.apk 混在构建目录里
   final apkFolder = builtTargets.contains(BuildTarget.android)
-      ? await _collectAndroidApks(
-          mode: mode,
-          versionName: versionName,
-          channel: channel,
-          buildNumber: buildNumber,
-        )
+      ? await _collectAndroidApks(mode: mode, release: release)
       : null;
 
   await _openFoldersIfWanted(
@@ -391,6 +419,8 @@ BuildOptions? _parseArgs(List<String> args) {
         options.versionName = nextValue();
       case '--channel':
         options.channel = _channelOf(nextValue());
+      case '--seq':
+        options.channelSeq = _positiveIntOf(nextValue(), '--seq');
       case '--bump':
         options.countBuildNumber = true;
       case '--no-bump':
@@ -420,9 +450,11 @@ BuildOptions? _parseArgs(List<String> args) {
       case '-h':
         stdout.writeln(
           '用法：dart tool/build_release.dart [选项]\n'
-          '  --version <大.小.热修>   版本号，如 0.0.2\n'
+          '  --version <大.小.热修>   版本号，如 0.2.0\n'
           '  --channel <release|alpha|beta>  发布类型（也认首字母 r/a/b）\n'
-          '  --bump / --no-bump       本次是否计入 build number\n'
+          '  --seq <N>                通道序号（预发布用，如 alpha6 的 6）；\n'
+          '                            不传则按「同版本同通道上次 +1」推荐，可交互确认\n'
+          '  --bump / --no-bump       本次是否计入 build number（全局递增，Android versionCode 用它）\n'
           '  --platform <windows,android,linux,macos>  构建目标，可多选、逗号分隔（也认首字母 w/a/l/m）\n'
           '                            交互提问只会列出当前宿主能构建的目标；桌面目标选了不匹配的会跳过\n'
           '  --mode <release|debug|profile>  构建模式（也认首字母 r/d/p）\n'
@@ -449,6 +481,15 @@ ReleaseChannel _channelOf(String value) {
     throw ArgumentError('发布类型只能是 release / alpha / beta，收到：$value');
   }
   return channel;
+}
+
+/// 取一个正整数参数（通道序号这类）
+int _positiveIntOf(String value, String arg) {
+  final parsed = int.tryParse(value);
+  if (parsed == null || parsed <= 0) {
+    throw ArgumentError('$arg 需要正整数，收到：$value');
+  }
+  return parsed;
 }
 
 /// 解析逗号分隔的构建目标列表，可填名称或首字母
@@ -517,6 +558,18 @@ ReleaseChannel _askChannel() => _askChoice(
 );
 
 bool _askCountBuildNumber() => _askYesNo('本次是否计入 build number（不计入则沿用上次）');
+
+/// 通道序号：同一个版本号、同一个通道里的第几次（`alpha1`…`alphaN`，换了版本号或通道重新从 1 起）
+///
+/// 与全局 build number 是两回事：那个只增不减（Android versionCode 用它）
+int _askChannelSeq(int defaultSeq) {
+  while (true) {
+    final input = _ask('通道序号（该版本该通道的第几次）', '$defaultSeq');
+    final seq = int.tryParse(input);
+    if (seq != null && seq > 0) return seq;
+    stdout.writeln('应为正整数，形如 1');
+  }
+}
 
 /// 构建目标多选：只列出当前宿主能构建的目标，逗号或空格分隔，可填序号 / 名称 / 首字母
 List<BuildTarget> _askTargets() {
@@ -699,9 +752,7 @@ Directory? _firstExistingFolder(List<String> candidates) {
 Future<Directory?> _packageIfNeeded({
   required BuildOptions options,
   required BuildMode mode,
-  required String versionName,
-  required ReleaseChannel channel,
-  required int buildNumber,
+  required ReleaseVersion release,
   required List<BuildTarget> builtTargets,
 }) async {
   // apk 本身就是产物，一个可打包的桌面目标都没有就直接结束
@@ -730,15 +781,13 @@ Future<Directory?> _packageIfNeeded({
       sourceFolder: sourceFolder,
       distFolder: distFolder,
       baseName: _packageBaseName(
-        versionName: versionName,
-        channel: channel,
-        buildNumber: buildNumber,
+        release: release,
         target: target,
         sourceFolder: sourceFolder,
       ),
-      appVersion: channel.suffix.isEmpty
-          ? versionName
-          : '$versionName-${channel.suffix}$buildNumber',
+      // 安装包版本写进卸载键的 DisplayVersion（tag 形态，不带 v）：更新时
+      // 安装器会把它当「来源版本」传给引导脚本，所以必须与 release tag 同源
+      appVersion: release.semver,
     );
   }
   return distFolder;
@@ -751,9 +800,7 @@ Future<Directory?> _packageIfNeeded({
 /// apk 不走打包环节，这里只做「归拢 + 改名」，原文件留在构建目录里不动
 Future<Directory?> _collectAndroidApks({
   required BuildMode mode,
-  required String versionName,
-  required ReleaseChannel channel,
-  required int buildNumber,
+  required ReleaseVersion release,
 }) async {
   final sourceFolder = _outputFolderOf(BuildTarget.android, mode);
   if (sourceFolder == null) {
@@ -791,9 +838,7 @@ Future<Directory?> _collectAndroidApks({
   final collectedApks = splitApks.isNotEmpty ? splitApks : universalApks;
 
   final baseName = _packageBaseName(
-    versionName: versionName,
-    channel: channel,
-    buildNumber: buildNumber,
+    release: release,
     target: BuildTarget.android,
     sourceFolder: sourceFolder,
   );
@@ -900,19 +945,15 @@ Future<void> _packageTarget({
   }
 }
 
-/// 产物名（不含后缀）：copper-launcher-v0.0.2-alpha2-windows-x64
+/// 产物名（不含后缀）：copper-launcher-v0.2.0-alpha2-windows-x64
+///
+/// 直接由 release tag 拼出来 —— 产物名与 tag 同源，更新器按这个格式认版本
 String _packageBaseName({
-  required String versionName,
-  required ReleaseChannel channel,
-  required int buildNumber,
+  required ReleaseVersion release,
   required BuildTarget target,
   required Directory sourceFolder,
-}) {
-  final channelPart = channel.suffix.isEmpty
-      ? ''
-      : '-${channel.suffix}$buildNumber';
-  return 'copper-launcher-v$versionName$channelPart-${_platformPartOf(target, sourceFolder)}';
-}
+}) =>
+    'copper-launcher-${release.tag}-${_platformPartOf(target, sourceFolder)}';
 
 /// 产物名的平台段：`build/linux/x64/...` 这类带架构的目录标出 x64
 String _platformPartOf(BuildTarget target, Directory sourceFolder) {
@@ -1219,12 +1260,13 @@ CurrentVersion _readCurrentVersion() {
   final displayVersion = _matchValue(block, 'appVersion');
   final buildNumber = int.tryParse(_matchValue(block, 'appBuildNumber'));
 
-  // 显示版本形如 v0.0.2 alpha 12：取第一段当纯版本号
+  // 显示版本形如 v0.2.0 alpha 12：取第一段当纯版本号
   final versionName = displayVersion.replaceFirst('v', '').split(' ').first;
   return CurrentVersion(
     versionName: versionName,
     buildNumber: buildNumber ?? 0,
     buildTime: _matchValue(block, 'appBuildTime'),
+    displayVersion: displayVersion,
   );
 }
 
@@ -1306,12 +1348,6 @@ String _formatBuildTime(DateTime now) {
   String two(int value) => value.toString().padLeft(2, '0');
   return '${now.year}-${two(now.month)}-${two(now.day)} '
       '${two(now.hour)}:${two(now.minute)}';
-}
-
-/// pubspec 的 + 段：YYMMDD（Android versionCode 直接用它，位数不能太长）
-String _formatPubspecBuildTime(DateTime now) {
-  String two(int value) => value.toString().padLeft(2, '0');
-  return '${two(now.year % 100)}${two(now.month)}${two(now.day)}';
 }
 
 /// 读上次选的构建目标；旧版本状态文件存的是单值 `platform`，一并兼容
