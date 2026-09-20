@@ -149,6 +149,16 @@ class LauncherRelease {
   /// tag 解析出的版本；解析不出来时为 null（选最新一版时排最后）
   LauncherVersion? get version => parseLauncherTag(tag);
 
+  /// 这一版算不算预发布：GitHub 上勾了 pre-release，**或** tag 带通道尾缀
+  ///
+  /// 两个都认：勾选是发布者的本意（正式版用户不该吃到它），而带 `-alpha6` 的 tag
+  /// 就算忘了勾也不该推给正式版，所以只要有任一条成立就按预发布处理
+  bool get isPrerelease {
+    if (prerelease) return true;
+    final parsed = version;
+    return parsed != null && parsed.channel != LauncherChannel.release;
+  }
+
   /// 展示用标题
   String get displayName => name.trim().isEmpty ? tag : name.trim();
 }
@@ -160,20 +170,24 @@ class LauncherUpdate {
   /// 启动器仓库（与 [launcherRepoUrl] 同一份）
   static const String repo = 'MDTCopper/launcher';
 
-  /// 一次查多少个 release：挑最新一版够用；预发布也要算，所以不走 `/releases/latest`
+  /// 一次查多少个 release：挑最新一版够用
+  ///
+  /// 走列表而不是 `/releases/latest`：后者按定义排除预发布，而内测 / 公测版本
+  /// 正是靠预发布标记发出去的；吃不吃预发布由 [newestFor] 按本地通道决定
   static const int fetchLimit = 10;
 
   /// 当前这份的版本（`app_constant.dart` 里由构建脚本写入的版本信息）
   static LauncherVersion? get currentVersion =>
       parseLocalVersion(appVersion, appBuildNumber);
 
-  /// 查最新一版（预发布也参与），按版本号自己排序、不吃接口返回顺序；失败返回 null
-  static Future<LauncherRelease?> fetchLatest() async {
+  /// 查 release 列表（含预发布），按版本号自己排序、不吃接口返回顺序；
+  /// **拉取失败返回 null**（与「没有候选」区分开：后者返回空列表）
+  static Future<List<LauncherRelease>?> fetchReleases() async {
     try {
       final decoded = await fetchJsonBody(
         '$githubAPI/repos/$repo/releases?per_page=$fetchLimit',
       );
-      return newestOf(parseReleases(decoded));
+      return parseReleases(decoded);
     } catch (e) {
       addLogAndPrint(
         .warning,
@@ -184,12 +198,27 @@ class LauncherUpdate {
     }
   }
 
-  /// [release] 是否比当前这份新
-  static bool isNewer(LauncherRelease release) {
-    final local = currentVersion;
+  /// 本地这份能收到的最新一版：**正式版只看非预发布**，内测 / 公测两者都看
+  ///
+  /// 本地版本读不出来时按正式版处理（宁可少提示，也别把内测推给正式版用户）
+  static LauncherRelease? newestFor({
+    required LauncherVersion? local,
+    required List<LauncherRelease> releases,
+  }) {
+    final acceptsPrerelease =
+        (local?.channel ?? LauncherChannel.release) != LauncherChannel.release;
+    return newestOf([
+      for (final release in releases)
+        if (acceptsPrerelease || !release.isPrerelease) release,
+    ]);
+  }
+
+  /// [release] 是否比当前这份新（[local] 不传就取 [currentVersion]）
+  static bool isNewer(LauncherRelease release, {LauncherVersion? local}) {
+    final base = local ?? currentVersion;
     final remote = release.version;
-    if (local == null || remote == null) return false;
-    return remote.compareTo(local) > 0;
+    if (base == null || remote == null) return false;
+    return remote.compareTo(base) > 0;
   }
 
   /// 该不该直接拉起安装：Windows + 下的是 Setup + 当前这份就是 Setup 装出来的

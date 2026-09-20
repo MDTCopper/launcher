@@ -39,14 +39,21 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
   }
 
   Future<void> _check() async {
-    final release = await LauncherUpdate.fetchLatest();
+    final releases = await LauncherUpdate.fetchReleases();
     if (!mounted) return;
 
     setState(() {
-      if (release == null) {
+      if (releases == null) {
         _result = _CheckResult.failed;
-      } else if (LauncherUpdate.isNewer(release)) {
-        _release = release;
+        return;
+      }
+      // 正式版用户不吃预发布：候选按本地通道筛过（内测 / 公测才看预发布）
+      final candidate = LauncherUpdate.newestFor(
+        local: LauncherUpdate.currentVersion,
+        releases: releases,
+      );
+      if (candidate != null && LauncherUpdate.isNewer(candidate)) {
+        _release = candidate;
         _result = _CheckResult.available;
       } else {
         _result = _CheckResult.upToDate;
