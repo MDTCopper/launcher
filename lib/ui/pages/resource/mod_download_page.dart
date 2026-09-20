@@ -3,7 +3,7 @@ import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/min_game_versions.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
-import 'package:copper_launcher/domain/tasks/download_mod.dart';
+import 'package:copper_launcher/domain/tasks/mod_download_task.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -985,7 +985,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     // 源码下载：走源码 task
     if (widget.downloadSource) {
       addTask(
-        DownloadSourceModTask(
+        SourceModDownloadTask(
           modListMeta: modListMeta,
           modMeta: modMeta,
           savePath: version?.modsPath ?? otherSavePath!,
@@ -999,7 +999,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     final candidates = _assetCandidates;
     if (candidates.isEmpty) {
       addTask(
-        DownloadSourceModTask(
+        SourceModDownloadTask(
           modListMeta: modListMeta,
           modMeta: modMeta,
           savePath: version?.modsPath ?? otherSavePath!,
@@ -1013,7 +1013,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
 
     if (modListMeta.hasJava) {
       addTask(
-        DownloadJavaModTask(
+        JavaModDownloadTask(
           modListMeta: modListMeta,
           modMeta: modMeta!,
           savePath: version?.modsPath ?? otherSavePath!,
@@ -1023,7 +1023,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     } else {
       // 非Java Mod
       addTask(
-        DownloadZipModTask(
+        ZipModDownloadTask(
           modListMeta,
           modMeta!,
           version?.modsPath ?? otherSavePath!,

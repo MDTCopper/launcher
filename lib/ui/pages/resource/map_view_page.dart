@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/mindustry_top_map.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
-import 'package:copper_launcher/domain/tasks/download_map.dart';
+import 'package:copper_launcher/domain/tasks/map_download_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
@@ -361,7 +361,7 @@ class _MapViewPageState extends State<MapViewPage> {
       version.mapsPath,
       '${WindowsFileNameValidator.sanitizeFileName(map.name)}.msav',
     );
-    addTask(DownloadMapTask(map: map, version: version, savePath: savePath));
+    addTask(MapDownloadTask(map: map, version: version, savePath: savePath));
   }
 
   Widget _buildMapTile(MindustryTopMapMeta map) {

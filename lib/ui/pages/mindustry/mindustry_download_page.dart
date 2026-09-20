@@ -28,7 +28,7 @@ import 'package:flutter/services.dart';
 import '../../../core/app_config.dart';
 import '../../../core/app_constant.dart';
 import '../../../domain/task_manager.dart';
-import '../../../domain/tasks/download_mindustry.dart';
+import '../../../domain/tasks/mindustry_download_task.dart';
 import '../../../util/mindustry_version_era.dart';
 import '../../../util/validate/windows_file_name_validator.dart';
 
@@ -106,9 +106,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
 
   Future<MindustryGithubMeta> _fetchLatestBeta() async {
     final releases = await _fetchReleaseArray('$githubBeUrl?per_page=1');
-    return MindustryGithubMeta.fromJson(
-      releases.first as Map<String, dynamic>,
-    );
+    return MindustryGithubMeta.fromJson(releases.first as Map<String, dynamic>);
   }
 
   /// 退路：用 git 的 ref 广告拿 tag（不吃匿名 API 额度）
@@ -407,7 +405,7 @@ class _DownloadMindustryPopupPageState
 
   ///选中的启动方式（loader 的选择结果）；null / [LoaderChoice.none] = 原版启动
   ///
-  /// 这里**只记选择**，不下载：需要下载的 loader 由 [DownloadMindustryTask] 与本体
+  /// 这里**只记选择**，不下载：需要下载的 loader 由 [MindustryDownloadTask] 与本体
   /// 一起下（进任务抽屉、带进度，失败可见）
   ///
   /// 下载前还不知道游戏大版本号（要读 jar 里的 version.properties），
@@ -460,7 +458,7 @@ class _DownloadMindustryPopupPageState
     if (error != null) return;
 
     addTask(
-      DownloadMindustryTask(
+      MindustryDownloadTask(
         mindustryMeta: mindustryMeta,
         tag: tag,
         loader: loaderChoice,
