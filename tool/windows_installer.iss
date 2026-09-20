@@ -70,6 +70,39 @@ Name: "{autodesktop}\Copper Launcher"; Filename: "{app}\copper_launcher.exe"; Ta
 
 [Run]
 ; 覆盖式更新的迁移钩子：新版带来的引导脚本先跑（没有这个文件就跳过），
-; 参数是目标版本（与 release tag 同形态），跑完再让用户启动启动器
-Filename: "{app}\update.cmd"; Parameters: "v{#AppVersion}"; Flags: runhidden waituntilterminated skipifdoesntexist
+; 参数是「目标版本 [来源版本]」（都是 release tag 形态；没有来源版本时只给一个参数），
+; 跑完再让用户启动启动器
+Filename: "{app}\update.cmd"; Parameters: "v{#AppVersion}{code:GetPreviousVersion}"; Flags: runhidden waituntilterminated skipifdoesntexist
 Filename: "{app}\copper_launcher.exe"; Description: "立即运行 Copper Launcher"; Flags: nowait postinstall skipifsilent
+
+[Code]
+var
+  PreviousVersion: String;
+
+// 安装开始前把旧版本的 DisplayVersion 记下来：等 [Run] 执行的时候，
+// 注册表里这个值已经被新版覆盖了
+procedure ReadPreviousVersion();
+var
+  UninstallKey: String;
+begin
+  // 键名 = Uninstall\<AppId>_is1；AppId 见上面的 [Setup] 段（固定不变，所以这里可以写死）
+  UninstallKey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{8F2A6C41-7B3E-4E7A-9C1D-5A0B7E4F2C93}_is1';
+  if not RegQueryStringValue(HKCU, UninstallKey, 'DisplayVersion', PreviousVersion) then
+    RegQueryStringValue(HKLM, UninstallKey, 'DisplayVersion', PreviousVersion);
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  ReadPreviousVersion();
+  Result := True;
+end;
+
+// 来源版本参数：注册表里存的是 0.0.1-alpha5 这种，补上 v 前缀并带上引号；
+// 没有旧版本时返回空串 —— 整个参数都不给，免得脚本收到一个字面量的 ""
+function GetPreviousVersion(Param: String): String;
+begin
+  if PreviousVersion = '' then
+    Result := ''
+  else
+    Result := ' "v' + PreviousVersion + '"';
+end;

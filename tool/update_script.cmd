@@ -8,7 +8,9 @@ rem 光靠覆盖不行的破坏性变更（数据布局改了、配置格式变�
 rem
 rem 调用约定：
 rem   %1 = 目标版本（release tag 形态，如 v0.0.1-alpha6），一定给
-rem   %2 = 来源版本（同形态，如 v0.0.1-alpha5），拿不到时为空
+rem   %2 = 来源版本（同形态，如 v0.0.1-alpha5），可能没有
+rem   取值请用 %~1 / %~2（去掉外层引号）；判断有没有来源版本用
+rem   if "%~2"=="" —— 直接比 %2 不保险（安装版路径上可能收到字面量的 ""）
 rem   工作目录 = 程序目录（数据根通常也在这里，config.bin / versions 等）
 rem
 rem 写脚本时的几条硬要求：
@@ -20,7 +22,7 @@ rem     所以涉及数据迁移的逻辑要能重复执行（再跑一次不出
 rem   - 内容保持可读即可，默认什么都不做：没有破坏性变更就原样 exit /b 0
 rem
 rem 例子（按需取用，这里只是写法示范）：
-rem   if "%2"=="" goto done
+rem   if "%~2"=="" goto done
 rem   if exist "config.bin" copy /y "config.bin" "config.bin.bak" >nul
 rem   :done
 rem ============================================================================
