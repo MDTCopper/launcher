@@ -8,24 +8,17 @@ import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart'
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
-import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
-
-/// 选加载器的结果
-///
-/// [loaderPath] 为 null 表示选了「不用加载器（原版启动）」；
-/// 整个返回值为 null 表示用户取消（保持原状）
-typedef LoaderPickResult = ({String? loaderPath});
 
 /// 本地 jar 的类型过滤：选择页与下载页挑文件都用它
 const loaderJarTypeGroup = XTypeGroup(label: 'Copper 加载器', extensions: ['jar']);
 
 /// 弹选择页，**只返回选了什么**（库里已有的 / 远程待下载 / 去挑本地 jar / 不用加载器）
 ///
-/// 取消返回 null。要的是「下载与落地由调用方决定」时用它（比如下载游戏：把 loader 的
-/// 下载并进本体下载任务）；只想要最终路径就用 [showLoaderPicker]
+/// 取消返回 null。**落地由调用方决定**：远程版本要起 [LoaderDownloadTask]（进任务抽屉、
+/// 带进度、失败可见），不需要下载的用 [resolveLoaderChoiceLocally] 就地落
 Future<LoaderChoice?> pickLoaderChoice(
   BuildContext context, {
   String? currentLoaderPath,
@@ -40,75 +33,19 @@ Future<LoaderChoice?> pickLoaderChoice(
   ),
 );
 
-/// 弹加载器选择页：库内已有的（直接复用）／远程可下的（下载）／本地 jar
+/// 把**不需要下载**的选择落成可用路径：库内已有的直接用，本地 jar 收进加载器库
 ///
-/// 拿到选择后在这里就落地（库内的直接用、本地的收进库、远程的先下载），
-/// 返回的是**可直接用的 loader 绝对路径**；取消返回 null
-///
-/// [gameVersion] 传游戏版本的可比形式（[Mindustry.gameVersionString]）时会按适配表
-/// 标注兼容性与推荐；拿不到就只列版本不做标注（比如下载游戏前还不知道大版本号）
-Future<LoaderPickResult?> showLoaderPicker(
-  BuildContext context, {
-  String? currentLoaderPath,
-  String? gameVersion,
-  bool allowNone = false,
-}) async {
-  final choice = await pickLoaderChoice(
-    context,
-    currentLoaderPath: currentLoaderPath,
-    gameVersion: gameVersion,
-    allowNone: allowNone,
-  );
-  if (choice == null) return null;
-
-  if (choice.useNone) return (loaderPath: null);
-
-  if (!context.mounted) return null;
-  final loaderPath = await _resolveChoice(context, choice);
-  if (loaderPath == null) return null;
-  return (loaderPath: loaderPath);
-}
-
-/// 把选择结果落成一个可用的 loader 路径：库内的直接用，本地的收进库，远程的先下
-Future<String?> _resolveChoice(
-  BuildContext context,
-  LoaderChoice choice,
-) async {
+/// 远程版本不归它管（那要起 [LoaderDownloadTask]）；落不了地返回 null
+Future<String?> resolveLoaderChoiceLocally(LoaderChoice choice) async {
   if (choice.loaderPath case final path?) return path;
 
-  if (choice.pickLocalFile) {
-    final picked = await PathSelector.selectFile(
-      acceptedTypeGroups: const [loaderJarTypeGroup],
-    );
-    if (picked == null || !context.mounted) return null;
-    try {
-      return await LoaderLibrary.importIntoLibrary(File(picked));
-    } catch (e) {
-      addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
-      debugPrint('添加加载器失败：$e');
-      return null;
-    }
-  }
-
-  final remote = choice.remote;
-  if (remote == null) return null;
-  addNotice(
-    icon: Icons.download,
-    title: '正在下载加载器',
-    content: 'Copper Loader ${remote.tag}',
-  );
+  final localFile = choice.localFile;
+  if (localFile == null) return null;
   try {
-    return await LoaderLibrary.downloadDesktop(
-      tag: remote.tag,
-      url: remote.url,
-    );
+    return await LoaderLibrary.importIntoLibrary(File(localFile));
   } catch (e) {
-    addNotice(
-      icon: Icons.close,
-      title: '下载失败',
-      content: '加载器没下下来：稍后再试或选本地 jar',
-    );
-    debugPrint('下载加载器失败：$e');
+    addNotice(icon: Icons.close, title: '添加失败', content: '无法把加载器复制进加载器库');
+    debugPrint('添加加载器失败：$e');
     return null;
   }
 }

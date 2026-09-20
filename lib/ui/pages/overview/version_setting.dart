@@ -9,6 +9,8 @@ import 'package:copper_launcher/data/mindustry_settings.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/loader_download_task.dart';
 import 'package:copper_launcher/ui/dialog/loader_picker_dialog.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -179,23 +181,44 @@ class _AboutState extends State<_About> {
   ///
   /// 与「换启动器新建」不是一回事 —— 启动方式不变，只是把缺的文件补上
   Future<void> _repairLoader() async {
-    final picked = await showLoaderPicker(
+    final choice = await pickLoaderChoice(
       context,
+      currentLoaderPath: _mindustry.resolvedLauncherPath,
       gameVersion: _mindustry.gameVersionString,
     );
-    final loaderPath = picked?.loaderPath;
-    if (loaderPath == null || !mounted) return;
+    if (choice == null || !mounted) return;
 
-    setState(() {
-      _mindustry.launcherPath = AppPaths.toStoredPath(loaderPath);
-    });
+    // 远程版本：下载进任务抽屉（带进度），下完再指给这个版本
+    if (choice.remote case final remote?) {
+      addTask(
+        LoaderDownloadTask(
+          tag: remote.tag,
+          url: remote.url,
+          afterDownload: _applyLoaderPath,
+        ),
+      );
+      return;
+    }
+
+    final loaderPath = await resolveLoaderChoiceLocally(choice);
+    if (loaderPath == null) return;
+    await _applyLoaderPath(loaderPath);
+  }
+
+  /// 把 loader 指给当前版本（补齐加载器与「下完再指」共用）
+  Future<void> _applyLoaderPath(String loaderPath) async {
+    _mindustry.launcherPath = AppPaths.toStoredPath(loaderPath);
     await config.save();
+
     final version = LoaderLibrary.versionOf(File(loaderPath));
     addNotice(
       icon: Icons.check,
       title: '加载器已补齐',
-      content: version == null ? p.basename(loaderPath) : 'Copper Loader $version',
+      content: version == null
+          ? p.basename(loaderPath)
+          : 'Copper Loader $version',
     );
+    if (mounted) setState(() {});
   }
 
   /// 内容对齐 [MindustryLauncher.start]：-Xmx 内存 + 隔离数据目录 +
@@ -1268,13 +1291,30 @@ class _LauncherVariantButtonState extends State<_LauncherVariantButton> {
       );
     }
 
-    final picked = await showLoaderPicker(
+    final choice = await pickLoaderChoice(
       context,
       currentLoaderPath: widget.mindustry.resolvedLauncherPath,
       gameVersion: widget.mindustry.gameVersionString,
     );
-    final loaderPath = picked?.loaderPath;
-    if (loaderPath == null || !mounted) return;
+    if (choice == null || !mounted) return;
+
+    // 远程版本：下载进任务抽屉（带进度），下完再建变体
+    if (choice.remote case final remote?) {
+      addTask(
+        LoaderDownloadTask(
+          tag: remote.tag,
+          url: remote.url,
+          afterDownload: (loaderPath) async {
+            if (!mounted) return;
+            widget.onPick(LauncherType.copper, loaderPath);
+          },
+        ),
+      );
+      return;
+    }
+
+    final loaderPath = await resolveLoaderChoiceLocally(choice);
+    if (loaderPath == null) return;
     widget.onPick(LauncherType.copper, loaderPath);
   }
 }
@@ -1352,7 +1392,9 @@ class _ModsState extends State<_Mods> {
     final settingsFile = File(_mindustry.settingPath);
     if (await settingsFile.exists()) {
       try {
-        settingsStates = MindustrySettings.fromFile(settingsFile.path).modStates;
+        settingsStates = MindustrySettings.fromFile(
+          settingsFile.path,
+        ).modStates;
       } catch (e) {
         debugPrint('读取模组启用状态失败：$e');
       }
@@ -1523,9 +1565,7 @@ class _ModsState extends State<_Mods> {
   /// 批量删除选中模组（核心模组不删）
   void _batchDelete() {
     final targets = _entries
-        .where(
-          (e) => _selectedIds.contains(e.mod.internalName) && !e.isCoreMod,
-        )
+        .where((e) => _selectedIds.contains(e.mod.internalName) && !e.isCoreMod)
         .toList();
     showConfirmationPopup(
       context: context,
@@ -1617,10 +1657,7 @@ class _ModsState extends State<_Mods> {
     }
     if (!_satisfiesGameVersion(mod)) {
       tags.add(
-        Text(
-          '不兼容当前游戏版本',
-          style: labelStyle?.copyWith(color: colors.error),
-        ),
+        Text('不兼容当前游戏版本', style: labelStyle?.copyWith(color: colors.error)),
       );
     }
     if (mod.dependencies.isNotEmpty) {
