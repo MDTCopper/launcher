@@ -7,7 +7,68 @@ import '../core/app_constant.dart';
 import '../util/app_paths.dart';
 import '../util/format/string_cleaner.dart';
 import '../util/io/copper_io.dart';
+import '../util/io/git_refs.dart';
 import '../util/io/log.dart';
+
+/// 加载器选择的**结果**（只表达"选了什么"，不负责落地）
+///
+/// 选择页只产出它；「下载 / 收进库」由调用方决定 —— 下载游戏那条路要把 loader 的下载
+/// **并进本体下载任务**（带进度、失败可见），不能在选择页里偷偷下掉
+class LoaderChoice {
+  const LoaderChoice.library(String this.loaderPath)
+    : remote = null,
+      localFile = null,
+      pickLocalFile = false,
+      useNone = false;
+
+  const LoaderChoice.download({required String tag, required String url})
+    : loaderPath = null,
+      remote = (tag: tag, url: url),
+      localFile = null,
+      pickLocalFile = false,
+      useNone = false;
+
+  /// 用户选了本地 jar：已经在界面上挑好文件了就带路径，
+  /// 只表达"想去挑文件"时 [pickLocalFile] 为 true（挑文件要界面，得在 UI 层做）
+  const LoaderChoice.localFile([String? path])
+    : loaderPath = null,
+      remote = null,
+      localFile = path,
+      pickLocalFile = path == null,
+      useNone = false;
+
+  const LoaderChoice.none()
+    : loaderPath = null,
+      remote = null,
+      localFile = null,
+      pickLocalFile = false,
+      useNone = true;
+
+  /// 库内已有的 loader 绝对路径
+  final String? loaderPath;
+
+  /// 远程待下载的版本
+  final ({String tag, String url})? remote;
+
+  /// 用户指定的本地 jar 路径（可能还没挑）
+  final String? localFile;
+
+  /// 只是想去挑本地文件（还没挑）
+  final bool pickLocalFile;
+
+  /// 不用加载器（原版启动）
+  final bool useNone;
+
+  /// 界面用的一句话：`Copper 0.1.2` / `Copper 0.1.2（下载）` / `本地 jar` / `原版 Jar`
+  String get describe {
+    if (useNone) return '原版 Jar';
+    if (loaderPath case final path?) {
+      return 'Copper ${LoaderLibrary.versionOf(File(path)) ?? ''}'.trim();
+    }
+    if (remote case final item?) return 'Copper ${item.tag}（下载）';
+    return '本地 jar';
+  }
+}
 
 /// 模组加载器库（`<数据根>/copper_loader/`）：loader jar 集中放这里，
 /// 多个版本复用同一份，与本体库 [AppPaths.mindustrys] 是同一套思路
@@ -17,23 +78,39 @@ class LoaderLibrary {
   /// Copper 加载器的仓库：release 里的 `desktop-<版本>.jar` 就是桌面端 loader
   static const String loaderRepo = 'MDTCopper/loader';
 
+  /// 桌面端 loader jar 的下载地址（按产物命名规则拼，纯函数）
+  ///
+  /// loader 仓库的 release 产物名是固定的 `desktop-<tag>.jar`（见它的 release workflow
+  /// 与 wiki），所以拿到 tag 就能拼出地址 —— 不用查 API
+  @visibleForTesting
+  static String desktopAssetUrlOf(String tag) =>
+      '$githubCOM/$loaderRepo/releases/download/$tag/desktop-$tag.jar';
+
   /// 查最新一版的桌面 loader；网络 / 解析失败返回 null
   static Future<({String tag, String url})?> fetchLatestDesktop() async {
-    try {
-      final decoded = await fetchJsonBody(
-        '$githubAPI/repos/$loaderRepo/releases/latest',
-      );
-      return parseDesktopAsset(decoded);
-    } catch (e) {
-      addLogAndPrint(.warning, '查询加载器版本失败：${removeNewlines('$e')}', tag: 'Loader');
-      return null;
-    }
+    final releases = await fetchReleases(limit: 1);
+    return releases.isEmpty ? null : releases.first;
   }
 
   /// 查远程可下的 loader 版本列表（新的在前）；失败返回空列表
+  ///
+  /// **先走 git ref 广告**（列 tag 不消耗 GitHub API 的匿名额度，额度打满时会 403，
+  /// 那正是这个功能最容易挂的时候），拿不到再退 API（API 能拿到产物清单）
   static Future<List<({String tag, String url})>> fetchReleases({
     int limit = 10,
   }) async {
+    try {
+      final tags = await GitRefs.fetchTags(loaderRepo);
+      final fromTags = releasesFromTags(tags, limit: limit);
+      if (fromTags.isNotEmpty) return fromTags;
+    } catch (e) {
+      addLogAndPrint(
+        .warning,
+        '列加载器 tag 失败，改查 release 接口：${removeNewlines('$e')}',
+        tag: 'Loader',
+      );
+    }
+
     try {
       final decoded = await fetchJsonBody(
         '$githubAPI/repos/$loaderRepo/releases?per_page=$limit',
@@ -48,6 +125,26 @@ class LoaderLibrary {
       return const [];
     }
   }
+
+  /// 从 tag 列表拼出可下载版本（纯函数）：只认版本号形态的 tag、版本高的在前、
+  /// 取前 [limit] 个
+  @visibleForTesting
+  static List<({String tag, String url})> releasesFromTags(
+    List<String> tags, {
+    int limit = 10,
+  }) {
+    final versionTags = [
+      for (final tag in tags)
+        if (_versionTagPattern.hasMatch(tag.trim())) tag.trim(),
+    ]..sort((a, b) => compareVersion(b, a));
+
+    return [
+      for (final tag in versionTags.take(limit))
+        (tag: tag, url: desktopAssetUrlOf(tag)),
+    ];
+  }
+
+  static final RegExp _versionTagPattern = RegExp(r'^\d+(\.\d+)*$');
 
   /// 从 release JSON 里挑桌面产物（纯函数，便于用例覆盖）
   @visibleForTesting

@@ -19,6 +19,27 @@ import 'package:path/path.dart' as p;
 /// 整个返回值为 null 表示用户取消（保持原状）
 typedef LoaderPickResult = ({String? loaderPath});
 
+/// 本地 jar 的类型过滤：选择页与下载页挑文件都用它
+const loaderJarTypeGroup = XTypeGroup(label: 'Copper 加载器', extensions: ['jar']);
+
+/// 弹选择页，**只返回选了什么**（库里已有的 / 远程待下载 / 去挑本地 jar / 不用加载器）
+///
+/// 取消返回 null。要的是「下载与落地由调用方决定」时用它（比如下载游戏：把 loader 的
+/// 下载并进本体下载任务）；只想要最终路径就用 [showLoaderPicker]
+Future<LoaderChoice?> pickLoaderChoice(
+  BuildContext context, {
+  String? currentLoaderPath,
+  String? gameVersion,
+  bool allowNone = false,
+}) => showAnimatedDialog<LoaderChoice>(
+  context: context,
+  pageBuilder: (_, _, _) => _LoaderPickerDialog(
+    currentLoaderPath: currentLoaderPath,
+    gameVersion: gameVersion,
+    allowNone: allowNone,
+  ),
+);
+
 /// 弹加载器选择页：库内已有的（直接复用）／远程可下的（下载）／本地 jar
 ///
 /// 拿到选择后在这里就落地（库内的直接用、本地的收进库、远程的先下载），
@@ -32,13 +53,11 @@ Future<LoaderPickResult?> showLoaderPicker(
   String? gameVersion,
   bool allowNone = false,
 }) async {
-  final choice = await showAnimatedDialog<_LoaderChoice>(
-    context: context,
-    pageBuilder: (_, _, _) => _LoaderPickerDialog(
-      currentLoaderPath: currentLoaderPath,
-      gameVersion: gameVersion,
-      allowNone: allowNone,
-    ),
+  final choice = await pickLoaderChoice(
+    context,
+    currentLoaderPath: currentLoaderPath,
+    gameVersion: gameVersion,
+    allowNone: allowNone,
   );
   if (choice == null) return null;
 
@@ -50,45 +69,16 @@ Future<LoaderPickResult?> showLoaderPicker(
   return (loaderPath: loaderPath);
 }
 
-/// 加载器选择结果：库里已有的 / 远程待下载的 / 去挑本地文件 / 不用加载器
-class _LoaderChoice {
-  const _LoaderChoice.library(this.loaderPath)
-    : remote = null,
-      pickLocalFile = false,
-      useNone = false;
-  const _LoaderChoice.download(this.remote)
-    : loaderPath = null,
-      pickLocalFile = false,
-      useNone = false;
-  const _LoaderChoice.localFile()
-    : loaderPath = null,
-      remote = null,
-      pickLocalFile = true,
-      useNone = false;
-  const _LoaderChoice.none()
-    : loaderPath = null,
-      remote = null,
-      pickLocalFile = false,
-      useNone = true;
-
-  final String? loaderPath;
-  final ({String tag, String url})? remote;
-  final bool pickLocalFile;
-  final bool useNone;
-}
-
 /// 把选择结果落成一个可用的 loader 路径：库内的直接用，本地的收进库，远程的先下
 Future<String?> _resolveChoice(
   BuildContext context,
-  _LoaderChoice choice,
+  LoaderChoice choice,
 ) async {
   if (choice.loaderPath case final path?) return path;
 
   if (choice.pickLocalFile) {
     final picked = await PathSelector.selectFile(
-      acceptedTypeGroups: const [
-        XTypeGroup(label: 'Copper 加载器', extensions: ['jar']),
-      ],
+      acceptedTypeGroups: const [loaderJarTypeGroup],
     );
     if (picked == null || !context.mounted) return null;
     try {
@@ -108,9 +98,16 @@ Future<String?> _resolveChoice(
     content: 'Copper Loader ${remote.tag}',
   );
   try {
-    return await LoaderLibrary.downloadDesktop(tag: remote.tag, url: remote.url);
+    return await LoaderLibrary.downloadDesktop(
+      tag: remote.tag,
+      url: remote.url,
+    );
   } catch (e) {
-    addNotice(icon: Icons.close, title: '下载失败', content: '加载器没下下来：稍后再试或选本地 jar');
+    addNotice(
+      icon: Icons.close,
+      title: '下载失败',
+      content: '加载器没下下来：稍后再试或选本地 jar',
+    );
     debugPrint('下载加载器失败：$e');
     return null;
   }
@@ -190,25 +187,22 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
           LoaderLibrary.versionOf(a),
         ),
       );
-    final remoteOnly =
-        [
-          for (final release
-              in _remoteLoaders ?? const <({String tag, String url})>[])
-            if (!localVersions.contains(release.tag)) release,
-        ]..sort(
-          (a, b) => LoaderLibrary.compareVersion(b.tag, a.tag),
-        );
+    final remoteOnly = [
+      for (final release
+          in _remoteLoaders ?? const <({String tag, String url})>[])
+        if (!localVersions.contains(release.tag)) release,
+    ]..sort((a, b) => LoaderLibrary.compareVersion(b.tag, a.tag));
 
-    /// 下拉里的一项：`value` 直接放 [_LoaderChoice]，选中即返回，省一层 key 映射
-    final items = <({_LoaderChoice choice, String label, IconData icon})>[];
+    /// 下拉里的一项：`value` 直接放 [LoaderChoice]，选中即返回，省一层 key 映射
+    final items = <({LoaderChoice choice, String label, IconData icon})>[];
     var recommending = true;
     var anySupported = false;
-    _LoaderChoice? currentChoice;
+    LoaderChoice? currentChoice;
 
     //不用加载器（下载游戏时可以直接选原版启动）
     if (widget.allowNone) {
       items.add((
-        choice: const _LoaderChoice.none(),
+        choice: const LoaderChoice.none(),
         label: '不用加载器（原版启动）',
         icon: Icons.rocket_launch_outlined,
       ));
@@ -222,7 +216,7 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
       final isRecommended = supported == true && recommending;
       if (isRecommended) recommending = false;
       final isCurrent = p.normalize(jar.path) == current;
-      final choice = _LoaderChoice.library(jar.path);
+      final choice = LoaderChoice.library(jar.path);
       if (isCurrent) currentChoice = choice;
 
       items.add((
@@ -244,7 +238,7 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
       final isRecommended = supported == true && recommending;
       if (isRecommended) recommending = false;
       items.add((
-        choice: _LoaderChoice.download(release),
+        choice: LoaderChoice.download(tag: release.tag, url: release.url),
         label:
             '${release.tag}（下载）'
             '${_compatibilityLabel(supported, recommended: isRecommended)}',
@@ -300,7 +294,7 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
                 ),
               //选项走 DropdownLayer：头部显示当前在用的 / 推荐的那个，点开再挑
               if (items.isNotEmpty)
-                DropdownLayer<_LoaderChoice>(
+                DropdownLayer<LoaderChoice>(
                   width: double.infinity,
                   initialValue: currentChoice ?? items.first.choice,
                   hintText: '选一个加载器',
@@ -326,7 +320,7 @@ class _LoaderPickerDialogState extends State<_LoaderPickerDialog> {
                     content: '选本地 jar…',
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(const _LoaderChoice.localFile()),
+                    ).pop(const LoaderChoice.localFile()),
                   ),
                   IconTextButton(
                     icon: Icons.close,

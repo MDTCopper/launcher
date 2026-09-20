@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/mindustry_version_snapshot.dart';
@@ -20,6 +19,7 @@ import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/git_refs.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
 
 import 'package:flutter/material.dart';
@@ -405,11 +405,14 @@ class _DownloadMindustryPopupPageState
   late final MindustryGithubMeta mindustryMeta = widget.mindustryMeta;
   late String tag = mindustryMeta.name;
 
-  ///选中的 loader 绝对路径；null = 原版启动
+  ///选中的启动方式（loader 的选择结果）；null / [LoaderChoice.none] = 原版启动
+  ///
+  /// 这里**只记选择**，不下载：需要下载的 loader 由 [DownloadMindustryTask] 与本体
+  /// 一起下（进任务抽屉、带进度，失败可见）
   ///
   /// 下载前还不知道游戏大版本号（要读 jar 里的 version.properties），
   /// 所以选择页这里不做适配表标注
-  String? loaderPath;
+  LoaderChoice? loaderChoice;
 
   String? error;
 
@@ -460,7 +463,7 @@ class _DownloadMindustryPopupPageState
       DownloadMindustryTask(
         mindustryMeta: mindustryMeta,
         tag: tag,
-        loaderPath: loaderPath,
+        loader: loaderChoice,
       ),
     );
     Navigator.of(context).pop();
@@ -468,19 +471,29 @@ class _DownloadMindustryPopupPageState
 
   /// 选启动方式：原版，或用 Copper 加载器（可挑版本，库里已有的直接复用）
   ///
-  /// 兼容性标注：版本号形式去掉了主版本后，下载前就能从 release tag 算出来
+  /// 挑本地 jar 要开文件选择器，所以在界面这层就把它挑完（任务里没法弹窗）；
+  /// 远程版本只记下选择，真正的下载交给下载任务
   Future<void> chooseLauncher() async {
-    final picked = await showLoaderPicker(
+    var choice = await pickLoaderChoice(
       context,
-      currentLoaderPath: loaderPath,
+      currentLoaderPath: loaderChoice?.loaderPath,
       allowNone: true,
       gameVersion: gameVersionOf(
         release: mindustryMeta.tag,
         isBe: mindustryMeta.isBe,
       ),
     );
-    if (picked == null || !mounted) return;
-    setState(() => loaderPath = picked.loaderPath);
+    if (choice == null || !mounted) return;
+
+    if (choice.pickLocalFile) {
+      final picked = await PathSelector.selectFile(
+        acceptedTypeGroups: const [loaderJarTypeGroup],
+      );
+      if (picked == null || !mounted) return;
+      choice = LoaderChoice.localFile(picked);
+    }
+
+    setState(() => loaderChoice = choice);
   }
 
   @override
@@ -533,19 +546,16 @@ class _DownloadMindustryPopupPageState
                 ),
 
                 //下载时就能选启动方式：选 Copper 的话这个版本直接建好 loader，
-                //不用先下原版再去「换启动器新建」
+                //不用先下原版再去「换启动器新建」；loader 的下载/收进库由下载任务做
                 Row(
                   spacing: 8,
                   children: [
                     Text('启动方式', style: theme.textTheme.bodyMedium),
                     IconTextButton(
-                      icon: loaderPath == null
+                      icon: (loaderChoice?.useNone ?? true)
                           ? Icons.rocket_launch_outlined
                           : Icons.extension_outlined,
-                      content: loaderPath == null
-                          ? '原版 Jar'
-                          : 'Copper ${LoaderLibrary.versionOf(File(loaderPath!)) ?? ''}'
-                                .trim(),
+                      content: loaderChoice?.describe ?? '原版 Jar',
                       onTap: chooseLauncher,
                     ),
                   ],

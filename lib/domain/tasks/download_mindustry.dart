@@ -13,9 +13,23 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import '../../util/app_paths.dart';
 import '../../util/format/byte_unit.dart';
 import '../../util/io/file_reader.dart';
+import '../loader_library.dart';
 import '../mindustry_body.dart';
 import '../task.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
+
+/// 加载器没配好（下载失败 / 收进库失败）
+///
+/// 单独一个类型是为了让任务收尾时分辨：本体已经下好了，**别把它一起删掉**
+/// （下次重试能直接复用本体库那份）
+class LoaderSetupException implements Exception {
+  LoaderSetupException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 /// 下载完成后要建的版本记录
 ///
@@ -56,9 +70,11 @@ class DownloadMindustryTask extends Task {
   ///需要标签
   final String tag;
 
-  ///下载时就选好的 loader（绝对路径）；null = 原版启动。
-  ///选了的话建出来的版本直接是 Copper 版本，省得下完再「换启动器新建」
-  final String? loaderPath;
+  ///下载时选的加载器（**选择结果**，还没落地）；null = 原版启动。
+  ///
+  /// 下载（或收进库）在本任务里做 —— 与本体一起下、进度与失败都看得见；
+  /// 选了就建 Copper 版本，省得下完再「换启动器新建」
+  final LoaderChoice? loader;
 
   final CancelToken cancelToken = CancelToken();
   late File file;
@@ -69,12 +85,15 @@ class DownloadMindustryTask extends Task {
   int downloadedSize = 0;
   double speed = 0.0;
 
+  ///当前阶段的说明（如「正在下载加载器 0.1.2」）；null = 正在下本体
+  String? phaseText;
+
   List<HttpChunkInfo> chunks = [];
 
   DownloadMindustryTask({
     required this.mindustryMeta,
     required this.tag,
-    this.loaderPath,
+    this.loader,
     String? path,
     // CancelToken? cancelToken//外部取消token
   }) {
@@ -180,8 +199,22 @@ class DownloadMindustryTask extends Task {
         title: '下载完成',
         content: '[$tag] 下载完成：游戏本体 ${file.path}',
       );
-      TaskLogManager.addLog(LogEntry(LogType.info, '[$tag] 下载完成，游戏本体 ${file.path}'));
-      addLog(.info, '[$tag] 下载完成：游戏本体 ${file.path}，版本目录 $path', tag: 'GameDownload');
+      TaskLogManager.addLog(
+        LogEntry(LogType.info, '[$tag] 下载完成，游戏本体 ${file.path}'),
+      );
+      addLog(
+        .info,
+        '[$tag] 下载完成：游戏本体 ${file.path}，版本目录 $path',
+        tag: 'GameDownload',
+      );
+    } on LoaderSetupException catch (e) {
+      // 本体已经下好了：这条失败只说明加载器没配好，**别把本体一起删掉**
+      // （本体库那份留着，下次重试直接复用）
+      status = TaskStatus.failed;
+      debugPrint('加载器没配好：$e');
+      addTaskLog(LogEntry(LogType.error, '$e'));
+      addNotice(icon: Icons.close, title: '加载器没配好', content: '$e');
+      addLog(.error, '加载器没配好：${removeNewlines('$e')}', tag: 'Loader');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -222,6 +255,10 @@ class DownloadMindustryTask extends Task {
     // 读文件要绝对路径，写进配置走记录形态（数据根内记相对）
     final bodyPath = bodyFilePath ?? file.path;
 
+    // 选了的加载器在这里落地（库内复用 / 本地收进库 / 远程下载）——
+    // 失败会抛 LoaderSetupException，任务收尾成失败且**不建版本**
+    final loaderPath = await _resolveLoader();
+
     // 大版本号从 jar 的 version.properties 读（FileReader 已实现），github tag 只有 build 号
     int? versionNumber;
     try {
@@ -229,7 +266,11 @@ class DownloadMindustryTask extends Task {
       final meta = reader.mindustry;
       versionNumber = int.tryParse(meta?.version ?? '');
     } catch (e) {
-      addLogAndPrint(.warning, '读取游戏版本元数据失败：${removeNewlines('$e')}', tag: 'GameDownload');
+      addLogAndPrint(
+        .warning,
+        '读取游戏版本元数据失败：${removeNewlines('$e')}',
+        tag: 'GameDownload',
+      );
     }
 
     final launcher = loaderPath == null
@@ -272,6 +313,59 @@ class DownloadMindustryTask extends Task {
     } else {
       //todo 新的路径可以询问玩家是否创建，不创建就移入默认文件夹
       addLogAndPrint(.error, '无法同步配置文件', tag: 'GameDownload');
+    }
+  }
+
+  /// 把选好的加载器落到实处，返回可用的绝对路径（null = 原版启动）
+  ///
+  /// - 库内已有的：直接用（不重复下载）
+  /// - 本地 jar：收进加载器库
+  /// - 远程版本：下载（进度接到本任务的进度条上）
+  ///
+  /// 任何一步失败都抛 [LoaderSetupException]，由 [_download] 收尾成「任务失败」，
+  /// 不建版本 —— 用户要的是 Copper 版本，别默默给一个原版
+  Future<String?> _resolveLoader() async {
+    final choice = loader;
+    if (choice == null || choice.useNone) return null;
+    if (choice.loaderPath case final path?) return path;
+
+    final localPath = choice.localFile;
+    if (localPath != null) {
+      try {
+        return await LoaderLibrary.importIntoLibrary(File(localPath));
+      } catch (e) {
+        throw LoaderSetupException('加载器没放进加载器库：${removeNewlines('$e')}');
+      }
+    }
+
+    final remote = choice.remote;
+    if (remote == null) return null;
+
+    phaseText = '正在下载加载器 ${remote.tag}';
+    downloadedSize = 0;
+    totalSize = 0;
+    chunks = [];
+    progress = 0;
+    updateDisplay();
+    TaskLogManager.addLog(LogEntry(LogType.info, '正在下载加载器 ${remote.tag}'));
+    addLog(.info, '下载加载器 [${remote.tag}]：${remote.url}', tag: 'Loader');
+
+    try {
+      final path = await LoaderLibrary.downloadDesktop(
+        tag: remote.tag,
+        url: remote.url,
+        cancelToken: cancelToken,
+        onProgress: (value) {
+          progress = value;
+          updateDisplay();
+        },
+      );
+      addLog(.info, '加载器已就位：$path', tag: 'Loader');
+      return path;
+    } catch (e) {
+      throw LoaderSetupException(
+        '加载器 ${remote.tag} 没下下来：${removeNewlines('$e')}',
+      );
     }
   }
 
@@ -361,7 +455,8 @@ class DownloadMindustryTask extends Task {
             Expanded(child: SizedBox()),
             if (statusLabel != null)
               Text(statusLabel!, style: theme.textTheme.bodySmall),
-            if (canCancel) ReboundButton(onTap: cancel, child: Icon(Icons.close)),
+            if (canCancel)
+              ReboundButton(onTap: cancel, child: Icon(Icons.close)),
           ],
         ),
         LinearProgressIndicator(value: progress),
@@ -370,11 +465,12 @@ class DownloadMindustryTask extends Task {
             children: [
               Text(formatProgress()),
               Expanded(child: SizedBox()),
-              Text(_formatDownloadProgress()),
+              // 下载加载器那一段的字节数不是本体那份，别混着显示
+              if (phaseText == null) Text(_formatDownloadProgress()),
             ],
           ),
-        Text('正在下载[$tag]'),
-        _chunkStatus(),
+        Text(phaseText ?? '正在下载[$tag]'),
+        if (phaseText == null) _chunkStatus(),
         Text(
           createTime.toString().split(' ').last.split('.').first,
           style: theme.textTheme.bodySmall,
