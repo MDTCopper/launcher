@@ -45,6 +45,10 @@ Future<void> initAppConfig() async {
   //配置里记的启动器版本跟上当前构建：`AppConfig.version` 原先只在首次创建配置时
   //写入过一次（构造函数默认值），之后一直被文件里的旧值覆盖，永远停在那个版本
   config.version = appVersion;
+  // 老配置里数据根内的路径可能是绝对形态，这里统一洗成记录形态（幂等）
+  if (config.normalizeStoredPaths()) {
+    addLogAndPrint(.info, '配置里的路径已归一化为记录形态', tag: 'Path');
+  }
   await config.save();
 }
 
@@ -131,6 +135,46 @@ class AppConfig {
       debugPrint('配置保存失败：$e');
       addLog(.error, '配置保存失败：${removeNewlines('$e')}', tag: 'Version');
     }
+  }
+
+  /// 把配置里「数据根内却记成绝对」的路径统一洗成记录形态，返回是否改动了什么
+  ///
+  /// 相对记录规则（2026-09-18）之前建的配置里，数据根内的路径存的是绝对路径；
+  /// 数据根一搬家这些路径就全失效，还会跟新写的相对路径混在一起（`fold.path` 绝对、
+  /// 版本 `path` 相对 → 比较全对不上）。启动时幂等地洗一遍即可：洗完配置里只剩一种
+  /// 形态，之后再建新记录本来就走 [AppPaths.toStoredPath]。库外路径（用户自己的本体、
+  /// 系统 JDK）原样保留 —— [AppPaths.toStoredPath] 自己会判
+  bool normalizeStoredPaths() {
+    var changed = false;
+
+    String sweep(String path) {
+      // 空串是「没设置」（如 downloadPath 的默认值）：解析它会得到数据根本身，
+      // 再写回去就变成一条莫名其妙的绝对路径
+      if (path.isEmpty) return path;
+      final stored = AppPaths.toStoredPath(AppPaths.resolveStoredPath(path));
+      if (stored == path) return path;
+      changed = true;
+      return stored;
+    }
+
+    for (final fold in versionOptions.versionFolds) {
+      fold.path = sweep(fold.path);
+      for (final version in fold.versions) {
+        version.path = sweep(version.path);
+        version.jarPath = sweep(version.jarPath);
+        final launcherPath = version.launcherPath;
+        if (launcherPath != null) version.launcherPath = sweep(launcherPath);
+      }
+    }
+
+    for (final java in setting.launchOptions.javaOptions.javas) {
+      java.path = sweep(java.path);
+    }
+    setting.downloadOptions.downloadPath = sweep(
+      setting.downloadOptions.downloadPath,
+    );
+
+    return changed;
   }
 }
 
@@ -391,8 +435,10 @@ class LaunchOptions {
 /// Java 运行时信息，存储 JavaFinder 查找到的 Java 安装信息
 @JsonSerializable()
 class JavaInfo {
-  /// Java 可执行文件的完整路径
-  final String path;
+  /// Java 可执行文件的完整路径（记录形态：数据根内记相对，读/比较请用 [resolvedPath]）
+  ///
+  /// 非 final：启动时的路径归一化要把老的绝对路径洗成记录形态（见 [AppConfig.normalizeStoredPaths]）
+  String path;
 
   /// Java 主版本号（如 8, 11, 17, 21），无法获取时为 null
   final int? version;
@@ -401,7 +447,7 @@ class JavaInfo {
   @JsonKey(defaultValue: true)
   final bool isValid;
 
-  const JavaInfo({required this.path, this.version, this.isValid = true});
+  JavaInfo({required this.path, this.version, this.isValid = true});
 
   ///java 可执行文件的可用形态（[path] 是记录形态：数据根内记相对，见 [AppPaths]）
   String get resolvedPath => AppPaths.resolveStoredPath(path);
@@ -414,7 +460,9 @@ class JavaInfo {
   @override
   bool operator ==(Object other) {
     if (other is JavaInfo) {
-      return other.version == version || other.path == path;
+      // 比**解析后**的路径：记录形态可能是相对（启动器自己下的 JDK 在数据根里）
+      // 也可能绝对（系统 JDK），同一个 java 不该因为形态不同被当成两个
+      return other.version == version || other.resolvedPath == resolvedPath;
     }
     return false;
   }
@@ -843,8 +891,10 @@ class VersionOptions {
 class VersionFold {
   late String tag;
 
-  ///分类目录（记录形态：数据根内记相对、根外记绝对，读目录请用 [resolvedPath]）
-  late final String path;
+  /// 分类目录（记录形态：数据根内记相对、根外记绝对，读目录请用 [resolvedPath]）
+  ///
+  /// 非 final：启动时的路径归一化要把老的绝对路径洗成记录形态（见 [AppConfig.normalizeStoredPaths]）
+  late String path;
 
   final List<Mindustry> versions;
 

@@ -37,7 +37,9 @@ class Mindustry {
   final String release;
 
   ///存储路径（记录形态：数据根内记相对、根外记绝对，见 [AppPaths.toStoredPath]）
-  final String path;
+  ///
+  /// 非 final：启动时的路径归一化要把老的绝对路径洗成记录形态
+  String path;
 
   ///游戏启动路径（记录形态，读文件请用 [resolvedJarPath]）
 
