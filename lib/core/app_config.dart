@@ -369,7 +369,10 @@ class LaunchOptions {
   ///
   /// 预览版对应 [VersionIsolation.be]，Copper 版本对应 [VersionIsolation.copper]，
   /// 其余正式版对应 [VersionIsolation.mindustry]；三项都不勾就是一律不隔离
-  bool isIsolatedByDefault({required bool isBe, required LauncherType launcher}) {
+  bool isIsolatedByDefault({
+    required bool isBe,
+    required LauncherType launcher,
+  }) {
     if (isBe) return versionIsolationSet.contains(VersionIsolation.be);
     if (launcher == LauncherType.copper) {
       return versionIsolationSet.contains(VersionIsolation.copper);
@@ -653,9 +656,23 @@ class VersionOptions {
     selectedVersionNotifier.value = _selectedVersion;
   }
 
+  /// 在配置里找 [mindustry] 对应的**当前**记录（同一个版本可能已经换了实例）
+  ///
+  /// 比较必须用**解析后**的路径：记录形态可能是相对（新规则）也可能还是绝对
+  /// （老配置没迁移），直接比字符串会让「绝对路径的 fold + 相对路径的新版本」
+  /// 永远对不上 → 选中被清成 null（2026-09-21 用户实测：新下载的版本选不中）
   Mindustry? findVersion(Mindustry mindustry) {
+    // 先收窄到同一个目录：老记录里有非 UUID 的 id（如 `146`），跨 fold 可能重号
+    final versionPath = AppPaths.resolveStoredPath(mindustry.path);
     for (final versionFold in versionFolds) {
-      if (mindustry.path != versionFold.path) continue;
+      if (versionPath != AppPaths.resolveStoredPath(versionFold.path)) continue;
+      for (final version in versionFold.versions) {
+        if (version.id == mindustry.id) return version;
+      }
+    }
+
+    // 路径对不上（数据根搬过、fold 记的还是老绝对路径）时退一步只按 id 找
+    for (final versionFold in versionFolds) {
       for (final version in versionFold.versions) {
         if (version.id == mindustry.id) return version;
       }
