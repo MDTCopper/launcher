@@ -17,7 +17,6 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
-import 'package:copper_launcher/util/io/git_refs.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
@@ -66,13 +65,12 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     } catch (e) {
       addLogAndPrint(
         .warning,
-        '获取最新版本列表失败：${removeNewlines('$e')}',
+        '获取最新版本列表失败，只列快照里的版本：${removeNewlines('$e')}',
         tag: 'MindustryDownload',
       );
-      //API 挂了（额度用完 / 网络不通）：退到 git 的 ref 广告只取 tag，
-      //不吃 API 额度；再拿不到就只剩快照里的老版本
-      latest = await _fetchTagsAsReleases();
-      if (snapshot.isEmpty && latest.isEmpty) return false;
+      //拿不到最新一页（额度用完 / 网络不通）：只用快照，至少老版本还能下
+      latest = const [];
+      if (snapshot.isEmpty) return false;
     }
 
     _versionList
@@ -107,26 +105,6 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   Future<MindustryGithubMeta> _fetchLatestBeta() async {
     final releases = await _fetchReleaseArray('$githubBeUrl?per_page=1');
     return MindustryGithubMeta.fromJson(releases.first as Map<String, dynamic>);
-  }
-
-  /// 退路：用 git 的 ref 广告拿 tag（不吃匿名 API 额度）
-  ///
-  /// 只有 tag，所以按固定命名拼本体下载地址；拿不到就返回空（只剩快照）
-  Future<List<MindustryGithubMeta>> _fetchTagsAsReleases() async {
-    try {
-      final tags = await GitRefs.fetchTags('Anuken/Mindustry');
-      return [
-        for (final tag in tags)
-          buildMindustryMetaFromTag(tag: tag, isBe: false),
-      ];
-    } catch (e) {
-      addLogAndPrint(
-        .warning,
-        '获取 tag 列表失败：${removeNewlines('$e')}',
-        tag: 'MindustryDownload',
-      );
-      return const [];
-    }
   }
 
   /// 取 release 数组，防御式解析。
