@@ -4,10 +4,12 @@
 // - raw.githubusercontent.com：延迟（GET README，校验内容非健康页）
 // - api.github.com：是否支持（必须返回 JSON，挡掉只回 `ok` 的假节点）
 // - github.com：Range 取一段 release 资源，验证支持并算下载速度
+//   其中**回 206 才算真支持 Range**（能分块并发下载）；回 200 说明节点忽略 Range、
+//   直接吐整个文件，这种节点只能单流下载，单独记进 `range_mirrors`
 //
 // 候选 = github.akams.cn 爬到的社区节点 + 现有预设 + 命令行追加
-// 三项全过才保留，按「速度降序 + 延迟升序」取前 defaultKeep 个（多留几个，
-// 不同网络（校园网 / 广电 / 挂代理）表现不一样，池子大点运行期选择更稳）
+// 三项全过才保留，按「支持 Range 优先 → 速度降序 → 延迟升序」取前 defaultKeep 个
+// （多留几个，不同网络表现不一样，池子大点运行期选择更稳）
 //
 // 用法（在项目根目录运行）：
 //   dart tool/pick_mirrors.dart                      候选：akams + 预设
@@ -31,12 +33,15 @@ const rawProbeUrl =
 /// api 探针：必须返回 JSON
 const apiProbeUrl = 'https://api.github.com/repos/Anuken/Mindustry';
 
-/// github 探针：Range 取一小段 release 资源，验证支持并测速
+/// github 探针：Range 取一段 release 资源，验证支持并测速
 const githubProbeUrl =
     'https://github.com/Anuken/Mindustry/releases/download/v159.7/Mindustry.jar';
 
 /// github 测速取样大小：够估速度即可；节点多时整文件下载太慢
-const speedSampleBytes = 512 * 1024;
+///
+/// 2MB：小样本（512KB 级）会被镜像的突发缓存（varnish / cloudflare）抬高，
+/// 拉不开差距；2MB 既能看出真实速度，又不至于让整轮太慢
+const speedSampleBytes = 2 * 1024 * 1024;
 
 /// 阶段一（raw 延迟 + api 校验，都是小请求）并发
 const probeConcurrency = 16;
@@ -44,7 +49,7 @@ const probeConcurrency = 16;
 /// 阶段二（github Range 测速，重）并发
 const speedConcurrency = 6;
 
-const requestTimeout = Duration(seconds: 12);
+const requestTimeout = Duration(seconds: 20);
 const defaultKeep = 8;
 
 class NodeResult {
@@ -54,6 +59,9 @@ class NodeResult {
   int? rawMs;
   bool apiOk = false;
   bool githubOk = false;
+
+  /// 是否真支持 Range（探针回 206）：支持才能分块并发下载
+  bool rangeOk = false;
   double? speedBps;
   String? failReason;
 
@@ -117,6 +125,8 @@ Future<void> main(List<String> args) async {
 
   final good = results.where((r) => r.ok).toList()
     ..sort((a, b) {
+      // 支持 Range 的排前面：应用侧也按这个偏好选节点（能分块并发下载）
+      if (a.rangeOk != b.rangeOk) return a.rangeOk ? -1 : 1;
       final bySpeed = (b.speedBps ?? 0).compareTo(a.speedBps ?? 0);
       if (bySpeed != 0) return bySpeed;
       return (a.rawMs ?? 1 << 30).compareTo(b.rawMs ?? 1 << 30);
@@ -127,17 +137,21 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final chosen = good.take(keep).map((r) => r.node).toList();
-  stdout.writeln('\n三项全过 ${good.length} 个，择优 ${chosen.length} 个：');
-  for (final node in chosen) {
-    stdout.writeln('  $node');
+  final chosen = good.take(keep).toList();
+  final rangeNodes = chosen.where((r) => r.rangeOk).map((r) => r.node).toList();
+  stdout.writeln(
+    '\n三项全过 ${good.length} 个，择优 ${chosen.length} 个'
+    '（其中支持 Range ${rangeNodes.length} 个）：',
+  );
+  for (final result in chosen) {
+    stdout.writeln('  ${result.node}${result.rangeOk ? '  [Range]' : ''}');
   }
 
   if (dryRun) {
     stdout.writeln('\n--dry-run：未写入 $presetPath');
     return;
   }
-  await _writePreset(chosen);
+  await _writePreset([for (final r in chosen) r.node], rangeNodes);
   stdout.writeln('\n已写入 $presetPath');
 }
 
@@ -159,7 +173,9 @@ Future<NodeResult> _testCheap(HttpClient client, String node) async {
     final stopwatch = Stopwatch()..start();
     final body = await _getText(client, '$node$rawProbeUrl');
     stopwatch.stop();
-    if (body.contains('Mindustry')) result.rawMs = stopwatch.elapsedMilliseconds;
+    if (body.contains('Mindustry')) {
+      result.rawMs = stopwatch.elapsedMilliseconds;
+    }
   } catch (_) {}
   if (result.rawMs == null) result.failReason ??= 'raw 不支持';
 
@@ -172,6 +188,9 @@ Future<void> _testGithub(HttpClient client, NodeResult result) async {
     final sample = await _rangeSample(client, '${result.node}$githubProbeUrl');
     if (sample.bytes > 0 && !sample.isHtml) {
       result.githubOk = true;
+      // 只有 206 才是真支持 Range；回 200 说明节点把 Range 忽略掉、直接吐整个文件，
+      // 这种节点用不了分块并发下载（应用侧会退化成单流）
+      result.rangeOk = sample.statusCode == HttpStatus.partialContent;
       final seconds = sample.elapsedMs / 1000;
       if (seconds > 0) result.speedBps = sample.bytes / seconds;
     }
@@ -193,14 +212,19 @@ Future<String> _getText(HttpClient client, String url) async {
   return body;
 }
 
-/// Range 取前 [speedSampleBytes] 字节，返回实取字节数 / 耗时 / 是否 HTML 错误页
-Future<({int bytes, int elapsedMs, bool isHtml})> _rangeSample(
+/// Range 取前 [speedSampleBytes] 字节，返回实取字节数 / 耗时 / 是否 HTML 错误页 / 状态码
+///
+/// [statusCode] 用来分辨「真支持 Range」（206）与「忽略 Range 直接吐整个文件」（200）
+Future<({int bytes, int elapsedMs, bool isHtml, int statusCode})> _rangeSample(
   HttpClient client,
   String url,
 ) async {
   final request = await client.getUrl(Uri.parse(url)).timeout(requestTimeout);
   request.headers.set('User-Agent', 'CopperLauncher-mirror-picker');
-  request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-${speedSampleBytes - 1}');
+  request.headers.set(
+    HttpHeaders.rangeHeader,
+    'bytes=0-${speedSampleBytes - 1}',
+  );
 
   final stopwatch = Stopwatch()..start();
   final response = await request.close().timeout(requestTimeout);
@@ -219,9 +243,18 @@ Future<({int bytes, int elapsedMs, bool isHtml})> _rangeSample(
   }
   stopwatch.stop();
 
-  final headText = utf8.decode(head, allowMalformed: true).trimLeft().toLowerCase();
-  final isHtml = headText.startsWith('<!doctype') || headText.startsWith('<html');
-  return (bytes: bytes, elapsedMs: stopwatch.elapsedMilliseconds, isHtml: isHtml);
+  final headText = utf8
+      .decode(head, allowMalformed: true)
+      .trimLeft()
+      .toLowerCase();
+  final isHtml =
+      headText.startsWith('<!doctype') || headText.startsWith('<html');
+  return (
+    bytes: bytes,
+    elapsedMs: stopwatch.elapsedMilliseconds,
+    isHtml: isHtml,
+    statusCode: response.statusCode,
+  );
 }
 
 // ── 候选收集 ────────────────────────────────────────────────
@@ -231,7 +264,9 @@ List<String> _readPreset() {
   final file = File(presetPath);
   if (!file.existsSync()) return const [];
   return [
-    for (final match in RegExp(r'https?://\S+').allMatches(file.readAsStringSync()))
+    for (final match in RegExp(
+      r'https?://\S+',
+    ).allMatches(file.readAsStringSync()))
       ?_normalize(match.group(0)!),
   ];
 }
@@ -267,7 +302,7 @@ List<String> _extractNodeDomains(String js) => RegExp(
 
 // ── 输出 ────────────────────────────────────────────────────
 
-Future<void> _writePreset(List<String> nodes) async {
+Future<void> _writePreset(List<String> nodes, List<String> rangeNodes) async {
   final date = DateTime.now().toIso8601String().split('T').first;
   final buffer = StringBuffer()
     ..writeln('update_time: $date')
@@ -276,12 +311,19 @@ Future<void> _writePreset(List<String> nodes) async {
     buffer.writeln('    $node');
   }
   buffer.writeln(']');
+  // 支持 Range 的节点单列一份：应用侧选节点时优先它们（能分块并发下载）；
+  // 不在表里的按「不支持」处理，下载退化为单流
+  buffer.writeln('range_mirrors:[');
+  for (final node in rangeNodes) {
+    buffer.writeln('    $node');
+  }
+  buffer.writeln(']');
   await File(presetPath).writeAsString(buffer.toString(), flush: true);
 }
 
 void _printReport(List<NodeResult> results) {
   final sorted = [...results]..sort((a, b) => a.node.compareTo(b.node));
-  const header = 'raw(ms)  api  github  速度(MB/s)  说明';
+  const header = 'raw(ms)  api  github  range  速度(MB/s)  说明';
   stdout.writeln('\n${'节点'.padRight(36)}$header');
   for (final result in sorted) {
     final speed = result.speedBps == null
@@ -292,6 +334,7 @@ void _printReport(List<NodeResult> results) {
       '${(result.rawMs?.toString() ?? '-').padLeft(6)}  '
       '${result.apiOk ? ' ok ' : '--- '} '
       '${result.githubOk ? ' ok ' : '--- '}  '
+      '${result.rangeOk ? ' ok ' : '--- '}  '
       '${speed.padLeft(8)}  '
       '${result.ok ? '' : result.failReason ?? ''}',
     );
