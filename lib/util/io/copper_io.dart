@@ -7,6 +7,7 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/github_mirror.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
@@ -339,6 +340,12 @@ class CopperIO {
           return await send(url);
         } catch (e) {
           if (!_shouldFallbackToMirror(e, url)) rethrow;
+          addLog(
+            .debug,
+            '直连失败（${e is DioException ? e.type.name : e.runtimeType}），'
+            '改走镜像：$url',
+            tag: 'Mirror',
+          );
           return _sendViaMirror(url, send);
         }
     }
@@ -353,6 +360,7 @@ class CopperIO {
     if (!mirror.enabled) throw StateError('镜像未启用');
 
     String? prefix = mirror.freshBestMirrorFor(url);
+    final isFromCache = prefix != null;
     if (prefix == null) {
       try {
         //按目标域名选探针（api / raw 节点能力不同），但不用本次请求 URL 本身：
@@ -364,6 +372,11 @@ class CopperIO {
       }
     }
     if (prefix == null) throw StateError('无可用镜像节点');
+    addLog(
+      .debug,
+      '镜像${isFromCache ? '用缓存' : '新测速'}：$prefix（目标 $url）',
+      tag: 'Mirror',
+    );
     return send('$prefix$url');
   }
 
@@ -564,12 +577,15 @@ class CopperIO {
     ResponseType responseType = ResponseType.json,
   }) async {
     _ensureInit();
-    return _githubFallback(url, (effectiveUrl) => _dio!.get<T>(
-      effectiveUrl,
-      options: Options(headers: headers, responseType: responseType),
-      queryParameters: queryParameters,
-      cancelToken: cancelToken,
-    ));
+    return _githubFallback(
+      url,
+      (effectiveUrl) => _dio!.get<T>(
+        effectiveUrl,
+        options: Options(headers: headers, responseType: responseType),
+        queryParameters: queryParameters,
+        cancelToken: cancelToken,
+      ),
+    );
   }
 
   Future<Response<T>> getUri<T>(
@@ -579,11 +595,14 @@ class CopperIO {
     ResponseType responseType = ResponseType.json,
   }) async {
     _ensureInit();
-    return _githubFallback(uri.toString(), (effectiveUrl) => _dio!.getUri<T>(
-      Uri.parse(effectiveUrl),
-      options: Options(headers: headers, responseType: responseType),
-      cancelToken: cancelToken,
-    ));
+    return _githubFallback(
+      uri.toString(),
+      (effectiveUrl) => _dio!.getUri<T>(
+        Uri.parse(effectiveUrl),
+        options: Options(headers: headers, responseType: responseType),
+        cancelToken: cancelToken,
+      ),
+    );
   }
 
   Future<Response> head(
@@ -592,11 +611,14 @@ class CopperIO {
     CancelToken? cancelToken,
   }) async {
     _ensureInit();
-    return _githubFallback(url, (effectiveUrl) => _dio!.head(
-      effectiveUrl,
-      options: Options(headers: headers),
-      cancelToken: cancelToken,
-    ));
+    return _githubFallback(
+      url,
+      (effectiveUrl) => _dio!.head(
+        effectiveUrl,
+        options: Options(headers: headers),
+        cancelToken: cancelToken,
+      ),
+    );
   }
 
   Future<Response<T>> post<T>(
@@ -608,13 +630,16 @@ class CopperIO {
     ResponseType responseType = ResponseType.json,
   }) async {
     _ensureInit();
-    return _githubFallback(url, (effectiveUrl) => _dio!.post<T>(
-      effectiveUrl,
-      data: data,
-      options: Options(headers: headers, responseType: responseType),
-      queryParameters: queryParameters,
-      cancelToken: cancelToken,
-    ));
+    return _githubFallback(
+      url,
+      (effectiveUrl) => _dio!.post<T>(
+        effectiveUrl,
+        data: data,
+        options: Options(headers: headers, responseType: responseType),
+        queryParameters: queryParameters,
+        cancelToken: cancelToken,
+      ),
+    );
   }
 
   Future<bool> supportsRange(String url) async {
@@ -659,6 +684,12 @@ class CopperIO {
   }) async {
     _ensureInit();
     if (maxRetries != null) _maxRetries = maxRetries;
+    addLog(
+      .debug,
+      '开始下载：$url → $savePath'
+      '（镜像策略 ${_mirrorStrategy.name}，重试上限 $_maxRetries）',
+      tag: 'Download',
+    );
     await _githubFallback(
       url,
       (effectiveUrl) => _downloadOnce(
@@ -815,6 +846,11 @@ class CopperIO {
       state.speed = 0;
       state.status = HttpDownloadStatus.completed;
       onStatus?.call(state);
+      addLog(
+        .debug,
+        '单流下载完成：$savePath（${state.downloaded} 字节）',
+        tag: 'Download',
+      );
     } on DioException catch (e) {
       periodicTimer?.cancel();
       speedCalc.cancel();
@@ -823,6 +859,12 @@ class CopperIO {
       } else {
         state.status = HttpDownloadStatus.failed;
         if (deleteOnError && await file.exists()) await file.delete();
+        addLog(
+          .error,
+          '单流下载失败：${e.type.name}'
+          '${isNetworkFailure(e) ? '（网络不通或代理不可用）' : ''}（$url）',
+          tag: 'Download',
+        );
       }
       onStatus?.call(state);
       rethrow;
@@ -832,6 +874,7 @@ class CopperIO {
       state.status = HttpDownloadStatus.failed;
       if (deleteOnError && await file.exists()) await file.delete();
       onStatus?.call(state);
+      addLog(.error, '单流下载失败：$e（$url）', tag: 'Download');
       rethrow;
     }
   }
@@ -881,6 +924,16 @@ class CopperIO {
       }
       chunks.add(chunk);
     }
+
+    // 续传信息对排查很有用：临时分块还在就有多少接着下
+    final resumedChunks = chunks.where((c) => c.received > 0).length;
+    final resumedBytes = chunks.fold<int>(0, (sum, c) => sum + c.received);
+    addLog(
+      .debug,
+      '分块准备：$chunkCount 个（总 $totalSize 字节），'
+      '续传 $resumedChunks 个 / $resumedBytes 字节',
+      tag: 'Download',
+    );
 
     // HttpDownloadState 即缓存 —— 各部分各写各的，不冲突
     final state = HttpDownloadState(
@@ -955,10 +1008,18 @@ class CopperIO {
         throw DioException(requestOptions: RequestOptions());
       } on DioException catch (e) {
         if (CancelToken.isCancel(e)) rethrow;
-        if (tryTime < _maxRetries) {
+        // 连接类失败（断网 / 代理不可用）重试没意义：连接超时 20 秒 × 5 次只会让人干等，
+        // 所以这类只再试一次；其它错误（服务端抖动等）才按上限重试
+        final retryLimit = isNetworkFailure(e) ? 1 : _maxRetries;
+        if (tryTime < retryLimit) {
           await Future.delayed(const Duration(milliseconds: 500));
           return checkConnection(chunk, tryTime: tryTime + 1);
         }
+        addLog(
+          .debug,
+          '分块 ${chunk.index + 1} 连接失败：${e.type.name}',
+          tag: 'Download',
+        );
         return false;
       }
     }
@@ -971,7 +1032,13 @@ class CopperIO {
       speedCalc.cancel();
       state.status = HttpDownloadStatus.failed;
       onStatus?.call(state);
-      throw Exception('部分分块无法连接服务器');
+      final failedCount = connectionsOk.where((ok) => !ok).length;
+      addLog(
+        .error,
+        '分块连接失败：$failedCount / $chunkCount 个分块连不上（$url）',
+        tag: 'Download',
+      );
+      throw Exception('部分分块连不上服务器：网络不通或代理不可用？');
     }
 
     state.status = HttpDownloadStatus.downloading;
@@ -1016,12 +1083,20 @@ class CopperIO {
         notifier.value = state.downloaded;
       } on DioException catch (e) {
         if (CancelToken.isCancel(e)) rethrow;
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (tryTime < _maxRetries) {
+        // 同 checkConnection：断网时不再空转 5 轮，只再试一次
+        final retryLimit = isNetworkFailure(e) ? 1 : _maxRetries;
+        if (tryTime < retryLimit) {
+          await Future.delayed(const Duration(milliseconds: 500));
           await downloadChunk(chunk, tryTime: tryTime + 1);
         } else {
           chunk.status = HttpChunkStatus.failed;
           refreshChunkStats();
+          addLog(
+            .error,
+            '分块 ${chunk.index + 1} 下载失败：${e.type.name}'
+            '（已收 ${chunk.received}/${chunk.size} 字节）',
+            tag: 'Download',
+          );
           throw Exception('分块 [${chunk.index}] 下载失败');
         }
       }
@@ -1050,6 +1125,12 @@ class CopperIO {
       state.progress = 1.0;
       state.completedChunks = chunkCount;
       onStatus?.call(state);
+      addLog(
+        .debug,
+        '分块下载完成：$chunkCount 个分块已合并 → $savePath'
+        '（${state.downloaded} 字节）',
+        tag: 'Download',
+      );
     } on DioException {
       periodicTimer.cancel();
       speedCalc.cancel();
@@ -1126,7 +1207,10 @@ Object? decodeJsonBody(Object? data) =>
 /// 不能拿 [cio] 返回的 data 直接当对象用：镜像节点回包常常不是 JSON content-type
 /// （甚至是 HTML 错误页），此时 data 是 String，当对象用会抛
 /// `type 'String' is not a subtype of type 'List<dynamic>?'`
-Future<Object?> fetchJsonBody(String url, {Map<String, String>? headers}) async {
+Future<Object?> fetchJsonBody(
+  String url, {
+  Map<String, String>? headers,
+}) async {
   final response = await cio.get<String>(
     url,
     headers: headers ?? const {'User-Agent': 'CopperLauncher'},
