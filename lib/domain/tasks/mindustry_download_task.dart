@@ -90,6 +90,9 @@ class MindustryDownloadTask extends Task {
 
   List<HttpChunkInfo> chunks = [];
 
+  ///下载器报的阶段（连接中 / 下载中 / 合并中…）：单流下载没有分块，状态只能从它看
+  HttpDownloadStatus downloadStatus = HttpDownloadStatus.idle;
+
   MindustryDownloadTask({
     required this.mindustryMeta,
     required this.tag,
@@ -184,6 +187,7 @@ class MindustryDownloadTask extends Task {
           speed = s.speed;
           progress = s.total > 0 ? s.downloaded / s.total : 0;
           chunks = s.chunks;
+          downloadStatus = s.status;
           updateDisplay();
         },
       );
@@ -375,7 +379,9 @@ class MindustryDownloadTask extends Task {
   }
 
   String _formatDownloadProgress() {
-    if ([downloadedSize, totalSize].contains(0)) return '等待连接...';
+    if (downloadedSize <= 0 && totalSize <= 0) return '等待连接...';
+    // 镜像不回 content-length 时拿不到总量，只报已下载 —— 写成「等待连接」会让人以为卡住
+    if (totalSize <= 0) return '已下载 ${formatBytes(downloadedSize)}';
 
     String progress;
     String downloadSpeed;
@@ -411,8 +417,18 @@ class MindustryDownloadTask extends Task {
   }
 
   Widget _chunkStatus() {
+    // 单流下载（服务端不支持 Range / 镜像不给 206）没有分块明细，只能看下载器报的阶段：
+    // 一律写「链接中」会让人以为卡住了
     if (chunks.isEmpty) {
-      return Text('链接中...');
+      return Text(switch (downloadStatus) {
+        HttpDownloadStatus.idle => '等待开始...',
+        HttpDownloadStatus.connecting => '链接中...',
+        HttpDownloadStatus.downloading => '单线程下载中',
+        HttpDownloadStatus.merging => '正在合并分块...',
+        HttpDownloadStatus.completed => '下载完成',
+        HttpDownloadStatus.failed => '下载失败',
+        HttpDownloadStatus.cancelled => '已取消',
+      });
     }
 
     final connectedCount = chunks
@@ -464,7 +480,9 @@ class MindustryDownloadTask extends Task {
               ReboundButton(onTap: cancel, child: Icon(Icons.close)),
           ],
         ),
-        LinearProgressIndicator(value: progress),
+        // 总量未知（镜像 chunked 回包不带 content-length）时用不确定态：条子在动，
+        // 比一个恒为 0 的进度条诚实
+        LinearProgressIndicator(value: totalSize > 0 ? progress : null),
         if (progress != null)
           Row(
             children: [

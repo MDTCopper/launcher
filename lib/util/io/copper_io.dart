@@ -193,7 +193,6 @@ class CopperIO {
   String get userAgent => 'CopperLauncher/$appVersion';
 
   ///应用设置：token / 代理 / 下载默认值 / 镜像策略全部由**入参**提供，
-  ///cio 自身不读全局 config（便于测试与其它调用方复用）。
   ///
   ///启动在 [initAppConfig] 之后调用；下载设置页每次改动 config 后也调用，
   ///保证新请求（含新开始的下载）即时生效。
@@ -800,6 +799,7 @@ class CopperIO {
     );
 
     Timer? periodicTimer;
+    IOSink? sink;
     try {
       onStatus?.call(state);
 
@@ -819,6 +819,9 @@ class CopperIO {
         onStatus?.call(state);
       });
 
+      // 单流不续传（没带 Range 偏移），所以是整份重写：truncate 而不是 append ——
+      // append 会把上一轮的残文件接在新内容前面，长度对不上还会被当成「合并损坏」
+      sink = file.openWrite();
       await for (final chunk in (response.data as ResponseBody).stream) {
         if (cancelToken?.isCancelled == true) break;
 
@@ -826,7 +829,7 @@ class CopperIO {
           await rateLimiter.throttle(chunk.length);
         }
 
-        file.writeAsBytesSync(chunk, mode: FileMode.append);
+        sink.add(chunk);
         state.downloaded += chunk.length;
         if (state.total > 0) state.progress = state.downloaded / state.total;
         notifier.value = state.downloaded;
@@ -834,6 +837,9 @@ class CopperIO {
 
       periodicTimer.cancel();
       speedCalc.cancel();
+      await sink.flush();
+      await sink.close();
+      sink = null;
 
       if (cancelToken?.isCancelled == true) {
         state.status = HttpDownloadStatus.cancelled;
@@ -854,6 +860,8 @@ class CopperIO {
     } on DioException catch (e) {
       periodicTimer?.cancel();
       speedCalc.cancel();
+      await sink?.close();
+      sink = null;
       if (cancelToken?.isCancelled == true || CancelToken.isCancel(e)) {
         state.status = HttpDownloadStatus.cancelled;
       } else {
@@ -871,6 +879,8 @@ class CopperIO {
     } catch (e) {
       periodicTimer?.cancel();
       speedCalc.cancel();
+      await sink?.close();
+      sink = null;
       state.status = HttpDownloadStatus.failed;
       if (deleteOnError && await file.exists()) await file.delete();
       onStatus?.call(state);
