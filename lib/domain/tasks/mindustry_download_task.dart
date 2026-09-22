@@ -356,7 +356,12 @@ class MindustryDownloadTask extends Task {
         url: remote.url,
         cancelToken: cancelToken,
         onStatus: (state) {
+          // 加载器那一段也把字节数与速度填进去：进度行显示的就是它（本体的那份已经被
+          // 上面重置过，两段不会混）
           progress = state.progress;
+          totalSize = state.total;
+          downloadedSize = state.downloaded;
+          speed = state.speed;
           updateDisplay();
         },
       );
@@ -465,11 +470,12 @@ class MindustryDownloadTask extends Task {
             children: [
               Text(formatProgress()),
               Expanded(child: SizedBox()),
-              // 下载加载器那一段的字节数不是本体那份，别混着显示
-              if (phaseText == null) Text(_formatDownloadProgress()),
+              // 本体与加载器两段的字节数都走这几个字段（切段时会重置），直接显示
+              Text(_formatDownloadProgress()),
             ],
           ),
         Text(phaseText ?? '正在下载[$tag]'),
+        // 分块明细只有本体那段有
         if (phaseText == null) _chunkStatus(),
         Text(
           createTime.toString().split(' ').last.split('.').first,

@@ -153,6 +153,7 @@ class LoaderDownloadTask extends Task {
   @override
   Widget buildDisplayWidget(BuildContext context) {
     final theme = Theme.of(context);
+    // 布局与本体下载任务保持一致（标题行 / 进度条 / 百分比 + 已下载·总大小·速度 / 说明行 / 时间）
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 4,
@@ -163,7 +164,7 @@ class LoaderDownloadTask extends Task {
             Icon(getIcon(type), size: 32),
             const SizedBox(width: 4),
             Text(
-              '下载加载器 $tag',
+              getTitle(type),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
@@ -178,10 +179,15 @@ class LoaderDownloadTask extends Task {
           ],
         ),
         LinearProgressIndicator(value: progress),
-        if (statusText != null)
-          Text(statusText!, style: theme.textTheme.bodySmall)
-        else if (progress != null)
-          Text(_progressText(), style: theme.textTheme.bodySmall),
+        if (progress != null)
+          Row(
+            children: [
+              Text(formatProgress()),
+              const Expanded(child: SizedBox()),
+              Text(_progressText()),
+            ],
+          ),
+        Text(statusText ?? '正在下载加载器 $tag'),
         Text(
           createTime.toString().split(' ').last.split('.').first,
           style: theme.textTheme.bodySmall,
