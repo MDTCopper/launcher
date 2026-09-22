@@ -55,12 +55,13 @@ class LauncherTray extends TrayListener with WindowListener {
     //托盘行为都是"看不见的副作用"，生效条件与结果记一条，免得关窗没进托盘还得翻设置
     addLog(
       .info,
-      '托盘模式：${_trayMode ? '常驻' : '关闭'}（关窗行为：${_closeToTray ? '收进托盘' : '退出程序'}）',
+      '托盘：图标${_trayMode ? '常驻' : '不常驻'}（关窗行为：${_closeToTray ? '收进托盘' : '退出程序'}）',
       tag: 'Tray',
     );
 
-    //托盘常驻或关窗进托盘时，拦截关闭按钮（收进托盘），否则正常退出
-    await windowManager.setPreventClose(_trayMode);
+    // 拦截关闭按钮只跟「关窗行为」有关：勾了「游戏启动后最小化至托盘」不等于
+    // 点关闭也要收进托盘 —— 那是两件事
+    await windowManager.setPreventClose(_closeToTray);
 
     if (_trayMode) {
       await trayManager.setIcon(_iconAsset);
@@ -246,8 +247,9 @@ class LauncherTray extends TrayListener with WindowListener {
   // WindowListener
   @override
   void onWindowClose() {
-    //关窗进托盘 / 托盘模式下点关闭 → 收进托盘（进程保留监听游戏退出）
-    if (_trayMode || _closeToTray) {
+    // 只认「关窗行为」：勾了「游戏启动后最小化至托盘」只是启动游戏后收一次，
+    // 不代表点关闭也要留着进程
+    if (_closeToTray) {
       addLog(.info, '关闭窗口：收进托盘（进程保留，继续监听游戏退出）', tag: 'Tray');
       windowManager.hide();
       windowManager.setSkipTaskbar(true);
