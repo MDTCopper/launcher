@@ -708,7 +708,7 @@ class VersionOptions {
   ///
   /// 比较必须用**解析后**的路径：记录形态可能是相对（新规则）也可能还是绝对
   /// （老配置没迁移），直接比字符串会让「绝对路径的 fold + 相对路径的新版本」
-  /// 永远对不上 → 选中被清成 null（2026-09-21 用户实测：新下载的版本选不中）
+  /// 永远对不上 → 选中被清成 null，界面上退回「选择版本」
   Mindustry? findVersion(Mindustry mindustry) {
     // 先收窄到同一个目录：老记录里有非 UUID 的 id（如 `146`），跨 fold 可能重号
     final versionPath = AppPaths.resolveStoredPath(mindustry.path);
