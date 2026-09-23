@@ -11,35 +11,51 @@ class TokenEncryptor {
   static late final Encrypter _encrypter;
   static late final IV _iv;
 
+  /// 系统安全存储是否可用：Linux 上没有 keyring（精简桌面 / 容器 / WSL）时为 false，
+  /// 此时加密器不初始化，token 明文直存
+  static bool _storageAvailable = false;
+
   static const _storage = FlutterSecureStorage();
   static const _keyStorageKey = 'copper_aes_key';
   static const _ivStorageKey = 'copper_aes_iv';
 
   /// 初始化加密器。从 OS 安全存储加载 AES key，首次运行时自动生成。
   /// 必须在应用启动时调用，且需 await 完成后再使用其他方法。
+  ///
+  /// 安全存储不可用时**不往外抛**（那会中断整个 `_initialize`，表现为窗口空着、进程不退），
+  /// 只记日志并降级成明文直存
   static Future<void> init() async {
-    String? keyBase64 = await _storage.read(key: _keyStorageKey);
-    String? ivBase64 = await _storage.read(key: _ivStorageKey);
+    try {
+      String? keyBase64 = await _storage.read(key: _keyStorageKey);
+      String? ivBase64 = await _storage.read(key: _ivStorageKey);
 
-    if (keyBase64 == null || ivBase64 == null) {
-      // 首次运行：生成随机 key + IV 并持久化到安全存储
-      final key = _generateRandomKey();
-      final iv = _generateRandomIV();
+      if (keyBase64 == null || ivBase64 == null) {
+        // 首次运行：生成随机 key + IV 并持久化到安全存储
+        final key = _generateRandomKey();
+        final iv = _generateRandomIV();
 
-      keyBase64 = base64.encode(key.bytes);
-      ivBase64 = base64.encode(iv.bytes);
+        keyBase64 = base64.encode(key.bytes);
+        ivBase64 = base64.encode(iv.bytes);
 
-      await _storage.write(key: _keyStorageKey, value: keyBase64);
-      await _storage.write(key: _ivStorageKey, value: ivBase64);
+        await _storage.write(key: _keyStorageKey, value: keyBase64);
+        await _storage.write(key: _ivStorageKey, value: ivBase64);
+      }
+
+      final keyBytes = base64.decode(keyBase64);
+      final ivBytes = base64.decode(ivBase64);
+
+      _encrypter = Encrypter(
+        AES(Key(Uint8List.fromList(keyBytes)), mode: AESMode.cbc),
+      );
+      _iv = IV(Uint8List.fromList(ivBytes));
+      _storageAvailable = true;
+    } catch (error) {
+      addLog(
+        .warning,
+        '系统安全存储不可用，token 改为明文保存：${removeNewlines('$error')}',
+        tag: 'Token',
+      );
     }
-
-    final keyBytes = base64.decode(keyBase64);
-    final ivBytes = base64.decode(ivBase64);
-
-    _encrypter = Encrypter(
-      AES(Key(Uint8List.fromList(keyBytes)), mode: AESMode.cbc),
-    );
-    _iv = IV(Uint8List.fromList(ivBytes));
   }
 
   /// 生成随机 AES-256 key（32 字节）
@@ -80,6 +96,7 @@ class TokenEncryptor {
   /// 按需加密：如果未加密则加密，已加密则原样返回
   static String encryptIfNeeded(String token) {
     if (token.isEmpty) return token;
+    if (!_storageAvailable) return token;
     if (isEncrypted(token)) return token;
     return encryptToken(token);
   }
@@ -92,7 +109,14 @@ class TokenEncryptor {
   /// 抛出去会在 `initAppConfig` 里变成整个启动崩溃
   static String decryptIfNeeded(String token) {
     if (token.isEmpty) return token;
-    if (!isEncrypted(token)) return token;
+    final looksEncrypted = isEncrypted(token);
+    if (!_storageAvailable) {
+      // 没有加密器，密文一律解不开；明文（降级期间存下的）照常返回
+      if (!looksEncrypted) return token;
+      addLog(.warning, '系统安全存储不可用，已保存的 token 无法解密，按未设置处理', tag: 'Token');
+      return '';
+    }
+    if (!looksEncrypted) return token;
     try {
       return decryptToken(token);
     } catch (error) {

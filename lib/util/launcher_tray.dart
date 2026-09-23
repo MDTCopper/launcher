@@ -28,12 +28,12 @@ class LauncherTray extends TrayListener with WindowListener {
 
   bool _trayMode = false;
 
-  ///停止当前游戏是否已点过一次（第二步才真正停止，防误触）
+  ///停止当前游戏是否已点过一次
   bool _confirmStopArmed = false;
 
   bool get trayMode => _trayMode;
 
-  ///关窗行为：收进托盘（否则直接退出）
+  ///关窗行为：收进托盘
   bool _closeToTray = false;
 
   ///托盘图标资源：Windows 的 `LoadImage` 只认 .ico，macOS/Linux 用 png
@@ -52,27 +52,29 @@ class LauncherTray extends TrayListener with WindowListener {
             personalization.launcherPostLaunchBehavior ==
                 LauncherPostLaunchBehavior.tray);
     if (!isDesktop) return;
-    //托盘行为都是"看不见的副作用"，生效条件与结果记一条，免得关窗没进托盘还得翻设置
+
     addLog(
       .info,
       '托盘：图标${_trayMode ? '常驻' : '不常驻'}（关窗行为：${_closeToTray ? '收进托盘' : '退出程序'}）',
       tag: 'Tray',
     );
 
-    // 拦截关闭按钮只跟「关窗行为」有关：勾了「游戏启动后最小化至托盘」不等于
-    // 点关闭也要收进托盘 —— 那是两件事
     await windowManager.setPreventClose(_closeToTray);
 
     if (_trayMode) {
       await trayManager.setIcon(_iconAsset);
-      await trayManager.setToolTip('Copper Launcher');
+      // Linux 的 tray_manager 实现只有 setIcon / setTitle / setContextMenu / destroy，
+      // 没有 setToolTip，直接调会 MissingPluginException 把启动打断
+      if (!Platform.isLinux) {
+        await trayManager.setToolTip('Copper Launcher');
+      }
       await _refreshMenu();
     } else {
       await trayManager.destroy();
     }
   }
 
-  ///重建托盘菜单（反映游戏运行状态 / 两步确认 / 勾选项）
+  ///重建托盘菜单
   Future<void> _refreshMenu() async {
     await trayManager.setContextMenu(_buildMenu());
   }
@@ -109,7 +111,7 @@ class LauncherTray extends TrayListener with WindowListener {
     );
   }
 
-  ///是否有游戏正在运行（启动任务处于 process 状态）。
+  ///是否有游戏正在运行
   bool _isGameRunning() => taskManager.currentTasks.any(
     (task) => task.type == TaskType.launch && task.status == TaskStatus.process,
   );
@@ -161,7 +163,7 @@ class LauncherTray extends TrayListener with WindowListener {
 
   ///把主窗口叫回来：托盘隐藏 / 最小化状态都能拉回前台
   ///
-  ///单实例守护收到第二个实例的通知时调它（用户又点了图标）
+  ///单实例守护收到第二个实例的通知时调它
   Future<void> showMainWindow() async {
     if (!isDesktop) return;
     if (await windowManager.isMinimized()) {
@@ -170,7 +172,7 @@ class LauncherTray extends TrayListener with WindowListener {
     await _showFromTray();
   }
 
-  ///从托盘快速启动最近游玩版本（游戏已在跑则不动作）
+  ///从托盘快速启动最近游玩版本
   Future<void> _quickLaunchRecent() async {
     final version = _recentVersion();
     if (version == null || _isGameRunning()) return;
@@ -200,7 +202,7 @@ class LauncherTray extends TrayListener with WindowListener {
     _refreshMenu();
   }
 
-  /// 退出启动器（托盘菜单与「安装更新」共用：先销毁托盘再销毁窗口）
+  /// 退出启动器
   Future<void> quitApp() async {
     addLog(.info, '托盘：退出启动器', tag: 'Tray');
     await trayManager.destroy();
@@ -247,8 +249,6 @@ class LauncherTray extends TrayListener with WindowListener {
   // WindowListener
   @override
   void onWindowClose() {
-    // 只认「关窗行为」：勾了「游戏启动后最小化至托盘」只是启动游戏后收一次，
-    // 不代表点关闭也要留着进程
     if (_closeToTray) {
       addLog(.info, '关闭窗口：收进托盘（进程保留，继续监听游戏退出）', tag: 'Tray');
       windowManager.hide();

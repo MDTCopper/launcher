@@ -4,7 +4,9 @@ project(runner LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "Copper Launcher")
+# 目标名不能带空格（CMake 会报 target name ... is reserved or not valid）；
+# 窗口标题在 runner/my_application.cc 里单独设置
+set(BINARY_NAME "copper_launcher")
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
 set(APPLICATION_ID "io.github.copper.launcher")
@@ -42,6 +44,9 @@ endif()
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_14)
   target_compile_options(${TARGET} PRIVATE -Wall -Werror)
+  # 插件实现会用到上游已废弃的 API（如 tray_manager 的 app_indicator_new），
+  # 插件与本工程共用这个函数，只能在这里把废弃类警告降级
+  target_compile_options(${TARGET} PRIVATE -Wno-error=deprecated-declarations)
   target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
   target_compile_definitions(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
 endfunction()
