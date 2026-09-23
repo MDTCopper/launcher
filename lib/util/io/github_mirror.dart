@@ -4,10 +4,10 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/util/io/mirror_node.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:hjson_dart/hjson_dart.dart' as hjson;
 import 'package:path/path.dart' as p;
 
 ///github 镜像节点管理。
@@ -59,8 +59,8 @@ class GithubMirror {
 
   bool _enabled = true;
 
-  ///预设节点（来自 remote github_mirrors.hjson）
-  List<String> _presetNodes = [];
+  ///预设节点（来自 remote github_mirrors.hjson）：带能力的记录
+  List<MirrorNode> _presetNodes = [];
 
   ///从 github.akams.cn 爬取并预检通过的社区节点
   List<String> _crawledNodes = [];
@@ -101,7 +101,10 @@ class GithubMirror {
   }
 
   ///预设节点（只读）
-  List<String> get presetNodes => List.unmodifiable(_presetNodes);
+  List<String> get presetNodes => [for (final node in _presetNodes) node.url];
+
+  ///预设节点的完整能力记录（只读）：按族与 Range 选点时用
+  List<MirrorNode> get presetMirrorNodes => List.unmodifiable(_presetNodes);
 
   ///爬取节点（只读）
   List<String> get crawledNodes => List.unmodifiable(_crawledNodes);
@@ -112,11 +115,7 @@ class GithubMirror {
 
   ///全部节点（预设 + 爬取 + 自定义），去重
   List<String> get allNodes {
-    final set = <String>{
-      ..._presetNodes,
-      ..._crawledNodes,
-      ...customNodes,
-    };
+    final set = <String>{...presetNodes, ..._crawledNodes, ...customNodes};
     return set.toList();
   }
 
@@ -124,6 +123,12 @@ class GithubMirror {
   ///应用镜像设置（由调用方注入，不读全局 config）
   void applySettings(MirrorOptions options) {
     _enabled = options.enabled;
+  }
+
+  ///仅供测试：直接塞预设节点（正常走 [load] 从 remote 读）
+  @visibleForTesting
+  void debugSetPresetNodes(List<MirrorNode> nodes) {
+    _presetNodes = nodes;
   }
 
   ///仅供测试：清空单例状态，隔离用例（GithubMirror 是单例，无外部重置入口）。
@@ -141,7 +146,7 @@ class GithubMirror {
   ///加载预设节点与爬取缓存。缓存缺失或过期（>7 天）时后台自动重爬一次。
   Future<void> load() async {
     final presetContent = await RemoteData.load('github_mirrors.hjson');
-    _presetNodes = _parsePreset(presetContent);
+    _presetNodes = parseMirrorPreset(presetContent);
     _crawledNodes = await _loadCrawledCache();
 
     if (_shouldRefreshCrawledCache()) {
@@ -160,7 +165,8 @@ class GithubMirror {
     }
   }
 
-  String get _crawledCachePath => p.join(AppPaths.remoteData, 'github_mirrors_crawled.json');
+  String get _crawledCachePath =>
+      p.join(AppPaths.remoteData, 'github_mirrors_crawled.json');
 
   ///从 github.akams.cn 拉取社区节点并预检：能测通的留下并记延迟，
   ///不通的丢弃（避免之后反复对死节点发起请求），结果缓存到本地。
@@ -197,7 +203,8 @@ class GithubMirror {
     try {
       final file = File(_crawledCachePath);
       if (!await file.exists()) return [];
-      final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final data =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       final domains = (data['domains'] as List<dynamic>? ?? const [])
           .map((e) => e.toString())
           .toList();
@@ -210,7 +217,11 @@ class GithubMirror {
   Future<void> _saveCrawledCache(List<String> nodes) async {
     try {
       final domains = nodes
-          .map((n) => n.replaceFirst(RegExp(r'^https?://'), '').replaceFirst(RegExp(r'/$'), ''))
+          .map(
+            (n) => n
+                .replaceFirst(RegExp(r'^https?://'), '')
+                .replaceFirst(RegExp(r'/$'), ''),
+          )
           .toList();
       final file = File(_crawledCachePath);
       await file.parent.create(recursive: true);
@@ -218,33 +229,8 @@ class GithubMirror {
     } catch (_) {}
   }
 
-  List<String> _parsePreset(String? content) {
-    if (content == null) return [];
-    try {
-      final decoded = hjson.hjsonDecode(content) as Map<String, dynamic>;
-      final mirrors = decoded['mirrors'] as List<dynamic>? ?? const [];
-      return mirrors
-          .map((e) => normalizeNode(e.toString()))
-          .whereType<String>()
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
   ///统一节点格式为「镜像前缀」，非法返回 null。
-  ///
-  ///- 无 scheme 时补 `https://`
-  ///- 保证以 `/` 结尾（前缀 + 原 URL 拼接需要分隔）
-  static String? normalizeNode(String raw) {
-    var node = raw.trim();
-    if (node.isEmpty) return null;
-    if (!node.startsWith('http://') && !node.startsWith('https://')) {
-      node = 'https://$node';
-    }
-    if (!node.endsWith('/')) node = '$node/';
-    return node;
-  }
+  static String? normalizeNode(String raw) => MirrorNode.normalizeUrl(raw);
 
   ///URL 是否为需要加速的 github 域名。
   static bool isGithubUrl(String url) {
@@ -301,23 +287,36 @@ class GithubMirror {
   }
 
   ///对全部节点分级测速，选最快者作为后续使用的镜像（带 TTL 缓存标记）。
-///
-///优先测「上次已选 + 自定义 + 预设」小集合；全部失败才碰爬取的全量池
-///（避免每次回退都对 77 个社区节点发起 HEAD）。返回选中的镜像前缀，
-///全部不可用返回 null。
-  Future<String?> selectBestMirror(String probeUrl) async {
+  ///
+  ///优先测「上次已选 + 自定义 + 预设」小集合；全部失败才碰爬取的全量池
+  ///（避免每次回退都对 77 个社区节点发起 HEAD）。返回选中的镜像前缀，
+  ///全部不可用返回 null。
+  Future<String?> selectBestMirror(
+    String probeUrl, {
+    String? targetUrl,
+    bool preferRange = false,
+  }) async {
     final previousBest = _bestMirror;
     _bestMirror = null;
     _bestMirrorProbe = null;
     _bestMirrorAt = null;
 
-    final priorityNodes = <String>{
-      ?previousBest,
-      ...customNodes,
-      ..._presetNodes,
-    }.toList();
+    final priorityNodes = _priorityCandidates(
+      targetUrl ?? probeUrl,
+      previousBest: previousBest,
+      preferRange: preferRange,
+    );
 
-    final priorityBest = await _measureFastest(priorityNodes, probeUrl);
+    // 下载优先支持 Range 的节点：哪怕稍慢，分块并发也比单流快
+    final preferFirst = preferRange
+        ? {for (final node in _presetNodes) if (node.range) node.url}
+        : const <String>{};
+
+    final priorityBest = await _measureFastest(
+      priorityNodes,
+      probeUrl,
+      preferFirst: preferFirst,
+    );
     if (priorityBest != null) {
       _bestMirror = priorityBest;
       _bestMirrorProbe = probeUrl;
@@ -325,7 +324,11 @@ class GithubMirror {
       return priorityBest;
     }
 
-    final crawledBest = await _measureFastest(_crawledNodes, probeUrl);
+    final crawledBest = await _measureFastest(
+      _crawledNodes,
+      probeUrl,
+      preferFirst: preferFirst,
+    );
     if (crawledBest != null) {
       _bestMirror = crawledBest;
       _bestMirrorProbe = probeUrl;
@@ -336,8 +339,45 @@ class GithubMirror {
     return null;
   }
 
-  ///并行对候选节点测速，返回耗时最短的节点前缀；没有可用节点返回 null。
-  Future<String?> _measureFastest(List<String> nodes, String probeUrl) async {
+  ///每族请求最多探几个候选：能力与速度已知的节点排前面，不必把几十个全打一遍
+  static const _maxPriorityProbe = 6;
+
+  ///按场景挑候选：先按域名族筛（api 请求别拿只会 raw 的节点去撞），
+  ///再按「要 Range 的优先、预设实测速度高的优先」排；自定义与上次用过的排最前
+  List<String> _priorityCandidates(
+    String targetUrl, {
+    String? previousBest,
+    required bool preferRange,
+  }) {
+    final family = mirrorFamilyOf(targetUrl);
+
+    final preset =
+        [
+          for (final node in _presetNodes)
+            if (family == null || node.serves(family)) node,
+        ]..sort((a, b) {
+          if (preferRange && a.range != b.range) return a.range ? -1 : 1;
+          return b.speed.compareTo(a.speed);
+        });
+
+    final ordered = <String>{
+      ?previousBest,
+      ...customNodes,
+      for (final node in preset) node.url,
+    };
+
+    return ordered.take(_maxPriorityProbe).toList();
+  }
+
+  ///并行对候选节点测速，返回最合适的节点前缀；没有可用节点返回 null
+  ///
+  ///[preferFirst] 里的节点算「优先档」：只要可达就压过其它节点（下载优先挑支持
+  ///Range 的节点用），档内与档外各自按延迟比
+  Future<String?> _measureFastest(
+    List<String> nodes,
+    String probeUrl, {
+    Set<String> preferFirst = const {},
+  }) async {
     if (nodes.isEmpty) return null;
     final results = await Future.wait(
       nodes.map((node) async {
@@ -347,10 +387,27 @@ class GithubMirror {
     );
     int? bestMs;
     String? bestNode;
+    bool? bestPreferred;
     for (final result in results) {
       final ms = result.ms;
       if (ms == null) continue;
-      if (bestMs == null || ms < bestMs) {
+      final preferred = preferFirst.contains(result.node);
+
+      if (bestNode == null) {
+        bestMs = ms;
+        bestNode = result.node;
+        bestPreferred = preferred;
+        continue;
+      }
+      if (preferred != bestPreferred) {
+        if (preferred) {
+          bestMs = ms;
+          bestNode = result.node;
+          bestPreferred = preferred;
+        }
+        continue;
+      }
+      if (ms < bestMs!) {
         bestMs = ms;
         bestNode = result.node;
       }
@@ -398,10 +455,6 @@ class GithubMirror {
     final regex = RegExp(
       r'\{label:"(?:search|contribute)",value:"([a-zA-Z0-9.-]+)"\}',
     );
-    return regex
-        .allMatches(js)
-        .map((m) => m.group(1)!)
-        .toSet()
-        .toList();
+    return regex.allMatches(js).map((m) => m.group(1)!).toSet().toList();
   }
 }

@@ -312,10 +312,13 @@ class CopperIO {
   /// - [MirrorStrategy.mirrorFirst]：先走镜像（校园网 / 直连不通时更快），
   ///   失败再回退官方源
   /// - [MirrorStrategy.githubOnly]：只用官方源
+  ///
+  /// [preferRange] 给大文件下载用：挑镜像时优先支持 Range 的节点（能分块并发）
   Future<R> _githubFallback<R>(
     String url,
-    Future<R> Function(String effectiveUrl) send,
-  ) async {
+    Future<R> Function(String effectiveUrl) send, {
+    bool preferRange = false,
+  }) async {
     if (!GithubMirror.isGithubUrl(url)) return send(url);
 
     switch (_mirrorStrategy) {
@@ -325,7 +328,7 @@ class CopperIO {
       case MirrorStrategy.mirrorFirst:
         if (!GithubMirror.instance.enabled) return send(url);
         try {
-          return await _sendViaMirror(url, send);
+          return await _sendViaMirror(url, send, preferRange: preferRange);
         } catch (e) {
           //镜像拿到真实 HTTP 响应（404 等）就原样抛出，别再回退直连：
           //否则「资源不存在」会被伪装成连接错误，且直连 raw 在部分网络注定失败
@@ -345,7 +348,7 @@ class CopperIO {
             '改走镜像：$url',
             tag: 'Mirror',
           );
-          return _sendViaMirror(url, send);
+          return _sendViaMirror(url, send, preferRange: preferRange);
         }
     }
   }
@@ -353,8 +356,9 @@ class CopperIO {
   ///经镜像发一次请求：取最优节点前缀（TTL 缓存优先，过期才测速）后重发
   Future<R> _sendViaMirror<R>(
     String url,
-    Future<R> Function(String effectiveUrl) send,
-  ) async {
+    Future<R> Function(String effectiveUrl) send, {
+    bool preferRange = false,
+  }) async {
     final mirror = GithubMirror.instance;
     if (!mirror.enabled) throw StateError('镜像未启用');
 
@@ -364,7 +368,11 @@ class CopperIO {
       try {
         //按目标域名选探针（api / raw 节点能力不同），但不用本次请求 URL 本身：
         //目标自身不存在（404）会让所有节点「测速失败」，节点选择被带偏
-        prefix = await mirror.selectBestMirror(GithubMirror.probeUrlFor(url));
+        prefix = await mirror.selectBestMirror(
+          GithubMirror.probeUrlFor(url),
+          targetUrl: url,
+          preferRange: preferRange,
+        );
       } catch (_) {
         //测速失败不阻塞，用现有同类最优镜像继续
         prefix = mirror.bestMirrorFor(url);
@@ -702,6 +710,8 @@ class CopperIO {
         onStatus: onStatus,
         headers: headers,
       ),
+      //下载优先找支持 Range 的节点：能分块并发 + 断点续传
+      preferRange: true,
     );
   }
 
