@@ -443,7 +443,8 @@ Future<({int? ms, String? note})> _probeGithub(
       // 有的节点对 release 路径回一个 HTML 说明页，那不是能用的下载节点
       return (ms: null, note: 'HTML ${sample.statusCode}');
     }
-    if (sample.bytes > 0) return (ms: sample.elapsedMs, note: null);
+    // 延迟取**首字节**耗时：1KB 的接收窗口接近 0，拿它当延迟会全是 0ms
+    if (sample.bytes > 0) return (ms: sample.firstByteMs, note: null);
     return (ms: null, note: 'HTTP ${sample.statusCode} 无内容');
   } on TimeoutException {
     return (ms: null, note: '超时');
@@ -475,8 +476,8 @@ Future<void> _testGithub(
       result.githubOk = true;
       // 只有 206 才算真支持 Range（回 200 = 忽略 Range 吐整个文件，只能单流）
       result.rangeOk = sample.statusCode == HttpStatus.partialContent;
-      final seconds = sample.elapsedMs / 1000;
-      // 超预算的节点按实际收到的字节估速
+      // 速度按**接收窗口**算（连接与响应头不算），超预算就用已收字节估
+      final seconds = sample.receiveMs / 1000;
       if (seconds > 0) result.speedBps = sample.bytes / seconds;
       if (sample.bytes < speedSampleBytes) {
         result.slowNote =
@@ -515,14 +516,20 @@ Future<String> _getText(HttpClient client, String url) async {
   return body;
 }
 
-/// Range 取前 [size] 字节（默认 [speedSampleBytes]），返回实取字节数 / 耗时 /
-/// 是否 HTML 错误页 / 状态码
+/// Range 取前 [size] 字节（默认 [speedSampleBytes]），返回实取字节数 / 首字节耗时 /
+/// 接收耗时 / 是否 HTML 错误页 / 状态码
+///
+/// 两个耗时分开用：[firstByteMs] 是**首字节到达时间**（连接 + TTFB）→ 当延迟；
+/// [receiveMs] 只算收到第一块之后的窗口 → 算速度（1KB 样本的接收窗口接近 0，
+/// 拿它当延迟就会全是 0ms）
 ///
 /// [connectTimeout] 管出首字节之前，[receiveTimeout] 从收到第一块数据开始算
-/// （慢启动的节点不该被连接耗时判死；超预算就用已收字节算速度）
 ///
 /// [statusCode] 用来分辨「真支持 Range」（206）与「忽略 Range 吐整个文件」（200）
-Future<({int bytes, int elapsedMs, bool isHtml, int statusCode})> _rangeSample(
+Future<
+  ({int bytes, int firstByteMs, int receiveMs, bool isHtml, int statusCode})
+>
+_rangeSample(
   HttpClient client,
   String url, {
   int? size,
@@ -533,21 +540,25 @@ Future<({int bytes, int elapsedMs, bool isHtml, int statusCode})> _rangeSample(
   final connectLimit = connectTimeout ?? requestTimeout;
   final receiveLimit = receiveTimeout ?? requestTimeout;
 
+  final totalWatch = Stopwatch()..start();
   final request = await client.getUrl(Uri.parse(url)).timeout(connectLimit);
   request.headers.set('User-Agent', 'CopperLauncher-mirror-picker');
   request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-${want - 1}');
 
-  // 接收计时从第一块数据开始：连接与响应头耗时不算进去
-  final receiveWatch = Stopwatch();
   final response = await request.close().timeout(connectLimit);
   if (response.statusCode < 200 || response.statusCode >= 400) {
     throw HttpException('HTTP ${response.statusCode}：$url');
   }
 
   var bytes = 0;
+  var firstByteMs = 0;
   final head = <int>[];
+  final receiveWatch = Stopwatch();
   await for (final chunk in response.timeout(receiveLimit)) {
-    if (!receiveWatch.isRunning) receiveWatch.start();
+    if (!receiveWatch.isRunning) {
+      receiveWatch.start();
+      firstByteMs = totalWatch.elapsedMilliseconds;
+    }
     bytes += chunk.length;
     if (head.length < 16) {
       head.addAll(chunk.take(16 - head.length));
@@ -564,8 +575,8 @@ Future<({int bytes, int elapsedMs, bool isHtml, int statusCode})> _rangeSample(
       headText.startsWith('<!doctype') || headText.startsWith('<html');
   return (
     bytes: bytes,
-    // 耗时只算接收窗口（连接与响应头不算）：速度才有可比性
-    elapsedMs: receiveWatch.elapsedMilliseconds,
+    firstByteMs: firstByteMs,
+    receiveMs: receiveWatch.elapsedMilliseconds,
     isHtml: isHtml,
     statusCode: response.statusCode,
   );
