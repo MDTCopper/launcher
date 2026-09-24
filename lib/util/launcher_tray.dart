@@ -7,6 +7,7 @@ import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:flutter/foundation.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -41,13 +42,100 @@ class LauncherTray extends TrayListener with WindowListener {
       ? 'assets/images/app_icon.ico'
       : 'assets/images/logo.png';
 
+  ///Linux 状态栏宿主的探测结果（null = 还没探过）
+  static bool? _linuxTrayHost;
+
+  ///托盘是否可用（给 UI 读的同步版本，用的是 [resolveTraySupport] 缓存下来的结果）。
+  ///启动时 [applyMode] 会先探一次；在那之前 Linux 一律按不支持算
+  static bool get traySupported {
+    if (!isDesktop) return false;
+    if (!Platform.isLinux) return true;
+    return _linuxTrayHost ?? false;
+  }
+
+  ///托盘是否可用。Windows / macOS 的插件实现是完整的；Linux 要问会话总线上有没有
+  ///状态栏宿主 —— 没有宿主时 `setIcon` 不报错、图标只是不出现，窗口收进去就叫不回来
+  static Future<bool> resolveTraySupport() async {
+    if (!isDesktop || !Platform.isLinux) return traySupported;
+    return _linuxTrayHost ??= await _probeLinuxTrayHost();
+  }
+
+  ///问 D-Bus 有没有状态栏宿主。`libayatana-appindicator` 走 StatusNotifierItem 协议，
+  ///宿主（面板）会在 watcher 上把 [IsStatusNotifierHostRegistered] 置真；这个库不支持
+  ///老式 XEmbed 托盘（二进制里没有 `_NET_SYSTEM_TRAY`），所以问它就是这个库的完整判据。
+  ///命令行客户端依次试 glib / dbus / systemd 三家的，都没有就当不支持
+  static Future<bool> _probeLinuxTrayHost() async {
+    const probes = <(String, List<String>)>[
+      (
+        'gdbus',
+        [
+          'call', '--session',
+          '--dest', 'org.kde.StatusNotifierWatcher',
+          '--object-path', '/StatusNotifierWatcher',
+          '--method', 'org.freedesktop.DBus.Properties.Get',
+          'org.kde.StatusNotifierWatcher',
+          'IsStatusNotifierHostRegistered',
+        ],
+      ),
+      (
+        'dbus-send',
+        [
+          '--session', '--print-reply',
+          '--dest=org.kde.StatusNotifierWatcher', '/StatusNotifierWatcher',
+          'org.freedesktop.DBus.Properties.Get',
+          'string:org.kde.StatusNotifierWatcher',
+          'string:IsStatusNotifierHostRegistered',
+        ],
+      ),
+      (
+        'busctl',
+        [
+          '--user', 'get-property',
+          'org.kde.StatusNotifierWatcher', '/StatusNotifierWatcher',
+          'org.kde.StatusNotifierWatcher',
+          'IsStatusNotifierHostRegistered',
+        ],
+      ),
+    ];
+
+    for (final (executable, arguments) in probes) {
+      final ProcessResult result;
+      try {
+        result = await Process.run(
+          executable,
+          arguments,
+        ).timeout(const Duration(seconds: 2));
+      } on ProcessException {
+        continue; //这台机器没装这个命令，换下一个
+      } catch (_) {
+        return false; //超时等：问不出来就按不支持
+      }
+      //能跑起来的客户端就是权威答案：名字不存在时 gdbus 只把错误写 stderr、
+      //stdout 为空，读不出结论即「没有宿主」
+      return parseTrayProbeOutput('${result.stdout}') ?? false;
+    }
+    return false;
+  }
+
+  ///从探测命令的输出里读结论：`gdbus` 给 `<true>`、`dbus-send` 给 `boolean true`、
+  ///`busctl` 给 `b true`，读不出结论返回 null
+  @visibleForTesting
+  static bool? parseTrayProbeOutput(String stdout) {
+    if (stdout.contains('true')) return true;
+    if (stdout.contains('false')) return false;
+    return null;
+  }
+
   ///按 config 应用托盘模式
   Future<void> applyMode() async {
     final personalization = config.setting.personalizationOptions;
+    final traySupported = await resolveTraySupport();
+    //托盘不可用时两个托盘行为都按未开启算，否则关窗会把窗口藏进一个点不到的地方
     _closeToTray =
+        traySupported &&
         personalization.windowCloseAction == WindowCloseAction.minimizeToTray;
     _trayMode =
-        isDesktop &&
+        traySupported &&
         (_closeToTray ||
             personalization.launcherPostLaunchBehavior ==
                 LauncherPostLaunchBehavior.tray);
@@ -63,8 +151,8 @@ class LauncherTray extends TrayListener with WindowListener {
 
     if (_trayMode) {
       await trayManager.setIcon(_iconAsset);
-      // Linux 的 tray_manager 实现只有 setIcon / setTitle / setContextMenu / destroy，
-      // 没有 setToolTip，直接调会 MissingPluginException 把启动打断
+      //Linux 的插件只实现了 setIcon / setTitle / setContextMenu / destroy，
+      //没有 setToolTip，直接调会 MissingPluginException
       if (!Platform.isLinux) {
         await trayManager.setToolTip('Copper Launcher');
       }
@@ -218,6 +306,8 @@ class LauncherTray extends TrayListener with WindowListener {
 
   @override
   void onTrayIconRightMouseDown() {
+    //Linux 的插件也没有 popUpContextMenu，菜单由状态栏宿主自己弹
+    if (Platform.isLinux) return;
     trayManager.popUpContextMenu();
   }
 

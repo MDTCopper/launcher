@@ -13,7 +13,6 @@ import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart'
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/vars.dart';
-import 'package:copper_launcher/util/io/os.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -222,8 +221,8 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   Widget build(BuildContext context) {
     return ListContentPanel(
       items: [
-        //关窗行为与托盘相关，移动端没有这些概念，整块只在桌面显示
-        if (isDesktop) _buildLauncherBehaviorModule(),
+        //关窗行为与托盘相关，移动端没有这些概念；托盘不可用的桌面（比如没有状态栏宿主的 Linux）也不显示
+        if (LauncherTray.traySupported) _buildLauncherBehaviorModule(),
         ContentPanelModule(
           title: '主题',
           child: Column(
