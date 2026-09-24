@@ -4,6 +4,10 @@ import android.app.*;
 import android.content.*;
 import java.io.*;
 
+import io.github.copper.ContainerClassLoader;
+import io.github.copper.GameProcess;
+import io.github.copper.MindustryActivity;
+
 @SuppressWarnings("unused")
 public class Loader {
     /** Starts the loader through MindustryActivity, passing the loader jar and its arguments. */
@@ -14,6 +18,9 @@ public class Loader {
 
         // readonly is required on Android 14 and above, or SecurityException will be thrown by DexClassLoader
         jar.setReadOnly();
+        // A previous run leaves the placeholder's process behind; one process holds one loader - or one
+        // JVM on the bridge path - so a launch into a living one fails inside the component factory.
+        GameProcess.kill(activityContext);
         Intent intent = new Intent(activityContext, MindustryActivity.class);
         intent.putExtra("copper_loader_jar", jar.getAbsolutePath());
         intent.putExtra("copper_args", args);
@@ -34,46 +41,6 @@ public class Loader {
                     .invoke(null, (Object) args);
         } catch (Throwable e) {
             throw new RuntimeException("failed to build", e);
-        }
-    }
-
-    /** Get native memory info. */
-    public static MemoryInfo getMemoryInfo(Context applicationContext) {
-        ActivityManager manager = applicationContext.getSystemService(ActivityManager.class);
-        ActivityManager.MemoryInfo info = new ActivityManager.MemoryInfo();
-        manager.getMemoryInfo(info);
-        return new MemoryInfo(info);
-    }
-
-    /** Get art heap memory info. */
-    public static HeapMemoryInfo getHeapMemoryInfo(Context applicationContext) {
-        ActivityManager manager = applicationContext.getSystemService(ActivityManager.class);
-        HeapMemoryInfo info = new HeapMemoryInfo();
-        info.normalSize = manager.getMemoryClass();
-        info.largeSize = manager.getLargeMemoryClass();
-        return info;
-    }
-
-    /** Heap memory info of ART. */
-    public static class HeapMemoryInfo {
-        /** dalvik.vm.heapgrowthlimit, unit: megabytes */
-        public int normalSize;
-        /** dalvik.vm.heapsize, unit: megabytes */
-        public int largeSize;
-    }
-
-    /** Wrapper of android.app.ActivityManager.MemoryInfo */
-    public static class MemoryInfo {
-        public long availMem;
-        public boolean lowMemory;
-        public long threshold;
-        public long totalMem;
-
-        MemoryInfo(ActivityManager.MemoryInfo info) {
-            availMem = info.availMem;
-            lowMemory = info.lowMemory;
-            threshold = info.threshold;
-            totalMem = info.totalMem;
         }
     }
 }
