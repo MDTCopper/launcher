@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:copper_launcher/data/local_asset.dart';
 import 'package:copper_launcher/data/mindustry_manifest.dart';
+import 'package:copper_launcher/data/mindustry_release.dart';
 import 'package:copper_launcher/data/mindustry_version_snapshot.dart';
-import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -42,10 +42,10 @@ class MindustryDownloadPage extends StatefulWidget {
 }
 
 class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
-  static final List<MindustryGithubMeta> _versionList = [];
+  static final List<MindustryRelease> _versionList = [];
 
   /// 最新 be；拿不到（网络 / 限流）时为 null，页面不显示该入口
-  static MindustryGithubMeta? _latestBeta;
+  static MindustryRelease? _latestBeta;
 
   /// 列表只在这里建一次 future，手动刷新才重建；
   /// 若写在 build 里，任何 setState 都会让 FutureBuilder 回到 waiting、列表闪加载圈
@@ -61,7 +61,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
       await RemoteData.load(mindustryVersionsFile),
     );
 
-    List<MindustryGithubMeta> latest;
+    List<MindustryRelease> latest;
     try {
       latest = await _fetchManifestReleases();
     } catch (e) {
@@ -102,7 +102,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   }
 
   /// 取国内源的版本清单（一次拿全量，本体地址也直接指向它）
-  Future<List<MindustryGithubMeta>> _fetchManifestReleases() async {
+  Future<List<MindustryRelease>> _fetchManifestReleases() async {
     final response = await cio.get<String>(
       mindustryManifestUrl,
       responseType: ResponseType.plain,
@@ -111,19 +111,21 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   }
 
   /// 取官方最新一页 release（一页 100 条，够覆盖新版本）
-  Future<List<MindustryGithubMeta>> _fetchLatestReleases() async {
+  Future<List<MindustryRelease>> _fetchLatestReleases() async {
     final releases = await _fetchReleaseArray(
       '$githubMindustryUrl?per_page=$mindustryVersionPageSize',
     );
     return [
       for (final release in releases)
-        MindustryGithubMeta.fromJson(release as Map<String, dynamic>),
+        MindustryRelease.fromGithubJson(release as Map<String, dynamic>),
     ];
   }
 
-  Future<MindustryGithubMeta> _fetchLatestBeta() async {
+  Future<MindustryRelease> _fetchLatestBeta() async {
     final releases = await _fetchReleaseArray('$githubBeUrl?per_page=1');
-    return MindustryGithubMeta.fromJson(releases.first as Map<String, dynamic>);
+    return MindustryRelease.fromGithubJson(
+      releases.first as Map<String, dynamic>,
+    );
   }
 
   /// 取 release 数组，防御式解析。
@@ -160,7 +162,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   }
 
   /// 取某时代的正式版：无 assets 的 release 本来就下不了，直接排除
-  List<MindustryGithubMeta> _versionsOfEra(MindustryVersionEra era) {
+  List<MindustryRelease> _versionsOfEra(MindustryVersionEra era) {
     return [
       for (final version in _versionList)
         if (version.assets.isNotEmpty && version.era == era) version,
@@ -170,7 +172,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   /// 一个时代一段：标题带数量，下面跟一句该时代的说明
   Widget _buildEraVersionList(
     MindustryVersionEra era,
-    List<MindustryGithubMeta> versionList,
+    List<MindustryRelease> versionList,
   ) {
     final theme = Theme.of(context);
     List<Widget> versions = [];
@@ -214,7 +216,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     return AnimatedExpansion(title: title, children: versions);
   }
 
-  void _buildDownloadPopup(MindustryGithubMeta mindustry) {
+  void _buildDownloadPopup(MindustryRelease mindustry) {
     showAnimatedDialog(
       context: context,
       barrierDismissible: true,
@@ -229,7 +231,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
 
   /// 输入 build 号下载 be：先查 release，拿到元数据再走统一的下载弹窗
   Future<void> _openBeBuildDownload() async {
-    final mindustryMeta = await showAnimatedDialog<MindustryGithubMeta>(
+    final mindustryMeta = await showAnimatedDialog<MindustryRelease>(
       context: context,
       barrierDismissible: true,
       barrierLabel: '',
@@ -387,7 +389,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
 }
 
 class _DownloadMindustryPopupPage extends StatefulWidget {
-  final MindustryGithubMeta mindustryMeta;
+  final MindustryRelease mindustryMeta;
 
   const _DownloadMindustryPopupPage(this.mindustryMeta);
 
@@ -397,7 +399,7 @@ class _DownloadMindustryPopupPage extends StatefulWidget {
 
 class _DownloadMindustryPopupPageState
     extends State<_DownloadMindustryPopupPage> {
-  late final MindustryGithubMeta mindustryMeta = widget.mindustryMeta;
+  late final MindustryRelease mindustryMeta = widget.mindustryMeta;
   late String tag = mindustryMeta.name;
 
   ///选中的启动方式（loader 的选择结果）；null / [LoaderChoice.none] = 原版启动
@@ -616,12 +618,12 @@ class _DownloadMindustryPopupPageState
 /// release 列表接口最多只翻得动 1000 条，更老的 build 从列表里拿不到，
 /// 所以指定 build 一律走 tag 直查；build 不存在时 GitHub 返回 404，
 /// dio 会抛出 [DioException]
-Future<MindustryGithubMeta> _fetchBeByBuild(String build) async {
+Future<MindustryRelease> _fetchBeByBuild(String build) async {
   final response = await cio.get<Map<String, dynamic>>(
     '$githubBeUrl/tags/$build',
     headers: gameDownloadHeaders,
   );
-  return MindustryGithubMeta.fromJson(response.data!);
+  return MindustryRelease.fromGithubJson(response.data!);
 }
 
 /// 指定 build 下载弹窗：输入 build 号 → 查到 release → 带着元数据关闭，

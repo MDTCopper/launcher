@@ -47,6 +47,13 @@ const githubMindustryUrl = '$githubAPI/repos/Anuken/Mindustry/releases';
 ///$githubAPI/repos/Anuken/MindustryBuilds/releases
 const githubBeUrl = '$githubAPI/repos/Anuken/MindustryBuilds/releases';
 
+///国内论坛（MDTBBS）的版本清单：一次拿全量、支持 Range、带 sha256，不吃 API 额度
+const mindustryManifestUrl =
+    'https://file.mdtbbs.cn/api/v1/mindustry/manifest.json';
+
+///manifest 里的 `download_url` 是相对路径，拼上它才是真实地址
+const mindustryManifestBase = 'https://file.mdtbbs.cn';
+
 ///$githubRAW/Anuken/MindustryMods/master/mods.json
 const githubModMetaUrl = '$githubRAW/Anuken/MindustryMods/master/mods.json';
 

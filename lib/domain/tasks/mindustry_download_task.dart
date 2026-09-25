@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_config.dart';
 import '../../data/local_asset.dart';
-import '../../data/net_asset.dart';
+import '../../data/mindustry_release.dart';
 import '../../ui/shell/drawer/log_list.dart';
 import '../../ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -62,7 +62,7 @@ Mindustry buildDownloadedVersion({
 
 ///官方渠道下载，path路径默认为 [项目//version]
 class MindustryDownloadTask extends Task {
-  final MindustryGithubMeta mindustryMeta;
+  final MindustryRelease mindustryMeta;
 
   ///自定义存储路径
   late final String path;
