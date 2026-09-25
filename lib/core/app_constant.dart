@@ -66,7 +66,7 @@ const github3MonthsModMetaUrl =
 const mindustryTopApiBase = 'https://api.mindustry.top';
 
 // 模组版本门禁（各游戏版本 → 模组最低版本）已外置到 remote/mmgvm.hjson，
-// 由 lib/data/game/min_game_versions.dart 加载，此处不再硬编码
+// 由 lib/data/mindustry/min_mod_version.dart 加载，此处不再硬编码
 
 const kDefaultAnimationDuration = Duration(milliseconds: 300);
 

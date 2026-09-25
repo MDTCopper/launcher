@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:copper_launcher/core/app_constant.dart';
-import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';

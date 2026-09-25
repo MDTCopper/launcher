@@ -6,7 +6,7 @@ import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
-import 'package:copper_launcher/data/local_asset.dart'
+import 'package:copper_launcher/data/models.dart'
     show Mindustry, modsDirIn;
 import 'package:copper_launcher/domain/local_game_importer.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';

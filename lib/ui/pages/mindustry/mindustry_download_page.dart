@@ -1,9 +1,8 @@
 import 'dart:convert';
 
-import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/data/game/mindustry_manifest.dart';
-import 'package:copper_launcher/data/game/mindustry_release.dart';
-import 'package:copper_launcher/data/game/mindustry_version_snapshot.dart';
+import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/data/mindustry/manifest.dart';
+import 'package:copper_launcher/data/mindustry/snapshot.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';

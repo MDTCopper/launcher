@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:async/async.dart';
 import 'package:copper_launcher/core/app_constant.dart';
-import 'package:copper_launcher/data/game/min_game_versions.dart';
-import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/data/mindustry/min_mod_version.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';

@@ -5,7 +5,7 @@ import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
 
-import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';

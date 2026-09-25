@@ -4,8 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/data/mindustry_settings.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/domain/loader_library.dart';

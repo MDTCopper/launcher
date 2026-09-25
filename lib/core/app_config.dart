@@ -3,8 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_constant.dart';
-import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/data/mindustry_settings.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/os.dart';

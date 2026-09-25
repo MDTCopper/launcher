@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/local_game_importer.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/util/app_paths.dart';

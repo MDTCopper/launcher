@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/resource/mindustry_top_map.dart';
+import 'package:copper_launcher/data/resource/top_map.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/map_download_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';

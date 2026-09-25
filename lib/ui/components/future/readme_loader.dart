@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/ui/components/future/mod_readme_view.dart';
 import 'package:copper_launcher/ui/components/future/shields_badge.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';

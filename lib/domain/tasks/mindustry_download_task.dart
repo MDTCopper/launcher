@@ -5,8 +5,7 @@ import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_config.dart';
-import '../../data/local_asset.dart';
-import '../../data/game/mindustry_release.dart';
+import '../../data/models.dart';
 import '../../ui/shell/drawer/log_list.dart';
 import '../../ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';

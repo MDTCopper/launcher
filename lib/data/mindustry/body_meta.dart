@@ -1,6 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
 
-part 'mindustry_meta.g.dart';
+part 'body_meta.g.dart';
 
 ///Mindustry本体文件元数据
 @JsonSerializable()

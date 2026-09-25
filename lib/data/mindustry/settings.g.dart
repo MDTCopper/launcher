@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'mindustry_settings.dart';
+part of 'settings.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator

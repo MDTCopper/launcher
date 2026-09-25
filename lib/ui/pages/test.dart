@@ -12,7 +12,7 @@ import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dar
 import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 
-import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 
 import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';

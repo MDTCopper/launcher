@@ -1,6 +1,5 @@
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/data/mindustry_settings.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
@@ -17,7 +17,6 @@ import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:copper_launcher/util/system_info.dart';
 import 'package:flutter/material.dart';
 
-import '../../data/mindustry_settings.dart';
 import '../../ui/shell/drawer/log_list.dart';
 import '../../ui/util/notification.dart';
 

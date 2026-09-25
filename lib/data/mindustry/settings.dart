@@ -4,9 +4,9 @@ import 'dart:typed_data';
 import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
 import 'package:json_annotation/json_annotation.dart';
 
-import 'local_asset.dart';
+import '../models.dart';
 
-part 'mindustry_settings.g.dart';
+part 'settings.g.dart';
 
 /// Mindustry settings.bin 数据类
 ///

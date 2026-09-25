@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';

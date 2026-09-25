@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'mindustry_release.dart';
+import 'release.dart';
 
 /// 官方版本列表快照（`remote/mindustry_versions.json`）
 ///

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/mindustry_body.dart';
 import 'package:copper_launcher/ui/components/input/tag_input_dialog.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';

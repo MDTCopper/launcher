@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';

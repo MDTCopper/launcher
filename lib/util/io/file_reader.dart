@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
-import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/util/io/mindustry_save_file/save_file_codec.dart';
 import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
 import 'package:hjson_dart/hjson_dart.dart';

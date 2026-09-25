@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;

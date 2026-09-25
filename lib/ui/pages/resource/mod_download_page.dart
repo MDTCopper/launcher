@@ -1,7 +1,6 @@
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/data/game/min_game_versions.dart';
-import 'package:copper_launcher/data/net_asset.dart';
+import 'package:copper_launcher/data/mindustry/min_mod_version.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/mod_download_task.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
