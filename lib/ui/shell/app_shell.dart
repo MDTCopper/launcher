@@ -4,6 +4,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
+import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -297,35 +298,14 @@ class AppShellState extends State<AppShell> {
         shape: RoundedRectangleBorder(side: BorderSide(color: colors.border)),
         child: InfoList(),
       ),
-      body: Row(
-        children: [
-          // ── 左侧导航 ──
-          NavigationRail(
-            navigatorKey: _navigatorKey,
-            currentRoute: _currentRoute,
-            currentRootRoute: _currentRootRoute,
-            sections: _sections,
-            itemsAtBottom: _items,
-
-            onNavigate: _onRootNavigate,
-          ),
-
-          VerticalDivider(width: 1, thickness: 1, color: colors.border),
-
-          // ── 右侧内容区 ──
-          Expanded(
-            child: ColorfulBackground(
-              colorful:
-                  config.setting.personalizationOptions.colorfulBackground,
-              child: Column(
-                children: [
-                  _buildTopbar(),
-                  Expanded(child: _buildNavigator()),
-                ],
-              ),
-            ),
-          ),
-        ],
+      body: ValueListenableBuilder<bool>(
+        valueListenable: LauncherTray.instance.isWindowHidden,
+        builder: (context, isHidden, _) => TickerMode(
+          // 窗口收起（托盘）或最小化时停掉所有动画：不然后台还在逐帧渲染、白耗 GPU。
+          // 值保留，窗口回来时动画接着走
+          enabled: !isHidden,
+          child: _buildShellBody(colors),
+        ),
       ),
     );
 
@@ -333,6 +313,38 @@ class AppShellState extends State<AppShell> {
       return DragFileField(onDragDone: _handleDragFile, child: shell);
     }
     return shell;
+  }
+
+  Widget _buildShellBody(AppColors colors) {
+    return Row(
+      children: [
+        // ── 左侧导航 ──
+        NavigationRail(
+          navigatorKey: _navigatorKey,
+          currentRoute: _currentRoute,
+          currentRootRoute: _currentRootRoute,
+          sections: _sections,
+          itemsAtBottom: _items,
+
+          onNavigate: _onRootNavigate,
+        ),
+
+        VerticalDivider(width: 1, thickness: 1, color: colors.border),
+
+        // ── 右侧内容区 ──
+        Expanded(
+          child: ColorfulBackground(
+            colorful: config.setting.personalizationOptions.colorfulBackground,
+            child: Column(
+              children: [
+                _buildTopbar(),
+                Expanded(child: _buildNavigator()),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   // ── 页面过渡 ──

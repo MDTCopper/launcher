@@ -34,6 +34,9 @@ class LauncherTray extends TrayListener with WindowListener {
 
   bool get trayMode => _trayMode;
 
+  /// 窗口是否收起了（托盘 / 最小化）：shell 据此停掉动画，别在后台白耗 GPU
+  final ValueNotifier<bool> isWindowHidden = ValueNotifier(false);
+
   ///关窗行为：收进托盘
   bool _closeToTray = false;
 
@@ -69,10 +72,14 @@ class LauncherTray extends TrayListener with WindowListener {
       (
         'gdbus',
         [
-          'call', '--session',
-          '--dest', 'org.kde.StatusNotifierWatcher',
-          '--object-path', '/StatusNotifierWatcher',
-          '--method', 'org.freedesktop.DBus.Properties.Get',
+          'call',
+          '--session',
+          '--dest',
+          'org.kde.StatusNotifierWatcher',
+          '--object-path',
+          '/StatusNotifierWatcher',
+          '--method',
+          'org.freedesktop.DBus.Properties.Get',
           'org.kde.StatusNotifierWatcher',
           'IsStatusNotifierHostRegistered',
         ],
@@ -80,8 +87,10 @@ class LauncherTray extends TrayListener with WindowListener {
       (
         'dbus-send',
         [
-          '--session', '--print-reply',
-          '--dest=org.kde.StatusNotifierWatcher', '/StatusNotifierWatcher',
+          '--session',
+          '--print-reply',
+          '--dest=org.kde.StatusNotifierWatcher',
+          '/StatusNotifierWatcher',
           'org.freedesktop.DBus.Properties.Get',
           'string:org.kde.StatusNotifierWatcher',
           'string:IsStatusNotifierHostRegistered',
@@ -90,8 +99,10 @@ class LauncherTray extends TrayListener with WindowListener {
       (
         'busctl',
         [
-          '--user', 'get-property',
-          'org.kde.StatusNotifierWatcher', '/StatusNotifierWatcher',
+          '--user',
+          'get-property',
+          'org.kde.StatusNotifierWatcher',
+          '/StatusNotifierWatcher',
           'org.kde.StatusNotifierWatcher',
           'IsStatusNotifierHostRegistered',
         ],
@@ -225,6 +236,7 @@ class LauncherTray extends TrayListener with WindowListener {
   Future<void> hideIfTrayMode() async {
     if (!_trayMode) return;
     addLog(.info, '游戏已启动，启动器收进托盘', tag: 'Tray');
+    isWindowHidden.value = true;
     await windowManager.hide();
     await windowManager.setSkipTaskbar(true);
     await _refreshMenu(); //游戏运行中，菜单切到「停止当前游戏」
@@ -243,6 +255,7 @@ class LauncherTray extends TrayListener with WindowListener {
   }
 
   Future<void> _showFromTray() async {
+    isWindowHidden.value = false;
     await windowManager.show();
     await windowManager.focus();
     await windowManager.setSkipTaskbar(false);
@@ -341,6 +354,7 @@ class LauncherTray extends TrayListener with WindowListener {
   void onWindowClose() {
     if (_closeToTray) {
       addLog(.info, '关闭窗口：收进托盘（进程保留，继续监听游戏退出）', tag: 'Tray');
+      isWindowHidden.value = true;
       windowManager.hide();
       windowManager.setSkipTaskbar(true);
     } else {
@@ -348,4 +362,10 @@ class LauncherTray extends TrayListener with WindowListener {
       trayManager.destroy();
     }
   }
+
+  @override
+  void onWindowMinimize() => isWindowHidden.value = true;
+
+  @override
+  void onWindowRestore() => isWindowHidden.value = false;
 }
