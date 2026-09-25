@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'release.dart';
+import 'mindustry_release.dart';
 
 /// 解析国内论坛（MDTBBS）的版本清单
 ///

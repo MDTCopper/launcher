@@ -58,9 +58,9 @@ class TestState extends State<Test> {
 
   // ── 第 14 区演示状态（ModGithubMeta 临时测试）──
   // 每个 mock：github release 元数据 + 是否 java（对应 ModOfficialListMeta.hasJava）
-  late final List<({ModGithubMeta meta, bool hasJava})> _mockMods = [
+  late final List<({ModRelease meta, bool hasJava})> _mockMods = [
     (
-      meta: ModGithubMeta(
+      meta: ModRelease(
         name: 'JavaMultiMod',
         tag: 'v1.2.0',
         releaseDate: '2024-01-01T00:00:00Z',
@@ -92,7 +92,7 @@ class TestState extends State<Test> {
       hasJava: true,
     ),
     (
-      meta: ModGithubMeta(
+      meta: ModRelease(
         name: 'ScriptMultiMod',
         tag: 'v0.3.0',
         releaseDate: '2024-02-05T00:00:00Z',
@@ -117,7 +117,7 @@ class TestState extends State<Test> {
       hasJava: false,
     ),
     (
-      meta: ModGithubMeta(
+      meta: ModRelease(
         name: 'JavaNoAssetMod',
         tag: 'v0.9.0',
         releaseDate: '2024-03-10T00:00:00Z',
@@ -135,7 +135,7 @@ class TestState extends State<Test> {
       hasJava: true,
     ),
     (
-      meta: ModGithubMeta(
+      meta: ModRelease(
         name: 'ScriptSingleMod',
         tag: 'v1.0.0',
         releaseDate: '2024-04-01T00:00:00Z',
@@ -593,7 +593,8 @@ class TestState extends State<Test> {
                 CapsuleAction(
                   icon: Icons.tag,
                   hint: '下载指定 build',
-                  onTap: () => setState(() => _capsuleLastAction = '下载指定 build'),
+                  onTap: () =>
+                      setState(() => _capsuleLastAction = '下载指定 build'),
                 ),
               ],
             ),

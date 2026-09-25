@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/mindustry/settings.dart';
+import 'package:copper_launcher/data/mindustry/settings/settings.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -118,7 +118,11 @@ Future<int> sumEnabledModSizes(String modsPath, {String? settingsPath}) async {
           settingsFile.path,
         ).modStates;
       } catch (e) {
-        addLogAndPrint(.warning, '读取模组启用状态失败，按文件名判断：${removeNewlines('$e')}', tag: 'Memory');
+        addLogAndPrint(
+          .warning,
+          '读取模组启用状态失败，按文件名判断：${removeNewlines('$e')}',
+          tag: 'Memory',
+        );
       }
     }
   }

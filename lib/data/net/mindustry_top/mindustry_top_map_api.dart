@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:copper_launcher/core/app_constant.dart';
-import 'package:copper_launcher/data/resource/top_map.dart';
+import 'package:copper_launcher/data/net/mindustry_top/mindustry_top_map_meta.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -27,7 +27,10 @@ class MindustryTopMapApi {
     String? search,
     CancelToken? cancelToken,
   }) async {
-    final queryParameters = {'begin': '$begin', if (search != null && search.isNotEmpty) 'search': search};
+    final queryParameters = {
+      'begin': '$begin',
+      if (search != null && search.isNotEmpty) 'search': search,
+    };
     try {
       final res = await cio.get<String>(
         '$mindustryTopApiBase/maps/list',
@@ -79,7 +82,13 @@ class MindustryTopMapApi {
 
   /// 下载失败时记一条运行日志（网络问题与站点 4xx/5xx 分开描述）
   static void logFailure(Object error, {String? context}) {
-    final statusText = error is DioException ? '（HTTP ${error.response?.statusCode ?? '无响应'}）' : '';
-    addLogAndPrint(.error, 'mindustry.top 地图${context ?? '请求'}失败$statusText：${removeNewlines('$error')}', tag: 'MapDownload');
+    final statusText = error is DioException
+        ? '（HTTP ${error.response?.statusCode ?? '无响应'}）'
+        : '';
+    addLogAndPrint(
+      .error,
+      'mindustry.top 地图${context ?? '请求'}失败$statusText：${removeNewlines('$error')}',
+      tag: 'MapDownload',
+    );
   }
 }

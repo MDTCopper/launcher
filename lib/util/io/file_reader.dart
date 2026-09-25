@@ -169,7 +169,7 @@ class FileReader {
 
       final gameMeta = _tryGameMeta(bytes);
       if (gameMeta != null &&
-          _tryBuild(() => MindustryMeta.fromJson(gameMeta)) != null) {
+          _tryBuild(() => MindustryFileMeta.fromJson(gameMeta)) != null) {
         return FileReader._(
           path: path,
           fileName: fileName,
@@ -339,7 +339,8 @@ class FileReader {
         modFile.content as List<int>,
         allowMalformed: true,
       );
-      final decoded = hjsonDecode(content, strict: false) as Map<String, dynamic>;
+      final decoded =
+          hjsonDecode(content, strict: false) as Map<String, dynamic>;
       final isCopper = copperMetaNames.contains(modFile.name.split('/').last);
       final Map<String, dynamic> map;
       if (isCopper) {
@@ -454,8 +455,9 @@ class FileReader {
       ? _tryBuild(() => Mod.fromJson(meta!, icon: modIcon))
       : null;
 
-  MindustryMeta? get mindustry => type == ResourceType.mindustry && meta != null
-      ? _tryBuild(() => MindustryMeta.fromJson(meta!))
+  MindustryFileMeta? get mindustry =>
+      type == ResourceType.mindustry && meta != null
+      ? _tryBuild(() => MindustryFileMeta.fromJson(meta!))
       : null;
 
   @override

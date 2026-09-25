@@ -31,20 +31,21 @@ class ModReadmeView extends StatefulWidget {
 
   /// README 原文（markdown）
   final String data;
-  final ModOfficialListMeta mod;
+  final ModOfficialListEntry mod;
 
   /// 覆盖默认的链接打开行为（默认用系统浏览器/内嵌 webview 打开）
   final void Function(String url)? onLinkTap;
 
   /// 相对链接 / 相对图片按仓库的哪个分支解析
-  static String branchOf(ModOfficialListMeta mod) => mod.mainBranchCache ?? 'main';
+  static String branchOf(ModOfficialListEntry mod) =>
+      mod.mainBranchCache ?? 'main';
 
   /// 把 README 里的链接解析成可打开的绝对地址。
   ///
   /// - `#anchor` → null（暂不支持页内跳转）
   /// - `https://…` / `mailto:` 等 → 原样
   /// - `./x.md`、`docs/x.md` → GitHub 仓库地址（按文件/目录判断 blob / tree）
-  static String? resolveLink(ModOfficialListMeta mod, String href) {
+  static String? resolveLink(ModOfficialListEntry mod, String href) {
     final link = href.trim();
     if (link.isEmpty || link.startsWith('#')) return null;
     if (Uri.tryParse(link)?.hasScheme ?? false) return link;
@@ -108,7 +109,9 @@ class ModReadmeView extends StatefulWidget {
       // 纯闭标签：收掉最近一层容器
       final closeMatch = source == null
           ? null
-          : RegExp(r'^\s*</\s*([a-zA-Z][a-zA-Z0-9]*)\s*>\s*$').firstMatch(source);
+          : RegExp(
+              r'^\s*</\s*([a-zA-Z][a-zA-Z0-9]*)\s*>\s*$',
+            ).firstMatch(source);
       if (closeMatch != null) {
         closeOne();
         current().add(node);
@@ -145,16 +148,20 @@ class ModReadmeView extends StatefulWidget {
       final isBr =
           (node is md.Element && node.tag == 'br') ||
           (node is md.Text &&
-              RegExp(r'^<br\s*/?>$', caseSensitive: false).hasMatch(
-                node.text.trim(),
-              ));
+              RegExp(
+                r'^<br\s*/?>$',
+                caseSensitive: false,
+              ).hasMatch(node.text.trim()));
       if (isBr) {
         lines.add([]);
         continue;
       }
       lines.last.add(node);
     }
-    return [for (final line in lines) if (line.isNotEmpty) line];
+    return [
+      for (final line in lines)
+        if (line.isNotEmpty) line,
+    ];
   }
 
   /// 直写 HTML 的小树 → markdown 风格节点（复用既有的块级 / 行内渲染）
@@ -184,7 +191,8 @@ class ModReadmeView extends StatefulWidget {
   }
 
   /// GitHub tagfilter 明确禁用、会转义成字面文本展示的标签
-  static const _disallowedHtmlTags = {    'iframe',
+  static const _disallowedHtmlTags = {
+    'iframe',
     'textarea',
     'style',
     'title',
@@ -401,7 +409,8 @@ class _ModReadmeViewState extends State<ModReadmeView> {
       if (node is md.UnparsedContent) {
         // 直写 HTML：含块级标签就当块处理，否则并入行内
         final tree = _parseHtml(node.textContent);
-        final isBlockHtml = tree != null &&
+        final isBlockHtml =
+            tree != null &&
             tree.any(
               (it) =>
                   it.tag != null &&
@@ -439,7 +448,8 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         widgets.add(const SizedBox(height: 8));
         continue;
       }
-      if (node is md.Element && !ModReadmeView._inlineHtmlTags.contains(node.tag)) {
+      if (node is md.Element &&
+          !ModReadmeView._inlineHtmlTags.contains(node.tag)) {
         flushInline();
         if (_buildBlock(node, colors) case final widget?) {
           widgets.add(widget);
@@ -489,13 +499,16 @@ class _ModReadmeViewState extends State<ModReadmeView> {
           _ => ('CAUTION', const Color(0xFFF85149), Icons.report_outlined),
         };
         // 去掉标记文本（含其后的换行）
-        final rest = it.text.substring(match.end).replaceFirst(RegExp(r'^\n+'), '');
+        final rest = it.text
+            .substring(match.end)
+            .replaceFirst(RegExp(r'^\n+'), '');
         if (rest.isEmpty) {
           pChildren.removeAt(j);
         } else {
           pChildren[j] = md.Text(rest);
         }
-        children[i] = md.Element('p', pChildren)..attributes.addAll(child.attributes);
+        children[i] = md.Element('p', pChildren)
+          ..attributes.addAll(child.attributes);
         break;
       }
       break;
@@ -736,7 +749,10 @@ class _ModReadmeViewState extends State<ModReadmeView> {
                 ),
                 child: Text.rich(
                   TextSpan(
-                    children: _inlines(cell.children ?? const <md.Node>[], colors),
+                    children: _inlines(
+                      cell.children ?? const <md.Node>[],
+                      colors,
+                    ),
                     style: _theme.textTheme.bodySmall?.copyWith(
                       fontWeight: header ? FontWeight.w600 : null,
                     ),
@@ -808,10 +824,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: 8,
-            children: [
-              for (final child in rest)
-                ?_buildBlock(child, colors),
-            ],
+            children: [for (final child in rest) ?_buildBlock(child, colors)],
           ),
         ],
       ),
@@ -852,7 +865,9 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     String? linkUrl,
   }) {
     if (node is md.Text) {
-      if (node.text.isNotEmpty) spans.add(TextSpan(text: _plainText(node.text)));
+      if (node.text.isNotEmpty) {
+        spans.add(TextSpan(text: _plainText(node.text)));
+      }
       return;
     }
     // 直写 HTML：逐段解析成 span / widget
@@ -1144,11 +1159,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     ),
   );
 
-  InlineSpan _imageSpan(
-    md.Element node,
-    AppColors colors, {
-    String? linkUrl,
-  }) {
+  InlineSpan _imageSpan(md.Element node, AppColors colors, {String? linkUrl}) {
     final src = node.attributes['src'];
     if (src == null || src.trim().isEmpty) {
       return const TextSpan(text: '');
@@ -1183,10 +1194,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     // <a><img></a>：图片是真实 widget，父 TextSpan 的 recognizer 管不到它，
     // 必须自己包手势才能点击
     if (linkUrl != null) {
-      image = GestureDetector(
-        onTap: () => _openLink(linkUrl),
-        child: image,
-      );
+      image = GestureDetector(onTap: () => _openLink(linkUrl), child: image);
     }
 
     return WidgetSpan(
@@ -1259,16 +1267,7 @@ class ReadmeHtmlNode {
 }
 
 /// 自闭合（无内容）标签
-const _voidTags = {
-  'br',
-  'hr',
-  'img',
-  'input',
-  'meta',
-  'link',
-  'wbr',
-  'source',
-};
+const _voidTags = {'br', 'hr', 'img', 'input', 'meta', 'link', 'wbr', 'source'};
 
 /// 把 HTML 片段解析成节点树；含注释 / 残缺标签等无法处理时返回 null
 List<ReadmeHtmlNode>? _parseHtml(String html) {
@@ -1279,7 +1278,13 @@ List<ReadmeHtmlNode>? _parseHtml(String html) {
   );
   final root = <ReadmeHtmlNode>[];
   final stack =
-      <({String name, Map<String, String> attrs, List<ReadmeHtmlNode> children})>[];
+      <
+        ({
+          String name,
+          Map<String, String> attrs,
+          List<ReadmeHtmlNode> children,
+        })
+      >[];
 
   List<ReadmeHtmlNode> current() => stack.isEmpty ? root : stack.last.children;
 
@@ -1321,7 +1326,9 @@ List<ReadmeHtmlNode>? _parseHtml(String html) {
   // 未闭合的标签收尾
   while (stack.isNotEmpty) {
     final frame = stack.removeLast();
-    current().add(ReadmeHtmlNode.element(frame.name, frame.attrs, frame.children));
+    current().add(
+      ReadmeHtmlNode.element(frame.name, frame.attrs, frame.children),
+    );
   }
 
   // 还有没被识别成标签的 `<`（残缺标签 / 裸小于号）时放弃，交给调用方剥标签
@@ -1342,7 +1349,9 @@ Map<String, String> _parseAttributes(String raw) {
     rest = rest.replaceFirst(match.group(0)!, ' ');
   }
   // 无值属性（checked / open 等）：只在去掉带值属性后的剩余部分里找
-  for (final match in RegExp(r'(?:^|\s)([a-zA-Z-]+)(?=\s|$)').allMatches(rest)) {
+  for (final match in RegExp(
+    r'(?:^|\s)([a-zA-Z-]+)(?=\s|$)',
+  ).allMatches(rest)) {
     map.putIfAbsent(match.group(1)!.toLowerCase(), () => '');
   }
   return map;

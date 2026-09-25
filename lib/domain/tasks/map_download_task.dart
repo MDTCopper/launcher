@@ -6,7 +6,7 @@ import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
-import 'package:copper_launcher/util/io/mindustry_top_map_api.dart';
+import 'package:copper_launcher/data/net/mindustry_top/mindustry_top_map_api.dart';
 import 'package:flutter/material.dart';
 
 /// 从 mindustry.top 下载地图本体（`.msav`）到目标版本的数据目录

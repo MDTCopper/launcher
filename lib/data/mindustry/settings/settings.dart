@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
 import 'package:json_annotation/json_annotation.dart';
 
-import '../models.dart';
+import '../../models.dart';
 
 part 'settings.g.dart';
 
@@ -1525,7 +1525,9 @@ class MindustrySettingsPatch {
     }
     if (showPings != null) target.showPings = showPings!;
     if (uiEdgePadding != null) target.uiEdgePadding = uiEdgePadding!;
-    if (logicLocalization != null) target.logicLocalization = logicLocalization!;
+    if (logicLocalization != null) {
+      target.logicLocalization = logicLocalization!;
+    }
     if (touchscreen != null) target.touchscreen = touchscreen!;
 
     // 音频

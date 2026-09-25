@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/resource/top_map.dart';
+import 'package:copper_launcher/data/net/mindustry_top/mindustry_top_map_meta.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/map_download_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
@@ -16,7 +16,7 @@ import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
-import 'package:copper_launcher/util/io/mindustry_top_map_api.dart';
+import 'package:copper_launcher/data/net/mindustry_top/mindustry_top_map_api.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;

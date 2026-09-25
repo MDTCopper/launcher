@@ -8,10 +8,10 @@ import 'package:flutter/foundation.dart';
 /// - 普通模组（脚本）门槛：[modThresholdOf]；Java 模组门槛：[javaThresholdOf]
 /// - 数据来自 remote/mmgvm.hjson，可不发版更新（[loadFromRemote]）；
 ///   拉取失败 / 内容非法时保持现状
-class MinGameVersions {
-  MinGameVersions._();
+class ModVersionGate {
+  ModVersionGate._();
 
-  static final MinGameVersions instance = MinGameVersions._();
+  static final ModVersionGate instance = ModVersionGate._();
 
   /// 无上限（Range 要求 min < max，用 infinity 表示开上限）
   static const double _noUpperLimit = double.infinity;

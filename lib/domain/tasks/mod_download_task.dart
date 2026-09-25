@@ -19,8 +19,8 @@ import '../task.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 class JavaModDownloadTask extends Task {
-  final ModOfficialListMeta modListMeta;
-  final ModGithubMeta modMeta;
+  final ModOfficialListEntry modListMeta;
+  final ModRelease modMeta;
   final int mainAssetIndex;
   final String savePath;
 
@@ -278,8 +278,8 @@ class JavaModDownloadTask extends Task {
 //       'https://github.com/${modListMeta.repo}/archive/refs/tags/${modMeta.releaseNum}.zip';
 
 class ZipModDownloadTask extends Task {
-  final ModOfficialListMeta modListMeta;
-  final ModGithubMeta modMeta;
+  final ModOfficialListEntry modListMeta;
+  final ModRelease modMeta;
   final int mainAssetIndex;
   int totalSize = 0;
   int downloadedSize = 0;
@@ -520,8 +520,8 @@ class ZipModDownloadTask extends Task {
 /// 可选 [modMeta]（对应某版本 tag）；为空则下载最新仓库源码（main/master 分支）。
 /// 源码 zip 无总大小，走伪进度；未经编译的 java 源码无法直接载入（由页面提醒）。
 class SourceModDownloadTask extends Task {
-  final ModOfficialListMeta modListMeta;
-  final ModGithubMeta? modMeta;
+  final ModOfficialListEntry modListMeta;
+  final ModRelease? modMeta;
   int totalSize = 0;
   int downloadedSize = 0;
   double speed = 0.0;

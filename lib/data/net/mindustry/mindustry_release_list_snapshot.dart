@@ -1,13 +1,13 @@
 import 'dart:convert';
 
-import 'release.dart';
+import 'mindustry_release.dart';
 
-/// 官方版本列表快照（`remote/mindustry_versions.json`）
+/// Copper仓库列表快照（`remote/mindustry_versions.json`）
 ///
 /// 快照存的是不会变的历史版本，字段是 GitHub release 对象的精简版
 /// （见 `.script/generate_mindustry_versions.dart`），所以解析与 API 共用
 /// [MindustryRelease.fromGithubJson]；启动时取最新一页补上新版本
-class MindustryVersionSnapshot {
+class MindustryReleaseListSnapshot {
   /// 解析快照内容，格式不对 / 单条损坏时返回能解析出来的部分
   static List<MindustryRelease> parse(String? content) {
     if (content == null || content.trim().isEmpty) return const [];

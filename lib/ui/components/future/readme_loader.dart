@@ -15,7 +15,7 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 class ModNetReadmeLoader extends StatefulWidget {
   const ModNetReadmeLoader({super.key, required this.mod});
 
-  final ModOfficialListMeta mod;
+  final ModOfficialListEntry mod;
   @override
   State<StatefulWidget> createState() => _ModNetReadmeLoaderState();
 }
@@ -50,10 +50,7 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
     if (mod.mainBranchCache != null) {
       try {
         var url = '$repo${mod.mainBranchCache}/README.md';
-        final res = await cio.get(
-          url,
-          headers: modDownloadHeaders,
-        );
+        final res = await cio.get(url, headers: modDownloadHeaders);
         if (res.statusCode == 200) {
           readmeDataMap[mod.repo] = res.data.toString();
           return res.data.toString();
@@ -65,10 +62,7 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
     for (var m in main) {
       try {
         var url = '$repo$m/README.md';
-        final res = await cio.get(
-          url,
-          headers: modDownloadHeaders,
-        );
+        final res = await cio.get(url, headers: modDownloadHeaders);
 
         if (res.statusCode != 200) continue;
         readmeDataMap[mod.repo] = res.data.toString();
@@ -293,7 +287,7 @@ class ReadmeSkeletonState extends State<ReadmeSkeleton>
 
 class ModReadmeNetworkImage extends StatefulWidget {
   final Uri uri;
-  final ModOfficialListMeta mod;
+  final ModOfficialListEntry mod;
   final Widget? onLoading;
   final Widget? onError;
   final double? height;

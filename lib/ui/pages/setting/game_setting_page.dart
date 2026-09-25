@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
-import 'package:copper_launcher/data/setting/adapter.dart';
-import 'package:copper_launcher/data/setting_metadata.dart';
+import 'package:copper_launcher/data/mindustry/settings/adapter.dart';
+import 'package:copper_launcher/data/mindustry/settings/setting_metadata.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';

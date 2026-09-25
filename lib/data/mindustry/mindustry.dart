@@ -6,7 +6,7 @@ import '../../util/app_paths.dart';
 import '../../util/mindustry_version_era.dart';
 import '../resource/mod.dart';
 
-part 'version.g.dart';
+part 'mindustry.g.dart';
 
 enum LauncherType { mindustry, copper }
 

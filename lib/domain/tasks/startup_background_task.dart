@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
-import 'package:copper_launcher/data/mindustry/min_mod_version.dart';
 import 'package:copper_launcher/domain/mindustry_body.dart';
+import 'package:copper_launcher/data/mod_version_gate.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/animation/eased_progress_bar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -49,7 +49,7 @@ class StartupBackgroundTask extends Task {
     if (_shouldStop) return;
     await _runStep('正在刷新远程数据', RemoteData.refresh);
     if (_shouldStop) return;
-    await _runStep('正在同步模组版本门禁', MinGameVersions.instance.loadFromRemote);
+    await _runStep('正在同步模组版本门禁', ModVersionGate.instance.loadFromRemote);
     if (_shouldStop) return;
     if (_includeJavaCheck) {
       await _runStep('正在检查 Java 环境', _checkJavaEnvironment);
@@ -130,7 +130,11 @@ class StartupBackgroundTask extends Task {
         //空 fold 目录未创建不算丢失
         if (fold.versions.isEmpty) continue;
         missingFolds.add(fold);
-        addLog(.warning, '游戏目录 [${fold.tag}] 不存在：${fold.resolvedPath}', tag: 'Startup');
+        addLog(
+          .warning,
+          '游戏目录 [${fold.tag}] 不存在：${fold.resolvedPath}',
+          tag: 'Startup',
+        );
         continue;
       }
       for (final version in fold.versions) {

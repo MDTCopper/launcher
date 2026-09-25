@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:async/async.dart';
 import 'package:copper_launcher/core/app_constant.dart';
-import 'package:copper_launcher/data/mindustry/min_mod_version.dart';
+import 'package:copper_launcher/data/mod_version_gate.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -37,8 +37,8 @@ class ModViewPage extends StatefulWidget {
 }
 
 class _ModViewPageState extends State<ModViewPage> {
-  static Map<String, ModOfficialListMeta> previousModMetaMap = {};
-  static List<ModOfficialListMeta> modMetas = [];
+  static Map<String, ModOfficialListEntry> previousModMetaMap = {};
+  static List<ModOfficialListEntry> modMetas = [];
   static int index = 1;
   static bool order = true;
   static String sort = 'default';
@@ -99,7 +99,7 @@ class _ModViewPageState extends State<ModViewPage> {
     });
   }
 
-  List<ModOfficialListMeta> get filteredMods {
+  List<ModOfficialListEntry> get filteredMods {
     final double v;
 
     if (version == -2) {
@@ -113,9 +113,9 @@ class _ModViewPageState extends State<ModViewPage> {
       v = version.toDouble();
     }
 
-    final minGameVersion = MinGameVersions.instance.mod.resultOf(v);
+    final minGameVersion = ModVersionGate.instance.mod.resultOf(v);
 
-    final minJavaGameVersion = MinGameVersions.instance.java.resultOf(v);
+    final minJavaGameVersion = ModVersionGate.instance.java.resultOf(v);
 
     final l = modMetas.toList();
     return l.where((it) {
@@ -148,9 +148,9 @@ class _ModViewPageState extends State<ModViewPage> {
   }
 
   //相似算法耗时较长
-  List<ModOfficialListMeta> sortedModCache = [];
+  List<ModOfficialListEntry> sortedModCache = [];
 
-  Future<List<ModOfficialListMeta>> get sortedMods async {
+  Future<List<ModOfficialListEntry>> get sortedMods async {
     if (!conditionChange) {
       if (!order) return sortedModCache;
       return sortedModCache.reversed.toList();
@@ -182,7 +182,7 @@ class _ModViewPageState extends State<ModViewPage> {
         hotWeight = 0.26;
         break;
     }
-    double scoreOf(ModOfficialListMeta mod) {
+    double scoreOf(ModOfficialListEntry mod) {
       final stars = mod.stars / (mod.stars + 200);
 
       final timeD = DateTime.now().difference(mod.lastUpdated).inHours;
@@ -264,8 +264,8 @@ class _ModViewPageState extends State<ModViewPage> {
           List<dynamic> jsons = jsonDecode(res.data);
           modMetas.addAll(
             jsons
-                .map<ModOfficialListMeta>(
-                  (it) => ModOfficialListMeta.fromJson(it),
+                .map<ModOfficialListEntry>(
+                  (it) => ModOfficialListEntry.fromJson(it),
                 )
                 .toList(),
           );
@@ -274,9 +274,9 @@ class _ModViewPageState extends State<ModViewPage> {
           var res = await cio.get(github3MonthsModMetaUrl);
           if (res.statusCode != 200) throw Exception('链接失败');
           List<dynamic> jsons = jsonDecode(res.data);
-          final List<ModOfficialListMeta> list = jsons
-              .map<ModOfficialListMeta>(
-                (it) => ModOfficialListMeta.fromJson(it),
+          final List<ModOfficialListEntry> list = jsons
+              .map<ModOfficialListEntry>(
+                (it) => ModOfficialListEntry.fromJson(it),
               )
               .toList();
           previousModMetaMap = {for (final it in list) it.repo: it};
@@ -627,7 +627,7 @@ class _ModViewPageState extends State<ModViewPage> {
     );
   }
 
-  Widget _buildModTile(ModOfficialListMeta mod) {
+  Widget _buildModTile(ModOfficialListEntry mod) {
     final theme = Theme.of(context);
 
     Widget buildOverview() {

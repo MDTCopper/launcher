@@ -1,7 +1,7 @@
-import '../../core/app_constant.dart';
-import '../../util/mindustry_version_era.dart';
+import '../../../core/app_constant.dart';
+import '../../../util/mindustry_version_era.dart';
 
-/// 一个 Mindustry 版本的元数据（**与来源无关**）
+/// 一个 Mindustry 版本的元数据，统一格式，与来源无关
 ///
 /// 来源各自一个构造：GitHub API 与本地快照是同一个 JSON 形状（[fromGithubJson]），
 /// 国内 manifest 是另一个（[fromManifestJson]）。领域模型不带来源特有字段 ——
@@ -34,7 +34,7 @@ class MindustryRelease {
 
   /// 该 release 所属的版本时代，按 tag 里的 build 号判定
   ///
-  /// 解析不出的按现代版算，避免误标成远古版
+  /// 解析不出的按现代版算
   MindustryVersionEra get era =>
       MindustryVersionEra.ofTag(tag) ?? MindustryVersionEra.modern;
 

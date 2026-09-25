@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:copper_launcher/data/models.dart';
-import 'package:copper_launcher/data/mindustry/manifest.dart';
-import 'package:copper_launcher/data/mindustry/snapshot.dart';
+import 'package:copper_launcher/data/net/mindustry/mindustry_release_manifest.dart';
+import 'package:copper_launcher/data/net/mindustry/mindustry_release_list_snapshot.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -56,7 +56,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   Future<bool> _fetchVersionAssets() async {
     if (_versionList.isNotEmpty) return true;
 
-    final snapshot = MindustryVersionSnapshot.parse(
+    final snapshot = MindustryReleaseListSnapshot.parse(
       await RemoteData.load(mindustryVersionsFile),
     );
 
@@ -84,7 +84,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
 
     _versionList
       ..clear()
-      ..addAll(MindustryVersionSnapshot.merge(snapshot, latest));
+      ..addAll(MindustryReleaseListSnapshot.merge(snapshot, latest));
 
     //be 的 build 太多，只取最新一条，其余走「下载指定 build」
     try {

@@ -1,12 +1,12 @@
 import 'package:json_annotation/json_annotation.dart';
 
-import 'github_release.dart';
+import '../github_release.dart';
 
-part 'mod_github_meta.g.dart';
+part 'mod_release.g.dart';
 
-///官方模组列表元数据
+///官方模组列表单元素元数据
 @JsonSerializable()
-class ModOfficialListMeta {
+class ModOfficialListEntry {
   final String repo;
   final String name;
   final String author;
@@ -34,7 +34,7 @@ class ModOfficialListMeta {
   @JsonKey(includeFromJson: false)
   String? mainBranchCache;
 
-  ModOfficialListMeta({
+  ModOfficialListEntry({
     required this.repo,
     required this.name,
     required this.author,
@@ -46,10 +46,10 @@ class ModOfficialListMeta {
     required this.description,
   });
 
-  factory ModOfficialListMeta.fromJson(Map<String, dynamic> json) =>
-      _$ModOfficialListMetaFromJson(json);
+  factory ModOfficialListEntry.fromJson(Map<String, dynamic> json) =>
+      _$ModOfficialListEntryFromJson(json);
 
-  Map<String, dynamic> modMetaToJson() => _$ModOfficialListMetaToJson(this);
+  Map<String, dynamic> modMetaToJson() => _$ModOfficialListEntryToJson(this);
 
   @override
   String toString() {
@@ -57,10 +57,10 @@ class ModOfficialListMeta {
   }
 }
 
-///模组githubAPI版本元数据
+///模组githubAPI,版本元数据
 @JsonSerializable()
-class ModGithubMeta extends GithubApiRelease {
-  ModGithubMeta({
+class ModRelease extends GithubApiRelease {
+  ModRelease({
     required super.name,
     required super.tag,
     required super.releaseDate,
@@ -68,6 +68,6 @@ class ModGithubMeta extends GithubApiRelease {
     required super.describe,
   });
 
-  factory ModGithubMeta.fromJson(Map<String, dynamic> json) =>
-      _$ModGithubMetaFromJson(json);
+  factory ModRelease.fromJson(Map<String, dynamic> json) =>
+      _$ModReleaseFromJson(json);
 }

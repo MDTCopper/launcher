@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_config.dart';
 import '../../data/models.dart';
+import '../mindustry_body.dart';
 import '../../ui/shell/drawer/log_list.dart';
 import '../../ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -13,7 +14,6 @@ import '../../util/app_paths.dart';
 import '../../util/format/byte_unit.dart';
 import '../../util/io/file_reader.dart';
 import '../loader_library.dart';
-import '../mindustry_body.dart';
 import '../task.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 

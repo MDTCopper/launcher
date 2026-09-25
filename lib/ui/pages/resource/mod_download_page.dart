@@ -1,5 +1,5 @@
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/mindustry/min_mod_version.dart';
+import 'package:copper_launcher/data/mod_version_gate.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/mod_download_task.dart';
@@ -61,16 +61,16 @@ class ModDownloadPage extends StatefulWidget {
 }
 
 class _ModDownloadPageState extends State<ModDownloadPage> {
-  late ModOfficialListMeta modListMeta;
+  late ModOfficialListEntry modListMeta;
   final selectedVersion = config.versionOptions.selectedVersion;
 
   int index = 1;
 
   int perPage = 25;
 
-  static final Map<String, List<ModGithubMeta>> modMetasMapCache = {};
+  static final Map<String, List<ModRelease>> modMetasMapCache = {};
 
-  List<ModGithubMeta> get metas => modMetasMapCache[modListMeta.repo] ?? [];
+  List<ModRelease> get metas => modMetasMapCache[modListMeta.repo] ?? [];
 
   bool endPage = false;
 
@@ -143,7 +143,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
         headers: modDownloadHeaders,
       );
       final modMetas = res.data!
-          .map<ModGithubMeta>((it) => ModGithubMeta.fromJson(it))
+          .map<ModRelease>((it) => ModRelease.fromJson(it))
           .toList();
       if (modMetas.length < 100) endPage = true;
       if (modMetas.isEmpty && index > 1) index--; //发现没有新的内容添加就直接减1
@@ -174,7 +174,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
   static final Map<String, Future<String?>> minGameVersionsCache = {};
 
-  Future<String?> _getMinGameVersion(ModGithubMeta mod) async {
+  Future<String?> _getMinGameVersion(ModRelease mod) async {
     final url = '$githubRAW/${modListMeta.repo}/${mod.tag}';
     List<String> jsons;
     if (modListMeta.hasJava) {
@@ -219,7 +219,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     return min == null ? null : 'v$min';
   }
 
-  Widget _buildVersionTile(ModGithubMeta mod) {
+  Widget _buildVersionTile(ModRelease mod) {
     Widget buildOverView(IconData icon, String data) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -252,13 +252,13 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
           bool support;
           final modMin = double.parse(s.data!.substring(1));
           if (modListMeta.hasJava) {
-            final minGameVersion = MinGameVersions.instance.java.resultOf(
+            final minGameVersion = ModVersionGate.instance.java.resultOf(
               version.releaseDouble,
             );
             support =
                 modMin >= minGameVersion && modMin <= version.releaseDouble;
           } else {
-            final minGameVersion = MinGameVersions.instance.mod.resultOf(
+            final minGameVersion = ModVersionGate.instance.mod.resultOf(
               version.releaseDouble,
             );
             support =
@@ -334,7 +334,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
   /// 右键 / 长按菜单内容
   List<Widget> _buildMenuItems(
-    ModGithubMeta mod,
+    ModRelease mod,
     PopupOverlayController controller,
   ) {
     return [
@@ -361,7 +361,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
   }
 
   /// 滑动菜单动作：下载源码 + 版本详情
-  List<Widget> _buildSwipeActions(ModGithubMeta mod) {
+  List<Widget> _buildSwipeActions(ModRelease mod) {
     return [
       const SizedBox(width: 4),
       SlideActionButton(
@@ -458,8 +458,8 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       if (modMin == null) return null;
 
       final threshold = modListMeta.hasJava
-          ? MinGameVersions.instance.java.resultOf(version.releaseDouble)
-          : MinGameVersions.instance.mod.resultOf(version.releaseDouble);
+          ? ModVersionGate.instance.java.resultOf(version.releaseDouble)
+          : ModVersionGate.instance.mod.resultOf(version.releaseDouble);
       return modMin >= threshold && modMin <= version.releaseDouble;
     }
 
@@ -496,7 +496,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     }
 
     /// release 中最大附件的体积（一般为模组本体）
-    int largestAssetSize(ModGithubMeta meta) => meta.assets.fold(
+    int largestAssetSize(ModRelease meta) => meta.assets.fold(
       0,
       (max, asset) => asset.size > max ? asset.size : max,
     );
@@ -666,7 +666,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
     );
   }
 
-  void _buildDownloadPopup(ModGithubMeta? mod, {bool downloadSource = false}) {
+  void _buildDownloadPopup(ModRelease? mod, {bool downloadSource = false}) {
     showAnimatedDialog(
       context: context,
       pageBuilder: (context, _, _) {
@@ -938,8 +938,8 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
 
 class _ModDownloadPopupPage extends StatefulWidget {
   final bool downloadSource;
-  final ModOfficialListMeta modListMeta;
-  final ModGithubMeta? modMeta;
+  final ModOfficialListEntry modListMeta;
+  final ModRelease? modMeta;
 
   const _ModDownloadPopupPage(
     this.modListMeta,

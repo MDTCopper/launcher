@@ -1,5 +1,5 @@
 import 'package:copper_launcher/core/app_constant.dart';
-import 'package:copper_launcher/data/setting_metadata.dart';
+import 'package:copper_launcher/data/mindustry/settings/setting_metadata.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:flutter/foundation.dart';
 

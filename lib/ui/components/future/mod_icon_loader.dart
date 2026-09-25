@@ -33,7 +33,7 @@ class ModIconResult {
 }
 
 class ModNetworkIcon extends StatefulWidget {
-  final ModOfficialListMeta modMeta;
+  final ModOfficialListEntry modMeta;
   final double size;
 
   /// 探测中占位（默认转圈）
@@ -136,7 +136,9 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
   Future<ModIconResult> _probeIcon() async {
     final meta = widget.modMeta;
 
-    if (meta.iconUrlCache != null) return ModIconResult.found(meta.iconUrlCache!);
+    if (meta.iconUrlCache != null) {
+      return ModIconResult.found(meta.iconUrlCache!);
+    }
     // 探过且确认没有图标：直接返回，别再跑一轮
     if (meta.iconMissingCache) return const ModIconResult.missing();
 
@@ -148,11 +150,7 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
         if (res.statusCode == 200 || res.data != null) {
           meta.iconUrlCache = candidate.url;
           meta.mainBranchCache = candidate.branch;
-          addLog(
-            .debug,
-            '命中：${meta.repo} → ${candidate.url}',
-            tag: 'ModIcon',
-          );
+          addLog(.debug, '命中：${meta.repo} → ${candidate.url}', tag: 'ModIcon');
           return ModIconResult.found(candidate.url);
         }
       } on DioException catch (e) {

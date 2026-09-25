@@ -1,11 +1,11 @@
 import 'package:json_annotation/json_annotation.dart';
 
-part 'body_meta.g.dart';
+part 'file_meta.g.dart';
 
 ///Mindustry本体文件元数据
 @JsonSerializable()
-class MindustryMeta {
-  MindustryMeta({
+class MindustryFileMeta {
+  MindustryFileMeta({
     required this.path,
     required this.type,
     required this.version,
@@ -21,8 +21,8 @@ class MindustryMeta {
   @JsonKey(name: 'modifier')
   final String type;
 
-  factory MindustryMeta.fromJson(Map<String, dynamic> json) =>
-      _$MindustryMetaFromJson(json);
+  factory MindustryFileMeta.fromJson(Map<String, dynamic> json) =>
+      _$MindustryFileMetaFromJson(json);
 
-  Map<String, dynamic> toJson() => _$MindustryMetaToJson(this);
+  Map<String, dynamic> toJson() => _$MindustryFileMetaToJson(this);
 }
