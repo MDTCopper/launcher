@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_config.dart';
 import '../../data/local_asset.dart';
-import '../../data/mindustry_release.dart';
+import '../../data/game/mindustry_release.dart';
 import '../../ui/shell/drawer/log_list.dart';
 import '../../ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';

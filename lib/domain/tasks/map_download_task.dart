@@ -1,5 +1,5 @@
 import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/data/mindustry_top_map.dart';
+import 'package:copper_launcher/data/resource/mindustry_top_map.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/shell/drawer/log_list.dart';

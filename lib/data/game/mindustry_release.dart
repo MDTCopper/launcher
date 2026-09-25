@@ -1,5 +1,5 @@
-import '../core/app_constant.dart';
-import '../util/mindustry_version_era.dart';
+import '../../core/app_constant.dart';
+import '../../util/mindustry_version_era.dart';
 
 /// 一个 Mindustry 版本的元数据（**与来源无关**）
 ///

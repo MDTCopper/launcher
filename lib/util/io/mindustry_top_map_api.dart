@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:copper_launcher/core/app_constant.dart';
-import 'package:copper_launcher/data/mindustry_top_map.dart';
+import 'package:copper_launcher/data/resource/mindustry_top_map.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';

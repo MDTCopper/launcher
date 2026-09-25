@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/local_asset.dart';
-import 'package:copper_launcher/data/min_game_versions.dart';
+import 'package:copper_launcher/data/game/min_game_versions.dart';
 import 'package:copper_launcher/domain/mindustry_body.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/animation/eased_progress_bar.dart';
