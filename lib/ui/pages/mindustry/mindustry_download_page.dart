@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:copper_launcher/data/local_asset.dart';
+import 'package:copper_launcher/data/mindustry_manifest.dart';
 import 'package:copper_launcher/data/mindustry_version_snapshot.dart';
 import 'package:copper_launcher/data/net_asset.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
@@ -50,8 +51,9 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   /// 若写在 build 里，任何 setState 都会让 FutureBuilder 回到 waiting、列表闪加载圈
   late Future<bool> _versionFuture = _fetchVersionAssets();
 
-  /// 版本列表：先读 remote 快照（历史版本基本不变，不用反复问 API），
-  /// 再用 API 取最新一页合并；API 挂了就只用快照，至少老版本还能下
+  /// 版本列表：先读 remote 快照（历史版本基本不变），再取最新一页合并。
+  /// 最新一页优先走**国内 manifest**（一次拿全量、不吃 API 额度），拿不到再退
+  /// GitHub API；两个都拿不到就只用快照，至少老版本还能下
   Future<bool> _fetchVersionAssets() async {
     if (_versionList.isNotEmpty) return true;
 
@@ -61,16 +63,24 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
 
     List<MindustryGithubMeta> latest;
     try {
-      latest = await _fetchLatestReleases();
+      latest = await _fetchManifestReleases();
     } catch (e) {
       addLogAndPrint(
         .warning,
-        '获取最新版本列表失败，只列快照里的版本：${removeNewlines('$e')}',
+        '国内源版本列表拿不到，退 GitHub API：${removeNewlines('$e')}',
         tag: 'MindustryDownload',
       );
-      //拿不到最新一页（额度用完 / 网络不通）：只用快照，至少老版本还能下
-      latest = const [];
-      if (snapshot.isEmpty) return false;
+      try {
+        latest = await _fetchLatestReleases();
+      } catch (e) {
+        addLogAndPrint(
+          .warning,
+          '获取最新版本列表失败，只列快照里的版本：${removeNewlines('$e')}',
+          tag: 'MindustryDownload',
+        );
+        latest = const [];
+        if (snapshot.isEmpty) return false;
+      }
     }
 
     _versionList
@@ -89,6 +99,15 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
       _latestBeta = null;
     }
     return true;
+  }
+
+  /// 取国内源的版本清单（一次拿全量，本体地址也直接指向它）
+  Future<List<MindustryGithubMeta>> _fetchManifestReleases() async {
+    final response = await cio.get<String>(
+      mindustryManifestUrl,
+      responseType: ResponseType.plain,
+    );
+    return parseMindustryManifest(response.data ?? '');
   }
 
   /// 取官方最新一页 release（一页 100 条，够覆盖新版本）
