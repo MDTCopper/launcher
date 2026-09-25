@@ -1,11 +1,16 @@
-update_time: 2026-09-15
+# 节点能力由 tool/pick_mirrors.dart 实测写入，别手改字段名
+update_time: 2026-09-24
 mirrors:[
-    https://ghproxy.monkeyray.net/
-    https://git.yylx.win/
-    https://jiashu.1win.eu.org/
-    https://xsadwsd.kdns.fr/
-    https://github.tbap.top/
-    https://github.ikgy.top/
-    https://github.chenc.dev/
-    https://tvv.tw/
+    {url: "https://js.jiangss.shop/", github: true, raw: true, api: false, range: true, speed: 0.53}
+    {url: "https://github.gohj99.site/", github: true, raw: true, api: true, range: true, speed: 0.42}
+    {url: "https://gh.acmsz.top/", github: true, raw: true, api: false, range: true, speed: 0.39}
+    {url: "https://ghproxy.monkeyray.net/", github: true, raw: true, api: true, range: true, speed: 0.38}
+    {url: "https://free.cn.eu.org/", github: true, raw: false, api: false, range: true, speed: 0.35}
+    {url: "https://gh.monlor.com/", github: true, raw: true, api: false, range: true, speed: 0.10}
+    {url: "https://gitproxy.mrhjx.cn/", github: true, raw: true, api: false, range: true, speed: 0.07}
+    {url: "https://github.nswrz.cn/", github: true, raw: true, api: true, range: true, speed: 0.03}
+    {url: "https://down.mxw.qzz.io/", github: true, raw: true, api: false, range: true, speed: 0.02}
+    {url: "https://githubproxy.gohj99.site/", github: false, raw: true, api: true, range: false, speed: 0.00}
+    {url: "https://jiashu.1win.eu.org/", github: false, raw: true, api: true, range: false, speed: 0.00}
+    {url: "https://tvv.tw/", github: false, raw: true, api: true, range: false, speed: 0.00}
 ]
