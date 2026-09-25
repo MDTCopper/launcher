@@ -7,13 +7,13 @@ import 'package:jni_flutter/jni_flutter.dart';
 import 'package:system_info2/system_info2.dart' as s;
 import 'package:win32/win32.dart';
 
-import '../util/loader_binding.dart';
+import '../util/art_binding.dart';
 
 /// 系统信息查询
 ///
 /// 各平台取内存的方式：
 /// - Windows：[GlobalMemoryStatusEx] 原生 API，一次取总 / 可用内存
-/// - Android：Copper loader 的 [Loader.getMemoryInfo]（ActivityManager 语义，
+/// - Android：Copper 的 [SystemInfo.getMemoryInfo]（ActivityManager 语义，
 ///   应用可用内存）；失败回退 `/proc/meminfo`（物理内存全局值）
 /// - Linux：直接读 `/proc/meminfo`
 /// - macOS：system_info2（`vm_stat` / `sysctl`，轻量，用 isolate 防阻塞）
@@ -116,11 +116,11 @@ class SysInfo {
     return available;
   }
 
-  /// Android：调 [Loader.getMemoryInfo] 拿内存信息对象（调用方负责 release）
-  static Loader$MemoryInfo? _androidMemoryInfo() {
+  /// Android：调 [SystemInfo.getMemoryInfo] 拿内存信息对象（调用方负责 release）
+  static SystemInfo$MemoryInfo? _androidMemoryInfo() {
     final context = _getAndroidContext();
     if (context == null) return null;
-    return Loader.getMemoryInfo(context);
+    return SystemInfo.getMemoryInfo(context);
   }
 
   /// Linux / Android：读取 /proc/meminfo，一次解析总 / 可用 / 空闲内存

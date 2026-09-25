@@ -9,6 +9,11 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
 
+    <!-- The bridge answers isVibratorAvailable() by checking this permission. It is an install time
+         one, so requestPermissions can never obtain it: without the line below every Vibrator call
+         throws and the game is told there is no vibrator. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Features used by Mindustry -->
     <uses-feature android:glEsVersion="0x00020000" android:required="true"/>
     <uses-feature android:name="android.hardware.type.pc" android:required="false" />
@@ -20,7 +25,7 @@
         android:largeHeap="true"
         android:isGame="true"
         android:appCategory="game"
-        android:appComponentFactory="io.github.copper.loader.LoaderComponentFactory"
+        android:appComponentFactory="io.github.copper.CopperComponentFactory"
         tools:replace="android:appComponentFactory"
         android:resizeableActivity="true">
 
@@ -50,7 +55,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="io.github.copper.loader.MindustryActivity"
+            android:name="io.github.copper.MindustryActivity"
             android:exported="false"
             android:label="@string/mdt_title"
             android:launchMode="singleTask"

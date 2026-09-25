@@ -165,10 +165,110 @@ extension type Loader._(jni$_.JObject _$this) implements jni$_.JObject {
       _$args.pointer,
     ).check();
   }
+}
 
+final class $Loader$Type$ extends jni$_.JType<Loader> {
+  @jni$_.internal
+  const $Loader$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Lio/github/copper/loader/Loader;';
+}
+
+/// from: `io.github.copper.bridge.Bridge`
+///
+/// Placeholder entry of the bridge: a real JVM, instead of the copper loader on ART.
+///
+/// The counterpart of io.github.copper.loader.Loader\#launch, and deliberately the same
+/// shape: the caller builds the whole argument vector and names the jar, this only hands both to the
+/// placeholder activity, and the component factory turns it into the activity the bridge builds.
+/// What the run needs - the game jar, the data and cache folders, the JVM, arc's native libraries -
+/// is the argument vector's business, not this class's.
+///
+extension type Bridge._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'io/github/copper/bridge/Bridge');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<Bridge> type = $Bridge$Type$();
+  static final _id_launch = _class.staticMethodId(
+    r'launch',
+    r'(Ljava/lang/String;Landroid/content/Context;[Ljava/lang/String;)V',
+  );
+
+  static final _launch =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                    jni$_.Pointer<jni$_.Void>,
+                  )
+                >,
+              )
+            >
+          >('globalEnv_CallStaticVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public void launch(java.lang.String bridgePath, android.content.Context activityContext, java.lang.String[] args)`
+  ///
+  /// Starts the bridge through MindustryActivity, passing the bridge jar and its arguments.
+  static void launch(
+    jni$_.JString? bridgePath,
+    Context? activityContext,
+    jni$_.JArray<jni$_.JString?>? args,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$bridgePath = bridgePath?.reference ?? jni$_.jNullReference;
+    final _$activityContext =
+        activityContext?.reference ?? jni$_.jNullReference;
+    final _$args = args?.reference ?? jni$_.jNullReference;
+    _launch(
+      _$$classRef.pointer,
+      _id_launch.pointer,
+      _$bridgePath.pointer,
+      _$activityContext.pointer,
+      _$args.pointer,
+    ).check();
+  }
+}
+
+final class $Bridge$Type$ extends jni$_.JType<Bridge> {
+  @jni$_.internal
+  const $Bridge$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Lio/github/copper/bridge/Bridge;';
+}
+
+/// from: `io.github.copper.SystemInfo`
+///
+/// Device memory, straight from the activity manager.
+///
+/// Extracted from {@code io.github.copper.loader.Loader} when the bridge path arrived: nothing
+/// about it is loader-specific, and it is read while deciding how much heap a game run may ask for.
+///
+extension type SystemInfo._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'io/github/copper/SystemInfo');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<SystemInfo> type = $SystemInfo$Type$();
   static final _id_getMemoryInfo = _class.staticMethodId(
     r'getMemoryInfo',
-    r'(Landroid/content/Context;)Lio/github/copper/loader/Loader$MemoryInfo;',
+    r'(Landroid/content/Context;)Lio/github/copper/SystemInfo$MemoryInfo;',
   );
 
   static final _getMemoryInfo =
@@ -189,11 +289,11 @@ extension type Loader._(jni$_.JObject _$this) implements jni$_.JObject {
             )
           >();
 
-  /// from: `static public io.github.copper.loader.Loader$MemoryInfo getMemoryInfo(android.content.Context applicationContext)`
+  /// from: `static public io.github.copper.SystemInfo$MemoryInfo getMemoryInfo(android.content.Context applicationContext)`
   /// The returned object must be released after use, by calling the [release] method.
   ///
   /// Get native memory info.
-  static Loader$MemoryInfo? getMemoryInfo(Context? applicationContext) {
+  static SystemInfo$MemoryInfo? getMemoryInfo(Context? applicationContext) {
     final _$$classRef = _class.reference;
     final _$applicationContext =
         applicationContext?.reference ?? jni$_.jNullReference;
@@ -201,12 +301,12 @@ extension type Loader._(jni$_.JObject _$this) implements jni$_.JObject {
       _$$classRef.pointer,
       _id_getMemoryInfo.pointer,
       _$applicationContext.pointer,
-    ).object<Loader$MemoryInfo?>();
+    ).object<SystemInfo$MemoryInfo?>();
   }
 
   static final _id_getHeapMemoryInfo = _class.staticMethodId(
     r'getHeapMemoryInfo',
-    r'(Landroid/content/Context;)Lio/github/copper/loader/Loader$HeapMemoryInfo;',
+    r'(Landroid/content/Context;)Lio/github/copper/SystemInfo$HeapMemoryInfo;',
   );
 
   static final _getHeapMemoryInfo =
@@ -227,11 +327,13 @@ extension type Loader._(jni$_.JObject _$this) implements jni$_.JObject {
             )
           >();
 
-  /// from: `static public io.github.copper.loader.Loader$HeapMemoryInfo getHeapMemoryInfo(android.content.Context applicationContext)`
+  /// from: `static public io.github.copper.SystemInfo$HeapMemoryInfo getHeapMemoryInfo(android.content.Context applicationContext)`
   /// The returned object must be released after use, by calling the [release] method.
   ///
   /// Get art heap memory info.
-  static Loader$HeapMemoryInfo? getHeapMemoryInfo(Context? applicationContext) {
+  static SystemInfo$HeapMemoryInfo? getHeapMemoryInfo(
+    Context? applicationContext,
+  ) {
     final _$$classRef = _class.reference;
     final _$applicationContext =
         applicationContext?.reference ?? jni$_.jNullReference;
@@ -239,34 +341,35 @@ extension type Loader._(jni$_.JObject _$this) implements jni$_.JObject {
       _$$classRef.pointer,
       _id_getHeapMemoryInfo.pointer,
       _$applicationContext.pointer,
-    ).object<Loader$HeapMemoryInfo?>();
+    ).object<SystemInfo$HeapMemoryInfo?>();
   }
 }
 
-final class $Loader$Type$ extends jni$_.JType<Loader> {
+final class $SystemInfo$Type$ extends jni$_.JType<SystemInfo> {
   @jni$_.internal
-  const $Loader$Type$();
+  const $SystemInfo$Type$();
 
   @jni$_.internal
   @core$_.override
-  String get signature => r'Lio/github/copper/loader/Loader;';
+  String get signature => r'Lio/github/copper/SystemInfo;';
 }
 
-/// from: `io.github.copper.loader.Loader$MemoryInfo`
+/// from: `io.github.copper.SystemInfo$MemoryInfo`
 ///
 /// Wrapper of android.app.ActivityManager.MemoryInfo
-extension type Loader$MemoryInfo._(jni$_.JObject _$this)
+extension type SystemInfo$MemoryInfo._(jni$_.JObject _$this)
     implements jni$_.JObject {
   static final _class = jni$_.JClass.forName(
-    r'io/github/copper/loader/Loader$MemoryInfo',
+    r'io/github/copper/SystemInfo$MemoryInfo',
   );
 
   /// The type which includes information such as the signature of this class.
-  static const jni$_.JType<Loader$MemoryInfo> type = $Loader$MemoryInfo$Type$();
+  static const jni$_.JType<SystemInfo$MemoryInfo> type =
+      $SystemInfo$MemoryInfo$Type$();
 }
 
-extension Loader$MemoryInfo$$Methods on Loader$MemoryInfo {
-  static final _id_availMem = Loader$MemoryInfo._class.instanceFieldId(
+extension SystemInfo$MemoryInfo$$Methods on SystemInfo$MemoryInfo {
+  static final _id_availMem = SystemInfo$MemoryInfo._class.instanceFieldId(
     r'availMem',
     r'J',
   );
@@ -279,7 +382,7 @@ extension Loader$MemoryInfo$$Methods on Loader$MemoryInfo {
   set availMem(core$_.int value) =>
       _id_availMem.set(this, jni$_.jlong.type, value);
 
-  static final _id_lowMemory = Loader$MemoryInfo._class.instanceFieldId(
+  static final _id_lowMemory = SystemInfo$MemoryInfo._class.instanceFieldId(
     r'lowMemory',
     r'Z',
   );
@@ -292,7 +395,7 @@ extension Loader$MemoryInfo$$Methods on Loader$MemoryInfo {
   set lowMemory(core$_.bool value) =>
       _id_lowMemory.set(this, jni$_.jboolean.type, value);
 
-  static final _id_threshold = Loader$MemoryInfo._class.instanceFieldId(
+  static final _id_threshold = SystemInfo$MemoryInfo._class.instanceFieldId(
     r'threshold',
     r'J',
   );
@@ -305,7 +408,7 @@ extension Loader$MemoryInfo$$Methods on Loader$MemoryInfo {
   set threshold(core$_.int value) =>
       _id_threshold.set(this, jni$_.jlong.type, value);
 
-  static final _id_totalMem = Loader$MemoryInfo._class.instanceFieldId(
+  static final _id_totalMem = SystemInfo$MemoryInfo._class.instanceFieldId(
     r'totalMem',
     r'J',
   );
@@ -319,27 +422,28 @@ extension Loader$MemoryInfo$$Methods on Loader$MemoryInfo {
       _id_totalMem.set(this, jni$_.jlong.type, value);
 }
 
-final class $Loader$MemoryInfo$Type$ extends jni$_.JType<Loader$MemoryInfo> {
+final class $SystemInfo$MemoryInfo$Type$
+    extends jni$_.JType<SystemInfo$MemoryInfo> {
   @jni$_.internal
-  const $Loader$MemoryInfo$Type$();
+  const $SystemInfo$MemoryInfo$Type$();
 
   @jni$_.internal
   @core$_.override
-  String get signature => r'Lio/github/copper/loader/Loader$MemoryInfo;';
+  String get signature => r'Lio/github/copper/SystemInfo$MemoryInfo;';
 }
 
-/// from: `io.github.copper.loader.Loader$HeapMemoryInfo`
+/// from: `io.github.copper.SystemInfo$HeapMemoryInfo`
 ///
 /// Heap memory info of ART.
-extension type Loader$HeapMemoryInfo._(jni$_.JObject _$this)
+extension type SystemInfo$HeapMemoryInfo._(jni$_.JObject _$this)
     implements jni$_.JObject {
   static final _class = jni$_.JClass.forName(
-    r'io/github/copper/loader/Loader$HeapMemoryInfo',
+    r'io/github/copper/SystemInfo$HeapMemoryInfo',
   );
 
   /// The type which includes information such as the signature of this class.
-  static const jni$_.JType<Loader$HeapMemoryInfo> type =
-      $Loader$HeapMemoryInfo$Type$();
+  static const jni$_.JType<SystemInfo$HeapMemoryInfo> type =
+      $SystemInfo$HeapMemoryInfo$Type$();
   static final _id_new$ = _class.constructorId(r'()V');
 
   static final _new$ =
@@ -360,20 +464,18 @@ extension type Loader$HeapMemoryInfo._(jni$_.JObject _$this)
 
   /// from: `public void <init>()`
   /// The returned object must be released after use, by calling the [release] method.
-  factory Loader$HeapMemoryInfo() {
+  factory SystemInfo$HeapMemoryInfo() {
     final _$$classRef = _class.reference;
     return _new$(
       _$$classRef.pointer,
       _id_new$.pointer,
-    ).object<Loader$HeapMemoryInfo>();
+    ).object<SystemInfo$HeapMemoryInfo>();
   }
 }
 
-extension Loader$HeapMemoryInfo$$Methods on Loader$HeapMemoryInfo {
-  static final _id_normalSize = Loader$HeapMemoryInfo._class.instanceFieldId(
-    r'normalSize',
-    r'I',
-  );
+extension SystemInfo$HeapMemoryInfo$$Methods on SystemInfo$HeapMemoryInfo {
+  static final _id_normalSize = SystemInfo$HeapMemoryInfo._class
+      .instanceFieldId(r'normalSize', r'I');
 
   /// from: `public int normalSize`
   ///
@@ -387,7 +489,7 @@ extension Loader$HeapMemoryInfo$$Methods on Loader$HeapMemoryInfo {
   set normalSize(core$_.int value) =>
       _id_normalSize.set(this, jni$_.jint.type, value);
 
-  static final _id_largeSize = Loader$HeapMemoryInfo._class.instanceFieldId(
+  static final _id_largeSize = SystemInfo$HeapMemoryInfo._class.instanceFieldId(
     r'largeSize',
     r'I',
   );
@@ -405,14 +507,14 @@ extension Loader$HeapMemoryInfo$$Methods on Loader$HeapMemoryInfo {
       _id_largeSize.set(this, jni$_.jint.type, value);
 }
 
-final class $Loader$HeapMemoryInfo$Type$
-    extends jni$_.JType<Loader$HeapMemoryInfo> {
+final class $SystemInfo$HeapMemoryInfo$Type$
+    extends jni$_.JType<SystemInfo$HeapMemoryInfo> {
   @jni$_.internal
-  const $Loader$HeapMemoryInfo$Type$();
+  const $SystemInfo$HeapMemoryInfo$Type$();
 
   @jni$_.internal
   @core$_.override
-  String get signature => r'Lio/github/copper/loader/Loader$HeapMemoryInfo;';
+  String get signature => r'Lio/github/copper/SystemInfo$HeapMemoryInfo;';
 }
 
 /// from: `android.content.Context`

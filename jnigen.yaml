@@ -6,8 +6,10 @@ source_path:
 
 classes:
   - 'io.github.copper.loader.Loader'
+  - 'io.github.copper.bridge.Bridge'
+  - 'io.github.copper.SystemInfo'
 
 output:
   dart:
-    path: lib/util/loader_binding.dart
+    path: lib/util/art_binding.dart
     structure: single_file

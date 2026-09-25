@@ -1,4 +1,4 @@
-package io.github.copper.loader;
+package io.github.copper;
 
 import dalvik.system.*;
 
