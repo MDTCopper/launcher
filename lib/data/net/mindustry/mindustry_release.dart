@@ -1,5 +1,6 @@
 import '../../../core/app_config.dart';
 import '../../../core/app_constant.dart';
+import '../../../util/mindustry_major_version.dart';
 import '../../../util/mindustry_version_era.dart';
 
 /// 一个 Mindustry 版本的元数据，统一格式，与来源无关
@@ -38,6 +39,12 @@ class MindustryRelease {
   /// 解析不出的按现代版算
   MindustryVersionEra get era =>
       MindustryVersionEra.ofTag(tag) ?? MindustryVersionEra.modern;
+
+  /// 该 release 的大版本（v4 / v5 / …），同样按 build 号判定
+  ///
+  /// 解析不出的按最老那档算，免得被塞进最新的段里
+  MindustryMajorVersion get major =>
+      MindustryMajorVersion.ofTag(tag) ?? MindustryMajorVersion.v3OrOlder;
 
   /// 桌面端游戏本体 jar：正式版 `Mindustry.jar`，BE 是
   /// `Mindustry-BE-Desktop-<build>.jar`

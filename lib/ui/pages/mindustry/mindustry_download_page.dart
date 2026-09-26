@@ -28,7 +28,7 @@ import '../../../core/app_config.dart';
 import '../../../core/app_constant.dart';
 import '../../../domain/task_manager.dart';
 import '../../../domain/tasks/mindustry_download_task.dart';
-import '../../../util/mindustry_version_era.dart';
+import '../../../util/mindustry_major_version.dart';
 import '../../../util/validate/windows_file_name_validator.dart';
 
 import '../../vars.dart';
@@ -63,7 +63,9 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     final bodySource = config.setting.downloadOptions.bodySource;
 
     //列表是按来源策略拉的：策略没变、列表还在，就直接用缓存
-    if (_versionList.isNotEmpty && _versionListSource == bodySource) return true;
+    if (_versionList.isNotEmpty && _versionListSource == bodySource) {
+      return true;
+    }
     _versionList.clear();
     _latestBeta = null;
     _versionListSource = bodySource;
@@ -206,31 +208,31 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     return text.length <= 120 ? text : '${text.substring(0, 120)}…';
   }
 
-  /// 取某时代的正式版：无 assets 的 release 本来就下不了，直接排除
-  List<MindustryRelease> _versionsOfEra(MindustryVersionEra era) {
+  /// 取某大版本的正式版：无 assets 的 release 本来就下不了，直接排除
+  List<MindustryRelease> _versionsOfMajor(MindustryMajorVersion major) {
     return [
       for (final version in _versionList)
-        if (version.assets.isNotEmpty && version.era == era) version,
+        if (version.assets.isNotEmpty && version.major == major) version,
     ];
   }
 
-  /// 各时代分段：没有版本的时代整段不显示
+  /// 各分段：**按大版本分**（表在 [MindustryMajorVersion]，从新到旧），空段不显示
   ///
   /// 来源策略会改变列表范围（如「只用国内源」时只列 v126 起），
-  /// 老时代空着就别留一个空标题在那里
-  List<Widget> _buildEraSections() {
+  /// 空着的大版本就别留一个空标题在那里
+  List<Widget> _buildMajorSections() {
     final sections = <Widget>[];
-    for (final era in MindustryVersionEra.values) {
-      final versions = _versionsOfEra(era);
+    for (final major in MindustryMajorVersion.values) {
+      final versions = _versionsOfMajor(major);
       if (versions.isEmpty) continue;
-      sections.add(_buildEraVersionList(era, versions));
+      sections.add(_buildMajorVersionList(major, versions));
     }
     return sections;
   }
 
-  /// 一个时代一段：标题带数量，下面跟一句该时代的说明
-  Widget _buildEraVersionList(
-    MindustryVersionEra era,
+  /// 一个大版本一段：标题带数量，下面跟一句区间说明
+  Widget _buildMajorVersionList(
+    MindustryMajorVersion major,
     List<MindustryRelease> versionList,
   ) {
     final theme = Theme.of(context);
@@ -267,13 +269,25 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     final Widget title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('${era.label}(${versions.length.toString()})'),
-        Text(era.summary, style: theme.textTheme.bodySmall),
+        Text('${major.label}(${versions.length.toString()})'),
+        Text(_rangeSummaryOf(major), style: theme.textTheme.bodySmall),
       ],
     );
 
     return AnimatedExpansion(title: title, children: versions);
   }
+
+  /// 分段说明：这个段覆盖的 build 区间（最新那档没有上界）
+  String _rangeSummaryOf(MindustryMajorVersion major) {
+    final maxBuild = major.maxBuild;
+    if (maxBuild == null) return 'build ${_trimBuild(major.minBuild)} 起';
+    return 'build ${_trimBuild(major.minBuild)} – ${_trimBuild(maxBuild)}';
+  }
+
+  /// build 号去掉多余的小数位（41.0 → 41、104.6 原样）
+  String _trimBuild(double build) => build == build.roundToDouble()
+      ? build.toInt().toString()
+      : build.toString();
 
   void _buildDownloadPopup(MindustryRelease mindustry) {
     showAnimatedDialog(
@@ -362,7 +376,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
             ],
           ),
         ),
-        ..._buildEraSections(),
+        ..._buildMajorSections(),
         SizedBox(height: 40),
       ],
     );
