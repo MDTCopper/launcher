@@ -112,6 +112,7 @@ class AboutPage extends StatelessWidget {
               Text('Mindustry（Anuken）—— 游戏本体'),
               Text('MindustryTop —— 地图站资源'),
               Text('GitHub 镜像节点提供者 —— 加速下载'),
+              Text('国内论坛MDTBBS —— 国内下载节点'),
             ],
           ),
         ),
@@ -120,10 +121,7 @@ class AboutPage extends StatelessWidget {
             title: '赞助名单',
             child: Column(spacing: 12, children: []),
           ),
-        ContentPanelModule(
-          title: '加入我们',
-          child: Text('todo 加入我们'),
-        ),
+        ContentPanelModule(title: '加入我们', child: Text('todo 加入我们')),
         //开源许可
         ContentPanelModule(
           title: '许可证',

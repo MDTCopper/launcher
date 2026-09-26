@@ -1,13 +1,17 @@
+import 'dart:io';
+
 import 'package:copper_launcher/domain/launcher_update.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/shell/drawer/log_list.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:window_manager/window_manager.dart';
 
 /// 下载启动器更新包
 ///
@@ -26,6 +30,11 @@ class LauncherUpdateTask extends Task {
 
   /// 当前状态文案（下载中 / 正在安装...）
   String? statusText;
+
+  /// 下载进度明细：与本体下载卡片一样显示字节数与速度
+  int totalSize = 0;
+  int downloadedSize = 0;
+  double speed = 0.0;
 
   /// 下载完的落盘路径
   String? downloadedPath;
@@ -46,8 +55,11 @@ class LauncherUpdateTask extends Task {
       final path = await LauncherUpdate.downloadAsset(
         asset: asset,
         cancelToken: cancelToken,
-        onProgress: (value) {
-          progress = value;
+        onStatus: (state) {
+          totalSize = state.total;
+          downloadedSize = state.downloaded;
+          speed = state.speed;
+          progress = state.progress;
           statusText = '下载 ${asset.name}';
           updateDisplay();
         },
@@ -78,6 +90,12 @@ class LauncherUpdateTask extends Task {
   Future<void> _finishUpdate(String path) async {
     progress = 1.0;
 
+    // 更新要替换运行中的 exe / dll：先撤掉「关窗收进托盘」的拦截，
+    // 否则安装器的关闭请求会被我们藏进托盘，它只能干等（看着像整个卡死）
+    if (Platform.isWindows) {
+      await windowManager.setPreventClose(false);
+    }
+
     if (LauncherUpdate.shouldRunInstaller(asset)) {
       statusText = '正在安装';
       status = TaskStatus.completed;
@@ -93,7 +111,8 @@ class LauncherUpdateTask extends Task {
       // 留一点时间让日志与通知落地，再退出（安装器随后要替换本进程的文件）
       await Future.delayed(const Duration(seconds: 1));
       await LauncherTray.instance.quitApp();
-      return;
+      // 兜底：窗口销毁没带走进程时也确保退出，安装器才动得了文件
+      exit(0);
     }
 
     if (LauncherUpdate.shouldReplacePortable(asset)) {
@@ -113,7 +132,8 @@ class LauncherUpdateTask extends Task {
       );
       await Future.delayed(const Duration(seconds: 1));
       await LauncherTray.instance.quitApp();
-      return;
+      // 覆盖脚本在等本进程退出，这里同样兜底确保退出
+      exit(0);
     }
 
     status = TaskStatus.completed;
@@ -125,6 +145,14 @@ class LauncherUpdateTask extends Task {
     );
     updateDisplay();
     await PathSelector.openFolder(LauncherUpdate.downloadDir.path);
+  }
+
+  /// 已下载 / 总量 · 速度（总量拿不到时只报已下载与速度）
+  String _downloadDetailText() {
+    final downloaded = formatBytes(downloadedSize);
+    final speedText = formatBytes(speed.round());
+    if (totalSize <= 0) return '$downloaded · $speedText/s';
+    return '$downloaded / ${formatBytes(totalSize)} · $speedText/s';
   }
 
   @override
@@ -159,6 +187,8 @@ class LauncherUpdateTask extends Task {
           Text(statusText!, style: theme.textTheme.bodySmall)
         else if (progress != null)
           Text(formatProgress(), style: theme.textTheme.bodySmall),
+        if (totalSize > 0 || downloadedSize > 0)
+          Text(_downloadDetailText(), style: theme.textTheme.bodySmall),
         Text(
           createTime.toString().split(' ').last.split('.').first,
           style: theme.textTheme.bodySmall,

@@ -1,12 +1,12 @@
 // ===== 版本信息（由 tool/build_release.dart 生成，勿手改）=====
 ///UI 显示的版本号，形如 v0.0.2 / v0.0.2 alpha 12 / v0.0.2 beta 7
-const appVersion = 'v0.1.0 alpha 6';
+const appVersion = 'v0.2.0 alpha 7';
 
 ///本次构建的 build number，同一版本重复构建时可选择不计入
-const appBuildNumber = 6;
+const appBuildNumber = 7;
 
 ///本次构建时间
-const appBuildTime = '2026-09-21 20:24';
+const appBuildTime = '2026-09-26 22:50';
 // ===== 版本信息结束 =====
 
 ///https://api.github.com

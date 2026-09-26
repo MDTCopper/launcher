@@ -1,7 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:copper_launcher/data/models.dart';
-import 'package:copper_launcher/ui/components/future/mod_readme_view.dart';
+import 'package:copper_launcher/ui/components/future/readme_view.dart';
+import 'package:copper_launcher/ui/components/future/readme_source.dart';
 import 'package:copper_launcher/ui/components/future/shields_badge.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
@@ -92,11 +93,11 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
     );
   }
 
-  /// README 内容：交给自研渲染器（[ModReadmeView]）
+  /// README 内容：交给自研渲染器（[ReadmeView]）
   Widget _buildContent(String? data) => _buildFrame(
     data == null
         ? Text('没有找到 README', style: Theme.of(context).textTheme.bodyLarge)
-        : ModReadmeView(data: data, mod: widget.mod),
+        : ReadmeView(data: data, source: ReadmeSource.ofMod(widget.mod)),
   );
 
   @override
@@ -285,17 +286,19 @@ class ReadmeSkeletonState extends State<ReadmeSkeleton>
   }
 }
 
-class ModReadmeNetworkImage extends StatefulWidget {
+class ReadmeNetworkImage extends StatefulWidget {
   final Uri uri;
-  final ModOfficialListEntry mod;
+
+  /// 相对图片按哪个仓库解析
+  final ReadmeSource source;
   final Widget? onLoading;
   final Widget? onError;
   final double? height;
   final double? width;
-  const ModReadmeNetworkImage({
+  const ReadmeNetworkImage({
     super.key,
     required this.uri,
-    required this.mod,
+    required this.source,
     this.height,
     this.width,
     this.onLoading,
@@ -303,10 +306,10 @@ class ModReadmeNetworkImage extends StatefulWidget {
   });
 
   @override
-  State<StatefulWidget> createState() => _ModReadmeNetworkImageState();
+  State<StatefulWidget> createState() => _ReadmeNetworkImageState();
 }
 
-class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
+class _ReadmeNetworkImageState extends State<ReadmeNetworkImage> {
   late final onError = widget.onError ?? Icon(Icons.broken_image_outlined);
   late final onLoading = widget.onLoading ?? CircularProgressIndicator();
 
@@ -332,22 +335,22 @@ class _ModReadmeNetworkImageState extends State<ModReadmeNetworkImage> {
       if (badge != null) return badge;
     }
 
-    // 相对路径：按仓库解析（缓存的分支优先，再回退 main/master）；
+    // 相对路径：按仓库解析（来源给的分支优先，再回退 main/master）；
     // 绝对路径：直接按 content-type 分流
     if (uri.isAbsolute) {
       return _byContentType(uri.toString());
     }
 
-    final repo = 'https://raw.githubusercontent.com/${widget.mod.repo}';
-    if (widget.mod.mainBranchCache != null) {
-      final result = await _byContentType(
-        '$repo/${widget.mod.mainBranchCache}/${uri.toString()}',
-      );
-      if (result != null) return result;
-    }
+    final repo = 'https://raw.githubusercontent.com/${widget.source.repo}';
+    final result = await _byContentType(
+      '$repo/${widget.source.branch}/${uri.toString()}',
+    );
+    if (result != null) return result;
+
     for (final branch in ['main', 'master']) {
-      final result = await _byContentType('$repo/$branch/${uri.toString()}');
-      if (result != null) return result;
+      if (branch == widget.source.branch) continue;
+      final fallback = await _byContentType('$repo/$branch/${uri.toString()}');
+      if (fallback != null) return fallback;
     }
     return null;
   }
