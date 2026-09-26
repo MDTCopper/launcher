@@ -46,17 +46,17 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   /// 最新 be；拿不到（网络 / 限流）时为 null，页面不显示该入口
   static MindustryRelease? _latestBeta;
 
-  /// 当前这份列表是按哪个来源策略拉的：设置里改了策略就得重拉（列表要跟设置一致）
+  /// 当前这份列表是按哪个来源策略拉的：设置里改了策略就得重拉
   static BodySourceStrategy? _versionListSource;
 
   /// 列表只在这里建一次 future，手动刷新才重建；
   /// 若写在 build 里，任何 setState 都会让 FutureBuilder 回到 waiting、列表闪加载圈
   late Future<bool> _versionFuture = _fetchVersionAssets();
 
-  /// 版本列表：**来源策略决定列表从哪来**，保证列出来的版本都下得动
+  /// 版本列表：来源策略决定列表从哪来，保证列出来的版本都下得动
   ///
   /// - 只用国内源：只列国内源有的版本 —— 不合快照，快照里的老版本（v125.1 及以下）
-  ///   国内源没有，列出来选中也是「没有可用下载来源」
+  ///   国内源没有，列出来选中也是没有可用下载来源
   /// - 只用官方源：完全不碰国内主机，列表走官方 API，失败退快照
   /// - 优先两档：国内 manifest 优先，失败退官方 API，再与快照合并补老版本
   Future<bool> _fetchVersionAssets() async {
@@ -216,9 +216,9 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     ];
   }
 
-  /// 各分段：**按大版本分**（表在 [MindustryMajorVersion]，从新到旧），空段不显示
+  /// 各分段：按大版本分，空段不显示
   ///
-  /// 来源策略会改变列表范围（如「只用国内源」时只列 v126 起），
+  /// 来源策略会改变列表范围
   /// 空着的大版本就别留一个空标题在那里
   List<Widget> _buildMajorSections() {
     final sections = <Widget>[];
@@ -432,8 +432,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
                           hint: '刷新版本列表',
                           onTap: _refreshVersions,
                         ),
-                        //BE 只在官方源有（国内 manifest 不含 MindustryBuilds），
-                        //选「只用国内源」时这个入口也一并隐藏
+                        //BE 只在官方源有
                         if (config.setting.downloadOptions.bodySource !=
                             BodySourceStrategy.domesticOnly)
                           CapsuleAction(
@@ -501,8 +500,8 @@ class _DownloadMindustryPopupPageState
 
   ///选中的启动方式（loader 的选择结果）；null / [LoaderChoice.none] = 原版启动
   ///
-  /// 这里**只记选择**，不下载：需要下载的 loader 由 [MindustryDownloadTask] 与本体
-  /// 一起下（进任务抽屉、带进度，失败可见）
+  /// 这里只记选择，不下载：需要下载的 loader 由 [MindustryDownloadTask] 与本体
+  /// 一起下
   ///
   /// 下载前还不知道游戏大版本号（要读 jar 里的 version.properties），
   /// 所以选择页这里不做适配表标注
@@ -516,7 +515,7 @@ class _DownloadMindustryPopupPageState
 
   ///这条会从哪下：按当前策略取第一个可用地址，看它是不是国内源
   ///
-  /// 策略是「优先」那档时，这里显示的是会先试的那个来源，失败才换另一边
+  /// 策略是优先那档时，这里显示的是会先试的那个来源，失败才换另一边
   String get _bodySourceLabel {
     final asset = mindustryMeta.desktopJarAsset;
     if (asset == null) return '该版本没有本体';
@@ -657,7 +656,7 @@ class _DownloadMindustryPopupPageState
                 ),
 
                 //下载时就能选启动方式：选 Copper 的话这个版本直接建好 loader，
-                //不用先下原版再去「换启动器新建」；loader 的下载/收进库由下载任务做
+                //不用先下原版再去换启动器新建；loader 的下载/收进库由下载任务做
                 Row(
                   spacing: 8,
                   children: [
