@@ -112,16 +112,29 @@ public class CopperComponentFactory extends CoreComponentFactory {
      * The arguments, plus the jar the bridge was loaded from.
      *
      * <p>The caller builds the vector and neither knows nor has to know where the jar it is loading
-     * came from; the bridge needs it to build the JVM's class path, so it is appended here.</p>
+     * came from; the bridge needs it to build the JVM's class path. It is inserted before the caller's
+     * first {@code --}: from there on the bridge reads every word as a positional argument - which is
+     * how the caller hands loader options and game arguments over untouched - and the jar is the one
+     * option that must never become one.</p>
      */
     private static String[] withBridgeJar(String[] args, String bridgeJar) {
         if (bridgeJar == null)
             return args;
         String[] original = args == null ? new String[0] : args;
+
+        int at = original.length;
+        for (int i = 0; i < original.length; i++) {
+            if ("--".equals(original[i])) {
+                at = i;
+                break;
+            }
+        }
+
         String[] result = new String[original.length + 2];
-        System.arraycopy(original, 0, result, 0, original.length);
-        result[original.length] = "--bridge-jar";
-        result[original.length + 1] = bridgeJar;
+        System.arraycopy(original, 0, result, 0, at);
+        result[at] = "--bridge-jar";
+        result[at + 1] = bridgeJar;
+        System.arraycopy(original, at, result, at + 2, original.length - at);
         return result;
     }
 
