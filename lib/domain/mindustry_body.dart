@@ -41,6 +41,12 @@ class MindustryBody {
   static Future<String> hashFile(File file) async =>
       (await sha1.bind(file.openRead()).first).toString();
 
+  /// 文件内容 hash（sha256 十六进制）：校验来源给的校验和用
+  ///
+  /// 国内 manifest 每个资产都带 sha256（GitHub API 不带），下载完拿它核对
+  static Future<String> hashFileSha256(File file) async =>
+      (await sha256.bind(file.openRead()).first).toString();
+
   /// 文本 hash：下载时内容还没拿到，用来源 URL 当身份
   static String hashText(String text) =>
       sha1.convert(utf8.encode(text)).toString();

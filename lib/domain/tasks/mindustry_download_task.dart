@@ -194,6 +194,15 @@ class MindustryDownloadTask extends Task {
       if (totalSize > 0 && await file.length() != totalSize) {
         throw Exception('文件可能在合并过程中损坏');
       }
+      // 来源给了 sha256 就核对一遍（国内 manifest 带、GitHub API 不带）
+      final expectedSha256 = jarAsset.sha256;
+      if (expectedSha256 != null && expectedSha256.isNotEmpty) {
+        final actualSha256 = await MindustryBody.hashFileSha256(file);
+        if (actualSha256.toLowerCase() != expectedSha256.toLowerCase()) {
+          throw Exception('游戏本体校验失败：sha256 与来源不一致');
+        }
+        addLog(.info, '[$tag] 本体 sha256 校验通过', tag: 'GameDownload');
+      }
       await _addIntoConfig();
       status = TaskStatus.completed;
 
