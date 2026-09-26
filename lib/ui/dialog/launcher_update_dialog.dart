@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/launcher_update.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launcher_update_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/future/mod_readme_view.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +19,21 @@ Future<void> showLauncherUpdateCheck(BuildContext context) {
     pageBuilder: (_, _, _) => const _LauncherUpdateDialog(),
   );
 }
+
+/// 更新说明用 README 渲染器显示，它要一个仓库条目来解析**相对**链接与图片
+///
+/// release 说明里的相对地址本来就是指向启动器仓库的，所以拿这个占位条目来解析
+final ModOfficialListEntry _launcherRepoEntry = ModOfficialListEntry(
+  repo: 'MDTCopper/launcher',
+  name: 'Copper Launcher',
+  author: 'MDTCopper',
+  lastUpdated: DateTime.now(),
+  stars: 0,
+  minGameVersion: '',
+  hasScripts: false,
+  hasJava: false,
+  description: '',
+)..mainBranchCache = 'main';
 
 /// 检查结果
 enum _CheckResult { checking, upToDate, available, failed }
@@ -180,7 +197,7 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
       if (release.body.trim().isNotEmpty)
         Container(
           width: double.infinity,
-          constraints: const BoxConstraints(maxHeight: 220),
+          constraints: const BoxConstraints(maxHeight: 280),
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: colors.cardBackground,
@@ -188,7 +205,10 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
             border: Border.all(color: colors.border),
           ),
           child: SingleChildScrollView(
-            child: Text(release.body.trim(), style: theme.textTheme.bodySmall),
+            child: ModReadmeView(
+              data: release.body.trim(),
+              mod: _launcherRepoEntry,
+            ),
           ),
         ),
       if (asset != null)
