@@ -416,6 +416,23 @@ class _DownloadMindustryPopupPageState
 
   late final ExpansibleController controller = ExpansibleController();
 
+  ///这条会从哪下：按当前策略取第一个可用地址，看它是不是国内源
+  ///
+  /// 策略是「优先」那档时，这里显示的是会先试的那个来源，失败才换另一边
+  String get _bodySourceLabel {
+    final asset = mindustryMeta.desktopJarAsset;
+    if (asset == null) return '该版本没有本体';
+
+    final candidateUrls = asset.urlsFor(
+      config.setting.downloadOptions.bodySource,
+    );
+    if (candidateUrls.isEmpty) return '没有可用来源';
+
+    return candidateUrls.first.startsWith(mindustryManifestBase)
+        ? '国内源'
+        : '官方源';
+  }
+
   @override
   void initState() {
     error = check(tag);
@@ -539,6 +556,20 @@ class _DownloadMindustryPopupPageState
                   label: '游戏名称',
                   error: error,
                   controller: textEditingController,
+                ),
+
+                //下载来源：按设置里的策略取第一个可用地址，一眼看出这条会从哪下
+                Row(
+                  spacing: 8,
+                  children: [
+                    Text('下载来源', style: theme.textTheme.bodyMedium),
+                    Text(
+                      _bodySourceLabel,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
                 ),
 
                 //下载时就能选启动方式：选 Copper 的话这个版本直接建好 loader，

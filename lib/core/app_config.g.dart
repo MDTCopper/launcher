@@ -244,6 +244,9 @@ DownloadOptions _$DownloadOptionsFromJson(Map<String, dynamic> json) =>
       downloadPath: json['downloadPath'] as String? ?? '',
       speedLimitBytes: (json['speedLimitBytes'] as num?)?.toInt() ?? 0,
       maxTread: (json['maxTread'] as num?)?.toInt() ?? 8,
+      bodySource:
+          $enumDecodeNullable(_$BodySourceStrategyEnumMap, json['bodySource']) ??
+          BodySourceStrategy.domesticFirst,
     );
 
 Map<String, dynamic> _$DownloadOptionsToJson(DownloadOptions instance) =>
@@ -251,7 +254,15 @@ Map<String, dynamic> _$DownloadOptionsToJson(DownloadOptions instance) =>
       'downloadPath': instance.downloadPath,
       'speedLimitBytes': instance.speedLimitBytes,
       'maxTread': instance.maxTread,
+      'bodySource': _$BodySourceStrategyEnumMap[instance.bodySource]!,
     };
+
+const _$BodySourceStrategyEnumMap = {
+  BodySourceStrategy.domesticFirst: 'domesticFirst',
+  BodySourceStrategy.githubFirst: 'githubFirst',
+  BodySourceStrategy.domesticOnly: 'domesticOnly',
+  BodySourceStrategy.githubOnly: 'githubOnly',
+};
 
 ProxyOptions _$ProxyOptionsFromJson(Map<String, dynamic> json) => ProxyOptions(
   mode:

@@ -558,6 +558,7 @@ class DownloadOptions {
     required this.downloadPath,
     required this.speedLimitBytes,
     required this.maxTread,
+    required this.bodySource,
   });
 
   @JsonKey(defaultValue: '')
@@ -571,12 +572,34 @@ class DownloadOptions {
   @JsonKey(defaultValue: 8)
   int maxTread;
 
+  ///游戏本体的下载来源策略（国内论坛源 / 官方 GitHub）
+  @JsonKey(defaultValue: BodySourceStrategy.domesticFirst)
+  BodySourceStrategy bodySource;
+
   Memory get speedLimit => Memory(bytes: speedLimitBytes);
 
   factory DownloadOptions.fromJson(Map<String, dynamic> json) =>
       _$DownloadOptionsFromJson(json);
 
   Map<String, dynamic> toJson() => _$DownloadOptionsToJson(this);
+}
+
+///游戏本体的下载来源策略
+///
+/// 国内源（论坛的 MDTBBS）支持 Range、有 sha256，通常更快；官方源是 GitHub。
+/// 「优先」的那档失败了会换另一边再试一次，「只用」的那档不会
+enum BodySourceStrategy {
+  ///优先国内源，失败回退官方（默认）
+  domesticFirst,
+
+  ///优先官方源，失败回退国内
+  githubFirst,
+
+  ///只用国内源
+  domesticOnly,
+
+  ///只用官方源
+  githubOnly,
 }
 
 ///代理方式

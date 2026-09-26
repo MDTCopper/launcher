@@ -181,6 +181,35 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
               _persistAndSync();
             },
           ),
+          OptionSettingBar<BodySourceStrategy>(
+            title: '本体下载来源',
+            hintText: '游戏本体从哪下：国内源支持分块与 sha256 校验，通常更快',
+            initialValue: downloadOptions.bodySource,
+            options: const [
+              DropdownOption(
+                value: BodySourceStrategy.domesticFirst,
+                label: '优先国内源',
+              ),
+              DropdownOption(
+                value: BodySourceStrategy.githubFirst,
+                label: '优先官方源',
+              ),
+              DropdownOption(
+                value: BodySourceStrategy.domesticOnly,
+                label: '只用国内源',
+              ),
+              DropdownOption(
+                value: BodySourceStrategy.githubOnly,
+                label: '只用官方源',
+              ),
+            ],
+            onSelect: (value) {
+              setState(() {
+                downloadOptions.bodySource = value;
+              });
+              _persistAndSync();
+            },
+          ),
           InputSettingBar(
             title: 'github访问Token',
 

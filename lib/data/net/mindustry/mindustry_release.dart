@@ -1,3 +1,4 @@
+import '../../../core/app_config.dart';
 import '../../../core/app_constant.dart';
 import '../../../util/mindustry_version_era.dart';
 
@@ -103,27 +104,56 @@ class MindustryRelease {
       assets: [
         if (rawAssets is List)
           for (final raw in rawAssets)
-            ?MindustryReleaseAsset.fromManifestJson(raw),
+            ?MindustryReleaseAsset.fromManifestJson(raw, tag: tag),
       ],
     );
   }
 }
 
 /// 版本里的一份资产
+///
+/// 两个来源各存各的地址：国内源只有 manifest 给的条目才有（路径带渠道段，猜不得），
+/// 官方地址两边都能有 —— manifest 条目按 tag + 文件名推得出来
 class MindustryReleaseAsset {
   const MindustryReleaseAsset({
     required this.name,
-    required this.url,
+    this.domesticUrl,
+    this.officialUrl,
     required this.size,
     this.sha256,
   });
 
   final String name;
-  final String url;
+
+  /// 国内源（论坛 MDTBBS）地址
+  final String? domesticUrl;
+
+  /// 官方 GitHub 地址
+  final String? officialUrl;
+
   final int size;
 
   /// 内容 sha256（国内 manifest 提供，GitHub API 不提供）
   final String? sha256;
+
+  /// 按策略给出**尝试顺序**：优先的那档在前、失败换另一边；「只用」的那档只有一个
+  List<String> urlsFor(BodySourceStrategy strategy) {
+    final domestic = [?domesticUrl];
+    final official = [?officialUrl];
+    return switch (strategy) {
+      BodySourceStrategy.domesticFirst => [...domestic, ...official],
+      BodySourceStrategy.githubFirst => [...official, ...domestic],
+      BodySourceStrategy.domesticOnly => domestic,
+      BodySourceStrategy.githubOnly => official,
+    };
+  }
+
+  /// 官方 release 资产地址：manifest 只给文件名，地址按仓库的固定命名拼
+  static String officialReleaseUrl({
+    required String tag,
+    required String assetName,
+  }) =>
+      'https://github.com/Anuken/Mindustry/releases/download/$tag/$assetName';
 
   static MindustryReleaseAsset? fromGithubJson(Object? raw) {
     if (raw is! Map) return null;
@@ -131,19 +161,24 @@ class MindustryReleaseAsset {
     if (url.isEmpty) return null;
     return MindustryReleaseAsset(
       name: raw['name']?.toString() ?? '',
-      url: url,
+      officialUrl: url,
       size: (raw['size'] as num?)?.toInt() ?? 0,
     );
   }
 
   /// manifest 的资产：只有 `platform == desktop` 才是本体，地址是相对路径
-  static MindustryReleaseAsset? fromManifestJson(Object? raw) {
+  static MindustryReleaseAsset? fromManifestJson(
+    Object? raw, {
+    required String tag,
+  }) {
     if (raw is! Map || raw['platform'] != 'desktop') return null;
     final path = raw['download_url']?.toString() ?? '';
     if (path.isEmpty) return null;
+    final name = raw['file_name']?.toString() ?? '';
     return MindustryReleaseAsset(
-      name: raw['file_name']?.toString() ?? '',
-      url: '$mindustryManifestBase$path',
+      name: name,
+      domesticUrl: '$mindustryManifestBase$path',
+      officialUrl: officialReleaseUrl(tag: tag, assetName: name),
       size: (raw['size'] as num?)?.toInt() ?? 0,
       sha256: raw['sha256']?.toString(),
     );

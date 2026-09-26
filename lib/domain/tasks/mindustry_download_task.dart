@@ -158,51 +158,87 @@ class MindustryDownloadTask extends Task {
       if (jarAsset == null) {
         throw Exception('该版本 release 里没有游戏本体，无法下载');
       }
-      final String url = jarAsset.url;
 
-      //本体进本体库集中存放（与导入共用一份，变体直接引用）；文件名带来源 hash，
-      //同一 URL 永远落到同一路径，断点续传不受影响
-      file = File(
-        await MindustryBody.downloadPath(
-          identity: mindustryMeta.tag,
-          sourceUrl: url,
-        ),
+      //按来源策略依次尝试：优先的那档失败（网络类 / 校验不过）就换另一边再试一次
+      final candidateUrls = jarAsset.urlsFor(
+        config.setting.downloadOptions.bodySource,
       );
-      if (!await file.exists()) {
-        await file.create(recursive: true);
+      if (candidateUrls.isEmpty) {
+        throw Exception('该版本没有可用的下载来源');
       }
-      isFreshDownload = true;
 
-      addLog(.info, '下载游戏 [$tag]：$url', tag: 'GameDownload');
+      Object? lastError;
+      for (var index = 0; index < candidateUrls.length; index++) {
+        final candidateUrl = candidateUrls[index];
+        final isLastCandidate = index == candidateUrls.length - 1;
+        try {
+          //每换一个来源都从头算进度，免得沿用上一档的残值
+          totalSize = 0;
+          downloadedSize = 0;
+          progress = 0;
+          speed = 0;
 
-      await cio.download(
-        url: url,
-        savePath: file.path,
-        cancelToken: cancelToken,
-        deleteOnError: false,
-        onStatus: (s) {
-          totalSize = s.total;
-          downloadedSize = s.downloaded;
-          speed = s.speed;
-          progress = s.total > 0 ? s.downloaded / s.total : 0;
-          chunks = s.chunks;
-          downloadStatus = s.status;
-          updateDisplay();
-        },
-      );
-      //检查文件完整性
-      if (totalSize > 0 && await file.length() != totalSize) {
-        throw Exception('文件可能在合并过程中损坏');
-      }
-      // 来源给了 sha256 就核对一遍（国内 manifest 带、GitHub API 不带）
-      final expectedSha256 = jarAsset.sha256;
-      if (expectedSha256 != null && expectedSha256.isNotEmpty) {
-        final actualSha256 = await MindustryBody.hashFileSha256(file);
-        if (actualSha256.toLowerCase() != expectedSha256.toLowerCase()) {
-          throw Exception('游戏本体校验失败：sha256 与来源不一致');
+          //本体进本体库集中存放（与导入共用一份，变体直接引用）；文件名带来源 hash，
+          //同一 URL 永远落到同一路径，断点续传不受影响
+          file = File(
+            await MindustryBody.downloadPath(
+              identity: mindustryMeta.tag,
+              sourceUrl: candidateUrl,
+            ),
+          );
+          if (!await file.exists()) {
+            await file.create(recursive: true);
+          }
+          isFreshDownload = true;
+
+          addLog(.info, '下载游戏 [$tag]：$candidateUrl', tag: 'GameDownload');
+
+          await cio.download(
+            url: candidateUrl,
+            savePath: file.path,
+            cancelToken: cancelToken,
+            deleteOnError: false,
+            onStatus: (s) {
+              totalSize = s.total;
+              downloadedSize = s.downloaded;
+              speed = s.speed;
+              progress = s.total > 0 ? s.downloaded / s.total : 0;
+              chunks = s.chunks;
+              downloadStatus = s.status;
+              updateDisplay();
+            },
+          );
+          //检查文件完整性
+          if (totalSize > 0 && await file.length() != totalSize) {
+            throw Exception('文件可能在合并过程中损坏');
+          }
+          // 来源给了 sha256 就核对一遍（国内 manifest 带、GitHub API 不带）
+          final expectedSha256 = jarAsset.sha256;
+          if (expectedSha256 != null && expectedSha256.isNotEmpty) {
+            final actualSha256 = await MindustryBody.hashFileSha256(file);
+            if (actualSha256.toLowerCase() != expectedSha256.toLowerCase()) {
+              throw Exception('游戏本体校验失败：sha256 与来源不一致');
+            }
+            addLog(.info, '[$tag] 本体 sha256 校验通过', tag: 'GameDownload');
+          }
+
+          lastError = null;
+          break;
+        } catch (e) {
+          //用户取消 / 暂停照旧往上抛，不换来源重试
+          if (e is DioException && CancelToken.isCancel(e)) rethrow;
+
+          lastError = e;
+          if (!isLastCandidate) {
+            addLog(
+              .warning,
+              '[$tag] 这个来源没下成，换下一个来源：${removeNewlines('$e')}',
+              tag: 'GameDownload',
+            );
+          }
         }
-        addLog(.info, '[$tag] 本体 sha256 校验通过', tag: 'GameDownload');
       }
+      if (lastError != null) throw lastError;
       await _addIntoConfig();
       status = TaskStatus.completed;
 
