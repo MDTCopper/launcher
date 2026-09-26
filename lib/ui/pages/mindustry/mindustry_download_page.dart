@@ -269,19 +269,33 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     final Widget title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('${major.label}(${versions.length.toString()})'),
-        Text(_rangeSummaryOf(major), style: theme.textTheme.bodySmall),
+        Text('${major.label}  (${versions.length.toString()})'),
+        Text(
+          _rangeSummaryOf(major, versionList),
+          style: theme.textTheme.bodySmall,
+        ),
       ],
     );
 
     return AnimatedExpansion(title: title, children: versions);
   }
 
-  /// 分段说明：这个段覆盖的 build 区间（最新那档没有上界）
-  String _rangeSummaryOf(MindustryMajorVersion major) {
-    final maxBuild = major.maxBuild;
-    if (maxBuild == null) return 'build ${_trimBuild(major.minBuild)} 起';
-    return 'build ${_trimBuild(major.minBuild)} – ${_trimBuild(maxBuild)}';
+  /// 分段说明：区间上界取**实际列出来的最后那个版本**
+  ///
+  /// 不拿下一档的起点当上界——那个版本属于下一档（v4 的上界是 v96，不是 v97）
+  String _rangeSummaryOf(
+    MindustryMajorVersion major,
+    List<MindustryRelease> versions,
+  ) {
+    final minBuild = major.minBuild;
+    if (major.maxBuild == null) return 'v${_trimBuild(minBuild)}+';
+
+    var lastBuild = minBuild;
+    for (final version in versions) {
+      final build = version.buildNumber;
+      if (build != null && build > lastBuild) lastBuild = build;
+    }
+    return 'v${_trimBuild(minBuild)} ~ v${_trimBuild(lastBuild)}';
   }
 
   /// build 号去掉多余的小数位（41.0 → 41、104.6 原样）
@@ -642,20 +656,6 @@ class _DownloadMindustryPopupPageState
                   controller: textEditingController,
                 ),
 
-                //下载来源：按设置里的策略取第一个可用地址，一眼看出这条会从哪下
-                Row(
-                  spacing: 8,
-                  children: [
-                    Text('下载来源', style: theme.textTheme.bodyMedium),
-                    Text(
-                      _bodySourceLabel,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  ],
-                ),
-
                 //下载时就能选启动方式：选 Copper 的话这个版本直接建好 loader，
                 //不用先下原版再去「换启动器新建」；loader 的下载/收进库由下载任务做
                 Row(
@@ -668,6 +668,12 @@ class _DownloadMindustryPopupPageState
                           : Icons.extension_outlined,
                       content: loaderChoice?.describe ?? '原版 Jar',
                       onTap: chooseLauncher,
+                    ),
+                    Expanded(child: SizedBox()),
+                    //下载来源：按设置里的策略取第一个可用地址，一眼看出这条会从哪下
+                    Text(
+                      '下载来源:  $_bodySourceLabel',
+                      style: theme.textTheme.labelMedium,
                     ),
                   ],
                 ),

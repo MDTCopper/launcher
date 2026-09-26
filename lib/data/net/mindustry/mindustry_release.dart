@@ -34,6 +34,9 @@ class MindustryRelease {
 
   final List<MindustryReleaseAsset> assets;
 
+  /// tag 里的 build 号（`v159.7` → 159.7）；解析不出为 null
+  double? get buildNumber => double.tryParse(tag.replaceFirst('v', ''));
+
   /// 该 release 所属的版本时代，按 tag 里的 build 号判定
   ///
   /// 解析不出的按现代版算
@@ -159,8 +162,7 @@ class MindustryReleaseAsset {
   static String officialReleaseUrl({
     required String tag,
     required String assetName,
-  }) =>
-      'https://github.com/Anuken/Mindustry/releases/download/$tag/$assetName';
+  }) => 'https://github.com/Anuken/Mindustry/releases/download/$tag/$assetName';
 
   static MindustryReleaseAsset? fromGithubJson(Object? raw) {
     if (raw is! Map) return null;
