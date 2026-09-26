@@ -257,10 +257,12 @@ class LauncherUpdate {
       Directory(p.join(Directory.systemTemp.path, 'copper_launcher_update'));
 
   /// 下载产物，返回落盘路径
+  ///
+  /// 进度、字节数与速度都通过 [onStatus] 往外报，界面据此显示具体进度
   static Future<String> downloadAsset({
     required LauncherAsset asset,
     CancelToken? cancelToken,
-    void Function(double progress)? onProgress,
+    HttpStatusCallback? onStatus,
   }) async {
     final dir = downloadDir;
     await dir.create(recursive: true);
@@ -272,7 +274,7 @@ class LauncherUpdate {
       url: asset.url,
       savePath: target.path,
       cancelToken: cancelToken,
-      onStatus: (state) => onProgress?.call(state.progress),
+      onStatus: onStatus,
     );
     return target.path;
   }

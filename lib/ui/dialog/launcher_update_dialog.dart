@@ -7,6 +7,7 @@ import 'package:copper_launcher/domain/tasks/launcher_update_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/future/readme_view.dart';
 import 'package:copper_launcher/ui/components/future/readme_source.dart';
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
@@ -83,10 +84,23 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
     );
   }
 
-  /// 下载：关掉弹窗，进度与取消交给任务抽屉
-  void _download(LauncherAsset asset) {
+  /// 下载前先问一句「现在更新」：更新过程里启动器会退出并重开，
+  /// 得先让用户知道、也能挑个手头没在干活的时机
+  Future<void> _download(LauncherAsset asset) async {
     final release = _release;
     if (release == null) return;
+
+    final isSetup = asset.name.toLowerCase().endsWith('-setup.exe');
+    final confirmed = await showAnimatedDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      pageBuilder: (_, _, _) => _ConfirmUpdateDialog(
+        release: release,
+        isSetup: isSetup,
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     Navigator.of(context).pop();
     addTask(LauncherUpdateTask(release: release, asset: asset));
   }
@@ -111,7 +125,7 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
         child: Container(
           padding: const EdgeInsets.all(16),
           constraints: BoxConstraints(
-            maxWidth: screen.width * 0.5,
+            maxWidth: screen.width * 0.75,
             maxHeight: screen.height * 0.8,
           ),
           decoration: BoxDecoration(
@@ -126,7 +140,7 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 12,
+            spacing: 4,
             children: [
               Text('检查更新', style: theme.textTheme.titleLarge),
               Text(
@@ -167,44 +181,29 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
   List<Widget> _buildAvailable(ThemeData theme, AppColors colors) {
     final release = _release!;
     final asset = _asset;
-    final channel = release.channel;
 
     return [
-      Row(
-        spacing: 8,
-        children: [
-          Text(
-            release.displayName,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: colors.interactive,
-            ),
-          ),
-          Text('· ${channel.label}', style: theme.textTheme.labelMedium),
-        ],
+      Text(
+        release.displayName,
+        style: theme.textTheme.titleMedium?.copyWith(color: colors.interactive),
       ),
       if (release.body.trim().isNotEmpty)
-        Container(
-          width: double.infinity,
-          constraints: const BoxConstraints(maxHeight: 280),
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: colors.cardBackground,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: colors.border),
-          ),
-          child: SingleChildScrollView(
-            child: ReadmeView(
-              data: release.body.trim(),
-              source: _releaseNotesSource,
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.cardBackground,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: colors.border),
+            ),
+            child: CopperSingleChildScrollView(
+              fadeMask: false,
+              padding: const EdgeInsets.all(8),
+              child: ReadmeView(
+                data: release.body.trim(),
+                source: _releaseNotesSource,
+              ),
             ),
           ),
-        ),
-      if (asset != null)
-        Text(
-          asset.name.endsWith('-setup.exe')
-              ? '将下载安装包并覆盖安装：装完启动器会退出，重新打开即可'
-              : '当前是解压版：会下载 zip，退出后自动覆盖并重新打开',
-          style: theme.textTheme.labelMedium,
         ),
       _buildActions([
         if (asset != null)
@@ -235,4 +234,79 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
     content: '关闭',
     onTap: () => Navigator.of(context).pop(),
   );
+}
+
+/// 更新前的确认：说清更新过程里会发生什么（启动器退出、自动重开）
+class _ConfirmUpdateDialog extends StatelessWidget {
+  const _ConfirmUpdateDialog({required this.release, required this.isSetup});
+
+  final LauncherRelease release;
+
+  /// 安装版走 Setup（覆盖安装）；解压版是退出后自动覆盖并重开
+  final bool isSetup;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+
+    return Center(
+      child: Material(
+        elevation: 8,
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.45,
+          ),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(8),
+            border: Border(
+              top: BorderSide(color: colors.border, width: 1.5),
+              left: BorderSide(color: colors.border, width: 0.75),
+              right: BorderSide(color: colors.border, width: 0.75),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 12,
+            children: [
+              Text('现在更新？', style: theme.textTheme.titleLarge),
+              Text(
+                isSetup
+                    ? '将下载并运行安装程序（${release.displayName}）。'
+                          '安装时启动器会退出，装完重新打开即可'
+                    : '将下载更新包（${release.displayName}）。'
+                          '下载完启动器会退出、自动覆盖并重新打开，用户数据不受影响',
+                style: theme.textTheme.bodyMedium,
+              ),
+              Text(
+                '更新期间请不要强制关闭启动器',
+                style: theme.textTheme.labelMedium,
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  IconTextButton(
+                    icon: Icons.system_update_alt,
+                    content: '现在更新',
+                    onTap: () => Navigator.of(context).pop(true),
+                  ),
+                  IconTextButton(
+                    icon: Icons.schedule,
+                    content: '稍后',
+                    onTap: () => Navigator.of(context).pop(false),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
