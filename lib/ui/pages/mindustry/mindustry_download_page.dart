@@ -46,29 +46,49 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
   /// 最新 be；拿不到（网络 / 限流）时为 null，页面不显示该入口
   static MindustryRelease? _latestBeta;
 
+  /// 当前这份列表是按哪个来源策略拉的：设置里改了策略就得重拉（列表要跟设置一致）
+  static BodySourceStrategy? _versionListSource;
+
   /// 列表只在这里建一次 future，手动刷新才重建；
   /// 若写在 build 里，任何 setState 都会让 FutureBuilder 回到 waiting、列表闪加载圈
   late Future<bool> _versionFuture = _fetchVersionAssets();
 
-  /// 版本列表：先读 remote 快照（历史版本基本不变），再取最新一页合并。
-  /// 最新一页优先走**国内 manifest**（一次拿全量、不吃 API 额度），拿不到再退
-  /// GitHub API；两个都拿不到就只用快照，至少老版本还能下
+  /// 版本列表：**来源策略决定列表从哪来**，保证列出来的版本都下得动
+  ///
+  /// - 只用国内源：只列国内源有的版本 —— 不合快照，快照里的老版本（v125.1 及以下）
+  ///   国内源没有，列出来选中也是「没有可用下载来源」
+  /// - 只用官方源：完全不碰国内主机，列表走官方 API，失败退快照
+  /// - 优先两档：国内 manifest 优先，失败退官方 API，再与快照合并补老版本
   Future<bool> _fetchVersionAssets() async {
-    if (_versionList.isNotEmpty) return true;
+    final bodySource = config.setting.downloadOptions.bodySource;
+
+    //列表是按来源策略拉的：策略没变、列表还在，就直接用缓存
+    if (_versionList.isNotEmpty && _versionListSource == bodySource) return true;
+    _versionList.clear();
+    _latestBeta = null;
+    _versionListSource = bodySource;
 
     final snapshot = MindustryReleaseListSnapshot.parse(
       await RemoteData.load(mindustryVersionsFile),
     );
+    final isDomesticOnly = bodySource == BodySourceStrategy.domesticOnly;
 
     List<MindustryRelease> latest;
-    try {
-      latest = await _fetchManifestReleases();
-    } catch (e) {
-      addLogAndPrint(
-        .warning,
-        '国内源版本列表拿不到，退 GitHub API：${removeNewlines('$e')}',
-        tag: 'MindustryDownload',
-      );
+    if (isDomesticOnly) {
+      try {
+        latest = await _fetchManifestReleases();
+      } catch (e) {
+        addLogAndPrint(
+          .warning,
+          '国内源版本列表拿不到：${removeNewlines('$e')}',
+          tag: 'MindustryDownload',
+        );
+        latest = const [];
+      }
+      _versionList
+        ..clear()
+        ..addAll(latest);
+    } else if (bodySource == BodySourceStrategy.githubOnly) {
       try {
         latest = await _fetchLatestReleases();
       } catch (e) {
@@ -78,26 +98,52 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
           tag: 'MindustryDownload',
         );
         latest = const [];
-        if (snapshot.isEmpty) return false;
+      }
+      _versionList
+        ..clear()
+        ..addAll(MindustryReleaseListSnapshot.merge(snapshot, latest));
+    } else {
+      try {
+        latest = await _fetchManifestReleases();
+      } catch (e) {
+        addLogAndPrint(
+          .warning,
+          '国内源版本列表拿不到，退 GitHub API：${removeNewlines('$e')}',
+          tag: 'MindustryDownload',
+        );
+        try {
+          latest = await _fetchLatestReleases();
+        } catch (e) {
+          addLogAndPrint(
+            .warning,
+            '获取最新版本列表失败，只列快照里的版本：${removeNewlines('$e')}',
+            tag: 'MindustryDownload',
+          );
+          latest = const [];
+        }
+      }
+      _versionList
+        ..clear()
+        ..addAll(MindustryReleaseListSnapshot.merge(snapshot, latest));
+    }
+
+    //be 的 build 太多，只取最新一条，其余走「下载指定 build」；
+    //国内 manifest 里没有 BE，只用国内源时这段整个不显示
+    if (isDomesticOnly) {
+      _latestBeta = null;
+    } else {
+      try {
+        _latestBeta = await _fetchLatestBeta();
+      } catch (e) {
+        addLogAndPrint(
+          .warning,
+          '获取最新 be 版本失败：${removeNewlines('$e')}',
+          tag: 'MindustryDownload',
+        );
+        _latestBeta = null;
       }
     }
-
-    _versionList
-      ..clear()
-      ..addAll(MindustryReleaseListSnapshot.merge(snapshot, latest));
-
-    //be 的 build 太多，只取最新一条，其余走「下载指定 build」
-    try {
-      _latestBeta = await _fetchLatestBeta();
-    } catch (e) {
-      addLogAndPrint(
-        .warning,
-        '获取最新 be 版本失败：${removeNewlines('$e')}',
-        tag: 'MindustryDownload',
-      );
-      _latestBeta = null;
-    }
-    return true;
+    return _versionList.isNotEmpty;
   }
 
   /// 取国内源的版本清单（一次拿全量，本体地址也直接指向它）
@@ -311,6 +357,13 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
 
   @override
   Widget build(BuildContext context) {
+    //设置里改了来源策略就重拉列表：页面可能还留在路由栈里，不会重跑 initState
+    if (_versionListSource != config.setting.downloadOptions.bodySource) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshVersions();
+      });
+    }
+
     final child = FutureBuilder<bool>(
       future: _versionFuture,
       builder: (context, snapshot) {
@@ -338,11 +391,15 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
                           hint: '刷新版本列表',
                           onTap: _refreshVersions,
                         ),
-                        CapsuleAction(
-                          icon: Icons.tag,
-                          hint: '下载指定 build',
-                          onTap: _openBeBuildDownload,
-                        ),
+                        //BE 只在官方源有（国内 manifest 不含 MindustryBuilds），
+                        //选「只用国内源」时这个入口也一并隐藏
+                        if (config.setting.downloadOptions.bodySource !=
+                            BodySourceStrategy.domesticOnly)
+                          CapsuleAction(
+                            icon: Icons.tag,
+                            hint: '下载指定 build',
+                            onTap: _openBeBuildDownload,
+                          ),
                       ],
                     ),
                   ),

@@ -183,7 +183,8 @@ class _DownloadSettingPageState extends State<DownloadSettingPage> {
           ),
           OptionSettingBar<BodySourceStrategy>(
             title: '本体下载来源',
-            hintText: '游戏本体从哪下：国内源支持分块与 sha256 校验，通常更快',
+            hintText: '游戏本体从哪下：国内源支持分块与 sha256 校验，通常更快；'
+                '选「只用」时版本列表也只列那边有的版本',
             initialValue: downloadOptions.bodySource,
             options: const [
               DropdownOption(
