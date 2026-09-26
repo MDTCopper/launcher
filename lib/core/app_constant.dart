@@ -1,6 +1,6 @@
 // ===== 版本信息（由 tool/build_release.dart 生成，勿手改）=====
 ///UI 显示的版本号，形如 v0.0.2 / v0.0.2 alpha 12 / v0.0.2 beta 7
-const appVersion = 'v0.2.0 alpha 1';
+const appVersion = 'v0.2.0 alpha 7';
 
 ///本次构建的 build number，同一版本重复构建时可选择不计入
 const appBuildNumber = 7;
