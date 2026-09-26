@@ -26,8 +26,12 @@ import dalvik.system.*;
  */
 @SuppressLint("RestrictedApi")
 public class CopperComponentFactory extends CoreComponentFactory {
-    /** The one placeholder: both ways of running the game are asked for by this name. */
-    private static final String PLACEHOLDER = "io.github.copper.loader.MindustryActivity";
+    /**
+     * The one placeholder: both ways of running the game are asked for by this name. It has to match
+     * the manifest entry and {@code Bridge.launch} / {@code Loader.launch} exactly - it did not, and a
+     * launch fell through to the real placeholder, which finished itself without a word.
+     */
+    private static final String PLACEHOLDER = "io.github.copper.MindustryActivity";
 
     @NonNull
     @Override

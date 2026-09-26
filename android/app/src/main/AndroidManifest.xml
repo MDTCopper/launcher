@@ -18,6 +18,9 @@
     <uses-feature android:glEsVersion="0x00020000" android:required="true"/>
     <uses-feature android:name="android.hardware.type.pc" android:required="false" />
 
+    <!-- Following Mindustry's own manifest: predictive back is off app-wide, and back arrives as a
+         KeyEvent.KEYCODE_BACK instead of an OnBackInvokedCallback - the bridge handles the key event
+         (BridgeActivity.onKeyDown), and Flutter keeps handling it through onBackPressed. -->
     <application
         android:label="Copper Launcher"
         android:name="${applicationName}"
@@ -27,7 +30,8 @@
         android:appCategory="game"
         android:appComponentFactory="io.github.copper.CopperComponentFactory"
         tools:replace="android:appComponentFactory"
-        android:resizeableActivity="true">
+        android:resizeableActivity="true"
+        android:enableOnBackInvokedCallback="false">
 
         <!-- Limits from Mindustry -->
         <meta-data android:name="android.max_aspect" android:value="2.1"/>
@@ -54,13 +58,20 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- The placeholder both ways of running the game are asked for; CopperComponentFactory
+             returns the game's own activity in its place.
+
+             singleTop, not Mindustry's singleTask: the game shares the host's task, and its own
+             moveTaskToBack has to move the whole app. configChanges covers everything that would
+             recreate an activity holding a running JVM. -->
         <activity
             android:name="io.github.copper.MindustryActivity"
             android:exported="false"
             android:label="@string/mdt_title"
-            android:launchMode="singleTask"
+            android:launchMode="singleTop"
+            android:screenOrientation="sensorLandscape"
             android:process=":mdt_process"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout">
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|density|smallestScreenSize">
         </activity>
 
         <!-- Don't delete the meta-data below.
