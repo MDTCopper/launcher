@@ -214,6 +214,20 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     ];
   }
 
+  /// 各时代分段：没有版本的时代整段不显示
+  ///
+  /// 来源策略会改变列表范围（如「只用国内源」时只列 v126 起），
+  /// 老时代空着就别留一个空标题在那里
+  List<Widget> _buildEraSections() {
+    final sections = <Widget>[];
+    for (final era in MindustryVersionEra.values) {
+      final versions = _versionsOfEra(era);
+      if (versions.isEmpty) continue;
+      sections.add(_buildEraVersionList(era, versions));
+    }
+    return sections;
+  }
+
   /// 一个时代一段：标题带数量，下面跟一句该时代的说明
   Widget _buildEraVersionList(
     MindustryVersionEra era,
@@ -348,8 +362,7 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
             ],
           ),
         ),
-        for (final era in MindustryVersionEra.values)
-          _buildEraVersionList(era, _versionsOfEra(era)),
+        ..._buildEraSections(),
         SizedBox(height: 40),
       ],
     );
