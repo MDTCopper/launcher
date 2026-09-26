@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +7,7 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'readme_loader.dart';
+import 'readme_source.dart';
 
 /// GitHub README 渲染器（自研，替代 `markdown → flutter_html` 管线）。
 ///
@@ -19,40 +19,38 @@ import 'readme_loader.dart';
 /// - 行内：粗体 / 斜体 / 删除线 / 行内代码 / 链接 / 图片
 /// - 直写 HTML（`UnparsedContent`）：`<br> <img> <a> <b> <i> <code> <sub> <sup>`
 ///   以及容器 `<div align|center> <details><summary>`；不认识的标签剥掉只留内容
-/// - 图片交给 [ModReadmeNetworkImage]（相对路径按仓库解析、支持 SVG 与徽章）
+/// - 图片交给 [ReadmeNetworkImage]（相对路径按仓库解析、支持 SVG 与徽章）
 /// - 链接：绝对地址直接打开，相对路径按仓库拼成 GitHub 地址
-class ModReadmeView extends StatefulWidget {
-  const ModReadmeView({
+class ReadmeView extends StatefulWidget {
+  const ReadmeView({
     super.key,
     required this.data,
-    required this.mod,
+    required this.source,
     this.onLinkTap,
   });
 
   /// README 原文（markdown）
   final String data;
-  final ModOfficialListEntry mod;
+
+  /// 相对链接 / 相对图片按哪个仓库解析
+  final ReadmeSource source;
 
   /// 覆盖默认的链接打开行为（默认用系统浏览器/内嵌 webview 打开）
   final void Function(String url)? onLinkTap;
-
-  /// 相对链接 / 相对图片按仓库的哪个分支解析
-  static String branchOf(ModOfficialListEntry mod) =>
-      mod.mainBranchCache ?? 'main';
 
   /// 把 README 里的链接解析成可打开的绝对地址。
   ///
   /// - `#anchor` → null（暂不支持页内跳转）
   /// - `https://…` / `mailto:` 等 → 原样
   /// - `./x.md`、`docs/x.md` → GitHub 仓库地址（按文件/目录判断 blob / tree）
-  static String? resolveLink(ModOfficialListEntry mod, String href) {
+  static String? resolveLink(ReadmeSource source, String href) {
     final link = href.trim();
     if (link.isEmpty || link.startsWith('#')) return null;
     if (Uri.tryParse(link)?.hasScheme ?? false) return link;
     if (link.startsWith('//')) return 'https:$link';
 
-    final repo = 'https://github.com/${mod.repo}';
-    final branch = branchOf(mod);
+    final repo = 'https://github.com/${source.repo}';
+    final branch = source.branch;
     final path = link.replaceFirst(RegExp(r'^\./'), '');
     if (path.endsWith('/')) return '$repo/tree/$branch/$path';
     // 有后缀（x.md / x.png）视为文件，无后缀视为目录
@@ -266,17 +264,17 @@ class ModReadmeView extends StatefulWidget {
   static List<ReadmeHtmlNode>? parseHtml(String html) => _parseHtml(html);
 
   @override
-  State<ModReadmeView> createState() => _ModReadmeViewState();
+  State<ReadmeView> createState() => _ReadmeViewState();
 }
 
-class _ModReadmeViewState extends State<ModReadmeView> {
+class _ReadmeViewState extends State<ReadmeView> {
   /// 链接的点击识别器要在 dispose 里释放
   final _recognizers = <TapGestureRecognizer>[];
 
   late List<md.Node> _blocks = _parse(widget.data);
 
   @override
-  void didUpdateWidget(covariant ModReadmeView oldWidget) {
+  void didUpdateWidget(covariant ReadmeView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.data != widget.data) {
       _blocks = _parse(widget.data);
@@ -291,7 +289,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     super.dispose();
   }
 
-  List<md.Node> _parse(String data) => ModReadmeView.parseMarkdown(data);
+  List<md.Node> _parse(String data) => ReadmeView.parseMarkdown(data);
 
   ThemeData get _theme => Theme.of(context);
 
@@ -398,7 +396,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         inline.clear();
         return;
       }
-      for (final line in ModReadmeView.splitInlineOnBr(inline)) {
+      for (final line in ReadmeView.splitInlineOnBr(inline)) {
         widgets.add(_paragraph(line, colors));
       }
       inline.clear();
@@ -414,14 +412,14 @@ class _ModReadmeViewState extends State<ModReadmeView> {
             tree.any(
               (it) =>
                   it.tag != null &&
-                  ModReadmeView._blockHtmlTags.contains(it.tag) &&
+                  ReadmeView._blockHtmlTags.contains(it.tag) &&
                   // 纯 `<br>` 不算块
                   it.tag != 'br',
             );
         if (isBlockHtml) {
           flushInline();
           final converted = [
-            for (final it in tree) ...ModReadmeView.convertHtmlNode(it),
+            for (final it in tree) ...ReadmeView.convertHtmlNode(it),
           ];
           widgets.addAll(_buildMixedBlocks(converted, colors));
           continue;
@@ -439,7 +437,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
       if (node is md.Element && node.tag == 'br') {
         // 行内的 <br>：先结束当前段落，连续出现时产生空隙
         if (inlineHasContent) {
-          for (final line in ModReadmeView.splitInlineOnBr(inline)) {
+          for (final line in ReadmeView.splitInlineOnBr(inline)) {
             widgets.add(_paragraph(line, colors));
           }
           inline.clear();
@@ -449,7 +447,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         continue;
       }
       if (node is md.Element &&
-          !ModReadmeView._inlineHtmlTags.contains(node.tag)) {
+          !ReadmeView._inlineHtmlTags.contains(node.tag)) {
         flushInline();
         if (_buildBlock(node, colors) case final widget?) {
           widgets.add(widget);
@@ -617,7 +615,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         if (it is md.Element && (it.tag == 'ul' || it.tag == 'ol')) {
           nested.add(it);
         } else if (it is md.Element &&
-            !ModReadmeView._inlineHtmlTags.contains(it.tag)) {
+            !ReadmeView._inlineHtmlTags.contains(it.tag)) {
           blocks.add(it);
         } else {
           inline.add(it);
@@ -962,7 +960,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         final href = node.attributes['href'];
         final url = href == null
             ? null
-            : ModReadmeView.resolveLink(widget.mod, href);
+            : ReadmeView.resolveLink(widget.source, href);
         final text = _inlines(children, colors, linkUrl: url);
         if (url == null) {
           spans.add(TextSpan(children: text));
@@ -1031,7 +1029,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     }
 
     // GitHub tagfilter：这些标签会被转义成字面文本展示
-    if (ModReadmeView._disallowedHtmlTags.contains(node.tag)) {
+    if (ReadmeView._disallowedHtmlTags.contains(node.tag)) {
       spans.add(TextSpan(text: '<${node.tag}>${node.rawText}</${node.tag}>'));
       return;
     }
@@ -1119,7 +1117,7 @@ class _ModReadmeViewState extends State<ModReadmeView> {
         final href = node.attributes['href'];
         final url = href == null
             ? null
-            : ModReadmeView.resolveLink(widget.mod, href);
+            : ReadmeView.resolveLink(widget.source, href);
         final childSpans = <InlineSpan>[];
         for (final child in node.children) {
           _renderHtmlNode(child, colors, childSpans, linkUrl: url);
@@ -1179,9 +1177,9 @@ class _ModReadmeViewState extends State<ModReadmeView> {
     final uri = Uri.tryParse(src.trim());
     if (uri == null) return const TextSpan(text: '');
 
-    Widget image = ModReadmeNetworkImage(
+    Widget image = ReadmeNetworkImage(
       uri: uri,
-      mod: widget.mod,
+      source: widget.source,
       width: width,
       height: height,
       onError: Icon(

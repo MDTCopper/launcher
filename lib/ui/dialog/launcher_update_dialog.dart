@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_constant.dart';
-import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/launcher_update.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launcher_update_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
-import 'package:copper_launcher/ui/components/future/mod_readme_view.dart';
+import 'package:copper_launcher/ui/components/future/readme_view.dart';
+import 'package:copper_launcher/ui/components/future/readme_source.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
@@ -20,20 +20,8 @@ Future<void> showLauncherUpdateCheck(BuildContext context) {
   );
 }
 
-/// 更新说明用 README 渲染器显示，它要一个仓库条目来解析**相对**链接与图片
-///
-/// release 说明里的相对地址本来就是指向启动器仓库的，所以拿这个占位条目来解析
-final ModOfficialListEntry _launcherRepoEntry = ModOfficialListEntry(
-  repo: 'MDTCopper/launcher',
-  name: 'Copper Launcher',
-  author: 'MDTCopper',
-  lastUpdated: DateTime.now(),
-  stars: 0,
-  minGameVersion: '',
-  hasScripts: false,
-  hasJava: false,
-  description: '',
-)..mainBranchCache = 'main';
+/// 更新说明按 README 渲染：相对链接与相对图片都指向启动器自己的仓库
+const _releaseNotesSource = ReadmeSource(repo: LauncherUpdate.repo);
 
 /// 检查结果
 enum _CheckResult { checking, upToDate, available, failed }
@@ -205,9 +193,9 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
             border: Border.all(color: colors.border),
           ),
           child: SingleChildScrollView(
-            child: ModReadmeView(
+            child: ReadmeView(
               data: release.body.trim(),
-              mod: _launcherRepoEntry,
+              source: _releaseNotesSource,
             ),
           ),
         ),
@@ -215,7 +203,7 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
         Text(
           asset.name.endsWith('-setup.exe')
               ? '将下载安装包并覆盖安装：装完启动器会退出，重新打开即可'
-              : '当前是解压版：会下载 zip，退出后自动覆盖并重新打开（用户数据不受影响）',
+              : '当前是解压版：会下载 zip，退出后自动覆盖并重新打开',
           style: theme.textTheme.labelMedium,
         ),
       _buildActions([
