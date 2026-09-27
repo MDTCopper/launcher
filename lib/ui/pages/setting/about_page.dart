@@ -121,7 +121,8 @@ class AboutPage extends StatelessWidget {
             title: '赞助名单',
             child: Column(spacing: 12, children: []),
           ),
-        ContentPanelModule(title: '加入我们', child: Text('todo 加入我们')),
+        if (kDebugMode)
+          ContentPanelModule(title: '加入我们', child: Text('todo 加入我们')),
         //开源许可
         ContentPanelModule(
           title: '许可证',
