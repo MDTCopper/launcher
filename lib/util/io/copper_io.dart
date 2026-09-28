@@ -256,6 +256,11 @@ class CopperIO {
       // ignore: deprecated_member_use
       onHttpClientCreate: (client) {
         client.findProxy = (url) {
+          // 镜像节点自己走直连：它们本来就是「绕开代理上 GitHub」用的，
+          // 再被代理绕出去容易失败 / 变慢（节点域名国内直连才是常态）
+          if (GithubMirror.instance.isMirrorUrl(url.toString())) {
+            return 'DIRECT';
+          }
           if (_hasValidCustomProxy) {
             return 'PROXY $_proxyHost:$_proxyPort';
           }
@@ -353,7 +358,14 @@ class CopperIO {
     }
   }
 
-  ///经镜像发一次请求：取最优节点前缀（TTL 缓存优先，过期才测速）后重发
+  /// 一次请求最多试几个节点：排名表可能很长，前几个都不通就直接回退直连
+  static const _maxMirrorAttempts = 3;
+
+  ///经镜像发一次请求：取该族的排名表（TTL 内直接用，过期才重测）顺着往下试
+  ///
+  ///节点级失败（连不上 / 403 / 429 / 5xx）就换下一个节点；404 这类「资源不存在」
+  ///是上游真实答复，换节点也一样，直接抛出。全部节点都失败时抛
+  ///[MirrorUnavailable]（不是 DioException），让 [_githubFallback] 回退直连
   Future<R> _sendViaMirror<R>(
     String url,
     Future<R> Function(String effectiveUrl) send, {
@@ -362,29 +374,36 @@ class CopperIO {
     final mirror = GithubMirror.instance;
     if (!mirror.enabled) throw StateError('镜像未启用');
 
-    String? prefix = mirror.freshBestMirrorFor(url);
-    final isFromCache = prefix != null;
-    if (prefix == null) {
+    var ranked = mirror.freshRankedFor(url);
+    final isFromCache = ranked.isNotEmpty;
+    if (ranked.isEmpty) {
+      ranked = await mirror.rankFamilyFor(url, preferRange: preferRange);
+    }
+    if (ranked.isEmpty) throw StateError('无可用镜像节点');
+
+    Object? lastError;
+    for (final prefix in ranked.take(_maxMirrorAttempts)) {
+      addLog(
+        .debug,
+        '镜像${isFromCache ? '用缓存' : '新测速'}：$prefix（目标 $url）',
+        tag: 'Mirror',
+      );
       try {
-        //按目标域名选探针（api / raw 节点能力不同），但不用本次请求 URL 本身：
-        //目标自身不存在（404）会让所有节点「测速失败」，节点选择被带偏
-        prefix = await mirror.selectBestMirror(
-          GithubMirror.probeUrlFor(url),
-          targetUrl: url,
-          preferRange: preferRange,
+        final result = await send('$prefix$url');
+        mirror.promoteMirror(url, prefix);
+        return result;
+      } catch (error) {
+        if (error is DioException && !isMirrorNodeFailure(error)) rethrow;
+        lastError = error;
+        mirror.demoteMirror(url, prefix);
+        addLog(
+          .debug,
+          '镜像节点失败：$prefix（${mirrorFailureReason(error)}），换下一个',
+          tag: 'Mirror',
         );
-      } catch (_) {
-        //测速失败不阻塞，用现有同类最优镜像继续
-        prefix = mirror.bestMirrorFor(url);
       }
     }
-    if (prefix == null) throw StateError('无可用镜像节点');
-    addLog(
-      .debug,
-      '镜像${isFromCache ? '用缓存' : '新测速'}：$prefix（目标 $url）',
-      tag: 'Mirror',
-    );
-    return send('$prefix$url');
+    throw MirrorUnavailable(lastError);
   }
 
   ///是否值得回退镜像：网络类错误一律回退；GitHub 的 401/403（空/失效 token、
@@ -1213,6 +1232,40 @@ bool isNetworkFailure(DioException error) => switch (error.type) {
   DioExceptionType.receiveTimeout => true,
   _ => false,
 };
+
+/// 镜像节点这次失败该不该换节点：连接类失败，或节点回 403 / 429 / 5xx
+///
+/// 403 常是节点自己拒绝（限流 / 不服务境外 IP）而不是上游答复，换一个节点往往就好；
+/// 404 这类是上游真实答复，换谁都一样，所以不算节点失败
+bool isMirrorNodeFailure(DioException error) {
+  if (isNetworkFailure(error)) return true;
+  final status = error.response?.statusCode;
+  if (status == null) return false;
+  return status == 403 || status == 429 || status >= 500;
+}
+
+/// 节点失败原因（写日志用）：有状态码就报状态码，否则报 dio 的失败类型
+String mirrorFailureReason(Object error) {
+  if (error is DioException) {
+    final status = error.response?.statusCode;
+    return status == null ? error.type.name : 'HTTP $status';
+  }
+  return error.runtimeType.toString();
+}
+
+/// 该族的镜像节点全部失败。
+///
+/// **故意不是 [DioException]**：调用方（[CopperIO._githubFallback]）据此回退直连，
+/// 而不是把「节点的问题」当成「资源不存在」直接失败
+class MirrorUnavailable implements Exception {
+  MirrorUnavailable(this.lastError);
+
+  /// 最后一个节点的失败原因（排查用）
+  final Object? lastError;
+
+  @override
+  String toString() => '镜像节点全部失败（最后一个错误：$lastError）';
+}
 
 /// 把响应体解成对象：已经是对象（dio 帮着解过）就原样返回，别再来一次 [jsonDecode]
 ///

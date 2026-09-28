@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/mirror_node.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:dio/dio.dart';
@@ -68,36 +69,81 @@ class GithubMirror {
   ///爬取预检得到的各节点延迟（前缀 -> ms），供设置页直接展示
   Map<String, int> crawledLatencies = {};
 
-  ///当前选出的最优镜像前缀；null 表示尚未测速
-  String? _bestMirror;
-
-  ///[_bestMirror] 是为哪个探针选出来的（raw / api 是不同家族）
+  ///每族的「排名表」：能测通的节点前缀，按实测延迟从快到慢。
   ///
-  ///节点能力按域名分：只代理 raw 的节点对 api 请求是坏的，
-  ///所以选出的节点只对同探针的请求有效
-  String? _bestMirrorProbe;
+  ///三家能力互不相同（只代理 raw 的节点对 api 请求是坏的），所以按族各存一份、
+  ///按需取用：请求属于哪一族就拿哪一族的表，节点失败时顺着表往下换
+  final Map<MirrorFamily, List<String>> _rankings = {};
 
-  ///最优镜像的选定时刻，用于 TTL 缓存（避免每次回退都全量测速）
-  DateTime? _bestMirrorAt;
+  ///每族排名表的产生时刻（TTL 各自一份）
+  final Map<MirrorFamily, DateTime> _rankingAt = {};
 
-  ///最优镜像缓存有效期
-  static const _bestMirrorTtl = Duration(minutes: 10);
+  ///排名表缓存有效期
+  static const _rankingTtl = Duration(minutes: 10);
 
   bool get enabled => _enabled;
 
-  String? get bestMirror => _bestMirror;
+  ///该族的排名表；不是要加速的域名 / 还没测过返回空表
+  List<String> rankedFor(String url) {
+    final family = mirrorFamilyOf(url);
+    if (family == null) return const [];
+    return List.unmodifiable(_rankings[family] ?? const <String>[]);
+  }
 
-  ///该 URL 对应的最优镜像（探针家族要一致），没有返回 null
-  String? bestMirrorFor(String url) =>
-      _bestMirrorProbe == probeUrlFor(url) ? _bestMirror : null;
+  ///该族当前首选（排名表第一位），没测过返回 null
+  String? bestMirrorFor(String url) {
+    final ranked = rankedFor(url);
+    return ranked.isEmpty ? null : ranked.first;
+  }
 
-  ///该 URL 对应且仍在 TTL 内的最优镜像；过期 / 家族不符返回 null
-  String? freshBestMirrorFor(String url) {
-    final best = bestMirrorFor(url);
-    final at = _bestMirrorAt;
-    if (best == null || at == null) return null;
-    if (DateTime.now().difference(at) > _bestMirrorTtl) return null;
-    return best;
+  ///该族 TTL 内的完整排名表；过期 / 没测过返回空
+  List<String> freshRankedFor(String url) {
+    final family = mirrorFamilyOf(url);
+    if (family == null || !_isRankingFresh(family)) return const [];
+    return List.unmodifiable(_rankings[family] ?? const <String>[]);
+  }
+
+  bool _isRankingFresh(MirrorFamily family) {
+    final at = _rankingAt[family];
+    if (at == null) return false;
+    return DateTime.now().difference(at) <= _rankingTtl;
+  }
+
+  ///这次用 [node] 成功了：把它提到该族表头，下次优先
+  void promoteMirror(String url, String node) {
+    final family = mirrorFamilyOf(url);
+    if (family == null) return;
+    final ranked = _rankings[family];
+    if (ranked == null || ranked.isEmpty || ranked.first == node) return;
+    ranked.remove(node);
+    ranked.insert(0, node);
+  }
+
+  ///这次 [node] 失败了（连不上 / 被拒）：挪到该族表尾，本次会话不再优先它
+  void demoteMirror(String url, String node) {
+    final family = mirrorFamilyOf(url);
+    if (family == null) return;
+    final ranked = _rankings[family];
+    if (ranked == null || !ranked.contains(node)) return;
+    ranked.remove(node);
+    ranked.add(node);
+  }
+
+  ///这个地址是不是「镜像节点自己的地址」（前缀匹配任一节点）
+  ///
+  ///用来让镜像请求绕开代理：节点本来就是「绕开代理上 GitHub」用的，
+  ///再被代理绕出去容易失败 / 变慢
+  bool isMirrorUrl(String url) {
+    for (final node in _presetNodes) {
+      if (url.startsWith(node.url)) return true;
+    }
+    for (final node in _crawledNodes) {
+      if (url.startsWith(node)) return true;
+    }
+    for (final node in customNodes) {
+      if (url.startsWith(node)) return true;
+    }
+    return false;
   }
 
   ///预设节点（只读）
@@ -131,15 +177,21 @@ class GithubMirror {
     _presetNodes = nodes;
   }
 
+  ///仅供测试：直接塞某族的排名表（正常走 [rankFamilyFor] 实测得出）
+  @visibleForTesting
+  void debugSetRanking(MirrorFamily family, List<String> nodes) {
+    _rankings[family] = List.of(nodes);
+    _rankingAt[family] = DateTime.now();
+  }
+
   ///仅供测试：清空单例状态，隔离用例（GithubMirror 是单例，无外部重置入口）。
   @visibleForTesting
   void debugReset() {
     _presetNodes = [];
     _crawledNodes = [];
     crawledLatencies = {};
-    _bestMirror = null;
-    _bestMirrorProbe = null;
-    _bestMirrorAt = null;
+    _rankings.clear();
+    _rankingAt.clear();
     _enabled = true;
   }
 
@@ -286,57 +338,60 @@ class GithubMirror {
     return true;
   }
 
-  ///对全部节点分级测速，选最快者作为后续使用的镜像（带 TTL 缓存标记）。
+  ///为该族重测一遍，算出「能测通的节点 + 延迟」排序表并缓存，返回该表。
   ///
-  ///优先测「上次已选 + 自定义 + 预设」小集合；全部失败才碰爬取的全量池
-  ///（避免每次回退都对 77 个社区节点发起 HEAD）。返回选中的镜像前缀，
-  ///全部不可用返回 null。
-  Future<String?> selectBestMirror(
-    String probeUrl, {
-    String? targetUrl,
+  ///优先测「上次首选 + 自定义 + 预设」小集合；一个都测不通才碰爬取的全量池
+  ///（避免每次刷新都对几十个社区节点发请求）。整族都测不通时**沿用上一次的表**，
+  ///只把时刻刷新掉，免得每个请求都重测一遍
+  Future<List<String>> rankFamilyFor(
+    String url, {
     bool preferRange = false,
   }) async {
-    final previousBest = _bestMirror;
-    _bestMirror = null;
-    _bestMirrorProbe = null;
-    _bestMirrorAt = null;
-
-    final priorityNodes = _priorityCandidates(
-      targetUrl ?? probeUrl,
-      previousBest: previousBest,
-      preferRange: preferRange,
-    );
+    final family = mirrorFamilyOf(url);
+    if (family == null) return const [];
+    final probe = probeUrlFor(url);
 
     // 下载优先支持 Range 的节点：哪怕稍慢，分块并发也比单流快
     final preferFirst = preferRange
         ? {for (final node in _presetNodes) if (node.range) node.url}
         : const <String>{};
 
-    final priorityBest = await _measureFastest(
-      priorityNodes,
-      probeUrl,
+    var ranked = await _rankWorking(
+      _priorityCandidates(
+        url,
+        previousBest: bestMirrorFor(url),
+        preferRange: preferRange,
+      ),
+      probe,
       preferFirst: preferFirst,
     );
-    if (priorityBest != null) {
-      _bestMirror = priorityBest;
-      _bestMirrorProbe = probeUrl;
-      _bestMirrorAt = DateTime.now();
-      return priorityBest;
+    if (ranked.isEmpty) {
+      ranked = await _rankWorking(
+        _crawledNodes,
+        probe,
+        preferFirst: preferFirst,
+      );
     }
 
-    final crawledBest = await _measureFastest(
-      _crawledNodes,
-      probeUrl,
-      preferFirst: preferFirst,
+    if (ranked.isEmpty) {
+      final previous = _rankings[family] ?? const <String>[];
+      _rankingAt[family] = DateTime.now();
+      addLog(
+        .warning,
+        '镜像：${family.name} 族这次没有测通的节点，沿用上一次的排名（${previous.length} 个）',
+        tag: 'Mirror',
+      );
+      return List.unmodifiable(previous);
+    }
+
+    _rankings[family] = ranked;
+    _rankingAt[family] = DateTime.now();
+    addLog(
+      .debug,
+      '镜像：${family.name} 族排名更新（${ranked.length} 个，首选 ${ranked.first}）',
+      tag: 'Mirror',
     );
-    if (crawledBest != null) {
-      _bestMirror = crawledBest;
-      _bestMirrorProbe = probeUrl;
-      _bestMirrorAt = DateTime.now();
-      return crawledBest;
-    }
-
-    return null;
+    return List.unmodifiable(ranked);
   }
 
   ///每族请求最多探几个候选：能力与速度已知的节点排前面，不必把几十个全打一遍
@@ -369,50 +424,30 @@ class GithubMirror {
     return ordered.take(_maxPriorityProbe).toList();
   }
 
-  ///并行对候选节点测速，返回最合适的节点前缀；没有可用节点返回 null
+  ///并行对候选节点测速，返回**能测通的**节点前缀，按「优先档 → 延迟」排序
   ///
   ///[preferFirst] 里的节点算「优先档」：只要可达就压过其它节点（下载优先挑支持
   ///Range 的节点用），档内与档外各自按延迟比
-  Future<String?> _measureFastest(
+  Future<List<String>> _rankWorking(
     List<String> nodes,
     String probeUrl, {
     Set<String> preferFirst = const {},
   }) async {
-    if (nodes.isEmpty) return null;
+    if (nodes.isEmpty) return const [];
     final results = await Future.wait(
       nodes.map((node) async {
         final ms = await measure(node, probeUrl);
-        return (node: node, ms: ms);
+        return (node: node, ms: ms, preferred: preferFirst.contains(node));
       }),
     );
-    int? bestMs;
-    String? bestNode;
-    bool? bestPreferred;
-    for (final result in results) {
-      final ms = result.ms;
-      if (ms == null) continue;
-      final preferred = preferFirst.contains(result.node);
-
-      if (bestNode == null) {
-        bestMs = ms;
-        bestNode = result.node;
-        bestPreferred = preferred;
-        continue;
-      }
-      if (preferred != bestPreferred) {
-        if (preferred) {
-          bestMs = ms;
-          bestNode = result.node;
-          bestPreferred = preferred;
-        }
-        continue;
-      }
-      if (ms < bestMs!) {
-        bestMs = ms;
-        bestNode = result.node;
-      }
-    }
-    return bestNode;
+    final working = [
+      for (final result in results)
+        if (result.ms != null) result,
+    ]..sort((a, b) {
+      if (a.preferred != b.preferred) return a.preferred ? -1 : 1;
+      return a.ms!.compareTo(b.ms!);
+    });
+    return [for (final result in working) result.node];
   }
 
   // ---- 从 github.akams.cn 爬取社区节点 ----
