@@ -73,3 +73,21 @@ int nextChannelSeq({
   if (current.version != version || current.channel != channel) return 1;
   return (current.seq ?? 0) + 1;
 }
+
+/// 重打包当前版本时该沿用的序号：目标版本号与通道跟当前完全一致才有值，否则 null
+///
+/// 与 [nextChannelSeq] 的分工：那个算「下一次发布是第几次」，这个算「就是当前这一次」。
+/// 同一版本同一通道再来一次是**重打包**，序号该沿用 —— 否则免交互构建会把
+/// `alpha 2` 悄悄写成 `alpha 3`，把通道序号当成只增不减的构建号
+int? currentChannelSeq({
+  required String? currentDisplayVersion,
+  required String version,
+  required String channel,
+}) {
+  final current = currentDisplayVersion == null
+      ? null
+      : parseDisplayVersion(currentDisplayVersion);
+  if (current == null) return null;
+  if (current.version != version || current.channel != channel) return null;
+  return current.seq;
+}

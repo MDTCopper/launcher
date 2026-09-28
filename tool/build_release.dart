@@ -150,7 +150,7 @@ class BuildOptions {
   String? versionName;
   ReleaseChannel? channel;
 
-  /// 通道序号（预发布用）；不传则按「同版本同通道上次 +1」推荐
+  /// 通道序号（预发布用）；不传时同版本同通道沿用当前序号，换版本 / 通道则从 1 起
   int? channelSeq;
   bool? countBuildNumber;
   List<BuildTarget>? targets;
@@ -217,13 +217,23 @@ Future<void> main(List<String> args) async {
   // 通道序号（`alpha` / `beta` 后面那个数字）：每通道、每版本各自从 1 开始，
   // 与全局构建号分开算 —— 后者只增不减（Android 的 versionCode 用它）
   final channelSuffix = channel.suffix.isEmpty ? null : channel.suffix;
+  int? reusedSeq;
   int? channelSeq;
   if (channelSuffix != null) {
-    final suggestedSeq = nextChannelSeq(
+    // 同一版本同一通道的重打包**沿用当前序号**（免交互时否则会把 alpha 2 悄悄写成 alpha 3）；
+    // 版本号或通道变了才是「下一次发布」，从 1 起
+    reusedSeq = currentChannelSeq(
       currentDisplayVersion: current.displayVersion,
       version: versionName,
       channel: channelSuffix,
     );
+    final suggestedSeq =
+        reusedSeq ??
+        nextChannelSeq(
+          currentDisplayVersion: current.displayVersion,
+          version: versionName,
+          channel: channelSuffix,
+        );
     // 免交互（--yes）时不能提问，直接用推荐值
     channelSeq =
         options.channelSeq ??
@@ -252,6 +262,9 @@ Future<void> main(List<String> args) async {
   stdout.writeln('  appBuildTime    = $buildTime');
   stdout.writeln('  pubspec version = ${release.semver}+$buildNumber');
   stdout.writeln('  release tag     = ${release.tag}');
+  if (reusedSeq != null && options.channelSeq == null) {
+    stdout.writeln('  （目标与当前版本相同 → 沿用序号；要发下一次发布请给 --seq ${reusedSeq + 1}）');
+  }
   stdout.writeln(
     '  构建            = ${shouldBuild ? '${targets.map((target) => target.label).join(' + ')} · ${mode.label}' : '否（只写版本信息）'}',
   );
@@ -453,7 +466,8 @@ BuildOptions? _parseArgs(List<String> args) {
           '  --version <大.小.热修>   版本号，如 0.2.0\n'
           '  --channel <release|alpha|beta>  发布类型（也认首字母 r/a/b）\n'
           '  --seq <N>                通道序号（预发布用，如 alpha6 的 6）；\n'
-          '                            不传则按「同版本同通道上次 +1」推荐，可交互确认\n'
+          '                            不传时：与当前版本同版本同通道就沿用当前序号，\n'
+          '                            换了版本号 / 通道才是「下一次发布」，从 1 起\n'
           '  --bump / --no-bump       本次是否计入 build number（全局递增，Android versionCode 用它）\n'
           '  --platform <windows,android,linux,macos>  构建目标，可多选、逗号分隔（也认首字母 w/a/l/m）\n'
           '                            交互提问只会列出当前宿主能构建的目标；桌面目标选了不匹配的会跳过\n'
@@ -564,7 +578,10 @@ bool _askCountBuildNumber() => _askYesNo('本次是否计入 build number（不�
 /// 与全局 build number 是两回事：那个只增不减（Android versionCode 用它）
 int _askChannelSeq(int defaultSeq) {
   while (true) {
-    final input = _ask('通道序号（该版本该通道的第几次）', '$defaultSeq');
+    final input = _ask(
+      '通道序号（该版本该通道的第几次；重打包当前版本就沿用当前值）',
+      '$defaultSeq',
+    );
     final seq = int.tryParse(input);
     if (seq != null && seq > 0) return seq;
     stdout.writeln('应为正整数，形如 1');
