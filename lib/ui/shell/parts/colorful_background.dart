@@ -84,9 +84,12 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
   @override
   void didUpdateWidget(covariant ColorfulBackground oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.animate && !_controller.isAnimating) {
+    // 流光层关掉时不能起动画：build 会走 !colorful 的早退分支、不挂 painter，
+    // 但 Ticker 一旦跑起来就一直 requestFrame，每帧出帧白耗 CPU / GPU
+    if (widget.animate && widget.colorful && !_controller.isAnimating) {
       _controller.repeat();
-    } else if (!widget.animate && _controller.isAnimating) {
+    } else if ((!widget.animate || !widget.colorful) &&
+        _controller.isAnimating) {
       _controller.stop();
       _resizeResumeTimer?.cancel();
     }
