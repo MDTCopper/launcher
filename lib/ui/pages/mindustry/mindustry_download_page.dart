@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mindustry/mindustry_release_manifest.dart';
@@ -610,6 +611,8 @@ class _DownloadMindustryPopupPageState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final size = MediaQuery.of(context).size;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -618,7 +621,7 @@ class _DownloadMindustryPopupPageState
           elevation: 4,
           shadowColor: Colors.black,
           child: Container(
-            width: 500,
+            width: min(size.width * 0.75, 400),
             padding: EdgeInsets.all(8),
             constraints: BoxConstraints(maxHeight: 380),
             decoration: BoxDecoration(
@@ -803,6 +806,7 @@ class _BeBuildDownloadDialogState extends State<_BeBuildDownloadDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final size = MediaQuery.of(context).size;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -812,7 +816,7 @@ class _BeBuildDownloadDialogState extends State<_BeBuildDownloadDialog> {
           elevation: 4,
           shadowColor: Colors.black,
           child: Container(
-            width: 500,
+            width: min(size.width * 0.75, 400),
             padding: EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: theme.colorScheme.secondaryContainer,
