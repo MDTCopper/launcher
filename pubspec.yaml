@@ -3,7 +3,7 @@ name: copper_launcher
 description: "A LauncherApp for Mindustry, 为Mindustry开发的一款游戏启动器 "
 #publish_to: 'github'
 
-version: 0.2.0-alpha2+8
+version: 0.2.0-alpha3+9
 
 environment:
   sdk: ^3.11.5
