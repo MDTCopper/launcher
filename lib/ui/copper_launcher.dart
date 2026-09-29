@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/ui/pages/bridge_install_page.dart';
 import 'package:copper_launcher/ui/shell/app_shell.dart';
 import 'package:copper_launcher/ui/theme/app_theme.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
@@ -16,6 +19,9 @@ class CopperLauncher extends StatefulWidget {
 }
 
 class CopperLauncherState extends State<CopperLauncher> {
+  /// 桥的运行环境装好了没：桌面端不需要这份载荷，Android 上要装完才进主页
+  bool isRuntimeReady = !Platform.isAndroid;
+
   void updateTheme() => setState(() {
     final setting = config.setting.personalizationOptions;
     themeMode = setting.themeMode;
@@ -37,7 +43,11 @@ class CopperLauncherState extends State<CopperLauncher> {
         darkTheme: buildTheme(Brightness.dark, themeColor),
         themeMode: themeMode,
         debugShowCheckedModeBanner: false,
-        home: AppShell(key: PageKeyProvider.shellKey),
+        home: isRuntimeReady
+            ? AppShell(key: PageKeyProvider.shellKey)
+            : BridgeInstallPage(
+                onReady: () => setState(() => isRuntimeReady = true),
+              ),
       ),
     );
   }

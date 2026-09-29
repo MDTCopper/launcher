@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:archive/archive.dart';
+import 'package:copper_launcher/util/io/archive_extract.dart' as archive_extract;
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
@@ -177,36 +177,13 @@ class JavaDownloader {
   }
 
   /// 解压 zip / tar.gz 存档到指定目录
+  ///
+  /// 实现搬到 [extractArchive]（与 Android 桥的载荷共用，那边还要 tar.xz）
   @visibleForTesting
   static Future<void> extractArchive(
     String archivePath,
     String extractDir,
-  ) async {
-    final bytes = await File(archivePath).readAsBytes();
-
-    if (archivePath.endsWith('.zip')) {
-      final decoder = ZipDecoder();
-      final archive = decoder.decodeBytes(bytes);
-      await _extractToDisk(archive, extractDir);
-    } else if (archivePath.endsWith('.tar.gz')) {
-      final tar = TarDecoder();
-      final archive = tar.decodeBytes(GZipDecoder().decodeBytes(bytes));
-      await _extractToDisk(archive, extractDir);
-    }
-  }
-
-  static Future<void> _extractToDisk(Archive archive, String extractDir) async {
-    for (final file in archive.files) {
-      if (file.isFile) {
-        final outputPath = path.normalize(path.join(extractDir, file.name));
-        final outputFile = File(outputPath);
-        if (!await outputFile.parent.exists()) {
-          await outputFile.parent.create(recursive: true);
-        }
-        await outputFile.writeAsBytes(file.content as List<int>);
-      }
-    }
-  }
+  ) => archive_extract.extractArchive(archivePath, extractDir);
 
   /// 在解压目录中查找 java 可执行文件
   static String? _findJavaExecutable(String dir) {

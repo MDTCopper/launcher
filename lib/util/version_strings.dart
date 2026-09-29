@@ -91,3 +91,23 @@ int? currentChannelSeq({
   if (current.version != version || current.channel != channel) return null;
   return current.seq;
 }
+
+/// 比两个版本号（形如 `0.1.3` / `159.7`）：按数字段逐个比，缺的段当 0；
+/// 有一边读不出版本时，读得出的排后面（`null` 排最前）
+///
+/// loader 库排序、选择页按版本倒序、桥的「取最新一版」都用它
+int compareVersion(String? a, String? b) {
+  if (a == null || b == null) {
+    if (a == b) return 0;
+    return a == null ? -1 : 1;
+  }
+  final left = a.split('.').map(int.tryParse).toList();
+  final right = b.split('.').map(int.tryParse).toList();
+  final length = left.length > right.length ? left.length : right.length;
+  for (var i = 0; i < length; i++) {
+    final l = i < left.length ? (left[i] ?? 0) : 0;
+    final r = i < right.length ? (right[i] ?? 0) : 0;
+    if (l != r) return l.compareTo(r);
+  }
+  return 0;
+}

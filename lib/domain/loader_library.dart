@@ -9,6 +9,7 @@ import '../util/format/string_cleaner.dart';
 import '../util/io/copper_io.dart';
 import '../util/io/git_refs.dart';
 import '../util/io/log.dart';
+import '../util/version_strings.dart' as version_strings;
 
 /// 加载器选择的**结果**（只表达"选了什么"，不负责落地）
 ///
@@ -247,22 +248,10 @@ class LoaderLibrary {
 
   /// 比两个版本号：按数字段逐个比，缺的段当 0；解析不出版本的排最前
   ///
-  /// 库内排序（[newestOf]）与选择页按版本倒序展示都用它
-  static int compareVersion(String? a, String? b) {
-    if (a == null || b == null) {
-      if (a == b) return 0;
-      return a == null ? -1 : 1;
-    }
-    final left = a.split('.').map(int.tryParse).toList();
-    final right = b.split('.').map(int.tryParse).toList();
-    final length = left.length > right.length ? left.length : right.length;
-    for (var i = 0; i < length; i++) {
-      final l = i < left.length ? (left[i] ?? 0) : 0;
-      final r = i < right.length ? (right[i] ?? 0) : 0;
-      if (l != r) return l.compareTo(r);
-    }
-    return 0;
-  }
+  /// 库内排序（[newestOf]）与选择页按版本倒序展示都用它；实现在
+  /// [version_strings.compareVersion]（桥那边取最新一版也用同一份）
+  static int compareVersion(String? a, String? b) =>
+      version_strings.compareVersion(a, b);
 
   /// 取可用的 loader：优先 [recordedPath] 指定的（文件真在才算），其次库里版本最高的
   static String? usablePath(String? recordedPath) {
