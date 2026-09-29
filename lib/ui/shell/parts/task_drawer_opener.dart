@@ -93,7 +93,7 @@ class _TaskDrawerOpenerState extends State<TaskDrawerOpener> {
           hint: '打开任务列表',
           child: ReboundButton(
             backgroundColor: Colors.transparent,
-            child: Icon(Icons.chrome_reader_mode_outlined),
+            child: Icon(Icons.checklist),
             onTap: () {
               Scaffold.of(
                 PageKeyProvider.navigatorKey.currentContext!,
