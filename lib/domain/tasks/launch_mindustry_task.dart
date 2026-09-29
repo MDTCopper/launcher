@@ -202,25 +202,29 @@ class LaunchMindustryTask extends Task {
 
     String? javaPath = mindustry.java ?? launchOption.javaOptions.selectedJava;
 
-    if (javaPath == 'auto') {
-      javaPath = _autoPickJava(launchOption.javaOptions.javas, targetJavaMajor);
-    } else {
-      //记录形态（数据根内的相对路径）要还原成可用路径才能起进程
-      javaPath = AppPaths.resolveStoredPath(javaPath);
-    }
+    // Android 上没有「桌面 JDK」这回事：Java 用桥载荷里的 JRE，这整段选择与校验
+    // 都不该走 —— 否则设备上一份 Java 都没有，任务会先在这里收尾成「未找到可用 Java」
+    if (!Platform.isAndroid) {
+      if (javaPath == 'auto') {
+        javaPath = _autoPickJava(launchOption.javaOptions.javas, targetJavaMajor);
+      } else {
+        //记录形态（数据根内的相对路径）要还原成可用路径才能起进程
+        javaPath = AppPaths.resolveStoredPath(javaPath);
+      }
 
-    // 启动前兜底：选中路径已失效（被删/移动）则回退自动选择；仍无则中止并提示
-    if (javaPath != null && !File(javaPath).existsSync()) {
-      addTaskLog(LogEntry(LogType.warning, 'Java 路径失效：$javaPath，回退自动选择'));
-      javaPath = _autoPickJava(launchOption.javaOptions.javas, targetJavaMajor);
-    }
-    if (javaPath == null) {
-      addTaskLog(LogEntry(LogType.error, '未找到可用 Java：无法启动'));
-      addLog(.error, '未找到可用 Java：无法启动', tag: 'Launch');
-      showJavaMissingPrompt(releaseInt: releaseInt);
-      status = TaskStatus.failed;
-      updateDisplay();
-      return;
+      // 启动前兜底：选中路径已失效（被删/移动）则回退自动选择；仍无则中止并提示
+      if (javaPath != null && !File(javaPath).existsSync()) {
+        addTaskLog(LogEntry(LogType.warning, 'Java 路径失效：$javaPath，回退自动选择'));
+        javaPath = _autoPickJava(launchOption.javaOptions.javas, targetJavaMajor);
+      }
+      if (javaPath == null) {
+        addTaskLog(LogEntry(LogType.error, '未找到可用 Java：无法启动'));
+        addLog(.error, '未找到可用 Java：无法启动', tag: 'Launch');
+        showJavaMissingPrompt(releaseInt: releaseInt);
+        status = TaskStatus.failed;
+        updateDisplay();
+        return;
+      }
     }
 
     final List<String> args =

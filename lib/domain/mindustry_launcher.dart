@@ -2,7 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/domain/bridge_installer.dart';
+import 'package:copper_launcher/domain/bridge_launcher.dart';
+import 'package:copper_launcher/domain/bridge_payload.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
+import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
@@ -60,6 +64,15 @@ class MindustryLauncher {
     String? javaExecutable,
     List<String>? extraArgs = const [],
   }) async {
+    // Android 上没有「桌面 JDK」这回事：Java 是载荷里的 JRE，进程由桥在游戏进程里起
+    if (Platform.isAndroid) {
+      return _startWithBridge(
+        mindustry,
+        maxMemory: maxMemory,
+        extraArgs: extraArgs ?? const [],
+      );
+    }
+
     // 校验 Java 环境
     final isJavaAvailable = await _checkJavaEnv(javaExecutable: javaExecutable);
     if (!isJavaAvailable) {
@@ -156,6 +169,117 @@ class MindustryLauncher {
       _logController?.close();
       return false;
     }
+  }
+
+  /// Android：载荷齐了就把参数交给桥（这条路没有 `java -jar`，Java 是载荷里的 JRE）
+  ///
+  /// 与桌面那条路的区别：不校验桌面 JDK、不认窗口参数、不建 [Process]（游戏由桥在
+  /// 自己起的进程里跑）；arc 原生库跟着**具体游戏版本**走，缺了就在这儿现下（同版本
+  /// 只下一次）。`Bridge.launch` 只是把参数交出去，起没起来要看界面切没切到游戏
+  /// 或 `<数据目录>/last_log.txt`
+  Future<bool> _startWithBridge(
+    Mindustry mindustry, {
+    Memory? maxMemory,
+    List<String> extraArgs = const [],
+  }) async {
+    if (_logController == null || _logController!.isClosed) {
+      _logController = StreamController<String>.broadcast();
+    }
+
+    if (!BridgeInstaller.isRuntimeReady()) {
+      addLogAndPrint(
+        .warning,
+        'Android 桥的载荷不齐（缺 JRE 或 bridge.jar）：先走安装页',
+        tag: 'Launch',
+      );
+      return false;
+    }
+    final bridgeJar = BridgePayload.installedBridgeJar();
+    if (bridgeJar == null) return false;
+
+    final abi = await BridgeInstaller.detectDeviceAbi();
+    if (abi == null) {
+      addLogAndPrint(
+        .warning,
+        '问不出设备 ABI：载荷按 ABI 分包，起不来（设备信息请反馈）',
+        tag: 'Launch',
+      );
+      return false;
+    }
+
+    // Android 的 loader 路线还要 loader-wrapper（文档 §7），载荷没接：先按原版起
+    if (mindustry.isViaLoader) {
+      addLogAndPrint(
+        .warning,
+        'Android 暂不支持 Copper 加载器：这次按原版启动，mod 不会加载',
+        tag: 'Launch',
+      );
+    }
+
+    final arcRef = await BridgeLauncher.arcRefOf(mindustry);
+    String? arcDir;
+    if (arcRef == null) {
+      addLogAndPrint(
+        .warning,
+        '查不到这个版本用的 arc：先不带 arc 原生库启动（性能下降）',
+        tag: 'Launch',
+      );
+    } else {
+      arcDir = AppPaths.bridgeArcDir(arcRef, abi);
+      final arcFolder = Directory(arcDir);
+      if (!arcFolder.existsSync() || arcFolder.listSync().isEmpty) {
+        try {
+          await BridgeInstaller.installArcNatives(
+            arcRef: arcRef,
+            abi: abi,
+            onStatus: (status) => addLogAndPrint(.info, 'Android 桥：$status', tag: 'Bridge'),
+          );
+        } catch (error) {
+          addLogAndPrint(
+            .warning,
+            'arc 原生库装不上：${removeNewlines('$error')}（先照起，性能下降）',
+            tag: 'Launch',
+          );
+        }
+      }
+    }
+
+    final jvmArgs = [
+      ...BridgeLauncher.jvmArgsFrom(maxMemory: maxMemory),
+      ...extraArgs.where(
+        (arg) => arg.isNotEmpty && !BridgeLauncher.isDesktopOnlyJvmArg(arg),
+      ),
+      ...BridgeLauncher.gcSafetyArgsFor(abi),
+    ];
+
+    final args = BridgeLauncher.buildArguments(
+      gameJar: mindustry.resolvedJarPath,
+      dataPath: mindustry.dataPath,
+      cacheDir: BridgeLauncher.cacheDirFor(mindustry),
+      jreDir: AppPaths.bridgeJre,
+      arcDir: arcDir,
+      jvmArgs: jvmArgs,
+    );
+
+    try {
+      BridgeLauncher.launchWithBridge(bridgeJar: bridgeJar.path, args: args);
+    } catch (error) {
+      addLogAndPrint(
+        .error,
+        '交给桥启动失败：${removeNewlines('$error')}',
+        tag: 'Launch',
+      );
+      _logController?.close();
+      return false;
+    }
+
+    _dataPath = mindustry.dataPath;
+    addLogAndPrint(
+      .info,
+      'Android 桥：已交给桥启动（${mindustry.tag}）：${args.join(' ')}',
+      tag: 'Launch',
+    );
+    return true;
   }
 
   void _listenToJarLogs() {
