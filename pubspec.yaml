@@ -63,6 +63,9 @@ dev_dependencies:
   json_serializable: ^6.11.1
   jnigen: ^0.17.0
 
+dependency_overrides:
+  permission_handler_windows:
+    path: ./plugin/stub/permission_handler_windows
 
 flutter:
   assets:
