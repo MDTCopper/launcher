@@ -1,4 +1,3 @@
-
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../core/app_constant.dart';
@@ -26,9 +25,9 @@ class LoaderSupport {
   static LoaderSupport? _cached;
   static Future<LoaderSupport?>? _loading;
 
-  /// 查一次适配表并缓存（一次会话只拉一次）
+  /// 查一次适配表并缓存
   ///
-  /// 拉不到返回 null：调用方按「未知」处理（不拦也不推荐），
+  /// 拉不到返回 null：调用方按未知处理，
   /// 兜底还有 [Mindustry.loaderMinRelease] 那条硬编码下限
   static Future<LoaderSupport?> load({bool refresh = false}) async {
     if (refresh) {
@@ -60,7 +59,7 @@ class LoaderSupport {
     }
   }
 
-  /// 从 `support.json` 的内容解析（纯函数，便于用例覆盖）
+  /// 从 `support.json` 的内容解析
   @visibleForTesting
   static LoaderSupport parse(dynamic json) {
     final entries = <({VersionFilter loader, VersionFilter game})>[];
@@ -83,7 +82,10 @@ class LoaderSupport {
   /// - 命中某条 loader 范围且游戏范围也满足 → true
   /// - 命中某条 loader 范围但游戏范围不满足 → false（明确不支持）
   /// - 没有任何 loader 范围命中（或版本号不全）→ null（未知）
-  bool? supports({required String? loaderVersion, required String? gameVersion}) {
+  bool? supports({
+    required String? loaderVersion,
+    required String? gameVersion,
+  }) {
     if (loaderVersion == null || gameVersion == null) return null;
 
     var matched = false;

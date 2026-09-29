@@ -34,8 +34,6 @@ class LaunchMindustryTask extends Task {
 
   @override
   Widget buildDisplayWidget(BuildContext context) {
-    //文案跟着状态走：抽屉只列进行中的任务，失败/结束的那一刻这一格会播 800ms 移出动画，
-    //期间仍按旧文案渲染——写死「游戏运行中」就会在启动失败时骗人
     final statusText = switch (status) {
       TaskStatus.pending => '准备启动',
       TaskStatus.process => '游戏运行中',
@@ -48,7 +46,7 @@ class LaunchMindustryTask extends Task {
     return Row(
       children: [
         Text(statusText),
-        //只有进程还在时「关闭」才有意义
+
         if (status == TaskStatus.process)
           IconTextButton(icon: Icons.close, content: '关闭', onTap: cancel),
       ],
@@ -66,8 +64,6 @@ class LaunchMindustryTask extends Task {
   @override
   void pause() => cancel();
 
-  ///意外异常（读配置 / 读本体 / 建进程）也要收尾：任务卡在 process 就会一直
-  ///挂在抽屉里显示「游戏运行中」，而游戏根本没起来
   Future<void> _launch() async {
     try {
       await _launchGame();
@@ -99,7 +95,9 @@ class LaunchMindustryTask extends Task {
     if (mindustry.versionNumber == null) {
       try {
         final major = int.tryParse(
-          (await FileReader.fromPath(mindustry.resolvedJarPath)).mindustry?.version ??
+          (await FileReader.fromPath(
+                mindustry.resolvedJarPath,
+              )).mindustry?.version ??
               '',
         );
         if (major != null) {
@@ -215,9 +213,7 @@ class LaunchMindustryTask extends Task {
 
     // 记录本次启动时刻，游戏退出时回写 lastLaunchTime 与 playTime
     _launchStartTime = DateTime.now();
-    //start() 失败只返回 false、不抛异常（Java 校验不过、本体不存在、进程起不来），
-    //没收尾的话任务会一直停在 process：抽屉里挂着「游戏运行中」，而且接着读 logStream
-    //还会踩空指针（失败路径上 _logController 根本没建）
+
     final isLaunchStarted = await launcher.start(
       mindustry,
       maximize: maximize,
@@ -228,8 +224,7 @@ class LaunchMindustryTask extends Task {
     );
 
     if (!isLaunchStarted) {
-      //走加载器时常见原因是 loader jar 不在了（数据根搬过 / 手删过库里的文件），
-      //这种情况说成「Java 或本体不可用」会把人带偏
+      //走加载器时常见原因是 loader jar 不在了
       final isLoaderMissing =
           mindustry.isViaLoader &&
           MindustryLauncher.usableLoaderPath(mindustry) == null;
@@ -247,7 +242,6 @@ class LaunchMindustryTask extends Task {
       return;
     }
 
-    //todo 后续可以尝试做一个脱离
     //监听游戏状态
     launcher.logStream!.listen((log) {
       if (log.contains('Total time to load')) {
@@ -259,11 +253,11 @@ class LaunchMindustryTask extends Task {
           content: '启动成功，耗时${time.trim()}',
         );
         TaskLogManager.addLog(LogEntry(LogType.success, '游戏启动成功，耗时$time'));
-        //托盘模式下收进系统托盘（进程保留监听游戏退出）
+        //托盘模式下收进系统托盘
         LauncherTray.instance.hideIfTrayMode();
       }
       if (log.contains('exit')) {
-        // 回写最近启动时间与累计游玩时长（含正常退出 / 停止 / 异常退出）
+        // 回写最近启动时间与累计游玩时长
         final launchStart = _launchStartTime;
         if (launchStart != null) {
           final now = DateTime.now();
@@ -271,10 +265,10 @@ class LaunchMindustryTask extends Task {
           final duration = now.difference(launchStart);
           mindustry.playTime = (mindustry.playTime ?? Duration.zero) + duration;
           _launchStartTime = null;
-          // 退出回调非异步上下文，fire-and-forget 保存（后续任务流程会再 save）
+          // 退出回调非异步上下文，fire-and-forget 保存
           config.save();
         }
-        //托盘模式下按「恢复窗口」选项决定是否弹出主窗口
+        //托盘模式下按恢复窗口选项决定是否弹出主窗口
         LauncherTray.instance.showIfRestoreOnExit();
         if (log.contains('0')) {
           NotificationManager.addNotice(

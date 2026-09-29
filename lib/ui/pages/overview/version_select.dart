@@ -508,7 +508,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
         items: [
           if (isDesktop)
             Text(
-              '详细路径 ${formatPathForWrap(_versionFolds[_index].path)}',
+              '详细路径 ${formatPathForWrap(_versionFolds[_index].resolvedPath)}',
               style: Theme.of(context).textTheme.labelMedium,
             ),
           if (likes.isNotEmpty)
@@ -584,7 +584,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
                 ),
                 if (isDesktop)
                   Text(
-                    '详细路径 ${formatPathForWrap(_versionFolds[_index].path)}',
+                    '详细路径 ${formatPathForWrap(_versionFolds[_index].resolvedPath)}',
                     style: theme.textTheme.labelMedium,
                   ),
               ],

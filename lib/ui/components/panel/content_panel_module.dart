@@ -16,14 +16,14 @@ class ContentPanelModule extends StatelessWidget {
     final colors = AppColors.of(context);
 
     return Material(
-      elevation: 4.0,
+      elevation: 2.0,
       color: colors.cardBackground,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 8,
+          spacing: 12,
           children: [
             if (title != null)
               Text(
@@ -33,12 +33,9 @@ class ContentPanelModule extends StatelessWidget {
                 ),
               ),
             if (child != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: DefaultTextStyle(
-                  style: theme.textTheme.bodyMedium ?? TextStyle(),
-                  child: IconTheme(data: theme.iconTheme, child: child!),
-                ),
+              DefaultTextStyle(
+                style: theme.textTheme.bodyMedium ?? TextStyle(),
+                child: IconTheme(data: theme.iconTheme, child: child!),
               ),
           ],
         ),

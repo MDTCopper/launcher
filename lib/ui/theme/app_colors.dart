@@ -60,6 +60,7 @@ class AppColors extends ThemeExtension<AppColors> {
   // ── 其他 ──
 
   final Color barrier;
+  final Color shadow;
 
   const AppColors({
     required this.pageBackground,
@@ -91,6 +92,7 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.indicator,
     required this.indicatorBackground,
     required this.barrier,
+    required this.shadow,
   });
 
   //Copper默认主题色，黄铜
@@ -139,6 +141,7 @@ class AppColors extends ThemeExtension<AppColors> {
     indicator: Palette.copper500,
     indicatorBackground: Palette.copper300,
     barrier: Palette.barrier,
+    shadow: Palette.shadow,
   );
 
   static const dark = AppColors(
@@ -186,6 +189,7 @@ class AppColors extends ThemeExtension<AppColors> {
     indicator: Palette.copper500,
     indicatorBackground: Palette.copper300,
     barrier: Palette.barrier,
+    shadow: Palette.shadow,
   );
 
   //titanium Blue 钛蓝
@@ -234,6 +238,7 @@ class AppColors extends ThemeExtension<AppColors> {
     indicator: Palette.titanium500,
     indicatorBackground: Palette.titanium300,
     barrier: Palette.barrier,
+    shadow: Palette.shadow,
   );
 
   static const titaniumBlueDark = AppColors(
@@ -281,6 +286,7 @@ class AppColors extends ThemeExtension<AppColors> {
     indicator: Palette.titanium500,
     indicatorBackground: Palette.titanium300,
     barrier: Palette.barrier,
+    shadow: Palette.shadow,
   );
 
   //thorium Pink 钍粉
@@ -329,6 +335,7 @@ class AppColors extends ThemeExtension<AppColors> {
     indicator: Palette.thorium500,
     indicatorBackground: Palette.thorium300,
     barrier: Palette.barrier,
+    shadow: Palette.shadow,
   );
 
   static const thoriumPinkDark = AppColors(
@@ -376,6 +383,7 @@ class AppColors extends ThemeExtension<AppColors> {
     indicator: Palette.thorium500,
     indicatorBackground: Palette.thorium300,
     barrier: Palette.barrier,
+    shadow: Palette.shadow,
   );
 
   //plastanium Green 塑钢绿
@@ -424,6 +432,7 @@ class AppColors extends ThemeExtension<AppColors> {
     indicator: Palette.plastanium500,
     indicatorBackground: Palette.plastanium300,
     barrier: Palette.barrier,
+    shadow: Palette.shadow,
   );
 
   static const plastaniumGreenDark = AppColors(
@@ -471,6 +480,7 @@ class AppColors extends ThemeExtension<AppColors> {
     indicator: Palette.plastanium500,
     indicatorBackground: Palette.plastanium300,
     barrier: Palette.barrier,
+    shadow: Palette.shadow,
   );
 
   @override
@@ -504,6 +514,7 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? indicator,
     Color? indicatorBackground,
     Color? barrier,
+    Color? shadow,
   }) {
     return AppColors(
       pageBackground: pageBackground ?? this.pageBackground,
@@ -536,6 +547,7 @@ class AppColors extends ThemeExtension<AppColors> {
       indicator: indicator ?? this.indicator,
       indicatorBackground: indicatorBackground ?? this.indicatorBackground,
       barrier: barrier ?? this.barrier,
+      shadow: shadow ?? this.shadow,
     );
   }
 
@@ -608,6 +620,7 @@ class AppColors extends ThemeExtension<AppColors> {
         t,
       )!,
       barrier: Color.lerp(barrier, other.barrier, t)!,
+      shadow: Color.lerp(shadow, other.shadow, t)!,
     );
   }
 }

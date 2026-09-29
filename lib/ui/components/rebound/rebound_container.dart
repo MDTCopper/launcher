@@ -207,7 +207,7 @@ class _ReboundContainer extends State<ReboundContainer>
               onTapDown: onTapDown,
               onTapUp: onTapUp,
               onTapCancel: onTapCancel,
-              onLongPress: onLongTap, // 之前漏接：onLongTap 从未接线到 InkWell，长按不生效
+              onLongPress: onLongTap,
               onHover: onHover,
               child: child,
             ),

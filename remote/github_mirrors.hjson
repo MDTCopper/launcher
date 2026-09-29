@@ -1,16 +1,17 @@
 # 节点能力由 tool/pick_mirrors.dart 实测写入，别手改字段名
-update_time: 2026-09-24
+update_time: 2026-09-29
 mirrors:[
-    {url: "https://js.jiangss.shop/", github: true, raw: true, api: false, range: true, speed: 0.53}
-    {url: "https://github.gohj99.site/", github: true, raw: true, api: true, range: true, speed: 0.42}
-    {url: "https://gh.acmsz.top/", github: true, raw: true, api: false, range: true, speed: 0.39}
-    {url: "https://ghproxy.monkeyray.net/", github: true, raw: true, api: true, range: true, speed: 0.38}
-    {url: "https://free.cn.eu.org/", github: true, raw: false, api: false, range: true, speed: 0.35}
-    {url: "https://gh.monlor.com/", github: true, raw: true, api: false, range: true, speed: 0.10}
-    {url: "https://gitproxy.mrhjx.cn/", github: true, raw: true, api: false, range: true, speed: 0.07}
-    {url: "https://github.nswrz.cn/", github: true, raw: true, api: true, range: true, speed: 0.03}
-    {url: "https://down.mxw.qzz.io/", github: true, raw: true, api: false, range: true, speed: 0.02}
-    {url: "https://githubproxy.gohj99.site/", github: false, raw: true, api: true, range: false, speed: 0.00}
-    {url: "https://jiashu.1win.eu.org/", github: false, raw: true, api: true, range: false, speed: 0.00}
-    {url: "https://tvv.tw/", github: false, raw: true, api: true, range: false, speed: 0.00}
+    {url: "https://gh.acmsz.top/", github: true, raw: true, api: false, range: true, speed: 2.04}
+    {url: "https://js.jiangss.shop/", github: true, raw: true, api: false, range: true, speed: 1.91}
+    {url: "https://free.cn.eu.org/", github: true, raw: false, api: false, range: true, speed: 1.75}
+    {url: "https://gh.927223.xyz/", github: true, raw: true, api: false, range: true, speed: 1.65}
+    {url: "https://ghp.keleyaa.com/", github: true, raw: true, api: false, range: true, speed: 1.43}
+    {url: "https://github.xxlab.tech/", github: true, raw: true, api: false, range: true, speed: 0.94}
+    {url: "https://jiashu.1win.eu.org/", github: true, raw: true, api: true, range: true, speed: 0.36}
+    {url: "https://gh.noki.icu/", github: true, raw: true, api: true, range: true, speed: 0.26}
+    {url: "https://gh.dpik.top/", github: true, raw: true, api: true, range: true, speed: 0.07}
+    {url: "https://ghproxy.monkeyray.net/", github: false, raw: true, api: false, range: false, speed: 0.00}
+    {url: "https://github.chenc.dev/", github: false, raw: true, api: true, range: false, speed: 0.00}
+    {url: "https://github.gohj99.site/", github: false, raw: true, api: true, range: false, speed: 0.00}
+    {url: "https://github.tbap.top/", github: false, raw: true, api: false, range: false, speed: 0.00}
 ]

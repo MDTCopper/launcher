@@ -69,35 +69,52 @@ class _InfoListState extends State<InfoList>
         spacing: 8,
         children: [
           Row(
-            spacing: 16,
             children: [
               Text('状态列表', style: theme.textTheme.headlineMedium),
+              const SizedBox(width: 32),
               Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    ActionButton(
-                      selected: index == 0,
-                      icon: Icon(Icons.list_alt),
-                      content: Text('任务'),
-                      onTap: () => setState(() {
-                        index = 0;
-                      }),
-                    ),
-                    ActionButton(
-                      selected: index == 1,
-                      icon: Icon(Icons.watch_later_outlined),
-                      content: Text('日志'),
-                      onTap: () => setState(() {
-                        index = 1;
-                      }),
-                    ),
-                  ],
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: theme.brightness == .dark
+                        ? Border.all(color: colors.border)
+                        : null,
+                    borderRadius: BorderRadius.circular(8),
+                    color: colors.cardBackground,
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  child: Row(
+                    spacing: 4,
+                    children: [
+                      Expanded(
+                        child: ActionButton(
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.all(4),
+                          selected: index == 0,
+                          icon: Icon(Icons.list_alt),
+                          content: Text('任务'),
+                          onTap: () => setState(() {
+                            index = 0;
+                          }),
+                        ),
+                      ),
+                      Expanded(
+                        child: ActionButton(
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.all(4),
+                          selected: index == 1,
+                          icon: Icon(Icons.watch_later_outlined),
+                          content: Text('日志'),
+                          onTap: () => setState(() {
+                            index = 1;
+                          }),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          Divider(height: 10, thickness: 1, color: colors.border),
         ],
       ),
     );

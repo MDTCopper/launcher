@@ -29,7 +29,7 @@ class StartupBackgroundTask extends Task {
   ///已完成步骤数，用于折算进度
   int _completedSteps = 0;
 
-  ///是否包含 Java 环境检查步骤：仅桌面端（移动端用自带 loader，无桌面 Java 路径）
+  ///是否包含 Java 环境检查步骤：仅桌面端
   final bool _includeJavaCheck = isDesktop;
 
   ///总步骤数，每完成一步进度前进一步
@@ -65,9 +65,6 @@ class StartupBackgroundTask extends Task {
   }
 
   ///执行单个步骤：先更新描述，完成后折算进度
-  ///
-  ///单步失败（远程拉取超时之类）只记一条继续下一步：这几步互相独立，
-  ///一步失败不该连累后面的 Java / 文件检查；抛出去还会让任务卡在「进行中」
   Future<void> _runStep(String label, Future<void> Function() step) async {
     describe = '$label（${_completedSteps + 1}/$_totalSteps）';
     updateDisplay();

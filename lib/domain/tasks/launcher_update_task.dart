@@ -86,12 +86,9 @@ class LauncherUpdateTask extends Task {
   }
 
   /// 收尾：安装版拉起 Setup、解压版写覆盖脚本，两者都要退出启动器
-  /// （运行中的 exe / dll 不能覆盖，必须等进程退出）；其余平台打开下载目录
   Future<void> _finishUpdate(String path) async {
     progress = 1.0;
 
-    // 更新要替换运行中的 exe / dll：先撤掉「关窗收进托盘」的拦截，
-    // 否则安装器的关闭请求会被我们藏进托盘，它只能干等（看着像整个卡死）
     if (Platform.isWindows) {
       await windowManager.setPreventClose(false);
     }

@@ -118,12 +118,14 @@ class _TaskListState extends State<TaskList> {
 
   Widget _buildTaskTile(Task task) {
     final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+
     return Container(
       margin: EdgeInsets.symmetric(vertical: 4),
-      padding: EdgeInsets.all(8),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: theme.colorScheme.secondaryContainer,
+        color: colors.cardBackground,
       ),
       child: DefaultTextStyle(
         style: theme.textTheme.bodyMedium ?? DefaultTextStyle.of(context).style,

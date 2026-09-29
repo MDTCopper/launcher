@@ -111,6 +111,7 @@ abstract class Palette {
 
   /// 弹窗遮罩
   static const barrier = Color(0x80000000);
+  static const shadow = Color.fromARGB(0, 0, 0, 0);
 
   //悬浮叠加
   static const copperDarkHoverOverlay = Color.fromARGB(40, 188, 140, 72);

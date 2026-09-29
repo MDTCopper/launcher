@@ -60,10 +60,7 @@ abstract class Task implements Listenable {
   ///是否还能取消：只有进行中才有意义，任务结束后请求 / 进程都不在了
   bool get canCancel => status == TaskStatus.process;
 
-  ///状态简称，标在卡片标题右侧；进行中不显示（正常形态就是「正在做某事」）
-  ///
-  ///抽屉只列进行中的任务，任务结束 / 失败那一刻卡片还要播 800ms 移出动画，
-  ///期间会按旧状态再渲染几帧——文案和按钮都得跟 [status] 走，别写死
+  ///状态简称，标在卡片标题右侧
   String? get statusLabel => switch (status) {
     TaskStatus.pending => '待启动',
     TaskStatus.process => null,
