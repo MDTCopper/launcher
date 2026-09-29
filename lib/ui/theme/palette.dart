@@ -82,14 +82,15 @@ abstract class Palette {
   static const neutral700 = Color.fromARGB(255, 76, 76, 76);
   static const neutral800 = Color(0xFF2D2D2D); // 主要文字（亮色）
   static const neutral900 = Color(0xFF1A1A1A);
+  static const neutral950 = Color.fromARGB(255, 18, 18, 18);
   static const black = Color(0xFF000000);
 
   // ═══════════════════════════════════════════════════════════
   // 暗色模式专用灰阶
   // ═══════════════════════════════════════════════════════════
 
-  static const darkPage = Color.fromARGB(255, 18, 18, 18); // 页面底（不纯黑）
-  static const darkCard = Color(0xFF1A1A1A); // 卡片 / 容器
+  static const darkPage = neutral950; // 页面底（不纯黑）
+  static const darkCard = neutral900; // 卡片 / 容器
   static const darkElevated = Color(0xFF252525); // 悬浮 / 选中浮层
   static const darkBorder = Color(0xFF2A2A2A); // 边框（暗色）
   static const darkTextPrimary = Color.fromARGB(255, 216, 216, 216); // 主文字

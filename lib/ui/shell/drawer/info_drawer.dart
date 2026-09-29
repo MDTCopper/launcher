@@ -63,7 +63,7 @@ class _InfoListState extends State<InfoList>
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         spacing: 8,

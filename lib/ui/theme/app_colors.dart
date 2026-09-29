@@ -11,6 +11,13 @@ class AppColors extends ThemeExtension<AppColors> {
 
   final Color pageBackground;
   final Color cardBackground;
+  //card背景下的交互色
+  ///low - 亮度低于card
+  final Color lowBackgroundOnCard;
+
+  ///high - 亮度高于card
+  final Color highBackgroundOnCard;
+
   final Color inputBackground;
   final Color elevatedBackground; // 悬浮 / 选中浮层
 
@@ -93,6 +100,8 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.indicatorBackground,
     required this.barrier,
     required this.shadow,
+    required this.lowBackgroundOnCard,
+    required this.highBackgroundOnCard,
   });
 
   //Copper默认主题色，黄铜
@@ -100,6 +109,10 @@ class AppColors extends ThemeExtension<AppColors> {
     // 背景
     pageBackground: Palette.neutral200,
     cardBackground: Palette.neutral100,
+
+    lowBackgroundOnCard: Palette.neutral300,
+    highBackgroundOnCard: Palette.neutral200,
+
     inputBackground: Palette.neutral100,
     elevatedBackground: Palette.neutral100,
 
@@ -148,6 +161,10 @@ class AppColors extends ThemeExtension<AppColors> {
     // 背景
     pageBackground: Palette.darkPage,
     cardBackground: Palette.darkCard,
+
+    lowBackgroundOnCard: Palette.neutral950,
+    highBackgroundOnCard: Palette.neutral800,
+
     inputBackground: Palette.darkCard,
     elevatedBackground: Palette.darkElevated,
 
@@ -197,6 +214,10 @@ class AppColors extends ThemeExtension<AppColors> {
     // 背景
     pageBackground: Palette.neutral200,
     cardBackground: Palette.neutral100,
+
+    lowBackgroundOnCard: Palette.neutral300,
+    highBackgroundOnCard: Palette.neutral200,
+
     inputBackground: Palette.neutral100,
     elevatedBackground: Palette.neutral100,
 
@@ -245,6 +266,10 @@ class AppColors extends ThemeExtension<AppColors> {
     // 背景
     pageBackground: Palette.darkPage,
     cardBackground: Palette.darkCard,
+
+    lowBackgroundOnCard: Palette.neutral950,
+    highBackgroundOnCard: Palette.neutral800,
+
     inputBackground: Palette.darkCard,
     elevatedBackground: Palette.darkElevated,
 
@@ -294,6 +319,10 @@ class AppColors extends ThemeExtension<AppColors> {
     // 背景
     pageBackground: Palette.neutral200,
     cardBackground: Palette.neutral100,
+
+    lowBackgroundOnCard: Palette.neutral300,
+    highBackgroundOnCard: Palette.neutral200,
+
     inputBackground: Palette.neutral100,
     elevatedBackground: Palette.neutral100,
 
@@ -342,6 +371,10 @@ class AppColors extends ThemeExtension<AppColors> {
     // 背景
     pageBackground: Palette.darkPage,
     cardBackground: Palette.darkCard,
+
+    lowBackgroundOnCard: Palette.neutral950,
+    highBackgroundOnCard: Palette.neutral800,
+
     inputBackground: Palette.darkCard,
     elevatedBackground: Palette.darkElevated,
 
@@ -391,6 +424,10 @@ class AppColors extends ThemeExtension<AppColors> {
     // 背景
     pageBackground: Palette.neutral200,
     cardBackground: Palette.neutral100,
+
+    lowBackgroundOnCard: Palette.neutral300,
+    highBackgroundOnCard: Palette.neutral200,
+
     inputBackground: Palette.neutral100,
     elevatedBackground: Palette.neutral100,
 
@@ -439,6 +476,10 @@ class AppColors extends ThemeExtension<AppColors> {
     // 背景
     pageBackground: Palette.darkPage,
     cardBackground: Palette.darkCard,
+
+    lowBackgroundOnCard: Palette.neutral950,
+    highBackgroundOnCard: Palette.neutral800,
+
     inputBackground: Palette.darkCard,
     elevatedBackground: Palette.darkElevated,
 
@@ -515,6 +556,9 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? indicatorBackground,
     Color? barrier,
     Color? shadow,
+    Color? interactiveLowBackground,
+    Color? interactiveBackground,
+    Color? interactiveHighBackground,
   }) {
     return AppColors(
       pageBackground: pageBackground ?? this.pageBackground,
@@ -548,6 +592,8 @@ class AppColors extends ThemeExtension<AppColors> {
       indicatorBackground: indicatorBackground ?? this.indicatorBackground,
       barrier: barrier ?? this.barrier,
       shadow: shadow ?? this.shadow,
+      lowBackgroundOnCard: interactiveLowBackground ?? this.lowBackgroundOnCard,
+      highBackgroundOnCard: interactiveBackground ?? this.highBackgroundOnCard,
     );
   }
 
@@ -621,6 +667,16 @@ class AppColors extends ThemeExtension<AppColors> {
       )!,
       barrier: Color.lerp(barrier, other.barrier, t)!,
       shadow: Color.lerp(shadow, other.shadow, t)!,
+      lowBackgroundOnCard: Color.lerp(
+        lowBackgroundOnCard,
+        other.lowBackgroundOnCard,
+        t,
+      )!,
+      highBackgroundOnCard: Color.lerp(
+        highBackgroundOnCard,
+        other.highBackgroundOnCard,
+        t,
+      )!,
     );
   }
 }

@@ -57,7 +57,7 @@ class CopperCard extends StatelessWidget {
             borderRadius ?? const BorderRadius.all(Radius.circular(8)),
         boxShadow: isDark
             ? null
-            : _materialShadow(colors.shadow, elevation ?? 2.0),
+            : _materialShadow(colors.shadow, elevation ?? 4.0),
       ),
 
       child: child,

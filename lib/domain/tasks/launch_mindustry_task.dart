@@ -4,10 +4,13 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/task.dart';
+import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/dialog/java_missing_prompt.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
+import 'package:copper_launcher/util/format/date_time_format.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/java/java_compat.dart';
@@ -15,6 +18,7 @@ import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 
 import 'package:copper_launcher/util/system_info.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../ui/shell/drawer/log_list.dart';
@@ -34,21 +38,60 @@ class LaunchMindustryTask extends Task {
 
   @override
   Widget buildDisplayWidget(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+
     final statusText = switch (status) {
       TaskStatus.pending => '准备启动',
-      TaskStatus.process => '游戏运行中',
-      TaskStatus.completed => '游戏已退出',
+      TaskStatus.process => '运行中...',
+      TaskStatus.completed => '已退出',
       TaskStatus.failed => '启动失败',
       TaskStatus.paused => '已暂停',
       TaskStatus.cancel => '已停止',
     };
 
-    return Row(
+    return Column(
+      crossAxisAlignment: .start,
       children: [
-        Text(statusText),
-
-        if (status == TaskStatus.process)
-          IconTextButton(icon: Icons.close, content: '关闭', onTap: cancel),
+        Row(
+          children: [
+            Icon(Icons.rocket_launch, size: 24, color: colors.itemPrimary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Mindustry', style: theme.textTheme.headlineSmall),
+            ),
+            Text(createTime.toTimeString(), style: theme.textTheme.labelMedium),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text('Mindustry ${mindustry.tag}  $statusText'),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(),
+        const SizedBox(height: 8),
+        Row(
+          spacing: 8,
+          children: [
+            Expanded(
+              child: ActionButton(
+                alignment: .center,
+                backgroundColor: colors.pageBackground,
+                icon: Icon(Icons.pause),
+                content: Text('结束进程'),
+                onTap: () {},
+              ),
+            ),
+            if (kDebugMode)
+              Expanded(
+                child: ActionButton(
+                  alignment: .center,
+                  backgroundColor: colors.pageBackground,
+                  icon: Icon(Icons.terminal),
+                  content: Text('进程日志'),
+                  onTap: () {},
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }

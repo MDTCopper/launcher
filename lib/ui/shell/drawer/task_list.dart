@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:copper_launcher/ui/components/copper_card.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/pixel_slide_transition.dart';
 import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
@@ -118,15 +119,8 @@ class _TaskListState extends State<TaskList> {
 
   Widget _buildTaskTile(Task task) {
     final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 4),
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: colors.cardBackground,
-      ),
+    return CopperCard(
+      padding: const EdgeInsets.all(12),
       child: DefaultTextStyle(
         style: theme.textTheme.bodyMedium ?? DefaultTextStyle.of(context).style,
         child: task.buildDisplayWidget(context),

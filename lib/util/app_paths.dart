@@ -146,6 +146,22 @@ abstract class AppPaths {
   /// 模组加载器库 [*\copper_loader\]：loader jar 集中放这里，多版本复用同一份
   static String get copperLoader => p.join(copperLauncher, 'copper_loader');
 
+  /// Android 桥的共享库 [*\bridge\]：JRE / arc 原生库 / bridge.jar，都是不可变二进制，
+  /// 多版本共用（每版本只单独存一份运行期目录，见 `BridgeLauncher.cacheDirFor`）
+  static String get bridge => p.join(copperLauncher, 'bridge');
+
+  /// 桥用的 Android JRE 根 [*\bridge\jre\]：`universal` 与 `bin-<abi>` 两个包叠加解压到这里，
+  /// `--java` 传它下面的 `bin/java`
+  static String get bridgeJre => p.join(bridge, 'jre');
+
+  /// 桥自己的 jar [*\bridge\<文件名>\]：`bridge-<版本>.jar` / `bridge-snapshot.jar` 可共存
+  static String bridgeJarFile(String fileName) => p.join(bridge, fileName);
+
+  /// arc 原生库目录 [*\bridge\arc\<arcRef>\<abi>\]：必须按 arc ref 分（不同游戏版本
+  /// 可能用不同 arc），按 ABI 分目录（平铺布局只能放一个 ABI 的库）
+  static String bridgeArcDir(String arcRef, String abi) =>
+      p.join(bridge, 'arc', arcRef, abi);
+
   /// 把绝对路径转成**记录形态**：落在数据根里的记相对路径（数据根搬家 / 换盘后
   /// 配置仍然可用），数据根之外的用户文件（「添加目录」扫来的本体）保持绝对路径
   static String toStoredPath(String path) {
