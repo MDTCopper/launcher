@@ -337,7 +337,7 @@ class CopperIO {
         } catch (e) {
           //镜像拿到真实 HTTP 响应（404 等）就原样抛出，别再回退直连：
           //否则「资源不存在」会被伪装成连接错误，且直连 raw 在部分网络注定失败
-          if (e is DioException && !isNetworkFailure(e)) rethrow;
+          if (e is DioException && !isTransportFailure(e)) rethrow;
           //镜像不可用 / 无可用节点 → 回退官方源兜底
           return send(url);
         }
@@ -410,12 +410,7 @@ class CopperIO {
   ///匿名限流）也回退——镜像请求不带 token，换 IP 常能绕过
   bool _shouldFallbackToMirror(Object error, String url) {
     if (error is! DioException) return false;
-    if (error.type == DioExceptionType.connectionError ||
-        error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.sendTimeout ||
-        error.type == DioExceptionType.receiveTimeout) {
-      return true;
-    }
+    if (isTransportFailure(error)) return true;
     if (error.type == DioExceptionType.badResponse &&
         GithubMirror.isGithubUrl(url)) {
       final status = error.response?.statusCode;
@@ -1049,7 +1044,7 @@ class CopperIO {
         if (CancelToken.isCancel(e)) rethrow;
         // 连接类失败（断网 / 代理不可用）重试没意义：连接超时 20 秒 × 5 次只会让人干等，
         // 所以这类只再试一次；其它错误（服务端抖动等）才按上限重试
-        final retryLimit = isNetworkFailure(e) ? 1 : _maxRetries;
+        final retryLimit = isTransportFailure(e) ? 1 : _maxRetries;
         if (tryTime < retryLimit) {
           await Future.delayed(const Duration(milliseconds: 500));
           return checkConnection(chunk, tryTime: tryTime + 1);
@@ -1123,7 +1118,7 @@ class CopperIO {
       } on DioException catch (e) {
         if (CancelToken.isCancel(e)) rethrow;
         // 同 checkConnection：断网时不再空转 5 轮，只再试一次
-        final retryLimit = isNetworkFailure(e) ? 1 : _maxRetries;
+        final retryLimit = isTransportFailure(e) ? 1 : _maxRetries;
         if (tryTime < retryLimit) {
           await Future.delayed(const Duration(milliseconds: 500));
           await downloadChunk(chunk, tryTime: tryTime + 1);
@@ -1233,12 +1228,24 @@ bool isNetworkFailure(DioException error) => switch (error.type) {
   _ => false,
 };
 
+/// 传输层失败：连接类失败 + dio 归到 [DioExceptionType.unknown] 的中断。
+///
+/// 「Software caused connection abort」「Connection reset by peer」这类被对端掐断的
+/// 连接在 dio 里是 `unknown`（不是 connectionError），但它和连不上一样是**链路问题**：
+/// 直连时该回退镜像、镜像时该换下一个节点。真机上就是这么栽的 —— 直连 github 下载
+/// 大文件被掐断，`unknown` 不算网络失败 → 既不回退镜像也不换节点，安装页直接报错
+///
+/// 用户主动取消不算：那是调用方自己要停，不该当成链路问题去换节点重试
+bool isTransportFailure(DioException error) =>
+    !CancelToken.isCancel(error) &&
+    (isNetworkFailure(error) || error.type == DioExceptionType.unknown);
+
 /// 镜像节点这次失败该不该换节点：连接类失败，或节点回 403 / 429 / 5xx
 ///
 /// 403 常是节点自己拒绝（限流 / 不服务境外 IP）而不是上游答复，换一个节点往往就好；
 /// 404 这类是上游真实答复，换谁都一样，所以不算节点失败
 bool isMirrorNodeFailure(DioException error) {
-  if (isNetworkFailure(error)) return true;
+  if (isTransportFailure(error)) return true;
   final status = error.response?.statusCode;
   if (status == null) return false;
   return status == 403 || status == 429 || status >= 500;
