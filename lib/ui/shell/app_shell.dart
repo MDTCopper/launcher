@@ -63,7 +63,7 @@ class AppShellState extends State<AppShell> {
           route: '/community_resources',
         ),
         if (kDebugMode)
-          RailItem(label: '神秘小工具', icon: Icons.build, route: '/tools'),
+          RailItem(label: '神秘小工具', icon: Icons.auto_fix_high, route: '/tools'),
       ],
     ),
   ];
@@ -192,6 +192,9 @@ class AppShellState extends State<AppShell> {
 
               Expanded(child: SizedBox()),
 
+              const TaskDrawerOpener(),
+              const SizedBox(width: 4),
+
               ValueListenableBuilder<bool>(
                 valueListenable: subNavigationCollapseNotifier,
                 builder: (context, subNavigationCollapse, _) {
@@ -205,12 +208,8 @@ class AppShellState extends State<AppShell> {
                   );
                 },
               ),
-              const SizedBox(width: 4),
-
-              const TaskDrawerOpener(),
 
               if (isDesktop) ...[
-                const SizedBox(width: 4),
                 ReboundButton(
                   backgroundColor: Colors.transparent,
                   onTap: () => windowManager.minimize(),
