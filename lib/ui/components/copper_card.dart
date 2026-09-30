@@ -50,9 +50,13 @@ class CopperCard extends StatelessWidget {
       padding: padding,
       margin: margin,
       alignment: alignment,
+      foregroundDecoration: BoxDecoration(
+        border: isDark ? Border.all(color: colors.border) : null,
+        borderRadius:
+            borderRadius ?? const BorderRadius.all(Radius.circular(8)),
+      ),
       decoration: BoxDecoration(
         color: colors.cardBackground,
-        border: isDark ? Border.all(color: colors.border) : null,
         borderRadius:
             borderRadius ?? const BorderRadius.all(Radius.circular(8)),
         boxShadow: isDark
