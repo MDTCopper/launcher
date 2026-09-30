@@ -95,6 +95,9 @@ class GithubMirror {
   ///这段窗口里镜像本身也是「上一次能通」的那条路
   static const _directFailureTtl = Duration(minutes: 5);
 
+  ///每族「直连刚被验证可用」的时刻：有了它就不必每次都并行探测
+  final Map<MirrorFamily, DateTime> _directOkAt = {};
+
   ///排名表缓存有效期
   static const _rankingTtl = Duration(minutes: 10);
 
@@ -131,6 +134,15 @@ class GithubMirror {
     final family = mirrorFamilyOf(url);
     if (family == null) return;
     _directFailedAt[family] = DateTime.now();
+    _directOkAt.remove(family);
+  }
+
+  ///直连这一族刚刚通了：记下来，[_directFailureTtl] 内不再并行探测
+  void markDirectOk(String url) {
+    final family = mirrorFamilyOf(url);
+    if (family == null) return;
+    _directOkAt[family] = DateTime.now();
+    _directFailedAt.remove(family);
   }
 
   ///这一族要不要跳过「直连先试」：最近失败过且还在 [_directFailureTtl] 内
@@ -141,6 +153,19 @@ class GithubMirror {
     if (at == null) return false;
     if (DateTime.now().difference(at) > _directFailureTtl) {
       _directFailedAt.remove(family);
+      return false;
+    }
+    return true;
+  }
+
+  ///这一族的直连最近**确认可用**吗（窗口内）—— 可用就别再并行探测，直接走直连
+  bool isDirectVerified(String url) {
+    final family = mirrorFamilyOf(url);
+    if (family == null) return false;
+    final at = _directOkAt[family];
+    if (at == null) return false;
+    if (DateTime.now().difference(at) > _directFailureTtl) {
+      _directOkAt.remove(family);
       return false;
     }
     return true;
@@ -213,8 +238,9 @@ class GithubMirror {
   ///应用镜像设置（由调用方注入，不读全局 config）
   void applySettings(MirrorOptions options) {
     _enabled = options.enabled;
-    // 换了网络设置（开关 / 代理策略）就当链路情况变了，忘掉旧的失败记忆
+    // 换了网络设置（开关 / 代理策略）就当链路情况变了，忘掉旧的记忆
     _directFailedAt.clear();
+    _directOkAt.clear();
   }
 
   ///仅供测试：直接塞预设节点（正常走 [load] 从 remote 读）
@@ -227,6 +253,12 @@ class GithubMirror {
   @visibleForTesting
   void debugMarkDirectFailed(MirrorFamily family, DateTime at) {
     _directFailedAt[family] = at;
+  }
+
+  ///仅供测试：把某族的「直连刚验证可用」记到指定时刻（验 TTL 用）
+  @visibleForTesting
+  void debugMarkDirectOk(MirrorFamily family, DateTime at) {
+    _directOkAt[family] = at;
   }
 
   ///仅供测试：直接塞某族的排名表（正常走 [rankFamilyFor] 实测得出）
@@ -245,6 +277,7 @@ class GithubMirror {
     _rankings.clear();
     _rankingAt.clear();
     _directFailedAt.clear();
+    _directOkAt.clear();
     _enabled = true;
   }
 

@@ -354,10 +354,21 @@ class CopperIO {
             //镜像不可用 → 下面直连兜底；镜像拿到真实答复（404 等）仍原样抛
             if (e is DioException && !isTransportFailure(e)) rethrow;
           }
+        } else if (mirror.enabled && !mirror.isDirectVerified(url)) {
+          //这一族还没有结论：直连与镜像**同时探一次**，谁先答复谁赢 ——
+          //网络好时只多一个往返，网络坏时省掉几十秒的直连超时（真机实测 32~110 秒）
+          final isMirrorFaster = await _pickPathByProbe(url);
+          if (isMirrorFaster == true) {
+            try {
+              return await _sendViaMirror(url, send, preferRange: preferRange);
+            } catch (e) {
+              if (e is DioException && !isTransportFailure(e)) rethrow;
+            }
+          }
         }
         try {
           final result = await send(url);
-          mirror.forgetDirectFailure(url);
+          mirror.markDirectOk(url);
           return result;
         } catch (e) {
           if (!_shouldFallbackToMirror(e, url)) rethrow;
@@ -372,6 +383,94 @@ class CopperIO {
           );
           return _sendViaMirror(url, send, preferRange: preferRange);
         }
+    }
+  }
+
+  ///并行探一次「直连还是镜像快」，只用探测结果决定走哪条路
+  ///
+  ///- true：镜像先答复（调用方走镜像）
+  ///- false：直连先答复（调用方照旧走直连）
+  ///- null：探不出结论（没有可用节点 / 两条都不答复）—— 交回原有的顺序回退
+  ///
+  ///探测只发 HEAD、不拉正文；结论写进短期记忆，这一族在窗口内就不必再探
+  Future<bool?> _pickPathByProbe(String url) async {
+    final mirror = GithubMirror.instance;
+    var ranked = mirror.freshRankedFor(url);
+    if (ranked.isEmpty) {
+      try {
+        ranked = await mirror.rankFamilyFor(url, preferRange: true);
+      } catch (_) {
+        return null;
+      }
+    }
+    if (ranked.isEmpty) return null;
+
+    final mirrorUrl = '${ranked.first}$url';
+    final winner = await raceReachable(
+      [url, mirrorUrl],
+      (candidate) => _probeReachable(candidate),
+    );
+    if (winner == null) return null;
+
+    final isMirrorFaster = winner == mirrorUrl;
+    addLog(
+      .debug,
+      '并行探测：${isMirrorFaster ? '镜像' : '直连'}先答复，这次走'
+      '${isMirrorFaster ? '镜像' : '直连'}：$url',
+      tag: 'Mirror',
+    );
+    if (isMirrorFaster) {
+      mirror.markDirectFailed(url);
+    } else {
+      mirror.markDirectOk(url);
+    }
+    return isMirrorFaster;
+  }
+
+  ///同时探几条路，**先答复的那条赢**；全都不答复返回 null
+  ///
+  ///探针由调用方给（生产里是 HEAD，用例里给假探针），这里只管竞速与收口。
+  ///输的那条不再理会：探针只是个 HEAD，dio 自己会按连接超时收口，不影响调用方
+  @visibleForTesting
+  Future<String?> raceReachable(
+    List<String> candidates,
+    Future<bool> Function(String candidate) probe,
+  ) async {
+    if (candidates.isEmpty) return null;
+    final completer = Completer<String?>();
+    var pending = candidates.length;
+
+    for (final candidate in candidates) {
+      unawaited(() async {
+        var isReachable = false;
+        try {
+          isReachable = await probe(candidate);
+        } catch (_) {
+          isReachable = false;
+        }
+        if (completer.isCompleted) return;
+        if (isReachable) {
+          completer.complete(candidate);
+        } else if (--pending == 0) {
+          completer.complete(null);
+        }
+      }());
+    }
+
+    return completer.future;
+  }
+
+  ///这条路通不通：发个 HEAD，**只要有 HTTP 答复就算通**（404 / 405 也说明链路是好的）
+  Future<bool> _probeReachable(String url) async {
+    _ensureInit();
+    try {
+      await _dio!.head(
+        url,
+        options: Options(validateStatus: (_) => true),
+      );
+      return true;
+    } on DioException {
+      return false;
     }
   }
 
