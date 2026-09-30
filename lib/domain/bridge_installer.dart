@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/bridge_payload.dart';
+import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/archive_extract.dart';
@@ -350,6 +352,65 @@ class BridgeInstaller {
       }
     }
     return names;
+  }
+
+  /// 装 loader-wrapper（走 mod 时才需要）：已装好就直接复用，否则按固定链接下
+  ///
+  /// 返回装好的 jar 路径；**版本对不上返回 null**（wrapper 是与某一版 loader 一起编的，
+  /// 与将要用的桌面 jar 不一致时 classpath 会错，宁可不起）
+  static Future<String?> ensureLoaderWrapper({
+    required String? desktopLoaderPath,
+    CancelToken? cancelToken,
+    void Function(String status)? onStatus,
+  }) async {
+    final target = File(BridgePayload.loaderWrapperJarFilePath());
+    if (!target.existsSync()) {
+      onStatus?.call('正在下载模组加载器适配层…');
+      try {
+        await target.parent.create(recursive: true);
+        await cio.download(
+          url: BridgePayload.loaderWrapperJarUrl(),
+          savePath: target.path,
+          cancelToken: cancelToken,
+        );
+      } catch (error) {
+        // 下不到就按「不注入 loader」处理（调用方会按原版起），别把启动直接掀了
+        addLogAndPrint(
+          .warning,
+          '模组加载器适配层下载失败：${removeNewlines('$error')}',
+          tag: 'Bridge',
+        );
+        return null;
+      }
+    }
+
+    final desktopLoaderVersion = desktopLoaderPath == null
+        ? null
+        : LoaderLibrary.versionOf(File(desktopLoaderPath));
+    final wrapperLoaderVersion = await BridgeLauncher.wrapperLoaderVersionOf(
+      target.path,
+    );
+    if (!BridgePayload.wrapperMatchesLoader(
+      wrapperLoaderVersion: wrapperLoaderVersion,
+      desktopLoaderVersion: desktopLoaderVersion,
+    )) {
+      addLogAndPrint(
+        .warning,
+        '模组加载器适配层版本对不上：适配层针对 loader '
+        '${wrapperLoaderVersion ?? '（读不出）'}、桌面 jar 是 '
+        '${desktopLoaderVersion ?? '（没有）'}',
+        tag: 'Bridge',
+      );
+      return null;
+    }
+
+    addLogAndPrint(
+      .info,
+      'Android 桥：模组加载器适配层就绪（wrapper '
+      '${BridgePayload.loaderWrapperVersion} ↔ loader $desktopLoaderVersion）',
+      tag: 'Bridge',
+    );
+    return target.path;
   }
 
   /// 桥自己的 jar：同一个版本已存在就直接复用

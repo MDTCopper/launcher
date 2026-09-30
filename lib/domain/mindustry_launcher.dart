@@ -207,13 +207,28 @@ class MindustryLauncher {
       return false;
     }
 
-    // Android 的 loader 路线还要 loader-wrapper（文档 §7），载荷没接：先按原版起
+    // 走 Copper 加载器时注入 wrapper + loader 桌面 jar（文档 §7）：少了任何一份就按原版起，
+    // 免得「点了没反应」——mod 不会加载，但游戏能起来
+    var loaderJars = const <String>[];
+    String? loaderMainClass;
     if (mindustry.isViaLoader) {
-      addLogAndPrint(
-        .warning,
-        'Android 暂不支持 Copper 加载器：这次按原版启动，mod 不会加载',
-        tag: 'Launch',
+      final desktopLoader = usableLoaderPath(mindustry);
+      final wrapper = await BridgeInstaller.ensureLoaderWrapper(
+        desktopLoaderPath: desktopLoader,
+        onStatus: (status) =>
+            addLogAndPrint(.info, 'Android 桥：$status', tag: 'Bridge'),
       );
+      if (wrapper != null && desktopLoader != null) {
+        loaderJars = [wrapper, desktopLoader];
+        loaderMainClass = BridgePayload.wrapperMainClass;
+      } else {
+        addLogAndPrint(
+          .warning,
+          'Android 桥：模组加载器不全（适配层 ${wrapper == null ? '不可用' : '就绪'}、'
+          '桌面 jar ${desktopLoader ?? '缺失'}），这次按原版启动，mod 不会加载',
+          tag: 'Launch',
+        );
+      }
     }
 
     final arcRef = await BridgeLauncher.arcRefOf(mindustry);
@@ -259,6 +274,8 @@ class MindustryLauncher {
       jreDir: AppPaths.bridgeJre,
       arcDir: arcDir,
       jvmArgs: jvmArgs,
+      loaderJars: loaderJars,
+      loaderMainClass: loaderMainClass,
     );
 
     try {

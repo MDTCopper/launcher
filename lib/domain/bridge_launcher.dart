@@ -173,29 +173,43 @@ class BridgeLauncher {
 
   /// 本体 jar 里 `version.properties` 的 `commitHash`；读不到返回 null
   ///
-  /// 用 zip 的流式解码只读这一个条目（本体几十 MB，别整包读进内存）。
+  /// （官方构建在 jar 里写的就是 `commitHash=unknown`，自构建才写得出真提交 —— 当没有处理）
+  static Future<String?> commitHashOfJar(String jarPath) async {
+    final commit = await jarPropertyOf(jarPath, 'commitHash');
+    if (commit == null || commit.toLowerCase() == 'unknown') return null;
+    return commit;
+  }
+
+  /// wrapper jar 里 `wrapper-version.properties` 的 `loaderVersion`（它编时针对哪版 loader）
+  static Future<String?> wrapperLoaderVersionOf(String jarPath) =>
+      jarPropertyOf(jarPath, 'loaderVersion');
+
+  /// 从 jar 里读某个 properties 条目的值；读不到返回 null
+  ///
+  /// 用 zip 的流式解码只读这几个小条目（本体几十 MB，别整包读进内存）。
   /// **文件句柄必须自己关**：解码失败时 `ZipDecoder` 不会替我们关（Windows 上会
   /// 让「删这个 jar」直接失败），所以流要在 `finally` 里 `closeSync()`
-  static Future<String?> commitHashOfJar(String jarPath) async {
+  static Future<String?> jarPropertyOf(String jarPath, String key) async {
     Archive? archive;
     InputFileStream? stream;
     try {
       stream = InputFileStream(jarPath);
       archive = ZipDecoder().decodeStream(stream);
-      final entry = archive.findFile('version.properties');
-      final bytes = entry?.readBytes();
-      if (bytes == null) return null;
-      final commit = BridgePayload.parseCommitHash(
-        utf8.decode(bytes, allowMalformed: true),
-      );
-      // 官方构建在 jar 里写的就是 `commitHash=unknown`（自构建才写得出真提交），
-      // 当没有处理，让调用方走「按 tag 查」那条路
-      if (commit == null || commit.toLowerCase() == 'unknown') return null;
-      return commit;
+      for (final entryName in _propertiesEntries) {
+        final entry = archive.findFile(entryName);
+        final bytes = entry?.readBytes();
+        if (bytes == null) continue;
+        final value = BridgePayload.propertyValue(
+          utf8.decode(bytes, allowMalformed: true),
+          key,
+        );
+        if (value != null) return value;
+      }
+      return null;
     } catch (error) {
       addLogAndPrint(
         .warning,
-        '读本体 jar 的版本信息失败：${removeNewlines('$error')}',
+        '读 jar 里的 $key 失败：${removeNewlines('$error')}',
         tag: 'Bridge',
       );
       return null;
@@ -204,6 +218,13 @@ class BridgeLauncher {
       stream?.closeSync();
     }
   }
+
+  /// 版本信息可能落在哪个条目：本体是 `version.properties`，wrapper 是
+  /// `wrapper-version.properties`（两边都试一次，省得调用方各记一份）
+  static const _propertiesEntries = [
+    'version.properties',
+    'wrapper-version.properties',
+  ];
 
   /// 把参数交给桥（`Bridge.launch`，绑定见 `lib/util/art_binding.dart`）
   ///

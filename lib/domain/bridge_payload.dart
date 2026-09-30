@@ -23,6 +23,20 @@ class BridgePayload {
   /// 桥的仓库
   static const bridgeRepo = 'MDTCopper/android-bridge';
 
+  /// loader-wrapper 的仓库与**钉住的版本**（Android 走 mod 时注入 loader 用）
+  ///
+  /// wrapper 是薄适配器：把桥给的 classpath 转成 CopperLoader 的命令行。它按
+  /// `loaderVersion` 编译，**那份 loader 桌面 jar 运行期必须在**，版本也要与它一致
+  static const loaderWrapperRepo = 'MDTCopper/loader-wrapper';
+  static const loaderWrapperVersion = '0.1.0';
+
+  /// 这份 wrapper 编译时针对的 loader 版本（jar 里 `wrapper-version.properties` 的
+  /// `loaderVersion`）；装了别的 loader 版本时要重新编 wrapper
+  static const loaderWrapperLoaderVersion = '0.2.0';
+
+  /// wrapper 的主类：桥用 `--main` 指定它接管启动（桥自己的选项，不是位置参数）
+  static const wrapperMainClass = 'copper.wrapper.Main';
+
   /// 快照 release：资产固定叫 `bridge-snapshot.jar`，每次 push 都重建
   static const bridgeSnapshot = 'snapshot';
 
@@ -62,6 +76,36 @@ class BridgePayload {
   /// 桥 jar 的库内路径（共享库目录，跨版本复用）
   static String bridgeJarFilePath(String tag) =>
       AppPaths.bridgeJarFile(bridgeJarFileName(tag));
+
+  /// wrapper jar 的下载地址：与桥同套路 —— `releases/download/<版本>/loader-wrapper-<版本>.jar`
+  static String loaderWrapperJarUrl({String? version}) {
+    final tag = version ?? loaderWrapperVersion;
+    return 'https://github.com/$loaderWrapperRepo/releases/download/$tag/'
+        'loader-wrapper-$tag.jar';
+  }
+
+  /// wrapper jar 的库内文件名
+  static String loaderWrapperJarFileName(String version) =>
+      'loader-wrapper-$version.jar';
+
+  /// wrapper jar 的库内路径（与桥、JRE 同一层共享库目录）
+  static String loaderWrapperJarFilePath({String? version}) =>
+      AppPaths.bridgeJarFile(
+        loaderWrapperJarFileName(version ?? loaderWrapperVersion),
+      );
+
+  /// wrapper 能不能配这个 loader 版本用：jar 里记的 `loaderVersion` 要与桌面 jar 一致
+  ///
+  /// 对不上就是「wrapper 编的时候针对另一版 loader」——运行期 classpath 会错，宁可不起
+  static bool wrapperMatchesLoader({
+    required String? wrapperLoaderVersion,
+    required String? desktopLoaderVersion,
+  }) {
+    if (wrapperLoaderVersion == null || desktopLoaderVersion == null) {
+      return false;
+    }
+    return wrapperLoaderVersion.trim() == desktopLoaderVersion.trim();
+  }
 
   /// 已装好的桥 jar（库里**版本最高**的那个）；一个都没有返回 null
   ///
