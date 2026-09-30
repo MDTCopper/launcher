@@ -100,7 +100,9 @@ dart tool/build_release.dart --version 0.0.2 --channel alpha --bump --platform w
 
 **国内资源站拥有者wayzer**：提供了项目的地图资源
 
-**github.akams.cn**：github镜像节点提供
+**各大github节点**
+
+**国内社区MDTBBS**：提供国内高速下载节点
 
 ## 需要帮助
 

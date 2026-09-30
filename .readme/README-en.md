@@ -99,6 +99,12 @@ This project mainly draws on the design of third-party Minecraft launchers:
 2. **LauncherX**: background task system
 3. **HMCL**: parts of the backend logic
 
+**wayzer**, owner of a Chinese resource site: provided the map resources for this project
+
+**Various GitHub mirror nodes**
+
+**MDTBBS**, a Chinese community: provided a high-speed download node in China
+
 ## Help Wanted
 
 The **blueprint feature** still lacks a data source: it needs a site or API that serves blueprint lists / search / downloads (the way the official repository serves mods and mindustry.top serves maps).
