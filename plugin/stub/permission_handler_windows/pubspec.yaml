@@ -9,3 +9,11 @@ dependencies:
   flutter:
     sdk: flutter
   permission_handler_platform_interface: ^4.0.0
+
+# 假平台支持，绕过严格 Federated Plugins 校验机制
+flutter:
+  plugin:
+    implements: permission_handler
+    platforms:
+      windows:
+        dartPluginClass: FakePermissionWindows
