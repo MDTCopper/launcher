@@ -1,0 +1,11 @@
+name: permission_handler_windows
+description: "A stub package to disable permission_handler on Windows."
+version: 0.2.1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  permission_handler_platform_interface: ^4.0.0

@@ -20,8 +20,17 @@ class PathSelector {
     try {
       if (Platform.isWindows) {
         ExplorerHelper.openExplorer(dir.path);
+      } else if (Platform.isMacOS) {
+        await Process.run('open', [dir.path]);
+      } else if (Platform.isLinux) {
+        await Process.run('xdg-open', [dir.path]);
       }
     } catch (e) {
+      addLogAndPrint(
+        .warning,
+        '打开文件夹失败[$path]：${removeNewlines('$e')}',
+        tag: 'Path',
+      );
       rethrow;
     }
   }
@@ -36,12 +45,42 @@ class PathSelector {
     try {
       if (Platform.isWindows) {
         ExplorerHelper.locateFile(dir.path);
+      } else if (Platform.isMacOS) {
+        // -R 在 Finder 中显示并选中
+        await Process.run('open', ['-R', dir.path]);
+      } else if (Platform.isLinux) {
+        await _locateFileOnLinux(path);
       } else if (Platform.isAndroid) {
         _locateFileOnAndroid(path);
       }
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Linux 下在文件管理器中定位文件
+  ///
+  /// 优先走 freedesktop 标准 DBus 接口 `org.freedesktop.FileManager1.ShowItems`
+  /// （Nautilus / Dolphin / Thunar 等主流 FM 都注册了这个接口），
+  /// 失败则退化为 `xdg-open` 打开父目录
+  static Future<void> _locateFileOnLinux(String path) async {
+    final absPath = Uri.file(path).toString();
+    try {
+      final result = await Process.run('dbus-send', [
+        '--session',
+        '--dest=org.freedesktop.FileManager1',
+        '--type=method_call',
+        '/org/freedesktop/FileManager1',
+        'org.freedesktop.FileManager1.ShowItems',
+        'array:string:$absPath',
+        'string:',
+      ]);
+      if (result.exitCode == 0) return;
+    } catch (_) {
+      // dbus-send 不存在 / FM 未注册接口：退化为打开父目录
+    }
+    final parent = Directory(path).parent.path;
+    await Process.run('xdg-open', [parent]);
   }
 
   ///选择文件夹,默认初始目录为CopperLauncher目录

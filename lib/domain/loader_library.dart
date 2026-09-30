@@ -136,7 +136,7 @@ class LoaderLibrary {
   }) {
     final versionTags = [
       for (final tag in tags)
-        if (_versionTagPattern.hasMatch(tag.trim())) tag.trim(),
+        if (_versionTagPattern.hasMatch(tag.trim()) || tag == 'snapshot') tag.trim(),
     ]..sort((a, b) => compareVersion(b, a));
 
     return [
