@@ -556,9 +556,8 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? indicatorBackground,
     Color? barrier,
     Color? shadow,
-    Color? interactiveLowBackground,
-    Color? interactiveBackground,
-    Color? interactiveHighBackground,
+    Color? lowBackgroundOnCard,
+    Color? highBackgroundOnCard,
   }) {
     return AppColors(
       pageBackground: pageBackground ?? this.pageBackground,
@@ -592,8 +591,8 @@ class AppColors extends ThemeExtension<AppColors> {
       indicatorBackground: indicatorBackground ?? this.indicatorBackground,
       barrier: barrier ?? this.barrier,
       shadow: shadow ?? this.shadow,
-      lowBackgroundOnCard: interactiveLowBackground ?? this.lowBackgroundOnCard,
-      highBackgroundOnCard: interactiveBackground ?? this.highBackgroundOnCard,
+      lowBackgroundOnCard: lowBackgroundOnCard ?? this.lowBackgroundOnCard,
+      highBackgroundOnCard: highBackgroundOnCard ?? this.highBackgroundOnCard,
     );
   }
 

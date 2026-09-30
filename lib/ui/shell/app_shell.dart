@@ -210,6 +210,7 @@ class AppShellState extends State<AppShell> {
               ),
 
               if (isDesktop) ...[
+                const SizedBox(width: 4),
                 ReboundButton(
                   backgroundColor: Colors.transparent,
                   onTap: () => windowManager.minimize(),
@@ -299,12 +300,8 @@ class AppShellState extends State<AppShell> {
       ),
       body: ValueListenableBuilder<bool>(
         valueListenable: LauncherTray.instance.isWindowHidden,
-        builder: (context, isHidden, _) => TickerMode(
-          // 窗口收起（托盘）或最小化时停掉所有动画：不然后台还在逐帧渲染、白耗 GPU。
-          // 值保留，窗口回来时动画接着走
-          enabled: !isHidden,
-          child: _buildShellBody(colors),
-        ),
+        builder: (context, isHidden, _) =>
+            TickerMode(enabled: !isHidden, child: _buildShellBody(colors)),
       ),
     );
 
