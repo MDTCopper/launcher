@@ -72,16 +72,24 @@ abstract class Palette {
   // ═══════════════════════════════════════════════════════════
 
   static const white = Color(0xFFFFFFFF);
-  static const neutral50 = Color(0xFFFAFAFA); // 暖白页底
+  static const neutral50 = Color(0xFFFAFAFA);
   static const neutral100 = Color(0xFFF5F5F5);
-  static const neutral200 = Color.fromARGB(255, 223, 223, 223); // 若有若无的边框
-  static const neutral300 = Color.fromARGB(255, 200, 200, 200); // 禁用态
-  static const neutral400 = Color.fromARGB(255, 173, 173, 173); // 很淡的辅助文字
-  static const neutral500 = Color.fromARGB(255, 125, 125, 125); // 次要文字
+  static const neutral150 = Color.fromARGB(255, 233, 233, 233);
+  static const neutral200 = Color.fromARGB(255, 223, 223, 223);
+  static const neutral250 = Color.fromARGB(255, 212, 212, 212);
+  static const neutral300 = Color.fromARGB(255, 200, 200, 200);
+  static const neutral350 = Color.fromARGB(255, 187, 187, 187);
+  static const neutral400 = Color.fromARGB(255, 173, 173, 173);
+  static const neutral450 = Color.fromARGB(255, 149, 149, 149);
+  static const neutral500 = Color.fromARGB(255, 125, 125, 125);
+  static const neutral550 = Color.fromARGB(255, 117, 117, 117);
   static const neutral600 = Color.fromARGB(255, 98, 98, 98);
+  static const neutral650 = Color.fromARGB(255, 84, 84, 84);
   static const neutral700 = Color.fromARGB(255, 76, 76, 76);
-  static const neutral800 = Color(0xFF2D2D2D); // 主要文字（亮色）
-  static const neutral900 = Color(0xFF1A1A1A);
+  static const neutral750 = Color.fromARGB(255, 60, 60, 60);
+  static const neutral800 = Color.fromARGB(255, 47, 47, 47);
+  static const neutral850 = Color.fromARGB(255, 32, 32, 32);
+  static const neutral900 = Color.fromARGB(255, 26, 26, 26);
   static const neutral950 = Color.fromARGB(255, 18, 18, 18);
   static const black = Color(0xFF000000);
 
@@ -90,11 +98,11 @@ abstract class Palette {
   // ═══════════════════════════════════════════════════════════
 
   static const darkPage = neutral950; // 页面底（不纯黑）
-  static const darkCard = neutral900; // 卡片 / 容器
+  static const darkCard = neutral850; // 卡片 / 容器
   static const darkElevated = Color(0xFF252525); // 悬浮 / 选中浮层
-  static const darkBorder = Color(0xFF2A2A2A); // 边框（暗色）
-  static const darkTextPrimary = Color.fromARGB(255, 216, 216, 216); // 主文字
-  static const darkTextSecondary = Color.fromARGB(255, 193, 193, 193); // 次文字
+  static const darkBorder = neutral750; // 边框（暗色）
+  static const darkTextPrimary = neutral200; // 主文字
+  static const darkTextSecondary = neutral300; // 次文字
 
   // ═══════════════════════════════════════════════════════════
   // 语义色
