@@ -22,7 +22,7 @@ A multi-platform game launcher for [Mindustry](https://github.com/Anuken/Mindust
 | Platform | Status |
 |:--|:--|
 | **Windows / Linux / macOS** | Fully supported, all launcher features available |
-| **Android** | Requires **CopperModLoader** to work properly |
+| **Android** | Supported. The first launch downloads a Java runtime and the Copper bridge (~40 MB); after that the desktop game runs. Mod (CopperModLoader) support is still in progress |
 | **iOS** | Not supported. Heavy platform restrictions, and Java mods cannot run there anyway |
 
 ## Features
@@ -36,12 +36,13 @@ A multi-platform game launcher for [Mindustry](https://github.com/Anuken/Mindust
 - Import / export resources (saves, maps, mods, blueprints); importing is still being finished
 - View and export game crash logs
 - Track play time and last launch time per version
-- Generate launch scripts (`.bat` / `.sh`) so the game can start without the launcher
+- Generate launch scripts (`.bat` / `.sh`) so the game can start without the launcher (desktop)
 
 ### Launching the Game
 
 - Configure JVM arguments before launch, with **automatic heap allocation** (estimated from available memory and the size of enabled mods)
 - Manage multiple Java runtimes, download from Adoptium when a runtime is missing, and pick a Java version compatible with each game version (Java 8 is safest for old versions)
+- On Android no Java install is needed: the runtime downloaded on first launch is used automatically
 - Override in-game settings and the multiplayer username
 - Move the launcher into the **system tray** while playing, then restore the window when the game exits (desktop)
 - Single-instance: launching again brings the existing window back
@@ -57,7 +58,7 @@ A multi-platform game launcher for [Mindustry](https://github.com/Anuken/Mindust
 ### Network & Downloads
 
 - Unified network layer: automatic user agent, GitHub API token injection, chunked multi-threaded downloads with resume, and speed limits
-- **GitHub mirror acceleration**: direct connection first, automatic fallback to mirrors on network errors, with node speed tests and custom nodes
+- **GitHub mirror acceleration**: nodes are ranked separately for github.com / raw / api (measured latency, automatic failover to the next node); strategies are direct-first / mirror-first / official-only, and mirror hosts bypass the proxy; custom nodes are supported
 - Three proxy modes: follow system / custom / disabled
 
 ### Interface
@@ -76,7 +77,7 @@ Requires **Flutter** (Dart SDK `^3.11.5`). Desktop targets can only be built on 
 flutter pub get
 flutter run -d windows     # dev run (use -d linux / -d macos instead)
 flutter test               # tests
-flutter analyze            # static analysis, aiming for 0 errors
+flutter analyze            # static analysis, aiming for 0 issues
 ```
 
 For release builds and packaging, use `tool/build_release.dart` — interactively, or with arguments:
