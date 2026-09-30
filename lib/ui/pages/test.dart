@@ -3,6 +3,7 @@ import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
+import 'package:copper_launcher/ui/components/effect/border_progress.dart';
 import 'package:copper_launcher/ui/components/future/readme_loader.dart';
 import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
@@ -163,6 +164,9 @@ class TestState extends State<Test> {
   // ── 第 15 区演示状态（CapsuleActionBar 胶囊操作栏）──
   String _capsuleLastAction = '还没点过'; // 记录点了哪个动作
 
+  // ── 第 18 区演示状态（BorderProgress 描边进度）──
+  double? _borderProgress = 0.35; // null = 不确定态（只画轨道）
+
   @override
   void dispose() {
     listController.dispose();
@@ -222,6 +226,7 @@ class TestState extends State<Test> {
           _capsuleActionBarSection(),
           _readmeSkeletonSection(),
           _javaMissingPromptSection(),
+          _borderProgressSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -658,6 +663,79 @@ class TestState extends State<Test> {
                 content: 'v4 老版本（推荐 Java 8）',
                 onTap: () =>
                     showJavaMissingPrompt(releaseInt: 4, context: context),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════ 18. 描边进度（BorderProgress） ════════
+  Widget _borderProgressSection() {
+    final colors = AppColors.of(context);
+    final labelStyle = TextStyle(color: colors.itemPrimary);
+
+    /// 一块小牌子，形状照任务抽屉那个「N 项任务」抄，方便对照实际观感
+    Widget chip(String text) => Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colors.cardBackground,
+        borderRadius: const BorderRadius.all(Radius.circular(4)),
+      ),
+      child: Text(text, style: labelStyle),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('18. BorderProgress（描边进度）'),
+        _card(
+          title: '沿子组件外沿画一圈进度（颜色取主题语义色）',
+          desc:
+              '进度从左上角顺时针走；拖下面的滑杆改值，null 那一档是不确定态（只画轨道）。'
+              '描边画在子组件外面（由 strokeWidth 让出内边距），不遮内容；'
+              '圆角要与子组件自己的圆角一致，右边两块是不同圆角/粗细的对照。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  BorderProgress(progress: _borderProgress, child: chip('照任务抽屉那块牌子')),
+                  const SizedBox(width: 24),
+                  BorderProgress(
+                    progress: _borderProgress,
+                    strokeWidth: 4,
+                    borderRadius: const BorderRadius.all(Radius.circular(12)),
+                    child: chip('粗描边 + 大圆角'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '当前值：${_borderProgress?.toStringAsFixed(2) ?? 'null（不确定态）'}',
+                style: labelStyle,
+              ),
+              CopperSlider(
+                value: _borderProgress ?? 0,
+                onChanged: (value) => setState(() => _borderProgress = value),
+              ),
+              Row(
+                children: [
+                  IconTextButton(
+                    icon: Icons.restart_alt,
+                    content: '0.35',
+                    onTap: () => setState(() => _borderProgress = 0.35),
+                  ),
+                  const SizedBox(width: 12),
+                  IconTextButton(
+                    icon: Icons.all_inclusive,
+                    content: '不确定态',
+                    onTap: () => setState(() => _borderProgress = null),
+                  ),
+                ],
               ),
             ],
           ),
