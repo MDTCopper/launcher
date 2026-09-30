@@ -343,10 +343,27 @@ class CopperIO {
         }
 
       case MirrorStrategy.githubFirst:
+        //直连这一族最近失败过（链路问题）就别再白等一次：直接走镜像。
+        //窗口很短、只在内存里，直连成功或改设置即清（见 GithubMirror.shouldSkipDirect）
+        final mirror = GithubMirror.instance;
+        if (mirror.enabled && mirror.shouldSkipDirect(url)) {
+          addLog(.debug, '直连最近失败过，这次先走镜像：$url', tag: 'Mirror');
+          try {
+            return await _sendViaMirror(url, send, preferRange: preferRange);
+          } catch (e) {
+            //镜像不可用 → 下面直连兜底；镜像拿到真实答复（404 等）仍原样抛
+            if (e is DioException && !isTransportFailure(e)) rethrow;
+          }
+        }
         try {
-          return await send(url);
+          final result = await send(url);
+          mirror.forgetDirectFailure(url);
+          return result;
         } catch (e) {
           if (!_shouldFallbackToMirror(e, url)) rethrow;
+          if (e is DioException && isTransportFailure(e)) {
+            mirror.markDirectFailed(url);
+          }
           addLog(
             .debug,
             '直连失败（${e is DioException ? e.type.name : e.runtimeType}），'

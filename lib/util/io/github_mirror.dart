@@ -78,6 +78,23 @@ class GithubMirror {
   ///每族排名表的产生时刻（TTL 各自一份）
   final Map<MirrorFamily, DateTime> _rankingAt = {};
 
+  ///每族「直连刚失败过」的时刻。
+  ///
+  ///**为什么要有这个**：`githubFirst` 对每个 URL 都要先等直连失败才回退镜像，
+  ///而坏网络上的直连失败代价很大 —— 真机实测：一个 3.4 KB 的文件直连等了
+  ///**110 秒**才 `connectionTimeout`，镜像 2 秒就下完；小文件尤其亏。
+  ///所以直连一旦以链路问题失败，就在这个窗口内记住「这一族先别试直连了」。
+  ///
+  ///窗口很短（见 [_directFailureTtl]）、只在内存里，重启即忘；直连成功或换了
+  ///网络设置就立刻清掉
+  final Map<MirrorFamily, DateTime> _directFailedAt = {};
+
+  ///直连失败后多久内不再先试直连
+  ///
+  ///要比一次连接超时（20 秒）长约一个量级，又不至于让网络恢复后长期走镜像；
+  ///这段窗口里镜像本身也是「上一次能通」的那条路
+  static const _directFailureTtl = Duration(minutes: 5);
+
   ///排名表缓存有效期
   static const _rankingTtl = Duration(minutes: 10);
 
@@ -107,6 +124,33 @@ class GithubMirror {
     final at = _rankingAt[family];
     if (at == null) return false;
     return DateTime.now().difference(at) <= _rankingTtl;
+  }
+
+  ///直连这一族刚刚失败过（链路问题）：记下来，这个窗口内先走镜像
+  void markDirectFailed(String url) {
+    final family = mirrorFamilyOf(url);
+    if (family == null) return;
+    _directFailedAt[family] = DateTime.now();
+  }
+
+  ///这一族要不要跳过「直连先试」：最近失败过且还在 [_directFailureTtl] 内
+  bool shouldSkipDirect(String url) {
+    final family = mirrorFamilyOf(url);
+    if (family == null) return false;
+    final at = _directFailedAt[family];
+    if (at == null) return false;
+    if (DateTime.now().difference(at) > _directFailureTtl) {
+      _directFailedAt.remove(family);
+      return false;
+    }
+    return true;
+  }
+
+  ///直连通了：忘掉失败记忆，下次还是直连优先
+  void forgetDirectFailure(String url) {
+    final family = mirrorFamilyOf(url);
+    if (family == null) return;
+    _directFailedAt.remove(family);
   }
 
   ///这次用 [node] 成功了：把它提到该族表头，下次优先
@@ -169,12 +213,20 @@ class GithubMirror {
   ///应用镜像设置（由调用方注入，不读全局 config）
   void applySettings(MirrorOptions options) {
     _enabled = options.enabled;
+    // 换了网络设置（开关 / 代理策略）就当链路情况变了，忘掉旧的失败记忆
+    _directFailedAt.clear();
   }
 
   ///仅供测试：直接塞预设节点（正常走 [load] 从 remote 读）
   @visibleForTesting
   void debugSetPresetNodes(List<MirrorNode> nodes) {
     _presetNodes = nodes;
+  }
+
+  ///仅供测试：把某族的「直连刚失败过」记到指定时刻（验 TTL 用）
+  @visibleForTesting
+  void debugMarkDirectFailed(MirrorFamily family, DateTime at) {
+    _directFailedAt[family] = at;
   }
 
   ///仅供测试：直接塞某族的排名表（正常走 [rankFamilyFor] 实测得出）
@@ -192,6 +244,7 @@ class GithubMirror {
     crawledLatencies = {};
     _rankings.clear();
     _rankingAt.clear();
+    _directFailedAt.clear();
     _enabled = true;
   }
 
