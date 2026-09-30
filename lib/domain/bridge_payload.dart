@@ -188,12 +188,15 @@ class BridgePayload {
 
   /// 查某个游戏版本用的是哪个 arc：Mindustry 的 `gradle.properties` 里的 `archash`
   /// （必须与本体 jar 里的 arc 同源，见文档 §3.3）
+  ///
+  /// **走 raw 地址，不用 `github.com/.../raw/...` 那种重定向形式**：后者要多一跳、
+  /// 而且实测有节点不代理它（回 404，还会被当成「上游说没有」而不换节点）
   static String arcRefUrlForTag(String versionTag) =>
-      'https://github.com/Anuken/Mindustry/raw/refs/tags/$versionTag/gradle.properties';
+      'https://raw.githubusercontent.com/Anuken/Mindustry/refs/tags/$versionTag/gradle.properties';
 
   /// 按 commit 查同一份文件（BE 构建没有 Mindustry tag 时用）
   static String arcRefUrlForCommit(String commit) =>
-      'https://github.com/Anuken/Mindustry/raw/$commit/gradle.properties';
+      'https://raw.githubusercontent.com/Anuken/Mindustry/$commit/gradle.properties';
 
   /// 从 `gradle.properties` 里读 `archash`（纯函数）
   ///
