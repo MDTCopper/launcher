@@ -77,7 +77,7 @@ class LaunchMindustryTask extends Task {
                 backgroundColor: colors.pageBackground,
                 icon: Icon(Icons.pause),
                 content: Text('结束进程'),
-                onTap: () {},
+                onTap: cancel,
               ),
             ),
             if (kDebugMode)
@@ -206,7 +206,10 @@ class LaunchMindustryTask extends Task {
     // 都不该走 —— 否则设备上一份 Java 都没有，任务会先在这里收尾成「未找到可用 Java」
     if (!Platform.isAndroid) {
       if (javaPath == 'auto') {
-        javaPath = _autoPickJava(launchOption.javaOptions.javas, targetJavaMajor);
+        javaPath = _autoPickJava(
+          launchOption.javaOptions.javas,
+          targetJavaMajor,
+        );
       } else {
         //记录形态（数据根内的相对路径）要还原成可用路径才能起进程
         javaPath = AppPaths.resolveStoredPath(javaPath);
@@ -215,7 +218,10 @@ class LaunchMindustryTask extends Task {
       // 启动前兜底：选中路径已失效（被删/移动）则回退自动选择；仍无则中止并提示
       if (javaPath != null && !File(javaPath).existsSync()) {
         addTaskLog(LogEntry(LogType.warning, 'Java 路径失效：$javaPath，回退自动选择'));
-        javaPath = _autoPickJava(launchOption.javaOptions.javas, targetJavaMajor);
+        javaPath = _autoPickJava(
+          launchOption.javaOptions.javas,
+          targetJavaMajor,
+        );
       }
       if (javaPath == null) {
         addTaskLog(LogEntry(LogType.error, '未找到可用 Java：无法启动'));
