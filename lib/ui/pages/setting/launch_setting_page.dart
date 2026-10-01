@@ -36,6 +36,8 @@ import '../../../util/format/ram_rank_list.dart';
 
 import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
 
+import 'mobile_runtime_settings.dart';
+
 class LaunchSettingPage extends StatefulWidget {
   const LaunchSettingPage({super.key});
 
@@ -671,6 +673,8 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
                 },
               ),
               InputSettingBar(title: 'jvm虚拟机参数'),
+              // Android 独有：桥的运行环境（Java 运行环境 / 桥 / 适配层）
+              if (Platform.isAndroid) const MobileRuntimeSettings(),
             ],
           ),
         ),

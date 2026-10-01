@@ -188,12 +188,19 @@ class BridgeInstaller {
   }
 
   /// 首次运行的「装没装完」检查（**不联网**）：JRE 两个包都在 + 桥 jar 在
-  static bool isRuntimeReady() {
-    final jreDir = Directory(AppPaths.bridgeJre);
+  ///
+  /// [bridgeDir] 只为用例注入，正常走 [AppPaths.bridge]
+  static bool isRuntimeReady({String? bridgeDir}) {
+    final jreDir = Directory(
+      bridgeDir == null ? AppPaths.bridgeJre : p.join(bridgeDir, 'jre'),
+    );
     final hasJre =
         File(p.join(jreDir.path, 'bin', 'java')).existsSync() &&
         File(p.join(jreDir.path, 'lib', 'modules')).existsSync();
-    return hasJre && BridgePayload.installedBridgeJar() != null;
+    final bridgeJar = bridgeDir == null
+        ? BridgePayload.installedBridgeJar()
+        : BridgePayload.installedBridgeJar(directory: bridgeDir);
+    return hasJre && bridgeJar != null;
   }
 
   /// 问设备自己是什么 ABI（桥的 JRE 要按 ABI 选分包）
@@ -217,12 +224,107 @@ class BridgeInstaller {
     return null;
   }
 
+  /// 读一遍运行环境的现状（给设置页看）：各项版本与占用空间
+  ///
+  /// 不联网、只读本地；[bridgeDir] 只为用例注入，正常走 [AppPaths.bridge]
+  static Future<BridgeRuntimeStatus> readRuntimeStatus({String? bridgeDir}) async {
+    final root = bridgeDir ?? AppPaths.bridge;
+
+    final jreDir = Directory(p.join(root, 'jre'));
+    final bridgeJar = bridgeDir == null
+        ? BridgePayload.installedBridgeJar()
+        : BridgePayload.installedBridgeJar(directory: root);
+    final wrapperJar = File(
+      p.join(root, BridgePayload.loaderWrapperJarFileName(
+        BridgePayload.loaderWrapperVersion,
+      )),
+    );
+    final markerFile = File(p.join(jreDir.path, '.installed-version'));
+
+    return BridgeRuntimeStatus(
+      isReady: isRuntimeReady(bridgeDir: bridgeDir),
+      jreVersion: markerFile.existsSync()
+          ? markerFile.readAsStringSync().trim()
+          : null,
+      jreBytes: _sizeOf(jreDir.path),
+      bridgeTag: bridgeJar == null
+          ? null
+          : BridgePayload.bridgeTagOf(bridgeJar.path),
+      bridgeBytes: bridgeJar == null ? 0 : _sizeOf(bridgeJar.path),
+      wrapperVersion: wrapperJar.existsSync()
+          ? BridgePayload.loaderWrapperVersion
+          : null,
+      wrapperBytes: wrapperJar.existsSync() ? _sizeOf(wrapperJar.path) : 0,
+    );
+  }
+
+  /// 清掉**与游戏版本无关**的那份载荷：JRE + 桥 jar + 适配层 + 临时目录
+  ///
+  /// 留着 arc 原生库（它按游戏版本的 `archash` 分目录，清了要按版本重下）；
+  /// 清完 [isRuntimeReady] 会变 false，下次启动会重新走安装页。
+  /// 桥会把载荷里的文件改成只读，Android 上删只读文件没问题（看目录写权限），
+  /// 单个删不掉只记一条日志，不让整次清理失败
+  static Future<void> clearRuntime({String? bridgeDir}) async {
+    final root = bridgeDir ?? AppPaths.bridge;
+
+    _deleteQuietly(Directory(p.join(root, 'jre')));
+    _deleteQuietly(Directory(p.join(root, 'tmp')));
+    _deleteQuietly(File(p.join(root, 'jre-version')));
+
+    final dir = Directory(root);
+    if (!dir.existsSync()) return;
+    for (final entity in dir.listSync()) {
+      if (entity is! File) continue;
+      final name = p.basename(entity.path);
+      final isBridgeJar = name.startsWith('bridge-');
+      final isWrapperJar = name.startsWith('loader-wrapper-');
+      if (isBridgeJar || isWrapperJar) _deleteQuietly(entity);
+    }
+  }
+
+  /// 目录 / 文件占多少字节；不存在返回 0
+  static int _sizeOf(String path) {
+    final type = FileSystemEntity.typeSync(path);
+    if (type == FileSystemEntityType.directory) {
+      var total = 0;
+      for (final entity in Directory(path).listSync(recursive: true)) {
+        if (entity is File) {
+          try {
+            total += entity.lengthSync();
+          } catch (_) {
+            // 个别文件读不到（权限 / 正在被写）就跳过，别让整块统计失败
+          }
+        }
+      }
+      return total;
+    }
+    if (type == FileSystemEntityType.file) {
+      try {
+        return File(path).lengthSync();
+      } catch (_) {
+        return 0;
+      }
+    }
+    return 0;
+  }
+
+  static void _deleteQuietly(FileSystemEntity entity) {
+    try {
+      if (entity.existsSync()) entity.deleteSync(recursive: true);
+    } catch (error) {
+      addLogAndPrint(
+        .warning,
+        '清理运行环境时删不掉 ${entity.path}：${removeNewlines('$error')}',
+        tag: 'Bridge',
+      );
+    }
+  }
+
   /// JRE：两个包（ABI 无关 + 该 ABI 的分包）都要，叠在同一棵树解压
   static Future<void> _installJre({
     required String packageName,
     required String abi,
-    CancelToken? cancelToken,
-    void Function(String status)? onStatus,
+    CancelToken? cancelToken,    void Function(String status)? onStatus,
     void Function(HttpDownloadState state)? onProgress,
   }) async {
     final jreDir = Directory(AppPaths.bridgeJre);
@@ -436,4 +538,35 @@ class BridgeInstaller {
     );
     addLogAndPrint(.info, 'Android 桥：装好了 $tag', tag: 'Bridge');
   }
+}
+
+/// 运行环境的现状：给设置页展示用（版本号 + 占用空间）
+class BridgeRuntimeStatus {
+  const BridgeRuntimeStatus({
+    required this.isReady,
+    required this.jreVersion,
+    required this.jreBytes,
+    required this.bridgeTag,
+    required this.bridgeBytes,
+    required this.wrapperVersion,
+    required this.wrapperBytes,
+  });
+
+  /// JRE 与桥 jar 都齐了（与 [BridgeInstaller.isRuntimeReady] 同口径）
+  final bool isReady;
+
+  /// JRE 的远端版本号（`.installed-version` 里记的），没装过为 null
+  final String? jreVersion;
+  final int jreBytes;
+
+  /// 桥 jar 的 tag（`snapshot` / `0.1.3`…），没有为 null
+  final String? bridgeTag;
+  final int bridgeBytes;
+
+  /// 模组加载器适配层的版本号，没装为 null
+  final String? wrapperVersion;
+  final int wrapperBytes;
+
+  /// 三项加起来的占用
+  int get totalBytes => jreBytes + bridgeBytes + wrapperBytes;
 }
