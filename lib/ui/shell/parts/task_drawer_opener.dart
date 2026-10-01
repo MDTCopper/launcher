@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
-import 'package:copper_launcher/ui/components/effect/border_progress.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
@@ -55,46 +54,40 @@ class _TaskDrawerOpenerState extends State<TaskDrawerOpener> {
     final theme = Theme.of(context).textTheme;
     final colors = AppColors.of(context);
 
-    return ValueListenableBuilder<double?>(
-      valueListenable: taskManager.totalProcessProgress,
-      builder: (context, progress, _) => GestureDetector(
-        onTap: () => Scaffold.of(
-          PageKeyProvider.navigatorKey.currentContext!,
-        ).openEndDrawer(),
-        // 描边进度画在这块牌子外沿，和里面的圆环共用同一个进度值
-        child: BorderProgress(
-          progress: progress,
-          child: Container(
-            height: 28,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: colors.cardBackground,
-              borderRadius: const BorderRadius.all(Radius.circular(4)),
-              border: Border(
-                right: BorderSide(color: colors.border, width: 2),
+    return GestureDetector(
+      onTap: () => Scaffold.of(
+        PageKeyProvider.navigatorKey.currentContext!,
+      ).openEndDrawer(),
+      child: Container(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: colors.cardBackground,
+          borderRadius: const BorderRadius.all(Radius.circular(4)),
+          border: Border(right: BorderSide(color: colors.border, width: 2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${_taskNum == 0 ? 1 : _taskNum} 项任务',
+              style: theme.labelMedium,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: ValueListenableBuilder<double?>(
+                valueListenable: taskManager.totalProcessProgress,
+                builder: (context, progress, _) => CircularProgressIndicator(
+                  value: progress,
+                  padding: const EdgeInsets.all(4),
+                  strokeWidth: 2,
+                ),
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${_taskNum == 0 ? 1 : _taskNum} 项任务',
-                  style: theme.labelMedium,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    value: progress,
-                    padding: const EdgeInsets.all(4),
-                    strokeWidth: 2,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
       ),
     );
