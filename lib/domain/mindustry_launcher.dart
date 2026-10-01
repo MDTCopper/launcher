@@ -8,6 +8,7 @@ import 'package:copper_launcher/domain/bridge_payload.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/gpu_preference.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:path/path.dart' as p;
@@ -121,16 +122,34 @@ class MindustryLauncher {
 
       final javaCmd = javaExecutable ?? 'java';
 
+      // 「使用高性能显卡」：版本级三态覆盖全局开关（null = 跟随全局）
+      final preferHighPerformance =
+          mindustry.useBetterGPU ??
+          config.setting.launchOptions.javaOptions.useBetterGPU;
+
+      // Windows 的显卡首选项是系统级、按 exe 记的：启动前对齐一次（已一致就不写）
+      GpuPreference.applyToExecutable(
+        executablePath: javaCmd,
+        preferHighPerformance: preferHighPerformance,
+      );
+
       // 隔离时补环境变量：官方 ClientLauncher 先读 -Dmindustry.data.dir、读不到退回
-      // MINDUSTRY_DATA_DIR；更低版本则直接读 MINDUSTRY 环境变量
+      // MINDUSTRY_DATA_DIR；更低版本则直接读 MINDUSTRY 环境变量；
+      // 高性能显卡在 Linux 上就是靠环境变量让游戏走独显
+      final gpuEnvironment = GpuPreference.launchEnvironment(
+        preferHighPerformance: preferHighPerformance,
+      );
       final environment = mindustry.isolation && !mindustry.isViaLoader
           ? {
               ...Platform.environment,
               'MINDUSTRY_DATA_DIR': mindustry.dataPath,
               'MINDUSTRY': mindustry.dataPath,
               if (Platform.isWindows) 'APPDATA': mindustry.dataPath,
+              ...gpuEnvironment,
             }
-          : null;
+          : gpuEnvironment.isEmpty
+          ? null
+          : {...Platform.environment, ...gpuEnvironment};
 
       _jarProcess = await Process.start(
         javaCmd,
@@ -276,6 +295,10 @@ class MindustryLauncher {
       jvmArgs: jvmArgs,
       loaderJars: loaderJars,
       loaderMainClass: loaderMainClass,
+      // Android 上的「使用高性能显卡」就是向桥要 OpenGL ES 3（关掉退 ES 2）
+      gl3:
+          mindustry.useBetterGPU ??
+          config.setting.launchOptions.javaOptions.useBetterGPU,
     );
 
     try {
