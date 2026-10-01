@@ -36,7 +36,11 @@ import '../../../util/format/ram_rank_list.dart';
 
 import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
 
-import 'mobile_runtime_settings.dart';
+import 'package:copper_launcher/domain/bridge_installer.dart';
+import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
+
+import 'mobile_runtime_page.dart';
 
 class LaunchSettingPage extends StatefulWidget {
   const LaunchSettingPage({super.key});
@@ -130,6 +134,42 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
         'lead': '版本设置',
         'version': config.versionOptions.selectedVersion,
         'title': config.versionOptions.selectedVersion?.tag ?? 'null',
+      },
+    );
+  }
+
+  /// 移动端运行环境：这块东西多，单独一页，这里只给一行入口 + 当前状态
+  Widget _buildMobileRuntimeEntry() {
+    final colors = AppColors.of(context);
+    return FutureBuilder<BridgeRuntimeStatus>(
+      future: BridgeInstaller.readRuntimeStatus(),
+      builder: (context, snapshot) {
+        final status = snapshot.data;
+        final summary = status == null
+            ? '正在检查…'
+            : status.isReady
+            ? '已就绪 · ${formatBytes(status.totalBytes)}'
+            : '不齐，点开装齐';
+        return ReboundListTile(
+          leading: const Icon(Icons.memory),
+          title: const Text('移动端运行环境'),
+          subtitle: Text(
+            summary,
+            style: TextStyle(
+              color: status != null && !status.isReady
+                  ? colors.error
+                  : colors.itemHint,
+            ),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.pushNamed(
+              context,
+              mobileRuntimePageRouteKey,
+              arguments: {'lead': '设置', 'title': '移动端运行环境'},
+            );
+          },
+        );
       },
     );
   }
@@ -673,8 +713,8 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
                 },
               ),
               InputSettingBar(title: 'jvm虚拟机参数'),
-              // Android 独有：桥的运行环境（Java 运行环境 / 桥 / 适配层）
-              if (Platform.isAndroid) const MobileRuntimeSettings(),
+              // Android 独有：运行环境（Java / 桥 / 适配层）单独一页，这里只留入口
+              if (Platform.isAndroid) _buildMobileRuntimeEntry(),
             ],
           ),
         ),

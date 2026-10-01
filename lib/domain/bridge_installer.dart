@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/bridge_payload.dart';
+import 'package:copper_launcher/domain/bridge_runtime_options.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -149,10 +150,13 @@ class BridgeInstaller {
 
   /// 装**与游戏版本无关**的那份：JRE + 桥 jar，返回实际用的桥版本
   ///
-  /// 首次运行的安装页只装它（arc 原生库跟着具体游戏版本走，见 [installArcNatives]）
+  /// 首次运行的安装页只装它（arc 原生库跟着具体游戏版本走，见 [installArcNatives]）；
+  /// [force] 为 true 时不管本地是不是齐的都重下（设置页的「重装」用它）
   static Future<String> installRuntime({
     required String abi,
     String? bridgeTag,
+    bool force = false,
+    BridgeRuntimeOptions? runtimeOptions,
     CancelToken? cancelToken,
     void Function(String status)? onStatus,
     void Function(HttpDownloadState state)? onProgress,
@@ -162,7 +166,8 @@ class BridgeInstaller {
       throw StateError('不支持的设备 ABI：$abi（JRE 只有 arm64 / arm / x86_64 分包）');
     }
 
-    var tag = bridgeTag;
+    final options = runtimeOptions ?? BridgeRuntimeOptions.load();
+    var tag = bridgeTag ?? options.bridgeTag;
     if (tag == null) {
       final latest = await fetchLatestBridge();
       if (latest == null) throw StateError('查不到桥的可用版本');
@@ -170,15 +175,17 @@ class BridgeInstaller {
     }
 
     await Directory(AppPaths.bridge).create(recursive: true);
-    await _installJre(
+    await installJre(
       abi: abi,
-      packageName: packageName,
+      force: force,
+      runtimeOptions: options,
       cancelToken: cancelToken,
       onStatus: onStatus,
       onProgress: onProgress,
     );
-    await _installBridgeJar(
+    await installBridgeJar(
       tag: tag,
+      force: force,
       cancelToken: cancelToken,
       onStatus: onStatus,
       onProgress: onProgress,
@@ -201,6 +208,122 @@ class BridgeInstaller {
         ? BridgePayload.installedBridgeJar()
         : BridgePayload.installedBridgeJar(directory: bridgeDir);
     return hasJre && bridgeJar != null;
+  }
+
+  /// 只装 Java 运行环境（设置页那一行用；门禁与一键走 [installRuntime]）
+  ///
+  /// 钉了构建号就按钉的那份校验，[force] 为 true 时无条件重下
+  static Future<void> installJre({
+    required String abi,
+    bool force = false,
+    BridgeRuntimeOptions? runtimeOptions,
+    CancelToken? cancelToken,
+    void Function(String status)? onStatus,
+    void Function(HttpDownloadState state)? onProgress,
+  }) async {
+    final packageName = BridgePayload.jrePackageFor(abi);
+    if (packageName == null) {
+      throw StateError('不支持的设备 ABI：$abi（JRE 只有 arm64 / arm / x86_64 分包）');
+    }
+    await _installJre(
+      abi: abi,
+      packageName: packageName,
+      pinnedBuild: (runtimeOptions ?? BridgeRuntimeOptions.load()).jreBuild,
+      force: force,
+      cancelToken: cancelToken,
+      onStatus: onStatus,
+      onProgress: onProgress,
+    );
+  }
+
+  /// 只装桥 jar（[tag] 不给就用钉住的版本，都没钉就查最新一版）
+  static Future<String> installBridgeJar({
+    String? tag,
+    bool force = false,
+    CancelToken? cancelToken,
+    void Function(String status)? onStatus,
+    void Function(HttpDownloadState state)? onProgress,
+  }) async {
+    var target = tag ?? BridgeRuntimeOptions.load().bridgeTag;
+    if (target == null) {
+      final latest = await fetchLatestBridge();
+      if (latest == null) throw StateError('查不到桥的可用版本');
+      target = latest.tag;
+    }
+
+    await Directory(AppPaths.bridge).create(recursive: true);
+    await _installBridgeJar(
+      tag: target,
+      force: force,
+      cancelToken: cancelToken,
+      onStatus: onStatus,
+      onProgress: onProgress,
+    );
+    return target;
+  }
+
+  /// 只装模组加载器适配层（走 mod 时才用得上；不装上也不影响原版启动）
+  static Future<String> installLoaderWrapper({
+    bool force = false,
+    CancelToken? cancelToken,
+    void Function(String status)? onStatus,
+  }) async {
+    final target = File(BridgePayload.loaderWrapperJarFilePath());
+    await target.parent.create(recursive: true);
+
+    if (target.existsSync()) {
+      if (!force) {
+        onStatus?.call('模组加载器适配层已就绪');
+        return target.path;
+      }
+      // 桥会把载荷改成只读，重装要先把旧文件删掉（原地覆盖写不进去）
+      try {
+        target.deleteSync();
+      } catch (error) {
+        addLogAndPrint(
+          .warning,
+          '删旧的模组加载器适配层失败：${removeNewlines('$error')}',
+          tag: 'Bridge',
+        );
+      }
+    }
+
+    onStatus?.call('正在下载模组加载器适配层…');
+    await cio.download(
+      url: BridgePayload.loaderWrapperJarUrl(),
+      savePath: target.path,
+      cancelToken: cancelToken,
+    );
+    addLogAndPrint(
+      .info,
+      'Android 桥：模组加载器适配层装好了（${BridgePayload.loaderWrapperVersion}）',
+      tag: 'Bridge',
+    );
+    return target.path;
+  }
+
+  /// 可选的版本列表（设置页的下拉用）：两边仓库的 tag
+  ///
+  /// Java 侧现在只有 `jre25` 一个 tag（能钉的是里面的构建号），桥侧现在只有 `snapshot`
+  static Future<({List<String> jreTags, List<String> bridgeTags})>
+  fetchAvailableVersions() async {
+    Future<List<String>> tagsOf(String repo) async {
+      try {
+        return await GitRefs.fetchTags(repo);
+      } catch (error) {
+        addLogAndPrint(
+          .warning,
+          '查 $repo 的版本失败：${removeNewlines('$error')}',
+          tag: 'Bridge',
+        );
+        return const [];
+      }
+    }
+
+    return (
+      jreTags: await tagsOf(BridgePayload.jreRepo),
+      bridgeTags: await tagsOf(BridgePayload.bridgeRepo),
+    );
   }
 
   /// 问设备自己是什么 ABI（桥的 JRE 要按 ABI 选分包）
@@ -321,10 +444,16 @@ class BridgeInstaller {
   }
 
   /// JRE：两个包（ABI 无关 + 该 ABI 的分包）都要，叠在同一棵树解压
+  ///
+  /// [pinnedBuild] 是设置里钉住的构建号（不给就跟随远端最新的 `version`）；
+  /// [force] 为 true 时无条件重下
   static Future<void> _installJre({
     required String packageName,
     required String abi,
-    CancelToken? cancelToken,    void Function(String status)? onStatus,
+    String? pinnedBuild,
+    bool force = false,
+    CancelToken? cancelToken,
+    void Function(String status)? onStatus,
     void Function(HttpDownloadState state)? onProgress,
   }) async {
     final jreDir = Directory(AppPaths.bridgeJre);
@@ -348,10 +477,12 @@ class BridgeInstaller {
         ? marker.readAsStringSync().trim()
         : null;
     final isReady = javaExe.existsSync() && moduleFile.existsSync();
-    if (isReady &&
+    final targetVersion = pinnedBuild ?? remoteVersion;
+    if (!force &&
+        isReady &&
         !BridgePayload.shouldRefreshJre(
           localVersion: localVersion,
-          remoteVersion: remoteVersion,
+          remoteVersion: targetVersion,
         )) {
       onStatus?.call('Java 运行环境已就绪');
       return;
@@ -467,14 +598,8 @@ class BridgeInstaller {
   }) async {
     final target = File(BridgePayload.loaderWrapperJarFilePath());
     if (!target.existsSync()) {
-      onStatus?.call('正在下载模组加载器适配层…');
       try {
-        await target.parent.create(recursive: true);
-        await cio.download(
-          url: BridgePayload.loaderWrapperJarUrl(),
-          savePath: target.path,
-          cancelToken: cancelToken,
-        );
+        await installLoaderWrapper(cancelToken: cancelToken, onStatus: onStatus);
       } catch (error) {
         // 下不到就按「不注入 loader」处理（调用方会按原版起），别把启动直接掀了
         addLogAndPrint(
@@ -515,17 +640,30 @@ class BridgeInstaller {
     return target.path;
   }
 
-  /// 桥自己的 jar：同一个版本已存在就直接复用
+  /// 桥自己的 jar：同一个版本已存在就直接复用（[force] 时删掉重下）
   static Future<void> _installBridgeJar({
     required String tag,
+    bool force = false,
     CancelToken? cancelToken,
     void Function(String status)? onStatus,
     void Function(HttpDownloadState state)? onProgress,
   }) async {
     final target = File(BridgePayload.bridgeJarFilePath(tag));
     if (target.existsSync()) {
-      onStatus?.call('桥已就绪：$tag');
-      return;
+      if (!force) {
+        onStatus?.call('桥已就绪：$tag');
+        return;
+      }
+      // 旧的那份可能已被桥改成只读，重装先删掉
+      try {
+        target.deleteSync();
+      } catch (error) {
+        addLogAndPrint(
+          .warning,
+          '删旧的桥 jar 失败：${removeNewlines('$error')}',
+          tag: 'Bridge',
+        );
+      }
     }
 
     onStatus?.call('正在下载桥（$tag）…');
