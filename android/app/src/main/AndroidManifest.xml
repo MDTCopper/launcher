@@ -68,6 +68,7 @@
             android:name="io.github.copper.MindustryActivity"
             android:exported="false"
             android:label="@string/mdt_title"
+            android:theme="@style/ArcTheme"
             android:launchMode="singleTop"
             android:screenOrientation="sensorLandscape"
             android:process=":mdt_process"
