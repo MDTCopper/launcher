@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/domain/local_save_import.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
@@ -554,6 +555,42 @@ pause
     );
   }
 
+  /// 把本机共享数据目录里的存档 / 地图 / 蓝图一键导进这个隔离版本（**覆盖同名**）
+  ///
+  /// 破坏性动作：先让用户确认（弹窗里写清源、目标、覆盖范围），跑完给一条带条数的通知
+  Future<void> _importLocalSaves() async {
+    final source = LocalSaveImport.sourcePath();
+    if (source == null || source.trim().isEmpty) {
+      addNotice(icon: Icons.close, title: '导入失败', content: '拿不到本机共享数据目录');
+      return;
+    }
+
+    final kinds = LocalSaveImport.defaultKinds.map((kind) => kind.label).join('、');
+    showConfirmationPopup(
+      context: context,
+      type: ConfirmationType.warning,
+      title: '把本机存档导入 [${_mindustry.tag}] ？',
+      content:
+          '从：$source\n'
+          '到：${_mindustry.dataPath}\n\n'
+          '会导入$kinds，同名文件直接覆盖；'
+          '这个版本里不同名的旧文件会留着。模组与游戏设置不在其中。',
+      action: () async {
+        final report = await LocalSaveImport.run(version: _mindustry);
+        if (report == null) {
+          addNotice(icon: Icons.close, title: '导入失败', content: '这个版本不能导入本机存档');
+          return;
+        }
+        addNotice(
+          icon: Icons.download_done,
+          title: report.total == 0 ? '没找到可导入的内容' : '已导入本机存档',
+          content: report.summary,
+        );
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
   void _changeVersionTag() async {
     final tag = await showAnimatedDialog<String>(
       context: context,
@@ -672,6 +709,15 @@ pause
                     content: '查看崩溃日志',
                     onTap: _viewCrashLogs,
                   ),
+                  // 隔离版本：把本机共享数据目录里的存档/地图/蓝图一键搬进来（覆盖同名）。
+                  // Steam 版与绑了外置目录的版本没有这个入口（数据目录不由我们说了算）
+                  if (LocalSaveImport.canImport(_mindustry))
+                    IconTextButton(
+                      width: 136,
+                      icon: Icons.download_for_offline_outlined,
+                      content: '导入本机存档',
+                      onTap: _importLocalSaves,
+                    ),
                 ],
               ),
             ],
