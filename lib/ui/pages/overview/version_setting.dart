@@ -256,7 +256,7 @@ class _AboutState extends State<_About> {
     final args = <String>[
       if (memoryMb != null) '-Xmx${memoryMb}m' else '-Xmx512m',
       //走加载器时数据目录由加载器接管，不再塞 -Dmindustry.data.dir
-      if (!_mindustry.isViaLoader && _mindustry.isolation)
+      if (_mindustry.needsDataDirArg)
         '-Dmindustry.data.dir=${_mindustry.dataPath}',
       ...jvmParameter.split(' ').where((arg) => arg.isNotEmpty),
       '-jar',

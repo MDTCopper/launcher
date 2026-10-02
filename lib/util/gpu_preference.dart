@@ -5,6 +5,7 @@ import 'package:ffi/ffi.dart';
 import 'package:win32/win32.dart';
 
 import 'io/log.dart';
+import 'windows_registry.dart';
 
 /// 「使用高性能显卡」在各平台的落地
 ///
@@ -121,38 +122,8 @@ class GpuPreference {
   }
 
   /// 读注册表里某个 exe 的首选项；没有这一项返回 null
-  static String? _readValue(HKEY key, String executablePath) {
-    final valueName = executablePath.toNativeUtf16();
-    final size = calloc<Uint32>();
-    try {
-      var result = RegQueryValueEx(
-        key,
-        PCWSTR(valueName),
-        nullptr,
-        nullptr,
-        size,
-      );
-      if (result != ERROR_SUCCESS || size.value == 0) return null;
-
-      final buffer = calloc<Uint8>(size.value);
-      try {
-        result = RegQueryValueEx(
-          key,
-          PCWSTR(valueName),
-          nullptr,
-          buffer,
-          size,
-        );
-        if (result != ERROR_SUCCESS) return null;
-        return buffer.cast<Utf16>().toDartString();
-      } finally {
-        free(buffer);
-      }
-    } finally {
-      free(valueName);
-      free(size);
-    }
-  }
+  static String? _readValue(HKEY key, String executablePath) =>
+      WindowsRegistry.readValue(key, executablePath);
 
   /// 写 `GpuPreference=2;`（REG_SZ，长度含结尾的那个空字符）
   static WIN32_ERROR _writeValue(HKEY key, String executablePath) {

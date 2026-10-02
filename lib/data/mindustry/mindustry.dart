@@ -31,7 +31,10 @@ class Mindustry {
   ///正式版 形如 v146
   ///
   /// be版 形如 28888
-  final String release;
+  ///
+  /// 非 final：**Steam 版会被 Steam 就地更新**（jar 被换掉、版本号跟着变），
+  /// 启动前的版本检查要把新版本号写回来（见 [SteamVersion.refresh]）
+  String release;
 
   ///存储路径（记录形态：数据根内记相对、根外记绝对，见 [AppPaths.toStoredPath]）
   ///
@@ -81,6 +84,21 @@ class Mindustry {
   ///
   ///记录形态：loader 收在 `<数据根>/copper_loader/` 里，多版本复用同一份
   String? launcherPath;
+
+  ///是不是 **Steam 版**（本体里有 `version.properties: modifier=steam`）
+  ///
+  ///Steam 版要特化：本体在 Steam 安装目录里原地引用、数据目录绑安装目录下的
+  ///`saves/`（见 [externalDataPath]）、启动前要查 Steam 有没有把它更新掉
+  @JsonKey(defaultValue: false)
+  bool steam;
+
+  ///**外部数据目录**：不按「隔离 / 官方默认」两条口径走，固定用这份
+  ///
+  ///Steam 版专用：Steam 启动游戏时会传 `-Dmindustry.data.dir=<安装目录>/saves`
+  ///（Steam 云同步的就是这份），启动器起 jar 时必须传同一个值，否则游戏会落到
+  ///`%APPDATA%\Mindustry`、与 Steam 那份存档「看得见却不同步」。
+  ///记录形态：绝对路径（在数据根外）
+  String? externalDataPath;
 
   @JsonKey(includeToJson: false, includeFromJson: false)
   Memory? get memory {
@@ -150,10 +168,36 @@ class Mindustry {
   bool get isBodyInOwnFolder => _isPathWithin(foldPath, resolvedJarPath);
 
   ///游戏数据路径mods,saves,maps,schematics
+  ///
+  ///三种口径，优先外部绑定（Steam 版）：
+  ///① [externalDataPath] 有值 → 就用它（Steam 版绑 Steam 安装目录下的 `saves/`）
+  ///② 开了隔离 → `<版本目录>/data`
+  ///③ 否则共享官方默认数据目录（`%APPDATA%\Mindustry` 那类）
   String get dataPath {
+    if (hasExternalDataDir) {
+      return AppPaths.resolveStoredPath(externalDataPath!);
+    }
     if (isolation) return p.join(foldPath, 'data');
     return AppPaths.defaultGameData!; //默认存储位置
   }
+
+  /// 数据目录绑在启动器外面（Steam 版那份），不按「隔离 / 官方默认」走
+  bool get hasExternalDataDir =>
+      externalDataPath != null && externalDataPath!.trim().isNotEmpty;
+
+  /// 启动时要不要把数据目录**告诉游戏**（`-Dmindustry.data.dir`）
+  ///
+  /// 隔离版要（目录在版本里）；绑了外置目录的也要 —— Steam 自己启动游戏时传的
+  /// 就是这条参数，我们直接起 jar 时得替它传上，否则游戏会落到 `%APPDATA%\Mindustry`，
+  /// 变成「看得见 Steam 的存档却不同步」
+  bool get needsDataDirArg =>
+      !isViaLoader && (isolation || hasExternalDataDir);
+
+  ///显示用的版本号：Steam 版显示 `steam v160.5`，其余与 [release] 一致
+  ///
+  ///**只有显示层用它** —— [release] 必须保持 `v160.5` 这种纯数字形态，
+  ///[releaseDouble] / [releaseInt] / [gameVersionOf] 与 loader 兼容门禁都靠它解析
+  String get displayRelease => steam ? 'steam $release' : release;
 
   ///能否把资源导入到该版本：v126 之前游戏无法被指定数据目录（数据实际落在
   ///`<dataPath>/Mindustry`），导入的文件游戏读不到，因此这些版本不支持导入
@@ -202,6 +246,8 @@ class Mindustry {
     this.versionNumber,
     this.bodyIsUserFile = false,
     this.launcherPath,
+    this.steam = false,
+    this.externalDataPath,
   });
 
   factory Mindustry.fromJson(Map<String, dynamic> json) =>

@@ -3,7 +3,10 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/local_game_importer.dart';
+import 'package:copper_launcher/domain/steam_library.dart';
+import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
@@ -375,6 +378,71 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     _updateView();
   }
 
+  /// 版本行副标题：版本号 + 来源标记
+  ///
+  /// Steam 版显示成 `Steam  steam v157.4`（[Mindustry.displayRelease]）——
+  /// 记录本身是「一条就地刷新的版本」，具体是哪个 build 就看这里
+  Widget _buildVersionSubtitle(Mindustry version) {
+    final style = Theme.of(context).textTheme.bodyMedium;
+    if (!version.steam) return Text(version.displayRelease, style: style);
+
+    return Row(
+      children: [
+        Text(
+          'Steam',
+          style: style?.copyWith(color: AppColors.of(context).interactive),
+        ),
+        const SizedBox(width: 6),
+        Text(version.displayRelease, style: style),
+      ],
+    );
+  }
+
+  /// 扫描 Steam 版：找出 Steam 库里装着的 Mindustry（本体 `modifier=steam`），
+  /// 加进「Steam」专用分类
+  ///
+  /// 已有同一份本体的记录会被**归一成 Steam 形态**（补上数据目录绑定与 Steam 标记），
+  /// 不再多建一条；Steam 装了但库里没有的，提示用户改用「添加新目录」手选
+  Future<void> _scanSteamVersions() async {
+    if (!isDesktop) return;
+
+    addLog(.info, '扫描 Steam 版', tag: 'Steam');
+    final installs = await SteamLibrary.detect();
+    if (!mounted) return;
+
+    if (installs.isEmpty) {
+      addLog(.warning, '没有检测到 Steam 版 Mindustry', tag: 'Steam');
+      addNotice(
+        icon: Icons.search_off,
+        title: '没找到 Steam 版',
+        content: '确认 Steam 里装过 Mindustry；装在别处可以改用「添加新目录」指到它的安装目录',
+      );
+      return;
+    }
+
+    final added = <String>[];
+    final refreshed = <String>[];
+    for (final install in installs) {
+      final result = await SteamVersion.addOrRefresh(install: install);
+      (result.created ? added : refreshed).add(result.version.tag);
+    }
+    if (!mounted) return;
+
+    setState(() {
+      final index = _versionFolds.indexWhere((fold) => fold.tag == SteamVersion.foldTag);
+      if (index != -1) _index = index;
+    });
+    _updateView();
+    addNotice(
+      icon: Icons.sports_esports,
+      title: '找到 ${installs.length} 个 Steam 版',
+      content: [
+        if (added.isNotEmpty) '已加入：${added.join('、')}',
+        if (refreshed.isNotEmpty) '已刷新：${refreshed.join('、')}',
+      ].join('\n'),
+    );
+  }
+
   Widget _buildVersionTile(Mindustry version) {
     final theme = Theme.of(context);
 
@@ -389,9 +457,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
         height: 48,
       ),
       title: Text(version.tag, style: theme.textTheme.bodyLarge),
-      subtitle: isDesktop
-          ? Text(version.release, style: theme.textTheme.bodyMedium)
-          : null,
+      subtitle: isDesktop ? _buildVersionSubtitle(version) : null,
       onTap: () => _select(version),
     );
 
@@ -664,6 +730,15 @@ class _VersionSelectPageState extends State<VersionSelectPage>
               content: '导入本地游戏',
               collapse: collapse,
               onTap: _importLocalGame,
+            ),
+
+            // Steam 版：自动找 Steam 库里的 Mindustry（本体带 modifier=steam），
+            // 加进「Steam」专用分类，数据目录绑它自己的 saves/
+            NavigationTile(
+              icon: Icon(Symbols.sports_esports),
+              content: '扫描 Steam 版',
+              collapse: collapse,
+              onTap: _scanSteamVersions,
             ),
           ],
         ],

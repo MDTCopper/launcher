@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
+import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
@@ -132,6 +133,23 @@ class LaunchMindustryTask extends Task {
     TaskLogManager.addLog(LogEntry(LogType.info, '正在启动游戏'));
 
     final launchOption = config.setting.launchOptions;
+
+    // Steam 版特化：Steam 更新会把本体 jar 就地换掉（还是同一个路径），
+    // 启动前核一次版本，变了就更新记录 + 通知（数据目录绑定也顺手补齐）
+    if (mindustry.steam) {
+      try {
+        final change = await SteamVersion.refresh(mindustry);
+        if (change != null) {
+          NotificationManager.addNotice(
+            icon: Icons.sync,
+            title: 'Steam 版已更新',
+            content: '${mindustry.tag}\r\n${change.description}',
+          );
+        }
+      } catch (e) {
+        addLog(.warning, 'Steam 版本检查失败：${removeNewlines('$e')}', tag: 'Steam');
+      }
+    }
 
     // 老配置可能没存大版本号（下载前），启动时从 jar 的 version.properties 补读一次并回写；
     // 新下载的版本已有 versionNumber，跳过此 IO

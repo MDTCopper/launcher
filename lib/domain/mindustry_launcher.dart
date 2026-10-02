@@ -135,7 +135,11 @@ class MindustryLauncher {
 
       // 隔离时补环境变量：官方 ClientLauncher 先读 -Dmindustry.data.dir、读不到退回
       // MINDUSTRY_DATA_DIR；更低版本则直接读 MINDUSTRY 环境变量；
-      // 高性能显卡在 Linux 上就是靠环境变量让游戏走独显
+      // 高性能显卡在 Linux 上就是靠环境变量让游戏走独显。
+      //
+      // **绑了外置数据目录的（Steam 版）故意不走这一支**：它那份数据目录不在
+      // `%APPDATA%` 下，改 APPDATA 反而会把它指歪，靠 `-Dmindustry.data.dir` 就够
+      // （Steam 自己启动游戏时传的也是这一条）
       final gpuEnvironment = GpuPreference.launchEnvironment(
         preferHighPerformance: preferHighPerformance,
       );
@@ -382,7 +386,7 @@ class MindustryLauncher {
         '-Xmx${maxMemory.mb}m'
       else
         '-Xmx512m',
-      if (!mindustry.isViaLoader && mindustry.isolation)
+      if (mindustry.needsDataDirArg)
         '-Dmindustry.data.dir=${mindustry.dataPath}',
       ...extraArgs.where((arg) => arg.isNotEmpty),
       '-jar',
