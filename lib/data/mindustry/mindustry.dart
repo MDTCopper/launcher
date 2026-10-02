@@ -185,13 +185,23 @@ class Mindustry {
   bool get hasExternalDataDir =>
       externalDataPath != null && externalDataPath!.trim().isNotEmpty;
 
+  /// 启动时的工作目录
+  ///
+  /// **Steam 版必须是 Steam 安装目录**：游戏里对 steam 版写死了
+  /// `settings.setDataDirectory(Core.files.local("saves/"))`，`local` 是**相对工作目录**
+  /// 解析的 ⇒ 工作目录不对，数据目录就落到别处（实测：用本体所在目录 `jre/` 起，
+  /// 数据目录会变成 `jre/saves`，跟 Steam 那份完全不搭）。其余版本照旧用本体所在目录
+  String get launchWorkingDirectory => steam && hasExternalDataDir
+      ? p.dirname(AppPaths.resolveStoredPath(externalDataPath!))
+      : p.dirname(resolvedJarPath);
+
   /// 启动时要不要把数据目录**告诉游戏**（`-Dmindustry.data.dir`）
   ///
-  /// 隔离版要（目录在版本里）；绑了外置目录的也要 —— Steam 自己启动游戏时传的
-  /// 就是这条参数，我们直接起 jar 时得替它传上，否则游戏会落到 `%APPDATA%\Mindustry`，
-  /// 变成「看得见 Steam 的存档却不同步」
+  /// 隔离版要（目录在版本里）；绑了外置目录的非 Steam 版也要。
+  /// **Steam 版不要**：它的数据目录由工作目录 + 游戏里写死的 `saves/` 决定，
+  /// 这条参数传了也会被 `setDataDirectory` 盖掉（见 [launchWorkingDirectory]）
   bool get needsDataDirArg =>
-      !isViaLoader && (isolation || hasExternalDataDir);
+      !isViaLoader && !steam && (isolation || hasExternalDataDir);
 
   ///显示用的版本号：Steam 版显示 `steam v160.5`，其余与 [release] 一致
   ///

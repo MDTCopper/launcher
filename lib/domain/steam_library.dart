@@ -71,6 +71,18 @@ class SteamLibrary {
   /// 本体 jar 的候选位置（Steam 版是 `jre/desktop.jar`，别的形态也认一认）
   static const jarCandidates = ['jre/desktop.jar', 'desktop.jar', 'Mindustry.jar'];
 
+  /// 起 Steam 版本体时要给子进程带的环境变量
+  ///
+  /// Steam 客户端启动游戏时会设这两个（`SteamAppId` / `SteamGameId`），steamworks4j
+  /// 的 native 就靠它们判断「这次是不是 Steam 拉起来的」：**不带**的话，只要 Steam
+  /// 客户端在跑，`SteamAPI_RestartAppIfNecessary` 就返回 true、游戏会请 Steam 重新
+  /// 拉起自己然后 `System.exit(0)`（实测：本体活不过一秒）；带上之后游戏由启动器掌着，
+  /// 而 Steam 特性照常注册（实测 Steam 客户端会把它记成 App Running）
+  static Map<String, String> launchEnvironment() => const {
+    'SteamAppId': appId,
+    'SteamGameId': appId,
+  };
+
   static const _steamSubKey = r'Software\Valve\Steam';
   static const _steamInstallSubKey = r'SOFTWARE\Valve\Steam';
 
