@@ -126,6 +126,30 @@ class SteamVersion {
   static Future<SteamInstall?> inspect(String path) =>
       SteamLibrary.inspect(path);
 
+  /// Steam 版**原版启动**固定用的 Java：Steam 自带的 JRE（`<安装目录>/jre/bin/java[.exe]`）
+  ///
+  /// 这份 JRE 是 Steam 自己配的 jlink 镜像，实测 `MODULES="java.base jdk.unsupported"` ——
+  /// 跑游戏本体够（游戏不用 `java.util.logging`），但**带不了任何用 Guava/Mixin 的东西**：
+  /// 实测 CopperLoader 在它上面 `NoClassDefFoundError: java/util/logging/Logger`。
+  /// 所以走加载器时必须换完整 JDK（[loaderNeedsFullJdk]）
+  ///
+  /// 路径是按安装目录推出来的（Steam 更新不会换位置）；文件不在时调用方按常规回退
+  static String? javaFor(Mindustry version) {
+    final installPath = _installPathOf(version);
+    if (installPath == null) return null;
+    return p.join(
+      installPath,
+      'jre',
+      'bin',
+      Platform.isWindows ? 'java.exe' : 'java',
+    );
+  }
+
+  /// Steam 自带的 JRE 跑不了加载器（缺 `java.logging`）—— 给 UI 的解释文案用
+  static const loaderNeedsFullJdk =
+      'Steam 自带的 JRE 只有 java.base + jdk.unsupported，带不了 Copper 加载器，'
+      '需要另选一份完整 JDK';
+
   // ── 纯逻辑（不碰全局配置，用例直接调） ──
 
   /// 按本体路径找已有记录；找不到返回 null

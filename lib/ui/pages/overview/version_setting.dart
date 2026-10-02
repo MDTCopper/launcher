@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
@@ -39,6 +40,7 @@ import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/setting_bar_row.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 
 import 'package:copper_launcher/util/io/os.dart';
@@ -904,6 +906,18 @@ class _SettingState extends State<_Setting> {
   }
 
   Widget _buildIsolationSettingBar() {
+    // Steam 版：存档与 Steam 共用同一份（数据目录是 Steam 安装目录下的 saves，
+    // 由 Steam 管），没有「隔离」这回事，也不该让用户改
+    if (_mindustry.steam) {
+      return SettingBarRow(
+        title: '游戏存档隔离',
+        control: Text(
+          '由 Steam 管理（固定）',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      );
+    }
+
     return SwitchSettingBar(
       title: '游戏存档隔离',
       value: isolation,
@@ -923,6 +937,18 @@ class _SettingState extends State<_Setting> {
   }
 
   Widget _buildJavaSettingBar() {
+    // Steam 版原版启动固定用 Steam 自带的 JRE（不可改）；走加载器时必须换完整 JDK
+    //（那份 JRE 只有 java.base + jdk.unsupported，带不了 Guava/Mixin ⇒ 让用户选）
+    if (_mindustry.steam && !_mindustry.isViaLoader) {
+      return SettingBarRow(
+        title: '游戏Java',
+        control: Text(
+          'Steam 自带（固定）',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      );
+    }
+
     final list = [];
 
     final js = javas.toList()
@@ -944,7 +970,7 @@ class _SettingState extends State<_Setting> {
       );
     }
 
-    return OptionSettingBar<String?>(
+    final picker = OptionSettingBar<String?>(
       title: '游戏Java',
       initialValue: javaSelect,
       hintText: '跟随系统',
@@ -957,6 +983,21 @@ class _SettingState extends State<_Setting> {
       options: [
         DropdownOption<String?>(value: null, label: '跟随系统'),
         ...list,
+      ],
+    );
+
+    if (!_mindustry.steam) return picker;
+
+    // Steam 版 + 加载器：得说清为什么这里还能选 Java（Steam 那份带不了加载器）
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 8,
+      children: [
+        picker,
+        Text(
+          SteamVersion.loaderNeedsFullJdk,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
       ],
     );
   }
