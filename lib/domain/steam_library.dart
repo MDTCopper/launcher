@@ -46,8 +46,7 @@ class SteamInstall {
   final bool isBe;
 
   /// 版本显示形态：`v157.4` / `Build 26398`
-  String get release =>
-      isBe ? 'Build ${build ?? '?'}' : 'v${build ?? '?'}';
+  String get release => isBe ? 'Build ${build ?? '?'}' : 'v${build ?? '?'}';
 }
 
 /// Steam 版 Mindustry 的探测（桌面端）
@@ -69,7 +68,11 @@ class SteamLibrary {
   static const dataFolderName = 'saves';
 
   /// 本体 jar 的候选位置（Steam 版是 `jre/desktop.jar`，别的形态也认一认）
-  static const jarCandidates = ['jre/desktop.jar', 'desktop.jar', 'Mindustry.jar'];
+  static const jarCandidates = [
+    'jre/desktop.jar',
+    'desktop.jar',
+    'Mindustry.jar',
+  ];
 
   /// 起 Steam 版本体时要给子进程带的环境变量
   ///
@@ -184,10 +187,8 @@ class SteamLibrary {
   }
 
   /// VDF 里的转义：`\\` → `\`、`\"` → `"`
-  static String unescapeVdf(String value) => value
-      .replaceAll(r'\\', r'\')
-      .replaceAll(r'\"', '"')
-      .trim();
+  static String unescapeVdf(String value) =>
+      value.replaceAll(r'\\', r'\').replaceAll(r'\"', '"').trim();
 
   /// 扫一遍所有 Steam 库，列出装着的 Steam 版 Mindustry
   static Future<List<SteamInstall>> detect({String? root}) async {
@@ -257,9 +258,7 @@ class SteamLibrary {
 
   /// 从 `appmanifest_1127400.acf` 里读 `installdir`
   static String? _installFolderFromManifest(String steamAppsPath) {
-    final manifest = File(
-      p.join(steamAppsPath, 'appmanifest_$appId.acf'),
-    );
+    final manifest = File(p.join(steamAppsPath, 'appmanifest_$appId.acf'));
     if (!manifest.existsSync()) return null;
     try {
       final match = RegExp(

@@ -84,9 +84,7 @@ class CloudArchive {
 
     for (final entry in manifest.includedFiles) {
       onStatus?.call('打包 ${entry.name}');
-      final source = File(
-        p.join(dataPath, entry.category.folder, entry.name),
-      );
+      final source = File(p.join(dataPath, entry.category.folder, entry.name));
       final bytes = source.existsSync() ? source.readAsBytesSync() : null;
       if (bytes == null || sha256OfBytes(bytes) != entry.sha256) {
         entry.included = false;
@@ -236,7 +234,9 @@ class CloudArchiveReader {
     }
 
     for (final mod in manifest.mods) {
-      final carried = mod.includeBytes && available.contains(CloudArchive.modBytesName(mod.sha256));
+      final carried =
+          mod.includeBytes &&
+          available.contains(CloudArchive.modBytesName(mod.sha256));
       if (carried) {
         carriedMods.add(mod);
       } else {
@@ -262,7 +262,9 @@ class CloudArchiveReader {
     for (final entry in manifest.includedFiles) {
       final name = _safeName(entry.name);
       if (name == null) {
-        report.rejected.add(CloudRejection('${entry.category.folder}/${entry.name}', '名字不合法'));
+        report.rejected.add(
+          CloudRejection('${entry.category.folder}/${entry.name}', '名字不合法'),
+        );
         continue;
       }
       planned['${entry.category.folder}/$name'] = _PlannedFile(
@@ -341,7 +343,8 @@ class CloudArchiveReader {
     // 清单里有、包里没有的（导出时被丢掉的那种）
     for (final entry in planned.entries) {
       if (report.rejected.any((item) => item.path == entry.key)) continue;
-      final exists = report.written.contains(entry.value.destination) ||
+      final exists =
+          report.written.contains(entry.value.destination) ||
           report.keptBoth.contains(entry.value.destination) ||
           report.unchanged.contains(entry.value.destination);
       if (!exists) {
@@ -485,7 +488,9 @@ void _writeAtomicallySync(File target, List<int> bytes, {String? tempDir}) {
   target.parent.createSync(recursive: true);
   final directory = tempDir ?? target.parent.path;
   Directory(directory).createSync(recursive: true);
-  final temporary = File(p.join(directory, '${p.basename(target.path)}.importing'));
+  final temporary = File(
+    p.join(directory, '${p.basename(target.path)}.importing'),
+  );
   temporary.writeAsBytesSync(bytes, flush: true);
   if (target.existsSync()) target.deleteSync();
   temporary.renameSync(target.path);

@@ -6,7 +6,6 @@ import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
-import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/dialog/java_missing_prompt.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/app_paths.dart';

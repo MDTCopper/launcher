@@ -574,7 +574,7 @@ pause
           '从：$source\n'
           '到：${_mindustry.dataPath}\n\n'
           '会导入$kinds，同名文件直接覆盖；'
-          '这个版本里不同名的旧文件会留着。模组与游戏设置不在其中。',
+          '这个版本里不同名的旧文件会留着。游戏设置不在其中（按设备各留）。',
       action: () async {
         final report = await LocalSaveImport.run(version: _mindustry);
         if (report == null) {

@@ -232,8 +232,10 @@ class CloudManifest {
   /// 模组启用状态（内部名 → 是否启用），来自 `settings.bin`
   final Map<String, bool> modStates;
 
-  List<CloudFileEntry> get includedFiles =>
-      [for (final file in files) if (file.included) file];
+  List<CloudFileEntry> get includedFiles => [
+    for (final file in files)
+      if (file.included) file,
+  ];
 
   int get includedBytes =>
       includedFiles.fold(0, (sum, file) => sum + file.size);
@@ -245,8 +247,7 @@ class CloudManifest {
   ];
 
   int get totalIncludedBytes =>
-      includedBytes +
-      includedModBytes.fold(0, (sum, mod) => sum + mod.size);
+      includedBytes + includedModBytes.fold(0, (sum, mod) => sum + mod.size);
 
   Map<String, dynamic> toJson() => {
     'formatVersion': formatVersion,
@@ -265,7 +266,8 @@ class CloudManifest {
       (json['game'] as Map?)?.cast<String, dynamic>() ?? const {},
     ),
     exportedAt:
-        DateTime.tryParse('${json['exportedAt']}') ?? DateTime.fromMillisecondsSinceEpoch(0),
+        DateTime.tryParse('${json['exportedAt']}') ??
+        DateTime.fromMillisecondsSinceEpoch(0),
     deviceName: '${json['deviceName'] ?? ''}',
     account: json['account'] as String?,
     isIsolated: json['isIsolated'] != false,
@@ -277,8 +279,9 @@ class CloudManifest {
       for (final item in (json['mods'] as List? ?? const []))
         if (item is Map) CloudModEntry.fromJson(item.cast<String, dynamic>()),
     ],
-    modStates: ((json['modStates'] as Map?) ?? const {})
-        .map((key, value) => MapEntry('$key', value == true)),
+    modStates: ((json['modStates'] as Map?) ?? const {}).map(
+      (key, value) => MapEntry('$key', value == true),
+    ),
   );
 
   /// 扫一遍这个版本的数据目录，生成清单（**纯本地，不联网**）
@@ -434,8 +437,7 @@ class CloudManifest {
 }
 
 /// 文件的 sha256（清单的完整性凭据）
-String sha256OfFile(String path) =>
-    sha256OfBytes(File(path).readAsBytesSync());
+String sha256OfFile(String path) => sha256OfBytes(File(path).readAsBytesSync());
 
 /// 一段字节的 sha256（打包 / 解包逐份校验都用它）
 String sha256OfBytes(List<int> bytes) => sha256.convert(bytes).toString();
@@ -447,9 +449,9 @@ class LoaderLibraryVersion {
   static String? of(Mindustry version) {
     final path = version.resolvedLauncherPath;
     if (path == null || path.isEmpty) return null;
-    final matched = RegExp(r'(\d+(?:\.\d+)*)$').firstMatch(
-      p.basenameWithoutExtension(path),
-    );
+    final matched = RegExp(
+      r'(\d+(?:\.\d+)*)$',
+    ).firstMatch(p.basenameWithoutExtension(path));
     return matched?.group(1);
   }
 }

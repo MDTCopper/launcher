@@ -19,15 +19,16 @@ import 'package:path/path.dart' as p;
 class LocalSaveImport {
   LocalSaveImport._();
 
-  /// 默认搬这三类：玩家自己的内容
+  /// 默认搬这五类：玩家自己的内容 + 模组（原版 `mods/` 与 Copper 原生 `copper/mods/`）
   ///
-  /// **模组与游戏设置不在内**（有意）：模组可能跟目标版本不兼容、体积也可能很大
-  /// （实测一台机器上 11 个模组 175MB），游戏设置按设备各留 —— 与云存档的口径一致；
-  /// 真要搬，走「新建变体」那套继承选项
+  /// **游戏设置（`settings.bin`）不在内**（有意）：它按设备各留 —— 与云存档的口径一致
+  /// （键位 / 语言 / 显示这些换台机器本来就该重设）
   static const defaultKinds = [
     VersionDataKind.saves,
     VersionDataKind.maps,
     VersionDataKind.schematics,
+    VersionDataKind.mods,
+    VersionDataKind.copperMods,
   ];
 
   /// 这个版本能不能用一键导入
@@ -90,7 +91,10 @@ class LocalSaveImport {
     if (await source.exists()) {
       var files = 0;
       var bytes = 0;
-      await for (final entity in source.list(recursive: true, followLinks: false)) {
+      await for (final entity in source.list(
+        recursive: true,
+        followLinks: false,
+      )) {
         final relative = p.relative(entity.path, from: from);
         if (entity is Directory) {
           await Directory(p.join(to, relative)).create(recursive: true);
@@ -104,11 +108,7 @@ class LocalSaveImport {
           files++;
           bytes += await entity.length();
         } catch (error) {
-          addLog(
-            .warning,
-            '导入本机存档：跳过 $relative（$error）',
-            tag: 'Version',
-          );
+          addLog(.warning, '导入本机存档：跳过 $relative（$error）', tag: 'Version');
         }
       }
       return (files: files, bytes: bytes);
