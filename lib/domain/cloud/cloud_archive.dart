@@ -40,7 +40,10 @@ class CloudArchive {
 
   /// 打包：扫一遍版本的数据目录，按清单勾选落成 zip
   ///
-  /// [outputPath] 用「先写临时文件再改名」的方式落地，中途出错不会留下半个包。
+  /// [outputPath] 用「先写临时文件（`<outputPath>.importing`）再改名」的方式落地，
+  /// 中途出错不会留下半个包 —— 所以**别把云包存进游戏的数据目录**（Steam 云对
+  /// `saves/`、`saves/saves`、`maps`、`mods`、`schematics`、`assetCache` 的规则是 `*`，
+  /// 临时文件也会被传上去占配额）。
   /// 扫完到打包之间文件可能被游戏改过 —— 哈希对不上的**宁可不打包**，并记进
   /// [CloudArchiveExport.dropped]。
   static Future<CloudArchiveExport> export({
@@ -325,7 +328,14 @@ class CloudArchiveReader {
         report.written.add(path);
       }
       report.writtenBytes += content.length;
-      _writeAtomicallySync(File(path), content);
+      // 临时文件放数据目录的 `tmp/` —— **不能放在目标旁边**：Steam 云对
+      // `saves/saves`、`maps`、`mods`、`schematics`、`assetCache` 的规则是 `*`，
+      // 会把半个 `.importing` 也传上去、还占配额（`tmp/` 不在规则里）
+      _writeAtomicallySync(
+        File(path),
+        content,
+        tempDir: p.join(dataPath, 'tmp'),
+      );
     }
 
     // 清单里有、包里没有的（导出时被丢掉的那种）
@@ -471,9 +481,11 @@ Future<void> _writeAtomically(File target, List<int> bytes) async {
   await temporary.rename(target.path);
 }
 
-void _writeAtomicallySync(File target, List<int> bytes) {
+void _writeAtomicallySync(File target, List<int> bytes, {String? tempDir}) {
   target.parent.createSync(recursive: true);
-  final temporary = File('${target.path}.importing');
+  final directory = tempDir ?? target.parent.path;
+  Directory(directory).createSync(recursive: true);
+  final temporary = File(p.join(directory, '${p.basename(target.path)}.importing'));
   temporary.writeAsBytesSync(bytes, flush: true);
   if (target.existsSync()) target.deleteSync();
   temporary.renameSync(target.path);
