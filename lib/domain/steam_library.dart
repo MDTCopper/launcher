@@ -7,9 +7,8 @@ import 'package:path/path.dart' as p;
 
 /// 一份检测到的 **Steam 版** Mindustry 安装
 ///
-/// Steam 版的形态与「下载一份 jar」很不一样：本体在 `jre/desktop.jar`（packr 外壳
-/// 旁边的那个 81MB 大 jar）、Steam 自带一份 JRE、数据目录**不是**官方默认那份而是
-/// 安装目录下的 `saves/`（Steam 云同步的就是它，见 [dataPath]）
+/// 形态与「下载一份 jar」不同：本体在 `jre/desktop.jar`、自带一份 JRE、
+/// 数据目录是安装目录下的 `saves/`（不是 `%APPDATA%\Mindustry`）
 class SteamInstall {
   const SteamInstall({
     required this.installPath,
@@ -76,11 +75,8 @@ class SteamLibrary {
 
   /// 起 Steam 版本体时要给子进程带的环境变量
   ///
-  /// Steam 客户端启动游戏时会设这两个（`SteamAppId` / `SteamGameId`），steamworks4j
-  /// 的 native 就靠它们判断「这次是不是 Steam 拉起来的」：**不带**的话，只要 Steam
-  /// 客户端在跑，`SteamAPI_RestartAppIfNecessary` 就返回 true、游戏会请 Steam 重新
-  /// 拉起自己然后 `System.exit(0)`（实测：本体活不过一秒）；带上之后游戏由启动器掌着，
-  /// 而 Steam 特性照常注册（实测 Steam 客户端会把它记成 App Running）
+  /// 不带的话，只要 Steam 客户端在跑，`SteamAPI_RestartAppIfNecessary` 就返回 true、
+  /// 游戏会请 Steam 重新拉起自己然后立刻退出（详见 `pitfalls.md`）
   static Map<String, String> launchEnvironment() => const {
     'SteamAppId': appId,
     'SteamGameId': appId,

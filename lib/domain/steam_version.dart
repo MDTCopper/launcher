@@ -11,16 +11,14 @@ import 'package:uuid/uuid.dart';
 
 /// Steam 版在启动器里的**记录形态**（特化处理都在这儿）
 ///
-/// 与下载 / 导入来的版本有三点不同：
-/// ① 本体是 Steam 安装目录里的 `jre/desktop.jar`，**原地引用**（[Mindustry.bodyIsUserFile]）
-/// ② 数据目录**绑 Steam 安装目录下的 `saves/`**（[Mindustry.externalDataPath]），
-///    与 Steam 自己启动时用的是同一份 —— Steam 云同步的也是它
-/// ③ 它是**一条就地刷新的记录**：Steam 更新会把 jar 覆盖掉、旧 build 的文件就没了，
-///    所以不按 build 各占一条，只在启动前把新版本号写回（见 [refresh]）
+/// 与下载 / 导入来的版本有三点不同：① 本体原地引用（[Mindustry.bodyIsUserFile]）
+/// ② 数据目录绑 Steam 安装目录下的 `saves/`（[Mindustry.externalDataPath]）
+/// ③ 是**一条就地刷新的记录** —— Steam 更新会覆盖 jar、旧 build 的文件就没了，
+/// 所以不按 build 各占一条，只在启动前把新版本号写回（见 [refresh]）
 ///
-/// 「认目录 → 建记录」与「读本体 → 核版本」两段逻辑都做成了**不依赖全局配置的纯函数**
-/// （[findByJar] / [foldFor] / [pickTag] / [buildRecord] / [applySteamShape] / [probe]），
-/// 只有 [addOrRefresh] 与 [refresh] 落盘 —— 这样用例不用碰 `config`
+/// 「认目录 → 建记录」与「读本体 → 核版本」都不依赖全局配置（[findByJar] /
+/// [foldFor] / [pickTag] / [buildRecord] / [applySteamShape] / [probe]），
+/// 只有 [addOrRefresh] 与 [refresh] 落盘
 class SteamVersion {
   SteamVersion._();
 
@@ -128,12 +126,9 @@ class SteamVersion {
 
   /// Steam 版**原版启动**固定用的 Java：Steam 自带的 JRE（`<安装目录>/jre/bin/java[.exe]`）
   ///
-  /// 这份 JRE 是 Steam 自己配的 jlink 镜像，实测 `MODULES="java.base jdk.unsupported"` ——
-  /// 跑游戏本体够（游戏不用 `java.util.logging`），但**带不了任何用 Guava/Mixin 的东西**：
-  /// 实测 CopperLoader 在它上面 `NoClassDefFoundError: java/util/logging/Logger`。
-  /// 所以走加载器时必须换完整 JDK（[loaderNeedsFullJdk]）
-  ///
-  /// 路径是按安装目录推出来的（Steam 更新不会换位置）；文件不在时调用方按常规回退
+  /// 那份 JRE 是 jlink 最小镜像（只有 `java.base` + `jdk.unsupported`），跑游戏够、
+  /// **带不了用 Guava/Mixin 的加载器** ⇒ 走加载器时要换完整 JDK（[loaderNeedsFullJdk]）。
+  /// 路径按安装目录推（Steam 更新不会换位置）；文件不在时调用方按常规回退
   static String? javaFor(Mindustry version) {
     final installPath = _installPathOf(version);
     if (installPath == null) return null;

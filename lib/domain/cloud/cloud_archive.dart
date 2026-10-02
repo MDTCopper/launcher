@@ -40,11 +40,10 @@ class CloudArchive {
 
   /// 打包：扫一遍版本的数据目录，按清单勾选落成 zip
   ///
-  /// [outputPath] 用「先写临时文件（`<outputPath>.importing`）再改名」的方式落地，
-  /// 中途出错不会留下半个包 —— 所以**别把云包存进游戏的数据目录**（Steam 云对
-  /// `saves/`、`saves/saves`、`maps`、`mods`、`schematics`、`assetCache` 的规则是 `*`，
-  /// 临时文件也会被传上去占配额）。
-  /// 扫完到打包之间文件可能被游戏改过 —— 哈希对不上的**宁可不打包**，并记进
+  /// [outputPath] 先写 `<outputPath>.importing` 再改名（中途出错不留半个包）；
+  /// **别把云包存进游戏数据目录** —— Steam 云对 `saves/`、`maps`、`mods` 等的规则是
+  /// `*`，临时文件也会被传上去占配额。
+  /// 扫完到打包之间文件被改过（哈希对不上）就**宁可不打包**，记进
   /// [CloudArchiveExport.dropped]。
   static Future<CloudArchiveExport> export({
     required Mindustry version,

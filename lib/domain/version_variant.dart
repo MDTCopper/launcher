@@ -120,8 +120,7 @@ Future<Mindustry?> createVersionVariant({
     path: fold.path,
     release: source.release,
     addTime: DateTime.now(),
-    // Steam 版的本体是 Steam 的、数据目录也绑在 Steam 那份：变体（比如换成 Copper
-    // 加载器）必须跟着 —— 否则工作目录会退回本体所在目录 `jre/`、数据目录也跑偏
+    // Steam 版：本体与数据目录都跟着 Steam（变体换成 Copper 加载器也一样）
     isolation: source.steam ? false : true,
     versionNumber: source.versionNumber,
     steam: source.steam,
@@ -179,8 +178,7 @@ Future<int> _inheritFrom(
   final from = kind.pathIn(source.dataPath);
   final to = kind.pathIn(target.dataPath);
 
-  // 源与目标共用同一份数据目录（Steam 版的变体就是这样）：没什么可继承的，
-  // 而且自己拷自己会把文件写坏
+  // 源与目标共用同一份数据目录（Steam 版的变体）：没什么可继承，自己拷自己还会写坏
   if (p.normalize(from) == p.normalize(to)) return 0;
 
   if (kind.isDirectory) return _copyDirectory(from, to);

@@ -565,7 +565,9 @@ pause
       return;
     }
 
-    final kinds = LocalSaveImport.defaultKinds.map((kind) => kind.label).join('、');
+    final kinds = LocalSaveImport.defaultKinds
+        .map((kind) => kind.label)
+        .join('、');
     showConfirmationPopup(
       context: context,
       type: ConfirmationType.warning,
@@ -709,8 +711,8 @@ pause
                     content: '查看崩溃日志',
                     onTap: _viewCrashLogs,
                   ),
-                  // 隔离版本：把本机共享数据目录里的存档/地图/蓝图一键搬进来（覆盖同名）。
-                  // Steam 版与绑了外置目录的版本没有这个入口（数据目录不由我们说了算）
+                  // 隔离版本：把本机那份的存档/地图/蓝图/模组一键搬进来（覆盖同名）；
+                  // Steam 版与绑外置目录的版本没有这个入口
                   if (LocalSaveImport.canImport(_mindustry))
                     IconTextButton(
                       width: 136,
@@ -952,8 +954,7 @@ class _SettingState extends State<_Setting> {
   }
 
   Widget _buildIsolationSettingBar() {
-    // Steam 版：存档与 Steam 共用同一份（数据目录是 Steam 安装目录下的 saves，
-    // 由 Steam 管），没有「隔离」这回事，也不该让用户改
+    // Steam 版：存档与 Steam 共用一份（数据目录由 Steam 管），没有隔离这回事
     if (_mindustry.steam) {
       return SettingBarRow(
         title: '游戏存档隔离',
@@ -984,7 +985,6 @@ class _SettingState extends State<_Setting> {
 
   Widget _buildJavaSettingBar() {
     // Steam 版原版启动固定用 Steam 自带的 JRE（不可改）；走加载器时必须换完整 JDK
-    //（那份 JRE 只有 java.base + jdk.unsupported，带不了 Guava/Mixin ⇒ 让用户选）
     if (_mindustry.steam && !_mindustry.isViaLoader) {
       return SettingBarRow(
         title: '游戏Java',
@@ -1034,7 +1034,7 @@ class _SettingState extends State<_Setting> {
 
     if (!_mindustry.steam) return picker;
 
-    // Steam 版 + 加载器：得说清为什么这里还能选 Java（Steam 那份带不了加载器）
+    // Steam 版 + 加载器：说清为什么这里还能选 Java
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 8,

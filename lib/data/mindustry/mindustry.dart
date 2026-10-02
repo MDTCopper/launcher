@@ -87,17 +87,15 @@ class Mindustry {
 
   ///是不是 **Steam 版**（本体里有 `version.properties: modifier=steam`）
   ///
-  ///Steam 版要特化：本体在 Steam 安装目录里原地引用、数据目录绑安装目录下的
-  ///`saves/`（见 [externalDataPath]）、启动前要查 Steam 有没有把它更新掉
+  ///Steam 版要特化：本体原地引用、数据目录绑安装目录下的 `saves/`（见
+  ///[externalDataPath]）、启动前查 Steam 有没有把它更新掉
   @JsonKey(defaultValue: false)
   bool steam;
 
   ///**外部数据目录**：不按「隔离 / 官方默认」两条口径走，固定用这份
   ///
-  ///Steam 版专用：Steam 启动游戏时会传 `-Dmindustry.data.dir=<安装目录>/saves`
-  ///（Steam 云同步的就是这份），启动器起 jar 时必须传同一个值，否则游戏会落到
-  ///`%APPDATA%\Mindustry`、与 Steam 那份存档「看得见却不同步」。
-  ///记录形态：绝对路径（在数据根外）
+  ///Steam 版专用，记录形态是绝对路径（在数据根外）。Steam 版的数据目录**由工作目录
+  ///决定**（见 [launchWorkingDirectory]），`-Dmindustry.data.dir` 会被游戏盖掉
   String? externalDataPath;
 
   @JsonKey(includeToJson: false, includeFromJson: false)
@@ -187,19 +185,17 @@ class Mindustry {
 
   /// 启动时的工作目录
   ///
-  /// **Steam 版必须是 Steam 安装目录**：游戏里对 steam 版写死了
-  /// `settings.setDataDirectory(Core.files.local("saves/"))`，`local` 是**相对工作目录**
-  /// 解析的 ⇒ 工作目录不对，数据目录就落到别处（实测：用本体所在目录 `jre/` 起，
-  /// 数据目录会变成 `jre/saves`，跟 Steam 那份完全不搭）。其余版本照旧用本体所在目录
+  /// **Steam 版必须是 Steam 安装目录**：游戏对 steam 版写死
+  /// `setDataDirectory(Core.files.local("saves/"))`，`local` 相对工作目录解析
+  /// ⇒ 用本体所在目录 `jre/` 起，数据目录会变成 `jre/saves`。其余版本照旧用本体目录
   String get launchWorkingDirectory => steam && hasExternalDataDir
       ? p.dirname(AppPaths.resolveStoredPath(externalDataPath!))
       : p.dirname(resolvedJarPath);
 
   /// 启动时要不要把数据目录**告诉游戏**（`-Dmindustry.data.dir`）
   ///
-  /// 隔离版要（目录在版本里）；绑了外置目录的非 Steam 版也要。
-  /// **Steam 版不要**：它的数据目录由工作目录 + 游戏里写死的 `saves/` 决定，
-  /// 这条参数传了也会被 `setDataDirectory` 盖掉（见 [launchWorkingDirectory]）
+  /// 隔离版与绑了外置目录的非 Steam 版要；**Steam 版不要**（它靠工作目录，
+  /// 这条参数传了也会被盖掉，见 [launchWorkingDirectory]）
   bool get needsDataDirArg =>
       !isViaLoader && !steam && (isolation || hasExternalDataDir);
 

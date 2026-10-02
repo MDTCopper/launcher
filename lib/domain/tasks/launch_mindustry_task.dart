@@ -222,9 +222,8 @@ class LaunchMindustryTask extends Task {
     // Android 上没有「桌面 JDK」这回事：Java 用桥载荷里的 JRE，这整段选择与校验
     // 都不该走 —— 否则设备上一份 Java 都没有，任务会先在这里收尾成「未找到可用 Java」
     if (!Platform.isAndroid) {
-      // Steam 版**原版**启动：固定用 Steam 自带的 JRE（用户改不了、Steam 也改不了它）。
-      // 走加载器时不能用它 —— 那份 jlink 镜像只有 java.base + jdk.unsupported，
-      // Guava/Mixin 要 java.logging（实测 CopperLoader 在它上面直接 NoClassDefFoundError）
+      // Steam 版原版启动固定用 Steam 自带的 JRE；走加载器时要换完整 JDK
+      // （那份 JRE 只含 java.base + jdk.unsupported，带不了 Guava/Mixin）
       final steamJava = mindustry.steam && !mindustry.isViaLoader
           ? SteamVersion.javaFor(mindustry)
           : null;

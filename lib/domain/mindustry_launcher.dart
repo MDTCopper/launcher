@@ -137,23 +137,19 @@ class MindustryLauncher {
       // 隔离时补环境变量：官方 ClientLauncher 先读 -Dmindustry.data.dir、读不到退回
       // MINDUSTRY_DATA_DIR；更低版本则直接读 MINDUSTRY 环境变量；
       // 高性能显卡在 Linux 上就是靠环境变量让游戏走独显。
-      //
-      // **Steam 版故意不走这一支**：它的数据目录是 `<工作目录>/saves`（游戏里
-      // `Vars.loadSettings` 对 steam 版写死 `Core.files.local("saves/")`），靠工作目录
-      // 定，改 APPDATA / MINDUSTRY 都会被它盖掉，反而指歪
+      // **Steam 版不走这一支**：它的数据目录靠工作目录定，改 APPDATA 反而指歪
       final gpuEnvironment = GpuPreference.launchEnvironment(
         preferHighPerformance: preferHighPerformance,
       );
 
-      // Steam 版必须带 SteamAppId / SteamGameId：native 的
-      // `SteamAPI_RestartAppIfNecessary` 靠它判断「是不是 Steam 拉起来的」，
-      // 不带的话只要 Steam 客户端在跑，游戏就会请 Steam 重新拉起自己然后立刻退出
-      // （2026-10-02 实测：不带就秒退，带上就能由启动器起、Steam 特性也照常注册）
+      // Steam 版必须带 SteamAppId / SteamGameId，否则 Steam 客户端在跑时游戏会秒退
+      // 并交给 Steam（见 `SteamLibrary.launchEnvironment`）
       final extraEnvironment = {
         ...gpuEnvironment,
         if (mindustry.steam) ...SteamLibrary.launchEnvironment(),
       };
-      final environment = mindustry.isolation && !mindustry.isViaLoader && !mindustry.steam
+      final environment =
+          mindustry.isolation && !mindustry.isViaLoader && !mindustry.steam
           ? {
               ...Platform.environment,
               'MINDUSTRY_DATA_DIR': mindustry.dataPath,
@@ -169,8 +165,7 @@ class MindustryLauncher {
         javaCmd,
         args,
         runInShell: false,
-        // Steam 版的游戏数据目录算在**工作目录**上（见 Mindustry.launchWorkingDirectory），
-        // 其余版本照旧用本体所在目录
+        // Steam 版的数据目录算在工作目录上，其余版本用本体所在目录
         workingDirectory: mindustry.launchWorkingDirectory,
         environment: environment,
       );
@@ -282,7 +277,8 @@ class MindustryLauncher {
           await BridgeInstaller.installArcNatives(
             arcRef: arcRef,
             abi: abi,
-            onStatus: (status) => addLogAndPrint(.info, 'Android 桥：$status', tag: 'Bridge'),
+            onStatus: (status) =>
+                addLogAndPrint(.info, 'Android 桥：$status', tag: 'Bridge'),
           );
         } catch (error) {
           addLogAndPrint(
