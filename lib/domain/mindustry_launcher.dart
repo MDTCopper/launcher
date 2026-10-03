@@ -12,11 +12,13 @@ import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/gpu_preference.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/material.dart' show Icons;
 
 import 'package:path/path.dart' as p;
 
 import '../core/app_config.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
+import '../ui/util/notification.dart';
 
 class MindustryLauncher {
   Process? _jarProcess;
@@ -162,12 +164,23 @@ class MindustryLauncher {
           ? null
           : {...Platform.environment, ...extraEnvironment};
 
-      // 「自动唤醒 Steam」：客户端没在跑就先把它拉起来。Steam 版虽然靠
-      // `SteamAppId` 旁路独立启动，但那只在客户端**已经在跑**时成立 ——
-      // 客户端没跑时游戏拿不到 Steam API（云 / 时长 / overlay 全没有）。
-      // 唤不醒也照常起游戏，不拦
+      // 「自动唤醒 Steam」：客户端没跑就先唤醒，**并等它真的登录进去**。
+      // Steam 版靠 `SteamAppId` 旁路独立启动，但那只在**已登录**时成立；
+      // 只等进程起来就往下走会得到「显示 Steam 版本但没有功能」
       if (mindustry.steam && config.setting.launchOptions.autoWakeSteam) {
-        await SteamClient.ensureRunning();
+        final wake = await SteamClient.ensureRunning();
+        if (wake.shouldWarn) {
+          addNotice(
+            icon: Icons.info_outline,
+            title: 'Steam 可能还没就绪',
+            content: wake == SteamWakeOutcome.failed
+                ? '没找到 Steam 客户端，这一局会用不了 Steam 功能'
+                      '（云存档 / 游戏时长 / 联机）'
+                : 'Steam 是刚唤醒的，可能还没选好账号。若弹出「谁在玩游戏？」'
+                      '请先选好，否则这一局用不了 Steam 功能',
+            duration: const Duration(seconds: 12),
+          );
+        }
       }
 
       _jarProcess = await Process.start(
