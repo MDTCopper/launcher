@@ -10,7 +10,7 @@ part 'mindustry.g.dart';
 
 enum LauncherType { mindustry, copper }
 
-/// 按 Copper 的规则算游戏版本的可比形式（2026-09-19 起**去掉了主版本号**）
+///按 Copper 的规则算游戏版本的可比形式（已**去掉主版本号**）
 ///
 /// - 正式版：`<大版本>.<构建号>`（`v159.7` → `159.7`、`v146` → `146`）
 /// - BE：`0.<构建号>`（`0.24369`）
@@ -23,7 +23,8 @@ String? gameVersionOf({required String release, required bool isBe}) {
 }
 
 ///配置文件存储游戏信息的数据类
-///游戏版本将以文件夹的形式存储，文件夹内是版本数据，可能包含游戏本体，不包含的将使用其他文件目录下载游戏本体，这样可以省出不必要的下载
+///游戏版本以文件夹形式存储，文件夹内是版本数据、可能包含游戏本体；不含本体的版本
+///从其它文件目录下载本体，省掉不必要的下载
 @JsonSerializable()
 class Mindustry {
   final String id;
@@ -42,7 +43,6 @@ class Mindustry {
   String path;
 
   ///游戏启动路径（记录形态，读文件请用 [resolvedJarPath]）
-
   String jarPath;
 
   ///用哪个加载器启动（官方 Jar / Copper 加载器）：可在版本设置里切换
@@ -67,16 +67,17 @@ class Mindustry {
   /// 启动选用java路径
   String? java;
 
-  /// 大版本号（version.properties 的 number，如 v8→8、v88→4）
-  /// github tag 只有 build 号，大版本需读 jar 内的 version.properties；
-  /// 下载时由 FileReader 解析填入，老配置缺失时启动会自动补读
+  ///大版本号（version.properties 的 number，如 v8→8、v88→4）
+  ///
+  /// github tag 只有 build 号，大版本需读 jar 内的 version.properties；下载时由 FileReader
+  /// 解析填入，老配置缺失时启动会自动补读
   int? versionNumber;
 
   ///本体是不是**用户自己的文件**：「添加目录」扫描来的版本为 true
   ///
-  ///下载 / 导入 / 变体建的版本都是 false（本体由启动器收进本体库）。
-  ///删版本靠它决定动不动文件——光看路径会猜错：老布局（启动器早期下载的）与
-  ///「添加目录」扫到的目录形态可以长得一模一样（`<fold>/<tag>/xxx.jar`）
+  ///下载 / 导入 / 变体建的版本都是 false（本体由启动器收进本体库）；删版本靠它决定动不动
+  ///文件——光看路径会猜错：老布局（启动器早期下载的）与「添加目录」扫到的目录形态可以长得
+  ///一模一样（`<fold>/<tag>/xxx.jar`）
   @JsonKey(defaultValue: false)
   bool bodyIsUserFile;
 
@@ -87,15 +88,15 @@ class Mindustry {
 
   ///是不是 **Steam 版**（本体里有 `version.properties: modifier=steam`）
   ///
-  ///Steam 版要特化：本体原地引用、数据目录绑安装目录下的 `saves/`（见
-  ///[externalDataPath]）、启动前查 Steam 有没有把它更新掉
+  ///Steam 版要特化：本体原地引用、数据目录绑安装目录下的 `saves/`（见 [externalDataPath]）、
+  ///启动前查 Steam 有没有把它更新掉
   @JsonKey(defaultValue: false)
   bool steam;
 
   ///**外部数据目录**：不按「隔离 / 官方默认」两条口径走，固定用这份
   ///
-  ///Steam 版专用，记录形态是绝对路径（在数据根外）。Steam 版的数据目录**由工作目录
-  ///决定**（见 [launchWorkingDirectory]），`-Dmindustry.data.dir` 会被游戏盖掉
+  ///Steam 版专用，记录形态是绝对路径（在数据根外）；Steam 版的数据目录**由工作目录决定**
+  ///（见 [launchWorkingDirectory]），`-Dmindustry.data.dir` 会被游戏盖掉
   String? externalDataPath;
 
   @JsonKey(includeToJson: false, includeFromJson: false)
@@ -152,15 +153,15 @@ class Mindustry {
   ///游戏目录路径
   String get foldPath => p.join(resolvedPath, tag);
 
-  ///本体是否在启动器本体库（[AppPaths.mindustrys]）里。
+  ///本体是否在启动器本体库（[AppPaths.mindustrys]）里
   ///
-  ///库外的本体是**用户自己的文件**——「添加目录」扫描到的 jar、以及早期落在各自
-  ///版本目录里的那份：启动器不复制，删版本时也不碰（只删记录）
+  ///库外的本体是**用户自己的文件**——「添加目录」扫描到的 jar、以及早期落在各自版本目录里
+  ///的那份：启动器不复制，删版本时也不碰（只删记录）
   bool get isBodyInLibrary =>
       _isPathWithin(AppPaths.mindustrys, resolvedJarPath);
 
   ///本体就在版本自己的目录 `[foldPath]` 里：老布局的下载 / 导入落点，
-  ///以及「添加目录」扫到的 `<目录>/<tag>/xxx.jar` 形态。
+  ///以及「添加目录」扫到的 `<目录>/<tag>/xxx.jar` 形态
   ///
   ///两种都算**库外**——文件是用户自己的，删版本时本体和目录都要避开
   bool get isBodyInOwnFolder => _isPathWithin(foldPath, resolvedJarPath);
@@ -217,8 +218,8 @@ class Mindustry {
       modsDirIn(dataPath, copper: copper);
 
   /// 模组目录（可能不止一个）：走加载器时 Copper 原生模组在
-  /// `<数据目录>/copper/mods`，原版模组仍在 `<数据目录>/mods`，
-  /// 加载器两个目录都扫；统计 / 扫描模组都要按这个列表来
+  /// `<数据目录>/copper/mods`，原版模组仍在 `<数据目录>/mods`，加载器两个目录都扫；
+  /// 统计 / 扫描模组都要按这个列表来
   List<String> get modsPaths =>
       isViaLoader ? [modsPathFor(copper: true), modsPath] : [modsPath];
 

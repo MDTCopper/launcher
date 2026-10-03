@@ -7,9 +7,9 @@ import 'package:flutter/rendering.dart';
 
 /// Copper 网格视图：桌面端套 [DesktopScrollViewContainer]（自研滚动条 +
 /// 滚轮/触控板处理），非桌面端用官方 [GridView]（原生物理），
-/// 可选顶部底部渐变遮罩（[ScrollFadeMask]）。
+/// 可选顶部底部渐变遮罩（[ScrollFadeMask]）
 ///
-/// [physics] 仅在非桌面端生效（桌面端由 DesktopScrollViewContainer 接管滚动）。
+/// [physics] 仅在非桌面端生效（桌面端由 DesktopScrollViewContainer 接管滚动）
 class CopperGridView extends StatefulWidget {
   // ── 滚动配置（透传 GridView）──
   final Axis scrollDirection;
@@ -41,10 +41,10 @@ class CopperGridView extends StatefulWidget {
   // ── 渐变遮罩 ──
   final bool fadeMask;
 
-  /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变。
+  /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变
   final double? estimatedMaxScrollExtent;
 
-  /// 默认构造：gridDelegate + children。
+  /// 默认构造：gridDelegate + children
   const CopperGridView({
     super.key,
     this.scrollDirection = Axis.vertical,
@@ -71,7 +71,7 @@ class CopperGridView extends StatefulWidget {
   }) : itemBuilder = null,
        itemCount = null;
 
-  /// builder 构造：gridDelegate + itemBuilder + itemCount 惰性构建。
+  /// builder 构造：gridDelegate + itemBuilder + itemCount 惰性构建
   const CopperGridView.builder({
     super.key,
     this.scrollDirection = Axis.vertical,

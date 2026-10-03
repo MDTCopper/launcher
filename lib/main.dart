@@ -79,7 +79,7 @@ Future<bool> _initSingleInctance() async {
     }
     // 留一点时间让上面的日志落盘
     await Future.delayed(const Duration(milliseconds: 200));
-    // 用结束进程而不是 exit(0)：实测 Flutter 引擎里 exit(0) 之后进程会挂着不退
+    // 用结束进程而不是 exit(0)：Flutter 引擎里 exit(0) 之后进程会挂着不退
     if (!Process.killPid(pid)) exit(0);
     return false;
   }

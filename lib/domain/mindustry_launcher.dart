@@ -437,7 +437,6 @@ class MindustryLauncher {
     }
 
     //Mindustry在桌面端测试移动端界面参数
-    // args.add('-testMobile');
     return args;
   }
 

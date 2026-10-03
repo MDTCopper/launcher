@@ -330,8 +330,8 @@ class CloudArchiveReader {
       }
       report.writtenBytes += content.length;
       // 临时文件放数据目录的 `tmp/` —— **不能放在目标旁边**：Steam 云对
-      // `saves/saves`、`maps`、`mods`、`schematics`、`assetCache` 的规则是 `*`，
-      // 会把半个 `.importing` 也传上去、还占配额（`tmp/` 不在规则里）
+      // `saves/`、`maps`、`mods`、`schematics` 的规则是 `*`，会把半个 `.importing`
+      // 也传上去、还占配额（`tmp/` 不在规则里）
       _writeAtomicallySync(
         File(path),
         content,

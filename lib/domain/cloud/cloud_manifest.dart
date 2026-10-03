@@ -138,7 +138,7 @@ class CloudFileEntry {
 ///
 /// **默认只记清单不传字节**：能从启动器现有下载链路（官方仓库 / 作者仓库）拿回来的，
 /// 记 `{内部名, 版本, 文件名, sha256}` 就够；拿不回来的（私有 / 已下架）才需要
-/// [includeBytes] 随包带字节 —— 社区侧没有 mod 管理，所以只有这两条路
+/// [includeBytes] 随包带字节
 class CloudModEntry {
   CloudModEntry({
     required this.fileName,

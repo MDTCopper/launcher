@@ -152,7 +152,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     _updateView();
   }
 
-  /// 数据变更后的刷新：调用点已通过 setState 更新数据，这里兜底重建。
+  /// 数据变更后的刷新：调用点已通过 setState 更新数据，这里兜底重建
   ///
   /// 不用 pushReplacementNamed 整页替换——整页替换会打断上级页面（launch）
   /// 的 await 路由语义（await 绑定旧 route，替换后提前完成导致列表刷新失联），

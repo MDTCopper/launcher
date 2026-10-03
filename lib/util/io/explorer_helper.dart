@@ -9,10 +9,9 @@ import 'package:win32/win32.dart';
 /// - 打开前先看有没有**已经开着这个文件夹**的资源管理器窗口，有就把它恢复到前台（不重复开窗）
 /// - 定位文件用 `explorer.exe /select, <路径>`
 ///
-/// 这个文件以前还有一整套「独立进程启动 + 游戏窗口控制」（约 1600 行 FFI）：
-/// 当年以为 Windows 下父进程退出会带走子进程才写的，2026-09-19 实测确认
-/// release 下普通 `Process.start` 就能让游戏独立运行（debug 下被杀是调试器的
-/// Job Object，那套 `CREATE_BREAKAWAY_FROM_JOB` 也修不了），已删除，见 `pitfalls.md`
+/// 别再把「独立进程启动 + 游戏窗口控制」那套 FFI 加回来：release 下普通
+/// `Process.start` 就能让游戏独立运行；debug 下被杀是调试器的 Job Object，
+/// `CREATE_BREAKAWAY_FROM_JOB` 也修不了，详见 `pitfalls.md`
 class ExplorerHelper {
   ExplorerHelper._();
 

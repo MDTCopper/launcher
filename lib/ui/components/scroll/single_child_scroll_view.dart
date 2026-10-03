@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 
 /// Copper 单子滚动视图：桌面端套 [DesktopScrollViewContainer]（自研滚动条 +
 /// 滚轮/触控板处理），非桌面端用官方 [SingleChildScrollView]（原生惯性/回弹），
-/// 顶部底部可选渐变遮罩（[ScrollFadeMask]）。
+/// 顶部底部可选渐变遮罩（[ScrollFadeMask]）
 ///
 /// [physics] 仅在非桌面端生效（桌面端由 DesktopScrollViewContainer 接管滚动，
-/// 强制 NeverScrollableScrollPhysics）。
+/// 强制 NeverScrollableScrollPhysics）
 class CopperSingleChildScrollView extends StatefulWidget {
   final Widget child;
   final Axis scrollDirection;

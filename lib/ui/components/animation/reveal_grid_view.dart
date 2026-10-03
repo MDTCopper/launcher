@@ -3,15 +3,15 @@ import 'package:flutter/material.dart';
 
 import 'appear_item.dart';
 
-/// 入场/浮现网格（AppearGirdView 重构版），动画为**生长式**（scale + fade）。
+/// 入场/浮现网格（AppearGirdView 重构版），动画为**生长式**（scale + fade）
 ///
 /// 两种构造：
 /// - 默认构造：全量 [items]，错位生长入场（无浮现）
 /// - [RevealGridView.builder]：惰性构建，错位入场 + 滚动浮现；
-///   惰性精确总长依赖 gridDelegate 的 mainAxisExtent（滚动条不乱跳）。
+///   惰性精确总长依赖 gridDelegate 的 mainAxisExtent（滚动条不乱跳）
 ///
-/// 内部滚动容器复用 [CopperGridView]（桌面滚动条/触控板/渐变遮罩）。
-/// 需要回顶按钮时自行套 `BackToTopLayer`（传入同一个 [scrollController]）。
+/// 内部滚动容器复用 [CopperGridView]（桌面滚动条/触控板/渐变遮罩）
+/// 需要回顶按钮时自行套 `BackToTopLayer`（传入同一个 [scrollController]）
 class RevealGridView extends StatefulWidget {
   // ── 内容 ──
   final List<Widget?> items;
@@ -35,7 +35,7 @@ class RevealGridView extends StatefulWidget {
   final bool shrinkWrap;
   final bool fadeMask;
 
-  /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变。
+  /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变
   final double? estimatedMaxScrollExtent;
 
   const RevealGridView({

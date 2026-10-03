@@ -69,7 +69,7 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
   @override
   void didChangeMetrics() {
     // 调整窗口 / 最大化时暂停动画：每帧重绘成本 ∝ 像素数，resize 期间
-    // 尺寸连续变化会让全窗口图层连续重绘。尺寸稳定一段时间后恢复
+    // 尺寸连续变化会让全窗口图层连续重绘，尺寸稳定一段时间后恢复
     if (widget.animate && widget.colorful && _controller.isAnimating) {
       _controller.stop();
     }
@@ -134,9 +134,8 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
                   builder: (_, _) {
                     final value = _controller.value;
                     // 按窗口大小决定的步进节流：进度跨过一步才更新绘制值，
-                    // 其余帧 painter 的 shouldRepaint 为 false，不产生重绘。
-                    // 没有节流时，这个全窗口图层每帧都全屏重绘，
-                    // 重绘成本随像素数线性增长——窗口越大越卡
+                    // 其余帧 painter 的 shouldRepaint 为 false、不重绘；
+                    // 否则这个全窗口图层每帧全屏重绘，成本随像素数线性增长
                     if (_lastPainted < 0 ||
                         value < _lastPainted ||
                         value - _lastPainted >= _step) {
@@ -161,7 +160,7 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
   }
 
   /// 按窗口大小决定重绘步进：窗口越大，每帧重绘的像素越多，步进越大
-  /// （重绘频率越低）。光斑漂移缓慢，低帧率视觉上几乎无差别
+  /// （重绘频率越低）；光斑漂移缓慢，低帧率视觉上几乎无差别
   void _updateStep() {
     _step = repaintStepFor(MediaQuery.sizeOf(context), widget.duration);
   }

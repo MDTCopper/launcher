@@ -17,11 +17,10 @@ class MindustryTopMapApi {
 
   /// 拉取地图列表。
   ///
-  /// [begin] 为条目偏移（非页码），[search] 关键词匹配站内地图名与简介，
-  /// 传空表示不筛选。
+  /// [begin] 为条目偏移（非页码），[search] 关键词匹配站内地图名与简介，传空表示不筛选。
   ///
-  /// begin 越过末尾时站点返回 400，视为空列表（翻页终止条件）；
-  /// 其余网络错误原样抛出，由调用方决定提示方式
+  /// begin 越过末尾时站点返回 400，视为空列表（翻页终止条件）；其余网络错误原样抛出，
+  /// 由调用方决定提示方式
   static Future<List<MindustryTopMapMeta>> list({
     int begin = 0,
     String? search,
@@ -62,7 +61,7 @@ class MindustryTopMapApi {
     return MindustryTopMapDetail.fromJson(decoded);
   }
 
-  /// 下载地图本体（`.msav`，zlib 压缩的地图文件，落盘后游戏可直接识别）。
+  /// 下载地图本体（`.msav`，zlib 压缩的地图文件，落盘后游戏可直接识别）
   ///
   /// 下载进度经 [onStatus] 回调（复用 cio 的分块 / 单流统一管线），
   /// [savePath] 一般取目标版本的 `mapsPath/<地图名>.msav`

@@ -40,7 +40,7 @@ class DesktopScrollViewContainer extends StatefulWidget {
 
   /// 预测最大偏移（惰性列表提供）：滚动条 thumb / 点击 / 拖动用此值计算，
   /// 避免惰性列表 maxScrollExtent 估算（平均外推）导致的跳变
-  /// 不传则用 position.maxScrollExtent。到达实际边界时自动重校为实际值
+  /// 不传则用 position.maxScrollExtent；到达实际边界时自动重校为实际值
   final double? estimatedMaxScrollExtent;
 
   /// 触控板惯性速度上限（px/s），<= 0 表示不限速
@@ -85,7 +85,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
 
   bool get _isScrollbarHovered => isHovered;
 
-  /// 滚动条有效最大偏移：预测优先（稳定），到达实际边界后重校为实际值。
+  /// 滚动条有效最大偏移：预测优先（稳定），到达实际边界后重校为实际值
   double? _effectiveMax;
 
   double get _scrollMax =>
@@ -247,7 +247,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   bool _isInnerScroll = false;
   Timer? _innerScrollTimer;
 
-  /// 判断滚轮方向是否还能继续滚动（未到边界）。
+  /// 判断滚轮方向是否还能继续滚动（未到边界）
   bool _canScroll(PointerScrollEvent event) {
     if (!_controller.hasClients) return false;
     final raw = _isVertical
@@ -309,7 +309,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   /// 最近几次触控板滚动的 (缩放后 delta, 时间秒) 样本，用于估算离手速度
   final List<(double, double)> _recentPan = [];
 
-  /// 当前正在处理 PanZoom 手势的容器（嵌套滚动时最内层优先）。
+  /// 当前正在处理 PanZoom 手势的容器（嵌套滚动时最内层优先）
   static _DesktopScrollViewContainerState? _panZoomOwner;
 
   void _handlePanZoomStart(PointerPanZoomStartEvent event) {
@@ -385,12 +385,12 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     _startInertia(velocity);
   }
 
-  /// 停止惯性模拟（新输入介入时调用）。
+  /// 停止惯性模拟（新输入介入时调用）
   void _stopInertia() {
     if (_inertiaController.isAnimating) _inertiaController.stop();
   }
 
-  /// 惯性模拟：离手速度 → ClampingScrollSimulation 减速（到边界拖停）。
+  /// 惯性模拟：离手速度 → ClampingScrollSimulation 减速（到边界拖停）
   void _startInertia(double velocityPxPerSecond) {
     if (!_controller.hasClients) return;
     final position = _controller.position;
@@ -409,7 +409,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     );
   }
 
-  /// 速度映射函数：`vMax * tanh(v / vMax)`（dart:math 无 tanh，用 exp 等价式）。
+  /// 速度映射函数：`vMax * tanh(v / vMax)`（dart:math 无 tanh，用 exp 等价式）
   ///
   /// - 低速（`v << vMax`）≈ 真实速度
   /// - 高速渐近逼近 [maxVelocity]，不会超速
@@ -705,7 +705,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
   @override
   Widget build(BuildContext context) {
     return Stack(
-      // passthrough：约束透传给 ListView，Stack 尺寸 = 内容。
+      // passthrough：约束透传给 ListView，Stack 尺寸 = 内容；
       // expand 会在无界约束（shrinkWrap 上下文，如模块内）下崩溃；
       // 页面级有界约束下 ListView 默认撑满，行为不变
       fit: StackFit.passthrough,

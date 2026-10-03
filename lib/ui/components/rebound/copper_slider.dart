@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
 
-/// copper 风格滑条：轨道 + 填充 + 滑块，支持点击定位与拖动。
+/// copper 风格滑条：轨道 + 填充 + 滑块，支持点击定位与拖动
 ///
 /// - 值域 [min] ~ [max]，拖动 / 点击按比例换算；[divisions] 非空时吸附刻度
 /// - 拖拽期间显示浮标 [label](值文本)，松手隐藏
-/// - 取色走 [AppColors]:已填部分 = 主题色，未填部分 = 边框色，滑块 = 卡片底
+/// - 取色走 [AppColors]：已填部分 = 主题色，未填部分 = 边框色，滑块 = 卡片底
 class CopperSlider extends StatefulWidget {
   final double value;
   final double min;
@@ -41,25 +41,25 @@ class _CopperSliderState extends State<CopperSlider>
 
   late final AnimationController _labelController;
 
-  /// 点击跳转动画：从当前显示位置缓动到点击目标。
+  /// 点击跳转动画：从当前显示位置缓动到点击目标
   late final AnimationController _jumpController;
 
-  /// 跳转起点 / 终点(0~1 比例)。
+  /// 跳转起点 / 终点(0~1 比例)
   double _jumpStart = 0;
   double _jumpTarget = 0;
 
-  /// 动画中的连续插值(未吸附)，动画结束置 null 交回外部值。
+  /// 动画中的连续插值(未吸附)，动画结束置 null 交回外部值
   double? _jumpValue;
 
-  /// 拖动中的临时值(min~max)。
+  /// 拖动中的临时值(min~max)
   double? _dragValue;
 
-  /// 当前显示值：动画插值 > 拖动临时值 > 外部 [widget.value]。
+  /// 当前显示值：动画插值 > 拖动临时值 > 外部 [widget.value]
   double get _displayValue => _jumpValue ?? _dragValue ?? widget.value;
 
   /// 比例 → 吸附刻度后的值：带 [divisions] 时四舍五入到最近刻度，
-  /// 否则原样换算。所有对外回调(change/changeStart/changeEnd)统一用它，
-  /// 保证显示与赋值一致。
+  /// 否则原样换算；所有对外回调(change/changeStart/changeEnd)统一用它，
+  /// 保证显示与赋值一致
   double _snapValue(double ratio) {
     final divisions = widget.divisions;
     final raw = _ratioToValue(ratio);
@@ -109,7 +109,7 @@ class _CopperSliderState extends State<CopperSlider>
     super.dispose();
   }
 
-  /// 点击跳转：从当前显示位置缓动到 [targetRatio] 对应刻度。
+  /// 点击跳转：从当前显示位置缓动到 [targetRatio] 对应刻度
   void _jumpTo(double targetRatio) {
     _jumpController.stop();
     _jumpStart = _valueToRatio(_displayValue);

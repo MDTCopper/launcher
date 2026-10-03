@@ -24,7 +24,7 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 bool isImporting = false;
 
-///弹出本地资源导入对话框。
+///弹出本地资源导入对话框
 ///
 ///列表里带**游戏本体**（Mindustry jar）时不开资源列表，而是走建版本流程
 ///（[importLocalGame]）：游戏本体不是"资源"，它有 tag 命名、隔离设置这些自己的事
@@ -252,7 +252,7 @@ class ResourceImporterState extends State<ResourceImporter> {
     version: widget.mindustry,
   );
 
-  ///导入的目标数据目录。[Mindustry.dataPath] 本身是版本隔离感知的——
+  ///导入的目标数据目录；[Mindustry.dataPath] 本身是版本隔离感知的——
   ///隔离版本用它自己的数据目录，未隔离 / 没指定版本用默认游戏数据目录
   String get _targetDataPath =>
       widget.mindustry?.dataPath ?? AppPaths.defaultGameData ?? '';

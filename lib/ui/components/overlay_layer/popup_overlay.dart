@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-/// 浮层相对锚点的方位（用于动画方向适配）。
+/// 浮层相对锚点的方位（用于动画方向适配）
 enum PopupOverlayAnchorPosition { bottomRight, bottomLeft, topRight, topLeft }
 
-/// 定位数据：浮层布局完成后生成，传给动画接口，让动画能感知最终位置。
+/// 定位数据：浮层布局完成后生成，传给动画接口，让动画能感知最终位置
 class PopupOverlayPlacement {
   const PopupOverlayPlacement({
     required this.anchorRect,
@@ -19,22 +19,22 @@ class PopupOverlayPlacement {
     required this.anchorOffset,
   });
 
-  /// 锚点矩形（overlay 坐标）。
+  /// 锚点矩形（overlay 坐标）
   final Rect anchorRect;
 
-  /// 浮层左上角在 overlay 中的位置。
+  /// 浮层左上角在 overlay 中的位置
   final Offset position;
 
-  /// overlay 尺寸。
+  /// overlay 尺寸
   final Size overlaySize;
 
-  /// 浮层尺寸。
+  /// 浮层尺寸
   final Size childSize;
 
-  /// 锚点内偏移（打开时传入的 position，如鼠标相对锚点的位置）。
+  /// 锚点内偏移（打开时传入的 position，如鼠标相对锚点的位置）
   final Offset anchorOffset;
 
-  /// 浮层相对锚点的方位。
+  /// 浮层相对锚点的方位
   PopupOverlayAnchorPosition get anchorPosition {
     final rightOfAnchor = position.dx >= anchorRect.center.dx;
     final belowAnchor = position.dy >= anchorRect.center.dy;
@@ -49,7 +49,7 @@ class PopupOverlayPlacement {
   }
 
   /// 锚点（鼠标）在浮层内的位置转缩放锚点：
-  /// 浮层无论因翻转 / 贴边偏移多远，缩放都从锚点位置生长。
+  /// 浮层无论因翻转 / 贴边偏移多远，缩放都从锚点位置生长
   Alignment get anchorAlignment {
     final local = anchorRect.topLeft + anchorOffset - position;
     final dx = childSize.width <= 0
@@ -62,10 +62,10 @@ class PopupOverlayPlacement {
   }
 }
 
-/// 浮层动画接口。
+/// 浮层动画接口
 ///
-/// 接收动画进度与定位数据 [placement]，可按实际方位适配
-/// （如缩放的锚点、滑动的方向）。[placement] 在浮层布局完成后才确定。
+/// 接收动画进度与定位数据 [placement]，可按实际方位适配（如缩放的锚点、滑动的方向）；
+/// [placement] 在浮层布局完成后才确定
 typedef PopupOverlayAnimationBuilder =
     Widget Function(
       BuildContext context,
@@ -74,7 +74,7 @@ typedef PopupOverlayAnimationBuilder =
       PopupOverlayPlacement? placement,
     );
 
-/// 淡入淡出（PopupOverlay 默认动画）。
+/// 淡入淡出（PopupOverlay 默认动画）
 Widget _fadeAnimation(
   BuildContext context,
   Animation<double> animation,
@@ -84,15 +84,15 @@ Widget _fadeAnimation(
   return FadeTransition(opacity: animation, child: child);
 }
 
-/// 浮层位置策略：决定浮层相对锚点摆放在哪里。
+/// 浮层位置策略：决定浮层相对锚点摆放在哪里
 ///
-/// 在布局阶段调用，[childSize] 由布局管道提供，无需预测量。
+/// 在布局阶段调用，[childSize] 由布局管道提供，无需预测量
 abstract class PopupOverlayPositionDelegate {
   const PopupOverlayPositionDelegate();
 
-  /// 计算浮层位置（overlay 坐标）。
+  /// 计算浮层位置（overlay 坐标）
   ///
-  /// [position] 为打开时传入的锚点内偏移（可能为 null）。
+  /// [position] 为打开时传入的锚点内偏移（可能为 null）
   Offset getPosition({
     required Rect anchorRect,
     required Offset? position,
@@ -101,12 +101,12 @@ abstract class PopupOverlayPositionDelegate {
     required EdgeInsets padding,
   });
 
-  /// 位置策略是否发生变化（对应 shouldRelayout）。
+  /// 位置策略是否发生变化（对应 shouldRelayout）
   bool shouldReposition(PopupOverlayPositionDelegate oldDelegate);
 }
 
 /// 默认位置策略：以锚点内偏移（或锚点右下角）为起点展开，
-/// 超出屏幕边界自动翻转，兜底贴安全边距内。
+/// 超出屏幕边界自动翻转，兜底贴安全边距内
 class AnchorFlipPositionDelegate extends PopupOverlayPositionDelegate {
   const AnchorFlipPositionDelegate();
 
@@ -164,33 +164,33 @@ class AnchorFlipPositionDelegate extends PopupOverlayPositionDelegate {
       oldDelegate is! AnchorFlipPositionDelegate;
 }
 
-/// 弹出浮层控制器。
+/// 弹出浮层控制器
 ///
 /// 由 [PopupOverlay] 关联（传入 `controller` 或让 [PopupOverlay] 内部创建），
-/// 用于控制浮层的打开 / 关闭。
+/// 用于控制浮层的打开 / 关闭
 class PopupOverlayController {
   _PopupOverlayState? _state;
 
-  /// 浮层当前是否显示。
+  /// 浮层当前是否显示
   bool get isShowing => _state?._overlayController.isShowing ?? false;
 
   void _attach(_PopupOverlayState state) => _state = state;
   void _detach() => _state = null;
 
-  /// 打开浮层。
+  /// 打开浮层
   ///
   /// [position] 为相对锚点（[PopupOverlay.child] 区域）的偏移，
-  /// 通常传入手势事件的 `localPosition`，即可从精确的鼠标 / 长按位置弹出。
+  /// 通常传入手势事件的 `localPosition`，即可从精确的鼠标 / 长按位置弹出
   void open({Offset? position}) => _state?._open(position: position);
 
-  /// 关闭浮层（播放退场动画后移除）。
+  /// 关闭浮层（播放退场动画后移除）
   ///
-  /// [immediate] 为 true 时立即隐藏，不播放退场动画。
+  /// [immediate] 为 true 时立即隐藏，不播放退场动画
   Future<void> dismiss({bool immediate = false}) =>
       _state?._dismiss(immediate: immediate) ?? Future.value();
 }
 
-/// 在指定位置弹出浮层窗口，自动挑选合适位置，非对话框（无遮罩）。
+/// 在指定位置弹出浮层窗口，自动挑选合适位置，非对话框（无遮罩）
 ///
 /// 基于 [OverlayPortal] + [CustomSingleChildLayout] 实现：
 /// - 锚点矩形由 [OverlayPortal.overlayChildLayoutBuilder] 的变换矩阵给出，无需手动测量
@@ -199,30 +199,30 @@ class PopupOverlayController {
 ///
 /// 动画默认为淡入淡出，可通过 [animation] 注入自定义动画（能感知定位数据）；
 /// 位置策略默认为 [AnchorFlipPositionDelegate]（点锚定 + 翻转），
-/// 可通过 [positionDelegate] 替换（如 HintLayer 的环绕定位）。
+/// 可通过 [positionDelegate] 替换（如 HintLayer 的环绕定位）
 class PopupOverlay extends StatefulWidget {
   /// 锚点组件：浮层相对此组件定位，[PopupOverlayController.open] 的 `position`
-  /// 即相对此组件左上角的偏移。
+  /// 即相对此组件左上角的偏移
   final Widget child;
 
   /// 浮层内容构建器，[anchorRect] 为锚点矩形（overlay 坐标），
-  /// 可用于让浮层宽度对齐锚点（如下拉菜单）。
+  /// 可用于让浮层宽度对齐锚点（如下拉菜单）
   final Widget Function(BuildContext context, Rect anchorRect)
   overlayChildBuilder;
 
-  /// 外部控制器；为空时内部自动创建一个。
+  /// 外部控制器；为空时内部自动创建一个
   final PopupOverlayController? controller;
 
-  /// 浮层动画。默认为淡入淡出。
+  /// 浮层动画；默认为淡入淡出
   final PopupOverlayAnimationBuilder? animation;
 
-  /// 位置策略。默认为 [AnchorFlipPositionDelegate]。
+  /// 位置策略；默认为 [AnchorFlipPositionDelegate]
   final PopupOverlayPositionDelegate? positionDelegate;
 
-  /// 是否点击浮层外部关闭。
+  /// 是否点击浮层外部关闭
   final bool dismissOnTapOutside;
 
-  /// 点击锚点（触发组件）区域是否也触发关闭。
+  /// 点击锚点（触发组件）区域是否也触发关闭
   ///
   /// 默认 true（点击锚点区域即关闭）；设 false 时锚点区域的点击不触发关闭层，
   final bool dismissOnAnchorTap;
@@ -233,31 +233,31 @@ class PopupOverlay extends StatefulWidget {
   /// 浮层关闭后回调
   final VoidCallback? onClose;
 
-  /// dismiss 开始（退场动画播放前）立即回调。
+  /// dismiss 开始（退场动画播放前）立即回调
   ///
   /// 用于在关闭瞬间同步外部状态（如下拉菜单立即复位箭头 / 高亮），
-  /// 而不必等退场动画结束。
+  /// 而不必等退场动画结束
   final VoidCallback? onDismissStart;
 
-  /// 滚动外部（滚轮）是否自动关闭浮层。
+  /// 滚动外部（滚轮）是否自动关闭浮层
   ///
-  /// 开启后在浮层外的滚轮滚动会触发 dismiss。
+  /// 开启后在浮层外的滚轮滚动会触发 dismiss；
   /// 注意：浮层打开时外部滚动被浮层层拦截（与点击外部一致），
-  /// 关闭浮层后滚动恢复。
+  /// 关闭浮层后滚动恢复
   final bool dismissOnScrollOutside;
 
-  /// 浮层距屏幕边缘的最小安全距离。
+  /// 浮层距屏幕边缘的最小安全距离
   final EdgeInsets screenPadding;
 
-  /// 入场 / 退场动画时长。
+  /// 入场 / 退场动画时长
   final Duration animationDuration;
 
-  /// 是否吞掉外部“点击”（左键），而非透传到下层。
+  /// 是否吞掉外部“点击”（左键），而非透传到下层
   ///
   /// 默认 false（translucent Listener）：外部点击透传，可右击另一 MenuLayer 自动切换、
   /// 下拉头部点击切换；true（如右击菜单）：左键点击被 tap 识别器抢先获胜吞掉
   /// （不触发下层组件，避免关闭时误触），而右键 / 滚动无对应识别器、自然透传——
-  /// 仍可右击另一 MenuLayer 切换、滚动列表。
+  /// 仍可右击另一 MenuLayer 切换、滚动列表
   final bool consumeTapOutside;
 
   const PopupOverlay({
@@ -290,18 +290,18 @@ class _PopupOverlayState extends State<PopupOverlay> {
 
   final GlobalKey<_PopupOverlayAnimationState> _animationKey = GlobalKey();
 
-  /// 布局完成后生成的定位数据，供动画接口使用。
+  /// 布局完成后生成的定位数据，供动画接口使用
   final ValueNotifier<PopupOverlayPlacement?> _placement = ValueNotifier(null);
 
-  /// 打开时的锚点内偏移（相对 [widget.child] 区域）。
+  /// 打开时的锚点内偏移（相对 [widget.child] 区域）
   Offset? _position;
 
-  /// 打开时的锚点矩形快照，用于检测锚点移动（滚动 / 页面切换）自动关闭。
+  /// 打开时的锚点矩形快照，用于检测锚点移动（滚动 / 页面切换）自动关闭
   Rect? _anchorSnapshot;
   Size? _overlaySnapshot;
 
   /// 打开代数：每次 [open] 递增；[dismiss] 完成时若代数未变
-  /// （期间未被重新打开），才真正隐藏浮层。
+  /// （期间未被重新打开），才真正隐藏浮层
   int _generation = 0;
 
   /// 布局最大尺寸跟踪
@@ -508,8 +508,8 @@ class _PopupOverlayState extends State<PopupOverlay> {
 }
 
 /// 内部定位委托：适配 [PopupOverlayPositionDelegate] 到 [SingleChildLayoutDelegate]，
-/// 并在定位完成后产出 [PopupOverlayPlacement]。
-/// 布局尺寸跟踪：记录历次布局的最大 childSize。
+/// 并在定位完成后产出 [PopupOverlayPlacement]
+/// 布局尺寸跟踪：记录历次布局的最大 childSize；
 /// 展开动画中 childSize 渐增，定位始终基于最大（完整）尺寸，
 /// 避免动画过程位置漂移
 class _SizeTracker {
@@ -543,7 +543,7 @@ class _PopupOverlayLayout extends SingleChildLayoutDelegate {
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
     // 高度限制在 overlay 内（配合内容滚动，防止超窗）；
     // 宽度放开，让浮层收缩到内容宽度——否则 SizeTransition 内部的
-    // Align（widthFactor 为 null）会在有限宽度约束下撑满，导致定位失真。
+    // Align（widthFactor 为 null）会在有限宽度约束下撑满，导致定位失真
     final maxHeight = constraints.loosen().deflate(padding).maxHeight;
     return BoxConstraints(maxWidth: double.infinity, maxHeight: maxHeight);
   }

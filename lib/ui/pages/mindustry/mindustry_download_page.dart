@@ -176,12 +176,12 @@ class _MindustryDownloadPageState extends State<MindustryDownloadPage> {
     );
   }
 
-  /// 取 release 数组，防御式解析。
+  /// 取 release 数组，防御式解析
   ///
   /// 不能直接用 `cio.get<List<dynamic>>`：dio 只在响应 content-type 是 JSON 时
   /// 才 `jsonDecode`，而镜像节点回包有时带非 json 的 content-type（或直接是 HTML
   /// 错误页）——此时 data 是 String，强转就会抛
-  /// `type 'String' is not a subtype of type 'List<dynamic>?'`。这里拿原始串自己
+  /// `type 'String' is not a subtype of type 'List<dynamic>?'`；这里拿原始串自己
   /// 解析，内容不对抛清晰错误（调用方回退快照）
   Future<List<dynamic>> _fetchReleaseArray(String url) async {
     final response = await cio.get<String>(

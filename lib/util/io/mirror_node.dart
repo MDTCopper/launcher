@@ -23,7 +23,7 @@ MirrorFamily? mirrorFamilyOf(String url) {
   };
 }
 
-/// 一个镜像节点：前缀地址 + 实测能力（`tool/pick_mirrors.dart` 写回预设）
+/// 一个镜像节点：前缀地址 + 能力（`tool/pick_mirrors.dart` 写回预设）
 ///
 /// 旧格式只写地址时按「三家都可能」乐观处理，运行期探针会再筛
 class MirrorNode {
@@ -51,7 +51,7 @@ class MirrorNode {
   /// 支持 Range 请求（回 206）：支持才能分块并发 + 断点续传
   final bool range;
 
-  /// 实测下载速度（MB/s），主要看 `github.com` 的资源
+  /// 测出的下载速度（MB/s），主要看 `github.com` 的资源
   final double speed;
 
   /// 这个节点能不能服务某一族请求

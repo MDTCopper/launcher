@@ -82,8 +82,8 @@ class StartupBackgroundTask extends Task {
     updateDisplay();
   }
 
-  ///检查 Java 环境：一处都没登记过就先浅扫一遍常见位置（首启即自动就绪，
-  ///否则「自动选择」在空列表里挑不出东西，第一次点启动只会报缺 Java）；
+  ///检查 Java 环境：一处都没登记过就先浅扫一遍常见位置
+  ///（否则「自动选择」在空列表里挑不出东西，第一次点启动只会报缺 Java）；
   ///已登记的则校验失效项，选中失效时回退自动选择
   Future<void> _checkJavaEnvironment() async {
     final javaOptions = config.setting.launchOptions.javaOptions;

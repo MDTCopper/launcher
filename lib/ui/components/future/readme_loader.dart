@@ -389,12 +389,11 @@ class _ReadmeNetworkImageState extends State<ReadmeNetworkImage> {
     }
   }
 
-  /// SVG：交给 jovial_svg 渲染。
+  /// SVG：交给 jovial_svg 渲染
   ///
-  /// 之前用 flutter_svg，但它对**内嵌图像（base64 `<image>`）**、**属性继承
-  /// （fill / font-size）**、**祖先 transform** 的支持都有缺口——徽章的徽标
-  /// 渲染不出来、文字颜色错、字号被放大，只能靠逐个打补丁（fixSvgTextScale）。
-  /// jovial_svg 这几项都支持，且是矢量渲染，无需自己按 DPR 栅格化
+  /// 不用 flutter_svg：它对内嵌图像（base64 `<image>`）、属性继承（fill / font-size）、
+  /// 祖先 transform 支持都有缺口，徽章会渲染不出来、文字颜色错、字号被放大；
+  /// jovial_svg 都支持且是矢量渲染，无需自己按 DPR 栅格化
   Future<Widget?> _svgImage(String url) async {
     try {
       final res = await cio.get<String>(url, headers: modDownloadHeaders);

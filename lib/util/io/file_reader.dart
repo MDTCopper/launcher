@@ -10,7 +10,7 @@ import 'package:hjson_dart/hjson_dart.dart';
 import 'package:path/path.dart' as p;
 import 'package:properties/properties.dart';
 
-/// 可识别的资源类型。
+/// 可识别的资源类型
 enum ResourceType {
   /// Mindustry 游戏 jar/apk
   mindustry,
@@ -28,7 +28,7 @@ enum ResourceType {
   settings,
 }
 
-/// 底层文件格式。
+/// 底层文件格式
 enum FileFormat {
   /// ZIP/JAR 压缩包
   zip,
@@ -46,7 +46,7 @@ enum FileFormat {
   other,
 }
 
-/// 统一文件读取器 — 通过文件头字节识别类型，解析元数据，支持导入。
+/// 统一文件读取器 — 通过文件头字节识别类型，解析元数据，支持导入
 ///
 /// ```dart
 /// final reader = await FileReader.fromPath(path);
@@ -55,19 +55,19 @@ enum FileFormat {
 /// await reader.importTo('/dest/dir');
 /// ```
 class FileReader {
-  /// 源文件路径。
+  /// 源文件路径
   final String path;
 
-  /// 文件名（含扩展名）。
+  /// 文件名（含扩展名）
   final String fileName;
 
-  /// 识别出的资源类型，无法识别时为 null。
+  /// 识别出的资源类型，无法识别时为 null
   final ResourceType? type;
 
-  /// 底层文件格式。
+  /// 底层文件格式
   final FileFormat fileFormat;
 
-  /// 解析出的元数据。
+  /// 解析出的元数据
   final Map<String, dynamic>? meta;
 
   /// Mod 的 icon.png 图片字节
@@ -86,9 +86,8 @@ class FileReader {
 
   // ── 工厂：从路径创建 ──
 
-  /// 读取并解析文件，返回带元数据的 [FileReader]。
-  ///
-  /// 若文件不存在或无法读取，返回 `type=null, meta=null` 的空实例。
+  /// 读取并解析文件，返回带元数据的 [FileReader]；
+  /// 若文件不存在或无法读取，返回 `type=null, meta=null` 的空实例
   static Future<FileReader> fromPath(String path) async {
     final file = File(path);
     if (!await file.exists()) {
@@ -105,11 +104,11 @@ class FileReader {
     return _fromBytes(bytes, path);
   }
 
-  /// 从字节数组解析。
+  /// 从字节数组解析
   ///
   /// 命中类型后**再尝试用对应 meta 构建**（如 [MindustryMeta.fromJson]），
   /// 构建失败则判定「不是该类型」，落到下一候选 / 最终 type=null——
-  /// 避免"能匹配文件但内容不符"被误分类后在调用处抛错。
+  /// 避免"能匹配文件但内容不符"被误分类后在调用处抛错
   static FileReader _fromBytes(Uint8List bytes, String path) {
     final fileName = p.basename(path);
     final header = bytes.length >= 8 ? bytes.sublist(0, 8) : bytes;
@@ -201,10 +200,10 @@ class FileReader {
 
   // ── 导入操作 ──
 
-  /// 将文件复制到目标目录。
-  /// [destDir] 目标目录路径。
-  /// [overwrite] 是否覆盖同名文件，默认 false。
-  /// 返回复制后的完整路径，若不成功返回 null。
+  /// 将文件复制到目标目录；
+  /// [destDir] 目标目录路径；
+  /// [overwrite] 是否覆盖同名文件，默认 false；
+  /// 返回复制后的完整路径，若不成功返回 null
   Future<String?> importTo(String destDir, {bool overwrite = false}) async {
     try {
       final dir = Directory(destDir);
@@ -263,7 +262,7 @@ class FileReader {
   // 各类型解析
   // ═══════════════════════════════════════════
 
-  /// 尝试解析为 .msav 地图存档。
+  /// 尝试解析为 .msav 地图存档
   static Map<String, dynamic>? _tryMapMeta(Uint8List bytes, Uint8List header) {
     if (!_isZlib(header)) return null;
     try {
@@ -273,7 +272,7 @@ class FileReader {
     }
   }
 
-  /// 尝试解析为 .msch 蓝图。
+  /// 尝试解析为 .msch 蓝图
   static Map<String, dynamic>? _trySchematicMeta(
     Uint8List bytes,
     Uint8List header,
@@ -286,7 +285,7 @@ class FileReader {
     }
   }
 
-  /// 尝试解析为 settings.bin。
+  /// 尝试解析为 settings.bin
   static Map<String, dynamic>? _trySettingsMeta(
     Uint8List bytes,
     Uint8List header,
@@ -309,7 +308,7 @@ class FileReader {
     }
   }
 
-  /// 返回 `(meta, icon)` —— meta 为 mod 元数据，icon 为 icon.png 原始字节。
+  /// 返回 `(meta, icon)` —— meta 为 mod 元数据，icon 为 icon.png 原始字节
   ///
   /// 原版模组的元数据是 `mod.json` / `mod.hjson`（字段平铺）；
   /// Copper 原生模组是 `copper.mod.json` / `copper.mod.hjson`，结构为
@@ -358,7 +357,7 @@ class FileReader {
       }
       map['type'] = 'mod';
 
-      // 依赖：Copper 那边是「id → 版本过滤」的对象，原版是数组；统一成 id 列表。
+      // 依赖：Copper 那边是「id → 版本过滤」的对象，原版是数组；统一成 id 列表；
       // Copper 的 mindustry / loader 是保留 id（游戏本体、加载器版本要求），
       // 不是模组依赖，取出来单独放
       final dependencies = map['dependencies'];
@@ -420,7 +419,7 @@ class FileReader {
     }
   }
 
-  /// 从 ZIP/JAR 中解析游戏版本元数据（查找 version.properties）。
+  /// 从 ZIP/JAR 中解析游戏版本元数据（查找 version.properties）
   static Map<String, dynamic>? _tryGameMeta(Uint8List bytes) {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);

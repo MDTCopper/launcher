@@ -17,7 +17,7 @@ import 'package:flutter/cupertino.dart';
 ///路由映射
 ///
 ///主要页面下跟随其分项路由（分项路由 key 重定向到对应的主要页面，
-///由容器页根据路由名定位到具体分项），与主要页面强相关的独立页面也跟随其下。
+///由容器页根据路由名定位到具体分项），与主要页面强相关的独立页面也跟随其下
 const Map<String, Widget> routeMap = {
   '/test': Test(),
 

@@ -33,7 +33,6 @@ class ModOfficialListEntry {
   /// 缓存主仓库，只存分支名(main 或 master)
   @JsonKey(includeFromJson: false)
   String? mainBranchCache;
-
   ModOfficialListEntry({
     required this.repo,
     required this.name,

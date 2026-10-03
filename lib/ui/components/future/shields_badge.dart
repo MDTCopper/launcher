@@ -55,7 +55,7 @@ class ShieldsBadgeData {
   }
 }
 
-/// shields.io 徽章：不解析 SVG，用官方 JSON 数据自绘。
+/// shields.io 徽章：不解析 SVG，用官方 JSON 数据自绘
 ///
 /// 为什么自绘：shields 会按样式（flat / for-the-badge / social…）生成结构
 /// 各异的 SVG，靠 SVG 引擎逐个适配等于打地鼠；而 shields 提供 JSON 端点，

@@ -39,7 +39,7 @@ typedef DropdownTopWidgetBuilder<T> =
 /// 头部展示文本构建器（[DropdownLayer.textBuilder]）
 ///
 /// 返回自定义展示文本；返回 `null` 时回落内置 [DropdownLayer] 默认逻辑
-/// （多选“已选 N 项” / 单选所选 label）。接收 [controller] 以读取选中集合
+/// （多选“已选 N 项” / 单选所选 label）；接收 [controller] 以读取选中集合
 typedef DropdownTextBuilder<T> =
     String? Function(DropdownController<T> controller);
 
@@ -92,10 +92,10 @@ class DropdownLayer<T> extends StatefulWidget {
   /// 接收 [DropdownController]，场景可按需自建“全选 / 重置”等工具栏
   final DropdownTopWidgetBuilder<T>? topWidget;
 
-  /// 头部展示文本自定义构建器。
+  /// 头部展示文本自定义构建器
   ///
   /// 返回非 null 时覆盖默认展示文本；返回 null 回落内置逻辑
-  /// （多选“已选 N 项” / 单选所选 label / 未选显示 hintText）。
+  /// （多选“已选 N 项” / 单选所选 label / 未选显示 hintText）
   final DropdownTextBuilder<T>? textBuilder;
 
   /// 多选模式：菜单项变为复选框，勾选不收起菜单，头部显示"已选 N 项"
@@ -172,10 +172,10 @@ class DropdownLayer<T> extends StatefulWidget {
     );
   }
 
-  /// 头部展示「所有已选项 label」（用「、」拼接）的 [textBuilder]。
+  /// 头部展示「所有已选项 label」（用「、」拼接）的 [textBuilder]
   ///
   /// 经 controller 读取选项与选中集合，头部直接列出已选 label
-  /// （如“苹果、香蕉”），空选返回 null 回落默认（[hintText]）。适用于多选。
+  /// （如“苹果、香蕉”），空选返回 null 回落默认（[hintText]）；适用于多选
   ///
   /// 用法：`DropdownLayer.multiSelect(textBuilder: DropdownLayer.allLabelsText(), ...)`
   static DropdownTextBuilder allLabelsText() => (controller) {
@@ -466,7 +466,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
   ///
   /// 用 [Transform.scale]（绘制层变换，不改布局尺寸）替代 SizeTransition /
   /// Align(heightFactor)：布局尺寸始终是菜单完整尺寸 → 浮层定位稳定，
-  /// 不会出现动画结束偏移、收纳时偏移回去；也无 ClipRect 裁剪阴影问题。
+  /// 不会出现动画结束偏移、收纳时偏移回去；也无 ClipRect 裁剪阴影问题
   Widget _dropdownAnimation(
     BuildContext context,
     Animation<double> animation,
@@ -488,7 +488,7 @@ class _DropdownLayerState<T> extends State<DropdownLayer<T>>
     );
   }
 
-  /// 计算生长锚点：根据菜单与锚点的实际位置关系决定生长方向。
+  /// 计算生长锚点：根据菜单与锚点的实际位置关系决定生长方向
   Alignment _growthAlignment(PopupOverlayPlacement? placement) {
     if (placement == null) return Alignment.topCenter;
     final menuTop = placement.position.dy;

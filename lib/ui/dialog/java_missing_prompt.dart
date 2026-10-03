@@ -4,13 +4,13 @@ import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/io/java/java_compat.dart';
 import 'package:flutter/material.dart';
 
-///缺 Java 提示：先弹确认弹窗，用户确认后再开「下载 Java」弹窗。
+///缺 Java 提示：先弹确认弹窗，用户确认后再开「下载 Java」弹窗
 ///
 ///[releaseInt] 游戏大版本，用来查推荐的 Java 版本；
-///[context] 传自己的 context，不传则取 navigatorKey 的（启动任务没有自己的 context）。
+///[context] 传自己的 context，不传则取 navigatorKey 的（启动任务没有自己的 context）
 ///
 ///下载弹窗必须等确认弹窗自己收完再推：`showConfirmationPopup` 的 action 跑完后
-///还会 pop 一次，同步推上去的下载弹窗会被它一并关掉。
+///还会 pop 一次，同步推上去的下载弹窗会被它一并关掉
 void showJavaMissingPrompt({required int releaseInt, BuildContext? context}) {
   final targetContext = context ?? PageKeyProvider.navigatorKey.currentContext;
   if (targetContext == null || !targetContext.mounted) return;

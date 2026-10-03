@@ -7,10 +7,10 @@ import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
 
-/// 图标探测结果：把「确认没有图标」和「网络失败」分开。
+/// 图标探测结果：把「确认没有图标」和「网络失败」分开
 ///
 /// 两者在 UI 上要给不同的占位，且**网络失败不能写入缺失缓存**——
-/// 否则一次网络抖动会把图标永久判定为缺失（直到重启）。
+/// 否则一次网络抖动会把图标永久判定为缺失（直到重启）
 enum ModIconResultType { found, missing, networkError }
 
 class ModIconResult {
@@ -103,7 +103,7 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
     return ModIconResult.found(probe.url!, bytes);
   }
 
-  /// 拉图标字节：**必须走 cio**（代理 / 镜像可达）。
+  /// 拉图标字节：**必须走 cio**（代理 / 镜像可达）
   ///
   /// raw.githubusercontent.com 在部分网络（如广电）下直连不通，`Image.network`
   /// 会直接失败——所以这里拿字节交给 `Image.memory`，与 README 图片同一套做法

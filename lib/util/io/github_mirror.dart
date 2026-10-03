@@ -11,10 +11,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
-///github 镜像节点管理。
+///github 镜像节点管理
 ///
 ///仅加速 `github.com` / `api.github.com` / `raw.githubusercontent.com` 三个域名，
-///用法是「镜像前缀 + 原 URL」（如 `https://ghfast.top/https://github.com/...`）。
+///用法是「镜像前缀 + 原 URL」（如 `https://ghfast.top/https://github.com/...`）
 ///
 ///节点分三类：
 ///- 预设：官方仓库 `remote/github_mirrors.hjson`（RemoteData 拉取，assets 兜底）
@@ -22,7 +22,7 @@ import 'package:path/path.dart' as p;
 ///- 自定义：用户手动添加，存 config，与预设分开管理
 ///
 ///策略：官方直连失败后才走镜像（对齐 Mindustry 的错误驱动回退）；选镜像时
-///对候选节点 HEAD 测速，取最快缓存。
+///对候选节点测速，取最快缓存
 class GithubMirror {
   static final GithubMirror _instance = GithubMirror._();
 
@@ -69,7 +69,7 @@ class GithubMirror {
   ///爬取预检得到的各节点延迟（前缀 -> ms），供设置页直接展示
   Map<String, int> crawledLatencies = {};
 
-  ///每族的「排名表」：能测通的节点前缀，按实测延迟从快到慢。
+  ///每族的「排名表」：能测通的节点前缀，按延迟从快到慢
   ///
   ///三家能力互不相同（只代理 raw 的节点对 api 请求是坏的），所以按族各存一份、
   ///按需取用：请求属于哪一族就拿哪一族的表，节点失败时顺着表往下换
@@ -78,12 +78,12 @@ class GithubMirror {
   ///每族排名表的产生时刻（TTL 各自一份）
   final Map<MirrorFamily, DateTime> _rankingAt = {};
 
-  ///每族「直连刚失败过」的时刻。
+  ///每族「直连刚失败过」的时刻
   ///
   ///**为什么要有这个**：`githubFirst` 对每个 URL 都要先等直连失败才回退镜像，
-  ///而坏网络上的直连失败代价很大 —— 真机实测：一个 3.4 KB 的文件直连等了
-  ///**110 秒**才 `connectionTimeout`，镜像 2 秒就下完；小文件尤其亏。
-  ///所以直连一旦以链路问题失败，就在这个窗口内记住「这一族先别试直连了」。
+  ///而坏网络上的直连失败代价很大 —— 一个 3.4 KB 的文件直连可能等到超时，
+  ///镜像 2 秒就下完，小文件尤其亏；
+  ///所以直连一旦以链路问题失败，就在这个窗口内记住「这一族先别试直连了」
   ///
   ///窗口很短（见 [_directFailureTtl]）、只在内存里，重启即忘；直连成功或换了
   ///网络设置就立刻清掉
@@ -234,7 +234,7 @@ class GithubMirror {
     return set.toList();
   }
 
-  ///同步 config 的开关（启动 / 设置页变更时调用）。
+  ///同步 config 的开关（启动 / 设置页变更时调用）；
   ///应用镜像设置（由调用方注入，不读全局 config）
   void applySettings(MirrorOptions options) {
     _enabled = options.enabled;
@@ -261,14 +261,14 @@ class GithubMirror {
     _directOkAt[family] = at;
   }
 
-  ///仅供测试：直接塞某族的排名表（正常走 [rankFamilyFor] 实测得出）
+  ///仅供测试：直接塞某族的排名表（正常走 [rankFamilyFor] 测速得出）
   @visibleForTesting
   void debugSetRanking(MirrorFamily family, List<String> nodes) {
     _rankings[family] = List.of(nodes);
     _rankingAt[family] = DateTime.now();
   }
 
-  ///仅供测试：清空单例状态，隔离用例（GithubMirror 是单例，无外部重置入口）。
+  ///仅供测试：清空单例状态，隔离用例（GithubMirror 是单例，无外部重置入口）
   @visibleForTesting
   void debugReset() {
     _presetNodes = [];
@@ -281,7 +281,7 @@ class GithubMirror {
     _enabled = true;
   }
 
-  ///加载预设节点与爬取缓存。缓存缺失或过期（>7 天）时后台自动重爬一次。
+  ///加载预设节点与爬取缓存。缓存缺失或过期（>7 天）时后台自动重爬一次
   Future<void> load() async {
     final presetContent = await RemoteData.load('github_mirrors.hjson');
     _presetNodes = parseMirrorPreset(presetContent);
@@ -307,7 +307,7 @@ class GithubMirror {
       p.join(AppPaths.remoteData, 'github_mirrors_crawled.json');
 
   ///从 github.akams.cn 拉取社区节点并预检：能测通的留下并记延迟，
-  ///不通的丢弃（避免之后反复对死节点发起请求），结果缓存到本地。
+  ///不通的丢弃（避免之后反复对死节点发起请求），结果缓存到本地
   Future<List<String>> refreshCrawledNodes() async {
     final domains = await crawlFromAkams();
     final candidates = domains.map((d) => 'https://$d/').toList();
@@ -317,7 +317,7 @@ class GithubMirror {
     return working;
   }
 
-  ///对候选节点统一测速一遍：能测通的留下并记录延迟，失败的一律剔除。
+  ///对候选节点统一测速一遍：能测通的留下并记录延迟，失败的一律剔除
   @visibleForTesting
   Future<List<String>> filterWorkingNodes(List<String> candidates) async {
     final results = await Future.wait(
@@ -367,16 +367,16 @@ class GithubMirror {
     } catch (_) {}
   }
 
-  ///统一节点格式为「镜像前缀」，非法返回 null。
+  ///统一节点格式为「镜像前缀」，非法返回 null
   static String? normalizeNode(String raw) => MirrorNode.normalizeUrl(raw);
 
-  ///URL 是否为需要加速的 github 域名。
+  ///URL 是否为需要加速的 github 域名
   static bool isGithubUrl(String url) {
     final host = Uri.tryParse(url)?.host;
     return host != null && _githubHosts.contains(host);
   }
 
-  ///返回应使用的镜像前缀；不需要加速 / 未开启 / 无节点时返回 null。
+  ///返回应使用的镜像前缀；不需要加速 / 未开启 / 无节点时返回 null
   String? prefixFor(String url) {
     if (!_enabled) return null;
     if (!isGithubUrl(url)) return null;
@@ -385,14 +385,14 @@ class GithubMirror {
     return best;
   }
 
-  ///把 URL 套上镜像前缀；不需加速时原样返回。
+  ///把 URL 套上镜像前缀；不需加速时原样返回
   String resolve(String url) {
     final prefix = prefixFor(url);
     if (prefix == null) return url;
     return '$prefix$url';
   }
 
-  ///对单个节点测速，返回耗时毫秒；不能用作镜像返回 null。
+  ///对单个节点测速，返回耗时毫秒；不能用作镜像返回 null
   ///
   ///用 GET 而非 HEAD：要**看响应内容**——有些节点只代理 raw、不代理
   ///`api.github.com`，对它发 api 请求会回自己的健康页（如 `ok`）且状态码 200，
@@ -413,7 +413,7 @@ class GithubMirror {
     return null;
   }
 
-  ///探针响应像不像真内容：空响应、健康页（`ok` 之类）判为坏节点。
+  ///探针响应像不像真内容：空响应、健康页（`ok` 之类）判为坏节点；
   ///api 探针额外要求是 JSON（`{` / `[` 开头）
   static bool _isRealProbePayload(String probeUrl, String? body) {
     final text = body?.trim();
@@ -424,7 +424,7 @@ class GithubMirror {
     return true;
   }
 
-  ///为该族重测一遍，算出「能测通的节点 + 延迟」排序表并缓存，返回该表。
+  ///为该族重测一遍，算出「能测通的节点 + 延迟」排序表并缓存，返回该表
   ///
   ///优先测「上次首选 + 自定义 + 预设」小集合；一个都测不通才碰爬取的全量池
   ///（避免每次刷新都对几十个社区节点发请求）。整族都测不通时**沿用上一次的表**，
@@ -484,7 +484,7 @@ class GithubMirror {
   static const _maxPriorityProbe = 6;
 
   ///按场景挑候选：先按域名族筛（api 请求别拿只会 raw 的节点去撞），
-  ///再按「要 Range 的优先、预设实测速度高的优先」排；自定义与上次用过的排最前
+  ///再按「要 Range 的优先、预设速度高的优先」排；自定义与上次用过的排最前
   List<String> _priorityCandidates(
     String targetUrl, {
     String? previousBest,
@@ -549,7 +549,7 @@ class GithubMirror {
     return response.data ?? '';
   }
 
-  ///爬取 akams 页面，返回社区节点域名列表（不含 scheme）。
+  ///爬取 akams 页面，返回社区节点域名列表（不含 scheme）
   Future<List<String>> crawlFromAkams() async {
     try {
       final page = await _fetchText(akamsBase);
@@ -563,14 +563,14 @@ class GithubMirror {
     return [];
   }
 
-  ///从页面 HTML 提取 Next.js chunk 脚本路径。
+  ///从页面 HTML 提取 Next.js chunk 脚本路径
   @visibleForTesting
   static List<String> extractChunkUrls(String html) {
     final regex = RegExp(r'/_next/static/chunks/[a-zA-Z0-9._-]+\.js');
     return regex.allMatches(html).map((m) => m.group(0)!).toSet().toList();
   }
 
-  ///从 JS 源码提取节点域名（`{label:"search|contribute",value:"<域名>"}`）。
+  ///从 JS 源码提取节点域名（`{label:"search|contribute",value:"<域名>"}`）
   @visibleForTesting
   static List<String> extractNodeDomains(String js) {
     final regex = RegExp(

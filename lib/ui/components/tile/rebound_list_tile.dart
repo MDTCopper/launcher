@@ -2,7 +2,7 @@ import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-/// 列表项（类似 ListTile），基于 [ReboundContainer]。
+/// 列表项（类似 ListTile），基于 [ReboundContainer]
 ///
 /// - 有选中态：[selected] 驱动背景 / 前景的过渡动画（双模式背景同 [ActionButton]）
 /// - 有禁用态：[enable] 为 false 时不可点击、无浮出、前景置灰
@@ -141,7 +141,7 @@ class _ReboundListTileState extends State<ReboundListTile>
           onTap: enabled ? widget.onTap : null,
           onLongTap: enabled ? widget.onLongTap : null,
           // trailing 进 surfaceChild：交互隔离
-          // 挂在 GlobalKey 上帧后实测宽度，行内按 _trailingWidth 预留占位
+          // 挂在 GlobalKey 上帧后量宽，行内按 _trailingWidth 预留占位
           surfaceChild: widget.trailing == null
               ? null
               : KeyedSubtree(key: _trailingKey, child: widget.trailing!),

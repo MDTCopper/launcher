@@ -6,8 +6,8 @@ import 'package:win32/win32.dart';
 
 /// Windows 注册表的只读小工具（读一个字符串值），非 Windows 一律返回 null
 ///
-/// 现在两处用它：显卡首选项（读已有值判断要不要写）与 Steam 安装路径探测。
-/// **只读不写** —— 要写的那套（[GpuPreference]）自己带着 key 句柄与错误日志。
+/// 现在两处用它：显卡首选项（读已有值判断要不要写）与 Steam 安装路径探测；
+/// **只读不写** —— 要写的那套（[GpuPreference]）自己带着 key 句柄与错误日志
 class WindowsRegistry {
   WindowsRegistry._();
 

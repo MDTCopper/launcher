@@ -14,7 +14,7 @@ const licensePageRouteKey = '/setting/license';
 ///
 /// 对应 Material 的 `showLicensePage`，但用项目自己的面板 / 展开组件渲染；
 /// 数据仍来自 [LicenseRegistry]（Flutter 把各依赖的 LICENSE 汇总注册进去，
-/// 见构建产物 NOTICES），所以依赖增减后不用手改。
+/// 见构建产物 NOTICES），所以依赖增减后不用手改
 ///
 /// 类名用 [OpenSourceLicensePage] 而非 `LicensePage`，避开 Material 同名 widget
 class OpenSourceLicensePage extends StatefulWidget {
@@ -75,7 +75,7 @@ class _OpenSourceLicensePageState extends State<OpenSourceLicensePage> {
         }
 
         return ListContentPanel(
-          // 包很多（本项目约 250 个），给预测总长走惰性模块：只构建可见条目
+          // 包很多，给预测总长走惰性模块：只构建可见条目
           estimatedMaxScrollExtent: _estimatedExtent(context, grouped.length),
           items: [
             ContentPanelModule(
@@ -122,8 +122,8 @@ class _OpenSourceLicensePageState extends State<OpenSourceLicensePage> {
     );
   }
 
-  /// 惰性列表的滚动条预测总长（内容高 − 视口高）：折叠条目约 56 高，
-  /// 展开后会更高——但滚动条到达边界会重校为真实值，估个量级即可
+  /// 惰性列表的滚动条预测总长（内容高 − 视口高）：条目高只是估值，
+  /// 滚动条到达边界会重校为真实值，估个量级即可
   static double _estimatedExtent(BuildContext context, int packageCount) {
     const moduleHeight = 140.0;
     const rowHeight = 56.0;

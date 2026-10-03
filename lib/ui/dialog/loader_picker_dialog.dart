@@ -17,7 +17,7 @@ const loaderJarTypeGroup = XTypeGroup(label: 'Copper 加载器', extensions: ['j
 
 /// 弹选择页，**只返回选了什么**（库里已有的 / 远程待下载 / 去挑本地 jar / 不用加载器）
 ///
-/// 取消返回 null。**落地由调用方决定**：远程版本要起 [LoaderDownloadTask]（进任务抽屉、
+/// 取消返回 null；**落地由调用方决定**：远程版本要起 [LoaderDownloadTask]（进任务抽屉、
 /// 带进度、失败可见），不需要下载的用 [resolveLoaderChoiceLocally] 就地落
 Future<LoaderChoice?> pickLoaderChoice(
   BuildContext context, {

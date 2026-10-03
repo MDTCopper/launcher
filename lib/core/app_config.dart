@@ -41,8 +41,8 @@ Future<void> initAppConfig() async {
       jsonDecode(utf8.decode(base64Decode(encodedData))),
     );
   }
-  //配置里记的启动器版本跟上当前构建：`AppConfig.version` 原先只在首次创建配置时
-  //写入过一次（构造函数默认值），之后一直被文件里的旧值覆盖，永远停在那个版本
+  //配置里记的启动器版本要跟上当前构建：`AppConfig.version` 原先只在首次创建配置时写入一次
+  //（构造函数默认值），之后一直被文件里的旧值覆盖，永远停在那个版本
   config.version = appVersion;
   // 老配置里数据根内的路径可能是绝对形态，这里统一洗成记录形态（幂等）
   if (config.normalizeStoredPaths()) {
@@ -63,7 +63,7 @@ Future<void> createAppConfig() async {
   debugPrint('已创建默认配置文件');
 }
 
-/// 应用配置类，存储的对象设置用late final然后在构造函数中进行默认赋值
+/// 应用配置类；存储的对象设置用 late final 然后在构造函数中进行默认赋值
 @JsonSerializable()
 class AppConfig {
   String version = appVersion;
@@ -103,7 +103,7 @@ class AppConfig {
     });
   }
 
-  /// 保存配置为JSON文件,debug用
+  /// 保存配置为 JSON 文件，debug 用
   Future<void> saveAsJson() async {
     try {
       final file = File(AppPaths.configJson);
@@ -120,7 +120,7 @@ class AppConfig {
     }
   }
 
-  /// 保存配置为二进制文件,防止被意外修改
+  /// 保存配置为二进制文件，防止被意外修改
   Future<void> saveAsBin() async {
     try {
       final file = File(AppPaths.configBin);
@@ -138,11 +138,11 @@ class AppConfig {
 
   /// 把配置里「数据根内却记成绝对」的路径统一洗成记录形态，返回是否改动了什么
   ///
-  /// 相对记录规则（2026-09-18）之前建的配置里，数据根内的路径存的是绝对路径；
-  /// 数据根一搬家这些路径就全失效，还会跟新写的相对路径混在一起（`fold.path` 绝对、
-  /// 版本 `path` 相对 → 比较全对不上）。启动时幂等地洗一遍即可：洗完配置里只剩一种
-  /// 形态，之后再建新记录本来就走 [AppPaths.toStoredPath]。库外路径（用户自己的本体、
-  /// 系统 JDK）原样保留 —— [AppPaths.toStoredPath] 自己会判
+  /// 相对记录规则之前建的配置里，数据根内的路径存的是绝对路径；数据根一搬家这些路径就
+  /// 全失效，还会跟新写的相对路径混在一起（`fold.path` 绝对、版本 `path` 相对 → 比较全
+  /// 对不上）。启动时幂等地洗一遍即可：洗完配置里只剩一种形态，之后再建新记录本来就走
+  /// [AppPaths.toStoredPath]。库外路径（用户自己的本体、系统 JDK）原样保留 ——
+  /// [AppPaths.toStoredPath] 自己会判
   bool normalizeStoredPaths() {
     var changed = false;
 
@@ -177,24 +177,24 @@ class AppConfig {
   }
 }
 
-/// 启动器管理的游戏内用户，对应 Mindustry settings 中的玩家身份信息。
+/// 启动器管理的游戏内用户，对应 Mindustry settings 中的玩家身份信息
 ///
-/// 启动游戏时，选中的用户会覆盖 settings 的 `name` / `uuid` / `color-0`。
+/// 启动游戏时，选中的用户会覆盖 settings 的 `name` / `uuid` / `color-0`
 @JsonSerializable()
 class GameUser {
-  /// 用户唯一标识（启动器本地生成，用于选中与区分用户）。
+  /// 用户唯一标识（启动器本地生成，用于选中与区分用户）
   @JsonKey(defaultValue: '')
   final String id;
 
-  /// 游戏内玩家名（对应 settings `name`）。
+  /// 游戏内玩家名（对应 settings `name`）
   @JsonKey(defaultValue: '')
   String name;
 
-  /// 玩家身份 UUID（对应 settings `uuid`）；界面不展示也不提供编辑。
+  /// 玩家身份 UUID（对应 settings `uuid`）；界面不展示也不提供编辑
   @JsonKey(defaultValue: '')
   String uuid;
 
-  /// 玩家名字颜色（对应 settings `color-0`，arc `rgba8888` 编码 0xRRGGBBAA）。
+  /// 玩家名字颜色（对应 settings `color-0`，arc `rgba8888` 编码 0xRRGGBBAA）
   @JsonKey(defaultValue: 0)
   int color;
 
@@ -224,13 +224,13 @@ class Setting {
   late String githubToken;
 
   @JsonKey(defaultValue: {})
-  final Map<String, dynamic> customSetting; //这个用来存储一些不太用得着置变量，比如某些提示的开关记忆
+  final Map<String, dynamic> customSetting; //存一些不太用得着的置变量，如某些提示的开关记忆
 
-  ///已保存的游戏内用户列表（JSON 键沿用 `accounts`，避免老配置丢数据）。
+  ///已保存的游戏内用户列表（JSON 键沿用 `accounts`，避免老配置丢数据）
   @JsonKey(name: 'accounts')
   late final List<GameUser> gameUsers;
 
-  ///当前选中的用户 id，对应 [currentGameUser]（JSON 键沿用 `currentAccountId`）。
+  ///当前选中的用户 id，对应 [currentGameUser]（JSON 键沿用 `currentAccountId`）
   @JsonKey(name: 'currentAccountId', defaultValue: '')
   String currentGameUserId;
 
@@ -265,7 +265,7 @@ class Setting {
     this.gameUsers = gameUsers ?? [];
   }
 
-  ///当前选中的游戏内用户；未选择或用户不存在时返回 null。
+  ///当前选中的游戏内用户；未选择或用户不存在时返回 null
   GameUser? get currentGameUser {
     for (final user in gameUsers) {
       if (user.id == currentGameUserId) return user;
@@ -273,7 +273,7 @@ class Setting {
     return null;
   }
 
-  ///选中 [user] 为当前游戏内用户。
+  ///选中 [user] 为当前游戏内用户
   void selectGameUser(GameUser user) {
     currentGameUserId = user.id;
   }
@@ -410,7 +410,7 @@ class LaunchOptions {
 
   /// 「游戏默认隔离设置」是否命中该版本——下载 / 导入创建版本时用它定 [Mindustry.isolation]
   ///
-  /// 预览版对应 [VersionIsolation.be]，Copper 版本对应 [VersionIsolation.copper]，
+  /// 预览版对应 [VersionIsolation.be]、Copper 版本对应 [VersionIsolation.copper]、
   /// 其余正式版对应 [VersionIsolation.mindustry]；三项都不勾就是一律不隔离
   bool isIsolatedByDefault({
     required bool isBe,
@@ -450,7 +450,6 @@ class JavaInfo {
 
   ///java 可执行文件的可用形态（[path] 是记录形态：数据根内记相对，见 [AppPaths]）
   String get resolvedPath => AppPaths.resolveStoredPath(path);
-
   factory JavaInfo.fromJson(Map<String, dynamic> json) =>
       _$JavaInfoFromJson(json);
 
@@ -459,8 +458,8 @@ class JavaInfo {
   @override
   bool operator ==(Object other) {
     if (other is JavaInfo) {
-      // 比**解析后**的路径：记录形态可能是相对（启动器自己下的 JDK 在数据根里）
-      // 也可能绝对（系统 JDK），同一个 java 不该因为形态不同被当成两个
+      // 比**解析后**的路径：记录形态可能是相对（启动器自己下的 JDK 在数据根里）也可能
+      // 绝对（系统 JDK），同一个 java 不该因为形态不同被当成两个
       return other.version == version || other.resolvedPath == resolvedPath;
     }
     return false;
@@ -505,7 +504,6 @@ enum ThemeColor { copper, titanium, thorium, plastanium }
 
 ///游戏启动后 Launcher 的行为（桌面端）
 enum LauncherPostLaunchBehavior { none, tray }
-
 @JsonSerializable()
 class PersonalizationOptions {
   @JsonKey(defaultValue: false)
@@ -586,7 +584,7 @@ class DownloadOptions {
 
 ///游戏本体的下载来源策略
 ///
-/// 国内源（论坛的 MDTBBS）支持 Range、有 sha256，通常更快；官方源是 GitHub。
+/// 国内源（论坛的 MDTBBS）支持 Range、有 sha256，通常更快；官方源是 GitHub；
 /// 「优先」的那档失败了会换另一边再试一次，「只用」的那档不会
 enum BodySourceStrategy {
   ///优先国内源，失败回退官方（默认）
@@ -636,8 +634,6 @@ class ProxyOptions {
   Map<String, dynamic> toJson() => _$ProxyOptionsToJson(this);
 }
 
-///github 镜像加速配置。
-///
 ///主窗口关闭按钮的行为
 enum WindowCloseAction {
   ///直接退出应用
@@ -659,9 +655,8 @@ enum MirrorStrategy {
   githubOnly,
 }
 
-///预设节点（官方仓库 `remote/github_mirrors.hjson` + 从 github.akams.cn 拉取的
-///节点）单独管理，不落 config；只有用户手动添加的 [customNodes] 存在这里，
-///与预设节点分开。
+///预设节点（官方仓库 `remote/github_mirrors.hjson` + 从 github.akams.cn 拉取的节点）
+///单独管理，不落 config；只有用户手动添加的 [customNodes] 存在这里，与预设节点分开
 @JsonSerializable()
 class MirrorOptions {
   MirrorOptions({
@@ -674,7 +669,7 @@ class MirrorOptions {
   @JsonKey(defaultValue: true)
   bool enabled;
 
-  ///用户自定义节点（完整前缀，如 `https://ghfast.top/`）。
+  ///用户自定义节点（完整前缀，如 `https://ghfast.top/`）
   @JsonKey(defaultValue: [])
   List<String> customNodes;
 
@@ -728,9 +723,9 @@ class VersionOptions {
 
   /// 在配置里找 [mindustry] 对应的**当前**记录（同一个版本可能已经换了实例）
   ///
-  /// 比较必须用**解析后**的路径：记录形态可能是相对（新规则）也可能还是绝对
-  /// （老配置没迁移），直接比字符串会让「绝对路径的 fold + 相对路径的新版本」
-  /// 永远对不上 → 选中被清成 null，界面上退回「选择版本」
+  /// 比较必须用**解析后**的路径：记录形态可能是相对也可能还是绝对（老配置没迁移），
+  /// 直接比字符串会让「绝对路径的 fold + 相对路径的新版本」永远对不上 →
+  /// 选中被清成 null，界面上退回「选择版本」
   Mindustry? findVersion(Mindustry mindustry) {
     // 先收窄到同一个目录：老记录里有非 UUID 的 id（如 `146`），跨 fold 可能重号
     final versionPath = AppPaths.resolveStoredPath(mindustry.path);
@@ -751,18 +746,18 @@ class VersionOptions {
   }
 
   /// 统一删除版本：退出所有折叠中该版本的记录，并把 jarPath 引用数≥2
-  /// （同一 jar 被多个版本共享）时保留 jar 本体。
+  /// （同一 jar 被多个版本共享）时保留 jar 本体
   ///
-  /// 本体删不删看**来源**（`Mindustry.bodyIsUserFile`）：「添加目录」扫描来的是
-  /// 用户自己的文件，只删记录、不碰文件与目录；下载 / 导入 / 变体建的归启动器管，
-  /// 再按位置确认一下（在本体库里或版本目录里）才动文件——老布局与扫描到的目录
-  /// 形态可以长得一样，光看路径会猜错。
+  /// 本体删不删看**来源**（`Mindustry.bodyIsUserFile`）：「添加目录」扫描来的是用户自己的
+  /// 文件，只删记录、不碰文件与目录；下载 / 导入 / 变体建的归启动器管，再按位置确认一下
+  /// （在本体库里或版本目录里）才动文件——老布局与扫描到的目录形态可以长得一样，
+  /// 光看路径会猜错
   ///
-  /// 版本自己的目录（隔离的 mods / saves / 地图 / 蓝图等就在里面）跟着删，与确认
-  /// 弹窗的承诺一致。
+  /// 版本自己的目录（隔离的 mods / saves / 地图 / 蓝图等就在里面）跟着删，
+  /// 与确认弹窗的承诺一致
   ///
-  /// 共享检查基于当前配置中的全部版本（跨 fold 统计）。返回 `true` 表示
-  /// 配置删除成功；若唯一引用且 jar 删除失败返回 `false`（记录已移除，调用方提示）。
+  /// 共享检查基于当前配置中的全部版本（跨 fold 统计）；返回 `true` 表示配置删除成功，
+  /// 若唯一引用且 jar 删除失败返回 `false`（记录已移除，调用方提示）
   Future<bool> deleteVersion(Mindustry version) async {
     // 1. 移除所有折叠中的该版本记录
     for (final fold in versionFolds) {
@@ -835,10 +830,10 @@ class VersionOptions {
 
   /// 删掉版本自己的目录 `<fold>/<tag>`
   ///
-  /// 两种情况不动目录：本体是用户自己的文件（扫来的版本，目录也在他的地盘里）、
-  /// 本体就躺在目录里且还被别的版本引用（删了会连累那个版本的共享本体）。
-  /// 其余要「目录里放着自己的本体」或「隔离且 `data` 真的存在」才删 ——
-  /// 非隔离又没有本体在里面的目录不动，可能是用户自己的同名文件夹
+  /// 两种情况不动目录：本体是用户自己的文件（扫来的版本，目录也在他的地盘里）、本体就
+  /// 躺在目录里且还被别的版本引用（删了会连累那个版本的共享本体）；其余要「目录里放着
+  /// 自己的本体」或「隔离且 `data` 真的存在」才删 —— 非隔离又没有本体在里面的目录不动，
+  /// 可能是用户自己的同名文件夹
   Future<void> _deleteVersionFolder(
     Mindustry version, {
     required bool isBodyStillReferenced,
@@ -917,7 +912,6 @@ class VersionFold {
   ///
   /// 非 final：启动时的路径归一化要把老的绝对路径洗成记录形态（见 [AppConfig.normalizeStoredPaths]）
   late String path;
-
   final List<Mindustry> versions;
 
   VersionFold({required this.tag, required this.path, required this.versions});

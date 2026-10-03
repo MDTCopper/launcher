@@ -42,10 +42,9 @@ class AutoMemory {
   /// 自动分配硬上限（均衡 8GB）
   static const int _hardLimitBytes = 8 * GB;
 
-  /// 估算自动分配的最大堆内存（字节）。
-  ///
-  /// [availableBytes] 为平台归一化的可用物理内存；
-  /// [enabledModTotalBytes] 为所有启用 mod 文件体积之和。
+  /// 估算自动分配的最大堆内存（字节）；
+  /// [availableBytes] 为平台归一化的可用物理内存，
+  /// [enabledModTotalBytes] 为所有启用 mod 文件体积之和
   static Memory estimate({
     required int availableBytes,
     required int enabledModTotalBytes,
@@ -99,11 +98,11 @@ Future<int> sumEnabledModSizesIn(
   return total;
 }
 
-/// 统计 mods 目录下所有启用 mod 的文件体积之和（字节）。
+/// 统计 mods 目录下所有启用 mod 的文件体积之和（字节）
 ///
 /// 传入 [settingsPath]（settings.bin）时按游戏启用状态判断：
 /// `mod-<internalName>-enabled` 键为准、未记录则按文件名兜底（`.disable` 为禁用）；
-/// 不传或解析失败时仅按文件名（不带 `.disable` 的 jar/zip）判断。
+/// 不传或解析失败时仅按文件名（不带 `.disable` 的 jar/zip）判断
 Future<int> sumEnabledModSizes(String modsPath, {String? settingsPath}) async {
   final dir = Directory(modsPath);
   if (!dir.existsSync()) return 0;

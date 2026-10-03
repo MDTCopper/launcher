@@ -50,7 +50,7 @@ enum VersionDataKind {
 ///   链接要开发者模式或管理员权限）
 /// - [launcher] / [launcherPath] 用于「换一种启动方式建一个版本」：不传就与源版本一致
 /// - [pendingLoader] 是「还在后台下载的 loader」：变体弹窗先开、用户在填名字与继承的
-///   时候它在下；点「创建」后如果它还没结束，就先通知一声再等它，下完用真实路径建版本
+///   时候它在下；点「创建」时若还没下完就先通知一声再等它，下完用真实路径建版本
 ///   （失败就不建版本）
 ///
 /// 返回新建的版本；用户取消时返回 null
@@ -83,7 +83,7 @@ Future<Mindustry?> createVersionVariant({
       );
   if (options == null) return null;
 
-  // 选的是远程 loader：弹窗期间它在后台下，这里等它（用户点创建时可能还没下完）
+  // 选的是远程 loader：弹窗期间它在后台下，这里等它（点创建时可能还没下完）
   if (pendingLoader != null) {
     if (pendingLoader.status == TaskStatus.process) {
       addNotice(
@@ -160,9 +160,7 @@ VersionFold _foldOf(Mindustry version) {
   return defaultVersionFold();
 }
 
-/// 把 [kind] 对应的数据从源版本拷到新版本，返回拷进来的条目数
-///
-/// 变体继承的实现入口，直接暴露出来给用例覆盖
+/// 把 [kind] 对应的数据从源版本拷到新版本，返回拷进来的条目数（用例入口）
 @visibleForTesting
 Future<int> inheritVersionData(
   Mindustry source,

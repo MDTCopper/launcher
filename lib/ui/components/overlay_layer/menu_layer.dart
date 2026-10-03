@@ -30,22 +30,22 @@ class MenuLayer extends StatefulWidget {
   /// 是否长按触发（移动端）
   final bool longPressTrigger;
 
-  /// 菜单动画。默认为自适应锚点的缩放 + 淡入淡出
+  /// 菜单动画；默认为自适应锚点的缩放 + 淡入淡出
   final PopupOverlayAnimationBuilder? animation;
 
-  /// 位置策略。默认为 [AnchorFlipPositionDelegate]
+  /// 位置策略；默认为 [AnchorFlipPositionDelegate]
   final PopupOverlayPositionDelegate? positionDelegate;
 
-  /// 是否点击菜单外部关闭。
+  /// 是否点击菜单外部关闭
   final bool dismissOnTapOutside;
 
-  /// 是否按 Esc 关闭。
+  /// 是否按 Esc 关闭
   final bool dismissOnEsc;
 
-  /// 菜单距屏幕边缘的最小安全距离。
+  /// 菜单距屏幕边缘的最小安全距离
   final EdgeInsets screenPadding;
 
-  /// 入场 / 退场动画时长。
+  /// 入场 / 退场动画时长
   final Duration animationDuration;
 
   const MenuLayer({

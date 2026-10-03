@@ -15,7 +15,7 @@ import 'package:flutter/foundation.dart';
 import '../math/speed_calculate.dart';
 
 ///dio 类型复导出：调用方只需 import 本文件即可同时获得类型（Response、
-///CancelToken、Options、DioException…）与网络单例 [cio]。
+///CancelToken、Options、DioException…）与网络单例 [cio]
 export 'package:dio/dio.dart';
 
 typedef HttpStatusCallback = void Function(HttpDownloadState state);
@@ -138,7 +138,7 @@ class _RateLimiter {
 // --- 全局网络单例 ---
 
 /// Copper 项目唯一的网络入口：合并原 [HttpHelper]（代理/分块下载）与
-/// [Downloader]（多分块 task 下载），对外复刻 dio 的方法面。
+/// [Downloader]（多分块 task 下载），对外复刻 dio 的方法面
 ///
 /// 请求工作流：
 /// 1. 直连官方 URL，拦截器自动补 UA；请求 api.github.com 且配置了
@@ -149,7 +149,7 @@ class _RateLimiter {
 ///    [config]
 ///
 /// 代理三模式（跟随系统/自定义/关闭）与下载默认值在启动或设置页变更后
-/// 通过 [applySettings] 同步，无需重启。
+/// 通过 [applySettings] 同步，无需重启
 final CopperIO cio = CopperIO.instance;
 
 class CopperIO {
@@ -195,7 +195,7 @@ class CopperIO {
   ///应用设置：token / 代理 / 下载默认值 / 镜像策略全部由**入参**提供，
   ///
   ///启动在 [initAppConfig] 之后调用；下载设置页每次改动 config 后也调用，
-  ///保证新请求（含新开始的下载）即时生效。
+  ///保证新请求（含新开始的下载）即时生效
   void applySettings(Setting setting) {
     //trim 防止历史配置残留空白 token（`token   ` 也会触发 GitHub 401）
     _githubToken = setting.githubToken.trim();
@@ -210,7 +210,7 @@ class CopperIO {
   /// 当前镜像策略（供调试 / 测试查看）
   MirrorStrategy get mirrorStrategy => _mirrorStrategy;
 
-  ///应用配置里的代理（跟随系统 / 自定义 / 关闭三种模式）。
+  ///应用配置里的代理（跟随系统 / 自定义 / 关闭三种模式）
   void applyProxySetting(ProxyOptions options) {
     switch (options.mode) {
       case ProxyMode.system:
@@ -286,7 +286,7 @@ class CopperIO {
     _dio!.interceptors.add(_buildAuthInterceptor());
   }
 
-  ///自动 UA + github token 注入：请求自身没带对应头时才补。
+  ///自动 UA + github token 注入：请求自身没带对应头时才补
   InterceptorsWrapper _buildAuthInterceptor() {
     return InterceptorsWrapper(
       onRequest: (options, handler) {
@@ -310,7 +310,7 @@ class CopperIO {
     );
   }
 
-  ///按镜像策略决定 GitHub 请求走哪条路。
+  ///按镜像策略决定 GitHub 请求走哪条路
   ///
   /// - [MirrorStrategy.githubFirst]（默认）：直连优先，网络类错误才回退镜像
   ///   （对齐 Mindustry 的错误驱动回退；镜像用 TTL 缓存 10 分钟，过期才测速）
@@ -343,7 +343,7 @@ class CopperIO {
         }
 
       case MirrorStrategy.githubFirst:
-        //直连这一族最近失败过（链路问题）就别再白等一次：直接走镜像。
+        //直连这一族最近失败过（链路问题）就别再白等一次：直接走镜像；
         //窗口很短、只在内存里，直连成功或改设置即清（见 GithubMirror.shouldSkipDirect）
         final mirror = GithubMirror.instance;
         if (mirror.enabled && mirror.shouldSkipDirect(url)) {
@@ -356,7 +356,7 @@ class CopperIO {
           }
         } else if (mirror.enabled && !mirror.isDirectVerified(url)) {
           //这一族还没有结论：直连与镜像**同时探一次**，谁先答复谁赢 ——
-          //网络好时只多一个往返，网络坏时省掉几十秒的直连超时（真机实测 32~110 秒）
+          //网络好时只多一个往返，网络坏时省掉一次直连超时
           final isMirrorFaster = await _pickPathByProbe(url);
           if (isMirrorFaster == true) {
             try {
@@ -429,7 +429,6 @@ class CopperIO {
 
   ///同时探几条路，**先答复的那条赢**；全都不答复返回 null
   ///
-  ///探针由调用方给（生产里是 HEAD，用例里给假探针），这里只管竞速与收口。
   ///输的那条不再理会：探针只是个 HEAD，dio 自己会按连接超时收口，不影响调用方
   @visibleForTesting
   Future<String?> raceReachable(
@@ -577,16 +576,16 @@ class CopperIO {
   ///是否正在后台重检
   bool _windowsSystemProxyRefreshing = false;
 
-  ///系统代理缓存的保鲜期：过期后请求路径会触发后台重检。
+  ///系统代理缓存的保鲜期：过期后请求路径会触发后台重检；
   ///否则代理软件开关后，注册表里已变化的代理会被一直使用
   static const _systemProxyTtl = Duration(seconds: 30);
 
-  ///异步检测 Windows 系统代理并缓存结果。
+  ///异步检测 Windows 系统代理并缓存结果
   ///
   ///`reg` 是进程调用，不能在请求路径同步执行——否则每个连接都
-  ///`Process.runSync` 阻塞主 isolate 导致 UI 卡顿。启动时检测一次，
+  ///`Process.runSync` 阻塞主 isolate 导致 UI 卡顿；启动时检测一次，
   ///缓存过期（[_systemProxyTtl]）后由请求路径再次触发，保证代理软件
-  ///开关后注册表的变化能在保鲜期之内被感知。
+  ///开关后注册表的变化能在保鲜期之内被感知
   Future<void> _detectWindowsSystemProxy() async {
     if (_windowsSystemProxyRefreshing) return;
     _windowsSystemProxyRefreshing = true;
@@ -621,11 +620,11 @@ class CopperIO {
     return now.difference(at) >= _systemProxyTtl;
   }
 
-  ///从 `reg query` 输出解析系统代理。
+  ///从 `reg query` 输出解析系统代理
   ///
   ///必须同时满足 `ProxyEnable = 1` 才启用，否则即使 `ProxyServer` 残留历史值
   ///（关停的代理软件常留下 `127.0.0.1:<port>`）也视为无代理，避免把已关闭的
-  ///代理当成有效路由导致请求全部被拒。
+  ///代理当成有效路由导致请求全部被拒
   @visibleForTesting
   static String? parseWindowsSystemProxy(String regOutput) {
     final enableMatch = RegExp(
@@ -642,7 +641,7 @@ class CopperIO {
     return proxy.isEmpty ? null : proxy;
   }
 
-  ///切换为跟随系统代理（取消自定义 / 关闭状态）。
+  ///切换为跟随系统代理（取消自定义 / 关闭状态）
   void clearProxy() {
     _proxyHost = null;
     _proxyPort = null;
@@ -652,7 +651,7 @@ class CopperIO {
     _recreateClient();
   }
 
-  ///设置自定义代理。
+  ///设置自定义代理
   void setProxy({
     required String host,
     required int port,
@@ -667,7 +666,7 @@ class CopperIO {
     _recreateClient();
   }
 
-  ///显式关闭代理（直连）。
+  ///显式关闭代理（直连）
   void disableProxy() {
     _proxyHost = null;
     _proxyPort = null;
@@ -801,12 +800,12 @@ class CopperIO {
   // ---- Download ----
 
   ///统一分块下载：能拿到大小且服务端支持 Range 且足够大 → 多分块并发
-  ///（临时分块可断点续传）；否则退化为单流下载。
+  ///（临时分块可断点续传）；否则退化为单流下载
   ///
-  ///[speedLimit] / [chunkCount] 不传时使用 config 默认值；speedLimit<=0 表示不限速。
-  ///进度通过 [onStatus] 持续回调 [HttpDownloadState]（含分块明细）。
+  ///[speedLimit] / [chunkCount] 不传时使用 config 默认值；speedLimit<=0 表示不限速；
+  ///进度通过 [onStatus] 持续回调 [HttpDownloadState]（含分块明细）
   ///
-  ///官方直连失败（网络类错误）时自动回退到最优镜像重试一次。
+  ///官方直连失败（网络类错误）时自动回退到最优镜像重试一次
   Future<void> download({
     required String url,
     required String savePath,
@@ -860,7 +859,7 @@ class CopperIO {
     final effectiveChunkCount = max(1, chunkCount ?? _defaultChunkCount);
 
     // HEAD 只为探大小 / Range 支持，失败不该让整个下载失败：有些站点（如
-    // api.mindustry.top）不允许 HEAD，会返回 405。此时按「未知大小、无 Range」
+    // api.mindustry.top）不允许 HEAD，会返回 405；此时按「未知大小、无 Range」
     // 退化为单流，大小改由 GET 响应头补齐（见 _downloadSingleStream）
     var totalSize = 0;
     var rangeSupported = false;
@@ -1306,7 +1305,7 @@ class CopperIO {
     }
   }
 
-  ///删除临时文件并在被占用时短暂重试（Windows 下句柄释放是异步的）。
+  ///删除临时文件并在被占用时短暂重试（Windows 下句柄释放是异步的）
   Future<void> _deleteWithRetry(File file, {int maxTry = 10}) async {
     for (int i = 0; i < maxTry; i++) {
       try {
@@ -1332,10 +1331,9 @@ class _Chunk {
     : status = HttpChunkStatus.pending;
 }
 
-/// 是否连接类失败（网络不通 / 代理不可用，属于「可重试」的网络问题）。
+/// 是否连接类失败（网络不通 / 代理不可用，属于「可重试」的网络问题）
 ///
-/// 与 404 这类「资源不存在」、403 这类「接口拒绝」区分开——UI 侧据此决定
-/// 显示「网络问题（可重试）」还是「确实没有资源」
+/// 与 404 这类「资源不存在」、403 这类「接口拒绝」区分开
 bool isNetworkFailure(DioException error) => switch (error.type) {
   DioExceptionType.connectionError ||
   DioExceptionType.connectionTimeout ||
@@ -1344,14 +1342,11 @@ bool isNetworkFailure(DioException error) => switch (error.type) {
   _ => false,
 };
 
-/// 传输层失败：连接类失败 + dio 归到 [DioExceptionType.unknown] 的中断。
+/// 传输层失败：连接类失败 + dio 归到 [DioExceptionType.unknown] 的中断
 ///
 /// 「Software caused connection abort」「Connection reset by peer」这类被对端掐断的
-/// 连接在 dio 里是 `unknown`（不是 connectionError），但它和连不上一样是**链路问题**：
-/// 直连时该回退镜像、镜像时该换下一个节点。真机上就是这么栽的 —— 直连 github 下载
-/// 大文件被掐断，`unknown` 不算网络失败 → 既不回退镜像也不换节点，安装页直接报错
-///
-/// 用户主动取消不算：那是调用方自己要停，不该当成链路问题去换节点重试
+/// 连接在 dio 里是 `unknown`（不是 connectionError），但它是**链路问题**：
+/// 直连时该回退镜像、镜像时该换下一个节点；用户主动取消不算
 bool isTransportFailure(DioException error) =>
     !CancelToken.isCancel(error) &&
     (isNetworkFailure(error) || error.type == DioExceptionType.unknown);
@@ -1359,7 +1354,7 @@ bool isTransportFailure(DioException error) =>
 /// 镜像节点这次失败该不该换节点：连接类失败，或节点回 403 / 429 / 5xx
 ///
 /// 403 常是节点自己拒绝（限流 / 不服务境外 IP）而不是上游答复，换一个节点往往就好；
-/// 404 这类是上游真实答复，换谁都一样，所以不算节点失败
+/// 404 这类是上游真实答复，换谁都一样，所以不算节点失败（镜像 404 不当故障）
 bool isMirrorNodeFailure(DioException error) {
   if (isTransportFailure(error)) return true;
   final status = error.response?.statusCode;
@@ -1376,7 +1371,7 @@ String mirrorFailureReason(Object error) {
   return error.runtimeType.toString();
 }
 
-/// 该族的镜像节点全部失败。
+/// 该族的镜像节点全部失败
 ///
 /// **故意不是 [DioException]**：调用方（[CopperIO._githubFallback]）据此回退直连，
 /// 而不是把「节点的问题」当成「资源不存在」直接失败
@@ -1392,8 +1387,8 @@ class MirrorUnavailable implements Exception {
 
 /// 把响应体解成对象：已经是对象（dio 帮着解过）就原样返回，别再来一次 [jsonDecode]
 ///
-/// 这个坑项目里踩过：dio 只在 content-type 是 JSON 时才帮解析，真 API 上已经解好，
-/// 再 `jsonDecode` 会抛 `type 'List<dynamic>' is not a subtype of type 'String'`
+/// dio **只在 content-type 是 JSON 时才帮解析**：真 API 上已经解好，再 `jsonDecode`
+/// 会抛 `type 'List<dynamic>' is not a subtype of type 'String'`
 @visibleForTesting
 Object? decodeJsonBody(Object? data) =>
     data is String ? jsonDecode(data) : data;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 设置条行：标题(可完全挤压) + 控件(优先保 [controlMinWidth])。
+/// 设置条行：标题(可完全挤压) + 控件(优先保 [controlMinWidth])
 ///
 /// 行为语义：
 /// 1. 可用宽度足够(可满足 标题固有宽 + 控件最小宽)：标题取固有 [titleWide]，

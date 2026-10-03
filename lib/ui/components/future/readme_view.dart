@@ -9,10 +9,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'readme_loader.dart';
 import 'readme_source.dart';
 
-/// GitHub README 渲染器（自研，替代 `markdown → flutter_html` 管线）。
+/// GitHub README 渲染器（自研，替代 `markdown → flutter_html` 管线）
 ///
 /// 为什么自研：GitHub 上的 README 是「markdown + 直写 HTML」混排，社区包
-/// 对表格 / 代码块 / `<details>` / 相对链接 / 主题样式的适配都不好。
+/// 对表格 / 代码块 / `<details>` / 相对链接 / 主题样式的适配都不好；
 /// 这里直接遍历 markdown 的 AST 渲染成 Widget：
 ///
 /// - 块级：标题 / 段落 / 列表（含嵌套与任务清单）/ 代码块 / 引用 / 分割线 / 表格
@@ -38,7 +38,7 @@ class ReadmeView extends StatefulWidget {
   /// 覆盖默认的链接打开行为（默认用系统浏览器/内嵌 webview 打开）
   final void Function(String url)? onLinkTap;
 
-  /// 把 README 里的链接解析成可打开的绝对地址。
+  /// 把 README 里的链接解析成可打开的绝对地址
   ///
   /// - `#anchor` → null（暂不支持页内跳转）
   /// - `https://…` / `mailto:` 等 → 原样
@@ -79,7 +79,7 @@ class ReadmeView extends StatefulWidget {
   /// 可跨块包裹内容的开标签（GitHub 上 markdown 在这些标签内照常渲染）
   static const _openableContainers = {'div', 'center'};
 
-  /// 跨块的 HTML 容器合并。
+  /// 跨块的 HTML 容器合并
   ///
   /// CommonMark 的 HTML 块在空行处结束，所以 `<div align=center>`、
   /// `markdown 内容`、`</div>` 会成为三个独立块；GitHub 上由浏览器完成
@@ -364,7 +364,7 @@ class _ReadmeViewState extends State<ReadmeView> {
         return _buildDetails(node, colors);
 
       default:
-        // 未知块级（div 等）：透明处理，只渲染内容；`<center>` 与 align 照常生效。
+        // 未知块级（div 等）：透明处理，只渲染内容；`<center>` 与 align 照常生效
         // 内容是「行内 + 块级」混排的（div 里常见 <br> / 图片 / 链接），
         // 交给混排拆分器处理
         final children = node.children ?? const <md.Node>[];
@@ -606,7 +606,7 @@ class _ReadmeViewState extends State<ReadmeView> {
             if (it is! md.Text || it.text.trim().isNotEmpty) it,
       ];
 
-      // li 的子节点分三类：子列表 / 块级（段落、代码块、表格…）/ 行内。
+      // li 的子节点分三类：子列表 / 块级（段落、代码块、表格…）/ 行内
       // 块级必须单独成块，否则「标题 + 空行 + 图片」会被压到同一行
       final nested = <md.Element>[];
       final blocks = <md.Node>[];

@@ -49,10 +49,10 @@ class ReboundCheckbox extends StatelessWidget {
   }
 }
 
-/// 勾选图标切换版复选：未选显示 [icon](默认 ✕)、选中翻转动画切换为 [activeIcon](默认 ✓)。
+/// 勾选图标切换版复选：未选显示 [icon](默认 ✕)、选中翻转动画切换为 [activeIcon](默认 ✓)
 ///
 /// 与 [ReboundCheckbox] 的区别在内容表现：这里是图标本身随选中态切换
-/// (带旋转 + 淡入动画)，适合 trailing 等紧凑场景；按钮外壳同样走 ActionButton。
+/// (带旋转 + 淡入动画)，适合 trailing 等紧凑场景；按钮外壳同样走 ActionButton
 class ReboundCheckChangeBox extends StatefulWidget {
   final String? label;
   final bool value;

@@ -15,11 +15,11 @@ import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
 import 'package:copper_launcher/util/io/print_on_debug.dart';
 import 'package:flutter/material.dart';
 
-/// 游戏内设置页（数据驱动）。
+/// 游戏内设置页（数据驱动）
 ///
 /// 顶部选版本（自动=当前选中版本）+ 分类导航；按选中版本的 build 读
 /// `setting_adapter/<min>-<max>.json` 决定显示哪些设置，分类点击切换显示，
-/// 避免列表过长。值读写统一走 [MindustrySettingsPatch.getValue/setValue]。
+/// 避免列表过长；值读写统一走 [MindustrySettingsPatch.getValue/setValue]
 class GameSettingPage extends StatefulWidget {
   const GameSettingPage({super.key});
 
@@ -65,7 +65,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
     _load();
   }
 
-  /// 按当前版本的 build 加载适配设置；无适配文件则用完整目录。
+  /// 按当前版本的 build 加载适配设置；无适配文件则用完整目录
   Future<void> _load() async {
     final version = _version ?? config.versionOptions.selectedVersion;
     final build = version?.releaseInt;

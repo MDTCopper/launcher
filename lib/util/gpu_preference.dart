@@ -12,7 +12,7 @@ import 'windows_registry.dart';
 /// 同一件事在三个平台不是一个语义，所以这里按平台各给一条路：
 /// - **Windows**：系统级的开关是「按可执行文件记的图形性能首选项」
 ///   （`HKCU\Software\Microsoft\DirectX\UserGpuPreferences` 里 `值名=exe 路径`、
-///   数据 `GpuPreference=2;`），等价于系统设置里给那个程序选「高性能」。
+///   数据 `GpuPreference=2;`），等价于系统设置里给那个程序选「高性能」；
 ///   游戏是 `java.exe -jar` 起的，所以认的是选中的那个 java.exe
 /// - **Linux**：没有系统级开关，靠启动时的环境变量让游戏走独显
 ///   （Mesa 的 `DRI_PRIME`、NVIDIA 的 PRIME 卸载那对变量）
@@ -26,9 +26,8 @@ class GpuPreference {
   /// 「高性能」在注册表里的取值（Windows 自己写的也是这个字符串）
   static const highPerformanceValue = 'GpuPreference=2;';
 
-  /// Windows：这项现在是不是已经是我们想要的值（一致就不必再写注册表）
-  ///
-  /// [current] 是注册表里现有的数据；关掉时我们要的是「没有这一项」
+  /// Windows：这项现在是不是已经是想要的值（一致就不必再写注册表）；
+  /// [current] 是注册表里现有的数据，关掉时我们要的是「没有这一项」
   static bool registryValueMatches({
     required String? current,
     required bool preferHighPerformance,
@@ -52,9 +51,8 @@ class GpuPreference {
     };
   }
 
-  /// Windows：把「用高性能 GPU 跑这个程序」写进系统设置；关掉时删掉这一项（回到系统默认）
-  ///
-  /// 只在 Windows 上有效，其它平台直接返回；注册表里已经是目标状态就不写
+  /// Windows：把「用高性能 GPU 跑这个程序」写进系统设置；关掉时删掉这一项（回到系统默认），
+  /// 注册表里已经是目标状态就不写
   static void applyToExecutable({
     required String executablePath,
     required bool preferHighPerformance,

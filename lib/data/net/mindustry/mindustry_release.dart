@@ -6,7 +6,7 @@ import '../../../util/mindustry_version_era.dart';
 /// 一个 Mindustry 版本的元数据，统一格式，与来源无关
 ///
 /// 来源各自一个构造：GitHub API 与本地快照是同一个 JSON 形状（[fromGithubJson]），
-/// 国内 manifest 是另一个（[fromManifestJson]）。领域模型不带来源特有字段 ——
+/// 国内 manifest 是另一个（[fromManifestJson]）；领域模型不带来源特有字段 ——
 /// `isBe` 与资产的 `sha256` 都是显式的，不用靠占位字段猜
 class MindustryRelease {
   const MindustryRelease({
@@ -137,7 +137,6 @@ class MindustryReleaseAsset {
 
   /// 国内源（论坛 MDTBBS）地址
   final String? domesticUrl;
-
   /// 官方 GitHub 地址
   final String? officialUrl;
 

@@ -1,6 +1,6 @@
 /// 版本串的解析与拼装（纯 Dart，无 Flutter 依赖）
 ///
-/// 构建脚本 `tool/build_release.dart` 用它算通道序号、拼显示版本 / tag / 产物名。
+/// 构建脚本 `tool/build_release.dart` 用它算通道序号、拼显示版本 / tag / 产物名；
 /// 启动器侧读同一个格式的是 `domain/launcher_update.dart` 的 `parseLocalVersion` 与
 /// `LauncherVersion.tag` —— 那边为了比大小会解析成 `SemVer` 对象，这里只做字符串层面的事，
 /// **两处格式必须一致**（`v<版本>` / `v<版本> <通道> <序号>`）
@@ -76,7 +76,7 @@ int nextChannelSeq({
 
 /// 重打包当前版本时该沿用的序号：目标版本号与通道跟当前完全一致才有值，否则 null
 ///
-/// 与 [nextChannelSeq] 的分工：那个算「下一次发布是第几次」，这个算「就是当前这一次」。
+/// 与 [nextChannelSeq] 的分工：那个算「下一次发布是第几次」，这个算「就是当前这一次」；
 /// 同一版本同一通道再来一次是**重打包**，序号该沿用 —— 否则免交互构建会把
 /// `alpha 2` 悄悄写成 `alpha 3`，把通道序号当成只增不减的构建号
 int? currentChannelSeq({

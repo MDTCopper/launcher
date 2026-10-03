@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-/// arc 框架 UBJson 编解码器。
+/// arc 框架 UBJson 编解码器
 ///
 /// 基于 arc `UBJsonReader.java` / `UBJsonWriter.java` 的真实格式：
 ///
@@ -22,11 +22,11 @@ import 'dart:typed_data';
 ///   `C` (0x43) — char (int16)
 ///
 /// **对象键:** 不使用标记，直接 `<int_type> <length> <bytes>`，
-///   其中 int_type = `i`/`I`/`l` 表示长度类型。
-///   若首字节不匹配已知类型，回退为 4 字节 BE 长度。
+///   其中 int_type = `i`/`I`/`l` 表示长度类型；
+///   若首字节不匹配已知类型，回退为 4 字节 BE 长度
 ///
 /// **优化数组:** `[` `$` `<element_type>` `#` `<size_type> <count>` `<elements...>` `]`
-///   目前仅解析，不生成优化数组。
+///   目前仅解析，不生成优化数组
 class UbjsonCodec {
   // ── 类型标记 ──
   static const int _objBegin = 0x7B; // {
@@ -50,7 +50,7 @@ class UbjsonCodec {
 
   // ── 解码 ──
 
-  /// 从字节数组解码 UBJson，返回 Map 或 List 或基本类型。
+  /// 从字节数组解码 UBJson，返回 Map 或 List 或基本类型
   static dynamic decode(Uint8List bytes) {
     final reader = _UbjsonReader(bytes);
     final result = reader._readValue();
@@ -64,7 +64,7 @@ class UbjsonCodec {
 
   // ── 编码 ──
 
-  /// 将 Map / List / 基本类型编码为 UBJson 字节数组。
+  /// 将 Map / List / 基本类型编码为 UBJson 字节数组
   static Uint8List encode(dynamic value) {
     final writer = _UbjsonWriter();
     writer._writeValue(value);
@@ -147,9 +147,9 @@ class _UbjsonReader {
 
   // ── 大小解析（arc 格式） ──
 
-  /// 读取大小值。type 为大小类型标记（`i`/`I`/`l`/`L`）。
+  /// 读取大小值。type 为大小类型标记（`i`/`I`/`l`/`L`）；
   /// 若 [useIntOnError] 为 true 且 type 不匹配已知标记，
-  /// 回退为将 type 作为 4 字节 BE 长度的首字节。
+  /// 回退为将 type 作为 4 字节 BE 长度的首字节
   int _parseSize(
     int type, {
     bool useIntOnError = false,
@@ -179,8 +179,8 @@ class _UbjsonReader {
 
   // ── 字符串解析 ──
 
-  /// 读取字符串。
-  /// [sOptional] 为 true 时（用于对象键），type 直接作为大小类型标记。
+  /// 读取字符串；
+  /// [sOptional] 为 true 时（用于对象键），type 直接作为大小类型标记
   String _parseString(int type, {bool sOptional = false}) {
     int size = -1;
     if (type == UbjsonCodec._str) {
@@ -308,7 +308,7 @@ class _UbjsonReader {
     return list;
   }
 
-  /// 解析优化数组中的单个值（不带类型标记）。
+  /// 解析优化数组中的单个值（不带类型标记）
   dynamic _parseOptimizedValue(int elementType) {
     switch (elementType) {
       case UbjsonCodec._int8:

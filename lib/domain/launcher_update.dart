@@ -296,9 +296,8 @@ class LauncherUpdate {
   ///
   /// 用 VBS 包一层：detached 出来的 cmd 自己没有控制台，它拉起的
   /// `tasklist` / `find` / `tar` / `ping` 会各自新建控制台 → 屏幕上冒窗口；
-  /// `WScript.Shell.Run(..., 0, ...)` 给 cmd 一个**隐藏**控制台，子进程共用它。
-  /// 重启启动器交给 VBS（等 cmd 跑完再拉），这样引导脚本就算硬 `exit` 掉
-  /// cmd，也不会把「重新打开启动器」这步一起吞掉
+  /// `WScript.Shell.Run(..., 0, ...)` 给 cmd 一个**隐藏**控制台。
+  /// 重启交给 VBS（cmd 跑完再拉）：引导脚本硬 `exit` 也不会把重启这步吞掉
   static Future<void> runPortableReplace({
     required String zipPath,
     required String toVersion,
@@ -355,8 +354,7 @@ class LauncherUpdate {
   /// 生成拉起更新用的 VBS（纯函数）
   ///
   /// 三步：**隐藏**跑覆盖脚本并等它结束（窗口样式 0）→ 重新启动启动器
-  /// （样式 1，工作目录设为程序目录）→ 自删。cmd 脚本里不再负责重启，
-  /// 这样引导脚本硬 `exit` 也不会把重启吞掉
+  /// （样式 1，工作目录设为程序目录）→ 自删；cmd 脚本里不负责重启
   @visibleForTesting
   static String buildPortableUpdateLauncher({
     required String commandPath,
@@ -383,9 +381,9 @@ class LauncherUpdate {
   /// 生成解压版的覆盖脚本（纯函数，便于用例核对等待与引号处理）
   ///
   /// 流程：轮询 PID 等本进程退出（最多 60 秒）→ 用系统自带的 `tar.exe` 解压覆盖
-  /// （失败就等一秒再试，最多 15 次）→ 跑新版带来的引导脚本 `update.cmd`
-  /// → 由 VBS 重启启动器。`tar` 是 Win10 1803+ 内置的 bsdtar，能直接解 zip，
-  /// 不引第三方依赖；解压只覆盖同名文件、不删任何东西，用户数据都留着
+  /// （失败就等一秒再试，最多 15 次）→ 跑新版带来的引导脚本 → 由 VBS 重启。
+  /// `tar` 是 Win10 1803+ 内置的 bsdtar，能直接解 zip，不引第三方依赖；
+  /// 解压只覆盖同名文件、不删任何东西，用户数据都留着
   @visibleForTesting
   static String buildPortableUpdateScript({
     required String zipPath,
@@ -407,7 +405,7 @@ class LauncherUpdate {
       'set /a TRIES=0',
       ':wait',
       // 不能写成 `tasklist ... | find ...`：detached（没有控制台）下这条管道会挂住，
-      // 实测卡在这里再也不往下走 —— 先落成文件再 find 才对
+      // 卡在这里再也不往下走 —— 先落成文件再 find 才对
       'tasklist /FI "PID eq $processId" /NH > "%PIDFILE%" 2>nul',
       'find "$processId" "%PIDFILE%" >nul',
       'if errorlevel 1 goto apply',
@@ -433,7 +431,7 @@ class LauncherUpdate {
       // 用 call 而不是直接执行，脚本里的 exit /b 才能正常返回
       'if exist "%TARGET%\\$bootstrapScriptName" call "%TARGET%\\$bootstrapScriptName" "%TO%" "%FROM%"',
       // 自删放最后一行：删除后 cmd 就不再往下读了，后面不能有别的东西；
-      // 别用 `(goto) 2>nul & del` 那套写法 —— 在这台机器上实测会把脚本挂住
+      // 别用 `(goto) 2>nul & del` 那套写法 —— 会把脚本挂住
       'del "%~f0"',
     ].join(newline);
   }

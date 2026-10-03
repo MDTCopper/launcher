@@ -2,11 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// 信息行的一条：任意 [child] + 丢弃优先级 [priority]。
+/// 信息行的一条：任意 [child] + 丢弃优先级 [priority]
 ///
 /// 宽度取法：
-/// - [text]/[icon]：文本便捷构造，宽度由 [PriorityRow] 内部用 [TextPainter]
-///   实测(与渲染同一排版器，无预估误差)
+/// - [text]/[icon]：文本便捷构造，宽度由 [PriorityRow] 内部用 [TextPainter] 量
+///   （与渲染同一排版器，无预估误差）
 /// - 任意自定义 [child]：传固定 [width]
 class PriorityRowItem {
   final String? text;

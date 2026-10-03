@@ -176,7 +176,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
 
   bool searching = false;
 
-  ///打开下载 Java 对话框，默认选中当前版本推荐的 Java 主版本。
+  ///打开下载 Java 对话框，默认选中当前版本推荐的 Java 主版本
   void _downloadJava() {
     final version = config.versionOptions.selectedVersion;
     final recommended = version == null

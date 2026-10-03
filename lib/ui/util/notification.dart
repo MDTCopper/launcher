@@ -182,7 +182,7 @@ class _NotificationWidgetState extends State<NotificationWidget> {
     });
   }
 
-  /// 移除指定 id 的通知（定时器 / 左滑删除按钮 / 点击共同入口）。
+  /// 移除指定 id 的通知（定时器 / 左滑删除按钮 / 点击共同入口）
   void _removeById(String id) {
     final index = _itemList.indexWhere((item) => item.id == id);
     if (index < 0) return;
@@ -207,7 +207,7 @@ class _NotificationWidgetState extends State<NotificationWidget> {
             Align(
               // key 必须放在 Column 直接 children 层：若 key 藏在包装内部，
               // 移除条目后按 index 匹配包装层（Align 无 key），
-              // 深层 _NoticeItem 会被重建并重播入场动画。
+              // 深层 _NoticeItem 会被重建并重播入场动画
               key: ValueKey(item.id),
               alignment: Alignment.centerLeft,
               child: _NoticeItem(
@@ -221,7 +221,7 @@ class _NotificationWidgetState extends State<NotificationWidget> {
   }
 }
 
-/// 通知条目：自持入场 / 退场动画 + 左滑删除。
+/// 通知条目：自持入场 / 退场动画 + 左滑删除
 ///
 /// - **入场**：仅 左滑入 + 淡入（无展开动画），播完保持显示
 /// - **退场**：分段 —— 点击先缩小（scale 1.0→0.92）→ 停顿 → 划出+淡出 →
@@ -269,23 +269,23 @@ class _NoticeItemState extends State<_NoticeItem>
 
   Timer? _waitTimer;
 
-  /// 滑动未达阈值时的归位动画（_dragX 从当前位置缓慢回 0）。
+  /// 滑动未达阈值时的归位动画（_dragX 从当前位置缓慢回 0）
   late final AnimationController _dragBackController;
   late final Animation<double> _dragBackCurve;
   double _dragBackStart = 0;
 
-  /// 退场动画结束后由父级移除本条目。
+  /// 退场动画结束后由父级移除本条目
   bool _removing = false;
 
   /// 是否由点击触发退场（点击删除先小段缩小，像被按下一样）；
-  /// 滑动 / 定时触发无缩小段。
+  /// 滑动 / 定时触发无缩小段
   bool _byTap = false;
   Timer? _timer;
 
-  /// 左滑删除：手势累计偏移（负值左移）。
+  /// 左滑删除：手势累计偏移（负值左移）
   double _dragX = 0;
 
-  /// 滑动删除阈值（px）。
+  /// 滑动删除阈值（px）
   static const _dismissDistance = 100.0;
 
   @override
@@ -297,7 +297,7 @@ class _NoticeItemState extends State<_NoticeItem>
         AnimationController(vsync: this, duration: _kPressDuration)
           ..addStatusListener((status) {
             if (status == AnimationStatus.completed) {
-              // 缩小完成 → 停顿 100ms → 划出淡化
+              // 缩小完成 → 停顿 _kPressWait → 划出淡化
               _waitTimer?.cancel();
               _waitTimer = Timer(_kPressWait, _startSwipe);
             }
@@ -440,7 +440,7 @@ class _NoticeItemState extends State<_NoticeItem>
     final scale = _removing ? pressScale : const AlwaysStoppedAnimation(1.0);
 
     // 视觉变换（Fade / Slide / Scale）只作用于通知卡片本身；
-    // SizeTransition / 底部分隔放在最外层，见下方 return。
+    // SizeTransition / 底部分隔放在最外层，见下方 return
     Widget content = FadeTransition(
       opacity: opacity,
       child: SlideTransition(
@@ -451,10 +451,10 @@ class _NoticeItemState extends State<_NoticeItem>
 
     // ── 左滑删除 ──
     // _dragX 保留至退场：滑动删除时退场 Slide 从当前位置继续向左，
-    // 点击/定时删除时 _dragX=0 从原位起飞。
+    // 点击/定时删除时 _dragX=0 从原位起飞
     content = Transform.translate(offset: Offset(_dragX, 0), child: content);
 
-    // 点击/滑动区只覆盖卡片本身。
+    // 点击/滑动区只覆盖卡片本身
     final Widget item = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {

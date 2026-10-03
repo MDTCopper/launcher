@@ -16,10 +16,10 @@ enum HintPosition { top, bottom, left, right, auto }
 // HintAnimation
 // ---------------------------------------------------------------------------
 
-/// 入场 / 退场动画定义。
+/// 入场 / 退场动画定义
 ///
-/// 内置预设：[HintAnimation.fade]、[HintAnimation.scale]、[HintAnimation.slide]。
-/// [scale] 和 [slide] 会根据提示框的[实际方位][HintPosition]自适应锚点和方向。
+/// 内置预设：[HintAnimation.fade]、[HintAnimation.scale]、[HintAnimation.slide]；
+/// [scale] 和 [slide] 会根据提示框的[实际方位][HintPosition]自适应锚点和方向
 class HintAnimation {
   final Widget Function(
     BuildContext context,
@@ -115,61 +115,61 @@ class HintLayer extends StatefulWidget {
   /// 纯文本提示内容，与 [hintWidget] 二选一
   final String? hint;
 
-  /// 自定义组件提示，与 [hint] 二选一，同时提供时优先使用。
+  /// 自定义组件提示，与 [hint] 二选一，同时提供时优先使用
   final Widget? hintWidget;
 
-  /// 优先显示方位。[HintPosition.auto] 时桌面端依次尝试上→下→左→右，
-  /// 移动端根据组件相对屏幕中心的位置智能排序。
+  /// 优先显示方位；[HintPosition.auto] 时桌面端依次尝试上→下→左→右，
+  /// 移动端根据组件相对屏幕中心的位置智能排序
   final HintPosition preferPosition;
 
-  /// 长按触发后自动消失的时长。hover 模式忽略，移出即消失。
+  /// 长按触发后自动消失的时长；hover 模式忽略，移出即消失
   final Duration showDuration;
 
-  /// 是否支持点击触发（点击显示，再点隐藏 / [showDuration] 后自动消失）。
+  /// 是否支持点击触发（点击显示，再点隐藏 / [showDuration] 后自动消失）
   ///
-  /// 在悬停 / 长按基础上叠加：桌面端点击与悬停共存，移动端点击与长按共存。
-  /// 默认 false 保持原有纯悬停 / 纯长按行为。
+  /// 在悬停 / 长按基础上叠加：桌面端点击与悬停共存，移动端点击与长按共存；
+  /// 默认 false 保持原有纯悬停 / 纯长按行为
   final bool showOnTap;
 
-  /// 悬停 / 长按后，提示框出现前的等待时长。
+  /// 悬停 / 长按后，提示框出现前的等待时长
   final Duration waitDuration;
 
   /// 共享 waitDuration 的分组 id：同 id 的 hint 共享"跳过等待"计时，
-  /// **不同 id 互不共享**（例如页面 hint 与菜单栏 hint 用不同 id，互不干扰）。
-  /// `null` 时归入默认组。
+  /// **不同 id 互不共享**（例如页面 hint 与菜单栏 hint 用不同 id，互不干扰）；
+  /// `null` 时归入默认组
   final String? id;
 
-  /// 提示框消失后，等待重置间隔。在此间隔内悬停另一个组件可跳过 [waitDuration]。
-  /// `null` 时默认等于 [animationDuration]。
+  /// 提示框消失后，等待重置间隔；在此间隔内悬停另一个组件可跳过 [waitDuration]，
+  /// `null` 时默认等于 [animationDuration]
   final Duration? waitResetDuration;
 
-  /// 入场 / 退场动画的播放时长。
+  /// 入场 / 退场动画的播放时长
   final Duration animationDuration;
 
-  /// 入场动画。内置 [HintAnimation.fade]、[HintAnimation.scale]、[HintAnimation.slide]。
+  /// 入场动画；内置 [HintAnimation.fade]、[HintAnimation.scale]、[HintAnimation.slide]
   final HintAnimation showAnimation;
 
-  /// 退场动画。`null` 时默认与 [showAnimation] 相同。
+  /// 退场动画；`null` 时默认与 [showAnimation] 相同
   final HintAnimation? hideAnimation;
 
-  /// 提示框与子组件的间距（像素）。
+  /// 提示框与子组件的间距（像素）
   final double gap;
 
-  /// 提示框距屏幕四边的最小安全距离，防止贴边。
+  /// 提示框距屏幕四边的最小安全距离，防止贴边
   final EdgeInsets screenPadding;
 
-  /// 提示框最大宽度。`null` 时默认为屏幕宽度的 1/3，文本超出自动换行。
+  /// 提示框最大宽度；`null` 时默认为屏幕宽度的 1/3，文本超出自动换行
   final double? maxWidth;
 
   // ---- 纯文本模式专用样式 ----
 
-  /// 纯文本提示的内边距。
+  /// 纯文本提示的内边距
   final EdgeInsets padding;
 
-  /// 纯文本提示的容器装饰。`null` 时使用默认样式。
+  /// 纯文本提示的容器装饰；`null` 时使用默认样式
   final BoxDecoration? decoration;
 
-  /// 纯文本提示的文字样式。`null` 时使用主题的 [TextTheme.labelMedium]。
+  /// 纯文本提示的文字样式；`null` 时使用主题的 [TextTheme.labelMedium]
   final TextStyle? textStyle;
 
   // ---- 静态协调（按分组 id 隔离"跳过等待"计时，避免页面 / 菜单栏互串）----
@@ -177,7 +177,7 @@ class HintLayer extends StatefulWidget {
   static final Map<String, DateTime> _lastShowTime = {};
   static final Map<String, DateTime> _lastDismissTime = {};
 
-  /// 默认分组：未指定 id 的 hint 归入此组（彼此共享，同旧全局行为）。
+  /// 默认分组：未指定 id 的 hint 归入此组（彼此共享，同旧全局行为）
   static const String defaultGroup = 'default';
 
   const HintLayer({
@@ -213,7 +213,7 @@ class HintLayer extends StatefulWidget {
 class HintLayerState extends State<HintLayer> {
   final PopupOverlayController _popupController = PopupOverlayController();
 
-  /// 实际显示方位，由环绕定位在布局阶段确定，供动画接口使用。
+  /// 实际显示方位，由环绕定位在布局阶段确定，供动画接口使用
   final ValueNotifier<HintPosition?> _actualPosition = ValueNotifier(null);
 
   Timer? _waitTimer;
@@ -329,7 +329,7 @@ class HintLayerState extends State<HintLayer> {
   }
 
   /// 动画适配：把 PopupOverlay 的动画流转接给 [HintAnimation]，
-  /// 实际方位由环绕定位在布局阶段确定后传入。
+  /// 实际方位由环绕定位在布局阶段确定后传入
   Widget _buildHintAnimation(
     BuildContext context,
     Animation<double> animation,
@@ -462,7 +462,7 @@ class HintLayerState extends State<HintLayer> {
   }
 
   /// 浮层被外部机制关闭（锚点移动自动关闭 / 点击外部等）时同步自身状态，
-  /// 避免 `_isShowing` 卡在 true 导致后续无法重新显示。
+  /// 避免 `_isShowing` 卡在 true 导致后续无法重新显示
   void _onPopupClosed() {
     if (_disposed) return;
     _waitTimer?.cancel();
@@ -559,7 +559,7 @@ class _HintPositionDelegate extends PopupOverlayPositionDelegate {
     );
   }
 
-  /// 按 preferPosition 和组件位置生成尝试顺序。
+  /// 按 preferPosition 和组件位置生成尝试顺序
   List<HintPosition> _positionCandidates(
     HintPosition prefer,
     double childCenterX,
@@ -578,7 +578,7 @@ class _HintPositionDelegate extends PopupOverlayPositionDelegate {
       return [prefer, ...all.where((p) => p != prefer)];
     }
 
-    // 桌面端 auto 保持简单顺序。
+    // 桌面端 auto 保持简单顺序
     if (isDesktop) return all;
 
     // --- 移动端 auto：根据组件相对屏幕中心的偏移决定优先级 ---

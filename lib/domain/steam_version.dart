@@ -26,13 +26,13 @@ class SteamVersion {
   /// [Mindustry.displayRelease]（`steam v160.5`）看具体版本
   static const defaultTag = 'Mindustry Steam Build';
 
-  /// Steam 版专用分类的名字（分类路径指向 Steam 安装目录）
+  /// Steam 版专用分类的名字（分类路径指向 Steam 安装目录，与「添加目录」扫进来的形态一致）
   static const foldTag = 'Steam';
 
   /// 把检测到的 Steam 安装加进配置：**已存在就归一到 Steam 形态并刷新**
   ///
-  /// 「已存在」认的是本体路径 —— 早先用「添加目录」把 Steam 安装目录扫进来的那条
-  /// 记录也会被认出来（Steam 标记、数据目录、版本号都补齐），不会多出一条重复版本
+  /// 「已存在」认的是本体路径 —— 早先用「添加目录」扫进来的那条记录也会被认出来
+  /// （Steam 标记、数据目录、版本号都补齐），不会多出一条重复版本
   static Future<SteamVersionResult> addOrRefresh({
     required SteamInstall install,
   }) async {
@@ -165,8 +165,7 @@ class SteamVersion {
 
   /// 「Steam」分类：同名的或路径就是安装目录的都用现成的，否则建一个加进去
   ///
-  /// 分类路径指向 Steam 安装目录是有意的 —— 它本来就是一个游戏目录，
-  /// 与「添加目录」扫进来的形态一致；删这个分类**只删记录**，不碰磁盘文件
+  /// 删这个分类**只删记录**，不碰磁盘文件
   static VersionFold foldFor({
     required List<VersionFold> folds,
     required String installPath,

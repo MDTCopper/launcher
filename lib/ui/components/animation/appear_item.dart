@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:copper_launcher/ui/feature/feature_curve.dart';
 import 'package:flutter/material.dart';
 
-/// 单条目入场动画：自持 [AnimationController]，延迟后播放（淡入 + 位移 + 生长）。
+/// 单条目入场动画：自持 [AnimationController]，延迟后播放（淡入 + 位移 + 生长）
 ///
 /// - [delayMs] > 0：错位入场（进入页面时按 index 递增延迟）
 /// - [delayMs] = 0：滚动浮现（惰性构建时立即播放）

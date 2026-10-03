@@ -23,9 +23,9 @@ class GithubApiRelease {
     required this.describe,
   });
 
-  /// 返回指定后缀的 release asset（如 `.jar` / `.zip`），按体积从大到小排序。
+  /// 返回指定后缀的 release asset（如 `.jar` / `.zip`），按体积从大到小排序
   ///
-  /// 体积最大的一般为 mod 本体，便于下载前让玩家在多个候选里选择。
+  /// 体积最大的一般为 mod 本体，便于下载前让玩家在多个候选里选择
   List<GithubApiReleaseAsset> assetsOfType(String extension) {
     final ext = extension.toLowerCase();
     final matches = [

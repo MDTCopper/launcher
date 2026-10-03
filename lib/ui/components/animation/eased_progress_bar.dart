@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-///缓动进度条：值变化时平滑过渡到新值，避免进度跳变。
+///缓动进度条：值变化时平滑过渡到新值，避免进度跳变
 ///
 ///任务系统的 [Task.progress] 是普通 double，直接塞进 [LinearProgressIndicator]
-///会随更新跳变；这里用 [TweenAnimationBuilder] 手动实现缓动（任务本身无此能力）。
+///会随更新跳变；这里用 [TweenAnimationBuilder] 手动实现缓动（任务本身无此能力）
 class EasedProgressBar extends StatelessWidget {
-  ///当前进度（0~1）；null 表示不确定进度（转圈动画）。
+  ///当前进度（0~1）；null 表示不确定进度（转圈动画）
   final double? value;
 
   ///值变化时的过渡时长

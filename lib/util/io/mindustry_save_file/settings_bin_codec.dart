@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:copper_launcher/util/io/mindustry_save_file/ubjson_codec.dart';
 
-/// arc 框架 Settings 二进制格式编解码器。
+/// arc 框架 Settings 二进制格式编解码器
 ///
 /// 基于 arc `Settings.java` 的真实格式：
 /// ```text
@@ -46,7 +46,7 @@ class SettingsBinCodec {
     return reader._readAll();
   }
 
-  /// 检测并解压 zlib 压缩的数据。
+  /// 检测并解压 zlib 压缩的数据
   static Uint8List _maybeDecompress(Uint8List bytes) {
     if (bytes.length < 2) return bytes;
 
@@ -80,7 +80,7 @@ class SettingsBinCodec {
 
   // ── 编码 ──
 
-  /// 将 Map编码为 settings.bin 字节数组。
+  /// 将 Map编码为 settings.bin 字节数组
   static Uint8List encode(Map<String, dynamic> data) {
     final writer = _SettingsBinWriter();
     writer._writeAll(data);
@@ -148,7 +148,7 @@ class _SettingsBinReader {
 
   // ── Java modified UTF-8 解码 ──
 
-  /// 读取 Java modified UTF-8 字符串（2字节BE长度 + 数据）。
+  /// 读取 Java modified UTF-8 字符串（2字节BE长度 + 数据）
   String _readJavaUTF() {
     final byteLength = _readUint16();
     if (byteLength == 0) return '';
@@ -164,7 +164,7 @@ class _SettingsBinReader {
     return result;
   }
 
-  /// 解码 Java modified UTF-8。
+  /// 解码 Java modified UTF-8
   ///
   /// 与标准 UTF-8 的区别：
   ///   1. U+0000 → 0xC0 0x80（而非 0x00）
@@ -330,7 +330,7 @@ class _SettingsBinWriter {
 
   // ── Java modified UTF-8 编码 ──
 
-  /// 编码为 Java modified UTF-8 并写入（2字节BE长度 + 数据）。
+  /// 编码为 Java modified UTF-8 并写入（2字节BE长度 + 数据）
   void _writeJavaUTF(String s) {
     final bytes = _encodeJavaModifiedUtf8(s);
     if (bytes.length > 65535) {
@@ -342,7 +342,7 @@ class _SettingsBinWriter {
     _writeBytes(bytes);
   }
 
-  /// 将 Dart 字符串编码为 Java modified UTF-8 字节。
+  /// 将 Dart 字符串编码为 Java modified UTF-8 字节
   static List<int> _encodeJavaModifiedUtf8(String s) {
     final buf = <int>[];
 

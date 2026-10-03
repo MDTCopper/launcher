@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../rebound/rebound_container.dart';
 
-/// copper 风格开关：轨道 + 滑块，选中/未选中之间平滑过渡。
+/// copper 风格开关：轨道 + 滑块，选中/未选中之间平滑过渡
 ///
 /// - 由 [AnimationController] 驱动滑块横移与轨道/滑块颜色渐变
 /// - 双模式取色走 [AppColors](交互层强调 + 卡片底色),不直接引用原色

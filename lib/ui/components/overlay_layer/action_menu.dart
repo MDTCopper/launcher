@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 /// 组合为一个组件，包住 [child]
 ///
 /// - 右键（桌面端专属）/ 长按（多端）：弹出 [menuBuilder] 的内容
-/// - 左滑：露出 [actions]。是否开启由 [enableSwipe] 决定：
+/// - 左滑：露出 [actions]；是否开启由 [enableSwipe] 决定：
 ///   null（默认）= 按平台自动（移动端常开，桌面端仅 debug 下可测试）；
 ///   true / false = 强制开 / 关
 class ActionMenu extends StatelessWidget {
@@ -21,7 +21,7 @@ class ActionMenu extends StatelessWidget {
   menuBuilder;
   final List<Widget> actions;
 
-  /// 是否开启左滑菜单；null（默认）按平台自动，true / false 强制。
+  /// 是否开启左滑菜单；null（默认）按平台自动，true / false 强制
   final bool? enableSwipe;
   final bool rightClickTrigger;
   final bool longPressTrigger;

@@ -3,7 +3,7 @@ import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 
-/// 分段按钮组：多段互斥 / 多选，选中段有背景 + 前景过渡动画。
+/// 分段按钮组：多段互斥 / 多选，选中段有背景 + 前景过渡动画
 ///
 /// copper 风格双模式：
 /// - 暗色：玻璃感——透明背景，选中态叠一层半透明主题色

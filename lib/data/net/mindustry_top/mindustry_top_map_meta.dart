@@ -3,7 +3,7 @@
 /// 接口基址见 `mindustryTopApiBase`（app_constant.dart），请求封装见
 /// `lib/util/io/mindustry_top_map_api.dart`。
 ///
-/// 实测接口形态（2026-09）：
+/// 接口形态：
 /// - 列表 `GET /maps/list?begin=<offset>&search=<关键词>` 每页 15 条，
 ///   begin 越过末尾时服务端直接返回 400（用返回条数 < 15 判断翻到头）
 /// - 详情 `GET /maps/<id>.json`
@@ -22,7 +22,6 @@ class MindustryTopMapMeta {
   /// 站点上的简介，可能含 Mindustry 颜色标签（如 `[gray]`），
   /// 展示前需经 `sanitizeText` / `removeColorTags` 清洗
   final String description;
-
   /// 最新一帖的 id，与详情接口的 `thread` 对应
   final int latestThreadId;
 

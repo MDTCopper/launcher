@@ -80,11 +80,11 @@ class SysInfo {
     return _systemInfo2InIsolate(() => s.SysInfo.getAvailablePhysicalMemory());
   }
 
-  /// 「可用」口径物理内存：供自动分配内存估算使用。
+  /// 「可用」口径物理内存：供自动分配内存估算使用
   ///
   /// 各平台归一化（与 getFreePhysicalMemory / getAvailablePhysicalMemory 不同，
   /// 这里统一给「可被新增分配」的值）：
-  /// - Windows：原生 [GlobalMemoryStatusEx] 的 `ullAvailPhys`（即可用物理，微秒级）
+  /// - Windows：原生 [GlobalMemoryStatusEx] 的 `ullAvailPhys`（即可用物理）
   /// - Linux / Android：/proc/meminfo 的 `MemAvailable`（含可回收缓存）
   /// - macOS 及其它：system_info2 的 available（isolate 执行）
   static Future<int> getUsablePhysicalMemory() async {

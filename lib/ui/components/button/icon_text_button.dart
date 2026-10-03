@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 
 import 'rebound_button.dart';
 
-/// 无状态的图标 + 文本按钮（基于 [ReboundButton]）。
+/// 无状态的图标 + 文本按钮（基于 [ReboundButton]）
 ///
-/// 与 [ActionButton]（有选中态）区分：无选中状态，适合不持久的操作入口。
-/// 图标与文本共色（[AppColors.itemPrimary]），尺寸按内容收缩。
+/// 与 [ActionButton]（有选中态）区分：无选中状态，适合不持久的操作入口
+/// 图标与文本共色（[AppColors.itemPrimary]），尺寸按内容收缩
 class IconTextButton extends StatelessWidget {
   final IconData icon;
   final String content;

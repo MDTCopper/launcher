@@ -58,7 +58,7 @@ class _ScrollFadeMaskState extends State<ScrollFadeMask>
     });
   }
 
-  /// 渐变遮罩：[start] 为 true 时起始端（顶部 / 左侧）渐隐，否则结束端。
+  /// 渐变遮罩：[start] 为 true 时起始端（顶部 / 左侧）渐隐，否则结束端
   Widget _buildFade(bool show, bool start) {
     final colors = AppColors.of(context);
     // IgnorePointer：遮罩只做视觉渐隐，不拦截下层交互（点击 / 滚动 / 悬停）

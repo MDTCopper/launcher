@@ -444,7 +444,7 @@ class _RouteWatcher extends RouteObserver {
   }
 }
 
-/// 路由未匹配时的缺省页。
+/// 路由未匹配时的缺省页
 class _NotFoundPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

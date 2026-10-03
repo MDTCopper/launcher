@@ -42,10 +42,10 @@ String _modeLabel(MindustryTopMapMode mode) => switch (mode) {
   MindustryTopMapMode.unknown => '未标注',
 };
 
-/// 已加载地图列表的进程内缓存：资源页切 tab / 离开再回来时复用，不从头拉。
+/// 已加载地图列表的进程内缓存：资源页切 tab / 离开再回来时复用，不从头拉
 ///
-/// 只缓存**未搜索**的默认列表——搜索结果是一次性的，不落缓存。
-/// 点「刷新」会清空重拉并覆盖这里。
+/// 只缓存**未搜索**的默认列表——搜索结果是一次性的，不落缓存；
+/// 点「刷新」会清空重拉并覆盖这里
 class _MapListCache {
   static final List<MindustryTopMapMeta> maps = [];
   static bool hasMore = true;
@@ -68,7 +68,7 @@ class _MapViewPageState extends State<MapViewPage> {
   /// 还能继续翻页：上一页拿满了 [MindustryTopMapApi.pageSize] 条
   bool _hasMore = true;
 
-  /// 网络类失败。与"没有更多"分开，好给重试入口
+  /// 网络类失败；与"没有更多"分开，好给重试入口
   String? _error;
 
   /// 请求序号：搜索 / 刷新之后，旧请求回来不许覆盖新结果
@@ -391,7 +391,7 @@ class _MapViewPageState extends State<MapViewPage> {
 
 /// 地图预览图：走 [cio] 拉字节（跟随代理设置），带进程内缓存
 ///
-/// 缩略图不大，缓存整张字节即可；取过但失败的也记住（null），避免滚回去反复重试。
+/// 缩略图不大，缓存整张字节即可；取过但失败的也记住（null），避免滚回去反复重试
 /// Future 一起缓存：FutureBuilder 的 future 若在 build 里新建，每次重建都会重发请求
 class _MapPreviewImage extends StatefulWidget {
   const _MapPreviewImage({

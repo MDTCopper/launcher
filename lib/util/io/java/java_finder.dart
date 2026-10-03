@@ -17,9 +17,9 @@ class JavaFinder {
     return Platform.isWindows ? 'java.exe' : 'java';
   }
 
-  /// 合并校验 + 版本获取，一次 [java -version] 调用完成。
-  /// 返回 null 表示该路径不是有效的 Java（或版本无法解析）。
-  /// 结果会被缓存，重复查询同一路径不会再次执行进程。
+  /// 合并校验 + 版本获取，一次 [java -version] 调用完成；
+  /// 返回 null 表示该路径不是有效的 Java（或版本无法解析）；
+  /// 结果会被缓存，重复查询同一路径不会再次执行进程
   static Future<int?> _validateAndGetVersion(String javaPath) async {
     if (_versionCache.containsKey(javaPath)) {
       return _versionCache[javaPath];
@@ -636,7 +636,7 @@ class JavaFinder {
     return infoList;
   }
 
-  /// 根据给定的路径获取 [JavaInfo]。如果不是有效的 Java，返回 null。
+  /// 根据给定的路径获取 [JavaInfo]；如果不是有效的 Java，返回 null
   static Future<JavaInfo?> getJavaInfoFromPath(String javaPath) async {
     final version = await _validateAndGetVersion(javaPath);
     if (version == null) return null;
@@ -645,7 +645,7 @@ class JavaFinder {
   }
 
   /// 启动时校验配置里的 javas 列表：路径失效的标记为无效（保留记录，
-  /// 界面下拉会跳过），选中的失效项回退为自动选择。返回本次失效数量。
+  /// 界面下拉会跳过），选中的失效项回退为自动选择；返回本次失效数量
   static Future<int> validateConfiguredJavas() async {
     final javas = config.setting.launchOptions.javaOptions.javas;
     var invalidCount = 0;

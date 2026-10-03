@@ -19,8 +19,8 @@ class TokenEncryptor {
   static const _keyStorageKey = 'copper_aes_key';
   static const _ivStorageKey = 'copper_aes_iv';
 
-  /// 初始化加密器。从 OS 安全存储加载 AES key，首次运行时自动生成。
-  /// 必须在应用启动时调用，且需 await 完成后再使用其他方法。
+  /// 初始化加密器：从 OS 安全存储加载 AES key，首次运行时自动生成；
+  /// 必须在应用启动时调用，且需 await 完成后再使用其他方法
   ///
   /// 安全存储不可用时**不往外抛**（那会中断整个 `_initialize`，表现为窗口空着、进程不退），
   /// 只记日志并降级成明文直存

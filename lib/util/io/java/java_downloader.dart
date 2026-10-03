@@ -208,8 +208,8 @@ class JavaDownloader {
 
   /// 配置 JAVA_HOME 和 PATH 环境变量
   ///
-  /// JAVA_HOME 只能有一个，如果已经存在则不会覆盖。
-  /// PATH 中可以存在多个 Java 路径，如果当前 bin 目录不在 PATH 中则追加。
+  /// JAVA_HOME 只能有一个，如果已经存在则不会覆盖；
+  /// PATH 中可以存在多个 Java 路径，如果当前 bin 目录不在 PATH 中则追加
   static Future<EnvironmentConfigResult> configureEnvironmentVariables(
     String javaHomePath,
   ) async {

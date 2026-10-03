@@ -40,7 +40,7 @@ class RevealListView extends StatefulWidget {
   final bool shrinkWrap;
   final bool fadeMask;
 
-  /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变。
+  /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变
   final double? estimatedMaxScrollExtent;
 
   const RevealListView({

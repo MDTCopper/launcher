@@ -12,7 +12,7 @@ import 'package:hjson_dart/hjson_dart.dart' as hjson;
 import 'package:path/path.dart' as p;
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
-/// remote 数据源（不随 copper launcher 版本更新的数据，如各版本 settings 适配表）。
+/// remote 数据源（不随 copper launcher 版本更新的数据，如各版本 settings 适配表）
 ///
 /// - 数据源仓库：`MDTCopper/launcher` main 分支的 `remote/` 目录
 /// - 本地：内置一份在 assets（打包），启动时每次尝试拉取仓库 raw 覆盖缓存
@@ -22,11 +22,11 @@ import 'package:copper_launcher/util/format/string_cleaner.dart';
 /// - **debug 模式优先本地数据**：跳过拉取、内置 assets 优先于缓存——
 ///   改 `remote/` 下的文件重启即生效，不被旧缓存 / 远端遮蔽
 class RemoteData {
-  /// 每次启动异步拉取 remote 数据到本地缓存。
+  /// 每次启动异步拉取 remote 数据到本地缓存
   ///
   /// 先拉索引，再按索引的 `file` 字段拉 `setting_adapter/<file>` 各版本配置；
-  /// 失败静默（保持旧缓存），不阻塞启动流程。
-  /// debug 模式直接跳过（本地 `remote/` 优先，见 [load]）。
+  /// 失败静默（保持旧缓存），不阻塞启动流程；
+  /// debug 模式直接跳过（本地 `remote/` 优先，见 [load]）
   static Future<void> refresh() async {
     if (kDebugMode) {
       printOnDebug('debug 模式跳过 remote 拉取，优先使用本地数据');
@@ -77,7 +77,7 @@ class RemoteData {
     }
   }
 
-  /// 读取 remote 文件内容。
+  /// 读取 remote 文件内容
   ///
   /// [relativePath] 相对 remote/ 目录，如 `setting_adapter_index.hjson`、
   /// `setting_adapter/136-999999.json`

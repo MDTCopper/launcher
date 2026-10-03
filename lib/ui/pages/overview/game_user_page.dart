@@ -21,9 +21,9 @@ const gameUserPageRouteKey = '/user';
 
 ///页面首先读取当前选中版本的 settings.bin 中的玩家信息
 ///（`name` / `uuid` / `color-0`）作为临时用户信息，可编辑后保存为账户；
-///游戏内用户保存在 config（[Setting.gameUsers]）中。
-///账户项支持：点击选择、左滑露出删除、右键/长按弹出操作菜单。
-///启动游戏时，选中的账户会自动覆盖 settings 的相关字段。
+///游戏内用户保存在 config（[Setting.gameUsers]）中
+///账户项支持：点击选择、左滑露出删除、右键/长按弹出操作菜单
+///启动游戏时，选中的账户会自动覆盖 settings 的相关字段
 class GameUserPage extends StatefulWidget {
   const GameUserPage({super.key});
 
@@ -32,7 +32,7 @@ class GameUserPage extends StatefulWidget {
 }
 
 class _GameUserPageState extends State<GameUserPage> {
-  ///当前选中的游戏版本（其 settings.bin 作为临时用户信息来源）。
+  ///当前选中的游戏版本（其 settings.bin 作为临时用户信息来源）
   Mindustry? get _mindustry => config.versionOptions.selectedVersion;
 
   final _nameController = TextEditingController();
@@ -160,7 +160,7 @@ class _GameUserPageState extends State<GameUserPage> {
     setState(() => _removingUserId = null);
   }
 
-  ///把账户信息载入临时编辑区（进入编辑态，保存即更新该账户）。
+  ///把账户信息载入临时编辑区（进入编辑态，保存即更新该账户）
   void _loadToEdit(GameUser user) {
     _nameController.text = user.name;
     _uuid = user.uuid;
@@ -469,9 +469,9 @@ const _presetColors = <int>[
   0x2CABFEFF, // 天蓝
 ];
 
-///arc 0xRRGGBBAA → Flutter Color。
+///arc 0xRRGGBBAA → Flutter Color
 ///
-/// arc `rgba8888` 的字节布局：R << 24 | G << 16 | B << 8 | A。
+/// arc `rgba8888` 的字节布局：R << 24 | G << 16 | B << 8 | A
 Color _arcToFlutter(int arc) => Color.fromARGB(
   arc & 0xFF,
   (arc >> 24) & 0xFF,
@@ -488,7 +488,7 @@ int _flutterToArc(Color color) {
       (argb >> 24 & 0xFF);
 }
 
-///颜色圆点（选择器与账户列表共用）。
+///颜色圆点（选择器与账户列表共用）
 class _ColorDot extends StatelessWidget {
   final Color color;
   final double size;

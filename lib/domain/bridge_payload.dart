@@ -161,9 +161,8 @@ class BridgePayload {
 
   /// 各模块里那份原生库的**常规文件名**：列目录用不了时按它下
   ///
-  /// 列目录走 GitHub contents API，镜像节点常常不代理 api 或共享 IP 被限流
-  /// （真机实测三家里两家空回、一家 `API rate limit exceeded`）—— 所以「列目录」
-  /// 只当**补充**，常规名单才是保底（真要少一个文件，列目录成功时会补上）
+  /// 列目录走 GitHub contents API，镜像节点常常不代理 api 或共享 IP 被限流 ——
+  /// 所以「列目录」只当**补充**，常规名单才是保底（列目录成功时会补上多出来的库）
   static List<String> arcNativeDefaultLibs(String module) =>
       module == 'natives-freetype-android'
       ? const ['libarc-freetype.so']
@@ -190,7 +189,7 @@ class BridgePayload {
   /// （必须与本体 jar 里的 arc 同源，见文档 §3.3）
   ///
   /// **走 raw 地址，不用 `github.com/.../raw/...` 那种重定向形式**：后者要多一跳、
-  /// 而且实测有节点不代理它（回 404，还会被当成「上游说没有」而不换节点）
+  /// 而且有节点不代理它（回 404，还会被当成「上游说没有」而不换节点）
   static String arcRefUrlForTag(String versionTag) =>
       'https://raw.githubusercontent.com/Anuken/Mindustry/refs/tags/$versionTag/gradle.properties';
 

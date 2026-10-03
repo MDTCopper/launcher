@@ -227,7 +227,7 @@ class _AboutState extends State<_About> {
 
   /// 内容对齐 [MindustryLauncher.start]：-Xmx 内存 + 隔离数据目录 +
   /// jvm 参数 + -jar，平台差异：Windows .bat（UTF-8 + chcp 65001），
-  /// Linux/macOS .sh。保存位置由用户选择。
+  /// Linux/macOS .sh；保存位置由用户选择
   Future<void> _generateLaunchScript() async {
     final target = await PathSelector.selectDirectory(
       confirmButtonText: '生成脚本到此',

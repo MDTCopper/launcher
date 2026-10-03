@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 ///   页面滚动只构建可见模块（模块自适应高度）；预测总长给滚动条
 ///   （thumb / 点击 / 拖动稳定，不乱跳）
 ///
-/// 默认内置 [BackToTopLayer]（滚超阈值浮现回顶按钮），可用 [showBackToTop] 关闭。
+/// 默认内置 [BackToTopLayer]（滚超阈值浮现回顶按钮），可用 [showBackToTop] 关闭
 class ListContentPanel extends StatefulWidget {
   final List<Widget?> items;
   final int delay;

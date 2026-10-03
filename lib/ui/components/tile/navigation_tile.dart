@@ -32,9 +32,9 @@ class NavigationTileState extends State<NavigationTile>
     with TickerProviderStateMixin {
   late final AnimationController controller;
 
-  /// 收纳动画：宽度 + 透明度，由 tile 自身 State 持有。
+  /// 收纳动画：宽度 + 透明度，由 tile 自身 State 持有
   /// 不依赖 AnimatedSize 的渲染状态（组成更新导致其元素重建时会重置、瞬间跳变），
-  /// controller 值在 State 里不丢，收纳动画稳定。
+  /// controller 值在 State 里不丢，收纳动画稳定
   late final AnimationController collapseController;
   late final Animation<double> collapseAnim;
 
@@ -148,9 +148,9 @@ class NavigationTileState extends State<NavigationTile>
           Expanded(
             child: Padding(
               padding: EdgeInsetsGeometry.only(left: 8),
-              // 收纳：文字被裁剪、同时暗淡下去。
+              // 收纳：文字被裁剪、同时暗淡下去
               // 用自身 collapseController 驱动：Expanded(紧) 铺满、ConstrainedBox(maxWidth)
-              // 收敛文本宽度（超出被文本 ellipsis / ClipRect 裁掉）、Opacity 暗淡。
+              // 收敛文本宽度（超出被文本 ellipsis / ClipRect 裁掉）、Opacity 暗淡
               // 不依赖 AnimatedSize 的渲染状态，组成更新时 controller 值不丢、不跳变
               child: LayoutBuilder(
                 builder: (context, constraints) {

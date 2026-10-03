@@ -40,13 +40,6 @@ import '../../components/tips/warning_bar.dart';
 import '../setting/setting.dart';
 import '../../vars.dart';
 
-///模组仓库有三种情况：
-///
-/// 1.有构筑资源
-///
-/// 2.有历史源码，但没有构筑资源 => tag拼接 => 没有下载量信息
-///
-/// 3.根本没发布版本 => 提供源码下载方法
 /// 版本列表拉取结果
 ///
 /// 用于区分「网络 / 接口失败」与「模组确实没有发布版本」——前者不能说成
@@ -80,7 +73,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
   ModMetaFetchStatus _status(ModMetaFetchStatus status) =>
       _lastFetchStatus = status;
 
-  /// 当前页的加载 Future，按页缓存。
+  /// 当前页的加载 Future，按页缓存
   ///
   /// 若在 build 里直接 `_fetchModMetas(page: index)`，每次重建都会新建 Future，
   /// FutureBuilder 会退回 waiting 再完成——列表闪烁、动画重复触发
@@ -961,7 +954,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   int _selectedAssetIndex = 0;
 
   /// 版本详情下载的同类型候选（.jar 或 .zip，按体积从大到小）；
-  /// 下载源码时无候选，不展示。
+  /// 下载源码时无候选，不展示
   List<GithubApiReleaseAsset> get _assetCandidates {
     if (widget.downloadSource) return const <GithubApiReleaseAsset>[];
     final ext = modListMeta.hasJava ? '.jar' : '.zip';

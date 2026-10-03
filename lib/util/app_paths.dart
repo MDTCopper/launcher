@@ -29,8 +29,7 @@ abstract class AppPaths {
   /// 决定数据根目录
   ///
   /// 以 **exe 所在目录**为锚，而不是工作目录：`p.current` 是进程工作目录，
-  /// 管理员启动时 UAC 会把它设成 C:\Windows\System32（对管理员可写），
-  /// 数据就会写进系统目录；快捷方式"起始位置"不同也会让数据目录漂移。
+  /// UAC 提权会把它设成 System32，快捷方式"起始位置"不同也会让数据目录漂移；
   ///
   /// - exe 在系统目录（Program Files / Windows）下 → 用 [applicationSupportPath]，
   ///   那里的可写性随提权变化，不能当稳定依据
@@ -88,7 +87,7 @@ abstract class AppPaths {
   static String _normalizeDir(String dir) =>
       '${p.normalize(dir).toLowerCase()}\\';
 
-  /// 实测目录可写性：直接写一个探针文件再删掉，比看权限位可靠
+  /// 目录可写性靠直接写一个探针文件再删掉来判，比看权限位可靠
   static Future<bool> _isWritable(String dir) async {
     final probe = File(p.join(dir, '.copper_write_probe'));
     try {
@@ -177,7 +176,7 @@ abstract class AppPaths {
     return p.normalize(p.join(copperLauncher, storedPath));
   }
 
-  /// [child] 是否落在 [root] **里面**（Windows 路径大小写不敏感，统一小写后再比）。
+  /// [child] 是否落在 [root] **里面**（Windows 路径大小写不敏感，统一小写后再比）；
   /// 根目录自身不算「根内文件」—— 那样会算出空字符串
   static bool _isInside(String root, String child) {
     final rootLower = p.normalize(root).toLowerCase();

@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-/// Mindustry 地图存档 (.msav) 和蓝图 (.msch) 的元数据解码器。
+/// Mindustry 地图存档 (.msav) 和蓝图 (.msch) 的元数据解码器
 ///
-/// 两者统一返回 `Map<String, dynamic>`。
-/// **先展开原始 tags，再覆盖已解析字段**，确保转换后的值不被原始 String 覆盖。
+/// 两者统一返回 `Map<String, dynamic>`；
+/// **先展开原始 tags，再覆盖已解析字段**，确保转换后的值不被原始 String 覆盖
 class SaveFileCodec {
   static const _mschHeader = [0x6D, 0x73, 0x63, 0x68];
   static const _msavHeader = [0x4D, 0x53, 0x41, 0x56];

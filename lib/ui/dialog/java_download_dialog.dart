@@ -6,9 +6,9 @@ import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/util/io/java/java_downloader.dart';
 import 'package:flutter/material.dart';
 
-///打开 Java 版本选择对话框，选中后创建 [JavaDownloadTask] 下载。
+///打开 Java 版本选择对话框，选中后创建 [JavaDownloadTask] 下载
 ///
-///[recommendedVersion] 为当前选中版本推荐的 Java 主版本，选中默认值并高亮提示。
+///[recommendedVersion] 为当前选中版本推荐的 Java 主版本，选中默认值并高亮提示
 Future<void> showJavaDownloadDialog(
   BuildContext context, {
   int? recommendedVersion,

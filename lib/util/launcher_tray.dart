@@ -48,8 +48,8 @@ class LauncherTray extends TrayListener with WindowListener {
   ///Linux 状态栏宿主的探测结果（null = 还没探过）
   static bool? _linuxTrayHost;
 
-  ///托盘是否可用（给 UI 读的同步版本，用的是 [resolveTraySupport] 缓存下来的结果）。
-  ///启动时 [applyMode] 会先探一次；在那之前 Linux 一律按不支持算
+  ///托盘是否可用（给 UI 读的同步版本，用的是 [resolveTraySupport] 缓存下来的结果）；
+  ///启动时 [applyMode] 会先探一次，在那之前 Linux 一律按不支持算
   static bool get traySupported {
     if (!isDesktop) return false;
     if (!Platform.isLinux) return true;
@@ -65,7 +65,7 @@ class LauncherTray extends TrayListener with WindowListener {
 
   ///问 D-Bus 有没有状态栏宿主。`libayatana-appindicator` 走 StatusNotifierItem 协议，
   ///宿主（面板）会在 watcher 上把 [IsStatusNotifierHostRegistered] 置真；这个库不支持
-  ///老式 XEmbed 托盘（二进制里没有 `_NET_SYSTEM_TRAY`），所以问它就是这个库的完整判据。
+  ///老式 XEmbed 托盘（二进制里没有 `_NET_SYSTEM_TRAY`），所以问它就是这个库的完整判据；
   ///命令行客户端依次试 glib / dbus / systemd 三家的，都没有就当不支持
   static Future<bool> _probeLinuxTrayHost() async {
     const probes = <(String, List<String>)>[
@@ -215,7 +215,7 @@ class LauncherTray extends TrayListener with WindowListener {
     (task) => task.type == TaskType.launch && task.status == TaskStatus.process,
   );
 
-  ///最近游玩版本：取 lastLaunchTime 最新者；没有则回落当前选中版本。
+  ///最近游玩版本：取 lastLaunchTime 最新者；没有则回落当前选中版本
   Mindustry? _recentVersion() {
     final all = config.versionOptions.versionFolds.expand(
       (fold) => fold.versions,

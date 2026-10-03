@@ -18,22 +18,22 @@ class ActionSlideLayer extends StatefulWidget {
   final Duration animationDuration;
   final Curve curve;
 
-  /// 甩动速度阈值（px/s，绝对值）。
+  /// 甩动速度阈值（px/s，绝对值）
   ///
   /// 脱手瞬间的水平速度超过此值即按方向打开 / 收回
   final double velocityThreshold;
 
-  /// 过冲回弹时长（过冲区松手后滑回边界）。
+  /// 过冲回弹时长（过冲区松手后滑回边界）
   final Duration elasticDuration;
 
   /// 超界视觉偏移上限
   /// 越往外越难拖
   final double maxOvershootRatio;
 
-  /// 菜单非按钮区域是否拦截事件。
+  /// 菜单非按钮区域是否拦截事件
   ///
   /// 为 false（默认）时，菜单露出区域内点击 / 滚动会透传到下层组件；
-  /// 为 true 时菜单区域拦截所有事件（按钮仍可点击）。
+  /// 为 true 时菜单区域拦截所有事件（按钮仍可点击）
   final bool blockMenuEvents;
 
   /// 菜单裁剪圆角：露出菜单按 child 尺寸裁剪时应用的形状（默认矩形）
@@ -42,7 +42,7 @@ class ActionSlideLayer extends StatefulWidget {
   /// 是否响应左滑
   ///
   /// false 时 child 不随拖动平移（菜单始终收起），但该组件 State 仍保留——
-  /// 用于外部动态开关左滑（如随侧边栏收纳切换）时不重挂载、不丢失滑开状态。
+  /// 用于外部动态开关左滑（如随侧边栏收纳切换）时不重挂载、不丢失滑开状态
   final bool enabled;
 
   const ActionSlideLayer({
@@ -75,10 +75,10 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
 
   double _menuWidth = 0;
 
-  /// 手指原始位置（px，负值表示左移），**不压缩**。
+  /// 手指原始位置（px，负值表示左移），**不压缩**
   ///
   /// 视觉偏移由它换算：正常区 1:1 跟手；超界区按渐近曲线阻尼，
-  /// 越往外越难拖且有视觉偏移上限。往回拖时视觉跟随手指，无滞后感。
+  /// 越往外越难拖且有视觉偏移上限；往回拖时视觉跟随手指，无滞后感
   double _fingerPosition = 0;
 
   /// 当前展开态
@@ -162,10 +162,10 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
 
     // 视觉 = 正常区 1:1；超界区按「渐近橡皮筋」换算：
     // 越往外越难拖，视觉偏移渐近逼近 [maxOvershootRatio] × 菜单宽上限
-    // （visual = cap * t / (t + k)，t=超界量，k=菜单宽的一半；t→∞ 时 visual→cap）。
-    // 往回拖时视觉跟随手指（单调函数），无滞后感。
+    // visual = cap * t / (t + k)，t = 超界量，k = 菜单宽的一半，t→∞ 时 visual→cap；
+    // 往回拖时视觉跟随手指（单调函数），无滞后感
     final cap = _menuWidth * widget.maxOvershootRatio;
-    // 渐近曲线的"硬度"：k 越小越容易拖出去。用菜单宽的一半。
+    // 渐近曲线的"硬度"：k 越小越容易拖出去；用菜单宽的一半
     final k = _menuWidth * 0.5;
     final double visual;
     if (_fingerPosition < min) {
@@ -212,7 +212,7 @@ class _ActionSlideLayerState extends State<ActionSlideLayer>
     _onDragEnd(DragEndDetails());
   }
 
-  /// child 平移偏移（px，负值左移）。过冲时超出边界，由 Stack 裁剪。
+  /// child 平移偏移（px，负值左移）；过冲时超出边界，由 Stack 裁剪
   double get _translateOffset => -_menuWidth * _controller.value;
 
   @override
@@ -341,7 +341,6 @@ class SlideActionButton extends StatelessWidget {
 ///
 /// [reveal] = child 左移距离；差集路径 = 整个区域挖掉 child 区域，
 /// child 移开多少，菜单就从右往左露出多少
-///
 /// - 露出宽度按原组件尺寸封顶，菜单不会超出组件边界
 /// - [borderRadius] 指定裁剪形状
 class _MenuRevealClipper extends CustomClipper<Path> {

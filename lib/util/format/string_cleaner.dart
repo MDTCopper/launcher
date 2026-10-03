@@ -1,10 +1,10 @@
 import 'package:xml/xml.dart';
 
-/// 去除 Mindustry / Arc 的颜色标记（markup）标签，保留可见文本。
+/// 去除 Mindustry / Arc 的颜色标记（markup）标签，保留可见文本
 ///
 /// 贪婪匹配：从 `[` 开始，内部 `[` 计入嵌套深度、`[[` 视为转义跳过，
 /// 直到配对 `]` 闭合；若整段内容判定为「颜色相关」（含 #hex、颜色名、
-/// `[]` 弹栈等），整段剥离，否则按普通字面保留。
+/// `[]` 弹栈等），整段剥离，否则按普通字面保留
 String removeColorTags(String input) {
   final buffer = StringBuffer();
   var i = 0;
@@ -26,7 +26,7 @@ String removeColorTags(String input) {
 }
 
 /// 从 [start]（指向 `[`）尝试匹配一整组颜色标签，返回剥除结束位置；
-/// 无法判定为颜色标签时返回 0（保留 `[` 字面）。
+/// 无法判定为颜色标签时返回 0（保留 `[` 字面）
 int _matchColorGroup(String input, int start) {
   var depth = 1;
   var i = start + 1;
@@ -90,15 +90,11 @@ String generalizeText(String str, {bool removeNewLine = false}) {
 
 
 
-/// 修正 SVG 里被 `transform="scale(...)"` 缩放的文字。
-///
-/// shields.io 这类徽章有两种写法：
-/// - `<text transform="scale(.1)">`（缩放写在 text 上）
-/// - `<g transform="scale(.1)"><text …></g>`（缩放写在祖先 g 上）
-///
-/// flutter_svg 对后者不生效（g 的缩放没作用到文字），文字会按原始字号
-/// 直接画出来——于是「徽章上的字超大、徽标大小正常」。这里把累计缩放
-/// 烘焙进 text 的 font-size / x / y / textLength，并去掉这些 scale
+/// 修正 SVG 里被 `transform="scale(...)"` 缩放的文字：
+/// scale 写在 text 上时 flutter_svg 正常，写在祖先 `<g>` 上时不生效
+/// （g 的缩放没作用到文字），文字按原始字号直接画出——于是「徽章上的字
+/// 超大、徽标大小正常」；这里把累计缩放烘焙进 text 的 font-size /
+/// x / y / textLength，并去掉这些 scale
 final _scalePattern = RegExp(r'scale\s*\(\s*([\d.]+)\s*\)');
 
 /// 元素内部是否只有文本相关节点（没有图形 / 图片）

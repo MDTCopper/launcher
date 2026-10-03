@@ -27,8 +27,7 @@ class LoaderSupport {
 
   /// 查一次适配表并缓存
   ///
-  /// 拉不到返回 null：调用方按未知处理，
-  /// 兜底还有 [Mindustry.loaderMinRelease] 那条硬编码下限
+  /// 拉不到返回 null：调用方按未知处理，兜底还有 [Mindustry.loaderMinRelease] 那条硬编码下限
   static Future<LoaderSupport?> load({bool refresh = false}) async {
     if (refresh) {
       _cached = null;

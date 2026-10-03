@@ -1,8 +1,8 @@
 import 'dart:ui';
 
-/// Primitive Token —— 整个应用所有颜色的唯一来源。
+/// Primitive Token —— 整个应用所有颜色的唯一来源
 ///
-/// 任何 Widget 都不得直接引用这里的值，必须通过 [AppColors]（Semantic Token）间接使用。
+/// 任何 Widget 都不得直接引用这里的值，必须通过 [AppColors]（Semantic Token）间接使用；
 /// 层次关系：Palette → AppColors → Widget
 abstract class Palette {
   Palette._();
