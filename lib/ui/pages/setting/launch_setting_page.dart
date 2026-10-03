@@ -669,6 +669,8 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
     final isDesktop =
         Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
@@ -720,7 +722,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
                 },
               ),
               // 只有装过 Steam 版才有意义：Steam 没在跑时游戏拿不到 Steam API
-              if (hasSteamVersion)
+              if (hasSteamVersion) ...[
                 SwitchSettingBar(
                   title: '自动唤醒 Steam',
                   value: autoWakeSteam,
@@ -731,6 +733,16 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
                     });
                   },
                 ),
+                Text(
+                  '启动 Steam 版时若 Steam 没在跑，会自动把它启动起来，'
+                  '并等你在 Steam 里选好账号再进游戏 —— '
+                  '没选完就进的话，这一局会显示 Steam 版本但用不了云存档、'
+                  '游戏时长与联机',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.itemHint,
+                  ),
+                ),
+              ],
               InputSettingBar(title: 'jvm虚拟机参数'),
               // Android 独有：运行环境（Java / 桥 / 适配层）单独一页，这里只留入口
               if (Platform.isAndroid) _buildMobileRuntimeEntry(),

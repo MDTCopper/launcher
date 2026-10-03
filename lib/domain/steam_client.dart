@@ -105,8 +105,14 @@ class SteamClient {
 
   /// 确保客户端**可用**：没跑就唤醒，然后等它真的登录进去
   ///
+  /// [onWaking] 在「确实要唤醒、且已经把它拉起来」之后回调一次 —— 从这一刻起
+  /// 最长会等 [readyTimeout]，调用方拿它给玩家一句「去 Steam 里选账号」的提示
+  ///
   /// 返回 [SteamWakeOutcome]；**不抛异常、也不阻断游戏启动**
-  static Future<SteamWakeOutcome> ensureRunning({Duration? timeout}) async {
+  static Future<SteamWakeOutcome> ensureRunning({
+    Duration? timeout,
+    void Function()? onWaking,
+  }) async {
     if (await isRunning()) return SteamWakeOutcome.alreadyRunning;
 
     // 记下唤醒前的登录时刻：登录成功后 Steam 会刷新它 ⇒ 变了才算真的就绪
@@ -117,6 +123,7 @@ class SteamClient {
       return SteamWakeOutcome.failed;
     }
     addLog(.info, '正在唤醒 Steam 客户端', tag: 'Steam');
+    onWaking?.call();
 
     final deadline = DateTime.now().add(timeout ?? readyTimeout);
     while (DateTime.now().isBefore(deadline)) {

@@ -168,7 +168,16 @@ class MindustryLauncher {
       // Steam 版靠 `SteamAppId` 旁路独立启动，但那只在**已登录**时成立；
       // 只等进程起来就往下走会得到「显示 Steam 版本但没有功能」
       if (mindustry.steam && config.setting.launchOptions.autoWakeSteam) {
-        final wake = await SteamClient.ensureRunning();
+        final wake = await SteamClient.ensureRunning(
+          // 等登录最长 90 秒，期间任务卡片只会停在「准备启动」——
+          // 所以先告诉玩家该做什么，别让他对着没反应的界面等
+          onWaking: () => addNotice(
+            icon: Icons.hourglass_top,
+            title: '正在启动 Steam',
+            content: '请在 Steam 里选好账号，选好后会自动继续启动游戏',
+            duration: const Duration(seconds: 20),
+          ),
+        );
         if (wake.shouldWarn) {
           addNotice(
             icon: Icons.info_outline,
