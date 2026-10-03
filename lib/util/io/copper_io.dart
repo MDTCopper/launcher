@@ -197,7 +197,7 @@ class CopperIO {
   ///启动在 [initAppConfig] 之后调用；下载设置页每次改动 config 后也调用，
   ///保证新请求（含新开始的下载）即时生效
   void applySettings(Setting setting) {
-    //trim 防止历史配置残留空白 token（`token   ` 也会触发 GitHub 401）
+    //trim 防止历史配置残留空白 token
     _githubToken = setting.githubToken.trim();
     _defaultSpeedLimitBytes = setting.downloadOptions.speedLimitBytes;
     _defaultChunkCount = setting.downloadOptions.maxTread;
@@ -256,8 +256,7 @@ class CopperIO {
       // ignore: deprecated_member_use
       onHttpClientCreate: (client) {
         client.findProxy = (url) {
-          // 镜像节点自己走直连：它们本来就是「绕开代理上 GitHub」用的，
-          // 再被代理绕出去容易失败 / 变慢（节点域名国内直连才是常态）
+          // 镜像节点自己走直连
           if (GithubMirror.instance.isMirrorUrl(url.toString())) {
             return 'DIRECT';
           }
@@ -313,12 +312,11 @@ class CopperIO {
   ///按镜像策略决定 GitHub 请求走哪条路
   ///
   /// - [MirrorStrategy.githubFirst]（默认）：直连优先，网络类错误才回退镜像
-  ///   （对齐 Mindustry 的错误驱动回退；镜像用 TTL 缓存 10 分钟，过期才测速）
-  /// - [MirrorStrategy.mirrorFirst]：先走镜像（校园网 / 直连不通时更快），
+  /// - [MirrorStrategy.mirrorFirst]：先走镜像，
   ///   失败再回退官方源
   /// - [MirrorStrategy.githubOnly]：只用官方源
   ///
-  /// [preferRange] 给大文件下载用：挑镜像时优先支持 Range 的节点（能分块并发）
+  /// [preferRange] 给大文件下载用：挑镜像时优先支持 Range 的节点
   Future<R> _githubFallback<R>(
     String url,
     Future<R> Function(String effectiveUrl) send, {
@@ -406,10 +404,10 @@ class CopperIO {
     if (ranked.isEmpty) return null;
 
     final mirrorUrl = '${ranked.first}$url';
-    final winner = await raceReachable(
-      [url, mirrorUrl],
-      (candidate) => _probeReachable(candidate),
-    );
+    final winner = await raceReachable([
+      url,
+      mirrorUrl,
+    ], (candidate) => _probeReachable(candidate));
     if (winner == null) return null;
 
     final isMirrorFaster = winner == mirrorUrl;
@@ -427,7 +425,7 @@ class CopperIO {
     return isMirrorFaster;
   }
 
-  ///同时探几条路，**先答复的那条赢**；全都不答复返回 null
+  ///同时探几条路，先答复的那条赢；全都不答复返回 null
   ///
   ///输的那条不再理会：探针只是个 HEAD，dio 自己会按连接超时收口，不影响调用方
   @visibleForTesting
@@ -463,10 +461,7 @@ class CopperIO {
   Future<bool> _probeReachable(String url) async {
     _ensureInit();
     try {
-      await _dio!.head(
-        url,
-        options: Options(validateStatus: (_) => true),
-      );
+      await _dio!.head(url, options: Options(validateStatus: (_) => true));
       return true;
     } on DioException {
       return false;
@@ -858,9 +853,8 @@ class CopperIO {
     final effectiveSpeedLimit = speedLimit ?? _defaultSpeedLimitBytes;
     final effectiveChunkCount = max(1, chunkCount ?? _defaultChunkCount);
 
-    // HEAD 只为探大小 / Range 支持，失败不该让整个下载失败：有些站点（如
-    // api.mindustry.top）不允许 HEAD，会返回 405；此时按「未知大小、无 Range」
-    // 退化为单流，大小改由 GET 响应头补齐（见 _downloadSingleStream）
+    // HEAD 只为探大小 / Range 支持，失败不该让整个下载失败：有些站点不允许 HEAD，会返回 405；
+    // 此时退化为单流，大小改由 GET 响应头补齐（见 _downloadSingleStream）
     var totalSize = 0;
     var rangeSupported = false;
     try {
@@ -1157,7 +1151,7 @@ class CopperIO {
         throw DioException(requestOptions: RequestOptions());
       } on DioException catch (e) {
         if (CancelToken.isCancel(e)) rethrow;
-        // 连接类失败（断网 / 代理不可用）重试没意义：连接超时 20 秒 × 5 次只会让人干等，
+        // 连接类失败（断网 / 代理不可用）重试没意义
         // 所以这类只再试一次；其它错误（服务端抖动等）才按上限重试
         final retryLimit = isTransportFailure(e) ? 1 : _maxRetries;
         if (tryTime < retryLimit) {
@@ -1373,19 +1367,18 @@ String mirrorFailureReason(Object error) {
 
 /// 该族的镜像节点全部失败
 ///
-/// **故意不是 [DioException]**：调用方（[CopperIO._githubFallback]）据此回退直连，
-/// 而不是把「节点的问题」当成「资源不存在」直接失败
+/// **故意不是 [DioException]**：调用方（[CopperIO._githubFallback]）据此回退直连
 class MirrorUnavailable implements Exception {
   MirrorUnavailable(this.lastError);
 
-  /// 最后一个节点的失败原因（排查用）
+  /// 最后一个节点的失败原因
   final Object? lastError;
 
   @override
   String toString() => '镜像节点全部失败（最后一个错误：$lastError）';
 }
 
-/// 把响应体解成对象：已经是对象（dio 帮着解过）就原样返回，别再来一次 [jsonDecode]
+/// 把响应体解成对象：已经是对象（dio 帮着解过）就原样返回
 ///
 /// dio **只在 content-type 是 JSON 时才帮解析**：真 API 上已经解好，再 `jsonDecode`
 /// 会抛 `type 'List<dynamic>' is not a subtype of type 'String'`
@@ -1419,7 +1412,7 @@ Future<Object?> fetchJsonBody(
   }
 }
 
-/// 异常信息里的响应预览：压成一行并截断，别把整页 HTML 打进日志
+/// 异常信息里的响应预览
 String previewResponseBody(String raw) {
   final text = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
   return text.length <= 120 ? text : '${text.substring(0, 120)}…';

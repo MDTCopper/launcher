@@ -7,7 +7,6 @@ import 'package:path/path.dart' as p;
 
 /// Android 桥的**载荷**：JRE / arc 原生库 / bridge.jar 从哪来、放哪、齐没齐
 ///
-/// 全部按《android-bridge 使用文档》§3 的口径：
 /// - **JRE 分两个包**（`universal.tar.xz` ABI 无关 + `bin-<abi>.tar.xz` ABI 相关），
 ///   两个都要叠加解压到同一棵树 —— 只解一个，JVM 起不来
 /// - **arc 原生库必须与本体 jar 里的 arc 同一个 ref**（该版本 `gradle.properties` 的
@@ -55,8 +54,7 @@ class BridgePayload {
   static List<String> jreAssetUrls(String abi) {
     final packageName = jrePackageFor(abi);
     if (packageName == null) return const [];
-    final base =
-        'https://github.com/$jreRepo/releases/download/$jreReleaseTag';
+    final base = 'https://github.com/$jreRepo/releases/download/$jreReleaseTag';
     return [
       '$base/universal.tar.xz',
       '$base/bin-$packageName.tar.xz',
@@ -115,7 +113,8 @@ class BridgePayload {
     if (!bridgeDir.existsSync()) return null;
     final jars = [
       for (final entity in bridgeDir.listSync())
-        if (entity is File && _bridgeJarPattern.hasMatch(p.basename(entity.path)))
+        if (entity is File &&
+            _bridgeJarPattern.hasMatch(p.basename(entity.path)))
           entity,
     ];
     if (jars.isEmpty) return null;
@@ -127,9 +126,8 @@ class BridgePayload {
 
   /// `.../bridge-0.1.3.jar` → `0.1.3`、`.../bridge-snapshot.jar` → `snapshot`；
   /// 命名不对返回 null
-  static String? bridgeTagOf(String jarPath) => _bridgeJarPattern
-      .firstMatch(p.basename(jarPath))
-      ?.group(1);
+  static String? bridgeTagOf(String jarPath) =>
+      _bridgeJarPattern.firstMatch(p.basename(jarPath))?.group(1);
 
   static final RegExp _bridgeJarPattern = RegExp(
     r'^bridge-(\d+(?:\.\d+)*|snapshot)\.jar$',
@@ -153,7 +151,6 @@ class BridgePayload {
   /// arc 原生库所在的 natives 模块（库的**名单**按 ref 走，模块名这里是结构常量）
   ///
   /// 仓库里的路径是 `natives/<模块>/libs/<abi>/` —— **那个 `natives/` 前缀不能少**，
-  /// 少了就是 404（文档 §3.3 的地址里都有）
   static const arcNativeModules = [
     'natives-android',
     'natives-freetype-android',
