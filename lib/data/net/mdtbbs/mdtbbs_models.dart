@@ -44,6 +44,7 @@ class MdtbbsAccount {
     this.username,
     this.avatar,
     this.phoneVerified,
+    this.raw = const {},
   });
 
   /// MindAuth 的稳定账号标识（`sub`）：本地只认它，不认用户名
@@ -55,6 +56,16 @@ class MdtbbsAccount {
   /// 手机号验证状态：论坛的写操作会卡这一条
   final bool? phoneVerified;
 
+  /// 原始 JSON 留着，字段变动时好核对
+  final Map<String, dynamic> raw;
+
+  Map<String, dynamic> toJson() => {
+    'subject': subject,
+    'username': ?username,
+    'avatar': ?avatar,
+    'phoneVerified': ?phoneVerified,
+  };
+
   factory MdtbbsAccount.fromJson(Map<String, dynamic> json) {
     final verification = (json['verification'] as Map?)
         ?.cast<String, dynamic>();
@@ -63,6 +74,7 @@ class MdtbbsAccount {
       username: json['username'] as String?,
       avatar: json['avatar'] as String?,
       phoneVerified: verification?['phone'] as bool?,
+      raw: json,
     );
   }
 }
@@ -96,39 +108,81 @@ class MdtbbsTokens {
   );
 }
 
-/// 配额现状（`GET /game-saves/quota`）
+/// 配额与保留策略（`GET /game-saves/quota`）
+///
+/// 字段名**已对真实响应核过**（2026-10-03）：
+/// ```json
+/// {
+///   "used_bytes": 0,
+///   "limit_bytes": 209715200,
+///   "max_file_size_bytes": 52428800,
+///   "slots": { "used": 0, "limit": 100 },
+///   "retention": { "max_unpinned_versions_per_slot": 20, "max_unpinned_age_days": 90 }
+/// }
+/// ```
 class CloudSaveQuota {
   const CloudSaveQuota({
     this.usedBytes,
-    this.quotaBytes,
-    this.maxFileBytes,
-    this.slotCount,
+    this.limitBytes,
+    this.maxFileSizeBytes,
+    this.slotsUsed,
+    this.slotsLimit,
+    this.maxUnpinnedVersionsPerSlot,
+    this.maxUnpinnedAgeDays,
     this.raw = const {},
   });
 
   final int? usedBytes;
-  final int? quotaBytes;
 
-  /// 单文件上限
-  final int? maxFileBytes;
-  final int? slotCount;
+  /// 账号总配额（实测 200 MiB）
+  final int? limitBytes;
 
-  /// 契约没导出响应结构，原样留着便于核对
+  /// **单文件上限（实测 50 MiB）** —— 带模组字节的云包很容易超，打包前拿它挡一下
+  final int? maxFileSizeBytes;
+
+  final int? slotsUsed;
+
+  /// 槽位数量上限（实测 100）
+  final int? slotsLimit;
+
+  /// 每个槽位保留多少个未固定的历史版本
+  final int? maxUnpinnedVersionsPerSlot;
+
+  /// 未固定的历史版本保留多少天
+  final int? maxUnpinnedAgeDays;
+
+  /// 原始 JSON 留着，字段变动时好核对
   final Map<String, dynamic> raw;
 
-  int? get remainingBytes => (quotaBytes == null || usedBytes == null)
+  int? get remainingBytes => (limitBytes == null || usedBytes == null)
       ? null
-      : quotaBytes! - usedBytes!;
+      : limitBytes! - usedBytes!;
 
-  factory CloudSaveQuota.fromJson(Map<String, dynamic> json) => CloudSaveQuota(
-    usedBytes: _intOf(json['used_bytes'] ?? json['usedBytes']),
-    quotaBytes: _intOf(json['quota_bytes'] ?? json['quotaBytes']),
-    maxFileBytes: _intOf(
-      json['max_file_bytes'] ?? json['maxFileBytes'] ?? json['file_size_limit'],
-    ),
-    slotCount: _intOf(json['slot_count'] ?? json['slotCount']),
-    raw: json,
-  );
+  /// 这个体积传得上去吗：既看单文件上限，也看剩余额度
+  bool allowsFileSize(int bytes) {
+    final maxFile = maxFileSizeBytes;
+    if (maxFile != null && bytes > maxFile) return false;
+    final remaining = remainingBytes;
+    if (remaining != null && bytes > remaining) return false;
+    return true;
+  }
+
+  factory CloudSaveQuota.fromJson(Map<String, dynamic> json) {
+    final slots = (json['slots'] as Map?)?.cast<String, dynamic>();
+    final retention = (json['retention'] as Map?)?.cast<String, dynamic>();
+    return CloudSaveQuota(
+      usedBytes: _intOf(json['used_bytes']),
+      limitBytes: _intOf(json['limit_bytes']),
+      maxFileSizeBytes: _intOf(json['max_file_size_bytes']),
+      slotsUsed: _intOf(slots?['used']),
+      slotsLimit: _intOf(slots?['limit']),
+      maxUnpinnedVersionsPerSlot: _intOf(
+        retention?['max_unpinned_versions_per_slot'],
+      ),
+      maxUnpinnedAgeDays: _intOf(retention?['max_unpinned_age_days']),
+      raw: json,
+    );
+  }
 }
 
 /// 一页槽位：翻页游标在信封的 `meta.next_cursor` 里，不在 `data` 里
