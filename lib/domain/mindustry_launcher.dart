@@ -168,22 +168,28 @@ class MindustryLauncher {
       // Steam 版靠 `SteamAppId` 旁路独立启动，但那只在**已登录**时成立；
       // 只等进程起来就往下走会得到「显示 Steam 版本但没有功能」
       if (mindustry.steam && config.setting.launchOptions.autoWakeSteam) {
+        // 玩家点了通知就跳过等待：闭包共享这个标记，每轮询一次
+        var skipWaiting = false;
         final wake = await SteamClient.ensureRunning(
           // 等登录最长 90 秒，期间任务卡片只会停在「准备启动」——
           // 所以先告诉玩家该做什么，别让他对着没反应的界面等
           onWaking: () => addNotice(
             icon: Icons.hourglass_top,
             title: '正在启动 Steam',
-            content: '请在 Steam 里选好账号，选好后会自动继续启动游戏',
+            content:
+                '若 Steam 启动后弹出「谁在玩游戏？」请先选好账号，后续才能使用 Steam 功能\n'
+                '不想等就点这条通知，直接启动游戏',
             duration: const Duration(seconds: 20),
+            onTap: () => skipWaiting = true,
           ),
+          shouldSkip: () => skipWaiting,
         );
         if (wake.shouldWarn) {
           addNotice(
             icon: Icons.info_outline,
             title: 'Steam 可能还没就绪',
             content: wake == SteamWakeOutcome.failed
-                ? '没找到 Steam 客户端，这一局会用不了 Steam 功能'
+                ? '没找到 Steam 客户端，将无法使用 Steam 功能\n'
                       '（云存档 / 游戏时长 / 联机）'
                 : 'Steam 是刚唤醒的，可能还没选好账号。若弹出「谁在玩游戏？」'
                       '请先选好，否则这一局用不了 Steam 功能',

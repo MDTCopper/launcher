@@ -18,9 +18,14 @@ enum SteamWakeOutcome {
   wokeUnconfirmed,
 
   /// 唤不起来（找不到客户端 / 启动失败）
-  failed;
+  failed,
+
+  /// 玩家点了通知，主动选择不等了
+  skipped;
 
   /// 值不值得给玩家一句提醒
+  ///
+  /// [skipped] 不算：那是玩家自己点的，别再念叨他
   bool get shouldWarn => this == wokeUnconfirmed || this == failed;
 }
 
@@ -108,10 +113,14 @@ class SteamClient {
   /// [onWaking] 在「确实要唤醒、且已经把它拉起来」之后回调一次 —— 从这一刻起
   /// 最长会等 [readyTimeout]，调用方拿它给玩家一句「去 Steam 里选账号」的提示
   ///
+  /// [shouldSkip] 每轮问一次：返回 true 就**不再等**（玩家点了提示），
+  /// 返回 [SteamWakeOutcome.skipped] —— 那是玩家自己的选择，调用方不该再警告
+  ///
   /// 返回 [SteamWakeOutcome]；**不抛异常、也不阻断游戏启动**
   static Future<SteamWakeOutcome> ensureRunning({
     Duration? timeout,
     void Function()? onWaking,
+    bool Function()? shouldSkip,
   }) async {
     if (await isRunning()) return SteamWakeOutcome.alreadyRunning;
 
@@ -127,6 +136,10 @@ class SteamClient {
 
     final deadline = DateTime.now().add(timeout ?? readyTimeout);
     while (DateTime.now().isBefore(deadline)) {
+      if (shouldSkip?.call() ?? false) {
+        addLog(.info, '玩家选择跳过等待 Steam 登录', tag: 'Steam');
+        return SteamWakeOutcome.skipped;
+      }
       await Future.delayed(pollInterval);
       if (!await isRunning()) continue;
 
