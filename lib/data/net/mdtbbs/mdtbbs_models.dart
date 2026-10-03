@@ -244,23 +244,83 @@ class CloudSaveSlot {
   }
 }
 
+/// 快照里的模组摘要
+///
+/// **是对象 `{count, manifest_hash}`，不是模组数组** —— 按数组硬转会让整个
+/// 快照解析崩掉（2026-10-03 实测踩过）。模组明细只在**上传请求**里传
+/// （见 [CloudSaveModInfo]），服务端只回摘要
+class CloudSaveModSummary {
+  const CloudSaveModSummary({this.count, this.manifestHash});
+
+  final int? count;
+
+  /// 模组清单的哈希：用来判断「这套模组变没变」
+  final String? manifestHash;
+
+  factory CloudSaveModSummary.fromJson(Map<String, dynamic> json) =>
+      CloudSaveModSummary(
+        count: _intOf(json['count']),
+        manifestHash: json['manifest_hash'] as String?,
+      );
+}
+
+/// 快照来源：哪个客户端、哪台设备传的
+class CloudSaveSource {
+  const CloudSaveSource({this.clientId, this.clientName, this.deviceId});
+
+  final String? clientId;
+  final String? clientName;
+
+  /// 上传时我们报的 `device_id`（冲突提示里说「另一台设备 X 传的」用它）
+  final String? deviceId;
+
+  factory CloudSaveSource.fromJson(Map<String, dynamic> json) =>
+      CloudSaveSource(
+        clientId: json['client_id'] as String?,
+        clientName: json['client_name'] as String?,
+        deviceId: json['device_id'] as String?,
+      );
+}
+
 /// 一个不可变快照
+///
+/// 字段名**已对真实响应核过**（2026-10-03，整条上传链路跑通后拿到的）：
+/// ```json
+/// {
+///   "id": "...", "revision": 2, "reason": "manual", "size": 1099, "sha256": "...",
+///   "game": { "version": "v160.5", "build": 8 },
+///   "save": { "map_name": null, "wave": null, "playtime_seconds": null },
+///   "mods": { "count": 0, "manifest_hash": null },
+///   "source": { "client_id": "...", "client_name": null, "device_id": "..." },
+///   "pinned": false, "created_at": "2026-10-03T09:50:09.000Z"
+/// }
+/// ```
+/// 提交（commit）那次的响应还会多一个 `slot_id`；`mods` / `source` 是**对象**
 class CloudSaveSnapshot {
   const CloudSaveSnapshot({
     required this.id,
+    this.slotId,
+    this.revision,
     this.size,
     this.sha256,
     this.createdAt,
     this.reason,
     this.pinned = false,
-    this.deviceId,
+    this.source,
     this.game,
     this.save,
-    this.mods = const [],
+    this.mods,
     this.raw = const {},
   });
 
   final String id;
+
+  /// 属于哪个槽位（只有 commit 的响应里带）
+  final String? slotId;
+
+  /// **单调递增的版本号**：恢复旧快照会产生一个新的 revision
+  final int? revision;
+
   final int? size;
   final String? sha256;
   final DateTime? createdAt;
@@ -269,36 +329,43 @@ class CloudSaveSnapshot {
   /// 固定后不会被保留策略自动清理
   final bool pinned;
 
-  final String? deviceId;
+  final CloudSaveSource? source;
   final CloudSaveGameInfo? game;
   final CloudSaveDisplayInfo? save;
-  final List<CloudSaveModInfo> mods;
+  final CloudSaveModSummary? mods;
 
   final Map<String, dynamic> raw;
+
+  /// 哪台设备传的（冲突提示用）
+  String? get deviceId => source?.deviceId;
 
   factory CloudSaveSnapshot.fromJson(Map<String, dynamic> json) {
     final game = json['game'];
     final save = json['save'];
     final mods = json['mods'];
+    final source = json['source'];
     return CloudSaveSnapshot(
       id: '${json['id'] ?? json['snapshot_id'] ?? ''}',
+      slotId: json['slot_id'] as String?,
+      revision: _intOf(json['revision']),
       size: _intOf(json['size'] ?? json['bytes']),
       sha256: json['sha256'] as String?,
       createdAt: _timeOf(json['created_at'] ?? json['createdAt']),
       reason: json['reason'] as String?,
       pinned: json['pinned'] == true,
-      deviceId: json['device_id'] as String?,
+      source: source is Map
+          ? CloudSaveSource.fromJson(source.cast<String, dynamic>())
+          : null,
       game: game is Map
           ? CloudSaveGameInfo.fromJson(game.cast<String, dynamic>())
           : null,
       save: save is Map
           ? CloudSaveDisplayInfo.fromJson(save.cast<String, dynamic>())
           : null,
-      mods: [
-        for (final item in (mods as List? ?? const []))
-          if (item is Map)
-            CloudSaveModInfo.fromJson(item.cast<String, dynamic>()),
-      ],
+      // **不能硬转 List**：真实结构是对象，转错会让整个快照解析崩掉
+      mods: mods is Map
+          ? CloudSaveModSummary.fromJson(mods.cast<String, dynamic>())
+          : null,
       raw: json,
     );
   }
@@ -306,15 +373,20 @@ class CloudSaveSnapshot {
   /// 取云端记录：新近程度看 [createdAt]（服务端生成，比本机 mtime 可信）
   Map<String, dynamic> toJson() => {
     'id': id,
+    if (slotId != null) 'slot_id': slotId,
+    if (revision != null) 'revision': revision,
     if (size != null) 'size': size,
     if (sha256 != null) 'sha256': sha256,
     if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
     if (reason != null) 'reason': reason,
     'pinned': pinned,
-    if (deviceId != null) 'device_id': deviceId,
+    if (source != null)
+      'source': {
+        if (source!.clientId != null) 'client_id': source!.clientId,
+        if (source!.deviceId != null) 'device_id': source!.deviceId,
+      },
     if (game != null) 'game': game!.toJson(),
     if (save != null) 'save': save!.toJson(),
-    if (mods.isNotEmpty) 'mods': [for (final mod in mods) mod.toJson()],
   };
 }
 
