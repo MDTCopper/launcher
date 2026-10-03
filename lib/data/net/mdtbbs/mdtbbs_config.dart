@@ -6,11 +6,11 @@ import 'package:flutter/foundation.dart';
 class MdtbbsConfig {
   MdtbbsConfig._();
 
-  /// **拿到 client_id 后填这一处即可启用登录**
+  /// MindAuth 上登记的 Public Client ID（**唯一改动点**）
   ///
-  /// 为空表示还没登记，此时 [isConfigured] 为 false、登录入口不出现；
-  /// Public Client **没有 client_secret** —— 任何密钥都不该进客户端
-  static const defaultClientId = '';
+  /// Public Client **没有 client_secret** —— 这个 ID 本身是公开标识，
+  /// 官方明确要求任何密钥都不该进客户端
+  static const defaultClientId = 'a79f33a1f47f3cf21f9b4a38a9661536';
 
   static String? _clientIdOverride;
 
@@ -63,11 +63,15 @@ class MdtbbsConfig {
 
   /// 申请的 scope
   ///
-  /// 一次申请全：**改 scope 会撤销该应用现存 token 并重新进入管理员审核**，
-  /// 分批申请等于让用户重新授权一次；`resource.*` 与联机那几项是给后续功能占位。
-  /// 敏感权限（云存档三件、presence / multiplayer）都要管理员逐项批准
+  /// 这一份**必须与 MindAuth 上该应用获批的 scope 对齐**：请求未获批的 scope
+  /// 会直接在授权页报 `invalid_scope`（实测过）。本应用的获批清单见
+  /// `GET https://auth.mdtbbs.cn/api/public/apps/<clientId>`（无需登录）
+  ///
+  /// - **不含 `openid`**：该应用未获批它，带上就登不进去；账号标识由 `profile`
+  ///   与论坛 `/api/v1/me` 提供，够用
+  /// - 一次申请全（`resource.*` 与联机那几项是给后续功能占位）：用户只授权一次，
+  ///   后面新功能不必再弹一次授权页
   static const scopes = <String>[
-    'openid',
     'profile',
     'game_content.saves.read',
     'game_content.saves.write',
