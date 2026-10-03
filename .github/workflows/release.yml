@@ -1,0 +1,112 @@
+name: 发布构建
+
+# 创建 release 或推送 tag 时自动构建所有平台的产物并上传到 release
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.appimage
+          chmod +x appimagetool-x86_64.appimage
+          sudo mv appimagetool-x86_64.appimage /usr/local/bin/appimagetool
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          cache: true
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: 构建 tarball
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          build_version="${VERSION#v}"
+          dart tool/build_release.dart \
+            --version "$build_version" \
+            --mode release \
+            --channel release \
+            --platform linux \
+            --package tarball \
+            --yes \
+            --no-open-folder
+
+      - name: 构建 AppImage
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          build_version="${VERSION#v}"
+          dart tool/build_release.dart \
+            --version "$build_version" \
+            --mode release \
+            --channel release \
+            --platform linux \
+            --package appimage \
+            --yes \
+            --no-open-folder
+
+      - name: 上传到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    name: macOS
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          cache: true
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: 构建
+        env:
+          VERSION: ${{ github.ref_name }}
+          FLUTTER_XCODE_CODE_SIGNING_ALLOWED: NO
+        run: |
+          build_version="${VERSION#v}"
+          dart tool/build_release.dart \
+            --version "$build_version" \
+            --mode release \
+            --channel release \
+            --platform macos \
+            --package dmg \
+            --yes \
+            --no-open-folder
+
+      - name: 上传到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
