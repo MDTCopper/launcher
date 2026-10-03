@@ -87,7 +87,6 @@ class _InfoListState extends State<InfoList>
                     children: [
                       Expanded(
                         child: ActionButton(
-                          alignment: Alignment.center,
                           padding: const EdgeInsets.all(4),
                           selected: index == 0,
                           icon: Icon(Icons.list_alt),
@@ -99,7 +98,6 @@ class _InfoListState extends State<InfoList>
                       ),
                       Expanded(
                         child: ActionButton(
-                          alignment: Alignment.center,
                           padding: const EdgeInsets.all(4),
                           selected: index == 1,
                           icon: Icon(Icons.watch_later_outlined),

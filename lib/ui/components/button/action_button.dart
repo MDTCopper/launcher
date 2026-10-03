@@ -22,7 +22,7 @@ class ActionButton extends StatefulWidget {
   final double? pressedScale;
   final Color? backgroundColor; // 按钮所在容器背景，用于混合选中背景色
   final HintPosition hintPosition;
-  final Alignment alignment;
+  final MainAxisAlignment alignment;
 
   const ActionButton({
     super.key,
@@ -39,7 +39,7 @@ class ActionButton extends StatefulWidget {
     this.hintPosition = HintPosition.auto,
     this.padding,
     this.margin,
-    this.alignment = Alignment.centerLeft,
+    this.alignment = MainAxisAlignment.center,
   });
 
   @override
@@ -132,13 +132,11 @@ class _ActionButtonState extends State<ActionButton>
                         : FontWeight.normal,
                   ) ??
                   const TextStyle(),
-              child: Align(
-                alignment: widget.alignment,
-                child: Row(
-                  spacing: 8,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [?widget.icon, ?widget.content],
-                ),
+              child: Row(
+                mainAxisAlignment: widget.alignment,
+                spacing: 8,
+                mainAxisSize: MainAxisSize.min,
+                children: [?widget.icon, ?widget.content],
               ),
             ),
           ),

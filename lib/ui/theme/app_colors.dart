@@ -10,6 +10,7 @@ class AppColors extends ThemeExtension<AppColors> {
   // ── 背景 ──
 
   final Color pageBackground;
+
   final Color cardBackground;
   //card背景下的交互色
   ///low - 亮度低于card
@@ -107,11 +108,11 @@ class AppColors extends ThemeExtension<AppColors> {
   //Copper默认主题色，黄铜
   static const light = AppColors(
     // 背景
-    pageBackground: Palette.neutral200,
-    cardBackground: Palette.neutral100,
+    pageBackground: Palette.neutral250,
+    cardBackground: Palette.neutral150,
 
-    lowBackgroundOnCard: Palette.neutral300,
-    highBackgroundOnCard: Palette.neutral200,
+    lowBackgroundOnCard: Palette.neutral200,
+    highBackgroundOnCard: Palette.neutral100,
 
     inputBackground: Palette.neutral100,
     elevatedBackground: Palette.neutral100,

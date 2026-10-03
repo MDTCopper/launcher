@@ -485,10 +485,11 @@ pause
   }
 
   Widget _buildVersionInfoPanel() {
+    final theme = Theme.of(context).textTheme;
     Widget buildInfo(String item, String content) {
       return Row(
         children: [
-          Text(item),
+          Text(item, style: theme.labelLarge),
           Expanded(child: SizedBox()),
           Text(content),
         ],
@@ -504,7 +505,6 @@ pause
             child: ReboundListTile(
               borderRadius: BorderRadius.circular(4),
               padding: EdgeInsets.all(4),
-              elevation: 4,
               leading: Image.asset(
                 _mindustry.launcher == LauncherType.copper
                     ? Images.copper
@@ -517,10 +517,10 @@ pause
               onTap: _changeVersionTag, //点击修改版本名称
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           buildInfo('添加时间', _mindustry.addTime.toString().split('.').first),
           buildInfo('模组加载器', _loaderInfoText),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Row(
             mainAxisAlignment: .spaceBetween,
             children: [
@@ -651,6 +651,7 @@ pause
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = AppColors.of(context);
 
     return ListContentPanel(
       items: [
@@ -661,10 +662,10 @@ pause
           child: Column(
             crossAxisAlignment: .start,
             children: [
-              Text('快速打开对应文件夹', style: theme.textTheme.bodyMedium),
-              const SizedBox(height: 8),
+              Text('快速打开对应文件夹', style: theme.textTheme.labelMedium),
+              const SizedBox(height: 16),
               Wrap(
-                spacing: 16,
+                spacing: 8,
                 runSpacing: 8,
                 alignment: .start,
                 children: [
@@ -734,7 +735,7 @@ pause
               Text(
                 '以当前版本为模板新建一个版本：游戏本体共用（不复制），新版本默认开启存档隔离；'
                 '模组 / 存档 / 地图 / 蓝图 / 游戏设置可以分别勾选继承',
-                style: theme.textTheme.bodyMedium,
+                style: theme.textTheme.labelMedium,
               ),
               Row(
                 spacing: 8,
@@ -769,9 +770,8 @@ pause
               Text(
                 _mindustry.supportsResourceImport
                     ? '支持导入游戏地图、蓝图和模组'
-                    : '该版本不支持导入资源：v126 之前的版本无法指定游戏数据目录，资源游戏读不到'
-                          '（游戏本体可以，到版本列表用「导入本地游戏」加入）',
-                style: theme.textTheme.bodyMedium,
+                    : '该版本不支持导入资源：v126 之前的版本无法指定游戏数据目录，资源游戏目前未适配',
+                style: theme.textTheme.labelMedium,
               ),
               if (_mindustry.supportsResourceImport) ...[
                 Row(
@@ -792,7 +792,16 @@ pause
                 ),
 
                 if (isDesktop)
-                  Center(
+                  Container(
+                    alignment: .center,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.lowBackgroundOnCard,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                     child: Text(
                       'tip:可以将资源或游戏本体拖动至copper快捷导入',
                       style: theme.textTheme.labelMedium,

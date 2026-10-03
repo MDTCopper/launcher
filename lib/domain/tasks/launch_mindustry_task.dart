@@ -55,10 +55,15 @@ class LaunchMindustryTask extends Task {
       children: [
         Row(
           children: [
-            Icon(Icons.rocket_launch, size: 24, color: colors.itemPrimary),
+            Icon(Icons.rocket_launch, size: 24, color: colors.interactive),
             const SizedBox(width: 8),
             Expanded(
-              child: Text('Mindustry', style: theme.textTheme.headlineSmall),
+              child: Text(
+                'Mindustry',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: colors.interactive,
+                ),
+              ),
             ),
             Text(createTime.toTimeString(), style: theme.textTheme.labelMedium),
           ],
@@ -74,7 +79,7 @@ class LaunchMindustryTask extends Task {
             Expanded(
               child: ActionButton(
                 alignment: .center,
-                backgroundColor: colors.pageBackground,
+                backgroundColor: colors.highBackgroundOnCard,
                 icon: Icon(Icons.pause),
                 content: Text('结束进程'),
                 onTap: cancel,
@@ -84,7 +89,7 @@ class LaunchMindustryTask extends Task {
               Expanded(
                 child: ActionButton(
                   alignment: .center,
-                  backgroundColor: colors.pageBackground,
+                  backgroundColor: colors.highBackgroundOnCard,
                   icon: Icon(Icons.terminal),
                   content: Text('进程日志'),
                   onTap: () {},

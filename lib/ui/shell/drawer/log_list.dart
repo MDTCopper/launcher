@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:copper_launcher/ui/components/copper_card.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
@@ -184,13 +185,10 @@ class _TaskLogListState extends State<TaskLogList> {
       },
     );
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+    return CopperCard(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        borderRadius: BorderRadius.circular(6),
-      ),
+
       child: Row(
         children: [
           Icon(_typeIcon(logEntry.type), size: 18, color: colors.itemHint),

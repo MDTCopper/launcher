@@ -16,7 +16,7 @@ class IconTextButton extends StatelessWidget {
   final VoidCallback? onLongTap;
   final double? pressedScale;
   final double hoverElevation;
-  final Color? baseColor;
+  final Color? backgroundColor;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
   final BorderRadius? borderRadius;
@@ -31,7 +31,7 @@ class IconTextButton extends StatelessWidget {
     this.onLongTap,
     this.pressedScale,
     this.hoverElevation = 2,
-    this.baseColor,
+    this.backgroundColor,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     this.margin,
     this.borderRadius,
@@ -45,7 +45,7 @@ class IconTextButton extends StatelessWidget {
     Widget child = ReboundButton(
       pressedScale: pressedScale,
       hoverElevation: hoverElevation,
-      backgroundColor: baseColor,
+      backgroundColor: backgroundColor,
       padding: padding,
       margin: margin,
       borderRadius: borderRadius,

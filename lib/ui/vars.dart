@@ -1,4 +1,5 @@
 import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/ui/pages/cloud/cloud_save_page.dart';
 import 'package:copper_launcher/ui/pages/overview/game_user_page.dart';
 import 'package:copper_launcher/ui/pages/overview/version_select.dart';
 import 'package:copper_launcher/ui/pages/overview/version_setting.dart';
@@ -36,6 +37,7 @@ const Map<String, Widget> routeMap = {
   packageViewPageRouteKey: ResourcePage(),
   blueprintViewPageRouteKey: ResourcePage(),
   mapViewPageRouteKey: ResourcePage(),
+  cloudSavePageRouteKey: CloudSavePage(),
 
   '/mod_view/download': ModDownloadPage(),
 
