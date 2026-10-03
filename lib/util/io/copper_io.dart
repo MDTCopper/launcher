@@ -773,6 +773,92 @@ class CopperIO {
     );
   }
 
+  ///上传字节（云存档把 zip 传上去走这里）：[onSendProgress] 报发送进度
+  Future<Response<T>> put<T>(
+    String url, {
+    dynamic data,
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+    ResponseType responseType = ResponseType.json,
+    ProgressCallback? onSendProgress,
+  }) => _sendVerb<T>(
+    'PUT',
+    url,
+    data: data,
+    headers: headers,
+    queryParameters: queryParameters,
+    cancelToken: cancelToken,
+    responseType: responseType,
+    onSendProgress: onSendProgress,
+  );
+
+  ///局部更新（云存档的槽位改名、快照固定走这里）
+  Future<Response<T>> patch<T>(
+    String url, {
+    dynamic data,
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+    ResponseType responseType = ResponseType.json,
+  }) => _sendVerb<T>(
+    'PATCH',
+    url,
+    data: data,
+    headers: headers,
+    queryParameters: queryParameters,
+    cancelToken: cancelToken,
+    responseType: responseType,
+  );
+
+  ///删除（云存档的删槽位 / 删快照走这里）
+  Future<Response<T>> delete<T>(
+    String url, {
+    dynamic data,
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+    ResponseType responseType = ResponseType.json,
+  }) => _sendVerb<T>(
+    'DELETE',
+    url,
+    data: data,
+    headers: headers,
+    queryParameters: queryParameters,
+    cancelToken: cancelToken,
+    responseType: responseType,
+  );
+
+  ///PUT / PATCH / DELETE 共用：dio 的这三个动词只差一个 method 名，
+  ///收敛到一处，不写三段几乎相同的样板
+  Future<Response<T>> _sendVerb<T>(
+    String method,
+    String url, {
+    dynamic data,
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+    ResponseType responseType = ResponseType.json,
+    ProgressCallback? onSendProgress,
+  }) async {
+    _ensureInit();
+    return _githubFallback(
+      url,
+      (effectiveUrl) => _dio!.request<T>(
+        effectiveUrl,
+        data: data,
+        options: Options(
+          method: method,
+          headers: headers,
+          responseType: responseType,
+        ),
+        queryParameters: queryParameters,
+        cancelToken: cancelToken,
+        onSendProgress: onSendProgress,
+      ),
+    );
+  }
+
   Future<bool> supportsRange(String url) async {
     try {
       final resp = await head(url);
