@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Copper Launcher
+Comment=Mindustry 启动器
+Exec=copper_launcher
+Icon=copper_launcher
+Categories=Game;
+Terminal=false
+StartupNotify=true
+StartupWMClass=copper_launcher
