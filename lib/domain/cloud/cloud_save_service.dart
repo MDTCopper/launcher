@@ -78,10 +78,10 @@ class CloudSaveService {
     return host;
   }
 
-  /// 找（或建）这个版本的数据目录对应的云端槽位
+  /// 找这个数据目录**已有**的云端槽位；找不到给 null，**不创建**
   ///
-  /// 先认本地记下的槽位 id（用户改过名也找得到），再退到按名字认，最后才新建
-  static Future<CloudSaveSlot> resolveSlot({
+  /// 页面加载走这条：只是看看状态，不该产生写操作（建槽是占配额的动作，要用户点）
+  static Future<CloudSaveSlot?> findSlot({
     required String accessToken,
     required Mindustry version,
     String? deviceName,
@@ -100,7 +100,7 @@ class CloudSaveService {
           cancelToken: cancelToken,
         );
       } on MdtbbsException catch (error) {
-        // 云端删掉了 / 换账号了：绑定作废，往下走重新认
+        // 云端删掉了 / 换账号了：绑定作废，往下走按名字再认一次
         if (error.statusCode != 404) rethrow;
         addLog(.info, '云端槽位已不存在，重新认一个', tag: 'Cloud');
         bindings.remove(dataPath);
@@ -122,13 +122,36 @@ class CloudSaveService {
         return slot;
       }
     }
+    return null;
+  }
 
-    final created = await MdtbbsCloudSaveApi.createSlot(
+  /// 找（或建）这个版本的数据目录对应的云端槽位
+  ///
+  /// 先认本地记下的槽位 id（用户改过名也找得到），再退到按名字认，最后才新建
+  static Future<CloudSaveSlot> resolveSlot({
+    required String accessToken,
+    required Mindustry version,
+    String? deviceName,
+    CancelToken? cancelToken,
+  }) async {
+    final found = await findSlot(
       accessToken: accessToken,
-      name: wanted,
+      version: version,
+      deviceName: deviceName,
       cancelToken: cancelToken,
     );
-    _bind(dataPath, created.id);
+    if (found != null) return found;
+
+    final name = deviceName ?? CloudSaveService.deviceName;
+    final created = await MdtbbsCloudSaveApi.createSlot(
+      accessToken: accessToken,
+      name: slotNameFor(
+        deviceName: name,
+        game: CloudGameInfo.fromVersion(version),
+      ),
+      cancelToken: cancelToken,
+    );
+    _bind(_normalize(version.dataPath), created.id);
     return created;
   }
 
@@ -161,6 +184,7 @@ class CloudSaveService {
     String? deviceName,
     CloudSaveUploadReason reason = CloudSaveUploadReason.manual,
     CloudSaveConflictPolicy conflictPolicy = CloudSaveConflictPolicy.normal,
+    String? confirmCurrentSnapshotId,
     bool includePreviews = false,
     bool includeModBytes = false,
     void Function(String status)? onStatus,
@@ -206,6 +230,7 @@ class CloudSaveService {
         baseSnapshotId: slot.currentSnapshotId,
         reason: reason,
         conflictPolicy: conflictPolicy,
+        confirmCurrentSnapshotId: confirmCurrentSnapshotId,
         game: CloudSaveGameInfo(
           version: version.release,
           build: version.versionNumber ?? version.releaseInt,
