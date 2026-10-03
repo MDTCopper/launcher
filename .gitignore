@@ -64,6 +64,10 @@ logs/
 .test/
 tool/build_release_state.json
 config.*
+# 云存档的账号态（含 refresh token）与「数据目录 → 云端槽位」的绑定；
+# debug 运行时数据根就是仓库根，这两个文件会落在仓库里，绝不能提交
+mdtbbs_account.json
+mdtbbs_cloud_slots.json
 /lib/abandon_mystery_code/
 /lib/test/
 analyze_out.txt
