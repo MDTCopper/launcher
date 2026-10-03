@@ -396,6 +396,13 @@ class LaunchOptions {
   @JsonKey(defaultValue: true)
   bool autoMemory;
 
+  /// Steam 版启动前若客户端没在跑，先把它唤醒（见 `SteamClient`）
+  ///
+  /// 默认开：Steam 版本来就该由 Steam 带着跑，客户端没跑时游戏拿不到
+  /// Steam API（云 / 时长 / overlay 全没有）
+  @JsonKey(defaultValue: true)
+  bool autoWakeSteam;
+
   LaunchOptions({
     required this.versionIsolationSet,
     required this.gameWindowSizeSet,
@@ -403,6 +410,7 @@ class LaunchOptions {
     JavaOptions? javaOptions,
     required this.memorySize,
     required this.autoMemory,
+    required this.autoWakeSteam,
   }) {
     this.customWindowSize = customWindowSize ?? WindowSize.fromJson({});
     this.javaOptions = javaOptions ?? JavaOptions.fromJson({});
@@ -504,6 +512,7 @@ enum ThemeColor { copper, titanium, thorium, plastanium }
 
 ///游戏启动后 Launcher 的行为（桌面端）
 enum LauncherPostLaunchBehavior { none, tray }
+
 @JsonSerializable()
 class PersonalizationOptions {
   @JsonKey(defaultValue: false)

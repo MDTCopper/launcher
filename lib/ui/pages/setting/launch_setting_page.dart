@@ -71,6 +71,13 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
 
   bool get useGoodGPU => launchOptions.javaOptions.useBetterGPU;
 
+  bool get autoWakeSteam => launchOptions.autoWakeSteam;
+
+  /// 配置里有没有 Steam 版：没有就不显示「自动唤醒 Steam」（用不上）
+  bool get hasSteamVersion => config.versionOptions.versionFolds.any(
+    (fold) => fold.versions.any((version) => version.steam),
+  );
+
   String get jvmParameter => javaOptions.jvmParameter;
 
   late final TextEditingController widthController;
@@ -712,6 +719,18 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
                   });
                 },
               ),
+              // 只有装过 Steam 版才有意义：Steam 没在跑时游戏拿不到 Steam API
+              if (hasSteamVersion)
+                SwitchSettingBar(
+                  title: '自动唤醒 Steam',
+                  value: autoWakeSteam,
+                  onChanged: (value) {
+                    setState(() {
+                      launchOptions.autoWakeSteam = value;
+                      config.save();
+                    });
+                  },
+                ),
               InputSettingBar(title: 'jvm虚拟机参数'),
               // Android 独有：运行环境（Java / 桥 / 适配层）单独一页，这里只留入口
               if (Platform.isAndroid) _buildMobileRuntimeEntry(),

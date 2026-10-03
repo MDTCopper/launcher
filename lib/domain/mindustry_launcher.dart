@@ -6,6 +6,7 @@ import 'package:copper_launcher/domain/bridge_installer.dart';
 import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/bridge_payload.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
+import 'package:copper_launcher/domain/steam_client.dart';
 import 'package:copper_launcher/domain/steam_library.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -160,6 +161,14 @@ class MindustryLauncher {
           : extraEnvironment.isEmpty
           ? null
           : {...Platform.environment, ...extraEnvironment};
+
+      // 「自动唤醒 Steam」：客户端没在跑就先把它拉起来。Steam 版虽然靠
+      // `SteamAppId` 旁路独立启动，但那只在客户端**已经在跑**时成立 ——
+      // 客户端没跑时游戏拿不到 Steam API（云 / 时长 / overlay 全没有）。
+      // 唤不醒也照常起游戏，不拦
+      if (mindustry.steam && config.setting.launchOptions.autoWakeSteam) {
+        await SteamClient.ensureRunning();
+      }
 
       _jarProcess = await Process.start(
         javaCmd,
