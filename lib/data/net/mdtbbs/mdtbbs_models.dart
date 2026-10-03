@@ -72,7 +72,8 @@ class MdtbbsAccount {
     return MdtbbsAccount(
       subject: '${json['sub'] ?? json['id'] ?? ''}',
       username: json['username'] as String?,
-      avatar: json['avatar'] as String?,
+      // 论坛 /me 给的是 `avatar_url`，不是 `avatar`
+      avatar: (json['avatar_url'] ?? json['avatar']) as String?,
       phoneVerified: verification?['phone'] as bool?,
       raw: json,
     );

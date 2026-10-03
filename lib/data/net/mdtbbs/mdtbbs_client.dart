@@ -1,5 +1,6 @@
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_config.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
+import 'package:flutter/foundation.dart';
 
 /// MDTBBS 接口调用的失败
 ///
@@ -42,6 +43,14 @@ class MdtbbsException implements Exception {
 
   /// 云端 head 变过 ⇒ 上传被拒，details 里应有当前快照 ID
   bool get isConflict => statusCode == 409;
+
+  /// 被写请求的 CSRF 守卫拦下
+  ///
+  /// 论坛对写操作要求**双提交式令牌**（`Cookie: csrf_token` + `X-CSRF-Token`），
+  /// 缺了会返回 403 + `{"success":false,"message":"CSRF token invalid"}` ——
+  /// 注意这个错误体**不是 V1 信封**，靠 [message] 认
+  bool get isCsrfFailure =>
+      statusCode == 403 && message.toUpperCase().contains('CSRF');
 
   /// 从 [details] 里尽力找出「当前快照 ID」；找不到给 null
   ///
@@ -110,6 +119,61 @@ class MdtbbsClient {
     return '${MdtbbsConfig.apiBase}$path';
   }
 
+  /// 写请求要的 CSRF 令牌（实测 2026-10-03：**不带就一个写操作都做不了**）
+  ///
+  /// 论坛对写操作做**双提交式**校验：`Cookie: csrf_token=<值>` 与
+  /// `X-CSRF-Token: <值>` 要**同时带、且是同一个值**。官方文档的上传流程里
+  /// 完全没提这件事，只在 403 的 `{"success":false,"message":"CSRF token invalid"}`
+  /// 里露出来。令牌从任意响应的 `set-cookie` 里取（`Max-Age` 一天）
+  static String? _csrfToken;
+
+  static Map<String, String>? _csrfHeaders() {
+    final token = _csrfToken;
+    if (token == null || token.isEmpty) return null;
+    return {'Cookie': 'csrf_token=$token', 'X-CSRF-Token': token};
+  }
+
+  /// 从响应头里捡 `csrf_token`（服务端会顺手刷新它）
+  static void _captureCsrf(Headers? headers) {
+    final cookies = headers?.map['set-cookie'];
+    if (cookies == null) return;
+    for (final cookie in cookies) {
+      final matched = RegExp(
+        r'(?:^|[;\s])csrf_token=([^;]+)',
+      ).firstMatch(cookie);
+      if (matched != null) _csrfToken = matched.group(1);
+    }
+  }
+
+  /// 还没有令牌就先发一个 GET 把它引出来（任意响应都会 set-cookie）
+  ///
+  /// 先挑与业务无关的公开接口，免得这次「引导」被当成一次业务调用
+  /// （比如看起来像「列了一次槽位」）；万一它没带 cookie，再退回一个已知会带的
+  static Future<void> _ensureCsrf(
+    String? accessToken,
+    CancelToken? cancelToken,
+  ) async {
+    if (_csrfToken != null) return;
+    for (final path in const ['/capabilities', '/game-saves']) {
+      try {
+        final response = await cio.get<Object?>(
+          urlOf(path),
+          headers: _authHeader(accessToken),
+          cancelToken: cancelToken,
+        );
+        _captureCsrf(response.headers);
+      } on DioException catch (error) {
+        // 拿不到也不在这一步失败：真发写请求时服务端会再说一次
+        _captureCsrf(error.response?.headers);
+      }
+      if (_csrfToken != null) return;
+    }
+  }
+
+  /// 用例收尾用：CSRF 是跨用例的静态状态
+  @visibleForTesting
+  static void resetCsrfToken() => _csrfToken = null;
+
   static Future<Object?> getJson(
     String path, {
     String? accessToken,
@@ -171,6 +235,8 @@ class MdtbbsClient {
   );
 
   /// 上传字节：**原样送**，不压缩不改动（服务端会重新算 sha256 核对）
+  ///
+  /// 也是写请求，同样要 CSRF 令牌
   static Future<Object?> putBytes(
     String path, {
     required List<int> bytes,
@@ -178,11 +244,30 @@ class MdtbbsClient {
     Map<String, String>? headers,
     ProgressCallback? onSendProgress,
     CancelToken? cancelToken,
+  }) => _putBytes(
+    path,
+    bytes: bytes,
+    accessToken: accessToken,
+    headers: headers,
+    onSendProgress: onSendProgress,
+    cancelToken: cancelToken,
+  );
+
+  static Future<Object?> _putBytes(
+    String path, {
+    required List<int> bytes,
+    String? accessToken,
+    Map<String, String>? headers,
+    ProgressCallback? onSendProgress,
+    CancelToken? cancelToken,
+    bool retriedCsrf = false,
   }) async {
+    await _ensureCsrf(accessToken, cancelToken);
     final merged = <String, String>{
       'Content-Type': 'application/octet-stream',
       ...?headers,
       ...?_authHeader(accessToken),
+      ...?_csrfHeaders(),
     };
     try {
       final response = await cio.put(
@@ -192,9 +277,25 @@ class MdtbbsClient {
         onSendProgress: onSendProgress,
         cancelToken: cancelToken,
       );
+      _captureCsrf(response.headers);
       return MdtbbsEnvelope.fromBody(response.data).data;
     } on DioException catch (error) {
-      throw _asMdtbbsException(error);
+      _captureCsrf(error.response?.headers);
+      final failure = _asMdtbbsException(error);
+      // 重传同一份字节是安全的（服务端按 sha256 校验），所以 CSRF 过期就重试一次
+      if (!retriedCsrf && failure.isCsrfFailure) {
+        _csrfToken = null;
+        return _putBytes(
+          path,
+          bytes: bytes,
+          accessToken: accessToken,
+          headers: headers,
+          onSendProgress: onSendProgress,
+          cancelToken: cancelToken,
+          retriedCsrf: true,
+        );
+      }
+      throw failure;
     }
   }
 
@@ -262,11 +363,17 @@ class MdtbbsClient {
     Map<String, String>? headers,
     Map<String, dynamic>? queryParameters,
     CancelToken? cancelToken,
+    bool retriedCsrf = false,
   }) async {
     final url = urlOf(path);
+    final isWrite = method != 'GET';
+    // 写请求先确保手里有 CSRF 令牌，否则会被守卫直接 403
+    if (isWrite) await _ensureCsrf(accessToken, cancelToken);
+
     final mergedHeaders = <String, String>{
       ...?headers,
       ...?_authHeader(accessToken),
+      ...?_csrfHeaders(),
     };
     try {
       final Response<Object?> response;
@@ -302,9 +409,26 @@ class MdtbbsClient {
         default:
           throw ArgumentError('不支持的方法：$method');
       }
+      _captureCsrf(response.headers);
       return MdtbbsEnvelope.fromBody(response.data);
     } on DioException catch (error) {
-      throw _asMdtbbsException(error);
+      _captureCsrf(error.response?.headers);
+      final failure = _asMdtbbsException(error);
+      // 令牌过期（Max-Age 一天）或服务端换了令牌：丢掉重新引一次，只重试一次
+      if (isWrite && !retriedCsrf && failure.isCsrfFailure) {
+        _csrfToken = null;
+        return _sendEnvelope(
+          method,
+          path,
+          body: body,
+          accessToken: accessToken,
+          headers: headers,
+          queryParameters: queryParameters,
+          cancelToken: cancelToken,
+          retriedCsrf: true,
+        );
+      }
+      throw failure;
     }
   }
 
@@ -335,6 +459,10 @@ class MdtbbsClient {
       } else if (rawError is String) {
         code = rawError;
         message = '${map['error_description'] ?? ''}';
+      } else if (map['success'] == false) {
+        // 论坛第一方的错误体（CSRF 这类守卫用它，不是 V1 信封）
+        message = '${map['message'] ?? ''}';
+        code = '${map['code'] ?? ''}';
       }
       final rawMeta = map['meta'];
       if (rawMeta is Map) meta = rawMeta.cast<String, dynamic>();
