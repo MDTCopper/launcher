@@ -9,12 +9,11 @@ enum SteamWakeOutcome {
   /// 本来就在跑，我们没动手
   alreadyRunning,
 
-  /// 我们唤醒了它，并**确认已经登录**（可用）
+  /// 我们唤醒了它，并确认已经登录
   wokeReady,
 
-  /// 我们唤醒了它，但**等不到确认**（玩家可能还没选账号）
-  ///
-  /// 这种情况要提醒玩家：这一局很可能显示 Steam 版本却用不了 Steam 功能
+  /// 我们唤醒了它，但等不到确认（玩家可能还没选账号）——
+  /// 这一局很可能显示 Steam 版本却用不了 Steam 功能，要提醒玩家
   wokeUnconfirmed,
 
   /// 唤不起来（找不到客户端 / 启动失败）
@@ -31,12 +30,11 @@ enum SteamWakeOutcome {
 
 /// Steam 客户端的「在不在跑」「登没登录」与「把它唤醒」
 ///
-/// Steam 版 Mindustry 靠 `SteamAppId` 旁路独立启动（见 `SteamLibrary.launchEnvironment`），
-/// 但那只在 **Steam 客户端已经登录** 时成立。只是进程起来了还不够 —— 玩家没选账号时
-/// 游戏照样拿不到 Steam API（云存档 / 时长 / overlay 全没有），表现为「显示 Steam 版本
-/// 但没有功能」
+/// Steam 版靠 `SteamAppId` 旁路独立启动（见 `SteamLibrary.launchEnvironment`），
+/// 但那只在客户端**已经登录**时成立；进程起来但没选账号时游戏拿不到 Steam API，
+/// 表现为「显示 Steam 版本但没有功能」
 ///
-/// **唤醒与等待都不阻断游戏启动**：拿不到确认就交给调用方提醒玩家
+/// 唤醒与等待都不阻断游戏启动：拿不到确认就交给调用方提醒玩家
 class SteamClient {
   SteamClient._();
 
@@ -57,8 +55,8 @@ class SteamClient {
   static Future<bool> isRunning() async {
     try {
       if (Platform.isWindows) {
-        // 用 `/NH` 去掉表头；**不能比对「没匹配」的提示文案**，那随系统语言变，
-        // 只认输出里有没有进程名本身
+        // `/NH` 去表头；只认输出里有没有进程名 —— 「没匹配」的提示文案
+        // 随系统语言变，不能拿它当判据
         final result = await Process.run('tasklist', [
           '/FI',
           'IMAGENAME eq $processName',
@@ -76,12 +74,11 @@ class SteamClient {
     }
   }
 
-  /// 从 `loginusers.vdf` 里取**最新的一次登录时刻**（纯函数，方便用例喂字符串）
+  /// 从 `loginusers.vdf` 里取最新的一次登录时刻（纯函数，方便用例喂字符串）
   ///
-  /// 取所有账号里的最大值：玩家在 Steam 里挑哪个账号都行，登进去的那个 `Timestamp`
-  /// 会刷新成当前时间。**这就是「刚登录过」的判据** —— 比注册表里的
-  /// `ActiveProcess\ActiveUser` 可靠：那个值是「当前登着谁」，Steam 退出后可能残留，
-  /// 分不出「刚登进去」和「上次会话留下的」
+  /// 取所有账号里的最大值：登进去的那个 `Timestamp` 会刷新成当下时间，所以它变了
+  /// 就说明刚登录过；不用注册表的 `ActiveProcess\ActiveUser` —— 那是「当前登着谁」，
+  /// 客户端退出后可能残留，分不出「刚登进去」和「上次会话留下的」
   static int? parseLastLoginTimestamp(String content) {
     var newest = 0;
     for (final match in RegExp(
@@ -108,15 +105,12 @@ class SteamClient {
     }
   }
 
-  /// 确保客户端**可用**：没跑就唤醒，然后等它真的登录进去
+  /// 确保客户端可用：没跑就唤醒，然后等它真的登录进去
   ///
-  /// [onWaking] 在「确实要唤醒、且已经把它拉起来」之后回调一次 —— 从这一刻起
-  /// 最长会等 [readyTimeout]，调用方拿它给玩家一句「去 Steam 里选账号」的提示
+  /// [onWaking]：确实要唤醒、且已把它拉起来时回调一次，调用方拿它给玩家提示
+  /// [shouldSkip]：每轮询问一次，返回 true 就不再等（玩家点了提示）
   ///
-  /// [shouldSkip] 每轮问一次：返回 true 就**不再等**（玩家点了提示），
-  /// 返回 [SteamWakeOutcome.skipped] —— 那是玩家自己的选择，调用方不该再警告
-  ///
-  /// 返回 [SteamWakeOutcome]；**不抛异常、也不阻断游戏启动**
+  /// 不抛异常、也不阻断游戏启动
   static Future<SteamWakeOutcome> ensureRunning({
     Duration? timeout,
     void Function()? onWaking,
@@ -158,7 +152,7 @@ class SteamClient {
   /// 拉起客户端；找不到可执行文件返回 false
   static Future<bool> _spawnClient() async {
     try {
-      // macOS 的 Steam 是 app bundle，得走 open（本机没验过）
+      // macOS 的 Steam 是 app bundle，得走 open
       if (Platform.isMacOS) {
         await Process.run('open', ['-a', 'Steam']);
         return true;

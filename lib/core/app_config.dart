@@ -396,10 +396,9 @@ class LaunchOptions {
   @JsonKey(defaultValue: true)
   bool autoMemory;
 
-  /// Steam 版启动前若客户端没在跑，先把它唤醒（见 `SteamClient`）
+  /// Steam 版启动前先确保客户端在跑并已登录（见 `SteamClient`）
   ///
-  /// 默认开：Steam 版本来就该由 Steam 带着跑，客户端没跑时游戏拿不到
-  /// Steam API（云 / 时长 / overlay 全没有）
+  /// 默认开：没登录时游戏拿不到 Steam API（云存档 / 时长 / 联机）
   @JsonKey(defaultValue: true)
   bool autoWakeSteam;
 
