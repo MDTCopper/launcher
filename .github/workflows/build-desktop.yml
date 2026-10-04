@@ -207,7 +207,57 @@ jobs:
             keytool -printcert -jarfile "$apk" 2>&1 | tail -20 || echo "keytool 读不出来"
           done
 
-      - name: 上传产物
+      # 一个包一个产物：Zip / Setup / 每个 ABI 的 apk 分开传。
+      # 混在一起时下 26MB 只为拿其中一个太烦；而且缺了哪个包会被别的包盖住、看不出来
+      - name: 上传产物（Windows Zip）
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: copper-launcher-windows-zip
+          path: build/dist/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 上传产物（Windows Setup）
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: copper-launcher-windows-setup
+          path: build/dist/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      # 三个 ABI 是同一次构建出来的，这里只是分开上传
+      - name: 上传产物（Android arm64-v8a）
+        if: matrix.platform == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: copper-launcher-android-arm64-v8a
+          path: build/dist/*-arm64-v8a.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 上传产物（Android armeabi-v7a）
+        if: matrix.platform == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: copper-launcher-android-armeabi-v7a
+          path: build/dist/*-armeabi-v7a.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 上传产物（Android x86_64）
+        if: matrix.platform == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: copper-launcher-android-x86_64
+          path: build/dist/*-x86_64.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      # Linux / macOS 本来就是一条一个包
+      - name: 上传产物（Linux / macOS）
+        if: matrix.platform == 'linux' || matrix.platform == 'macos'
         uses: actions/upload-artifact@v4
         with:
           name: copper-launcher-${{ matrix.platform }}-${{ matrix.package }}
