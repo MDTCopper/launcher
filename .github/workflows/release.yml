@@ -173,7 +173,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # 本机跑的是 JDK 23、项目字节码目标是 17，取 21 这个两端都稳的 LTS。
-      # release apk 用的是 debug 签名（见 android/app/build.gradle.kts），不需要任何 secret
+      # JDK 还提供下面打签名指纹用的 keytool
       - name: 安装 JDK
         uses: actions/setup-java@v4
         with:
@@ -183,6 +183,22 @@ jobs:
       # compileSdk 37 未必在 runner 预装的 SDK 里；接受许可后由 Gradle 自己下
       - name: 接受 Android 许可
         run: yes | sdkmanager --licenses > /dev/null || true
+
+      # release apk 用的是 debug 签名（android/app/build.gradle.kts），而 runner 上
+      # 没有 ~/.android/debug.keystore —— AGP 缺了会自己生成一把，那样每次发布都是新密钥，
+      # 玩家的包管理器覆盖安装会因签名不一致失败（只能卸载，而卸载清数据）
+      # 内容 = 本机 ~/.android/debug.keystore 的 base64；没配 secret 就只警告、不拦
+      - name: 还原 Android debug keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::没配 ANDROID_DEBUG_KEYSTORE，这次 apk 用 runner 现生成的 debug 密钥"
+            exit 0
+          fi
+          mkdir -p "$HOME/.android"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$HOME/.android/debug.keystore"
+          echo "已还原 debug.keystore"
 
       - name: 安装 Flutter
         uses: subosito/flutter-action@v2
@@ -205,6 +221,14 @@ jobs:
                 --yes --no-open-folder --platform android --package none)
           if [ -n "$SEQ" ]; then args+=(--seq "$SEQ"); fi
           dart tool/build_release.dart "${args[@]}"
+
+      # 打出 apk 的签名指纹：核对 CI 用的就是配进去的那把 debug 密钥
+      - name: 打印 apk 签名指纹
+        run: |
+          for apk in build/dist/*.apk; do
+            echo "== $(basename "$apk") =="
+            keytool -printcert -jarfile "$apk" | grep -E 'Owner:|SHA256:'
+          done
 
       - name: 上传到 Release
         uses: softprops/action-gh-release@v2

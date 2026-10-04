@@ -118,7 +118,8 @@ jobs:
           chmod +x appimagetool-x86_64.appimage
           sudo mv appimagetool-x86_64.appimage /usr/local/bin/appimagetool
 
-      # 本机跑的是 JDK 23、项目字节码目标是 17，取 21 这个两端都稳的 LTS
+      # 本机跑的是 JDK 23、项目字节码目标是 17，取 21 这个两端都稳的 LTS。
+      # JDK 还提供下面打签名指纹用的 keytool
       - name: 安装 JDK
         if: matrix.platform == 'android'
         uses: actions/setup-java@v4
@@ -130,6 +131,23 @@ jobs:
       - name: 接受 Android 许可
         if: matrix.platform == 'android'
         run: yes | sdkmanager --licenses > /dev/null || true
+
+      # release apk 用的是 debug 签名（android/app/build.gradle.kts），而 runner 上
+      # 没有 ~/.android/debug.keystore —— AGP 缺了会自己生成一把，那样每次跑都是新密钥，
+      # 用包管理器覆盖安装会因签名不一致失败（只能卸载，而卸载清数据）
+      # 内容 = 本机 ~/.android/debug.keystore 的 base64；没配 secret 就只警告、不拦
+      - name: 还原 Android debug keystore
+        if: matrix.platform == 'android'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::没配 ANDROID_DEBUG_KEYSTORE，这次 apk 用 runner 现生成的 debug 密钥"
+            exit 0
+          fi
+          mkdir -p "$HOME/.android"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$HOME/.android/debug.keystore"
+          echo "已还原 debug.keystore"
 
       - name: 安装 Flutter
         uses: subosito/flutter-action@v2
@@ -165,6 +183,15 @@ jobs:
           # AppImage 也是先完整构建、再打包
           export APPIMAGETOOL=/usr/local/bin/appimagetool
           dart tool/build_release.dart "${args[@]}"
+
+      # 打出 apk 的签名指纹：核对 CI 用的就是配进去的那把 debug 密钥
+      - name: 打印 apk 签名指纹
+        if: matrix.platform == 'android'
+        run: |
+          for apk in build/dist/*.apk; do
+            echo "== $(basename "$apk") =="
+            keytool -printcert -jarfile "$apk" | grep -E 'Owner:|SHA256:'
+          done
 
       - name: 上传产物
         uses: actions/upload-artifact@v4

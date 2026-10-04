@@ -78,6 +78,11 @@ remote_data/
 .project_status/
 copper_loader/
 
+# 安卓签名密钥不外泄：CI 用的那把走 repo secret（ANDROID_DEBUG_KEYSTORE），
+# 这条只是兜底，免得有人在 android/ 下手生成了密钥文件又被 `git add -A` 带进去
+*.keystore
+*.jks
+
 #不需要开发iOS 和 Web端
 ios/
 web/
