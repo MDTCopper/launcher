@@ -90,7 +90,10 @@ enum BuildTarget {
       PackageFormat.setup,
       PackageFormat.both,
     ],
-    BuildTarget.linux => const [PackageFormat.tarball],
+    BuildTarget.linux => const [
+      PackageFormat.tarball,
+      PackageFormat.appimage,
+    ],
     BuildTarget.macos => const [PackageFormat.dmg],
     BuildTarget.android => const [],
   };
@@ -138,6 +141,7 @@ enum PackageFormat {
   setup('Setup（安装包）'),
   both('Zip + Setup'),
   tarball('tar.gz（解压即用）'),
+  appimage('AppImage'),
   dmg('dmg（磁盘映像）');
 
   const PackageFormat(this.label);
@@ -954,7 +958,11 @@ Future<void> _packageTarget({
         await _packageSetup(sourceFolder, distFolder, baseName, appVersion);
       }
     case BuildTarget.linux:
-      await _packageTarball(sourceFolder, distFolder, baseName);
+      if (packageFormat == PackageFormat.appimage) {
+        await _packageAppImage(sourceFolder, distFolder, baseName, appVersion);
+      } else {
+        await _packageTarball(sourceFolder, distFolder, baseName);
+      }
     case BuildTarget.macos:
       await _packageDmg(sourceFolder, distFolder, baseName);
     case BuildTarget.android:
@@ -1030,6 +1038,149 @@ Future<File?> _packageTarball(
 
   stdout.writeln('打包产物：${_normalizePath(archiveFile.path)}');
   return archiveFile;
+}
+
+/// 打包 Linux 产物为 AppImage
+///
+/// 使用 appimagetool 将 Flutter bundle 打包成 AppImage 格式。
+/// appimagetool 需要在系统 PATH 中，或者通过环境变量 APPIMAGETOOL 指定路径。
+/// 可以从 https://github.com/AppImage/appimagetool/releases 下载
+Future<File?> _packageAppImage(
+  Directory sourceFolder,
+  Directory distFolder,
+  String baseName,
+  String appVersion,
+) async {
+  // 检查 appimagetool 是否可用
+  final appimageToolPath = Platform.environment['APPIMAGETOOL'] ?? 'appimagetool';
+  final checkResult = await Process.run('which', [appimageToolPath]);
+  if (checkResult.exitCode != 0) {
+    stderr.writeln(
+      '未找到 appimagetool，跳过 AppImage 打包。\n'
+      '请安装 appimagetool 或设置 APPIMAGETOOL 环境变量。\n'
+      '下载地址：https://github.com/AppImage/appimagetool/releases',
+    );
+    return null;
+  }
+
+  await distFolder.create(recursive: true);
+  final appImageFile = File(
+    '${distFolder.path}${Platform.pathSeparator}$baseName.AppImage',
+  );
+  if (await appImageFile.exists()) await appImageFile.delete();
+
+  // 创建 AppDir 目录结构
+  final appDir = Directory(
+    '${sourceFolder.parent.path}${Platform.pathSeparator}AppDir',
+  );
+  if (await appDir.exists()) await appDir.delete(recursive: true);
+  await appDir.create(recursive: true);
+
+  stdout.writeln('\n正在打包 AppImage：$baseName.AppImage');
+
+  try {
+    // 创建 bin 目录并复制可执行文件
+    final binDir = Directory('${appDir.path}${Platform.pathSeparator}bin');
+    await binDir.create(recursive: true);
+
+    // 复制整个 bundle 到 AppDir
+    await _copyDirectory(sourceFolder, appDir);
+
+    // 复制 .desktop 文件
+    final desktopSrc = File('linux/copper_launcher.desktop');
+    if (await desktopSrc.exists()) {
+      final desktopDst = File(
+        '${appDir.path}${Platform.pathSeparator}copper_launcher.desktop',
+      );
+      await desktopSrc.copy(desktopDst.path);
+
+      // 同时复制到 usr/share/applications
+      final appsDir = Directory(
+        '${appDir.path}${Platform.pathSeparator}usr${Platform.pathSeparator}share${Platform.pathSeparator}applications',
+      );
+      await appsDir.create(recursive: true);
+      await desktopSrc.copy(
+        '${appsDir.path}${Platform.pathSeparator}copper_launcher.desktop',
+      );
+    }
+
+    // 复制图标
+    final iconSrc = File('assets/images/logo.png');
+    if (await iconSrc.exists()) {
+      final iconDst = File(
+        '${appDir.path}${Platform.pathSeparator}copper_launcher.png',
+      );
+      await iconSrc.copy(iconDst.path);
+
+      // 同时复制到 usr/share/icons
+      final iconsDir = Directory(
+        '${appDir.path}${Platform.pathSeparator}usr${Platform.pathSeparator}share${Platform.pathSeparator}icons',
+      );
+      await iconsDir.create(recursive: true);
+      await iconSrc.copy(
+        '${iconsDir.path}${Platform.pathSeparator}copper_launcher.png',
+      );
+    }
+
+    // 创建 AppRun 脚本
+    final appRun = File('${appDir.path}${Platform.pathSeparator}AppRun');
+    await appRun.writeAsString('''#!/bin/bash
+HERE="\$(dirname "\$(readlink -f "\$0")")"
+exec "\$HERE/bin/copper_launcher" "\$@"
+''');
+    // 设置可执行权限
+    await Process.run('chmod', ['+x', appRun.path]);
+
+    // 确保主可执行文件有执行权限
+    final mainBinary = File(
+      '${appDir.path}${Platform.pathSeparator}bin${Platform.pathSeparator}copper_launcher',
+    );
+    if (await mainBinary.exists()) {
+      await Process.run('chmod', ['+x', mainBinary.path]);
+    }
+
+    // 使用 appimagetool 打包
+    final result = await Process.run(
+      appimageToolPath,
+      ['--no-appstream', appDir.absolute.path, appImageFile.absolute.path],
+      environment: {
+        ...Platform.environment,
+        'VERSION': appVersion,
+      },
+    );
+
+    if (result.exitCode != 0) {
+      stderr.writeln('appimagetool 打包失败（退出码 ${result.exitCode}）');
+      if ('${result.stderr}'.trim().isNotEmpty) stderr.writeln(result.stderr);
+      return null;
+    }
+  } finally {
+    // 清理 AppDir
+    if (await appDir.exists()) {
+      await appDir.delete(recursive: true);
+    }
+  }
+
+  stdout.writeln('打包产物：${_normalizePath(appImageFile.path)}');
+  return appImageFile;
+}
+
+/// 递归复制目录
+Future<void> _copyDirectory(Directory source, Directory destination) async {
+  if (!await destination.exists()) {
+    await destination.create(recursive: true);
+  }
+  await for (final entity in source.list()) {
+    final newPath = p.join(
+      destination.path,
+      p.basename(entity.path),
+    );
+    if (entity is File) {
+      await entity.copy(newPath);
+    } else if (entity is Directory) {
+      await _copyDirectory(entity, Directory(newPath));
+    }
+  }
 }
 
 /// 打包 macOS 产物为 dmg
