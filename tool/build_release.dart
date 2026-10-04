@@ -46,7 +46,8 @@ const updateScriptTemplatePath = 'tool/update_script.cmd';
 const updateScriptName = 'update.cmd';
 
 /// 版本信息块的边界标记
-const versionBlockStart = '// ===== 版本信息（由 tool/build_release.dart 生成，勿手改）=====';
+const versionBlockStart =
+    '// ===== 版本信息（由 tool/build_release.dart 生成，勿手改）=====';
 const versionBlockEnd = '// ===== 版本信息结束 =====';
 
 /// 发布类型
@@ -90,10 +91,7 @@ enum BuildTarget {
       PackageFormat.setup,
       PackageFormat.both,
     ],
-    BuildTarget.linux => const [
-      PackageFormat.tarball,
-      PackageFormat.appimage,
-    ],
+    BuildTarget.linux => const [PackageFormat.tarball, PackageFormat.appimage],
     BuildTarget.macos => const [PackageFormat.dmg],
     BuildTarget.android => const [],
   };
@@ -214,7 +212,8 @@ Future<void> main(List<String> args) async {
     '\n当前版本：v${current.versionName}（build ${current.buildNumber}，${current.buildTime}）',
   );
 
-  final versionName = options.versionName ?? _askVersionName(current.versionName);
+  final versionName =
+      options.versionName ?? _askVersionName(current.versionName);
   final channel = options.channel ?? _askChannel();
   final countBuildNumber = options.countBuildNumber ?? _askCountBuildNumber();
 
@@ -247,8 +246,7 @@ Future<void> main(List<String> args) async {
   // 只改版本号（不构建）：--no-build / --version-only 跳过提问，交互模式下问一步
   final shouldBuild = options.skipBuild
       ? false
-      : (options.skipConfirm ||
-            _askYesNo('是否执行构建？（选 n 只写版本信息）'));
+      : (options.skipConfirm || _askYesNo('是否执行构建？（选 n 只写版本信息）'));
 
   final buildNumber = countBuildNumber
       ? current.buildNumber + 1
@@ -289,9 +287,15 @@ Future<void> main(List<String> args) async {
 
   if (!shouldBuild) return;
 
-  if (!await _runChecks(options)) return;
+  if (!await _runChecks(options)) {
+    exitCode = 1;
+    return;
+  }
   final builtTargets = await _buildTargets(targets, mode);
-  if (builtTargets == null) return;
+  if (builtTargets == null) {
+    exitCode = 1;
+    return;
+  }
   stdout.writeln('\n构建完成');
 
   final outputFolders = _outputFolders(builtTargets, mode);
@@ -324,9 +328,15 @@ Future<void> _runBuildOnly({
   required BuildMode mode,
   required List<BuildTarget> targets,
 }) async {
-  if (!await _runChecks(options)) return;
+  if (!await _runChecks(options)) {
+    exitCode = 1;
+    return;
+  }
   final builtTargets = await _buildTargets(targets, mode);
-  if (builtTargets == null) return;
+  if (builtTargets == null) {
+    exitCode = 1;
+    return;
+  }
   stdout.writeln('\n构建完成（${mode.label}，未改动版本信息）');
 
   final outputFolders = _outputFolders(builtTargets, mode);
@@ -409,8 +419,7 @@ Future<void> _openFoldersIfWanted({
   if (folders.isEmpty) return;
 
   final shouldOpenFolder =
-      options.openFolder ??
-      (!options.skipConfirm && _askYesNo('打开产物文件夹？'));
+      options.openFolder ?? (!options.skipConfirm && _askYesNo('打开产物文件夹？'));
   if (!shouldOpenFolder) return;
   for (final folder in folders) {
     await _openFolder(folder.path);
@@ -582,10 +591,7 @@ bool _askCountBuildNumber() => _askYesNo('本次是否计入 build number（不�
 /// 与全局 build number 是两回事：那个只增不减（Android versionCode 用它）
 int _askChannelSeq(int defaultSeq) {
   while (true) {
-    final input = _ask(
-      '通道序号（该版本该通道的第几次；重打包当前版本就沿用当前值）',
-      '$defaultSeq',
-    );
+    final input = _ask('通道序号（该版本该通道的第几次；重打包当前版本就沿用当前值）', '$defaultSeq');
     final seq = int.tryParse(input);
     if (seq != null && seq > 0) return seq;
     stdout.writeln('应为正整数，形如 1');
@@ -601,7 +607,9 @@ List<BuildTarget> _askTargets() {
     for (var index = 0; index < buildableTargets.length; index++)
       '${index + 1}) ${buildableTargets[index].label}(${buildableTargets[index].name})',
   ].join('  ');
-  final buildableText = buildableTargets.map((target) => target.label).join(' / ');
+  final buildableText = buildableTargets
+      .map((target) => target.label)
+      .join(' / ');
 
   stdout.writeln('检测到宿主：$_currentHost，可构建目标：$buildableText');
   while (true) {
@@ -691,9 +699,7 @@ T _askChoice<T extends Enum>({
     final matched = _matchEnum(values, input);
     if (matched != null) return matched;
 
-    stdout.writeln(
-      '填序号或首字母都行，可选：${values.map((it) => it.name).join(' / ')}',
-    );
+    stdout.writeln('填序号或首字母都行，可选：${values.map((it) => it.name).join(' / ')}');
   }
 }
 
@@ -737,25 +743,26 @@ List<Directory> _outputFolders(List<BuildTarget> targets, BuildMode mode) => [
   for (final target in targets) ?_outputFolderOf(target, mode),
 ];
 
-Directory? _outputFolderOf(BuildTarget target, BuildMode mode) => switch (target) {
-  // 老版本 Flutter 是 build/windows/runner/<模式>
-  BuildTarget.windows => _firstExistingFolder([
-    'build/windows/x64/runner/${mode.outputFolderName}',
-    'build/windows/runner/${mode.outputFolderName}',
-  ]),
-  BuildTarget.android => _firstExistingFolder([
-    'build/app/outputs/flutter-apk',
-    'build/app/outputs/apk/release',
-  ]),
-  // Linux 的产物名不带模式大写，目录是 build/linux/<架构>/<小写模式>/bundle
-  BuildTarget.linux => _firstExistingFolder([
-    'build/linux/x64/${mode.flutterMode}/bundle',
-    'build/linux/${mode.flutterMode}/bundle',
-  ]),
-  BuildTarget.macos => _firstExistingFolder([
-    'build/macos/Build/Products/${mode.outputFolderName}',
-  ]),
-};
+Directory? _outputFolderOf(BuildTarget target, BuildMode mode) =>
+    switch (target) {
+      // 老版本 Flutter 是 build/windows/runner/<模式>
+      BuildTarget.windows => _firstExistingFolder([
+        'build/windows/x64/runner/${mode.outputFolderName}',
+        'build/windows/runner/${mode.outputFolderName}',
+      ]),
+      BuildTarget.android => _firstExistingFolder([
+        'build/app/outputs/flutter-apk',
+        'build/app/outputs/apk/release',
+      ]),
+      // Linux 的产物名不带模式大写，目录是 build/linux/<架构>/<小写模式>/bundle
+      BuildTarget.linux => _firstExistingFolder([
+        'build/linux/x64/${mode.flutterMode}/bundle',
+        'build/linux/${mode.flutterMode}/bundle',
+      ]),
+      BuildTarget.macos => _firstExistingFolder([
+        'build/macos/Build/Products/${mode.outputFolderName}',
+      ]),
+    };
 
 Directory? _firstExistingFolder(List<String> candidates) {
   for (final candidate in candidates) {
@@ -794,6 +801,8 @@ Future<Directory?> _packageIfNeeded({
     final sourceFolder = _outputFolderOf(target, mode);
     if (sourceFolder == null) {
       stderr.writeln('没找到 ${target.label} 产物目录，跳过打包');
+      // 要求打包却没产物：必须让退出码非零，否则 CI 会「绿着但什么也没上传」
+      exitCode = 1;
       continue;
     }
     await _packageTarget(
@@ -898,7 +907,8 @@ PackageFormat _resolvePackageFormat({
 
   final requested = options.packageFormat;
   if (requested != null) {
-    if (requested == PackageFormat.none || supportedFormats.contains(requested)) {
+    if (requested == PackageFormat.none ||
+        supportedFormats.contains(requested)) {
       return requested;
     }
     // 指定的方式在当前目标上用不上，退回该目标的固定格式
@@ -977,8 +987,7 @@ String _packageBaseName({
   required ReleaseVersion release,
   required BuildTarget target,
   required Directory sourceFolder,
-}) =>
-    'copper-launcher-${release.tag}-${_platformPartOf(target, sourceFolder)}';
+}) => 'copper-launcher-${release.tag}-${_platformPartOf(target, sourceFolder)}';
 
 /// 产物名的平台段：`build/linux/x64/...` 这类带架构的目录标出 x64
 String _platformPartOf(BuildTarget target, Directory sourceFolder) {
@@ -1052,7 +1061,8 @@ Future<File?> _packageAppImage(
   String appVersion,
 ) async {
   // 检查 appimagetool 是否可用
-  final appimageToolPath = Platform.environment['APPIMAGETOOL'] ?? 'appimagetool';
+  final appimageToolPath =
+      Platform.environment['APPIMAGETOOL'] ?? 'appimagetool';
   final checkResult = await Process.run('which', [appimageToolPath]);
   if (checkResult.exitCode != 0) {
     stderr.writeln(
@@ -1143,10 +1153,7 @@ exec "\$HERE/bin/copper_launcher" "\$@"
     final result = await Process.run(
       appimageToolPath,
       ['--no-appstream', appDir.absolute.path, appImageFile.absolute.path],
-      environment: {
-        ...Platform.environment,
-        'VERSION': appVersion,
-      },
+      environment: {...Platform.environment, 'VERSION': appVersion},
     );
 
     if (result.exitCode != 0) {
@@ -1171,10 +1178,7 @@ Future<void> _copyDirectory(Directory source, Directory destination) async {
     await destination.create(recursive: true);
   }
   await for (final entity in source.list()) {
-    final newPath = p.join(
-      destination.path,
-      p.basename(entity.path),
-    );
+    final newPath = p.join(destination.path, p.basename(entity.path));
     if (entity is File) {
       await entity.copy(newPath);
     } else if (entity is Directory) {
@@ -1230,8 +1234,7 @@ Future<File?> _packageDmg(
 /// 在产物目录里找 .app：产物名跟着 PRODUCT_NAME 走，不写死
 Directory? _firstExistingAppBundle(Directory folder) {
   for (final entity in folder.listSync()) {
-    if (entity is Directory &&
-        entity.path.toLowerCase().endsWith('.app')) {
+    if (entity is Directory && entity.path.toLowerCase().endsWith('.app')) {
       return entity;
     }
   }
@@ -1404,11 +1407,9 @@ Future<void> _openFolder(String path) async {
       ? 'open'
       : 'xdg-open';
   try {
-    await Process.start(
-      command,
-      [absolutePath],
-      mode: ProcessStartMode.detached,
-    );
+    await Process.start(command, [
+      absolutePath,
+    ], mode: ProcessStartMode.detached);
   } catch (error) {
     stderr.writeln('打开文件夹失败（$absolutePath）：$error');
   }

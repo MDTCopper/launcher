@@ -78,11 +78,14 @@ jobs:
       - uses: actions/checkout@v4
 
       # libsecret-1-dev 是 flutter_secure_storage_linux 编译时要的；
+      # **libayatana-appindicator3-dev 不能少** —— tray_manager 的 Linux 端找不到
+      # ayatana-appindicator3-0.1 / appindicator3-0.1 会直接 CMake FATAL_ERROR，
+      # 表现为 flutter build linux 失败；
       # appimagetool 给 AppImage 打包用
       - name: 安装构建依赖
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev libayatana-appindicator3-dev
           wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.appimage
           chmod +x appimagetool-x86_64.appimage
           sudo mv appimagetool-x86_64.appimage /usr/local/bin/appimagetool
