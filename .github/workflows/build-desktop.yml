@@ -207,13 +207,29 @@ jobs:
             keytool -printcert -jarfile "$apk" 2>&1 | tail -20 || echo "keytool 读不出来"
           done
 
+      # 产物名里带着这次构建的版本（脚本按 版本+通道+序号 命名），这里读回来 ——
+      # artifact 光看名字得知道是哪一版；从产物读比在 resolve 里再拼一遍可靠，
+      # 序号留空时脚本会自己挑一个
+      - name: 读出这次构建的版本
+        id: built
+        shell: bash
+        run: |
+          first=$(ls build/dist/* 2>/dev/null | head -1)
+          if [ -z "$first" ]; then
+            echo "::error::build/dist 里没有任何产物，读不出版本"
+            exit 1
+          fi
+          tag=$(basename "$first" | sed -E 's/^copper-launcher-(.*)-(windows|macos|linux|android)(-|\.).*$/\1/')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "这次构建的版本：$tag"
+
       # 一个包一个产物：Zip / Setup / 每个 ABI 的 apk 分开传。
       # 混在一起时下 26MB 只为拿其中一个太烦；而且缺了哪个包会被别的包盖住、看不出来
       - name: 上传产物（Windows Zip）
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: copper-launcher-windows-zip
+          name: copper-launcher-${{ steps.built.outputs.tag }}-windows-zip
           path: build/dist/*.zip
           if-no-files-found: error
           retention-days: 14
@@ -222,7 +238,7 @@ jobs:
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: copper-launcher-windows-setup
+          name: copper-launcher-${{ steps.built.outputs.tag }}-windows-setup
           path: build/dist/*-setup.exe
           if-no-files-found: error
           retention-days: 14
@@ -232,7 +248,7 @@ jobs:
         if: matrix.platform == 'android'
         uses: actions/upload-artifact@v4
         with:
-          name: copper-launcher-android-arm64-v8a
+          name: copper-launcher-${{ steps.built.outputs.tag }}-android-arm64-v8a
           path: build/dist/*-arm64-v8a.apk
           if-no-files-found: error
           retention-days: 14
@@ -241,7 +257,7 @@ jobs:
         if: matrix.platform == 'android'
         uses: actions/upload-artifact@v4
         with:
-          name: copper-launcher-android-armeabi-v7a
+          name: copper-launcher-${{ steps.built.outputs.tag }}-android-armeabi-v7a
           path: build/dist/*-armeabi-v7a.apk
           if-no-files-found: error
           retention-days: 14
@@ -250,7 +266,7 @@ jobs:
         if: matrix.platform == 'android'
         uses: actions/upload-artifact@v4
         with:
-          name: copper-launcher-android-x86_64
+          name: copper-launcher-${{ steps.built.outputs.tag }}-android-x86_64
           path: build/dist/*-x86_64.apk
           if-no-files-found: error
           retention-days: 14
@@ -260,7 +276,7 @@ jobs:
         if: matrix.platform == 'linux' || matrix.platform == 'macos'
         uses: actions/upload-artifact@v4
         with:
-          name: copper-launcher-${{ matrix.platform }}-${{ matrix.package }}
+          name: copper-launcher-${{ steps.built.outputs.tag }}-${{ matrix.platform }}-${{ matrix.package }}
           path: build/dist/*
           if-no-files-found: error
           retention-days: 14
