@@ -1,14 +1,25 @@
-name: 构建桌面端
+name: 手动构建（全平台）
 
-# 手动跑一次 Linux / macOS 的 release 构建与打包，产物传到 Actions 的 Artifacts
-#
-# 本机（Windows）没法交叉构建这两个平台，用这个 workflow 验证 tar.gz / dmg 链路；
-# 构建统一走 tool/build_release.dart，与本地发布是同一个入口，不另写一套命令
+# 手动跑一次**所有平台**的 release 构建，产物传到 Actions 的 Artifacts（不碰 release）。
+# 用来在打 tag 之前验证各平台链路 —— 本机是 Windows，另外三个平台没法交叉构建。
+# 构建统一走 tool/build_release.dart，与本地发布、release.yml 是同一个入口
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 版本号（形如 0.0.2），留空则沿用仓库里记录的版本
+        description: 版本号（只填 0.3.0 这种；通道与序号用下面两项）。留空则沿用仓库里记录的版本
+        required: false
+        default: ''
+      channel:
+        description: 发布通道（预发布必须选 alpha / beta，否则自更新器会把内测包当正式版）
+        type: choice
+        options:
+          - release
+          - alpha
+          - beta
+        default: release
+      seq:
+        description: 通道序号（预发布用，如 alpha1 的 1）；留空则沿用/自动
         required: false
         default: ''
       skip_codesign:
@@ -21,19 +32,50 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-desktop-${{ github.ref }}
+  group: build-manual-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  resolve:
+    name: 解析参数
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: parse
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          version="$VERSION_INPUT"
+          if [ -z "$version" ]; then
+            # 沿用仓库里记录的版本（app_constant.dart 的 appVersion）
+            version=$(sed -n "s/^const appVersion = 'v\([0-9][0-9.]*\).*/\1/p" lib/core/app_constant.dart | head -1)
+          fi
+          if [ -z "$version" ]; then
+            echo "::error::没给 version，也没能从 lib/core/app_constant.dart 读出版本"
+            exit 1
+          fi
+          case "$version" in
+            *-*)
+              echo "::error::version 只填版本号（形如 0.3.0）；通道与序号请用 channel / seq 两项"
+              exit 1
+              ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "构建版本 $version"
+
   build:
     name: ${{ matrix.label }}
+    needs: resolve
     runs-on: ${{ matrix.runs-on }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          - label: Linux (tarball)
+          - label: Linux (tar.gz)
             runs-on: ubuntu-latest
             platform: linux
             package: tarball
@@ -41,7 +83,15 @@ jobs:
             runs-on: ubuntu-latest
             platform: linux
             package: appimage
-          - label: macOS
+          - label: Android (apk)
+            runs-on: ubuntu-latest
+            platform: android
+            package: none
+          - label: Windows (Zip + Setup)
+            runs-on: windows-latest
+            platform: windows
+            package: both
+          - label: macOS (dmg)
             runs-on: macos-latest
             platform: macos
             package: dmg
@@ -49,17 +99,29 @@ jobs:
       - uses: actions/checkout@v4
 
       # macOS runner 自带 Xcode，不需要额外装东西
-      # libsecret-1-dev 是 flutter_secure_storage_linux 编译时要的（它的 CMakeLists 里
-      # pkg_check_modules(LIBSECRET REQUIRED libsecret-1>=0.18.4)），漏了会在 flutter build linux 阶段失败
+      # libsecret-1-dev 是 flutter_secure_storage_linux 编译时要的（漏了会在 flutter build linux 阶段失败）；
+      # appimagetool 给 AppImage 打包用
       - name: 安装 Linux 构建依赖
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev
-          # 下载 appimagetool 用于 AppImage 打包
           wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.appimage
           chmod +x appimagetool-x86_64.appimage
           sudo mv appimagetool-x86_64.appimage /usr/local/bin/appimagetool
+
+      # 本机跑的是 JDK 23、项目字节码目标是 17，取 21 这个两端都稳的 LTS
+      - name: 安装 JDK
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # compileSdk 37 未必在 runner 预装的 SDK 里；接受许可后由 Gradle 自己下
+      - name: 接受 Android 许可
+        if: matrix.platform == 'android'
+        run: yes | sdkmanager --licenses > /dev/null || true
 
       - name: 安装 Flutter
         uses: subosito/flutter-action@v2
@@ -71,12 +133,14 @@ jobs:
       - name: 拉取依赖
         run: flutter pub get
 
-      # 全部选项都给全，走的是 build_release.dart 的免交互路径（--yes）
-      # 想让它顺带跑 analyze + test 的话，把 --no-check 换成 --check
+      # 一律 --no-check：test/ 不入库，CI 里没有测试目录，跑门禁必然失败。
+      # 门禁在本机发布前跑（见 architecture.md 的发布清单）
       - name: 构建并打包
         shell: bash
         env:
-          VERSION_INPUT: ${{ inputs.version }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          CHANNEL: ${{ inputs.channel }}
+          SEQ: ${{ inputs.seq }}
           PLATFORM: ${{ matrix.platform }}
           PACKAGE: ${{ matrix.package }}
           SKIP_CODESIGN: ${{ inputs.skip_codesign }}
@@ -84,26 +148,15 @@ jobs:
           if [ "$SKIP_CODESIGN" = "true" ]; then
             export FLUTTER_XCODE_CODE_SIGNING_ALLOWED=NO
           fi
-          build_options=(
-            --mode release
-            --channel release
-            --no-bump
-            --no-check
-            --yes
-            --no-open-folder
-            --platform "$PLATFORM"
-            --package "$PACKAGE"
-          )
-          # 版本号：优先用 workflow 输入，没给就沿用仓库里记录的版本
-          # 一定要显式传进去，否则脚本会走到交互式提问那一步
-          build_version="$VERSION_INPUT"
-          if [ -z "$build_version" ]; then
-            build_version=$(sed -n "s/^const appVersion = 'v\([0-9][0-9.]*\).*/\1/p" lib/core/app_constant.dart | head -1)
-          fi
-          if [ -n "$build_version" ]; then
-            build_options+=(--version "$build_version")
-          fi
-          dart tool/build_release.dart "${build_options[@]}"
+
+          args=(--version "$VERSION" --channel "$CHANNEL" --mode release --no-bump --no-check
+                --yes --no-open-folder --platform "$PLATFORM" --package "$PACKAGE")
+          if [ -n "$SEQ" ]; then args+=(--seq "$SEQ"); fi
+
+          # 每个 matrix 条目都是全新 runner，所以这里**不能加 --no-build** ——
+          # AppImage 也是先完整构建、再打包
+          export APPIMAGETOOL=/usr/local/bin/appimagetool
+          dart tool/build_release.dart "${args[@]}"
 
       - name: 上传产物
         uses: actions/upload-artifact@v4
