@@ -835,6 +835,8 @@ Future<Directory?> _collectAndroidApks({
   final sourceFolder = _outputFolderOf(BuildTarget.android, mode);
   if (sourceFolder == null) {
     stderr.writeln('没找到 Android 产物目录，跳过 APK 收集');
+    // apk 就是产物本身：收不到就等于这次发布没有安卓包，必须让退出码非零
+    exitCode = 1;
     return null;
   }
 
@@ -844,6 +846,7 @@ Future<Directory?> _collectAndroidApks({
   ];
   if (apks.isEmpty) {
     stderr.writeln('${_normalizePath(sourceFolder.path)} 里没有 apk，跳过收集');
+    exitCode = 1;
     return null;
   }
 
@@ -956,27 +959,47 @@ Future<void> _packageTarget({
   required String baseName,
   required String appVersion,
 }) async {
+  // 各打包函数失败时返回 null：要求打包却没产物同样得让退出码非零
+  var produced = true;
+  void check(File? file) {
+    if (file == null) produced = false;
+  }
+
   switch (target) {
     case BuildTarget.windows:
       await _copyUpdateScript(sourceFolder);
       if (packageFormat == PackageFormat.zip ||
           packageFormat == PackageFormat.both) {
-        await _packageZip(sourceFolder, distFolder, baseName);
+        check(await _packageZip(sourceFolder, distFolder, baseName));
       }
       if (packageFormat == PackageFormat.setup ||
           packageFormat == PackageFormat.both) {
-        await _packageSetup(sourceFolder, distFolder, baseName, appVersion);
+        check(
+          await _packageSetup(sourceFolder, distFolder, baseName, appVersion),
+        );
       }
     case BuildTarget.linux:
       if (packageFormat == PackageFormat.appimage) {
-        await _packageAppImage(sourceFolder, distFolder, baseName, appVersion);
+        check(
+          await _packageAppImage(
+            sourceFolder,
+            distFolder,
+            baseName,
+            appVersion,
+          ),
+        );
       } else {
-        await _packageTarball(sourceFolder, distFolder, baseName);
+        check(await _packageTarball(sourceFolder, distFolder, baseName));
       }
     case BuildTarget.macos:
-      await _packageDmg(sourceFolder, distFolder, baseName);
+      check(await _packageDmg(sourceFolder, distFolder, baseName));
     case BuildTarget.android:
       break; // 打包前已排除，这里只是为了穷尽分支
+  }
+
+  if (!produced) {
+    stderr.writeln('打包 ${target.label} 没有产出（原因见上面的报错）');
+    exitCode = 1;
   }
 }
 

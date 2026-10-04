@@ -5,6 +5,9 @@ name: 发布构建
 # 版本 / 通道 / 序号一律**从 tag 推**：`v0.3.0` → release，`v0.3.0-alpha1` → alpha 序号 1。
 # 不要写死 `--channel release` —— 那样预发布包会被当成正式版，
 # 自更新器的通道阶梯随即失效（内测用户收不到后续内测包）
+#
+# 这里**没有 macOS**：dmg 打包从未在真机上验证过，不能跟着 tag 发出去。
+# 想继续调 macOS 就用 build-desktop.yml 的手动构建（那条是非阻断的）
 on:
   release:
     types: [published]
@@ -200,45 +203,6 @@ jobs:
           # 安卓不走打包：脚本自己把 --split-per-abi 出来的 apk 收进 build/dist
           args=(--version "$VERSION" --channel "$CHANNEL" --mode release --no-bump --no-check
                 --yes --no-open-folder --platform android --package none)
-          if [ -n "$SEQ" ]; then args+=(--seq "$SEQ"); fi
-          dart tool/build_release.dart "${args[@]}"
-
-      - name: 上传到 Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: build/dist/*
-          prerelease: ${{ needs.resolve.outputs.prerelease }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-macos:
-    name: macOS
-    needs: resolve
-    runs-on: macos-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 安装 Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 3.47.2
-          channel: stable
-          cache: true
-
-      - name: 拉取依赖
-        run: flutter pub get
-
-      - name: 构建
-        env:
-          VERSION: ${{ needs.resolve.outputs.version }}
-          CHANNEL: ${{ needs.resolve.outputs.channel }}
-          SEQ: ${{ needs.resolve.outputs.seq }}
-          # macOS 没签名会报错；这里一律不签名（产物只做验证用）
-          FLUTTER_XCODE_CODE_SIGNING_ALLOWED: NO
-        run: |
-          args=(--version "$VERSION" --channel "$CHANNEL" --mode release --no-bump --no-check
-                --yes --no-open-folder --platform macos --package dmg)
           if [ -n "$SEQ" ]; then args+=(--seq "$SEQ"); fi
           dart tool/build_release.dart "${args[@]}"
 

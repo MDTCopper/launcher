@@ -3,6 +3,9 @@ name: 手动构建（全平台）
 # 手动跑一次**所有平台**的 release 构建，产物传到 Actions 的 Artifacts（不碰 release）。
 # 用来在打 tag 之前验证各平台链路 —— 本机是 Windows，另外三个平台没法交叉构建。
 # 构建统一走 tool/build_release.dart，与本地发布、release.yml 是同一个入口
+#
+# macOS 那条是 optional（continue-on-error）：dmg 链路还没在真机上跑通过，
+# 红了不该拦着其它平台；也正因如此 release.yml 里不发 macOS
 on:
   workflow_dispatch:
     inputs:
@@ -71,6 +74,8 @@ jobs:
     needs: resolve
     runs-on: ${{ matrix.runs-on }}
     timeout-minutes: 45
+    # 未验证的平台失败了不算这条 workflow 失败
+    continue-on-error: ${{ matrix.optional == true }}
     strategy:
       fail-fast: false
       matrix:
@@ -91,10 +96,11 @@ jobs:
             runs-on: windows-latest
             platform: windows
             package: both
-          - label: macOS (dmg)
+          - label: macOS (dmg，未验证)
             runs-on: macos-latest
             platform: macos
             package: dmg
+            optional: true
     steps:
       - uses: actions/checkout@v4
 
