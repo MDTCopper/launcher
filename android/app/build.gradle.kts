@@ -25,6 +25,17 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // CI 上不能指望 AGP 去 ~/.android 找 debug keystore（runner 的 user.home /
+            // ANDROID_SDK_HOME 跟本机不一样，测试里它反而自己生成了一把新的）⇒
+            // 由 COPPER_DEBUG_KEYSTORE 把固定那把的路径直接喂进来；
+            // 本机不设这个变量，行为与原来完全一致
+            val pinned = System.getenv("COPPER_DEBUG_KEYSTORE")
+            if (!pinned.isNullOrBlank()) storeFile = file(pinned)
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

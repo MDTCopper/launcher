@@ -147,6 +147,11 @@ jobs:
           fi
           mkdir -p "$HOME/.android"
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$HOME/.android/debug.keystore"
+          # 光放进 ~/.android 不够：AGP 在 CI 上未必去那儿找（实测它另外生成了一把），
+          # 所以把路径显式传给 gradle（见 android/app/build.gradle.kts）
+          echo "COPPER_DEBUG_KEYSTORE=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+          # 打出还原出来这把的指纹：与下面 apk 的指纹一比就知道有没有真用上
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey 2>&1 | grep -E 'SHA256:|SHA-256:' || echo "keystore 读不出来"
           echo "已还原 debug.keystore"
 
       - name: 安装 Flutter
