@@ -222,12 +222,26 @@ jobs:
           if [ -n "$SEQ" ]; then args+=(--seq "$SEQ"); fi
           dart tool/build_release.dart "${args[@]}"
 
-      # 打出 apk 的签名指纹：核对 CI 用的就是配进去的那把 debug 密钥
+      # 打出 apk 的签名指纹：核对 CI 用的就是配进去的那把 debug 密钥。
+      # 优先用 apksigner —— 新版 AGP 出来的 apk 可能只有 v2/v3 签名，
+      # keytool / jarsigner 读不了那套；这步只是诊断，读不出来也不该拦产物上传
       - name: 打印 apk 签名指纹
+        continue-on-error: true
         run: |
+          apksigner=$(ls "${ANDROID_HOME:-/usr/local/lib/android/sdk}"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
+          echo "apksigner：${apksigner:-没找到}"
+          ls -l build/dist || true
           for apk in build/dist/*.apk; do
+            if [ ! -f "$apk" ]; then
+              echo "没有任何 apk（展开成了「$apk」）"
+              break
+            fi
             echo "== $(basename "$apk") =="
-            keytool -printcert -jarfile "$apk" | grep -E 'Owner:|SHA256:'
+            unzip -l "$apk" 2>/dev/null | grep -i 'META-INF/.*\.RSA' || echo "没有 v1 签名（META-INF/*.RSA）"
+            if [ -n "$apksigner" ]; then
+              "$apksigner" verify --print-certs "$apk" 2>&1 || echo "apksigner 读不出来"
+            fi
+            keytool -printcert -jarfile "$apk" 2>&1 | tail -20 || echo "keytool 读不出来"
           done
 
       - name: 上传到 Release
