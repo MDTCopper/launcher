@@ -152,3 +152,56 @@ jobs:
           files: build/dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-android:
+    name: Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # 安卓构建要 JDK；本机跑的是 23，项目字节码目标是 17，
+      # 取 21 这个两端都稳的 LTS。**没带 keystore** —— release 用的是 debug 签名
+      # （见 android/app/build.gradle.kts），所以不需要任何 secret
+      - name: 安装 JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # compileSdk 37 未必在 runner 预装的 SDK 里；先接受许可，缺的平台由 Gradle 自己下
+      - name: 接受 Android 许可
+        run: yes | sdkmanager --licenses > /dev/null || true
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          cache: true
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: 构建并打包
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          build_version="${VERSION#v}"
+          # 安卓**不走 --package**：脚本自己把 split-per-abi 的 apk 收进 build/dist
+          dart tool/build_release.dart \
+            --version "$build_version" \
+            --mode release \
+            --channel release \
+            --no-bump \
+            --platform android \
+            --no-package \
+            --yes \
+            --no-open-folder
+
+      - name: 上传到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
