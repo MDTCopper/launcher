@@ -92,8 +92,8 @@ class _DesignSystemPageState extends State<DesignSystemPage> {
     ),
     (
       need: '动作按钮（点了就执行）',
-      use: 'IconTextButton（weight: primary / secondary / tertiary）',
-      avoid: '别用 ActionButton，它有选中态；一个视图里别放两个 primary',
+      use: 'IconTextButton（weight: primary / secondary / tertiary / danger）',
+      avoid: '别用 ActionButton，它有选中态；一个视图里别放两个 primary；删除类用 danger',
     ),
     (
       need: '选项 / 多选 chips',
@@ -696,6 +696,18 @@ class _DesignSystemPageState extends State<DesignSystemPage> {
                 weight: ActionWeight.tertiary,
                 onTap: () {},
               ),
+              IconTextButton(
+                icon: Icons.delete_outline,
+                content: 'danger（破坏性）',
+                weight: ActionWeight.danger,
+                onTap: () {},
+              ),
+              IconTextButton(
+                icon: Icons.block,
+                content: '禁用（实心档）',
+                weight: ActionWeight.primary,
+                onTap: null,
+              ),
             ],
           ),
           _buildStateRow(
@@ -764,7 +776,9 @@ class _DesignSystemPageState extends State<DesignSystemPage> {
           ),
           Text(
             '规则：能点的东西都要有常态 / 悬停 / 按下 / 选中 / 禁用五态；'
-            '禁用靠 onTap: null 或 enable: false，不要在页面里改颜色冒充禁用',
+            '禁用靠 onTap: null 或 enable: false，不要在页面里改颜色冒充禁用（'
+            'IconTextButton 现在会自己置灰并丢掉实心底）；'
+            '破坏性动作用 danger，别用 primary 表达「删除」',
             style: theme.textTheme.labelMedium?.copyWith(
               color: colors.itemHint,
             ),

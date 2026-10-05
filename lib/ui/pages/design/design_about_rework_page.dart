@@ -54,7 +54,7 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
     (
       where: '动作行（收藏 / 生成脚本 / 补齐加载器 / 删除版本）',
       problem: '四个动作全是 `IconTextButton` 默认重量，**破坏性的「删除版本」与「收藏」一样重**',
-      fix: '按 `ActionWeight` 分级；破坏性动作到底用哪一档还没定（要不要单独一档 danger）',
+      fix: '按 `ActionWeight` 分级，删除类用 `danger`（2026-10-05 加的这一档，重做版里已用上）',
     ),
     (
       where: '快捷方式',
@@ -181,14 +181,14 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
               IconTextButton(
                 icon: Icons.delete,
                 content: '删除版本',
-                weight: ActionWeight.tertiary,
+                weight: ActionWeight.danger,
                 onTap: () {},
               ),
             ],
           ),
           Text(
             '改了三处：信息行从页面内联函数换成 `SettingBarRow`；'
-            '瓦片的圆角与内衬取令牌；动作按重量排开，并把破坏性的「删除版本」推到最右',
+            '瓦片的圆角与内衬取令牌；动作按重量排开，「删除版本」用 danger 推到最右',
             style: _hintStyle(),
           ),
         ],
