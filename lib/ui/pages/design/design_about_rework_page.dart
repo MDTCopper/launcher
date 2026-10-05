@@ -1,21 +1,17 @@
-import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
-import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
-import 'package:copper_launcher/ui/components/setting_bar/setting_bar_row.dart';
-import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
-import 'package:copper_launcher/ui/components/tips/warning_bar.dart';
-import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
+
+import 'template_skin.dart';
+import 'template_widgets.dart';
 
 const designAboutReworkPageRouteKey = '/design/example/about';
 
 /// 设计规范 · 实例页 · 关于页重做
 ///
-/// 拿真实页面当素材：`ui/pages/overview/version_setting.dart` 的「关于」分项。
-/// 原实现还在原位跑，这里只是**按规范重做一版**，并把它暴露出来的
-/// 「用途不明确 / 参数神出鬼没」逐条点名，作为组件库规范的输入
+/// 素材是 `ui/pages/overview/version_setting.dart` 的「关于」分项：原实现仍在原位跑，
+/// 这里**用参考模版的皮肤重做一版**（`TemplateSkin` + `template_widgets.dart`），
+/// 并把原实现暴露出来的「用途不明确 / 参数神出鬼没」逐条点名
 class DesignAboutReworkPage extends StatefulWidget {
   const DesignAboutReworkPage({super.key});
 
@@ -24,8 +20,8 @@ class DesignAboutReworkPage extends StatefulWidget {
 }
 
 class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
-  /// 快捷方式按钮的定宽：原实现硬写在每个调用处，这里集中成一个常量
-  static const double _shortcutWidth = 136;
+  double _hue = TemplateHues.copper;
+  bool _favorite = false;
 
   static const _shortcuts = <({IconData icon, String label})>[
     (icon: Icons.save, label: '存档文件夹'),
@@ -42,245 +38,284 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
     (
       where: '版本信息的两条信息行',
       problem:
-          '页面内联的 `buildInfo()` 局部函数（`labelLarge` + `Spacer` + 默认 Text 样式），没有对应组件',
-      fix: '用 `SettingBarRow`（标题列 + 右侧控件），别在页面里再写一份',
+          '页面内联的 `buildInfo()` 局部函数（labelLarge + Spacer + 默认 Text 样式），没有对应组件',
+      fix: '用 `SettingBarRow`（或模版里的 `TemplateKeyRow`），别在页面里再写一份',
     ),
     (
       where: '版本瓦片',
       problem:
           '`ReboundListTile(borderRadius: circular(4), padding: all(4))` —— 圆角与内衬硬写在调用处',
-      fix: '取 `AppRadius.controlShape` / `AppSpacing.tight`，与别处的瓦片一致',
+      fix: '取令牌（模版里是 `TemplateRadius.control` / `TemplateSpace.md`）',
     ),
     (
       where: '动作行（收藏 / 生成脚本 / 补齐加载器 / 删除版本）',
-      problem: '四个动作全是 `IconTextButton` 默认重量，**破坏性的「删除版本」与「收藏」一样重**',
-      fix: '按 `ActionWeight` 分级，删除类用 `danger`（2026-10-05 加的这一档，重做版里已用上）',
+      problem: '四个动作全是默认重量，破坏性的「删除版本」与「收藏」一样重',
+      fix: '按重量分级，删除类用 `TemplateButtonKind.danger`（重做版已用上）',
     ),
     (
       where: '快捷方式',
-      problem:
-          '`Wrap(spacing: 8, runSpacing: 8)` 的 8 与每个按钮的 `width: 136` 都硬写在调用处',
-      fix: '间距取 `AppSpacing.related`；定宽集中成一个常量（这里已收成 `_shortcutWidth`）',
+      problem: '`Wrap(spacing: 8, runSpacing: 8)` 与每个按钮的 `width: 136` 都硬写在调用处',
+      fix: '间距取令牌；改用 `TemplateShortcut`（自适应宽度，不再逐处定宽）',
     ),
     (
       where: '导入资源的 tip 条',
       problem:
-          '手写的 `Container(lowBackgroundOnCard, radius 4, labelMedium)`，而项目里早有 `buildWarningBar`',
-      fix: '同一用途收进 `buildWarningBar`，别保留两套实现',
+          '手写的 `Container(lowBackgroundOnCard, radius 4)`，而项目里早有 `buildWarningBar`',
+      fix:
+          '收成一个提示条组件（模版里是 `TemplateNotice`）；**关闭态那套写 `customSetting` 的逻辑还没接**，等组件收编',
     ),
     (
-      where: '各区块里的说明文字',
+      where: '各区块说明文字',
       problem: '直接用 `theme.textTheme.labelMedium` 当说明（label 一族本该给标签 / 徽标）',
-      fix: '按 A 类改法：说明用 `bodySmall` + `itemSecondary`',
+      fix: '说明用 `TemplateType.caption` + `textTertiary`（模版里已如此）',
     ),
     (
       where: '模组文件夹按钮（`_ModsFolderButton`）',
-      problem: '与 `IconTextButton` 并排但行为不同（先解析路径再打开），从名字与外观上看不出来',
-      fix: '组件说明里写清它的用途与参数；或收成一个更通用的「按类型打开目录」组件',
+      problem: '与普通按钮并排但行为不同（先解析路径再打开），从名字与外观上看不出来',
+      fix: '组件说明里写清用途与参数；或收成一个更通用的「按类型打开目录」组件',
     ),
   ];
 
-  // ── 交互 ──
-
-  /// 提示条：被关掉之后不再返回组件，这里补一句说明免得看着像丢了东西
-  List<Widget> _buildTipBar() {
-    final bar = buildWarningBar(
-      context,
-      'design_example_about_tip',
-      'tip：可以把资源或游戏本体拖进 Copper 直接导入',
-      onTap: () => setState(() {}),
-    );
-    if (bar != null) return [bar];
-    return [
-      Text('这条提示已经被关掉（关闭状态记在 customSettings 里，不再显示）', style: _hintStyle()),
-    ];
-  }
+  TemplateSkin get _skin => TemplateSkin.of(
+    hue: _hue,
+    dark: Theme.of(context).brightness == Brightness.dark,
+  );
 
   @override
   Widget build(BuildContext context) {
+    final skin = _skin;
+
     return ListContentPanel(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.block,
-        vertical: AppSpacing.related,
+        horizontal: TemplateSpace.xxl,
+        vertical: TemplateSpace.xl,
       ),
       items: [
-        _buildIntroModule(),
-        _buildVersionInfoModule(),
-        _buildShortcutModule(),
-        _buildTipModule(),
-        _buildProblemsModule(),
+        _buildHueSwitch(skin),
+        _buildIntro(skin),
+        _buildVersionInfo(skin),
+        _buildShortcuts(skin),
+        _buildNotice(skin),
+        _buildProblems(skin),
       ],
     );
   }
 
-  /// 说明这一页的来由
-  Widget _buildIntroModule() {
-    return ContentPanelModule(
-      title: '这是什么',
-      child: Text(
-        '素材是真实页面 `ui/pages/overview/version_setting.dart` 的「关于」分项 —— '
-        '原实现还在原位跑，这一页只做两件事：按规范重做一版、把它暴露出来的问题逐条点名',
-        style: _hintStyle(),
+  // ════════ 色相开关：同一份内容，四个主题色各看一遍 ════════
+
+  Widget _buildHueSwitch(TemplateSkin skin) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: TemplateSpace.xl),
+      child: Row(
+        spacing: TemplateSpace.md,
+        children: [
+          Text(
+            '主题色相（色温）',
+            style: TemplateType.caption.copyWith(color: skin.textTertiary),
+          ),
+          SizedBox(
+            width: 320,
+            child: TemplateSegment(
+              skin: skin,
+              options: [for (final item in TemplateHues.named) item.name],
+              value: TemplateHues.named.indexWhere((item) => item.hue == _hue),
+              onTap: (index) =>
+                  setState(() => _hue = TemplateHues.named[index].hue),
+            ),
+          ),
+          Text(
+            '这一页用的是参考模版的皮肤，不是 AppColors',
+            style: TemplateType.micro.copyWith(color: skin.textTertiary),
+          ),
+        ],
       ),
     );
   }
 
-  // ════════ 1 版本信息（重做） ════════
-
-  Widget _buildVersionInfoModule() {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-
-    Widget infoRow(String label, String value) => SettingBarRow(
-      title: label,
-      control: Align(
-        alignment: Alignment.centerRight,
-        child: Text(value, style: theme.textTheme.bodyMedium),
+  Widget _buildIntro(TemplateSkin skin) {
+    return TemplateSection(
+      skin: skin,
+      title: '这是什么',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: TemplateSpace.md,
+        children: [
+          Text(
+            '素材是 `version_setting.dart` 的「关于」分项。原实现还在原位跑，这一页有两层意思：'
+            '① 按规范把内容重做一遍 ② 把原实现暴露出来的问题逐条点名',
+            style: TemplateType.caption.copyWith(color: skin.textSecondary),
+          ),
+          Text(
+            '上半页就是重做版 —— 它现在用的是参考模版的皮肤（`TemplateSkin` + `template_widgets.dart`），'
+            '所有颜色都由色相解出来，不读 AppColors',
+            style: TemplateType.caption.copyWith(color: skin.textTertiary),
+          ),
+        ],
       ),
     );
+  }
 
-    return ContentPanelModule(
-      title: '1 版本信息（重做）',
+  // ════════ 1 版本信息 ════════
+
+  Widget _buildVersionInfo(TemplateSkin skin) {
+    return TemplateSection(
+      skin: skin,
+      title: '1 版本信息',
+      padding: const EdgeInsets.all(TemplateSpace.sm),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: AppSpacing.related,
+        spacing: 2,
         children: [
           HintLayer(
             hint: '点击重命名该版本',
-            child: ReboundListTile(
-              borderRadius: AppRadius.controlShape,
-              padding: const EdgeInsets.all(AppSpacing.tight),
-              leading: Icon(
-                Icons.memory,
-                size: AppIconSize.hero,
-                color: colors.interactive,
-              ),
-              title: const Text('v160.5'),
-              subtitle: const Text('桌面版 · 已隔离数据目录'),
+            child: TemplateRow(
+              skin: skin,
               onTap: () {},
+              padding: const EdgeInsets.all(TemplateSpace.md),
+              child: Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: skin.accentTint,
+                      borderRadius: BorderRadius.circular(TemplateRadius.card),
+                    ),
+                    child: Icon(
+                      Icons.memory,
+                      size: 28,
+                      color: skin.onAccentTint,
+                    ),
+                  ),
+                  const SizedBox(width: TemplateSpace.lg),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: TemplateSpace.xs,
+                      children: [
+                        Text(
+                          'v160.5',
+                          style: TemplateType.page.copyWith(
+                            color: skin.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          '桌面版 · 已隔离数据目录',
+                          style: TemplateType.caption.copyWith(
+                            color: skin.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          infoRow('添加时间', '2026-10-05 13:54'),
-          infoRow('模组加载器', 'Copper Loader 0.2.0'),
-          Row(
-            spacing: AppSpacing.related,
-            children: [
-              IconTextButton(
-                icon: Icons.star_outline,
-                content: '未收藏',
-                weight: ActionWeight.tertiary,
-                onTap: () {},
-              ),
-              IconTextButton(
-                icon: Icons.build_circle,
-                content: '生成启动脚本',
-                weight: ActionWeight.tertiary,
-                onTap: () {},
-              ),
-              const Spacer(),
-              IconTextButton(
-                icon: Icons.delete,
-                content: '删除版本',
-                weight: ActionWeight.danger,
-                onTap: () {},
-              ),
-            ],
+          TemplateKeyRow(skin: skin, title: '添加时间', value: '2026-10-05 13:54'),
+          TemplateKeyRow(
+            skin: skin,
+            title: '模组加载器',
+            value: 'Copper Loader 0.2.0',
           ),
-          Text(
-            '改了三处：信息行从页面内联函数换成 `SettingBarRow`；'
-            '瓦片的圆角与内衬取令牌；动作按重量排开，「删除版本」用 danger 推到最右',
-            style: _hintStyle(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ════════ 2 快捷方式（重做） ════════
-
-  Widget _buildShortcutModule() {
-    return ContentPanelModule(
-      title: '2 快捷方式（重做）',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: AppSpacing.group,
-        children: [
-          Text('快速打开对应文件夹', style: _hintStyle()),
-          Wrap(
-            spacing: AppSpacing.related,
-            runSpacing: AppSpacing.related,
-            children: [
-              for (final item in _shortcuts)
-                IconTextButton(
-                  width: _shortcutWidth,
-                  icon: item.icon,
-                  content: item.label,
-                  weight: ActionWeight.secondary,
-                  onTap: () {},
+          // 动作按重量排：这一块没有主行动，破坏性的那个用 danger 推到最右
+          TemplateRow(
+            skin: skin,
+            child: Row(
+              spacing: TemplateSpace.md,
+              children: [
+                TemplateButton(
+                  skin: skin,
+                  label: _favorite ? '已收藏' : '未收藏',
+                  icon: _favorite ? Icons.star : Icons.star_outline,
+                  kind: TemplateButtonKind.quiet,
+                  onTap: () => setState(() => _favorite = !_favorite),
                 ),
-            ],
-          ),
-          Text(
-            '间距从硬写的 8 换成 `AppSpacing.related`，定宽收成 `_shortcutWidth` 一处；'
-            '按钮自身的重量统一为 secondary —— 这一块是并列入口，没有主次',
-            style: _hintStyle(),
-          ),
-          Text(
-            '说明文字用 bodySmall + itemSecondary，而不是拿 labelMedium 当正文',
-            style: _hintStyle(),
+                TemplateButton(
+                  skin: skin,
+                  label: '生成启动脚本',
+                  icon: Icons.build_circle,
+                  kind: TemplateButtonKind.quiet,
+                ),
+                const Spacer(),
+                TemplateButton(
+                  skin: skin,
+                  label: '删除版本',
+                  icon: Icons.delete_outline,
+                  kind: TemplateButtonKind.danger,
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ════════ 3 提示条（重做） ════════
+  // ════════ 2 快捷方式 ════════
 
-  Widget _buildTipModule() {
-    return ContentPanelModule(
-      title: '3 提示条（重做）',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: AppSpacing.group,
+  Widget _buildShortcuts(TemplateSkin skin) {
+    return TemplateSection(
+      skin: skin,
+      title: '2 快捷方式',
+      padding: const EdgeInsets.all(TemplateSpace.sm),
+      child: Wrap(
+        spacing: TemplateSpace.md,
+        runSpacing: TemplateSpace.md,
         children: [
-          ..._buildTipBar(),
-          Text(
-            '同一件事在 version_setting 里是手写的 Container，而项目里早有 `buildWarningBar` —— '
-            '这种「一个用途两套实现」正是要用规范收掉的东西；点右边的叉可以看关闭后的样子',
-            style: _hintStyle(),
-          ),
+          for (final item in _shortcuts)
+            TemplateShortcut(skin: skin, icon: item.icon, label: item.label),
         ],
       ),
+    );
+  }
+
+  // ════════ 3 提示条 ════════
+
+  Widget _buildNotice(TemplateSkin skin) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: TemplateSpace.md,
+      children: [
+        TemplateNotice(skin: skin, text: 'tip：可以把资源或游戏本体拖进 Copper 直接导入'),
+        Text(
+          '原实现里这条是手写的 Container，而且带「关掉就不再显示」的逻辑（写 `customSetting`）；'
+          '模版的 `TemplateNotice` 还没有这层交互，等组件收编时一起接',
+          style: TemplateType.caption.copyWith(color: skin.textTertiary),
+        ),
+        const SizedBox(height: TemplateSpace.lg),
+      ],
     );
   }
 
   // ════════ 4 要规范的地方 ════════
 
-  Widget _buildProblemsModule() {
-    final theme = Theme.of(context);
-
-    return ContentPanelModule(
+  Widget _buildProblems(TemplateSkin skin) {
+    return TemplateSection(
+      skin: skin,
       title: '4 要规范的地方（组件库的输入）',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: AppSpacing.group,
+        spacing: TemplateSpace.lg,
         children: [
-          Text(
-            '每一条都是「用途不明确」或「参数神出鬼没」的具体样子，位置 / 现象 / 建议三列',
-            style: _hintStyle(),
-          ),
           for (final item in _problems)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: AppSpacing.tight,
+              spacing: TemplateSpace.xs,
               children: [
-                Text(item.where, style: theme.textTheme.titleSmall),
-                Text(item.problem, style: theme.textTheme.bodySmall),
+                Text(
+                  item.where,
+                  style: TemplateType.section.copyWith(color: skin.textPrimary),
+                ),
+                Text(
+                  item.problem,
+                  style: TemplateType.caption.copyWith(
+                    color: skin.textSecondary,
+                  ),
+                ),
                 Text(
                   '→ ${item.fix}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.of(context).interactive,
-                  ),
+                  style: TemplateType.caption.copyWith(color: skin.accentText),
                 ),
               ],
             ),
@@ -288,9 +323,4 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
       ),
     );
   }
-
-  /// 页内说明文字的统一写法（A 类：说明用 bodySmall + itemSecondary）
-  TextStyle? _hintStyle() => Theme.of(
-    context,
-  ).textTheme.bodySmall?.copyWith(color: AppColors.of(context).itemSecondary);
 }

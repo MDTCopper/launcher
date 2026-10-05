@@ -2,6 +2,21 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+/// Copper 四个主题色对应的色相：换一个色相，整套皮肤重算
+abstract final class TemplateHues {
+  static const copper = 33.0;
+  static const titanium = 210.0;
+  static const thorium = 305.0;
+  static const plastanium = 97.0;
+
+  static const named = <({String name, double hue})>[
+    (name: '铜', hue: copper),
+    (name: '钛', hue: titanium),
+    (name: '钍', hue: thorium),
+    (name: '塑钢', hue: plastanium),
+  ];
+}
+
 /// 参考模版的皮肤层：**这一层就是将来要套进 Copper 的东西**
 ///
 /// 只有两条规则（详见 `.project_status/components.md` 的「参考模版」一节）：
