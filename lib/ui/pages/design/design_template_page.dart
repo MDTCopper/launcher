@@ -222,10 +222,12 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
   // ════════ 分组卡：标题在卡内、小字、中性色 ════════
 
-  /// 分组卡：标题在卡外、小字中性色；标题不给就是一张纯内容卡
+  /// 分组卡：标题**在卡内**；标题不给就是一张纯内容卡
   ///
   /// **内容一律落在卡面上** —— 行直接贴在页面底上时，静止状态看不出这一组从哪到哪，
-  /// 只有悬停才显形；卡面提供的是「共同区域」这条最省力的分组手段（2026-10-05 用户指出）
+  /// 只有悬停才显形；卡面提供的是「共同区域」这条最省力的分组手段（2026-10-05 用户指出）。
+  /// **卡默认占满宽度**（卡宽跟着内容走会让同一页的卡宽窄参差）；**标题融入卡内**
+  /// —— 与共享层 `TemplateSection` 的规则一致，两边要一起改
   Widget _buildSection(
     TemplateSkin skin, {
     String? title,
@@ -236,34 +238,34 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     // 别只改这里，两组加起来 36 会显得空（2026-10-05 用户指出过大）
     return Padding(
       padding: const EdgeInsets.only(bottom: TemplateSpace.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: TemplateSpace.sm,
-        children: [
-          if (title != null)
-            Padding(
-              padding: const EdgeInsets.only(left: TemplateSpace.xs),
-              child: Text(
-                title,
-                style: TemplateType.section.copyWith(color: skin.textPrimary),
-              ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: skin.surface,
+          borderRadius: BorderRadius.circular(TemplateRadius.card),
+          border: Border.all(color: skin.border),
+          boxShadow: [
+            BoxShadow(
+              color: skin.shadow,
+              blurRadius: 12,
+              offset: const Offset(0, 2),
             ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: skin.surface,
-              borderRadius: BorderRadius.circular(TemplateRadius.card),
-              border: Border.all(color: skin.border),
-              boxShadow: [
-                BoxShadow(
-                  color: skin.shadow,
-                  blurRadius: 12,
-                  offset: const Offset(0, 2),
+          ],
+        ),
+        child: Padding(
+          padding: padding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: TemplateSpace.md,
+            children: [
+              if (title != null)
+                Text(
+                  title,
+                  style: TemplateType.section.copyWith(color: skin.textPrimary),
                 ),
-              ],
-            ),
-            child: Padding(padding: padding, child: child),
+              child,
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -355,12 +357,14 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     bool selected = false,
     EdgeInsetsGeometry? padding,
   }) {
+    final background = selected ? skin.selected : Colors.transparent;
     return ReboundContainer(
       onTap: onTap,
       pressedScale: 0.995,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
-      backgroundColor: selected ? skin.selected : Colors.transparent,
-      hoverColor: skin.hover,
+      backgroundColor: background,
+      hoverColor: skin.hoverOn(background),
+      highlightColor: skin.pressedOn(background),
       padding:
           padding ??
           const EdgeInsets.symmetric(
@@ -405,7 +409,8 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       pressedScale: 0.94,
       borderRadius: BorderRadius.circular(TemplateRadius.pill),
       backgroundColor: value ? skin.accent : skin.sunken,
-      hoverColor: skin.hover,
+      hoverColor: skin.hoverOn(value ? skin.accent : skin.sunken),
+      highlightColor: skin.pressedOn(value ? skin.accent : skin.sunken),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         curve: Curves.easeOut,
@@ -453,7 +458,12 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
                 onTap: () => onTap(i),
                 borderRadius: BorderRadius.circular(TemplateRadius.control),
                 backgroundColor: value == i ? skin.surface : Colors.transparent,
-                hoverColor: skin.hover,
+                hoverColor: skin.hoverOn(
+                  value == i ? skin.surface : Colors.transparent,
+                ),
+                highlightColor: skin.pressedOn(
+                  value == i ? skin.surface : Colors.transparent,
+                ),
                 padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
                 child: Text(
                   options[i],
@@ -488,7 +498,8 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     return ReboundButton(
       onTap: _noop,
       backgroundColor: background,
-      hoverColor: skin.hover,
+      hoverColor: skin.hoverOn(background),
+      highlightColor: skin.pressedOn(background),
       pressedScale: 0.96,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
       padding: const EdgeInsets.symmetric(
@@ -559,33 +570,29 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
   // ════════ 提示条：靠底色与左边一道强调线，不靠描边圈住 ════════
 
   Widget _buildNotice(TemplateSkin skin) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: TemplateSpace.xl),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: skin.sunken,
-          borderRadius: BorderRadius.circular(TemplateRadius.card),
-          border: Border(left: BorderSide(color: skin.accent, width: 3)),
+    // 不再自带边距：它是卡里的一项，间距由 `_buildSection` 的 spacing 管
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: skin.sunken,
+        borderRadius: BorderRadius.circular(TemplateRadius.card),
+        border: Border(left: BorderSide(color: skin.accent, width: 3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: TemplateSpace.lg,
+          vertical: TemplateSpace.md,
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: TemplateSpace.lg,
-            vertical: TemplateSpace.md,
-          ),
-          child: Row(
-            spacing: TemplateSpace.md,
-            children: [
-              Icon(Icons.info_outline, size: 18, color: skin.accentText),
-              Expanded(
-                child: Text(
-                  '提示：资源或游戏本体可以直接拖进窗口导入',
-                  style: TemplateType.caption.copyWith(
-                    color: skin.textSecondary,
-                  ),
-                ),
+        child: Row(
+          spacing: TemplateSpace.md,
+          children: [
+            Icon(Icons.info_outline, size: 18, color: skin.accentText),
+            Expanded(
+              child: Text(
+                '提示：资源或游戏本体可以直接拖进窗口导入',
+                style: TemplateType.caption.copyWith(color: skin.textSecondary),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -757,7 +764,8 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     return ReboundButton(
       onTap: _noop,
       backgroundColor: background,
-      hoverColor: skin.hover,
+      hoverColor: skin.hoverOn(background),
+      highlightColor: skin.pressedOn(background),
       pressedScale: 0.96,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
       padding: const EdgeInsets.symmetric(
@@ -1350,7 +1358,8 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       onTap: _noop,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
       backgroundColor: skin.sunken,
-      hoverColor: skin.hover,
+      hoverColor: skin.hoverOn(skin.sunken),
+      highlightColor: skin.pressedOn(skin.sunken),
       padding: const EdgeInsets.symmetric(
         horizontal: TemplateSpace.lg,
         vertical: TemplateSpace.md,

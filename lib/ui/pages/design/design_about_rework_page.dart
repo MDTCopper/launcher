@@ -82,6 +82,7 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
       title: '版本信息',
       padding: const EdgeInsets.all(TemplateSpace.sm),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 2,
         children: [
           HintLayer(
@@ -231,7 +232,9 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
                 skin: skin,
                 label: '新建变体',
                 icon: Icons.copy_all,
-                kind: TemplateButtonKind.plain,
+                // 这一页的主行动：整页只有这一处实心
+                // （用户 2026-10-05「你没有演示主行动的效果」）
+                kind: TemplateButtonKind.solid,
               ),
               TemplateButton(
                 skin: skin,

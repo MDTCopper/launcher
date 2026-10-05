@@ -83,6 +83,7 @@ class _DesignSettingReworkPageState extends State<DesignSettingReworkPage> {
       title: '启动选项',
       padding: const EdgeInsets.all(TemplateSpace.sm),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 2,
         children: [
           TemplateSwitchRow(
@@ -114,6 +115,7 @@ class _DesignSettingReworkPageState extends State<DesignSettingReworkPage> {
       title: '游戏内存',
       padding: const EdgeInsets.all(TemplateSpace.sm),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 2,
         children: [
           TemplateRow(
@@ -199,6 +201,7 @@ class _DesignSettingReworkPageState extends State<DesignSettingReworkPage> {
       title: '高级选项',
       padding: const EdgeInsets.all(TemplateSpace.sm),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 2,
         children: [
           TemplateRow(

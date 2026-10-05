@@ -181,6 +181,7 @@ class _DesignModsReworkPageState extends State<DesignModsReworkPage> {
       child: visible.isEmpty
           ? _buildEmptyState(skin)
           : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 2,
               children: [
                 for (final mod in visible)
@@ -296,7 +297,9 @@ class _DesignModsReworkPageState extends State<DesignModsReworkPage> {
             skin: skin,
             label: '启用',
             icon: Icons.check,
-            kind: TemplateButtonKind.plain,
+            // 批量操作里最常按的那个当实心主行动，其余中性 / 安静档
+            // （用户 2026-10-05「你没有演示主行动的效果」）
+            kind: TemplateButtonKind.solid,
           ),
           TemplateButton(
             skin: skin,

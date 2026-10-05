@@ -26,6 +26,7 @@ abstract final class TemplateHues {
 
 class TemplateSkin {
   const TemplateSkin({
+    required this.dark,
     required this.page,
     required this.surface,
     required this.raised,
@@ -71,6 +72,7 @@ class TemplateSkin {
       final tint = HSLColor.fromAHSL(1, hue, 0.38, 0.86).toColor();
 
       return TemplateSkin(
+        dark: false,
         page: page,
         surface: surface,
         raised: surface,
@@ -176,6 +178,7 @@ class TemplateSkin {
     final tint = HSLColor.fromAHSL(1, hue, 0.32, 0.19).toColor();
 
     return TemplateSkin(
+      dark: true,
       page: neutral(0.085, 0.07),
       surface: surface,
       raised: raised,
@@ -307,6 +310,37 @@ class TemplateSkin {
   final Color pressed;
   final Color selected;
   final Color shadow;
+
+  /// 亮 / 暗：状态叠层的方向与幅度要按它算（见 [hoverOn]）
+  final bool dark;
+
+  /// 悬停 / 按下：压在**控件自己的底色**上算出来的一层
+  ///
+  /// 不用「无论底色都叠同一层白 / 黑」的固定叠层 —— 那样在暗色下会出事：
+  /// `sunken` 与卡面只差约 6% 亮度，固定 8% 白的叠层正好把凹槽推到卡面的亮度上，
+  /// 凹槽在悬停时消失、看着像融进了卡（用户 2026-10-05 指出）。
+  /// 规则：**暗色下比卡面暗的底，状态只走一半**，保证叠完仍留在卡面之下；
+  /// 比卡面亮的底（暗色的 raised / accent）照常再亮一步；透明底就叠在卡面上
+  Color hoverOn(Color base) => _stateOn(base, dark ? 0.08 : 0.06);
+
+  Color pressedOn(Color base) => _stateOn(base, dark ? 0.12 : 0.10);
+
+  Color _stateOn(Color base, double amount) {
+    final whiteOverlay = dark;
+    if (base.a < 1) {
+      return (whiteOverlay ? Colors.white : Colors.black).withAlpha(
+        (amount * 255).round(),
+      );
+    }
+    final belowCard = templateLuminance(base) < templateLuminance(surface);
+    final alpha = dark && belowCard ? amount / 2 : amount;
+    return Color.alphaBlend(
+      (whiteOverlay ? Colors.white : Colors.black).withAlpha(
+        (alpha * 255).round(),
+      ),
+      base,
+    );
+  }
 }
 
 /// 文字层级：桌面密度，靠字重不靠把尺寸吹大

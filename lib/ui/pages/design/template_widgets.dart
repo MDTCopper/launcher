@@ -12,9 +12,14 @@ import 'template_skin.dart';
 /// 按钮的四种量级：实心主行动 / 中性 / 安静 / 破坏性
 enum TemplateButtonKind { solid, plain, quiet, danger }
 
-/// 分组卡：标题在卡外、小字中性色；[title] 不给就是一张纯内容卡
+/// 分组卡：标题**在卡内**（2026-10-05 用户问「是否应该把标题再融入 card」⇒ 融入了）
 ///
-/// 内容一律落在卡面上 —— 行直接贴在页面底上时静止状态看不出这一组从哪到哪
+/// 两条几何规则：
+/// ① **卡默认占满宽度** —— 卡宽跟着内容走时，同一页的卡宽窄不一、左边缘参差
+///    （用户 2026-10-05「内容板应该默认被撑大」）；页面上成组的内容都该有面，
+///    面的大小就不该由内容的固有宽度决定
+/// ② 标题在卡内、与卡的内容同一条竖线（行卡的内衬是 8、行自己再内缩 12，
+///    所以标题会比行的文字靠左 12 —— 比原来「标题在卡外、贴左 4」更靠近行的文字）
 class TemplateSection extends StatelessWidget {
   const TemplateSection({
     super.key,
@@ -32,38 +37,38 @@ class TemplateSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 卡间距：本组件只给 12，外面 `ListContentPanel` 默认还会再给 12
-    // ⇒ 卡底到下一个标题合计 24（组间），这是规范里定下的组间距离。
+    // ⇒ 卡底到下一张卡合计 24（组间），这是规范里定下的组间距离。
     // **改一边要改另一边**，别只改这里让两组加起来变成 36（2026-10-05 用户指出过大）
     return Padding(
       padding: const EdgeInsets.only(bottom: TemplateSpace.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: TemplateSpace.sm,
-        children: [
-          if (title != null)
-            Padding(
-              padding: const EdgeInsets.only(left: TemplateSpace.xs),
-              child: Text(
-                title!,
-                style: TemplateType.section.copyWith(color: skin.textPrimary),
-              ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: skin.surface,
+          borderRadius: BorderRadius.circular(TemplateRadius.card),
+          border: Border.all(color: skin.border),
+          boxShadow: [
+            BoxShadow(
+              color: skin.shadow,
+              blurRadius: 12,
+              offset: const Offset(0, 2),
             ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: skin.surface,
-              borderRadius: BorderRadius.circular(TemplateRadius.card),
-              border: Border.all(color: skin.border),
-              boxShadow: [
-                BoxShadow(
-                  color: skin.shadow,
-                  blurRadius: 12,
-                  offset: const Offset(0, 2),
+          ],
+        ),
+        child: Padding(
+          padding: padding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: TemplateSpace.md,
+            children: [
+              if (title != null)
+                Text(
+                  title!,
+                  style: TemplateType.section.copyWith(color: skin.textPrimary),
                 ),
-              ],
-            ),
-            child: Padding(padding: padding, child: child),
+              child,
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -88,12 +93,14 @@ class TemplateRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final background = selected ? skin.selected : Colors.transparent;
     return ReboundContainer(
       onTap: onTap,
       pressedScale: 0.995,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
-      backgroundColor: selected ? skin.selected : Colors.transparent,
-      hoverColor: skin.hover,
+      backgroundColor: background,
+      hoverColor: skin.hoverOn(background),
+      highlightColor: skin.pressedOn(background),
       padding:
           padding ??
           const EdgeInsets.symmetric(
@@ -244,7 +251,8 @@ class TemplateButton extends StatelessWidget {
     return ReboundButton(
       onTap: onTap ?? () {},
       backgroundColor: background,
-      hoverColor: skin.hover,
+      hoverColor: skin.hoverOn(background),
+      highlightColor: skin.pressedOn(background),
       pressedScale: 0.96,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
       padding: const EdgeInsets.symmetric(
@@ -289,7 +297,8 @@ class TemplateSwitch extends StatelessWidget {
       pressedScale: 0.94,
       borderRadius: BorderRadius.circular(TemplateRadius.pill),
       backgroundColor: value ? skin.accent : skin.sunken,
-      hoverColor: skin.hover,
+      hoverColor: skin.hoverOn(value ? skin.accent : skin.sunken),
+      highlightColor: skin.pressedOn(value ? skin.accent : skin.sunken),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         curve: Curves.easeOut,
@@ -348,7 +357,12 @@ class TemplateSegment extends StatelessWidget {
                 onTap: () => onTap(i),
                 borderRadius: BorderRadius.circular(TemplateRadius.control),
                 backgroundColor: value == i ? skin.surface : Colors.transparent,
-                hoverColor: skin.hover,
+                hoverColor: skin.hoverOn(
+                  value == i ? skin.surface : Colors.transparent,
+                ),
+                highlightColor: skin.pressedOn(
+                  value == i ? skin.surface : Colors.transparent,
+                ),
                 padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
                 child: Text(
                   options[i],
@@ -381,33 +395,29 @@ class TemplateNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: TemplateSpace.xl),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: skin.sunken,
-          borderRadius: BorderRadius.circular(TemplateRadius.card),
-          border: Border(left: BorderSide(color: skin.accent, width: 3)),
+    // 外面不再自带边距：它是卡里的一项，间距由卡片自己（`TemplateSection.spacing`）管
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: skin.sunken,
+        borderRadius: BorderRadius.circular(TemplateRadius.card),
+        border: Border(left: BorderSide(color: skin.accent, width: 3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: TemplateSpace.lg,
+          vertical: TemplateSpace.md,
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: TemplateSpace.lg,
-            vertical: TemplateSpace.md,
-          ),
-          child: Row(
-            spacing: TemplateSpace.md,
-            children: [
-              Icon(icon, size: 18, color: skin.accentText),
-              Expanded(
-                child: Text(
-                  text,
-                  style: TemplateType.caption.copyWith(
-                    color: skin.textSecondary,
-                  ),
-                ),
+        child: Row(
+          spacing: TemplateSpace.md,
+          children: [
+            Icon(icon, size: 18, color: skin.accentText),
+            Expanded(
+              child: Text(
+                text,
+                style: TemplateType.caption.copyWith(color: skin.textSecondary),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -435,7 +445,8 @@ class TemplateShortcut extends StatelessWidget {
       onTap: onTap ?? () {},
       borderRadius: BorderRadius.circular(TemplateRadius.control),
       backgroundColor: skin.sunken,
-      hoverColor: skin.hover,
+      hoverColor: skin.hoverOn(skin.sunken),
+      highlightColor: skin.pressedOn(skin.sunken),
       padding: const EdgeInsets.symmetric(
         horizontal: TemplateSpace.lg,
         vertical: TemplateSpace.md,
