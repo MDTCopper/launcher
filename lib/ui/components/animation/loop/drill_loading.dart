@@ -351,10 +351,6 @@ class _DrillLoadingState extends State<DrillLoading>
               chipFlight: showChip ? _chipFlight(cycle) : null,
               chipAngle: _chipAngle,
               chipGravity: _chipGravity,
-              backdrop: DrillPaint.backdropOf(
-                colors,
-                isDark: Theme.of(context).brightness == Brightness.dark,
-              ),
               strokeFloor: _minStrokePixels,
               tint: tint,
               tone: DrillTone.of(context),
@@ -382,7 +378,6 @@ class _DrillLoadingPainter extends CustomPainter {
     required this.chipFlight,
     required this.chipAngle,
     required this.chipGravity,
-    required this.backdrop,
     required this.strokeFloor,
     required this.tint,
     required this.tone,
@@ -395,7 +390,7 @@ class _DrillLoadingPainter extends CustomPainter {
   /// 全图只有描边、没有填充。`_bladeStrokeWidth` 是**四片臂并集那条外轮廓线**的宽度，
   /// 不是单片梯形的宽度 —— 单片的粗细由 `DrillPaint.toothRootHalfWidth` 那几个管
   static const double _baseStrokeWidth = 0.4;
-  static const double _bladeStrokeWidth = 0.25;
+  static const double _bladeStrokeWidth = 0.8;
   static const double _topStrokeWidth = 0.3;
 
   /// 钻头当前转角（弧度）
@@ -412,9 +407,6 @@ class _DrillLoadingPainter extends CustomPainter {
 
   /// 铜粒末端的重力下沉量，占钻头半径的比例
   final double chipGravity;
-
-  /// 底座轮廓底下的极淡承托色
-  final Color backdrop;
 
   /// 线宽的像素下限
   final double strokeFloor;
@@ -444,17 +436,11 @@ class _DrillLoadingPainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// 底座轮廓：只画线不填充；底下垫一层极淡的承托色把形状托住
+  /// 底座轮廓：只画线，内里不填任何东西
   void _paintBase(Canvas canvas) {
     final plate = DrillPaint.octagon(
       DrillPaint.baseHalf * drillScale,
       DrillPaint.baseCorner * drillScale,
-    );
-    canvas.drawPath(
-      plate,
-      Paint()
-        ..style = PaintingStyle.fill
-        ..color = backdrop,
     );
     canvas.drawPath(
       plate,
@@ -467,20 +453,20 @@ class _DrillLoadingPainter extends CustomPainter {
 
   /// 四片钻臂整体绕中心旋转
   ///
-  /// 只描外轮廓：填充与描边都不画在交汇处，臂与臂之间一条线都没有。
-  /// 轮廓用"并集减去内缩并集"的环带算出来，比逐片描边再裁剪干净
+  /// 用**并集路径直接 stroke**，笔宽沿边均匀 ——
+  /// 之前用"并集减去按比例内缩的并集"当描边是错的：按比例缩放等于按中心缩，
+  /// 位移在斜边法线方向上的分量被放大，斜边那条带会明显变厚、且粗细不均
   void _paintBlades(Canvas canvas) {
     final outline = Paint()
-      ..style = PaintingStyle.fill
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _stroke(_bladeStrokeWidth) * drillScale
+      ..strokeJoin = StrokeJoin.miter
       ..color = _tintStroke(tone.bladeStroke, DrillPaint.errorBladeTint);
 
     canvas.save();
     canvas.rotate(spin);
     canvas.scale(drillScale);
-    canvas.drawPath(
-      DrillPaint.bladeOutline(_stroke(_bladeStrokeWidth)),
-      outline,
-    );
+    canvas.drawPath(DrillPaint.bladeUnion(), outline);
     canvas.restore();
   }
 
