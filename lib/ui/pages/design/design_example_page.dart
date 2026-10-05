@@ -20,6 +20,9 @@ import 'package:flutter/material.dart';
 
 const designExamplePageRouteKey = '/design/example';
 
+/// 动作的重量：一个视图里只该有一个 primary
+enum _ActionWeight { primary, secondary, tertiary }
+
 /// 设计规范 · 实例页
 ///
 /// 把规范拼成一个完整页面，讲「一个页面怎么搭起来」；
@@ -97,6 +100,30 @@ class _DesignExamplePageState extends State<DesignExamplePage> {
     ),
   ];
 
+  /// 视觉重心的依据（2026-10-05 查，出处见 components.md 的规范节）
+  static const _focusRules = <({String source, String finding})>[
+    (
+      source: 'Apple HIG 布局',
+      finding: '按重要度摆位置：人按「自上而下、从起始侧到末尾侧」看，最重要的放顶部与起始侧；别让不重要的细节把它挤住',
+    ),
+    (
+      source: 'Apple HIG 分组',
+      finding: '用留白、底色、色块或分隔线把相关内容圈在一起，无关内容分开 —— 分组本身就是层级',
+    ),
+    (source: 'Apple HIG 对齐', finding: '组件互相对齐能让界面好扫，也在表达组织与层级；缩进同样表达层级'),
+    (source: 'Apple HIG（macOS）', finding: '不要把控件或关键信息放在窗口底部 —— 用户常把窗口下沿拖到屏幕外'),
+    (
+      source: 'Windows 内容布局',
+      finding: '空间紧时用 Body Strong（14 w600）当标题且不加间距 —— 抬层级靠字重，不靠放大字号',
+    ),
+    (
+      source: 'Windows 内容布局',
+      finding: '间距在表达关系：控件之间 8、控件与标签 12、内容块之间 12、卡片边缘到文字 16',
+    ),
+    (source: 'Windows 命令设计', finding: '常用命令才放在内容区；命令放太多会占掉版面并淹没用户，不常用的收进别的命令面'),
+    (source: 'NN/g 眯眼测试', finding: '把界面缩到 25% 或眯眼看：应该只剩一个跳出来的焦点；到处都在跳说明没有重心'),
+  ];
+
   // ── 交互 ──
 
   void _showWarningDialog() {
@@ -143,6 +170,7 @@ class _DesignExamplePageState extends State<DesignExamplePage> {
       items: [
         _buildIntroModule(),
         _buildCompareModule(),
+        _buildFocusModule(),
         _buildOverviewModule(),
         _buildSettingModule(),
         _buildListModule(),
@@ -180,14 +208,14 @@ class _DesignExamplePageState extends State<DesignExamplePage> {
     );
   }
 
-  // ════════ 0 对照：文字层级（桌面密度模型） ════════
+  // ════════ 试验一：文字层级（桌面密度模型） ════════
 
   Widget _buildCompareModule() {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
 
     return ContentPanelModule(
-      title: '0 对照：文字层级（现状 / 桌面密度改法）',
+      title: '试验一：文字层级（现状 / 桌面密度改法）',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: AppSpacing.section,
@@ -298,6 +326,171 @@ class _DesignExamplePageState extends State<DesignExamplePage> {
           ),
         ),
       ],
+    );
+  }
+
+  // ════════ 试验二：视觉重心 ════════
+
+  Widget _buildFocusModule() {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+
+    return ContentPanelModule(
+      title: '试验二：视觉重心（一个视图只留一个焦点）',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: AppSpacing.section,
+        children: [
+          Text(
+            '重心不是「哪里加粗」，而是「眼睛先落在哪」：一个视图只该有一个最重的东西，'
+            '其余动作按 primary / secondary / tertiary 往下排',
+            style: theme.textTheme.bodySmall,
+          ),
+          _buildFocusSpecimen(
+            caption: '反例：三个动作一样重，眼睛没有落点 —— 现在的 IconTextButton 全是这一种',
+            actions: [
+              _buildAction(
+                weight: _ActionWeight.secondary,
+                icon: Icons.play_arrow,
+                label: '启动游戏',
+              ),
+              _buildAction(
+                weight: _ActionWeight.secondary,
+                icon: Icons.settings,
+                label: '版本设置',
+              ),
+              _buildAction(
+                weight: _ActionWeight.secondary,
+                icon: Icons.folder_open,
+                label: '打开目录',
+              ),
+            ],
+          ),
+          _buildFocusSpecimen(
+            caption: '正例：启动是唯一的 primary（实心主题色），设置次之，打开目录降为三级',
+            actions: [
+              _buildAction(
+                weight: _ActionWeight.primary,
+                icon: Icons.play_arrow,
+                label: '启动游戏',
+                onTap: () {},
+              ),
+              _buildAction(
+                weight: _ActionWeight.secondary,
+                icon: Icons.settings,
+                label: '版本设置',
+                onTap: () {},
+              ),
+              _buildAction(
+                weight: _ActionWeight.tertiary,
+                icon: Icons.folder_open,
+                label: '打开目录',
+                onTap: () {},
+              ),
+            ],
+          ),
+          Text('依据', style: theme.textTheme.titleSmall),
+          for (final item in _focusRules)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: AppSpacing.group,
+              children: [
+                SizedBox(
+                  width: _labelWidth,
+                  child: Text(item.source, style: theme.textTheme.titleSmall),
+                ),
+                Expanded(
+                  child: Text(item.finding, style: theme.textTheme.bodySmall),
+                ),
+              ],
+            ),
+          Text(
+            '自查手法：把窗口缩到 25% 或眯起眼看，应该只剩一个东西跳出来；到处都在跳就是没有重心',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colors.itemSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 反例 / 正例共用的一行动作
+  Widget _buildFocusSpecimen({
+    required String caption,
+    required List<Widget> actions,
+  }) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: AppSpacing.related,
+      children: [
+        Text(
+          caption,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: colors.itemSecondary,
+          ),
+        ),
+        CopperCard(
+          margin: EdgeInsets.zero,
+          padding: const EdgeInsets.all(AppSpacing.section),
+          borderRadius: AppRadius.itemShape,
+          child: Wrap(
+            spacing: AppSpacing.related,
+            runSpacing: AppSpacing.related,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: actions,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 三级动作：重量只差在底色与前景，几何完全一样
+  Widget _buildAction({
+    required _ActionWeight weight,
+    required IconData icon,
+    required String label,
+    VoidCallback? onTap,
+  }) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+
+    final (background, foreground) = switch (weight) {
+      _ActionWeight.primary => (colors.interactive, colors.itemOnInteractive),
+      _ActionWeight.secondary => (
+        colors.highBackgroundOnCard,
+        colors.itemSecondary,
+      ),
+      _ActionWeight.tertiary => (Colors.transparent, colors.interactive),
+    };
+
+    return ReboundButton(
+      backgroundColor: background,
+      borderRadius: AppRadius.controlShape,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.section,
+        vertical: AppSpacing.related,
+      ),
+      onTap: onTap,
+      child: DefaultTextStyle(
+        style: (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w600,
+        ),
+        child: IconTheme(
+          data: IconTheme.of(
+            context,
+          ).copyWith(color: foreground, size: AppIconSize.item),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: AppSpacing.related,
+            children: [Icon(icon), Text(label)],
+          ),
+        ),
+      ),
     );
   }
 
