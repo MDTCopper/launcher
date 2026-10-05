@@ -78,6 +78,12 @@ enum DrillLoadingState {
 
 class _DrillLoadingState extends State<DrillLoading>
     with TickerProviderStateMixin {
+  /// 线宽的**像素下限**
+  ///
+  /// 线宽按网格单位算、会随控件尺寸线性缩 —— 120 的控件上底座才 1.09 像素，
+  /// 48 的控件上只剩 0.44 像素，抗锯齿会把它整个吃掉。细过这个值就按下限画
+  static const double _minStrokePixels = 1.1;
+
   /// 一步里起转占的比例，其余作为停顿；一个 [cycle] 正好是"转一次 + 弹一次铜"
   static const double _spinPortion = 0.6;
 
@@ -349,6 +355,7 @@ class _DrillLoadingState extends State<DrillLoading>
                 colors,
                 isDark: Theme.of(context).brightness == Brightness.dark,
               ),
+              strokeFloor: _minStrokePixels,
               tint: tint,
               tone: DrillTone.of(context),
               hubColor: isError ? colors.error : colors.interactive,
@@ -376,6 +383,7 @@ class _DrillLoadingPainter extends CustomPainter {
     required this.chipAngle,
     required this.chipGravity,
     required this.backdrop,
+    required this.strokeFloor,
     required this.tint,
     required this.tone,
     required this.hubColor,
@@ -384,10 +392,10 @@ class _DrillLoadingPainter extends CustomPainter {
 
   /// 各层描边宽（贴图网格单位）
   ///
-  /// 全图只有描边、没有填充，所以这几档就是"线有多粗"；给粗了整块会糊成一片灰
-  static const double _baseStrokeWidth = 0.9;
-  static const double _bladeStrokeWidth = 0.8;
-  static const double _topStrokeWidth = 0.7;
+  /// 全图只有描边、没有填充，所以这几档就是"线有多粗"；按发丝级给
+  static const double _baseStrokeWidth = 0.55;
+  static const double _bladeStrokeWidth = 0.5;
+  static const double _topStrokeWidth = 0.45;
 
   /// 钻头当前转角（弧度）
   final double spin;
@@ -406,6 +414,9 @@ class _DrillLoadingPainter extends CustomPainter {
 
   /// 底座轮廓底下的极淡承托色
   final Color backdrop;
+
+  /// 线宽的像素下限
+  final double strokeFloor;
 
   /// 出错泛红的程度（0~1）
   final double tint;
@@ -448,7 +459,7 @@ class _DrillLoadingPainter extends CustomPainter {
       plate,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = _baseStrokeWidth * drillScale
+        ..strokeWidth = _stroke(_baseStrokeWidth) * drillScale
         ..color = _tintStroke(tone.baseStroke, DrillPaint.errorBaseTint),
     );
   }
@@ -465,7 +476,10 @@ class _DrillLoadingPainter extends CustomPainter {
     canvas.save();
     canvas.rotate(spin);
     canvas.scale(drillScale);
-    canvas.drawPath(DrillPaint.bladeOutline(_bladeStrokeWidth), outline);
+    canvas.drawPath(
+      DrillPaint.bladeOutline(_stroke(_bladeStrokeWidth)),
+      outline,
+    );
     canvas.restore();
   }
 
@@ -479,7 +493,7 @@ class _DrillLoadingPainter extends CustomPainter {
       cap,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = _topStrokeWidth * drillScale
+        ..strokeWidth = _stroke(_topStrokeWidth) * drillScale
         ..color = _tintStroke(tone.topStroke, DrillPaint.errorTopTint),
     );
   }
@@ -510,6 +524,10 @@ class _DrillLoadingPainter extends CustomPainter {
 
   Color _tintStroke(Color color, double amount) =>
       DrillPaint.tinted(color, amount * tint);
+
+  /// 把某一层的线宽换算成实际用的网格宽度：细过 [strokeFloor] 像素就按下限兜住
+  double _stroke(double gridWidth) =>
+      math.max(gridWidth, strokeFloor / drillScale);
 
   @override
   bool shouldRepaint(covariant _DrillLoadingPainter oldDelegate) {
