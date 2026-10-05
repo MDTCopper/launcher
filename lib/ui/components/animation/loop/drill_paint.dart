@@ -14,10 +14,10 @@ abstract final class DrillPaint {
 
   /// 钻臂：根端 / 末端半宽与内外半径
   ///
-  /// 关键是**斜边的斜度**：根端与末端差得越多、收得越急，臂看着就越厚。
-  /// 这里取 7 → 2.5（只差 4.5），斜边平缓，读起来是针状而不是楔形
-  static const double toothRootHalfWidth = 7;
-  static const double toothTipHalfWidth = 2.5;
+  /// 梯形整体要**细**：无填充时两条斜边靠得近，围出的面积看着就是"厚"，
+  /// 所以这里给到接近针状（根端 4.5、末端 1.5）
+  static const double toothRootHalfWidth = 4.5;
+  static const double toothTipHalfWidth = 1.5;
   static const double toothInnerRadius = 4;
   static const double toothOuterRadius = 28;
 
