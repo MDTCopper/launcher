@@ -4,6 +4,7 @@ import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
 import 'package:flutter/material.dart';
 
+import 'design_about_rework_page.dart';
 import 'design_experiments_page.dart';
 import 'design_structure_page.dart';
 
@@ -27,6 +28,7 @@ class _DesignExamplePageState extends State<DesignExamplePage>
   late final List<Widget> pages = const [
     DesignStructurePage(),
     DesignExperimentsPage(),
+    DesignAboutReworkPage(),
   ];
 
   void moveTo(int i) {
@@ -37,9 +39,11 @@ class _DesignExamplePageState extends State<DesignExamplePage>
   void didChangeDependencies() {
     super.didChangeDependencies();
     // 按进入时的路由决定初始分项
-    if (ModalRoute.of(context)?.settings.name ==
-        designExperimentsPageRouteKey) {
-      _index = 1;
+    switch (ModalRoute.of(context)?.settings.name) {
+      case designExperimentsPageRouteKey:
+        _index = 1;
+      case designAboutReworkPageRouteKey:
+        _index = 2;
     }
   }
 
@@ -62,6 +66,13 @@ class _DesignExamplePageState extends State<DesignExamplePage>
             content: '试验对照',
             onTap: () => moveTo(1),
             selected: _index == 1,
+            collapse: collapse,
+          ),
+          NavigationTile(
+            icon: const Icon(Icons.restart_alt),
+            content: '关于页重做',
+            onTap: () => moveTo(2),
+            selected: _index == 2,
             collapse: collapse,
           ),
         ],

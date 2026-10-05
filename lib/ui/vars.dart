@@ -1,5 +1,6 @@
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/ui/pages/cloud/cloud_save_page.dart';
+import 'package:copper_launcher/ui/pages/design/design_about_rework_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_example_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_experiments_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_system_page.dart';
@@ -27,6 +28,7 @@ const Map<String, Widget> routeMap = {
   designSystemPageRouteKey: DesignSystemPage(),
   designExamplePageRouteKey: DesignExamplePage(),
   designExperimentsPageRouteKey: DesignExamplePage(),
+  designAboutReworkPageRouteKey: DesignExamplePage(),
 
   //概览
   '/': LaunchPage(),
