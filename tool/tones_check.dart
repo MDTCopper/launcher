@@ -103,42 +103,51 @@ void main() {
           '换来悬停可见且白字升到 ${toneContrast(t.onAccent, hovered).toStringAsFixed(2)}:1',
         );
       }
-      // 分段：选中格坐着的「底」是凹槽而不是卡面 —— 悬停后不能掉到凹槽那一侧
-      final pill = t.raised;
-      double shiftOf(double amount, bool white) {
-        final o = white ? 255 : 0;
-        var best = 0.0;
-        for (final v in [
-          (pill >> 16) & 0xFF,
-          (pill >> 8) & 0xFF,
-          pill & 0xFF,
-        ]) {
-          final moved = ((o - v) * amount).abs();
-          if (moved > best) best = moved;
+      // 分段的选中格：三态各一道渐变（上亮下暗＝抬起，按下反过来＝压进去）。
+      // 检查的是「最暗的那一端不能碰到凹槽底」，以及三态彼此看得出区别
+      final neutralRamp = ToneRamp(theme.hue, 3);
+      (double, double) stops({required bool hover, required bool press}) {
+        if (dark) {
+          if (press) return (26, 31);
+          if (hover) return (33, 28);
+          return (29, 25);
         }
-        return best;
+        if (press) return (94, 97);
+        if (hover) return (97, 94);
+        return (98, 95);
       }
 
-      var pillAmount = dark ? 0.10 : 0.08;
-      var pillWhite = toneLuminance(pill) > toneLuminance(t.sunken);
-      if (shiftOf(pillAmount, pillWhite) < 3) {
-        pillWhite = !pillWhite;
-        pillAmount = pillAmount * 0.5;
-      }
-      final pillHover = on(pill, pillAmount, pillWhite);
-      // 按下反向推满（压到另一侧）：只推一半会比悬停更贴近凹槽底，反而更糊
-      var pressAmount = dark ? 0.16 : 0.13;
-      var pressWhite = toneLuminance(pill) > toneLuminance(t.sunken);
-      if (shiftOf(pressAmount, pressWhite) < 3) pressWhite = !pressWhite;
-      final pillPress = on(pill, pressAmount, pressWhite);
+      final restStops = stops(hover: false, press: false);
+      final hoverStops = stops(hover: true, press: false);
+      final pressStops = stops(hover: false, press: true);
+      String ramp((double, double) s) =>
+          '${hex(neutralRamp.at(s.$1))}→${hex(neutralRamp.at(s.$2))}';
       print(
-        '  分段选中格：静止 ${hex(pill)} → 悬停 ${hex(pillHover)}'
-        '（对凹槽底 ${hex(t.sunken)} 的区分度 '
-        '${toneContrast(pillHover, t.sunken).toStringAsFixed(2)}:1）'
-        ' → 按下 ${hex(pillPress)}（${toneContrast(pillPress, t.sunken).toStringAsFixed(2)}:1）',
+        '  分段选中格渐变：静止 ${ramp(restStops)} / 悬停 ${ramp(hoverStops)} / 按下 ${ramp(pressStops)}'
+        '（凹槽底 ${hex(t.sunken)}）',
       );
-      pair('悬停后的选中格 / 凹槽底', pillHover, t.sunken, 1.08, failures: failures);
-      pair('按下后的选中格 / 凹槽底', pillPress, t.sunken, 1.08, failures: failures);
+      double darkestOf((double, double) s) => s.$1 < s.$2 ? s.$1 : s.$2;
+      pair(
+        '静止渐变最暗的一端 / 凹槽底',
+        neutralRamp.at(darkestOf(restStops)),
+        t.sunken,
+        1.08,
+        failures: failures,
+      );
+      pair(
+        '悬停渐变最暗的一端 / 凹槽底',
+        neutralRamp.at(darkestOf(hoverStops)),
+        t.sunken,
+        1.08,
+        failures: failures,
+      );
+      pair(
+        '按下渐变最暗的一端 / 凹槽底',
+        neutralRamp.at(darkestOf(pressStops)),
+        t.sunken,
+        1.08,
+        failures: failures,
+      );
 
       // 控件面与卡面的区分（容器的层级差，故意低但不能没有）；
       // 亮色的「抬升」与卡面同色（普通按钮靠文字认，不靠底色差），所以只查暗色

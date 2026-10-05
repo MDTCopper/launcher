@@ -36,6 +36,7 @@ abstract final class TemplateHues {
 class TemplateSkin {
   const TemplateSkin({
     required this.dark,
+    required ToneRamp neutral,
     required this.page,
     required this.surface,
     required this.raised,
@@ -60,7 +61,7 @@ class TemplateSkin {
     required this.pressed,
     required this.selected,
     required this.shadow,
-  });
+  }) : _neutral = neutral;
 
   /// 从一个主题种子（色相 + 自带的色度）生成整套皮肤
   factory TemplateSkin.of({required double hue, required bool dark}) {
@@ -72,6 +73,7 @@ class TemplateSkin {
 
     return TemplateSkin(
       dark: dark,
+      neutral: ToneRamp(hue, 3),
       page: Color(tones.page),
       surface: Color(tones.surface),
       raised: Color(tones.raised),
@@ -140,6 +142,12 @@ class TemplateSkin {
 
   /// 亮 / 暗：状态叠层的方向与幅度要按它算（见 [hoverOn]）
   final bool dark;
+
+  /// 中性色阶：需要「取某一档」的控件（分段的渐变、细描边）用它，别自己写色值
+  final ToneRamp _neutral;
+
+  /// 取中性色阶的任意一档 tone（0 黑 ~ 100 白）
+  Color neutralTone(double tone) => Color(_neutral.at(tone));
 
   /// 悬停 / 按下：压在**控件自己的底色**上算出来的一层
   ///

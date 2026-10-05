@@ -352,7 +352,12 @@ class TemplateSwitch extends StatelessWidget {
   }
 }
 
-/// 分段选择：单选语义就用它，别拿复选框手拼
+/// 单选分段：单选语义就用它，别拿复选框手拼
+///
+/// 选中格的**面是一道轻渐变**（上亮下暗 = 抬起），三个状态改变这道渐变而不是叠色：
+/// 悬停整体深/浅一档、**按下把渐变反过来**（上暗下亮 = 压进去）。
+/// 这样按下与悬停的区别是「光的方向」而不是明度差 —— 凹槽底与选中格本来只差 8 个 tone，
+/// 继续靠压暗做按下就会撞上凹槽底，看着既糊又怪
 class TemplateSegment extends StatelessWidget {
   const TemplateSegment({
     super.key,
@@ -382,33 +387,110 @@ class TemplateSegment extends StatelessWidget {
         children: [
           for (var i = 0; i < options.length; i++)
             Expanded(
-              child: ReboundContainer(
+              child: _SegmentPill(
+                skin: skin,
+                label: options[i],
+                selected: value == i,
                 onTap: () => onTap(i),
-                borderRadius: BorderRadius.circular(TemplateRadius.control),
-                // 选中的那一格用抬升档：暗色里控件面比卡面亮，选中要更亮一层
-                backgroundColor: value == i ? skin.raised : Colors.transparent,
-                // 状态色的「底」是分段的凹槽而不是卡面 —— 亮色下选中格接近白，
-                // 叠黑会落到凹槽底上、看着像选中格在悬停时消失
-                hoverColor: skin.hoverOn(
-                  value == i ? skin.raised : Colors.transparent,
-                  on: skin.sunken,
-                ),
-                highlightColor: skin.pressedOn(
-                  value == i ? skin.raised : Colors.transparent,
-                  on: skin.sunken,
-                ),
-                padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
-                child: Text(
-                  options[i],
-                  textAlign: TextAlign.center,
-                  style: TemplateType.item.copyWith(
-                    color: value == i ? skin.textPrimary : skin.textSecondary,
-                    fontWeight: value == i ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// 分段的单格：自己跟踪悬停 / 按下，好让三态各自给一道渐变
+class _SegmentPill extends StatefulWidget {
+  const _SegmentPill({
+    required this.skin,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final TemplateSkin skin;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_SegmentPill> createState() => _SegmentPillState();
+}
+
+class _SegmentPillState extends State<_SegmentPill> {
+  bool _hover = false;
+  bool _pressed = false;
+
+  /// 选中格的渐变两端（tone）：静止 / 悬停 / 按下；按下那对是反过来的
+  ///
+  /// 取值的两条边界：**最暗的一档不能碰到凹槽底**（亮色底 tone 90 / 暗色底 20，
+  /// 最暗只到 94 / 26，实测留 1.1:1 以上），又要看得出变化；
+  /// 亮色下选中格已经贴着上限（tone 98），所以变化只能往下走
+  (double, double) get _stops {
+    if (widget.skin.dark) {
+      if (_pressed) return (26, 31);
+      if (_hover) return (33, 28);
+      return (29, 25);
+    }
+    if (_pressed) return (94, 97);
+    if (_hover) return (97, 94);
+    return (98, 95);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = widget.skin;
+    final selected = widget.selected;
+
+    // 分段的单格要按悬停 / 按下换渐变的**方向**，而 rebound 的两个状态是它自己的内部状态
+    // （没有回调可用）⇒ 这里自己监听指针：MouseRegion / Listener 都是被动观察，
+    // 不会抢走 rebound 的点击与回弹
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Listener(
+        onPointerDown: (_) => setState(() => _pressed = true),
+        onPointerUp: (_) => setState(() => _pressed = false),
+        onPointerCancel: (_) => setState(() => _pressed = false),
+        child: ReboundContainer(
+          onTap: widget.onTap,
+          pressedScale: 0.96,
+          borderRadius: BorderRadius.circular(TemplateRadius.control),
+          backgroundColor: Colors.transparent,
+          // 状态由渐变表达，这里不再叠色（叠色正是「融合」的来源）
+          hoverColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 110),
+            curve: Curves.easeOut,
+            decoration: selected
+                ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(TemplateRadius.control),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        skin.neutralTone(_stops.$1),
+                        skin.neutralTone(_stops.$2),
+                      ],
+                    ),
+                  )
+                : BoxDecoration(
+                    borderRadius: BorderRadius.circular(TemplateRadius.control),
+                    color: _hover ? skin.hoverOn(Colors.transparent) : null,
+                  ),
+            child: Text(
+              widget.label,
+              textAlign: TextAlign.center,
+              style: TemplateType.item.copyWith(
+                color: selected ? skin.textPrimary : skin.textSecondary,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

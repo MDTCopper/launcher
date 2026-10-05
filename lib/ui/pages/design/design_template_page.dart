@@ -5,6 +5,7 @@ import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
 import 'template_skin.dart';
+import 'template_widgets.dart';
 
 const designTemplatePageRouteKey = '/design/example/template';
 
@@ -108,8 +109,8 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: TemplateSpace.lg,
             children: [
-              _buildSegment(
-                skin,
+              TemplateSegment(
+                skin: skin,
                 options: const ['跟随全局', '自动分配', '自定义'],
                 value: _segment,
                 onTap: (i) => setState(() => _segment = i),
@@ -158,8 +159,8 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
           ),
           SizedBox(
             width: 320,
-            child: _buildSegment(
-              skin,
+            child: TemplateSegment(
+              skin: skin,
               options: [for (final item in _hues) item.name],
               value: _hues.indexWhere((item) => item.hue == _hue),
               onTap: (index) => setState(() => _hue = _hues[index].hue),
@@ -429,54 +430,6 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
             shape: BoxShape.circle,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSegment(
-    TemplateSkin skin, {
-    required List<String> options,
-    required int value,
-    required void Function(int index) onTap,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(TemplateSpace.xs),
-      decoration: BoxDecoration(
-        color: skin.sunken,
-        borderRadius: BorderRadius.circular(
-          TemplateRadius.control + TemplateSpace.xs,
-        ),
-        border: Border.all(color: skin.controlBorder),
-      ),
-      child: Row(
-        children: [
-          for (var i = 0; i < options.length; i++)
-            Expanded(
-              child: ReboundContainer(
-                onTap: () => onTap(i),
-                borderRadius: BorderRadius.circular(TemplateRadius.control),
-                backgroundColor: value == i ? skin.raised : Colors.transparent,
-                // 状态色的底是分段的凹槽而不是卡面（与共享层一致）
-                hoverColor: skin.hoverOn(
-                  value == i ? skin.raised : Colors.transparent,
-                  on: skin.sunken,
-                ),
-                highlightColor: skin.pressedOn(
-                  value == i ? skin.raised : Colors.transparent,
-                  on: skin.sunken,
-                ),
-                padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
-                child: Text(
-                  options[i],
-                  textAlign: TextAlign.center,
-                  style: TemplateType.item.copyWith(
-                    color: value == i ? skin.textPrimary : skin.textSecondary,
-                    fontWeight: value == i ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -1080,8 +1033,8 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
                   ],
                 ),
               ),
-              _buildSegment(
-                skin,
+              TemplateSegment(
+                skin: skin,
                 options: const ['全部', '正式版', '预览版', 'BE'],
                 value: _downloadFilter,
                 onTap: (index) => setState(() => _downloadFilter = index),

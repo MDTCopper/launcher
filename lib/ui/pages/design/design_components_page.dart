@@ -239,8 +239,8 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
       specs: [
         (
           name: 'TemplateSegment',
-          duty: '单选分段：单选语义只用它',
-          states: '选中 / 未选中 / 悬停 / 按下',
+          duty: '单选分段：选中格是一道轻渐变（上亮下暗）',
+          states: '选中（静止 / 悬停 / 按下三态；按下把渐变反过来）/ 未选中（悬停一层薄底）',
           params: 'options · value（下标）· onTap(index)',
           issue: '没有禁用态；选项超过 4 个会挤',
           sample: TemplateSegment(
