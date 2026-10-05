@@ -11,6 +11,7 @@ import 'design_mods_rework_page.dart';
 import 'design_quick_switch.dart';
 import 'design_setting_rework_page.dart';
 import 'design_structure_page.dart';
+import 'design_template_page.dart';
 
 const designExamplePageRouteKey = '/design/example';
 
@@ -35,6 +36,7 @@ class _DesignExamplePageState extends State<DesignExamplePage>
     DesignAboutReworkPage(),
     DesignSettingReworkPage(),
     DesignModsReworkPage(),
+    DesignTemplatePage(),
   ];
 
   void moveTo(int i) {
@@ -54,6 +56,8 @@ class _DesignExamplePageState extends State<DesignExamplePage>
         _index = 3;
       case designModsReworkPageRouteKey:
         _index = 4;
+      case designTemplatePageRouteKey:
+        _index = 5;
     }
   }
 
@@ -99,6 +103,13 @@ class _DesignExamplePageState extends State<DesignExamplePage>
                 content: '模组页重做',
                 onTap: () => moveTo(4),
                 selected: _index == 4,
+                collapse: collapse,
+              ),
+              NavigationTile(
+                icon: const Icon(Icons.auto_awesome_outlined),
+                content: '参考模版',
+                onTap: () => moveTo(5),
+                selected: _index == 5,
                 collapse: collapse,
               ),
             ],

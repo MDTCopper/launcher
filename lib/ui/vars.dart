@@ -6,6 +6,7 @@ import 'package:copper_launcher/ui/pages/design/design_experiments_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_mods_rework_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_setting_rework_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_system_page.dart';
+import 'package:copper_launcher/ui/pages/design/design_template_page.dart';
 import 'package:copper_launcher/ui/pages/overview/game_user_page.dart';
 import 'package:copper_launcher/ui/pages/overview/version_select.dart';
 import 'package:copper_launcher/ui/pages/overview/version_setting.dart';
@@ -33,6 +34,7 @@ const Map<String, Widget> routeMap = {
   designAboutReworkPageRouteKey: DesignExamplePage(),
   designSettingReworkPageRouteKey: DesignExamplePage(),
   designModsReworkPageRouteKey: DesignExamplePage(),
+  designTemplatePageRouteKey: DesignExamplePage(),
 
   //概览
   '/': LaunchPage(),
