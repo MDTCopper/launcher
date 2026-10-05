@@ -57,10 +57,10 @@ abstract final class DrillPaint {
   /// 出错时**线条**往红里偏的色相；填充色不动，所以是"结构线条略微变红"而不是整块泛红
   static const Color errorTint = Color(0xFFC0392B);
 
-  /// 出错时各层描边往红里偏多少：要"略微"，只要看得出线条偏红就够
-  static const double errorBaseTint = 0.36;
-  static const double errorTopTint = 0.32;
-  static const double errorBladeTint = 0.3;
+  /// 出错时各层描边往红里偏多少：要"略微"，偏到刚好看得出线条发红就收
+  static const double errorBaseTint = 0.22;
+  static const double errorTopTint = 0.2;
+  static const double errorBladeTint = 0.18;
 
   /// 把 [color] 往 [errorTint] 混 [amount]（0~1）
   static Color tinted(Color color, double amount) {

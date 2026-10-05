@@ -330,6 +330,11 @@ class _DrillLoadingPainter extends CustomPainter {
     required this.drillScale,
   });
 
+  /// 各层描边宽（贴图网格单位）：线条化靠它撑形状，给太粗整块会糊成一片灰
+  static const double _baseStrokeWidth = 1.4;
+  static const double _bladeStrokeWidth = 1.1;
+  static const double _topStrokeWidth = 1.1;
+
   /// 钻头当前转角（弧度）
   final double spin;
 
@@ -380,7 +385,7 @@ class _DrillLoadingPainter extends CustomPainter {
       plate,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2 * drillScale
+        ..strokeWidth = _baseStrokeWidth * drillScale
         ..color = _tintStroke(tone.baseStroke, DrillPaint.errorBaseTint),
     );
   }
@@ -396,7 +401,7 @@ class _DrillLoadingPainter extends CustomPainter {
       ..color = tone.bladeFill;
     final stroke = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6 * drillScale
+      ..strokeWidth = _bladeStrokeWidth * drillScale
       ..color = _tintStroke(tone.bladeStroke, DrillPaint.errorBladeTint);
 
     canvas.save();
@@ -431,7 +436,7 @@ class _DrillLoadingPainter extends CustomPainter {
       cap,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6 * drillScale
+        ..strokeWidth = _topStrokeWidth * drillScale
         ..color = _tintStroke(tone.topStroke, DrillPaint.errorTopTint),
     );
   }
