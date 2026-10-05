@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_config.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/foundation.dart';
 
 /// MDTBBS 接口调用的失败
@@ -468,9 +472,21 @@ class MdtbbsClient {
       if (rawMeta is Map) meta = rawMeta.cast<String, dynamic>();
     }
 
-    if (message.isEmpty) message = error.message ?? '';
+    if (message.isEmpty) {
+      // 认不出的错误体也要留原文（500 常是空的或另一个形状），否则只剩 dio 那段英文套话，
+      // 报障时维护者拿不到任何线索
+      message = _rawSnippet(data) ?? '';
+    }
+    if (message.isEmpty) {
+      final status = response?.statusCode;
+      final requestId = meta?['request_id'];
+      message = status == null
+          ? (error.message ?? '')
+          : 'HTTP $status 且服务端没给错误详情'
+                '${requestId == null ? '' : '，request_id $requestId'}';
+    }
 
-    return MdtbbsException(
+    final failure = MdtbbsException(
       statusCode: response?.statusCode,
       code: code,
       message: message,
@@ -478,5 +494,34 @@ class MdtbbsClient {
       retryable: errorBody?['retryable'] == true,
       details: (errorBody?['details'] as List?) ?? const [],
     );
+
+    // 路径与方法一起记：哪个请求挂的、服务端说了什么，日志里一眼能看出来
+    addLog(
+      .warning,
+      '请求失败 ${error.requestOptions.method} ${error.requestOptions.path}'
+      '：${failure.message}',
+      tag: 'Mdtbbs',
+    );
+    return failure;
   }
+
+  /// 认不出的错误体截一段原文（换行压平、超长截断）
+  static String? _rawSnippet(Object? data) {
+    final text = switch (data) {
+      final String value => value,
+      final Map value => jsonEncode(value),
+      final List value => jsonEncode(value),
+      null => null,
+      _ => '$data',
+    };
+    if (text == null) return null;
+    final trimmed = removeNewlines(text).trim();
+    if (trimmed.isEmpty) return null;
+    return trimmed.length <= _rawSnippetLimit
+        ? trimmed
+        : '${trimmed.substring(0, _rawSnippetLimit)}…';
+  }
+
+  /// 错误体最多留这么长：够看出是 HTML 错误页还是 JSON 就行
+  static const _rawSnippetLimit = 300;
 }
