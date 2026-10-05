@@ -317,27 +317,32 @@ class TemplateSkin {
   /// 悬停 / 按下：压在**控件自己的底色**上算出来的一层
   ///
   /// 不用「无论底色都叠同一层白 / 黑」的固定叠层 —— 那样在暗色下会出事：
-  /// `sunken` 与卡面只差约 6% 亮度，固定 8% 白的叠层正好把凹槽推到卡面的亮度上，
-  /// 凹槽在悬停时消失、看着像融进了卡（用户 2026-10-05 指出）。
-  /// 规则：**暗色下比卡面暗的底，状态只走一半**，保证叠完仍留在卡面之下；
-  /// 比卡面亮的底（暗色的 raised / accent）照常再亮一步；透明底就叠在卡面上
-  Color hoverOn(Color base) => _stateOn(base, dark ? 0.08 : 0.06);
+  /// `sunken` 与卡面只差约 6% 亮度（铜 `#12110F` 对卡面 `#22201E`），固定 8% 白的叠层
+  /// 一叠就翻到卡面**之上**（`#252422`），凹槽在悬停时消失、看着像融进了卡
+  /// （用户 2026-10-05 指出）。规则：
+  /// - 亮色：黑叠层（比卡面暗的凹槽更暗，离卡面更远）
+  /// - 暗色、底色比卡面暗：近黑没有「更暗」的余地，只能朝卡面走 ——
+  ///   **悬停走 1/3、按下走 1/2，绝不过半**，叠完仍是凹槽
+  /// - 暗色、底色比卡面亮（`raised` / 实心）：白叠层，再亮一步
+  /// - 透明底：叠层本来就叠在卡面上，直接给
+  Color hoverOn(Color base) =>
+      _stateOn(base, dark ? 0.08 : 0.06, dark ? 1 / 3 : null);
 
-  Color pressedOn(Color base) => _stateOn(base, dark ? 0.12 : 0.10);
+  Color pressedOn(Color base) =>
+      _stateOn(base, dark ? 0.12 : 0.10, dark ? 0.5 : null);
 
-  Color _stateOn(Color base, double amount) {
-    final whiteOverlay = dark;
+  Color _stateOn(Color base, double amount, double? towardsCard) {
     if (base.a < 1) {
-      return (whiteOverlay ? Colors.white : Colors.black).withAlpha(
+      return (dark ? Colors.white : Colors.black).withAlpha(
         (amount * 255).round(),
       );
     }
-    final belowCard = templateLuminance(base) < templateLuminance(surface);
-    final alpha = dark && belowCard ? amount / 2 : amount;
+    if (towardsCard != null &&
+        templateLuminance(base) < templateLuminance(surface)) {
+      return Color.lerp(base, surface, towardsCard)!;
+    }
     return Color.alphaBlend(
-      (whiteOverlay ? Colors.white : Colors.black).withAlpha(
-        (alpha * 255).round(),
-      ),
+      (dark ? Colors.white : Colors.black).withAlpha((amount * 255).round()),
       base,
     );
   }
