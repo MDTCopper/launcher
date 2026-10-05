@@ -12,16 +12,16 @@ import 'template_skin.dart';
 /// 按钮的四种量级：实心主行动 / 中性 / 安静 / 破坏性
 enum TemplateButtonKind { solid, plain, quiet, danger }
 
-/// 分组卡：标题**在卡内**（2026-10-05 用户问「是否应该把标题再融入 card」⇒ 融入了）
+/// 分组卡：标题**在卡外**（2026-10-05 用户先问「是否应该把标题再融入 card」、
+/// 试过之后要求「标题还是移出去」⇒ 回到卡外，标题贴左 4、与卡相距 8）
 ///
 /// 三条几何规则：
 /// ① **卡默认占满宽度** —— 卡宽跟着内容走时，同一页的卡宽窄不一、左边缘参差
-///    （用户 2026-10-05「内容板应该默认被撑大」）；页面上成组的内容都该有面，
-///    面的大小就不该由内容的固有宽度决定
-/// ② **卡内衬统一 12**（原来是「行卡 8 / 内容卡 16」两种）—— 标题融进卡内之后，
-///    内衬同时决定标题离卡边多远；两种内衬会让同一页的标题不在同一条线上
-/// ③ 标题到内容 8（原来 12）：标题现在是卡的「头」，跟自己的内容是一组，靠得近才像一组；
-///    行卡里行的文字因为要给自己留出圆角悬停块，会比标题再深 12，这是有意的
+///    （用户 2026-10-05「内容板应该默认被撑大」）
+/// ② **卡内衬统一 12**（原来是「行卡 8 / 内容卡 16」两种）—— 两种内衬会让同一页的
+///    卡的边距不在同一条线上
+/// ③ 标题在卡外**作为组标签**：它与卡的 8px 间距在表达「这个标题管住这张卡」，
+///    行卡里行的文字比卡边再深 12（那是给行自己的圆角悬停块留的）
 class TemplateSection extends StatelessWidget {
   const TemplateSection({
     super.key,
@@ -43,34 +43,34 @@ class TemplateSection extends StatelessWidget {
     // **改一边要改另一边**，别只改这里让两组加起来变成 36（2026-10-05 用户指出过大）
     return Padding(
       padding: const EdgeInsets.only(bottom: TemplateSpace.md),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: skin.surface,
-          borderRadius: BorderRadius.circular(TemplateRadius.card),
-          border: Border.all(color: skin.border),
-          boxShadow: [
-            BoxShadow(
-              color: skin.shadow,
-              blurRadius: 12,
-              offset: const Offset(0, 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.sm,
+        children: [
+          if (title != null)
+            Padding(
+              padding: const EdgeInsets.only(left: TemplateSpace.xs),
+              child: Text(
+                title!,
+                style: TemplateType.section.copyWith(color: skin.textPrimary),
+              ),
             ),
-          ],
-        ),
-        child: Padding(
-          padding: padding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: TemplateSpace.sm,
-            children: [
-              if (title != null)
-                Text(
-                  title!,
-                  style: TemplateType.section.copyWith(color: skin.textPrimary),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: skin.surface,
+              borderRadius: BorderRadius.circular(TemplateRadius.card),
+              border: Border.all(color: skin.border),
+              boxShadow: [
+                BoxShadow(
+                  color: skin.shadow,
+                  blurRadius: 12,
+                  offset: const Offset(0, 2),
                 ),
-              child,
-            ],
+              ],
+            ),
+            child: Padding(padding: padding, child: child),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -249,12 +249,18 @@ class TemplateButton extends StatelessWidget {
       TemplateButtonKind.quiet => (Colors.transparent, skin.textSecondary),
       TemplateButtonKind.danger => (Colors.transparent, skin.dangerText),
     };
+    // 实心上的状态要更明显，而且是「压暗」而不是按主题方向（见 solidHoverOn）
+    final solid = kind == TemplateButtonKind.solid;
 
     return ReboundButton(
       onTap: onTap ?? () {},
       backgroundColor: background,
-      hoverColor: skin.hoverOn(background),
-      highlightColor: skin.pressedOn(background),
+      hoverColor: solid
+          ? skin.solidHoverOn(background)
+          : skin.hoverOn(background),
+      highlightColor: solid
+          ? skin.solidPressedOn(background)
+          : skin.pressedOn(background),
       pressedScale: 0.96,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
       padding: const EdgeInsets.symmetric(
@@ -358,12 +364,13 @@ class TemplateSegment extends StatelessWidget {
               child: ReboundContainer(
                 onTap: () => onTap(i),
                 borderRadius: BorderRadius.circular(TemplateRadius.control),
-                backgroundColor: value == i ? skin.surface : Colors.transparent,
+                // 选中的那一格用抬升档：暗色里控件面（凹槽档）比卡面亮，选中要更亮一层
+                backgroundColor: value == i ? skin.raised : Colors.transparent,
                 hoverColor: skin.hoverOn(
-                  value == i ? skin.surface : Colors.transparent,
+                  value == i ? skin.raised : Colors.transparent,
                 ),
                 highlightColor: skin.pressedOn(
-                  value == i ? skin.surface : Colors.transparent,
+                  value == i ? skin.raised : Colors.transparent,
                 ),
                 padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
                 child: Text(

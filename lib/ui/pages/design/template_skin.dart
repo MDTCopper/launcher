@@ -143,48 +143,34 @@ class TemplateSkin {
 
   /// 悬停 / 按下：压在**控件自己的底色**上算出来的一层
   ///
-  /// 三个约束（前两条是踩出来的）：
-  /// ① **必须返回半透明的一层** —— `ReboundContainer` 的悬浮层是 `Positioned.fill`
+  /// 三条规则（前两条是踩出来的）：
+  /// ① **必须是半透明的一层** —— `ReboundContainer` 的悬浮层是 `Positioned.fill`
   ///    画在**内容之上**的，给不透明色会直接把字盖掉（用户 2026-10-05「部分按钮悬停字会消失」）
-  /// ② 暗色下不能一律叠白：`sunken` 与卡面只差约 6% 亮度（铜 `#12110F` 对卡面 `#22201E`），
-  ///    固定 8% 白一叠就翻到卡面**之上**（`#252422`），凹槽在悬停时消失、看着像融进了卡
-  ///    （用户 2026-10-05「低于 card 的配色的按钮在悬停时会与 card 背景融合」）
-  /// ③ 比卡面暗的底在暗色里没有「更暗」的余地 ⇒ 朝卡面走，但**绝不过半**
-  ///
-  /// 做法：先算出**目标合成色**，再反解出「纯黑 / 白叠层需要多少 alpha」才能落在目标上
-  /// （逐通道取最大，宁少不多）。于是亮色与「比卡面亮」的底仍是原来的 6% / 8% 叠层，
-  /// 只有暗色下比卡面暗的底会得到一层约 3% 的白 —— 一个字都不会被盖住
-  Color hoverOn(Color base) =>
-      _stateOn(base, dark ? 0.08 : 0.06, dark ? 1 / 3 : null);
+  /// ② 方向按「离卡面更远」：亮色压暗；暗色下控件面比卡面**亮**（Fluent 的暗色模型是
+  ///    抬升即提亮）⇒ 提亮，而且不会撞上卡面。原来暗色把控件面压在卡面**之下**，
+  ///    提亮一层就正好落在卡面上，只能压到 2% 才不越界 ⇒ 悬停几乎看不出
+  ///    （用户 2026-10-05「暗一点的按钮悬停几乎没有效果」）
+  /// ③ 透明底就叠在卡面上，直接给
+  Color hoverOn(Color base) => _stateOn(base, dark ? 0.10 : 0.08);
 
-  Color pressedOn(Color base) =>
-      _stateOn(base, dark ? 0.12 : 0.10, dark ? 0.5 : null);
+  Color pressedOn(Color base) => _stateOn(base, dark ? 0.16 : 0.13);
 
-  Color _stateOn(Color base, double amount, double? towardsCard) {
-    final overlay = dark ? Colors.white : Colors.black;
-    if (base.a < 1) return overlay.withAlpha((amount * 255).round());
+  /// 实心按钮的状态：**朝远离其上文字的方向**走 —— 文字是近白，所以两个主题都压暗，
+  /// 幅度再大一档（饱和实心上 6~8% 的叠层几乎看不出，用户 2026-10-05
+  /// 「在主题色按钮上的悬停不够亮，几乎没感觉」）。
+  /// 压暗同时把白字对比度**抬高**（实测 4.94 → 6.24），不会为了「有感觉」把可读性做掉；
+  /// 反过来说，暗色下若为了「更亮」而提亮实心，白字会掉到 3.6 不达标 —— 这是**不能**走的方向
+  Color solidHoverOn(Color base) =>
+      _overlayOn(base, dark ? 0.16 : 0.14, Colors.black);
 
-    final target =
-        (towardsCard != null &&
-            toneLuminance(base.toARGB32()) < toneLuminance(surface.toARGB32()))
-        ? Color.lerp(base, surface, towardsCard)!
-        : Color.alphaBlend(overlay.withAlpha((amount * 255).round()), base);
+  Color solidPressedOn(Color base) =>
+      _overlayOn(base, dark ? 0.24 : 0.22, Colors.black);
 
-    // 反解 alpha：白叠层 t = b + a(255-b) ⇒ a = (t-b)/(255-b)；黑叠层 a = (b-t)/b
-    var need = 0.0;
-    final pairs = [
-      (base.r * 255, target.r * 255),
-      (base.g * 255, target.g * 255),
-      (base.b * 255, target.b * 255),
-    ];
-    for (final (b, t) in pairs) {
-      final room = dark ? 255 - b : b;
-      if (room < 0.5) continue;
-      final a = dark ? (t - b) / room : (b - t) / room;
-      if (a > need) need = a;
-    }
-    return overlay.withAlpha((need.clamp(0.0, 1.0) * 255).round());
-  }
+  Color _stateOn(Color base, double amount) =>
+      _overlayOn(base, amount, dark ? Colors.white : Colors.black);
+
+  Color _overlayOn(Color base, double amount, Color overlay) =>
+      overlay.withAlpha((amount * 255).round());
 }
 
 /// 文字层级：桌面密度，靠字重不靠把尺寸吹大

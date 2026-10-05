@@ -153,8 +153,12 @@ class TemplateTones {
     // 98 才是正常的暖白 `#FFF8F4`
     final page = neutral.at(dark ? 7 : 95);
     final surface = neutral.at(dark ? 12 : 98);
-    final raised = neutral.at(dark ? 17 : 98);
-    final sunken = neutral.at(dark ? 5 : 90);
+    // 抬升（普通按钮的底）与控件面（凹槽那一档）都**比卡面亮** —— 与 Windows 的暗色
+    // 模型一致（暗色下 elevation 是提亮，不是压暗；Fluent 的 TextBox 在暗色里也比
+    // 背景亮）。之前在暗色把它们压到卡面**之下**（tone 5），于是悬停叠一层白就正好
+    // 撞上卡面，只能压到 2% 才不越界 ⇒ 悬停几乎看不出（用户 2026-10-05 指出）
+    final raised = neutral.at(dark ? 27 : 98);
+    final sunken = neutral.at(dark ? 20 : 90);
     final border = neutral.at(dark ? 24 : 88);
     final borderStrong = strong.at(dark ? 33 : 75);
     final onAccent = neutral.at(98);

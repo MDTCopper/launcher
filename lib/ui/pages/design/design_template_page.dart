@@ -220,12 +220,11 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
   // ════════ 分组卡：标题在卡内、小字、中性色 ════════
 
-  /// 分组卡：标题**在卡内**；标题不给就是一张纯内容卡
+  /// 分组卡：标题**在卡外**（作为组标签）；标题不给就是一张纯内容卡
   ///
   /// **内容一律落在卡面上** —— 行直接贴在页面底上时，静止状态看不出这一组从哪到哪，
   /// 只有悬停才显形；卡面提供的是「共同区域」这条最省力的分组手段（2026-10-05 用户指出）。
-  /// **卡默认占满宽度**（卡宽跟着内容走会让同一页的卡宽窄参差）；**标题融入卡内**；
-  /// **卡内衬统一 12、标题到内容 8** —— 与共享层 `TemplateSection` 的规则一致，两边要一起改
+  /// **卡默认占满宽度**、**卡内衬统一 12** —— 与共享层 `TemplateSection` 的规则一致，两边要一起改
   Widget _buildSection(
     TemplateSkin skin, {
     String? title,
@@ -236,34 +235,34 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     // 别只改这里，两组加起来 36 会显得空（2026-10-05 用户指出过大）
     return Padding(
       padding: const EdgeInsets.only(bottom: TemplateSpace.md),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: skin.surface,
-          borderRadius: BorderRadius.circular(TemplateRadius.card),
-          border: Border.all(color: skin.border),
-          boxShadow: [
-            BoxShadow(
-              color: skin.shadow,
-              blurRadius: 12,
-              offset: const Offset(0, 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.sm,
+        children: [
+          if (title != null)
+            Padding(
+              padding: const EdgeInsets.only(left: TemplateSpace.xs),
+              child: Text(
+                title,
+                style: TemplateType.section.copyWith(color: skin.textPrimary),
+              ),
             ),
-          ],
-        ),
-        child: Padding(
-          padding: padding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: TemplateSpace.sm,
-            children: [
-              if (title != null)
-                Text(
-                  title,
-                  style: TemplateType.section.copyWith(color: skin.textPrimary),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: skin.surface,
+              borderRadius: BorderRadius.circular(TemplateRadius.card),
+              border: Border.all(color: skin.border),
+              boxShadow: [
+                BoxShadow(
+                  color: skin.shadow,
+                  blurRadius: 12,
+                  offset: const Offset(0, 2),
                 ),
-              child,
-            ],
+              ],
+            ),
+            child: Padding(padding: padding, child: child),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -455,12 +454,12 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
               child: ReboundContainer(
                 onTap: () => onTap(i),
                 borderRadius: BorderRadius.circular(TemplateRadius.control),
-                backgroundColor: value == i ? skin.surface : Colors.transparent,
+                backgroundColor: value == i ? skin.raised : Colors.transparent,
                 hoverColor: skin.hoverOn(
-                  value == i ? skin.surface : Colors.transparent,
+                  value == i ? skin.raised : Colors.transparent,
                 ),
                 highlightColor: skin.pressedOn(
-                  value == i ? skin.surface : Colors.transparent,
+                  value == i ? skin.raised : Colors.transparent,
                 ),
                 padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
                 child: Text(
@@ -496,8 +495,12 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     return ReboundButton(
       onTap: _noop,
       backgroundColor: background,
-      hoverColor: skin.hoverOn(background),
-      highlightColor: skin.pressedOn(background),
+      hoverColor: kind == _Kind.solid
+          ? skin.solidHoverOn(background)
+          : skin.hoverOn(background),
+      highlightColor: kind == _Kind.solid
+          ? skin.solidPressedOn(background)
+          : skin.pressedOn(background),
       pressedScale: 0.96,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
       padding: const EdgeInsets.symmetric(

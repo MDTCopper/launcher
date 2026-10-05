@@ -66,6 +66,50 @@ void main() {
         pair('警告实心上的字', t.onAccent, t.warning, 4.5, failures: failures);
       }
       pair('软底 / 卡面（块感）', t.accentTint, t.surface, 1, failures: failures);
+
+      // 状态色：叠层是半透明的（画在内容之上），这里按「合成后」核对
+      int on(int base, double alpha, bool white) {
+        final o = white ? 255 : 0;
+        int ch(int v) => (o * alpha + v * (1 - alpha)).round();
+        return 0xFF000000 |
+            (ch((base >> 16) & 0xFF) << 16) |
+            (ch((base >> 8) & 0xFF) << 8) |
+            ch(base & 0xFF);
+      }
+
+      final hover = dark ? 0.10 : 0.08;
+      final press = dark ? 0.16 : 0.13;
+      print(
+        '  控件面悬停：凹槽 ${hex(on(t.sunken, hover, dark))} / 抬升 ${hex(on(t.raised, hover, dark))}'
+        '   按下：凹槽 ${hex(on(t.sunken, press, dark))}',
+      );
+      final solidHover = dark ? 0.16 : 0.14;
+      final solidPress = dark ? 0.24 : 0.22;
+      // 实心的状态是**压暗**（黑叠层），两个主题一样，所以 white 传 false
+      final hovered = on(t.accent, solidHover, false);
+      print(
+        '  实心悬停：${hex(t.accent)} → ${hex(hovered)}'
+        '（与静止的通道差 ${((t.accent >> 16) & 0xFF) - ((hovered >> 16) & 0xFF)}）'
+        '   按下 → ${hex(on(t.accent, solidPress, false))}',
+      );
+      pair('悬停后实心上的字', t.onAccent, hovered, 4.5, failures: failures);
+      if (dark) {
+        // 已知取舍（不判失败）：暗色下白字要 ≥4.5 就得把实心压在卡面上方约 3.15，
+        // 于是「压暗」的悬停会把它带到 2.4 左右。要同时做到「悬停有明显变化」+
+        // 「白字达标」+「边界 3:1」，暗色只能改成 M3 那套（亮底 + 深字）
+        final note = toneContrast(hovered, t.surface);
+        print(
+          '    （取舍）悬停后实心 / 卡面 ${note.toStringAsFixed(2)}:1 —— 低于 3.0，'
+          '换来悬停可见且白字升到 ${toneContrast(t.onAccent, hovered).toStringAsFixed(2)}:1',
+        );
+      }
+      // 控件面与卡面的区分（容器的层级差，故意低但不能没有）；
+      // 亮色的「抬升」与卡面同色（普通按钮靠文字认，不靠底色差），所以只查暗色
+      pair('控件面 / 卡面（层级差）', t.sunken, t.surface, 1.2, failures: failures);
+      if (dark) {
+        pair('抬升 / 卡面（层级差）', t.raised, t.surface, 1.2, failures: failures);
+      }
+      pair('选中格 / 分段底（层级差）', t.raised, t.sunken, 1.1, failures: failures);
       print('  ${failures.isEmpty ? '全部达标' : '✗ ${failures.join(' | ')}'}');
     }
   }
