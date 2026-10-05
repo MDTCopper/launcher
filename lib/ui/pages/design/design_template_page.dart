@@ -36,6 +36,8 @@ class _Skin {
     required this.accent,
     required this.accentText,
     required this.onAccent,
+    required this.accentTint,
+    required this.onAccentTint,
     required this.danger,
     required this.onDanger,
     required this.success,
@@ -63,6 +65,10 @@ class _Skin {
   final Color accentText;
   final Color onAccent;
 
+  /// 软底形态（待定用）：淡主题色底 + 深主题色字，块感更轻
+  final Color accentTint;
+  final Color onAccentTint;
+
   /// 破坏性：同样是「实心」与「文字」两种形态
   final Color danger;
   final Color onDanger;
@@ -83,9 +89,12 @@ class _Skin {
     textPrimary: Color(0xFF1F1D1B),
     textSecondary: Color(0xFF5C5852),
     textTertiary: Color(0xFF797369),
-    accent: Color(0xFF8F5A26),
-    accentText: Color(0xFF8F5A26),
+    // 浅色实心：从 #8F5A26 提亮到这一档（白字 4.82:1，仍达标；旧值对白卡 5.74 显得过重）
+    accent: Color(0xFF9C6327),
+    accentText: Color(0xFF9C6327),
     onAccent: Color(0xFFFFFBF7),
+    accentTint: Color(0xFFE8CBA8),
+    onAccentTint: Color(0xFF5E3711),
     danger: Color(0xFFA83232),
     onDanger: Color(0xFFFFFBF7),
     success: Color(0xFF2F6B3A),
@@ -110,6 +119,8 @@ class _Skin {
     accent: Color(0xFF9A6229),
     accentText: Color(0xFFD9A76B),
     onAccent: Color(0xFFFFFBF7),
+    accentTint: Color(0xFF4A3620),
+    onAccentTint: Color(0xFFE3BE8F),
     danger: Color(0xFFBA4C4C),
     onDanger: Color(0xFFFFFBF7),
     success: Color(0xFF7FBF8A),
@@ -193,7 +204,9 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildSection(
           skin,
           title: '运行环境',
+          padding: const EdgeInsets.all(_Space.sm),
           child: Column(
+            spacing: 2,
             children: [
               _buildSwitchRow(
                 skin,
@@ -202,9 +215,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
                 value: _isolate,
                 onTap: () => setState(() => _isolate = !_isolate),
               ),
-              _buildDivider(skin),
               _buildKeyRow(skin, '游戏 Java', 'Java 25 · /opt/jdk-25'),
-              _buildDivider(skin),
               _buildSwitchRow(
                 skin,
                 title: '启动时检查更新',
@@ -238,22 +249,19 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildSection(
           skin,
           title: '已安装的模组',
-          padding: EdgeInsets.zero,
+          padding: const EdgeInsets.all(_Space.sm),
           child: Column(
+            spacing: 2,
             children: [
-              for (var i = 0; i < _items.length; i++) ...[
-                if (i > 0) _buildDivider(skin),
-                _buildItemRow(
-                  skin,
-                  _items[i],
-                  selected: _selectedItem == _items[i].name,
-                ),
-              ],
+              for (final item in _items)
+                _buildItemRow(skin, item, selected: _selectedItem == item.name),
             ],
           ),
         ),
         _buildSection(skin, title: '还没有安装的模组', child: _buildEmpty(skin)),
         _buildNotice(skin),
+        _buildPrimaryShapeChoice(skin),
+        _buildCompareWithCopper(skin),
         _buildPaletteTable(skin),
       ],
     );
@@ -343,8 +351,8 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     );
   }
 
-  Widget _buildDivider(_Skin skin) =>
-      Divider(height: 1, thickness: 1, color: skin.border);
+  // 行内不再画分隔线：线会和 rebound 的圆角悬停块打架（用户 2026-10-05 指出的）
+  // ⇒ 行之间靠 2px 间距 + 每行自己的圆角高亮来分，见 _buildRow
 
   // ════════ 行：开关行 / 键值行 / 列表项 ════════
 
@@ -652,109 +660,282 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     );
   }
 
-  // ════════ 对照表：色值 + 现算的对比度，谁都能复核 ════════
+  // ════════ 对照表：色值 + 现算的对比度 + 实物小样 ════════
 
   Widget _buildPaletteTable(_Skin skin) {
-    final rows = <({String name, String pair, double ratio, String need})>[
-      (
-        name: '正文 / 卡面',
-        pair: 'textPrimary on surface',
-        ratio: _contrast(skin.textPrimary, skin.surface),
-        need: '≥ 4.5',
-      ),
+    final rows = <({String name, Color fg, Color bg, String need})>[
+      (name: '正文 / 卡面', fg: skin.textPrimary, bg: skin.surface, need: '≥ 4.5'),
       (
         name: '次要文字 / 卡面',
-        pair: 'textSecondary on surface',
-        ratio: _contrast(skin.textSecondary, skin.surface),
+        fg: skin.textSecondary,
+        bg: skin.surface,
         need: '≥ 4.5',
       ),
       (
         name: '三级文字 / 卡面',
-        pair: 'textTertiary on surface',
-        ratio: _contrast(skin.textTertiary, skin.surface),
+        fg: skin.textTertiary,
+        bg: skin.surface,
         need: '≥ 4.5',
       ),
-      (
-        name: '实心按钮上的字',
-        pair: 'onAccent on accent',
-        ratio: _contrast(skin.onAccent, skin.accent),
-        need: '≥ 4.5',
-      ),
-      (
-        name: '实心块 / 卡面',
-        pair: 'accent on surface',
-        ratio: _contrast(skin.accent, skin.surface),
-        need: '主行动要跳出来',
-      ),
+      (name: '实心按钮上的字', fg: skin.onAccent, bg: skin.accent, need: '≥ 4.5'),
       (
         name: '强调色文字 / 卡面',
-        pair: 'accentText on surface',
-        ratio: _contrast(skin.accentText, skin.surface),
+        fg: skin.accentText,
+        bg: skin.surface,
         need: '≥ 4.5',
       ),
+      (name: '破坏性实心上的字', fg: skin.onDanger, bg: skin.danger, need: '≥ 4.5'),
       (
-        name: '破坏性实心上的字',
-        pair: 'onDanger on danger',
-        ratio: _contrast(skin.onDanger, skin.danger),
-        need: '≥ 4.5',
+        name: '实心块 / 卡面',
+        fg: skin.accent,
+        bg: skin.surface,
+        need: '主行动跳出来即可，越暗越闷',
       ),
       (
         name: '卡面 / 页面底',
-        pair: 'surface on page',
-        ratio: _contrast(skin.surface, skin.page),
-        need: '靠描边与阴影补',
+        fg: skin.surface,
+        bg: skin.page,
+        need: '这一对本来就低，抬起靠描边与阴影',
       ),
-      (
-        name: '凹槽 / 卡面',
-        pair: 'sunken on surface',
-        ratio: _contrast(skin.sunken, skin.surface),
-        need: '看得见就行',
-      ),
-      (
-        name: '描边 / 卡面',
-        pair: 'border on surface',
-        ratio: _contrast(skin.border, skin.surface),
-        need: '看得见就行',
-      ),
+      (name: '凹槽 / 卡面', fg: skin.sunken, bg: skin.surface, need: '低，看得出凹就行'),
+      (name: '描边 / 卡面', fg: skin.border, bg: skin.surface, need: '低，1px 够用'),
     ];
 
     return _buildSection(
       skin,
-      title: '这套皮肤的实测对比度（现算）',
+      title: '这套皮肤的实测对比度（现算，左边就是实物）',
       child: Column(
+        spacing: 2,
         children: [
-          for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0) _buildDivider(skin),
+          for (final row in rows)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: _Space.sm),
               child: Row(
+                spacing: _Space.md,
                 children: [
+                  // 实物：把前景色真的画在背景色上，比值对不对一眼能看
+                  Container(
+                    width: 56,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: row.bg,
+                      borderRadius: BorderRadius.circular(_Radius.control),
+                      border: Border.all(color: skin.border),
+                    ),
+                    child: Text(
+                      'Aa',
+                      style: _Type.section.copyWith(color: row.fg),
+                    ),
+                  ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       spacing: 2,
                       children: [
                         Text(
-                          rows[i].name,
+                          row.name,
                           style: _Type.item.copyWith(color: skin.textPrimary),
                         ),
                         Text(
-                          '${rows[i].pair} · ${rows[i].need}',
+                          row.need,
                           style: _Type.micro.copyWith(color: skin.textTertiary),
                         ),
                       ],
                     ),
                   ),
                   Text(
-                    '${rows[i].ratio.toStringAsFixed(2)}:1',
+                    '${_contrast(row.fg, row.bg).toStringAsFixed(2)}:1',
                     style: _Type.section.copyWith(color: skin.accentText),
                   ),
                 ],
               ),
             ),
-          ],
         ],
       ),
+    );
+  }
+
+  // ════════ 待定：主行动的两种形态 ════════
+
+  Widget _buildPrimaryShapeChoice(_Skin skin) {
+    final solid = _contrast(skin.onAccent, skin.accent);
+    final tint = _contrast(skin.onAccentTint, skin.accentTint);
+
+    return _buildSection(
+      skin,
+      title: '待定：主行动的两种形态',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: _Space.lg,
+        children: [
+          Row(
+            spacing: _Space.md,
+            children: [
+              _buildTintedButton(
+                skin,
+                background: skin.accent,
+                foreground: skin.onAccent,
+                label: '实心 · 字 ${solid.toStringAsFixed(2)}:1',
+              ),
+              _buildTintedButton(
+                skin,
+                background: skin.accentTint,
+                foreground: skin.onAccentTint,
+                label: '软底 · 字 ${tint.toStringAsFixed(2)}:1',
+              ),
+            ],
+          ),
+          Text(
+            '实心那块面积大、颜色深，在大留白的版面上容易显重（用户 2026-10-05 的反馈）；'
+            '软底是「淡主题色底 + 深主题色字」，块感轻得多、字还更清楚，'
+            '代价是它在卡面上只比背景重一点（浅色 1.55:1），靠的那点「有色」而不是「有明度」',
+            style: _Type.caption.copyWith(color: skin.textTertiary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTintedButton(
+    _Skin skin, {
+    required Color background,
+    required Color foreground,
+    required String label,
+  }) {
+    return ReboundButton(
+      onTap: _noop,
+      backgroundColor: background,
+      hoverColor: skin.hover,
+      pressedScale: 0.96,
+      borderRadius: BorderRadius.circular(_Radius.control),
+      padding: const EdgeInsets.symmetric(
+        horizontal: _Space.lg,
+        vertical: _Space.sm + 1,
+      ),
+      child: DefaultTextStyle(
+        style: _Type.item.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w600,
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [Text(label)]),
+      ),
+    );
+  }
+
+  // ════════ 和 Copper 现状逐对比：颜色看着像，差的是这几处对比 ════════
+
+  Widget _buildCompareWithCopper(_Skin skin) {
+    // Copper 现状的色值（浅色主题），写在这里方便并排看
+    const oldSurface = Color(0xFFE9E9E9);
+    const oldPage = Color(0xFFD4D4D4);
+    const oldTextPrimary = Color(0xFF4C4C4C);
+    const oldTextHint = Color(0xFF7D7D7D);
+    const oldAccent = Color(0xFFB8863E);
+    const oldOnAccent = Color(0xFFF5F5F5);
+
+    final rows =
+        <({String name, Color oldFg, Color oldBg, Color newFg, Color newBg})>[
+          (
+            name: '正文文字',
+            oldFg: oldTextPrimary,
+            oldBg: oldSurface,
+            newFg: skin.textPrimary,
+            newBg: skin.surface,
+          ),
+          (
+            name: '三级小字',
+            oldFg: oldTextHint,
+            oldBg: oldSurface,
+            newFg: skin.textTertiary,
+            newBg: skin.surface,
+          ),
+          (
+            name: '实心按钮上的字',
+            oldFg: oldOnAccent,
+            oldBg: oldAccent,
+            newFg: skin.onAccent,
+            newBg: skin.accent,
+          ),
+          (
+            name: '卡面 / 页面底',
+            oldFg: oldSurface,
+            oldBg: oldPage,
+            newFg: skin.surface,
+            newBg: skin.page,
+          ),
+        ];
+
+    return _buildSection(
+      skin,
+      title: '和 Copper 现状逐对比（左旧右新，比值都是现算）',
+      child: Column(
+        spacing: 2,
+        children: [
+          for (final row in rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: _Space.sm),
+              child: Row(
+                spacing: _Space.md,
+                children: [
+                  _buildSwatch(
+                    fg: row.oldFg,
+                    bg: row.oldBg,
+                    border: skin.border,
+                  ),
+                  Text(
+                    '${_contrast(row.oldFg, row.oldBg).toStringAsFixed(2)}:1',
+                    style: _Type.micro.copyWith(color: skin.textTertiary),
+                  ),
+                  Icon(Icons.arrow_forward, size: 14, color: skin.textTertiary),
+                  _buildSwatch(
+                    fg: row.newFg,
+                    bg: row.newBg,
+                    border: skin.border,
+                  ),
+                  Text(
+                    '${_contrast(row.newFg, row.newBg).toStringAsFixed(2)}:1',
+                    style: _Type.micro.copyWith(color: skin.accentText),
+                  ),
+                  Expanded(
+                    child: Text(
+                      row.name,
+                      textAlign: TextAlign.right,
+                      style: _Type.micro.copyWith(color: skin.textTertiary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(top: _Space.md),
+            child: Text(
+              '前三行是这次真正改掉的（旧值里三级小字 3.39、实心按钮上的字 2.95 都不达标）；'
+              '最后一行两边一样低 —— 卡面与页底的明度差从来不是「抬起」的手段，'
+              '那一格看不出区别是对的，抬起靠的是 1px 描边与那层暖色阴影',
+              style: _Type.caption.copyWith(color: skin.textTertiary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSwatch({
+    required Color fg,
+    required Color bg,
+    required Color border,
+  }) {
+    return Container(
+      width: 48,
+      height: 28,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(_Radius.control),
+        border: Border.all(color: border),
+      ),
+      child: Text('Aa', style: _Type.section.copyWith(color: fg)),
     );
   }
 }
