@@ -14,19 +14,21 @@ enum TemplateButtonKind { solid, plain, quiet, danger }
 
 /// 分组卡：标题**在卡内**（2026-10-05 用户问「是否应该把标题再融入 card」⇒ 融入了）
 ///
-/// 两条几何规则：
+/// 三条几何规则：
 /// ① **卡默认占满宽度** —— 卡宽跟着内容走时，同一页的卡宽窄不一、左边缘参差
 ///    （用户 2026-10-05「内容板应该默认被撑大」）；页面上成组的内容都该有面，
 ///    面的大小就不该由内容的固有宽度决定
-/// ② 标题在卡内、与卡的内容同一条竖线（行卡的内衬是 8、行自己再内缩 12，
-///    所以标题会比行的文字靠左 12 —— 比原来「标题在卡外、贴左 4」更靠近行的文字）
+/// ② **卡内衬统一 12**（原来是「行卡 8 / 内容卡 16」两种）—— 标题融进卡内之后，
+///    内衬同时决定标题离卡边多远；两种内衬会让同一页的标题不在同一条线上
+/// ③ 标题到内容 8（原来 12）：标题现在是卡的「头」，跟自己的内容是一组，靠得近才像一组；
+///    行卡里行的文字因为要给自己留出圆角悬停块，会比标题再深 12，这是有意的
 class TemplateSection extends StatelessWidget {
   const TemplateSection({
     super.key,
     required this.skin,
     this.title,
     required this.child,
-    this.padding = const EdgeInsets.all(TemplateSpace.lg),
+    this.padding = const EdgeInsets.all(TemplateSpace.md),
   });
 
   final TemplateSkin skin;
@@ -58,7 +60,7 @@ class TemplateSection extends StatelessWidget {
           padding: padding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: TemplateSpace.md,
+            spacing: TemplateSpace.sm,
             children: [
               if (title != null)
                 Text(

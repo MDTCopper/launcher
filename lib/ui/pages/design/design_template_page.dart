@@ -79,7 +79,6 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildSection(
           skin,
           title: '运行环境',
-          padding: const EdgeInsets.all(TemplateSpace.sm),
           child: Column(
             spacing: 2,
             children: [
@@ -124,7 +123,6 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildSection(
           skin,
           title: '已安装的模组',
-          padding: const EdgeInsets.all(TemplateSpace.sm),
           child: Column(
             spacing: 2,
             children: [
@@ -226,13 +224,13 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
   ///
   /// **内容一律落在卡面上** —— 行直接贴在页面底上时，静止状态看不出这一组从哪到哪，
   /// 只有悬停才显形；卡面提供的是「共同区域」这条最省力的分组手段（2026-10-05 用户指出）。
-  /// **卡默认占满宽度**（卡宽跟着内容走会让同一页的卡宽窄参差）；**标题融入卡内**
-  /// —— 与共享层 `TemplateSection` 的规则一致，两边要一起改
+  /// **卡默认占满宽度**（卡宽跟着内容走会让同一页的卡宽窄参差）；**标题融入卡内**；
+  /// **卡内衬统一 12、标题到内容 8** —— 与共享层 `TemplateSection` 的规则一致，两边要一起改
   Widget _buildSection(
     TemplateSkin skin, {
     String? title,
     required Widget child,
-    EdgeInsetsGeometry padding = const EdgeInsets.all(TemplateSpace.lg),
+    EdgeInsetsGeometry padding = const EdgeInsets.all(TemplateSpace.md),
   }) {
     // 卡间距：这里只给 12，`ListContentPanel` 默认再给 12 ⇒ 合计 24（组间）。
     // 别只改这里，两组加起来 36 会显得空（2026-10-05 用户指出过大）
@@ -255,7 +253,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
           padding: padding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: TemplateSpace.md,
+            spacing: TemplateSpace.sm,
             children: [
               if (title != null)
                 Text(
@@ -916,7 +914,6 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         // 当前版本：一张卡面 + 唯一的实心主行动
         _buildSection(
           skin,
-          padding: const EdgeInsets.all(TemplateSpace.sm),
           child: Column(
             spacing: 2,
             children: [
@@ -1005,7 +1002,6 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildSection(
           skin,
           title: '快捷入口',
-          padding: const EdgeInsets.all(TemplateSpace.sm),
           child: Wrap(
             spacing: TemplateSpace.md,
             runSpacing: TemplateSpace.md,
@@ -1075,7 +1071,6 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildSection(
           skin,
           title: '版本列表（${_downloadVersions.length}）',
-          padding: const EdgeInsets.all(TemplateSpace.sm),
           child: Column(
             spacing: 2,
             children: [
@@ -1212,7 +1207,6 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildMockLabel(skin, '模拟页：云存档页'),
         _buildSection(
           skin,
-          padding: const EdgeInsets.all(TemplateSpace.sm),
           child: _buildRow(
             skin,
             child: Row(
@@ -1263,7 +1257,6 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildSection(
           skin,
           title: 'Android · v160.5',
-          padding: const EdgeInsets.all(TemplateSpace.sm),
           child: Column(
             spacing: 2,
             children: [
@@ -1302,7 +1295,6 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildSection(
           skin,
           title: '快照历史',
-          padding: const EdgeInsets.all(TemplateSpace.sm),
           child: Column(
             spacing: 2,
             children: [

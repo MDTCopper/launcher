@@ -177,7 +177,6 @@ class _DesignModsReworkPageState extends State<DesignModsReworkPage> {
     return TemplateSection(
       skin: skin,
       title: '已安装（${visible.length}）',
-      padding: const EdgeInsets.all(TemplateSpace.sm),
       child: visible.isEmpty
           ? _buildEmptyState(skin)
           : Column(
@@ -285,10 +284,6 @@ class _DesignModsReworkPageState extends State<DesignModsReworkPage> {
     return TemplateSection(
       skin: skin,
       title: '已选 ${_selected.length}',
-      padding: const EdgeInsets.symmetric(
-        horizontal: TemplateSpace.lg,
-        vertical: TemplateSpace.md,
-      ),
       child: Wrap(
         spacing: TemplateSpace.md,
         runSpacing: TemplateSpace.md,

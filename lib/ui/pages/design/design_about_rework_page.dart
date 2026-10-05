@@ -80,7 +80,6 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
     return TemplateSection(
       skin: skin,
       title: '版本信息',
-      padding: const EdgeInsets.all(TemplateSpace.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 2,
