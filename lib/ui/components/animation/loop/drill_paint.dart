@@ -34,14 +34,14 @@ abstract final class DrillPaint {
 
   // ── 线条化配色的明暗两套 ──
 
-  /// 暗色主题：底座压暗当底、顶盖居中、钻臂最亮 —— 三层要拉开才看得出是"在转的钻头"
+  /// 暗色主题：底座压暗当底、顶盖居中、钻臂压得比顶盖更沉 —— 只靠那圈亮描边勾出"在转的钻头"
   static const DrillTone darkTone = DrillTone(
     baseFill: Color(0xFF2B2E35),
     baseStroke: Color(0xFF5C636E),
     topFill: Color(0xFF31353E),
     topStroke: Color(0xFF7A828E),
-    bladeFill: Color(0xFF5D6675),
-    bladeStroke: Color(0xFFC6CDD7),
+    bladeFill: Color(0xFF3A4049),
+    bladeStroke: Color(0xFF9AA3AF),
   );
 
   /// 亮色主题：同一条明度梯度，整组比页面底色深一档才看得见
