@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// 铜钻视觉常量与几何：线条化的 Mindustry 机械钻头
@@ -10,43 +12,45 @@ abstract final class DrillPaint {
   static const double grid = 64;
 
   /// 钻臂：根端 / 末端半宽与内外半径
-  static const double toothRootHalfWidth = 20;
-  static const double toothTipHalfWidth = 12;
-  static const double toothInnerRadius = 8.5;
-  static const double toothOuterRadius = 28.5;
+  ///
+  /// 根端要落在顶盖里（[topHalf]），末端伸到底座边上，中间那 17 个单位才是看得见的钻臂
+  static const double toothRootHalfWidth = 16;
+  static const double toothTipHalfWidth = 11;
+  static const double toothInnerRadius = 4;
+  static const double toothOuterRadius = 28;
 
-  /// 顶盖八边形半宽，压住钻臂根端
-  static const double topHalf = 16;
+  /// 顶盖八边形半宽；占底座一半左右，压住钻臂根端又不抢主体
+  static const double topHalf = 12;
 
   /// 底座八边形半宽 / 切角
   static const double baseHalf = 30;
   static const double baseCorner = 6;
 
-  /// 外环轨道离控件外沿的比例，给轨道笔宽与飞出的铜粒留出余量
-  static const double arcInset = 0.08;
+  /// 钻头外面留的余量比例，给弹出的铜粒留出飞行空间
+  static const double layoutInset = 0.08;
 
-  /// 钻头外接半径占控件边长的比例，让底座落在环内而不是压在环上
-  static const double drillRadiusRatio = (0.5 - arcInset) * 0.85;
+  /// 钻头外接半径占控件边长的比例
+  static const double drillRadiusRatio = (0.5 - layoutInset) * 0.85;
 
   // ── 线条化配色的明暗两套 ──
 
-  /// 暗色主题：整体压暗的金属，在深色页面上压得住
+  /// 暗色主题：底座压暗当底、顶盖居中、钻臂最亮 —— 三层要拉开才看得出是"在转的钻头"
   static const DrillTone darkTone = DrillTone(
-    baseFill: Color(0xFF2B2E35),
-    baseStroke: Color(0xFF5C636E),
-    topFill: Color(0xFF3C414B),
-    topStroke: Color(0xFF828A96),
-    bladeFill: Color(0xFF525A66),
-    bladeStroke: Color(0xFFAEB6C0),
+    baseFill: Color(0xFF1E2127),
+    baseStroke: Color(0xFF41464F),
+    topFill: Color(0xFF333842),
+    topStroke: Color(0xFF5A616C),
+    bladeFill: Color(0xFF6E7783),
+    bladeStroke: Color(0xFFC2CAD4),
   );
 
-  /// 亮色主题：浅灰不锈钢，深色描边保证在浅色页面上不糊
+  /// 亮色主题：底座最深、顶盖居中、钻臂最浅，同一条明度梯度的反向
   static const DrillTone lightTone = DrillTone(
-    baseFill: Color(0xFFC9CED6),
-    baseStroke: Color(0xFF7E848F),
-    topFill: Color(0xFFF1F3F6),
-    topStroke: Color(0xFF6E747E),
-    bladeFill: Color(0xFFDDE1E7),
+    baseFill: Color(0xFFAEB4BE),
+    baseStroke: Color(0xFF6E747E),
+    topFill: Color(0xFFDCE0E6),
+    topStroke: Color(0xFF8D939E),
+    bladeFill: Color(0xFFF4F6F9),
     bladeStroke: Color(0xFF4E545E),
   );
 
@@ -78,13 +82,58 @@ abstract final class DrillPaint {
       ..close();
   }
 
-  /// 铜矿块：菱形切角的方块，画在顶盖之上、钻臂之下，四角收在顶盖内才不像浮在底座上
-  static Path ore() => octagon(oreHalf, 4);
+  /// 四片钻臂并成一个形状
+  ///
+  /// 分开画时四条臂在轮毂处两两相交，**每片各自的描边会在交叠处留下内轮廓**
+  /// （顶点的尖角看着像拼错位）；先并成一条路径，描边再按它裁剪，缝就没了
+  static Path bladeUnion() {
+    final single = blade();
+    var union = single;
+    for (var quarter = 1; quarter < 4; quarter++) {
+      union = Path.combine(
+        PathOperation.union,
+        union,
+        single.transform(Matrix4.rotationZ(math.pi / 2 * quarter).storage),
+      );
+    }
+    return union;
+  }
 
-  /// 铜矿块的半宽；角上到中心的距离要略小于 [topHalf]，否则四角会从顶盖边上探出去
-  static const double oreHalf = 11;
+  /// 轮毂亮点的实心半径与柔光半径；实心点要盖过顶盖中央，柔光再往外化开
+  static const double hubRadius = 7;
+  static const double hubGlowRadius = 17;
 
-  /// 铜矿块：原版 `item-copper.png` 是斜置的 3D 方块，这里抽成一个矩形面 + 一个侧面
+  /// 轮毂亮点：中心一个实心点 + 一圈柔光，明暗由 [pulse] 决定
+  ///
+  /// 这是整个动画唯一的"状态灯" —— 正常时暖色随每轮钻探闪一下，出错时转红常亮
+  static void paintHubLight(
+    Canvas canvas,
+    double scale,
+    Color color,
+    double pulse,
+  ) {
+    final glow = hubGlowRadius * scale;
+    canvas.drawCircle(
+      Offset.zero,
+      glow,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            _fade(color, pulse),
+            _fade(color, pulse * 0.35),
+            _fade(color, 0),
+          ],
+          stops: const [0, 0.45, 1],
+        ).createShader(Rect.fromCircle(center: Offset.zero, radius: glow)),
+    );
+    canvas.drawCircle(
+      Offset.zero,
+      hubRadius * scale,
+      Paint()..color = _fade(color, (0.35 + 0.65 * pulse).clamp(0, 1)),
+    );
+  }
+
+  /// 铜粒：从轮毂弹出的小铜块
   ///
   /// [opacity] 直接乘进各面颜色，避免为了淡出再开一个图层
   static void paintItem(Canvas canvas, double scale, {double opacity = 1}) {
