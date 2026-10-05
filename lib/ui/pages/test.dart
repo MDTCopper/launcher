@@ -1,4 +1,5 @@
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
+import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
 import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 
@@ -167,6 +168,12 @@ class TestState extends State<Test> {
   // ── 第 18 区演示状态（BorderProgress 描边进度）──
   double? _borderProgress = 0.35; // null = 不确定态（只画轨道）
 
+  // ── 第 19 区演示状态（DrillLoading 铜钻头循环）──
+  double _drillProgress = 0; // 确定态：0=刚起转、0.6=闪到最亮并弹铜、1=一轮结束
+  bool _drillError = false; // 出错态：停转 + 中心亮点转红
+  bool _drillAuto = true; // 不确定态：内部自循环
+  int _drillCycles = 0; // onCycleFinished 计数
+
   @override
   void dispose() {
     listController.dispose();
@@ -227,6 +234,7 @@ class TestState extends State<Test> {
           _readmeSkeletonSection(),
           _javaMissingPromptSection(),
           _borderProgressSection(),
+          _drillLoadingSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -734,6 +742,164 @@ class TestState extends State<Test> {
                     icon: Icons.all_inclusive,
                     content: '不确定态',
                     onTap: () => setState(() => _borderProgress = null),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════ 19. 铜钻头循环（DrillLoading） ════════
+
+  void _onDrillCycle() => setState(() => _drillCycles++);
+
+  /// 一块底色牌子，模拟真实等待场景（等待动画基本都出现在卡片/对话框里）
+  Widget _buildDrillPlate({required String label, required Widget child}) {
+    final colors = AppColors.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.cardBackground,
+        borderRadius: const BorderRadius.all(Radius.circular(6)),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        children: [
+          child,
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(color: colors.itemPrimary, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _drillLoadingSection() {
+    final colors = AppColors.of(context);
+    final labelStyle = TextStyle(color: colors.itemPrimary);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('19. DrillLoading（铜钻头循环）'),
+        _card(
+          title: '线条化的 Mindustry 机械钻头：转一次、闪一下、弹一粒铜',
+          desc:
+              '层次是底座 → 四片钻臂 → 顶盖 → 中心亮点 → 铜粒。'
+              '一个周期走一步：钻臂转到下一个 90 度 → 中心亮点闪到最亮（就是"钻到了"那一下）'
+              '→ 从中心弹出一粒铜，这粒铜既是这次的产物、也接上下一次转动。'
+              '下面四块是不确定态（内部自循环）的尺寸对照。',
+          child: Wrap(
+            spacing: 24,
+            runSpacing: 24,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _buildDrillPlate(
+                label: '16',
+                child: const DrillLoading(size: 16),
+              ),
+              _buildDrillPlate(
+                label: '28',
+                child: const DrillLoading(size: 28),
+              ),
+              _buildDrillPlate(
+                label: '48（默认）',
+                child: const DrillLoading(size: 48),
+              ),
+              _buildDrillPlate(
+                label: '96',
+                child: const DrillLoading(size: 96),
+              ),
+            ],
+          ),
+        ),
+        _card(
+          title: '确定态 / 出错态：滑杆拖进度，按钮切状态',
+          desc:
+              '确定态用滑杆的值驱动这一步，拖到 0.6 看闪光与弹铜、拖到 1 看一轮走完。'
+              '出错态是"停转 + 中心亮点转红常亮"，停在钻完那一步不再动。'
+              '起停用旁边那颗按钮切（不解绑组件，只切 progress 给不给值）。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 24,
+                runSpacing: 24,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _buildDrillPlate(
+                    label:
+                        '确定态 ${_drillProgress.toStringAsFixed(2)}'
+                        '${_drillAuto ? '（滑杆先停自循环）' : ''}',
+                    child: _drillAuto
+                        ? const DrillLoading(size: 72)
+                        : DrillLoading(size: 72, progress: _drillProgress),
+                  ),
+                  _buildDrillPlate(
+                    label: _drillError ? '出错态：停转 + 红点' : '出错态（点下面切换）',
+                    child: DrillLoading(size: 72, error: _drillError),
+                  ),
+                  _buildDrillPlate(
+                    label: '回调已计 $_drillCycles 步',
+                    child: DrillLoading(
+                      size: 48,
+                      onCycleFinished: _onDrillCycle,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              CopperSlider(
+                value: _drillProgress,
+                onChanged: (value) => setState(() {
+                  _drillProgress = value;
+                  _drillAuto = false;
+                }),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _drillAuto
+                    ? '现在左边那块是自循环；拖动滑杆或点「切到确定态」改用确定进度'
+                    : '现在走确定进度；点「切回自循环」交还给组件内部驱动',
+                style: labelStyle,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  IconTextButton(
+                    icon: Icons.restart_alt,
+                    content: '0.6（闪光弹铜）',
+                    onTap: () => setState(() {
+                      _drillProgress = 0.6;
+                      _drillAuto = false;
+                    }),
+                  ),
+                  IconTextButton(
+                    icon: Icons.flag,
+                    content: '1.0（一轮结束）',
+                    onTap: () => setState(() {
+                      _drillProgress = 1;
+                      _drillAuto = false;
+                    }),
+                  ),
+                  IconTextButton(
+                    icon: Icons.all_inclusive,
+                    content: _drillAuto ? '切到确定态' : '切回自循环',
+                    onTap: () => setState(() => _drillAuto = !_drillAuto),
+                  ),
+                  IconTextButton(
+                    icon: _drillError
+                        ? Icons.check_circle
+                        : Icons.error_outline,
+                    content: _drillError ? '恢复正常' : '切到出错态',
+                    onTap: () => setState(() => _drillError = !_drillError),
                   ),
                 ],
               ),

@@ -44,13 +44,13 @@ abstract final class DrillPaint {
     bladeStroke: Color(0xFFC2CAD4),
   );
 
-  /// 亮色主题：底座最深、顶盖居中、钻臂最浅，同一条明度梯度的反向
+  /// 亮色主题：底座最深、顶盖居中、钻臂最浅，同一条明度梯度；整组都要比页面底色深一档才看得见
   static const DrillTone lightTone = DrillTone(
-    baseFill: Color(0xFFAEB4BE),
-    baseStroke: Color(0xFF6E747E),
-    topFill: Color(0xFFDCE0E6),
-    topStroke: Color(0xFF8D939E),
-    bladeFill: Color(0xFFF4F6F9),
+    baseFill: Color(0xFF8E959F),
+    baseStroke: Color(0xFF5A606A),
+    topFill: Color(0xFFC2C8D0),
+    topStroke: Color(0xFF6E747E),
+    bladeFill: Color(0xFFF2F4F7),
     bladeStroke: Color(0xFF4E545E),
   );
 
