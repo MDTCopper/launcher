@@ -137,11 +137,12 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
             title: '模组加载器',
             value: 'Copper Loader 0.2.0',
           ),
-          // 动作按重量排：这一块没有主行动，破坏性的那个用 danger 推到最右
+          // 动作按重量排：这一块没有主行动，破坏性的那个用 danger 排在最后
           TemplateRow(
             skin: skin,
-            child: Row(
+            child: Wrap(
               spacing: TemplateSpace.md,
+              runSpacing: TemplateSpace.md,
               children: [
                 TemplateButton(
                   skin: skin,
@@ -162,7 +163,6 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
                   icon: Icons.build_circle_outlined,
                   kind: TemplateButtonKind.quiet,
                 ),
-                const Spacer(),
                 TemplateButton(
                   skin: skin,
                   label: '删除版本',
@@ -223,8 +223,9 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
             '模组 / 存档 / 地图 / 蓝图 / 游戏设置可以分别勾选继承',
             style: TemplateType.caption.copyWith(color: skin.textTertiary),
           ),
-          Row(
+          Wrap(
             spacing: TemplateSpace.md,
+            runSpacing: TemplateSpace.md,
             children: [
               TemplateButton(
                 skin: skin,
@@ -259,8 +260,9 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
             '支持导入游戏地图、蓝图和模组',
             style: TemplateType.caption.copyWith(color: skin.textTertiary),
           ),
-          Row(
+          Wrap(
             spacing: TemplateSpace.md,
+            runSpacing: TemplateSpace.md,
             children: [
               TemplateButton(
                 skin: skin,
@@ -288,8 +290,9 @@ class _DesignAboutReworkPageState extends State<DesignAboutReworkPage> {
     return TemplateSection(
       skin: skin,
       title: '导出资源',
-      child: Row(
+      child: Wrap(
         spacing: TemplateSpace.md,
+        runSpacing: TemplateSpace.md,
         children: [
           TemplateButton(
             skin: skin,
