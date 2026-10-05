@@ -363,12 +363,12 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
               _buildTintedAction(
                 background: colors.interactive,
                 foreground: colors.itemOnInteractive,
-                label: '旧观感 copper700（2.95:1）',
+                label: '现在用的 copper700（2.95:1）',
               ),
               _buildTintedAction(
                 background: colors.interactiveHigh,
                 foreground: colors.itemOnInteractive,
-                label: '现在 copper900（7.1:1）',
+                label: '试过的 copper900（7.1:1，发闷）',
               ),
               _buildTintedAction(
                 // 候选值：Palette.copper800，#9E6B30 —— 现在 AppColors 里取不到，要加 token
@@ -384,10 +384,10 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
             ],
           ),
           Text(
-            '四种取法的差别不在对比度够不够（除了旧观感），而在「块感」：'
-            '浅色主题的卡是 #E9E9E9，copper300 软底与卡明度几乎相同、只剩一点暖调，块感最弱；'
-            'copper900 块感最强但发闷；copper800 是中间那档 —— 它现在取不到，'
-            '要正式用就得给 AppColors 加一对「实心强调 / 其上文字」token',
+            '用户 2026-10-05 拍板：回到旧观感 copper700 —— copper900 虽然对比达标（7.1:1）但发闷，'
+            '宁可接受 2.95:1 的对比不达标。铜色要到 copper800 那档才能两头兼顾，'
+            '而它现在取不到（只存在于 Palette，AppColors 里没有），要走 B 类加一对'
+            '「实心强调 / 其上文字」token 才用得上',
             style: theme.textTheme.bodySmall,
           ),
           Text('依据', style: theme.textTheme.titleSmall),

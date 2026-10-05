@@ -52,14 +52,11 @@ class IconTextButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final (weightBackground, weightForeground) = switch (weight) {
-      // 浅色下 interactive 太浅（明度 0.28，其上文字只有 2.95:1），实心档按主题取更深的一档；
-      // 暗色下 interactive 本身相对卡片已经是亮块，不再加深
-      ActionWeight.primary => (
-        isDark ? colors.interactive : colors.interactiveHigh,
-        colors.itemOnInteractive,
-      ),
+      // 实心档就用 interactive：浅色 copper700 / 暗色 copper600。
+      // 它的白字对比只有 2.95:1（不达标），但换成更深的 interactiveHigh 会发闷，
+      // 用户 2026-10-05 选「宁可发白也不要发闷」；两头兼顾要 copper800，见 components.md
+      ActionWeight.primary => (colors.interactive, colors.itemOnInteractive),
       ActionWeight.secondary => (
         colors.highBackgroundOnCard,
         colors.itemSecondary,

@@ -790,7 +790,7 @@ class _DesignSystemPageState extends State<DesignSystemPage> {
             '禁用靠 onTap: null 或 enable: false，不要在页面里改颜色冒充禁用（'
             'IconTextButton 现在会自己置灰并丢掉实心底）；'
             '破坏性动作用 danger，别用 primary 表达「删除」；'
-            '实心档的底色按主题分别取（浅色用更深的一档，免得发白、也免得字压不住）',
+            '实心档的白字对比只有 2.95:1（已知不达标，取舍见 components.md）',
             style: theme.textTheme.labelMedium?.copyWith(
               color: colors.itemHint,
             ),
