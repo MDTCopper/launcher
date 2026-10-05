@@ -35,6 +35,22 @@ class CloudSaveUploadResult {
   final List<String> dropped;
 }
 
+/// 一次「恢复」的结果
+class CloudSaveRestoreResult {
+  const CloudSaveRestoreResult({
+    required this.report,
+    required this.backupPath,
+    required this.backupBytes,
+  });
+
+  final CloudImportReport report;
+
+  /// 覆盖前那份本机存档的备份（zip）；要告诉用户放在哪，出问题好退回去
+  final String backupPath;
+
+  final int backupBytes;
+}
+
 /// 云存档的编排层：本地云包（`CloudArchive`）↔ MDTBBS 云存档接口
 ///
 /// 同步单元是**数据目录**：一个数据目录一个槽位，槽位名默认「设备名 · 游戏版本」。
@@ -57,6 +73,15 @@ class CloudSaveService {
   /// **不能放进游戏数据目录**：Steam 云对 `saves/`、`maps/`、`mods` 等的规则是 `*`，
   /// 临时文件也会被传上去占配额
   static String get tempDir => p.join(_root, 'tmp');
+
+  /// 「恢复」前的本机备份放这里，同样**不在游戏数据目录里**
+  static String get backupDir => p.join(_root, 'cloud-backups');
+
+  /// 备份文件名前缀（清理旧备份时按它认人）
+  static const backupFilePrefix = 'cloud-backup-';
+
+  /// 备份只留最近这么多份：每次恢复留一份会一直涨
+  static const backupKeep = 5;
 
   /// 槽位名：设备名 + 游戏版本（上限 100 字符，这里截断兜底）
   static String slotNameFor({
@@ -270,13 +295,93 @@ class CloudSaveService {
   /// 把某个快照拉下来并解进本机数据目录
   ///
   /// 严格按官方要求：**先落临时文件 → 校验字节数与 sha256 → 才交给解包**；
-  /// 解包本身不静默覆盖（同名不同内容会留两份）
+  /// 解包按 [mode] 处理同名文件 —— 默认留两份，**不覆盖本机**
   static Future<CloudImportReport> download({
     required String accessToken,
     required Mindustry version,
     required String slotId,
     required String snapshotId,
-    bool keepBoth = true,
+    CloudImportMode mode = CloudImportMode.keepBoth,
+    HttpStatusCallback? onStatus,
+    CancelToken? cancelToken,
+  }) async {
+    final tempPath = await _fetchSnapshot(
+      accessToken: accessToken,
+      slotId: slotId,
+      snapshotId: snapshotId,
+      onStatus: onStatus,
+      cancelToken: cancelToken,
+    );
+    try {
+      return await _extract(tempPath, version: version, mode: mode);
+    } finally {
+      _deleteQuietly(tempPath);
+    }
+  }
+
+  /// 用云端快照**覆盖本机**这份数据目录（页面上那个「恢复」）
+  ///
+  /// 覆盖前先把本机这份导出成 zip 存进 [backupDir]；**备份失败就中止** ——
+  /// 不能在没有退路的情况下盖掉玩家的存档
+  static Future<CloudSaveRestoreResult> restore({
+    required String accessToken,
+    required Mindustry version,
+    required String slotId,
+    required String snapshotId,
+    void Function(String status)? onStatus,
+    HttpStatusCallback? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    onStatus?.call('备份本机存档');
+    final backup = await _backupForRestore(version);
+
+    onStatus?.call('下载云端快照');
+    final tempPath = await _fetchSnapshot(
+      accessToken: accessToken,
+      slotId: slotId,
+      snapshotId: snapshotId,
+      onStatus: onProgress,
+      cancelToken: cancelToken,
+    );
+
+    try {
+      onStatus?.call('覆盖本机存档');
+      final report = await _extract(
+        tempPath,
+        version: version,
+        mode: CloudImportMode.overwrite,
+      );
+      _pruneBackups();
+      return CloudSaveRestoreResult(
+        report: report,
+        backupPath: backup.path,
+        backupBytes: backup.bytes,
+      );
+    } finally {
+      _deleteQuietly(tempPath);
+    }
+  }
+
+  /// 固定 / 取消固定：固定的快照不会被服务端的保留策略清掉
+  static Future<void> setSnapshotPinned({
+    required String accessToken,
+    required String slotId,
+    required String snapshotId,
+    required bool pinned,
+    CancelToken? cancelToken,
+  }) => MdtbbsCloudSaveApi.setSnapshotPinned(
+    accessToken: accessToken,
+    slotId: slotId,
+    snapshotId: snapshotId,
+    pinned: pinned,
+    cancelToken: cancelToken,
+  );
+
+  /// 取下载凭据 → 下到临时文件 → 校验字节数与 sha256，返回那个临时文件
+  static Future<String> _fetchSnapshot({
+    required String accessToken,
+    required String slotId,
+    required String snapshotId,
     HttpStatusCallback? onStatus,
     CancelToken? cancelToken,
   }) async {
@@ -291,6 +396,8 @@ class CloudSaveService {
     if (!directory.existsSync()) directory.createSync(recursive: true);
     final tempPath = p.join(tempDir, 'cloud-download-$snapshotId.zip');
 
+    // 校验不过（或下载中断）就把半截文件删掉，别留下一个「看着像下好了」的包
+    var verified = false;
     try {
       await MdtbbsCloudSaveApi.downloadSnapshotFile(
         accessToken: accessToken,
@@ -316,17 +423,63 @@ class CloudSaveService {
       if (expectedSha != null && expectedSha.isNotEmpty) {
         final actual = sha256OfFile(tempPath);
         if (actual != expectedSha) {
-          throw MdtbbsException(message: '下载的文件校验不过（sha256 对不上），已丢弃');
+          throw const MdtbbsException(message: '下载的文件校验不过（sha256 对不上），已丢弃');
         }
       }
-
-      final reader = await CloudArchiveReader.open(tempPath);
-      return await reader.extractTo(
-        dataPath: version.dataPath,
-        keepBoth: keepBoth,
-      );
+      verified = true;
+      return tempPath;
     } finally {
-      _deleteQuietly(tempPath);
+      if (!verified) _deleteQuietly(tempPath);
+    }
+  }
+
+  static Future<CloudImportReport> _extract(
+    String archivePath, {
+    required Mindustry version,
+    required CloudImportMode mode,
+  }) async {
+    final reader = await CloudArchiveReader.open(archivePath);
+    return reader.extractTo(dataPath: version.dataPath, mode: mode);
+  }
+
+  /// 「恢复」前留的底：把本机这份按云包格式导出到 [backupDir]
+  static Future<CloudArchiveExport> _backupForRestore(Mindustry version) async {
+    final directory = Directory(backupDir);
+    if (!directory.existsSync()) directory.createSync(recursive: true);
+    // 文件名带时间戳，清理时按名字倒序就是「最新在前」
+    final stamp = DateTime.now()
+        .toIso8601String()
+        .substring(0, 19)
+        .replaceAll(RegExp('[:.]'), '-');
+    try {
+      return await CloudArchive.export(
+        version: version,
+        outputPath: p.join(backupDir, '$backupFilePrefix$stamp.zip'),
+        deviceName: deviceName,
+      );
+    } catch (error) {
+      throw MdtbbsException(
+        message: '备份本机存档失败，已中止恢复：${removeNewlines('$error')}',
+      );
+    }
+  }
+
+  /// 备份只留最近 [backupKeep] 份：每次恢复留一份会一直涨
+  static void _pruneBackups() {
+    try {
+      final directory = Directory(backupDir);
+      if (!directory.existsSync()) return;
+      final files = [
+        for (final entity in directory.listSync())
+          if (entity is File &&
+              p.basename(entity.path).startsWith(backupFilePrefix))
+            entity,
+      ]..sort((a, b) => b.path.compareTo(a.path));
+      for (final file in files.skip(backupKeep)) {
+        file.deleteSync();
+      }
+    } catch (error) {
+      addLog(.warning, '清理旧备份失败：${removeNewlines('$error')}', tag: 'Cloud');
     }
   }
 

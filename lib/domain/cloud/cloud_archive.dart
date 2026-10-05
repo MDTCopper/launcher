@@ -248,11 +248,11 @@ class CloudArchiveReader {
   ///
   /// - 逐份校验 sha256，对不上的一律不落地（记进 [CloudImportReport.rejected]）；
   /// - 只写清单里点过名的东西，包里多出来的条目当没看见（也会记一笔）；
-  /// - 同名文件**默认留两份**（`<名字>-cloud-<哈希前 8 位>.<扩展名>`），绝不静默覆盖；
+  /// - 同名文件按 [mode] 处理，**默认留两份**（`<名字>-cloud-<哈希前 8 位>.<扩展名>`）；
   /// - 模组字节按 `isCopper` 落回 `mods/` 或 `copper/mods/`，**不认识的模组不代装**。
   Future<CloudImportReport> extractTo({
     required String dataPath,
-    bool keepBoth = true,
+    CloudImportMode mode = CloudImportMode.keepBoth,
   }) async {
     final report = CloudImportReport(manifest: manifest);
 
@@ -310,30 +310,32 @@ class CloudArchiveReader {
         continue;
       }
 
-      final path = _settleDestination(
-        target.destination,
-        target.sha256,
-        content,
-      );
-      if (path == null) {
-        report.unchanged.add(target.destination);
+      // 目的地（清单定的）与「按默认策略实际该落哪儿」；目标已有同名不同内容时两者不同
+      final destination = target.destination;
+      final settled = _settleDestination(destination, target.sha256, content);
+      if (settled == null) {
+        report.unchanged.add(destination);
         continue;
       }
-      if (path != target.destination) {
-        if (!keepBoth) {
-          report.conflicts.add(target.destination);
-          continue;
+      if (settled != destination) {
+        switch (mode) {
+          case CloudImportMode.keepBoth:
+            report.keptBoth.add(settled);
+          case CloudImportMode.skip:
+            report.conflicts.add(destination);
+            continue;
+          case CloudImportMode.overwrite:
+            report.overwritten.add(destination);
         }
-        report.keptBoth.add(path);
       } else {
-        report.written.add(path);
+        report.written.add(destination);
       }
       report.writtenBytes += content.length;
       // 临时文件放数据目录的 `tmp/` —— **不能放在目标旁边**：Steam 云对
       // `saves/`、`maps`、`mods`、`schematics` 的规则是 `*`，会把半个 `.importing`
       // 也传上去、还占配额（`tmp/` 不在规则里）
       _writeAtomicallySync(
-        File(path),
+        File(mode == CloudImportMode.overwrite ? destination : settled),
         content,
         tempDir: p.join(dataPath, 'tmp'),
       );
@@ -345,6 +347,7 @@ class CloudArchiveReader {
       final exists =
           report.written.contains(entry.value.destination) ||
           report.keptBoth.contains(entry.value.destination) ||
+          report.overwritten.contains(entry.value.destination) ||
           report.unchanged.contains(entry.value.destination);
       if (!exists) {
         report.rejected.add(CloudRejection(entry.key, '包里没带这一份'));
@@ -401,6 +404,21 @@ class CloudArchiveReader {
   };
 }
 
+/// 同名但内容不同时怎么办（`extractTo` 的 [CloudImportMode]）
+///
+/// 默认**留两份** —— 解包本身绝不静默覆盖；[overwrite] 只给「恢复云端快照」这种
+/// 明确要盖掉本机的场景，调用方必须先自己备份
+enum CloudImportMode {
+  /// 另存一份 `<名字>-cloud-<哈希前 8 位>.<扩展名>`，本机那份不动
+  keepBoth,
+
+  /// 跳过，记进 [CloudImportReport.conflicts]
+  skip,
+
+  /// 直接覆盖本机那份
+  overwrite,
+}
+
 /// 解包报告：谁落了地、谁被留下当第二份、谁没进来
 class CloudImportReport {
   CloudImportReport({required this.manifest});
@@ -416,7 +434,10 @@ class CloudImportReport {
   /// 同名但内容不同，留了第二份
   final List<String> keptBoth = [];
 
-  /// 同名但内容不同，[CloudArchiveReader.extractTo] 传了 `keepBoth: false`
+  /// 同名但内容不同，被覆盖掉的本机文件（[CloudImportMode.overwrite]）
+  final List<String> overwritten = [];
+
+  /// 同名但内容不同，[CloudArchiveReader.extractTo] 传了 [CloudImportMode.skip]
   final List<String> conflicts = [];
 
   /// 没进来的（路径不安全 / 哈希不符 / 不在清单里 / 包里没带）
@@ -428,7 +449,7 @@ class CloudImportReport {
   int writtenBytes = 0;
 
   /// 一个文件都没落地、也没被拒 —— 说明本机已经是这个包的样子了
-  bool get isNoop => written.isEmpty && keptBoth.isEmpty;
+  bool get isNoop => written.isEmpty && keptBoth.isEmpty && overwritten.isEmpty;
 }
 
 /// 被拒的条目与原因（给用户看的）
