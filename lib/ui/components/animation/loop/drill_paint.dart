@@ -13,9 +13,10 @@ abstract final class DrillPaint {
 
   /// 钻臂：根端 / 末端半宽与内外半径
   ///
-  /// 根端要落在顶盖里（[topHalf]），末端伸到底座边上，中间那 17 个单位才是看得见的钻臂
-  static const double toothRootHalfWidth = 16;
-  static const double toothTipHalfWidth = 11;
+  /// 臂要**窄**：宽臂在轮毂处会糊成一团、整体看不出是十字，
+  /// 那样"转过 8 度"和"往回 8 度"看起来一样 —— 过冲就会读成"突然动了一下"
+  static const double toothRootHalfWidth = 9;
+  static const double toothTipHalfWidth = 5;
   static const double toothInnerRadius = 4;
   static const double toothOuterRadius = 28;
 
@@ -250,4 +251,30 @@ class DrillTone {
       Theme.of(context).brightness == Brightness.dark
       ? DrillPaint.darkTone
       : DrillPaint.lightTone;
+}
+
+/// 一次过冲后收住的减速曲线：到 [peakAt] 之前一路减速，之后回落到 1 并停住
+///
+/// 不用 `Curves.easeOutBack`：那条曲线过冲幅度写死约 10%、峰值也偏早，
+/// 对"一格 90 度"这种小位移会显得像多转了一格；这里让幅度与峰值位置都可调
+class SingleOvershootCurve extends Curve {
+  const SingleOvershootCurve({this.overshoot = 0.08, this.peakAt = 0.75});
+
+  /// 过冲幅度：相对总位移的比例
+  final double overshoot;
+
+  /// 峰值出现的时间点
+  final double peakAt;
+
+  @override
+  double transformInternal(double t) {
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    if (t < peakAt) {
+      final u = t / peakAt;
+      return (1 + overshoot) * (1 - math.pow(1 - u, 3).toDouble());
+    }
+    final u = (t - peakAt) / (1 - peakAt);
+    return 1 + overshoot * (1 - Curves.easeInOutQuad.transform(u));
+  }
 }

@@ -84,6 +84,12 @@ class _DrillLoadingState extends State<DrillLoading>
   /// 一段停顿占的比例
   static const double _spinPausePortion = 1 - _spinPortion;
 
+  /// 过冲幅度：冲过目标角度这么多（弧度），再被"拉"回来
+  static const double _spinOvershoot = 0.08;
+
+  /// 过冲峰值出现在这一步的哪个位置
+  static const double _spinPeakAt = 0.72;
+
   /// 铜粒只在这段周期里飞：正好在起转那一段之内，也就是"旋转途中弹出来"
   static const double _chipFrom = 0.32;
   static const double _chipTo = 0.58;
@@ -91,11 +97,8 @@ class _DrillLoadingState extends State<DrillLoading>
   /// 铜粒落地时的重力下沉量，占钻头半径的比例
   static const double _chipGravity = 0.5;
 
-  /// 回弹幅度（弧度）：走完那一步后往回弹一下再收住
-  static const double _reboundAmplitude = 0.1;
-
-  /// 回弹从这一步的哪一段开始
-  static const double _reboundFrom = 0.7;
+  /// 掷出方向的水平分量上限：越小越偏正上方
+  static const double _chipSpread = 0.35;
 
   /// 铜粒的掷出方向（弧度）；每步随机一次，但永远朝上
   double _chipAngle = 0;
@@ -127,16 +130,20 @@ class _DrillLoadingState extends State<DrillLoading>
   /// 等当前步走完再切过去的状态；null 表示没有待切
   DrillLoadingState? _pendingState;
 
-  /// 钻头转角：一步从 0 平滑转到 90 度；四片钻臂 90 度一循环，接得上下一次
+  /// 钻头转角：一步从 0 转到 90 度
   ///
-  /// 走完那一步之后叠一点**衰减回弹**（[_reboundAmplitude] 的正弦摆），
-  /// 读起来是"咔一下到位、再弹回去"而不是匀着滑到位
+  /// 过冲长在**收尾**处：一路减速冲过目标角、再被拉回来停住 ——
+  /// 读数像"速度来不及停"，而不是"停住了又突然动一下"
   late final TweenSequence<double> _spinSequence = TweenSequence<double>([
     TweenSequenceItem(
-      tween: Tween(
-        begin: 0.0,
-        end: math.pi / 2,
-      ).chain(CurveTween(curve: Curves.easeInOutSine)),
+      tween: Tween(begin: 0.0, end: math.pi / 2).chain(
+        CurveTween(
+          curve: const SingleOvershootCurve(
+            overshoot: _spinOvershoot,
+            peakAt: _spinPeakAt,
+          ),
+        ),
+      ),
       weight: _spinPortion,
     ),
     TweenSequenceItem(
@@ -301,10 +308,9 @@ class _DrillLoadingState extends State<DrillLoading>
   /// 画布 y 向下，所以 y 分量取负；x 在 [-1, 1] 上随机 ⇒ 水平方向落在 (0°, 180°)，
   /// 也就是只会朝上半圈飞出去
   void _rollChipAngle() {
-    const cos = 0.35;
-    final sin = -math.sqrt(1 - cos * cos);
+    final sin = -math.sqrt(1 - _chipSpread * _chipSpread);
     final t = _random.nextDouble() * 2 - 1;
-    final x = t * cos;
+    final x = t * _chipSpread;
     final y = sin * (1 - t.abs());
     _chipAngle = math.atan2(y, x);
   }
@@ -332,7 +338,7 @@ class _DrillLoadingState extends State<DrillLoading>
           final showChip = _mode == DrillLoadingState.completing;
           return CustomPaint(
             painter: _DrillLoadingPainter(
-              spin: _spinSequence.transform(cycle) + _rebound(cycle),
+              spin: _spinSequence.transform(cycle),
               light: isError
                   ? _flashController.value
                   : _lightSequence.transform(cycle),
@@ -355,13 +361,6 @@ class _DrillLoadingState extends State<DrillLoading>
   double? _chipFlight(double cycle) {
     if (cycle < _chipFrom) return null;
     return ((cycle - _chipFrom) / (_chipTo - _chipFrom)).clamp(0, 1);
-  }
-
-  /// 到位后的衰减回弹：到了 [_reboundFrom] 那一段才开始摆，越摆越小
-  double _rebound(double cycle) {
-    if (cycle <= _reboundFrom) return 0;
-    final t = (cycle - _reboundFrom) / (1 - _reboundFrom);
-    return _reboundAmplitude * math.sin(t * math.pi * 2) * (1 - t);
   }
 }
 
@@ -490,7 +489,9 @@ class _DrillLoadingPainter extends CustomPainter {
     if (flight == null) return;
 
     // 起点贴着轮毂；重力让轨迹在末段往下沉，所以是斜抛不是直线
-    final distance = drillRadius * (0.2 + 0.85 * flight);
+    // 飞到头正好落在控件内：方向越接近正上方，钻头半径那 0.53 倍就越顶，
+    // 所以末段只给到 0.62 个半径，再加 0.5 的重力下沉也在范围内
+    final distance = drillRadius * (0.15 + 0.62 * flight);
     final gravity = drillRadius * chipGravity * flight * flight;
     canvas.save();
     canvas.translate(
