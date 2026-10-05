@@ -452,6 +452,76 @@ class TemplateShortcut extends StatelessWidget {
   }
 }
 
+/// 下拉行：左边标签、右边下拉框（值 + 箭头）
+///
+/// 模版还没有真正的下拉组件，这里先给它的样子；[onTap] 为空时就是个静态框
+class TemplateSelectRow extends StatelessWidget {
+  const TemplateSelectRow({
+    super.key,
+    required this.skin,
+    required this.title,
+    required this.value,
+    this.onTap,
+    this.labelWidth = 150,
+  });
+
+  final TemplateSkin skin;
+  final String title;
+  final String value;
+  final VoidCallback? onTap;
+  final double labelWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return TemplateRow(
+      skin: skin,
+      onTap: onTap,
+      child: Row(
+        children: [
+          SizedBox(
+            width: labelWidth,
+            child: Text(
+              title,
+              style: TemplateType.item.copyWith(color: skin.textPrimary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: TemplateSpace.lg),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: TemplateSpace.md,
+                vertical: TemplateSpace.sm,
+              ),
+              decoration: BoxDecoration(
+                color: skin.sunken,
+                borderRadius: BorderRadius.circular(TemplateRadius.control),
+                border: Border.all(color: skin.controlBorder),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      value,
+                      style: TemplateType.item.copyWith(
+                        color: skin.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.expand_more, size: 18, color: skin.textSecondary),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 进度条：细轨 + 实心填充（列表行内与内存占用都用它）
 class TemplateProgressBar extends StatelessWidget {
   const TemplateProgressBar({
