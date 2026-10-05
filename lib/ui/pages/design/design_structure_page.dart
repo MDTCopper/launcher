@@ -266,7 +266,12 @@ class _DesignStructurePageState extends State<DesignStructurePage> {
             spacing: AppSpacing.related,
             children: [
               IconTextButton(icon: Icons.refresh, content: '刷新', onTap: () {}),
-              IconTextButton(icon: Icons.add, content: '添加', onTap: () {}),
+              IconTextButton(
+                icon: Icons.add,
+                content: '添加',
+                weight: ActionWeight.primary,
+                onTap: () {},
+              ),
               const Spacer(),
               Text(
                 '已选 ${_pickedItem ?? '无'}',

@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/copper_card.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -7,9 +7,6 @@ import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
 const designExperimentsPageRouteKey = '/design/example/experiments';
-
-/// 动作的重量：一个视图里只该有一个 primary
-enum _ActionWeight { primary, secondary, tertiary }
 
 /// 设计规范 · 实例页 · 试验对照
 ///
@@ -319,42 +316,42 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
           _buildFocusSpecimen(
             caption: '反例：三个动作一样重，眼睛没有落点 —— 现在的 IconTextButton 全是这一种',
             actions: [
-              _buildAction(
-                weight: _ActionWeight.secondary,
+              IconTextButton(
                 icon: Icons.play_arrow,
-                label: '启动游戏',
+                content: '启动游戏',
+                onTap: () {},
               ),
-              _buildAction(
-                weight: _ActionWeight.secondary,
+              IconTextButton(
                 icon: Icons.settings,
-                label: '版本设置',
+                content: '版本设置',
+                onTap: () {},
               ),
-              _buildAction(
-                weight: _ActionWeight.secondary,
+              IconTextButton(
                 icon: Icons.folder_open,
-                label: '打开目录',
+                content: '打开目录',
+                onTap: () {},
               ),
             ],
           ),
           _buildFocusSpecimen(
             caption: '正例：启动是唯一的 primary（实心主题色），设置次之，打开目录降为三级',
             actions: [
-              _buildAction(
-                weight: _ActionWeight.primary,
+              IconTextButton(
                 icon: Icons.play_arrow,
-                label: '启动游戏',
+                content: '启动游戏',
+                weight: ActionWeight.primary,
                 onTap: () {},
               ),
-              _buildAction(
-                weight: _ActionWeight.secondary,
+              IconTextButton(
                 icon: Icons.settings,
-                label: '版本设置',
+                content: '版本设置',
+                weight: ActionWeight.secondary,
                 onTap: () {},
               ),
-              _buildAction(
-                weight: _ActionWeight.tertiary,
+              IconTextButton(
                 icon: Icons.folder_open,
-                label: '打开目录',
+                content: '打开目录',
+                weight: ActionWeight.tertiary,
                 onTap: () {},
               ),
             ],
@@ -415,52 +412,6 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
           ),
         ),
       ],
-    );
-  }
-
-  /// 三级动作：重量只差在底色与前景，几何完全一样
-  Widget _buildAction({
-    required _ActionWeight weight,
-    required IconData icon,
-    required String label,
-    VoidCallback? onTap,
-  }) {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-
-    final (background, foreground) = switch (weight) {
-      _ActionWeight.primary => (colors.interactive, colors.itemOnInteractive),
-      _ActionWeight.secondary => (
-        colors.highBackgroundOnCard,
-        colors.itemSecondary,
-      ),
-      _ActionWeight.tertiary => (Colors.transparent, colors.interactive),
-    };
-
-    return ReboundButton(
-      backgroundColor: background,
-      borderRadius: AppRadius.controlShape,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.section,
-        vertical: AppSpacing.related,
-      ),
-      onTap: onTap,
-      child: DefaultTextStyle(
-        style: (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
-          color: foreground,
-          fontWeight: FontWeight.w600,
-        ),
-        child: IconTheme(
-          data: IconTheme.of(
-            context,
-          ).copyWith(color: foreground, size: AppIconSize.item),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: AppSpacing.related,
-            children: [Icon(icon), Text(label)],
-          ),
-        ),
-      ),
     );
   }
 
@@ -716,16 +667,16 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
                       runSpacing: AppSpacing.related,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        _buildAction(
-                          weight: _ActionWeight.primary,
+                        IconTextButton(
                           icon: Icons.download,
-                          label: '下载版本',
+                          content: '下载版本',
+                          weight: ActionWeight.primary,
                           onTap: () {},
                         ),
-                        _buildAction(
-                          weight: _ActionWeight.tertiary,
+                        IconTextButton(
                           icon: Icons.folder_open,
-                          label: '导入本地本体',
+                          content: '导入本地本体',
+                          weight: ActionWeight.tertiary,
                           onTap: () {},
                         ),
                       ],

@@ -3,10 +3,16 @@ import 'package:flutter/material.dart';
 
 import 'rebound_button.dart';
 
+/// 动作的重量：一个视图里只该有一个 [ActionWeight.primary]
+///
+/// 三级只差底色与前景，几何完全一样；依据见 `.project_status/components.md`
+/// 的「视觉重心与动作分级」
+enum ActionWeight { primary, secondary, tertiary }
+
 /// 无状态的图标 + 文本按钮（基于 [ReboundButton]）
 ///
 /// 与 [ActionButton]（有选中态）区分：无选中状态，适合不持久的操作入口
-/// 图标与文本共色（[AppColors.itemPrimary]），尺寸按内容收缩
+/// 图标与文本共色（按 [weight] 取），尺寸按内容收缩
 class IconTextButton extends StatelessWidget {
   final IconData icon;
   final String content;
@@ -20,6 +26,7 @@ class IconTextButton extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
   final BorderRadius? borderRadius;
+  final ActionWeight weight;
 
   const IconTextButton({
     super.key,
@@ -35,17 +42,26 @@ class IconTextButton extends StatelessWidget {
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     this.margin,
     this.borderRadius,
+    this.weight = ActionWeight.secondary,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final itemColor = AppColors.of(context).itemSecondary;
+    final colors = AppColors.of(context);
+    final (weightBackground, itemColor) = switch (weight) {
+      ActionWeight.primary => (colors.interactive, colors.itemOnInteractive),
+      ActionWeight.secondary => (
+        colors.highBackgroundOnCard,
+        colors.itemSecondary,
+      ),
+      ActionWeight.tertiary => (Colors.transparent, colors.interactive),
+    };
 
     Widget child = ReboundButton(
       pressedScale: pressedScale,
       hoverElevation: hoverElevation,
-      backgroundColor: backgroundColor,
+      backgroundColor: backgroundColor ?? weightBackground,
       padding: padding,
       margin: margin,
       borderRadius: borderRadius,

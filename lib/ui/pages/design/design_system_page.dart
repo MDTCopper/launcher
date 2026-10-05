@@ -92,8 +92,8 @@ class _DesignSystemPageState extends State<DesignSystemPage> {
     ),
     (
       need: '动作按钮（点了就执行）',
-      use: 'IconTextButton',
-      avoid: '别用 ActionButton，它有选中态',
+      use: 'IconTextButton（weight: primary / secondary / tertiary）',
+      avoid: '别用 ActionButton，它有选中态；一个视图里别放两个 primary',
     ),
     (
       need: '选项 / 多选 chips',
@@ -658,7 +658,7 @@ class _DesignSystemPageState extends State<DesignSystemPage> {
             style: theme.textTheme.bodySmall,
           ),
           _buildStateRow(
-            label: 'IconTextButton / ReboundButton（动作）',
+            label: 'IconTextButton（动作）',
             children: [
               IconTextButton(
                 icon: Icons.download,
@@ -672,6 +672,29 @@ class _DesignSystemPageState extends State<DesignSystemPage> {
                   onTap: () {},
                   child: const Icon(Icons.refresh),
                 ),
+              ),
+            ],
+          ),
+          _buildStateRow(
+            label: '动作重量 weight（一个视图只放一个 primary）',
+            children: [
+              IconTextButton(
+                icon: Icons.play_arrow,
+                content: 'primary',
+                weight: ActionWeight.primary,
+                onTap: () {},
+              ),
+              IconTextButton(
+                icon: Icons.settings,
+                content: 'secondary（默认）',
+                weight: ActionWeight.secondary,
+                onTap: () {},
+              ),
+              IconTextButton(
+                icon: Icons.folder_open,
+                content: 'tertiary',
+                weight: ActionWeight.tertiary,
+                onTap: () {},
               ),
             ],
           ),
