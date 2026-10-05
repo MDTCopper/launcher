@@ -1,9 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:flutter/material.dart';
+
+import 'template_skin.dart';
 
 const designTemplatePageRouteKey = '/design/example/template';
 
@@ -18,310 +18,6 @@ class DesignTemplatePage extends StatefulWidget {
 
   @override
   State<DesignTemplatePage> createState() => _DesignTemplatePageState();
-}
-
-/// 皮肤令牌：浅 / 暗两套，只有这里能写死颜色
-@immutable
-class _Skin {
-  const _Skin({
-    required this.page,
-    required this.surface,
-    required this.raised,
-    required this.sunken,
-    required this.border,
-    required this.borderStrong,
-    required this.controlBorder,
-    required this.textPrimary,
-    required this.textSecondary,
-    required this.textTertiary,
-    required this.accent,
-    required this.accentText,
-    required this.onAccent,
-    required this.accentTint,
-    required this.onAccentTint,
-    required this.danger,
-    required this.onDanger,
-    required this.success,
-    required this.warning,
-    required this.hover,
-    required this.pressed,
-    required this.selected,
-    required this.shadow,
-  });
-
-  /// 从一个主题色相生成整套皮肤
-  ///
-  /// 两条规则：① **中性色跟着主题色相走**（低饱和的同一色相 ⇒ 冷主题得冷灰、
-  /// 暖主题得暖灰，强调色才不会像外来物）② **该满足对比度的档不解固定值，
-  /// 而是解出来** —— 浅色取「白字刚好压得住的最亮那一档」、暗色取「对卡面刚够
-  /// 显眼的最暗那一档」，于是四个主题色自动得到各自合适的那一档
-  factory _Skin.of({required double hue, required bool dark}) {
-    // 中性色的饱和度：低到不喧哗，但要够看出冷暖 —— 色温就是这个差
-    Color neutral(double lightness, [double saturation = 0.07]) =>
-        HSLColor.fromAHSL(1, hue, saturation, lightness).toColor();
-
-    if (!dark) {
-      final surface = neutral(0.99, 0.035);
-      final page = neutral(0.945, 0.08);
-      final sunken = neutral(0.885, 0.09);
-      final onAccent = neutral(0.995, 0.03);
-      final tint = HSLColor.fromAHSL(1, hue, 0.38, 0.86).toColor();
-
-      return _Skin(
-        page: page,
-        surface: surface,
-        raised: surface,
-        sunken: sunken,
-        border: neutral(0.86, 0.1),
-        borderStrong: neutral(0.72, 0.11),
-        // 控件边界按 WCAG 1.4.11 要有 3:1，容器描边不用
-        controlBorder: _solveOn(
-          hue: hue,
-          saturation: 0.12,
-          background: surface,
-          target: 3,
-          lighter: false,
-        ),
-        // 正文与次要文字目标高一些；**小字（三级）也提到 5.5 且饱和度更低** ——
-        // 字号越小越吃对比度，给它带色只会更难读
-        textPrimary: _solveOn(
-          hue: hue,
-          saturation: 0.05,
-          background: surface,
-          target: 13,
-          lighter: false,
-        ),
-        textSecondary: _solveOn(
-          hue: hue,
-          saturation: 0.05,
-          background: surface,
-          target: 7,
-          lighter: false,
-        ),
-        textTertiary: _solveOn(
-          hue: hue,
-          saturation: 0.03,
-          background: surface,
-          target: 5.5,
-          lighter: false,
-        ),
-        // 实心：白字刚好压得住的最亮那一档（越亮越不显闷）
-        accent: _solveOn(
-          hue: hue,
-          saturation: 0.55,
-          background: onAccent,
-          target: 4.8,
-          lighter: false,
-        ),
-        accentText: _solveOn(
-          hue: hue,
-          saturation: 0.6,
-          background: surface,
-          target: 5,
-          lighter: false,
-        ),
-        onAccent: onAccent,
-        accentTint: tint,
-        onAccentTint: _solveOn(
-          hue: hue,
-          saturation: 0.5,
-          background: tint,
-          target: 6.5,
-          lighter: false,
-        ),
-        danger: _solveOn(
-          hue: 2,
-          saturation: 0.5,
-          background: onAccent,
-          target: 4.8,
-          lighter: false,
-        ),
-        onDanger: onAccent,
-        success: _solveOn(
-          hue: 145,
-          saturation: 0.4,
-          background: onAccent,
-          target: 4.8,
-          lighter: false,
-        ),
-        warning: _solveOn(
-          hue: 36,
-          saturation: 0.6,
-          background: onAccent,
-          target: 4.8,
-          lighter: false,
-        ),
-        hover: const Color(0x0F000000),
-        pressed: const Color(0x1A000000),
-        selected: HSLColor.fromAHSL(0.16, hue, 0.6, 0.5).toColor(),
-        shadow: HSLColor.fromAHSL(0.10, hue, 0.5, 0.25).toColor(),
-      );
-    }
-
-    final surface = neutral(0.125, 0.07);
-    final raised = neutral(0.165, 0.07);
-    final onAccent = neutral(0.99, 0.03);
-    final tint = HSLColor.fromAHSL(1, hue, 0.32, 0.19).toColor();
-
-    return _Skin(
-      page: neutral(0.085, 0.07),
-      surface: surface,
-      raised: raised,
-      sunken: neutral(0.065, 0.07),
-      border: neutral(0.22, 0.1),
-      borderStrong: neutral(0.3, 0.11),
-      controlBorder: _solveOn(
-        hue: hue,
-        saturation: 0.12,
-        background: surface,
-        target: 3,
-        lighter: true,
-      ),
-      textPrimary: _solveOn(
-        hue: hue,
-        saturation: 0.05,
-        background: surface,
-        target: 13,
-        lighter: true,
-      ),
-      textSecondary: _solveOn(
-        hue: hue,
-        saturation: 0.05,
-        background: surface,
-        target: 7,
-        lighter: true,
-      ),
-      textTertiary: _solveOn(
-        hue: hue,
-        saturation: 0.03,
-        background: surface,
-        target: 5.5,
-        lighter: true,
-      ),
-      // 暗色的实心：对卡面刚够显眼的最暗那一档（旧值 6.3:1 就是「一块亮铜砸在近黑上」）
-      accent: _solveOn(
-        hue: hue,
-        saturation: 0.5,
-        background: surface,
-        target: 3.4,
-        lighter: true,
-      ),
-      accentText: _solveOn(
-        hue: hue,
-        saturation: 0.55,
-        background: surface,
-        target: 5.5,
-        lighter: true,
-      ),
-      onAccent: onAccent,
-      accentTint: tint,
-      onAccentTint: _solveOn(
-        hue: hue,
-        saturation: 0.5,
-        background: tint,
-        target: 6.5,
-        lighter: true,
-      ),
-      danger: _solveOn(
-        hue: 2,
-        saturation: 0.45,
-        background: onAccent,
-        target: 4.8,
-        lighter: false,
-      ),
-      onDanger: onAccent,
-      success: _solveOn(
-        hue: 145,
-        saturation: 0.45,
-        background: surface,
-        target: 5.5,
-        lighter: true,
-      ),
-      warning: _solveOn(
-        hue: 36,
-        saturation: 0.6,
-        background: surface,
-        target: 5.5,
-        lighter: true,
-      ),
-      hover: const Color(0x14FFFFFF),
-      pressed: const Color(0x1FFFFFFF),
-      selected: HSLColor.fromAHSL(0.18, hue, 0.6, 0.5).toColor(),
-      shadow: const Color(0x66000000),
-    );
-  }
-
-  final Color page;
-  final Color surface;
-  final Color raised;
-  final Color sunken;
-  final Color border;
-  final Color borderStrong;
-
-  /// 控件（输入框 / 分段 / 开关轨道）的边界：按 1.4.11 解到 3:1
-  final Color controlBorder;
-  final Color textPrimary;
-  final Color textSecondary;
-  final Color textTertiary;
-
-  /// 实心强调：只用来铺底，白字必须压得住
-  final Color accent;
-
-  /// 强调色的文字 / 图标形态：与实心分开取值，浅暗各一支
-  final Color accentText;
-  final Color onAccent;
-
-  /// 软底形态（待定用）：淡主题色底 + 深主题色字，块感更轻
-  final Color accentTint;
-  final Color onAccentTint;
-
-  /// 破坏性：同样是「实心」与「文字」两种形态
-  final Color danger;
-  final Color onDanger;
-  final Color success;
-  final Color warning;
-  final Color hover;
-  final Color pressed;
-  final Color selected;
-  final Color shadow;
-}
-
-/// 文字层级：桌面密度，靠字重不靠把尺寸吹大
-class _Type {
-  static const page = TextStyle(
-    fontSize: 20,
-    height: 28 / 20,
-    fontWeight: FontWeight.w600,
-  );
-  static const section = TextStyle(
-    fontSize: 14,
-    height: 20 / 14,
-    fontWeight: FontWeight.w600,
-  );
-  static const item = TextStyle(fontSize: 14, height: 20 / 14);
-  static const caption = TextStyle(fontSize: 12, height: 16 / 12);
-  static const micro = TextStyle(
-    fontSize: 11,
-    height: 14 / 11,
-    fontWeight: FontWeight.w500,
-    letterSpacing: 0.3,
-  );
-}
-
-/// 几何：4 的倍数，4 / 8 / 12 / 16 / 24 / 32
-class _Space {
-  static const xs = 4.0;
-  static const sm = 8.0;
-  static const md = 12.0;
-  static const lg = 16.0;
-  static const xl = 24.0;
-  static const xxl = 32.0;
-}
-
-class _Radius {
-  static const control = 6.0;
-  static const card = 10.0;
-  static const pill = 999.0;
 }
 
 class _DesignTemplatePageState extends State<DesignTemplatePage> {
@@ -340,6 +36,18 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
   /// 换色相就能看出「中性色跟着走」带来的色温差异
   double _hue = 33;
 
+  // ── 模拟页的演示状态 ──
+  int _downloadFilter = 0;
+  final Set<String> _selectedVersions = {'v159.7'};
+
+  static const _downloadVersions =
+      <({String tag, String desc, double progress})>[
+        (tag: 'v160.5', desc: '正式版 · 2026-09-28 · 62.4 MB', progress: 1),
+        (tag: 'v160.4', desc: '正式版 · 2026-08-30 · 61.9 MB', progress: 0.62),
+        (tag: 'v159.7', desc: '正式版 · 2026-07-12 · 60.1 MB', progress: 0),
+        (tag: 'v158', desc: '正式版 · 2026-05-02 · 58.7 MB', progress: 0),
+      ];
+
   static const _hues = <({String name, double hue})>[
     (name: '铜', hue: 33),
     (name: '钛', hue: 210),
@@ -347,7 +55,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     (name: '塑钢', hue: 97),
   ];
 
-  _Skin get _skin => _Skin.of(
+  TemplateSkin get _skin => TemplateSkin.of(
     hue: _hue,
     dark: Theme.of(context).brightness == Brightness.dark,
   );
@@ -362,8 +70,8 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
     return ListContentPanel(
       padding: const EdgeInsets.symmetric(
-        horizontal: _Space.xxl,
-        vertical: _Space.xl,
+        horizontal: TemplateSpace.xxl,
+        vertical: TemplateSpace.xl,
       ),
       items: [
         _buildHueSwitch(skin),
@@ -371,7 +79,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildSection(
           skin,
           title: '运行环境',
-          padding: const EdgeInsets.all(_Space.sm),
+          padding: const EdgeInsets.all(TemplateSpace.sm),
           child: Column(
             spacing: 2,
             children: [
@@ -398,7 +106,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
           title: '内存分配',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: _Space.lg,
+            spacing: TemplateSpace.lg,
             children: [
               _buildSegment(
                 skin,
@@ -408,7 +116,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
               ),
               Text(
                 _segment == 2 ? '按滑杆指定上限，超了游戏会被系统杀掉' : '按物理内存的比例自动估算，一般不用改',
-                style: _Type.caption.copyWith(color: skin.textTertiary),
+                style: TemplateType.caption.copyWith(color: skin.textTertiary),
               ),
             ],
           ),
@@ -416,7 +124,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildSection(
           skin,
           title: '已安装的模组',
-          padding: const EdgeInsets.all(_Space.sm),
+          padding: const EdgeInsets.all(TemplateSpace.sm),
           child: Column(
             spacing: 2,
             children: [
@@ -430,21 +138,24 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildPrimaryShapeChoice(skin),
         _buildCompareWithCopper(skin),
         _buildPaletteTable(skin),
+        _buildMockLaunch(skin),
+        _buildMockDownload(skin),
+        _buildMockCloud(skin),
       ],
     );
   }
 
   // ════════ 色相开关：同一套推导，四个主题色各来一遍 ════════
 
-  Widget _buildHueSwitch(_Skin skin) {
+  Widget _buildHueSwitch(TemplateSkin skin) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: _Space.lg),
+      padding: const EdgeInsets.only(bottom: TemplateSpace.lg),
       child: Row(
-        spacing: _Space.md,
+        spacing: TemplateSpace.md,
         children: [
           Text(
             '主题色相（色温）',
-            style: _Type.caption.copyWith(color: skin.textTertiary),
+            style: TemplateType.caption.copyWith(color: skin.textTertiary),
           ),
           SizedBox(
             width: 320,
@@ -457,7 +168,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
           ),
           Text(
             '换一个色相，整套中性色与强调色都会跟着重算',
-            style: _Type.micro.copyWith(color: skin.textTertiary),
+            style: TemplateType.micro.copyWith(color: skin.textTertiary),
           ),
         ],
       ),
@@ -466,36 +177,38 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
   // ════════ 页头：一个视图只留一个实心主行动 ════════
 
-  Widget _buildHeader(_Skin skin) {
+  Widget _buildHeader(TemplateSkin skin) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: _Space.xl),
+      padding: const EdgeInsets.only(bottom: TemplateSpace.xl),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: _Space.xs,
+              spacing: TemplateSpace.xs,
               children: [
                 Text(
                   '运行环境',
-                  style: _Type.page.copyWith(color: skin.textPrimary),
+                  style: TemplateType.page.copyWith(color: skin.textPrimary),
                 ),
                 Text(
                   '与游戏版本无关，装一次所有版本共用',
-                  style: _Type.caption.copyWith(color: skin.textTertiary),
+                  style: TemplateType.caption.copyWith(
+                    color: skin.textTertiary,
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: _Space.lg),
+          const SizedBox(width: TemplateSpace.lg),
           _buildButton(
             skin,
             label: '重新检测',
             icon: Icons.refresh,
             kind: _Kind.quiet,
           ),
-          const SizedBox(width: _Space.sm),
+          const SizedBox(width: TemplateSpace.sm),
           _buildButton(
             skin,
             label: '一键装齐',
@@ -510,28 +223,28 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
   // ════════ 分组卡：标题在卡内、小字、中性色 ════════
 
   Widget _buildSection(
-    _Skin skin, {
+    TemplateSkin skin, {
     required String title,
     required Widget child,
-    EdgeInsetsGeometry padding = const EdgeInsets.all(_Space.lg),
+    EdgeInsetsGeometry padding = const EdgeInsets.all(TemplateSpace.lg),
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: _Space.xl),
+      padding: const EdgeInsets.only(bottom: TemplateSpace.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: _Space.sm,
+        spacing: TemplateSpace.sm,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: _Space.xs),
+            padding: const EdgeInsets.only(left: TemplateSpace.xs),
             child: Text(
               title,
-              style: _Type.section.copyWith(color: skin.textSecondary),
+              style: TemplateType.section.copyWith(color: skin.textSecondary),
             ),
           ),
           DecoratedBox(
             decoration: BoxDecoration(
               color: skin.surface,
-              borderRadius: BorderRadius.circular(_Radius.card),
+              borderRadius: BorderRadius.circular(TemplateRadius.card),
               border: Border.all(color: skin.border),
               boxShadow: [
                 BoxShadow(
@@ -554,7 +267,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
   // ════════ 行：开关行 / 键值行 / 列表项 ════════
 
   Widget _buildSwitchRow(
-    _Skin skin, {
+    TemplateSkin skin, {
     required String title,
     required String desc,
     required bool value,
@@ -566,24 +279,24 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       child: Row(
         children: [
           Expanded(child: _buildTwoLine(skin, title, desc)),
-          const SizedBox(width: _Space.lg),
+          const SizedBox(width: TemplateSpace.lg),
           _buildSwitch(skin, value: value, onTap: onTap),
         ],
       ),
     );
   }
 
-  Widget _buildKeyRow(_Skin skin, String title, String value) {
+  Widget _buildKeyRow(TemplateSkin skin, String title, String value) {
     return _buildRow(
       skin,
       child: Row(
         children: [
           Expanded(child: _buildTwoLine(skin, title, null)),
-          const SizedBox(width: _Space.lg),
+          const SizedBox(width: TemplateSpace.lg),
           Flexible(
             child: Text(
               value,
-              style: _Type.item.copyWith(color: skin.textTertiary),
+              style: TemplateType.item.copyWith(color: skin.textTertiary),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
@@ -595,7 +308,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
   }
 
   Widget _buildItemRow(
-    _Skin skin,
+    TemplateSkin skin,
     ({String name, String desc}) item, {
     required bool selected,
   }) {
@@ -611,7 +324,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: skin.sunken,
-              borderRadius: BorderRadius.circular(_Radius.control),
+              borderRadius: BorderRadius.circular(TemplateRadius.control),
             ),
             child: Icon(
               Icons.extension_outlined,
@@ -619,7 +332,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
               color: skin.textSecondary,
             ),
           ),
-          const SizedBox(width: _Space.md),
+          const SizedBox(width: TemplateSpace.md),
           Expanded(child: _buildTwoLine(skin, item.name, item.desc)),
           if (selected) Icon(Icons.check, size: 18, color: skin.accentText),
         ],
@@ -629,40 +342,43 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
   /// 行外壳：走 rebound 的回弹与悬停，底色按状态给
   Widget _buildRow(
-    _Skin skin, {
+    TemplateSkin skin, {
     required Widget child,
     VoidCallback? onTap,
     bool selected = false,
+    EdgeInsetsGeometry? padding,
   }) {
     return ReboundContainer(
       onTap: onTap,
       pressedScale: 0.995,
-      borderRadius: BorderRadius.circular(_Radius.control),
+      borderRadius: BorderRadius.circular(TemplateRadius.control),
       backgroundColor: selected ? skin.selected : Colors.transparent,
       hoverColor: skin.hover,
-      padding: const EdgeInsets.symmetric(
-        horizontal: _Space.md,
-        vertical: _Space.md,
-      ),
+      padding:
+          padding ??
+          const EdgeInsets.symmetric(
+            horizontal: TemplateSpace.md,
+            vertical: TemplateSpace.md,
+          ),
       child: child,
     );
   }
 
-  Widget _buildTwoLine(_Skin skin, String title, String? desc) {
+  Widget _buildTwoLine(TemplateSkin skin, String title, String? desc) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 2,
       children: [
         Text(
           title,
-          style: _Type.item.copyWith(color: skin.textPrimary),
+          style: TemplateType.item.copyWith(color: skin.textPrimary),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
         if (desc != null)
           Text(
             desc,
-            style: _Type.caption.copyWith(color: skin.textTertiary),
+            style: TemplateType.caption.copyWith(color: skin.textTertiary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -673,14 +389,14 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
   // ════════ 控件：开关 / 分段 ════════
 
   Widget _buildSwitch(
-    _Skin skin, {
+    TemplateSkin skin, {
     required bool value,
     required VoidCallback onTap,
   }) {
     return ReboundContainer(
       onTap: onTap,
       pressedScale: 0.94,
-      borderRadius: BorderRadius.circular(_Radius.pill),
+      borderRadius: BorderRadius.circular(TemplateRadius.pill),
       backgroundColor: value ? skin.accent : skin.sunken,
       hoverColor: skin.hover,
       child: AnimatedContainer(
@@ -691,7 +407,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         padding: const EdgeInsets.all(3),
         alignment: value ? Alignment.centerRight : Alignment.centerLeft,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_Radius.pill),
+          borderRadius: BorderRadius.circular(TemplateRadius.pill),
           // 关着的时候轨道也要认得出来（1.4.11 那条 3:1）
           border: value ? null : Border.all(color: skin.controlBorder),
         ),
@@ -708,16 +424,18 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
   }
 
   Widget _buildSegment(
-    _Skin skin, {
+    TemplateSkin skin, {
     required List<String> options,
     required int value,
     required void Function(int index) onTap,
   }) {
     return Container(
-      padding: const EdgeInsets.all(_Space.xs),
+      padding: const EdgeInsets.all(TemplateSpace.xs),
       decoration: BoxDecoration(
         color: skin.sunken,
-        borderRadius: BorderRadius.circular(_Radius.control + _Space.xs),
+        borderRadius: BorderRadius.circular(
+          TemplateRadius.control + TemplateSpace.xs,
+        ),
         border: Border.all(color: skin.controlBorder),
       ),
       child: Row(
@@ -726,14 +444,14 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
             Expanded(
               child: ReboundContainer(
                 onTap: () => onTap(i),
-                borderRadius: BorderRadius.circular(_Radius.control),
+                borderRadius: BorderRadius.circular(TemplateRadius.control),
                 backgroundColor: value == i ? skin.surface : Colors.transparent,
                 hoverColor: skin.hover,
-                padding: const EdgeInsets.symmetric(vertical: _Space.sm),
+                padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
                 child: Text(
                   options[i],
                   textAlign: TextAlign.center,
-                  style: _Type.item.copyWith(
+                  style: TemplateType.item.copyWith(
                     color: value == i ? skin.textPrimary : skin.textSecondary,
                     fontWeight: value == i ? FontWeight.w600 : FontWeight.w400,
                   ),
@@ -748,7 +466,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
   // ════════ 按钮：实心一个、中性若干、安静若干 ════════
 
   Widget _buildButton(
-    _Skin skin, {
+    TemplateSkin skin, {
     required String label,
     required IconData icon,
     required _Kind kind,
@@ -757,6 +475,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       _Kind.solid => (skin.accent, skin.onAccent),
       _Kind.plain => (skin.raised, skin.textPrimary),
       _Kind.quiet => (Colors.transparent, skin.textSecondary),
+      _Kind.danger => (Colors.transparent, skin.dangerText),
     };
 
     return ReboundButton(
@@ -764,13 +483,13 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       backgroundColor: background,
       hoverColor: skin.hover,
       pressedScale: 0.96,
-      borderRadius: BorderRadius.circular(_Radius.control),
+      borderRadius: BorderRadius.circular(TemplateRadius.control),
       padding: const EdgeInsets.symmetric(
-        horizontal: _Space.lg,
-        vertical: _Space.sm + 1,
+        horizontal: TemplateSpace.lg,
+        vertical: TemplateSpace.sm + 1,
       ),
       child: DefaultTextStyle(
-        style: _Type.item.copyWith(
+        style: TemplateType.item.copyWith(
           color: foreground,
           fontWeight: FontWeight.w600,
         ),
@@ -778,7 +497,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
           data: IconThemeData(color: foreground, size: 18),
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            spacing: _Space.sm,
+            spacing: TemplateSpace.sm,
             children: [Icon(icon), Text(label)],
           ),
         ),
@@ -788,28 +507,28 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
   // ════════ 空态：标题写正面、说清下一步、给一个主行动 ════════
 
-  Widget _buildEmpty(_Skin skin) {
+  Widget _buildEmpty(TemplateSkin skin) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: _Space.sm),
+      padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: _Space.md,
+        spacing: TemplateSpace.md,
         children: [
           Icon(Icons.inbox_outlined, size: 28, color: skin.textTertiary),
           Text(
             '从社区挑一个装进来',
-            style: _Type.section.copyWith(color: skin.textPrimary),
+            style: TemplateType.section.copyWith(color: skin.textPrimary),
           ),
           SizedBox(
             width: 360,
             child: Text(
               '装好后会出现在上面那份列表里，可以随时启用或禁用；'
               '不想联网的话，把 .jar 拖进窗口也行',
-              style: _Type.caption.copyWith(color: skin.textTertiary),
+              style: TemplateType.caption.copyWith(color: skin.textTertiary),
             ),
           ),
           Row(
-            spacing: _Space.sm,
+            spacing: TemplateSpace.sm,
             children: [
               _buildButton(
                 skin,
@@ -832,28 +551,30 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
   // ════════ 提示条：靠底色与左边一道强调线，不靠描边圈住 ════════
 
-  Widget _buildNotice(_Skin skin) {
+  Widget _buildNotice(TemplateSkin skin) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: _Space.xl),
+      padding: const EdgeInsets.only(bottom: TemplateSpace.xl),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: skin.sunken,
-          borderRadius: BorderRadius.circular(_Radius.card),
+          borderRadius: BorderRadius.circular(TemplateRadius.card),
           border: Border(left: BorderSide(color: skin.accent, width: 3)),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: _Space.lg,
-            vertical: _Space.md,
+            horizontal: TemplateSpace.lg,
+            vertical: TemplateSpace.md,
           ),
           child: Row(
-            spacing: _Space.md,
+            spacing: TemplateSpace.md,
             children: [
               Icon(Icons.info_outline, size: 18, color: skin.accentText),
               Expanded(
                 child: Text(
                   '提示：资源或游戏本体可以直接拖进窗口导入',
-                  style: _Type.caption.copyWith(color: skin.textSecondary),
+                  style: TemplateType.caption.copyWith(
+                    color: skin.textSecondary,
+                  ),
                 ),
               ),
             ],
@@ -865,7 +586,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
   // ════════ 对照表：色值 + 现算的对比度 + 实物小样 ════════
 
-  Widget _buildPaletteTable(_Skin skin) {
+  Widget _buildPaletteTable(TemplateSkin skin) {
     final rows = <({String name, Color fg, Color bg, String need})>[
       (name: '正文 / 卡面', fg: skin.textPrimary, bg: skin.surface, need: '≥ 4.5'),
       (
@@ -895,6 +616,12 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       ),
       (name: '破坏性实心上的字', fg: skin.onDanger, bg: skin.danger, need: '≥ 4.5'),
       (
+        name: '破坏性文字 / 卡面',
+        fg: skin.dangerText,
+        bg: skin.surface,
+        need: '≥ 4.5：「删除」这类文字按钮用这一档，与实心那档分开解',
+      ),
+      (
         name: '实心块 / 卡面',
         fg: skin.accent,
         bg: skin.surface,
@@ -918,9 +645,9 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         children: [
           for (final row in rows)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: _Space.sm),
+              padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
               child: Row(
-                spacing: _Space.md,
+                spacing: TemplateSpace.md,
                 children: [
                   // 实物：把前景色真的画在背景色上，比值对不对一眼能看
                   Container(
@@ -929,12 +656,14 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: row.bg,
-                      borderRadius: BorderRadius.circular(_Radius.control),
+                      borderRadius: BorderRadius.circular(
+                        TemplateRadius.control,
+                      ),
                       border: Border.all(color: skin.border),
                     ),
                     child: Text(
                       'Aa',
-                      style: _Type.section.copyWith(color: row.fg),
+                      style: TemplateType.section.copyWith(color: row.fg),
                     ),
                   ),
                   Expanded(
@@ -944,18 +673,24 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
                       children: [
                         Text(
                           row.name,
-                          style: _Type.item.copyWith(color: skin.textPrimary),
+                          style: TemplateType.item.copyWith(
+                            color: skin.textPrimary,
+                          ),
                         ),
                         Text(
                           row.need,
-                          style: _Type.micro.copyWith(color: skin.textTertiary),
+                          style: TemplateType.micro.copyWith(
+                            color: skin.textTertiary,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   Text(
-                    '${_contrast(row.fg, row.bg).toStringAsFixed(2)}:1',
-                    style: _Type.section.copyWith(color: skin.accentText),
+                    '${templateContrast(row.fg, row.bg).toStringAsFixed(2)}:1',
+                    style: TemplateType.section.copyWith(
+                      color: skin.accentText,
+                    ),
                   ),
                 ],
               ),
@@ -967,19 +702,19 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
   // ════════ 待定：主行动的两种形态 ════════
 
-  Widget _buildPrimaryShapeChoice(_Skin skin) {
-    final solid = _contrast(skin.onAccent, skin.accent);
-    final tint = _contrast(skin.onAccentTint, skin.accentTint);
+  Widget _buildPrimaryShapeChoice(TemplateSkin skin) {
+    final solid = templateContrast(skin.onAccent, skin.accent);
+    final tint = templateContrast(skin.onAccentTint, skin.accentTint);
 
     return _buildSection(
       skin,
       title: '待定：主行动的两种形态',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: _Space.lg,
+        spacing: TemplateSpace.lg,
         children: [
           Row(
-            spacing: _Space.md,
+            spacing: TemplateSpace.md,
             children: [
               _buildTintedButton(
                 skin,
@@ -999,7 +734,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
             '实心那块面积大、颜色深，在大留白的版面上容易显重（用户 2026-10-05 的反馈）；'
             '软底是「淡主题色底 + 深主题色字」，块感轻得多、字还更清楚，'
             '代价是它在卡面上只比背景重一点（浅色 1.55:1），靠的那点「有色」而不是「有明度」',
-            style: _Type.caption.copyWith(color: skin.textTertiary),
+            style: TemplateType.caption.copyWith(color: skin.textTertiary),
           ),
         ],
       ),
@@ -1007,7 +742,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
   }
 
   Widget _buildTintedButton(
-    _Skin skin, {
+    TemplateSkin skin, {
     required Color background,
     required Color foreground,
     required String label,
@@ -1017,13 +752,13 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       backgroundColor: background,
       hoverColor: skin.hover,
       pressedScale: 0.96,
-      borderRadius: BorderRadius.circular(_Radius.control),
+      borderRadius: BorderRadius.circular(TemplateRadius.control),
       padding: const EdgeInsets.symmetric(
-        horizontal: _Space.lg,
-        vertical: _Space.sm + 1,
+        horizontal: TemplateSpace.lg,
+        vertical: TemplateSpace.sm + 1,
       ),
       child: DefaultTextStyle(
-        style: _Type.item.copyWith(
+        style: TemplateType.item.copyWith(
           color: foreground,
           fontWeight: FontWeight.w600,
         ),
@@ -1034,7 +769,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
   // ════════ 和 Copper 现状逐对比：颜色看着像，差的是这几处对比 ════════
 
-  Widget _buildCompareWithCopper(_Skin skin) {
+  Widget _buildCompareWithCopper(TemplateSkin skin) {
     // Copper 现状的色值（浅色主题），写在这里方便并排看
     const oldSurface = Color(0xFFE9E9E9);
     const oldPage = Color(0xFFD4D4D4);
@@ -1083,9 +818,9 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         children: [
           for (final row in rows)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: _Space.sm),
+              padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
               child: Row(
-                spacing: _Space.md,
+                spacing: TemplateSpace.md,
                 children: [
                   _buildSwatch(
                     fg: row.oldFg,
@@ -1093,8 +828,10 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
                     border: skin.border,
                   ),
                   Text(
-                    '${_contrast(row.oldFg, row.oldBg).toStringAsFixed(2)}:1',
-                    style: _Type.micro.copyWith(color: skin.textTertiary),
+                    '${templateContrast(row.oldFg, row.oldBg).toStringAsFixed(2)}:1',
+                    style: TemplateType.micro.copyWith(
+                      color: skin.textTertiary,
+                    ),
                   ),
                   Icon(Icons.arrow_forward, size: 14, color: skin.textTertiary),
                   _buildSwatch(
@@ -1103,26 +840,28 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
                     border: skin.border,
                   ),
                   Text(
-                    '${_contrast(row.newFg, row.newBg).toStringAsFixed(2)}:1',
-                    style: _Type.micro.copyWith(color: skin.accentText),
+                    '${templateContrast(row.newFg, row.newBg).toStringAsFixed(2)}:1',
+                    style: TemplateType.micro.copyWith(color: skin.accentText),
                   ),
                   Expanded(
                     child: Text(
                       row.name,
                       textAlign: TextAlign.right,
-                      style: _Type.micro.copyWith(color: skin.textTertiary),
+                      style: TemplateType.micro.copyWith(
+                        color: skin.textTertiary,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           Padding(
-            padding: const EdgeInsets.only(top: _Space.md),
+            padding: const EdgeInsets.only(top: TemplateSpace.md),
             child: Text(
               '前三行是这次真正改掉的（旧值里三级小字 3.39、实心按钮上的字 2.95 都不达标）；'
               '最后一行两边一样低 —— 卡面与页底的明度差从来不是「抬起」的手段，'
               '那一格看不出区别是对的，抬起靠的是 1px 描边与那层暖色阴影',
-              style: _Type.caption.copyWith(color: skin.textTertiary),
+              style: TemplateType.caption.copyWith(color: skin.textTertiary),
             ),
           ),
         ],
@@ -1141,70 +880,441 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(_Radius.control),
+        borderRadius: BorderRadius.circular(TemplateRadius.control),
         border: Border.all(color: border),
       ),
-      child: Text('Aa', style: _Type.section.copyWith(color: fg)),
+      child: Text('Aa', style: TemplateType.section.copyWith(color: fg)),
+    );
+  }
+
+  // ════════ 真场景模拟：主页 / 下载页 / 云存档页 ════════
+  //
+  // 三个模拟页各自是独立的一屏，所以每屏各有一个实心主行动；
+  // 这里为对照竖着排在一起，真实使用时不会同时出现
+
+  Widget _buildMockLaunch(TemplateSkin skin) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: TemplateSpace.lg,
+      children: [
+        _buildMockLabel(skin, '模拟页：主页'),
+        _buildRow(
+          skin,
+          padding: const EdgeInsets.all(TemplateSpace.lg),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: skin.accentTint,
+                  borderRadius: BorderRadius.circular(TemplateRadius.card),
+                ),
+                child: Icon(Icons.memory, size: 28, color: skin.onAccentTint),
+              ),
+              const SizedBox(width: TemplateSpace.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: TemplateSpace.xs,
+                  children: [
+                    Text(
+                      'v160.5',
+                      style: TemplateType.page.copyWith(
+                        color: skin.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      '桌面版 · Copper 加载器 · 已隔离数据目录',
+                      style: TemplateType.caption.copyWith(
+                        color: skin.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: TemplateSpace.lg),
+              _buildButton(
+                skin,
+                label: '启动游戏',
+                icon: Icons.play_arrow,
+                kind: _Kind.solid,
+              ),
+            ],
+          ),
+        ),
+        Row(
+          spacing: TemplateSpace.md,
+          children: [
+            _buildButton(
+              skin,
+              label: '版本设置',
+              icon: Icons.tune,
+              kind: _Kind.plain,
+            ),
+            _buildButton(
+              skin,
+              label: '打开数据目录',
+              icon: Icons.folder_open,
+              kind: _Kind.quiet,
+            ),
+            const Spacer(),
+            Text(
+              '上次启动 2 小时前',
+              style: TemplateType.caption.copyWith(color: skin.textTertiary),
+            ),
+          ],
+        ),
+        Wrap(
+          spacing: TemplateSpace.md,
+          runSpacing: TemplateSpace.md,
+          children: [
+            for (final item in const [
+              (icon: Icons.save, label: '存档'),
+              (icon: Icons.map_outlined, label: '地图'),
+              (icon: Icons.paste, label: '蓝图'),
+              (icon: Icons.extension_outlined, label: '模组'),
+            ])
+              _buildShortcut(skin, icon: item.icon, label: item.label),
+          ],
+        ),
+        _buildNotice(skin),
+      ],
+    );
+  }
+
+  Widget _buildMockDownload(TemplateSkin skin) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: TemplateSpace.lg,
+      children: [
+        _buildMockLabel(skin, '模拟页：下载页'),
+        // 搜索框：控件边界那道描边就是给它用的（1.4.11 要 3:1）
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: TemplateSpace.md,
+            vertical: TemplateSpace.md,
+          ),
+          decoration: BoxDecoration(
+            color: skin.sunken,
+            borderRadius: BorderRadius.circular(TemplateRadius.control),
+            border: Border.all(color: skin.controlBorder),
+          ),
+          child: Row(
+            spacing: TemplateSpace.md,
+            children: [
+              Icon(Icons.search, size: 18, color: skin.textTertiary),
+              Text(
+                '搜索版本号，如 160.5 / v8',
+                style: TemplateType.item.copyWith(color: skin.textTertiary),
+              ),
+            ],
+          ),
+        ),
+        _buildSegment(
+          skin,
+          options: const ['全部', '正式版', '预览版', 'BE'],
+          value: _downloadFilter,
+          onTap: (index) => setState(() => _downloadFilter = index),
+        ),
+        Column(
+          spacing: 2,
+          children: [
+            for (final item in _downloadVersions)
+              _buildRow(
+                skin,
+                selected: _selectedVersions.contains(item.tag),
+                onTap: () => setState(() {
+                  if (!_selectedVersions.remove(item.tag)) {
+                    _selectedVersions.add(item.tag);
+                  }
+                }),
+                child: _buildDownloadRow(skin, item),
+              ),
+          ],
+        ),
+        Row(
+          spacing: TemplateSpace.md,
+          children: [
+            Text(
+              '已选 ${_selectedVersions.length}',
+              style: TemplateType.caption.copyWith(color: skin.textTertiary),
+            ),
+            const Spacer(),
+            _buildButton(
+              skin,
+              label: '下载',
+              icon: Icons.download,
+              kind: _Kind.plain,
+            ),
+            _buildButton(
+              skin,
+              label: '删除',
+              icon: Icons.delete_outline,
+              kind: _Kind.danger,
+            ),
+            _buildButton(
+              skin,
+              label: '取消选择',
+              icon: Icons.close,
+              kind: _Kind.quiet,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDownloadRow(
+    TemplateSkin skin,
+    ({String tag, String desc, double progress}) item,
+  ) {
+    final downloading = item.progress > 0 && item.progress < 1;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.xs,
+            children: [
+              Text(
+                item.tag,
+                style: TemplateType.item.copyWith(
+                  color: skin.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                item.desc,
+                style: TemplateType.caption.copyWith(color: skin.textTertiary),
+              ),
+              if (downloading) ...[
+                const SizedBox(height: TemplateSpace.xs),
+                // 进度：细轨 + 实心填充，不靠主题色文字去喊
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(TemplateRadius.pill),
+                  child: SizedBox(
+                    height: 4,
+                    child: Stack(
+                      children: [
+                        ColoredBox(
+                          color: skin.sunken,
+                          child: const SizedBox.expand(),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: item.progress,
+                          child: ColoredBox(color: skin.accent),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: TemplateSpace.lg),
+        if (downloading)
+          Text(
+            '${(item.progress * 100).round()}%',
+            style: TemplateType.caption.copyWith(color: skin.accentText),
+          )
+        else if (item.progress == 1)
+          Text(
+            '已下载',
+            style: TemplateType.caption.copyWith(color: skin.textTertiary),
+          )
+        else
+          _buildButton(
+            skin,
+            label: '下载',
+            icon: Icons.download,
+            kind: _Kind.quiet,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMockCloud(TemplateSkin skin) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: TemplateSpace.lg,
+      children: [
+        _buildMockLabel(skin, '模拟页：云存档页'),
+        _buildRow(
+          skin,
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: skin.accentTint,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '雨',
+                  style: TemplateType.item.copyWith(color: skin.onAccentTint),
+                ),
+              ),
+              const SizedBox(width: TemplateSpace.md),
+              Expanded(
+                child: _buildTwoLine(skin, 'rainfall', '已登录 · 配额 200 MB'),
+              ),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: skin.success,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: TemplateSpace.sm),
+              Text(
+                '已同步',
+                style: TemplateType.caption.copyWith(color: skin.textSecondary),
+              ),
+              const SizedBox(width: TemplateSpace.lg),
+              _buildButton(
+                skin,
+                label: '退出登录',
+                icon: Icons.logout,
+                kind: _Kind.quiet,
+              ),
+            ],
+          ),
+        ),
+        _buildSection(
+          skin,
+          title: 'Android · v160.5',
+          padding: const EdgeInsets.all(TemplateSpace.sm),
+          child: Column(
+            spacing: 2,
+            children: [
+              _buildKeyRow(skin, '上次同步', '2026-10-05 13:54 · 16.6 MB'),
+              _buildKeyRow(skin, '快照', '4 份 · 最近一份 2 小时前'),
+              Padding(
+                padding: const EdgeInsets.all(TemplateSpace.md),
+                child: Row(
+                  spacing: TemplateSpace.md,
+                  children: [
+                    _buildButton(
+                      skin,
+                      label: '上传到云端',
+                      icon: Icons.cloud_upload_outlined,
+                      kind: _Kind.solid,
+                    ),
+                    _buildButton(
+                      skin,
+                      label: '从云端恢复',
+                      icon: Icons.cloud_download_outlined,
+                      kind: _Kind.plain,
+                    ),
+                    const Spacer(),
+                    _buildButton(
+                      skin,
+                      label: '删除云端包',
+                      icon: Icons.delete_outline,
+                      kind: _Kind.danger,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Column(
+          spacing: 2,
+          children: [
+            for (final item in const [
+              (time: '今天 13:54', size: '16.6 MB', pinned: true),
+              (time: '昨天 21:02', size: '16.4 MB', pinned: false),
+              (time: '10-03 19:20', size: '15.9 MB', pinned: false),
+            ])
+              _buildRow(
+                skin,
+                child: Row(
+                  children: [
+                    Expanded(child: _buildTwoLine(skin, item.time, item.size)),
+                    if (item.pinned) ...[
+                      Icon(
+                        Icons.push_pin_outlined,
+                        size: 16,
+                        color: skin.accentText,
+                      ),
+                      const SizedBox(width: TemplateSpace.sm),
+                      Text(
+                        '已固定',
+                        style: TemplateType.caption.copyWith(
+                          color: skin.accentText,
+                        ),
+                      ),
+                    ] else
+                      _buildButton(
+                        skin,
+                        label: '恢复',
+                        icon: Icons.restore,
+                        kind: _Kind.quiet,
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 快捷入口小方块：并列入口，中性重量
+  Widget _buildShortcut(
+    TemplateSkin skin, {
+    required IconData icon,
+    required String label,
+  }) {
+    return ReboundContainer(
+      onTap: _noop,
+      borderRadius: BorderRadius.circular(TemplateRadius.control),
+      backgroundColor: skin.sunken,
+      hoverColor: skin.hover,
+      padding: const EdgeInsets.symmetric(
+        horizontal: TemplateSpace.lg,
+        vertical: TemplateSpace.md,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: TemplateSpace.sm,
+        children: [
+          Icon(icon, size: 18, color: skin.textSecondary),
+          Text(
+            label,
+            style: TemplateType.item.copyWith(color: skin.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 模拟页的分隔标签：说清这是另一屏，不是当前页的一部分
+  Widget _buildMockLabel(TemplateSkin skin, String text) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: TemplateSpace.sm,
+      children: [
+        Divider(height: 1, thickness: 1, color: skin.borderStrong),
+        Padding(
+          padding: const EdgeInsets.only(top: TemplateSpace.md),
+          child: Text(
+            '$text（各自独立的一屏，每屏各有一个实心主行动）',
+            style: TemplateType.section.copyWith(color: skin.accentText),
+          ),
+        ),
+      ],
     );
   }
 }
 
-/// 按钮的三种量级
-enum _Kind { solid, plain, quiet }
-
-/// WCAG 对比度：(亮的相对明度 + 0.05) / (暗的 + 0.05)
-double _contrast(Color a, Color b) {
-  final la = _luminance(a);
-  final lb = _luminance(b);
-  final hi = math.max(la, lb);
-  final lo = math.min(la, lb);
-  return (hi + 0.05) / (lo + 0.05);
-}
-
-double _luminance(Color color) {
-  double channel(double value) {
-    return value <= 0.03928
-        ? value / 12.92
-        : math.pow((value + 0.055) / 1.055, 2.4).toDouble();
-  }
-
-  return 0.2126 * channel(color.r) +
-      0.7152 * channel(color.g) +
-      0.0722 * channel(color.b);
-}
-
-/// 解出「刚好满足对比度」的一档颜色：色相与饱和度固定，对明度做二分
-///
-/// [lighter] 为 true ⇒ 要一个比底色亮的颜色（暗色主题），取**最小**达标的那一档；
-/// false ⇒ 要一个比底色暗的颜色，取**最大**达标的那一档。
-/// 于是浅色的实心是「白字将将压住的最亮铜」、暗色的实心是「刚够显眼的最暗铜」，
-/// 四个主题色各自解出自己合适的那一档，不必逐个手调
-Color _solveOn({
-  required double hue,
-  required double saturation,
-  required Color background,
-  required double target,
-  required bool lighter,
-}) {
-  var low = 0.0;
-  var high = 1.0;
-  for (var i = 0; i < 22; i++) {
-    final mid = (low + high) / 2;
-    final candidate = HSLColor.fromAHSL(1, hue, saturation, mid).toColor();
-    final ok = _contrast(candidate, background) >= target;
-    if (lighter) {
-      if (ok) {
-        high = mid;
-      } else {
-        low = mid;
-      }
-    } else {
-      if (ok) {
-        low = mid;
-      } else {
-        high = mid;
-      }
-    }
-  }
-  return HSLColor.fromAHSL(1, hue, saturation, lighter ? high : low).toColor();
-}
+/// 按钮的四种量级：实心主行动 / 中性 / 安静 / 破坏性
+enum _Kind { solid, plain, quiet, danger }
