@@ -26,25 +26,25 @@ abstract final class DrillPaint {
   static const double baseHalf = 30;
   static const double baseCorner = 6;
 
-  /// 钻头外面留的余量比例，给弹出的铜粒留出飞行空间
-  static const double layoutInset = 0.08;
+  /// 控件四角留的余量比例；只给弹出的铜粒留位置，钻头本体尽量占满
+  static const double layoutInset = 0.04;
 
   /// 钻头外接半径占控件边长的比例
-  static const double drillRadiusRatio = (0.5 - layoutInset) * 0.85;
+  static const double drillRadiusRatio = (0.5 - layoutInset) * 0.92;
 
   // ── 线条化配色的明暗两套 ──
 
   /// 暗色主题：底座压暗当底、顶盖居中、钻臂最亮 —— 三层要拉开才看得出是"在转的钻头"
   static const DrillTone darkTone = DrillTone(
-    baseFill: Color(0xFF1E2127),
-    baseStroke: Color(0xFF41464F),
-    topFill: Color(0xFF333842),
-    topStroke: Color(0xFF5A616C),
-    bladeFill: Color(0xFF6E7783),
-    bladeStroke: Color(0xFFC2CAD4),
+    baseFill: Color(0xFF2B2E35),
+    baseStroke: Color(0xFF5C636E),
+    topFill: Color(0xFF31353E),
+    topStroke: Color(0xFF7A828E),
+    bladeFill: Color(0xFF5D6675),
+    bladeStroke: Color(0xFFC6CDD7),
   );
 
-  /// 亮色主题：底座最深、顶盖居中、钻臂最浅，同一条明度梯度；整组都要比页面底色深一档才看得见
+  /// 亮色主题：同一条明度梯度，整组比页面底色深一档才看得见
   static const DrillTone lightTone = DrillTone(
     baseFill: Color(0xFF8E959F),
     baseStroke: Color(0xFF5A606A),
@@ -53,6 +53,20 @@ abstract final class DrillPaint {
     bladeFill: Color(0xFFF2F4F7),
     bladeStroke: Color(0xFF4E545E),
   );
+
+  /// 出错时整组往红里偏的色相
+  static const Color errorTint = Color(0xFFC0392B);
+
+  /// 出错时各层往红里偏多少：底座最重、钻臂最轻，读起来是"整套东西出事了"而不是只换了个灯
+  static const double errorBladeTint = 0.18;
+  static const double errorTopTint = 0.22;
+  static const double errorBaseTint = 0.3;
+
+  /// 把 [color] 往 [errorTint] 混 [amount]（0~1）
+  static Color tinted(Color color, double amount) {
+    if (amount <= 0) return color;
+    return Color.lerp(color, errorTint, amount.clamp(0, 1))!;
+  }
 
   /// 铜块与飞出的铜粒：亮面当主色才看得出是铜，深色只用来勾边
   static const Color itemLight = Color(0xFFE8BC93);
@@ -82,11 +96,17 @@ abstract final class DrillPaint {
       ..close();
   }
 
+  /// 并集路径按需算一次就够：路径不随动画变，变的只有画布变换
+  static Path? _bladeUnionCache;
+
   /// 四片钻臂并成一个形状
   ///
   /// 分开画时四条臂在轮毂处两两相交，**每片各自的描边会在交叠处留下内轮廓**
   /// （顶点的尖角看着像拼错位）；先并成一条路径，描边再按它裁剪，缝就没了
   static Path bladeUnion() {
+    final cached = _bladeUnionCache;
+    if (cached != null) return cached;
+
     final single = blade();
     var union = single;
     for (var quarter = 1; quarter < 4; quarter++) {
@@ -96,7 +116,7 @@ abstract final class DrillPaint {
         single.transform(Matrix4.rotationZ(math.pi / 2 * quarter).storage),
       );
     }
-    return union;
+    return _bladeUnionCache = union;
   }
 
   /// 轮毂亮点的实心半径与柔光半径；实心点要盖过顶盖中央，柔光再往外化开

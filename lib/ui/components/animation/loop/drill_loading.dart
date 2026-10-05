@@ -11,55 +11,82 @@ import 'drill_paint.dart';
 /// 底座 → 四片钻臂 → 顶盖 → 轮毂亮点 → 铜粒
 ///
 /// 一个 [cycle] 走一步：钻臂转到下一个 90 度 → 轮毂亮点闪一下 → 从中心弹出一粒铜
-/// （弹铜既是这次钻探的结果，也接上下一次转动）
 ///
-/// - [progress] 给值时用它驱动这一步（0~1），适合有真实进度的等待
-/// - [progress] 给 null 时按 [cycle] 自循环，适合进度未知的等待
-/// - [error] 为真时停在钻完那一步、亮点转红常亮，就是"载入失败"的样子
+/// 三种状态：
+/// - [DrillLoadingState.spinning]：不停转，一步接一步
+/// - [DrillLoadingState.completing]：只转一次，转到头时弹出铜粒，然后停住
+/// - [DrillLoadingState.error]：只转一次，转到头后轮毂亮点转红、整套金属略微泛红，停住
+///
+/// **切状态会等当前这一步走完**（转完那 90 度再进新状态），所以不会看到半路被打断的钻头；
+/// 等待期间连点也只会记下最后一次要去的状态
 ///
 /// 纯 `CustomPaint` 绘制，不依赖任何图片资源，任意尺寸都清晰
 class DrillLoading extends StatefulWidget {
   const DrillLoading({
     super.key,
-    this.progress,
+    this.state = DrillLoadingState.spinning,
     this.size = 48,
     this.cycle = const Duration(milliseconds: 1100),
-    this.error = false,
     this.onCycleFinished,
-  }) : assert(progress == null || (progress >= 0 && progress <= 1));
+    this.probe,
+  });
 
-  /// 确定进度（0~1）；null 为不确定态，内部自循环
-  final double? progress;
+  /// 要去哪个状态；切过去要等当前这一步走完
+  final DrillLoadingState state;
 
-  /// 边长；底座贴着它画，弹出去的那粒铜也在这范围内
+  /// 边长；钻头尽量占满，只给弹出的铜粒留一点余量
   final double size;
 
-  /// 不确定态下一步的时长（转一次 + 弹一次铜）
+  /// 走一步的时长（转一次 + 闪一下 + 弹一粒铜）
   final Duration cycle;
 
-  /// 出错态：停转，中心亮点转红常亮
-  final bool error;
-
-  /// 每走完一步回调一次（只在不确定态触发）
+  /// 每走完一步回调一次
   final VoidCallback? onCycleFinished;
+
+  /// 读回组件当前的内部状态；传 null 就不用
+  ///
+  /// 挂起的状态要等这一步走完才轮到它，用它验证 / 同步状态，不必给子组件挂 `GlobalKey<State>`
+  final DrillStateProbe? probe;
 
   @override
   State<DrillLoading> createState() => _DrillLoadingState();
 }
 
+/// 组件内部状态的可读镜像；由调用方建好传进 [DrillLoading.probe]
+class DrillStateProbe {
+  /// 正在生效的状态
+  DrillLoadingState active = DrillLoadingState.spinning;
+
+  /// 等这一步走完就切过去的状态；null 表示没有待切
+  DrillLoadingState? pending;
+
+  /// 当前这一步走到哪（0~1）
+  double step = 0;
+}
+
+/// 铜钻头的三种状态
+enum DrillLoadingState {
+  /// 旋转态：不停转
+  spinning,
+
+  /// 结束态：转一次、途中弹铜
+  completing,
+
+  /// 错误态：转一次后转红停住
+  error,
+}
+
 class _DrillLoadingState extends State<DrillLoading>
-    with SingleTickerProviderStateMixin {
-  /// 一轮里起转占的比例，其余作为停顿；一个 [cycle] 正好走"转一次 + 弹一次铜"
+    with TickerProviderStateMixin {
+  /// 一步里起转占的比例，其余作为停顿；一个 [cycle] 正好是"转一次 + 弹一次铜"
   static const double _spinPortion = 0.6;
 
   /// 一段停顿占的比例
   static const double _spinPausePortion = 1 - _spinPortion;
 
-  /// 起转结束、铜粒弹出的时间点；亮点的闪光峰值与它对齐
-  static const double _emitAt = _spinPortion;
-
-  /// 铜粒在这段周期里飞出
-  static const double _chipFlightPortion = 0.34;
+  /// 铜粒只在这段周期里飞：正好在起转那一段之内，也就是"旋转途中弹出来"
+  static const double _chipFrom = 0.32;
+  static const double _chipTo = 0.58;
 
   /// 闪光衰减后到下一轮起转之间的余量
   static const double _lightTail = 0.2;
@@ -68,9 +95,24 @@ class _DrillLoadingState extends State<DrillLoading>
   static const double _lightFloor = 0.15;
 
   late final AnimationController _controller;
-  late double _cycleValue;
+  late final AnimationController _flashController;
 
-  /// 钻头转角：一轮从 0 平滑转到 90 度；四片钻臂 90 度一循环，正好接上下一次
+  /// 钻头是否停在"转完了"的位置；只有这里可以切状态
+  bool _settled = false;
+
+  /// 是否停在"转完了"那半段；只有这里可以切状态，免得看见半路被打断的钻头
+  bool _inPause = false;
+
+  /// 上一帧的步进度，用来认出 `repeat()` 的回卷
+  double _lastStepValue = 0;
+
+  /// 正在 / 已经生效的状态
+  late DrillLoadingState _mode = widget.state;
+
+  /// 等当前步走完再切过去的状态；null 表示没有待切
+  DrillLoadingState? _pendingState;
+
+  /// 钻头转角：一步从 0 平滑转到 90 度；四片钻臂 90 度一循环，接得上下一次
   late final TweenSequence<double> _spinSequence = TweenSequence<double>([
     TweenSequenceItem(
       tween: Tween(
@@ -110,99 +152,177 @@ class _DrillLoadingState extends State<DrillLoading>
   @override
   void initState() {
     super.initState();
-    _cycleValue = widget.progress ?? 0;
     _controller = AnimationController(vsync: this, duration: widget.cycle)
-      ..addListener(_onTick);
-    _syncProgressMode();
+      ..addStatusListener(_onStepStatus)
+      ..addListener(_onStepTick);
+    _flashController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+    )..addListener(_onFlashTick);
+    // 起始状态也要走一遍启动逻辑：初始就是结束 / 错误态时，那一步同样得转起来
+    _applyMode(widget.state);
   }
 
   @override
   void didUpdateWidget(covariant DrillLoading oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.cycle != widget.cycle) {
-      _controller.duration = widget.cycle;
-    }
-    if (oldWidget.progress != widget.progress) {
-      _syncProgressMode();
-    }
+    if (oldWidget.cycle != widget.cycle) _controller.duration = widget.cycle;
+    if (oldWidget.state != widget.state) _requestState(widget.state);
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _flashController.dispose();
     super.dispose();
   }
 
-  /// 确定 / 不确定两种模式之间切换时，重建控制器的驱动方式
-  void _syncProgressMode() {
-    final value = widget.progress;
-    if (value != null) {
-      _controller.stop();
-      _controller.removeStatusListener(_onStatus);
-      _cycleValue = value;
-    } else {
-      _controller.repeat();
-      _controller.addStatusListener(_onStatus);
-      _cycleValue = _controller.value;
+  /// 请求切到 [target]：可以立刻切就切，否则挂起等这一步走完
+  void _requestState(DrillLoadingState target) {
+    if (target == _mode && _pendingState == null) return;
+
+    if (_canSwitchNow) {
+      _applyMode(target);
+      return;
+    }
+    setState(() => _pendingState = target);
+    _publishProbe();
+  }
+
+  /// 只有"转完了、停在停顿里"才允许切状态，免得看见半路被打断的钻头
+  bool get _canSwitchNow => !_controller.isAnimating || _settled || _inPause;
+
+  /// 把内部状态同步给调用方传进来的 [DrillLoading.probe]
+  void _publishProbe() {
+    widget.probe
+      ?..active = _mode
+      ..pending = _pendingState;
+  }
+
+  void _applyMode(DrillLoadingState target) {
+    setState(() {
+      _mode = target;
+      _pendingState = null;
+      _settled = false;
+    });
+    _controller.value = 0;
+    _lastStepValue = 0;
+    _inPause = false;
+    widget.probe?.step = 0;
+    _publishProbe();
+    switch (target) {
+      case DrillLoadingState.spinning:
+        _flashController.reverse();
+        _startIfNeeded();
+      case DrillLoadingState.completing:
+        // 只转一次：转完停在 1，铜粒留在弹出的位置
+        if (!_controller.isAnimating) _controller.forward(from: 0);
+      case DrillLoadingState.error:
+        _flashController.forward(from: 0);
+        if (!_controller.isAnimating) _controller.forward(from: 0);
     }
   }
 
-  void _onTick() {
-    if (widget.progress != null) return;
-    setState(() => _cycleValue = _controller.value);
+  /// 不确定态才需要自己驱动；停下后要等状态切换或 resume 再起
+  void _startIfNeeded() {
+    if (_mode != DrillLoadingState.spinning) return;
+    if (!_controller.isAnimating) _controller.repeat();
   }
 
-  void _onStatus(AnimationStatus status) {
-    if (status == AnimationStatus.completed) widget.onCycleFinished?.call();
+  void _onFlashTick() => setState(() {});
+
+  /// 每一帧都更新"是否转完了"；`repeat()` 自己回卷、**从不发 completed**，
+  /// 所以旋转态的"这一步结束"只能靠值往回跳认出来，切换也在这里落地
+  void _onStepTick() {
+    final value = _controller.value;
+    final wrapped = value < _lastStepValue;
+    _lastStepValue = value;
+    _inPause = value >= _spinPortion;
+    widget.probe?.step = value;
+    if (wrapped) _finishStep();
   }
 
-  /// 出错时停在这一步：起转已走完、铜粒刚弹出
-  double get _frozenCycle => widget.progress ?? _emitAt;
+  /// 一步走完：先发回调，再把挂起的切换落地
+  void _finishStep() {
+    widget.onCycleFinished?.call();
+    final pending = _pendingState;
+    if (pending != null) {
+      _applyMode(pending);
+      return;
+    }
+    if (_mode != DrillLoadingState.spinning) _settled = true;
+  }
+
+  void _onStepStatus(AnimationStatus status) {
+    // 只跑一次的完成 / 错误态由状态回调收尾；旋转态走上面的回卷检测
+    if (status != AnimationStatus.completed) return;
+    if (_mode == DrillLoadingState.spinning) return;
+    _finishStep();
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final cycle = (widget.error ? _frozenCycle : _cycleValue).clamp(0.0, 1.0);
+    final isError = _mode == DrillLoadingState.error;
+    final tint = isError ? _flashController.value : 0.0;
 
     return SizedBox.square(
       dimension: widget.size,
-      child: CustomPaint(
-        painter: _DrillLoadingPainter(
-          cycle: cycle,
-          spin: _spinSequence.transform(cycle),
-          light: widget.error ? 0 : _lightSequence.transform(cycle),
-          chipFlightPortion: _chipFlightPortion,
-          tone: DrillTone.of(context),
-          hubColor: widget.error ? colors.error : colors.interactive,
-          drillScale:
-              widget.size * DrillPaint.drillRadiusRatio / DrillPaint.grid,
-        ),
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final cycle = _controller.value.clamp(0.0, 1.0);
+          // 旋转态只闪灯，铜粒是"钻完了"的结果；完成 / 出错态转到头才弹
+          final showChip = _mode != DrillLoadingState.spinning;
+          return CustomPaint(
+            painter: _DrillLoadingPainter(
+              spin: _spinSequence.transform(cycle),
+              light: isError
+                  ? _flashController.value
+                  : _lightSequence.transform(cycle),
+              chipFlight: showChip ? _chipFlight(cycle) : null,
+              tint: tint,
+              tone: DrillTone.of(context),
+              hubColor: isError ? colors.error : colors.interactive,
+              drillScale:
+                  widget.size * DrillPaint.drillRadiusRatio / DrillPaint.grid,
+            ),
+          );
+        },
       ),
     );
+  }
+
+  /// 铜粒的飞行进度；不在弹出窗口内返回 null
+  double? _chipFlight(double cycle) {
+    if (cycle < _chipFrom) return null;
+    return ((cycle - _chipFrom) / (_chipTo - _chipFrom)).clamp(0, 1);
   }
 }
 
 class _DrillLoadingPainter extends CustomPainter {
   _DrillLoadingPainter({
-    required this.cycle,
     required this.spin,
     required this.light,
-    required this.chipFlightPortion,
+    required this.chipFlight,
+    required this.tint,
     required this.tone,
     required this.hubColor,
     required this.drillScale,
   });
 
-  /// 当前周期位置（0~1）
-  final double cycle;
-
   /// 钻头当前转角（弧度）
   final double spin;
 
-  /// 轮毂亮点的亮度（0~1），出错态由调用方固定给 0
+  /// 轮毂亮点的亮度（0~1）
   final double light;
 
-  final double chipFlightPortion;
+  /// 铜粒飞行进度；null 表示这一步不出铜
+  final double? chipFlight;
+
+  /// 出错泛红的程度（0~1）
+  final double tint;
+
   final DrillTone tone;
 
   /// 轮毂亮点的颜色：正常暖色、出错转红
@@ -235,14 +355,14 @@ class _DrillLoadingPainter extends CustomPainter {
       plate,
       Paint()
         ..style = PaintingStyle.fill
-        ..color = tone.baseFill,
+        ..color = _tint(tone.baseFill, DrillPaint.errorBaseTint),
     );
     canvas.drawPath(
       plate,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2 * drillScale
-        ..color = tone.baseStroke,
+        ..color = _tint(tone.baseStroke, DrillPaint.errorBaseTint),
     );
   }
 
@@ -254,11 +374,11 @@ class _DrillLoadingPainter extends CustomPainter {
     final single = DrillPaint.blade();
     final fill = Paint()
       ..style = PaintingStyle.fill
-      ..color = tone.bladeFill;
+      ..color = _tint(tone.bladeFill, DrillPaint.errorBladeTint);
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6 * drillScale
-      ..color = tone.bladeStroke;
+      ..color = _tint(tone.bladeStroke, DrillPaint.errorBladeTint);
 
     canvas.save();
     canvas.rotate(spin);
@@ -286,20 +406,20 @@ class _DrillLoadingPainter extends CustomPainter {
       cap,
       Paint()
         ..style = PaintingStyle.fill
-        ..color = tone.topFill,
+        ..color = _tint(tone.topFill, DrillPaint.errorTopTint),
     );
     canvas.drawPath(
       cap,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.6 * drillScale
-        ..color = tone.topStroke,
+        ..color = _tint(tone.topStroke, DrillPaint.errorTopTint),
     );
   }
 
-  /// 铜粒：每轮起转结束时从中心弹出，是这次钻探的产物，也接上下一次转动
+  /// 铜粒：这一步钻完的产物，从中心弹出
   void _paintChip(Canvas canvas, double drillRadius) {
-    final flight = _chipFlight();
+    final flight = chipFlight;
     if (flight == null) return;
 
     // 起点贴着轮毂，弹出一段距离后淡出
@@ -318,18 +438,15 @@ class _DrillLoadingPainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// 铜粒的飞行进度；不在弹出窗口内返回 null
-  double? _chipFlight() {
-    final start = 1 - chipFlightPortion;
-    if (cycle < start) return null;
-    return ((cycle - start) / chipFlightPortion).clamp(0, 1);
-  }
+  Color _tint(Color color, double amount) =>
+      DrillPaint.tinted(color, amount * tint);
 
   @override
   bool shouldRepaint(covariant _DrillLoadingPainter oldDelegate) {
-    return oldDelegate.cycle != cycle ||
-        oldDelegate.spin != spin ||
+    return oldDelegate.spin != spin ||
         oldDelegate.light != light ||
+        oldDelegate.chipFlight != chipFlight ||
+        oldDelegate.tint != tint ||
         oldDelegate.tone != tone ||
         oldDelegate.hubColor != hubColor ||
         oldDelegate.drillScale != drillScale;

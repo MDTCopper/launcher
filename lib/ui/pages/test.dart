@@ -1,25 +1,6 @@
-import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
 import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
-import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
-
-import 'package:copper_launcher/ui/components/button/segment_button.dart';
-import 'package:copper_launcher/ui/components/effect/border_progress.dart';
-import 'package:copper_launcher/ui/components/future/readme_loader.dart';
-import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
-import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
-import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
-import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
-
-import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
-import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
-
-import 'package:copper_launcher/data/models.dart';
-import 'package:copper_launcher/util/format/byte_unit.dart';
-
-import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
-import 'package:copper_launcher/ui/dialog/java_missing_prompt.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 
 import 'package:flutter/material.dart';
@@ -33,153 +14,16 @@ class Test extends StatefulWidget {
 }
 
 class TestState extends State<Test> {
-  final PopupOverlayController customController = PopupOverlayController();
-  final ScrollController listController = ScrollController();
-
-  // ── 第 11 区演示状态 ──
-  int _segSelected = 1; // SegmentedReboundButton 选中值
-  bool _groupExpanded = false; // AnimatedExpansion 展开日志
-
-  // ── 第 12 区演示状态 ──
-  bool _switchOn = false; // ReboundSwitch 开关
-  double _sliderValue = 0.4; // CopperSlider 值(0~1 比例)
-
-  // ── 第 13 区演示状态（DragSelectList 拖动连续选择）──
-  final Set<int> _dragSelectedIndexes = {}; // 已选中的演示项下标
-  bool _dragSelectEnabled = true; // 是否允许拖动连续选择
-  static const List<String> _demoModNames = [
-    'Copper Core',
-    'Endless',
-    'Factorio Mod',
-    'Frozen',
-    'Infinite',
-    'Pac-Man',
-    'Skies',
-    'Zero',
-  ];
-
-  // ── 第 14 区演示状态（ModGithubMeta 临时测试）──
-  // 每个 mock：github release 元数据 + 是否 java（对应 ModOfficialListMeta.hasJava）
-  late final List<({ModRelease meta, bool hasJava})> _mockMods = [
-    (
-      meta: ModRelease(
-        name: 'JavaMultiMod',
-        tag: 'v1.2.0',
-        releaseDate: '2024-01-01T00:00:00Z',
-        assets: [
-          GithubApiReleaseAsset(
-            name: 'readme.txt',
-            url:
-                'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/readme.txt',
-            size: 1 * 1024,
-            downloadCount: 0,
-          ),
-          GithubApiReleaseAsset(
-            name: 'JavaMultiMod-0.8.jar',
-            url:
-                'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/JavaMultiMod-0.8.jar',
-            size: 2 * MB,
-            downloadCount: 12,
-          ),
-          GithubApiReleaseAsset(
-            name: 'JavaMultiMod-1.2.jar',
-            url:
-                'https://github.com/mock/JavaMultiMod/releases/download/v1.2.0/JavaMultiMod-1.2.jar',
-            size: 5 * MB,
-            downloadCount: 88, // 体积最大 = mod 本体，应排最前
-          ),
-        ],
-        describe: 'java 多 jar 候选测试',
-      ),
-      hasJava: true,
-    ),
-    (
-      meta: ModRelease(
-        name: 'ScriptMultiMod',
-        tag: 'v0.3.0',
-        releaseDate: '2024-02-05T00:00:00Z',
-        assets: [
-          GithubApiReleaseAsset(
-            name: 'ScriptMultiMod-0.3.zip',
-            url:
-                'https://github.com/mock/ScriptMultiMod/releases/download/v0.3.0/a.zip',
-            size: 1 * MB,
-            downloadCount: 30,
-          ),
-          GithubApiReleaseAsset(
-            name: 'ScriptMultiMod-0.2.zip',
-            url:
-                'https://github.com/mock/ScriptMultiMod/releases/download/v0.3.0/b.zip',
-            size: 512 * KB,
-            downloadCount: 5,
-          ),
-        ],
-        describe: '非java 多 zip 候选测试',
-      ),
-      hasJava: false,
-    ),
-    (
-      meta: ModRelease(
-        name: 'JavaNoAssetMod',
-        tag: 'v0.9.0',
-        releaseDate: '2024-03-10T00:00:00Z',
-        assets: [
-          GithubApiReleaseAsset(
-            name: 'README.md',
-            url:
-                'https://github.com/mock/JavaNoAssetMod/releases/download/v0.9.0/README.md',
-            size: 2 * KB,
-            downloadCount: 0,
-          ),
-        ],
-        describe: 'java 无 jar 产物 → 弹窗提示跳转 tag 源码',
-      ),
-      hasJava: true,
-    ),
-    (
-      meta: ModRelease(
-        name: 'ScriptSingleMod',
-        tag: 'v1.0.0',
-        releaseDate: '2024-04-01T00:00:00Z',
-        assets: [
-          GithubApiReleaseAsset(
-            name: 'ScriptSingleMod-1.0.zip',
-            url:
-                'https://github.com/mock/ScriptSingleMod/releases/download/v1.0.0/single.zip',
-            size: 3 * MB,
-            downloadCount: 66,
-          ),
-        ],
-        describe: '非java 单个 zip → 只读展示',
-      ),
-      hasJava: false,
-    ),
-  ];
-
-  /// 每个 mock 当前选中的候选下标（默认 0 = 体积最大）
-  late final List<int> _mockSelectedAssetIndexes = List.filled(
-    _mockMods.length,
-    0,
-  );
-
-  // ── 第 15 区演示状态（CapsuleActionBar 胶囊操作栏）──
-  String _capsuleLastAction = '还没点过'; // 记录点了哪个动作
-
-  // ── 第 18 区演示状态（BorderProgress 描边进度）──
-  double? _borderProgress = 0.35; // null = 不确定态（只画轨道）
-
   // ── 第 19 区演示状态（DrillLoading 铜钻头循环）──
-  double _drillProgress = 0; // 确定态：0=刚起转、0.6=闪到最亮并弹铜、1=一轮结束
-  bool _drillError = false; // 出错态：停转 + 中心亮点转红
-  bool _drillAuto = true; // 不确定态：内部自循环
+  DrillLoadingState _drillState = DrillLoadingState.spinning;
   int _drillCycles = 0; // onCycleFinished 计数
 
-  @override
-  void dispose() {
-    listController.dispose();
-
-    super.dispose();
-  }
+  /// 当前状态在做什么，配合演示说清三种状态的差别
+  String get _drillStateHint => switch (_drillState) {
+    DrillLoadingState.spinning => '旋转态：不停转，每转一次闪一下灯；不出铜',
+    DrillLoadingState.completing => '结束态：只转一次，转到头弹一粒铜就停住',
+    DrillLoadingState.error => '错误态：只转一次，转到头后中心转红、金属泛红，停住',
+  };
 
   Widget _card({
     required String title,
@@ -224,531 +68,8 @@ class TestState extends State<Test> {
     return CopperSingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IconTextButton(icon: Icons.add, content: '666', onTap: () async {}),
-          _segmentExpansionSection(),
-          _switchSliderSection(),
-          _dragSelectSection(),
-          _modMetaSection(),
-          _capsuleActionBarSection(),
-          _readmeSkeletonSection(),
-          _javaMissingPromptSection(),
-          _borderProgressSection(),
-          _drillLoadingSection(),
-          const SizedBox(height: 120),
-        ],
+        children: [_drillLoadingSection(), const SizedBox(height: 120)],
       ),
-    );
-  }
-
-  // ════════ 11. 分段按钮 + 展开/收起容器（copper 风格翻新件） ════════
-  Widget _segmentExpansionSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('11. SegmentedReboundButton / AnimatedExpansion'),
-        _card(
-          title: 'SegmentedReboundButton（copper 双模式选中态）',
-          desc: '分段按钮：点击切换选中段，选中段背景/前景有过渡动画（暗色玻璃、浅色云母片）。当前选中：$_segSelected。',
-          child: SegmentedReboundButton<int>(
-            selected: {_segSelected},
-            segments: [
-              ReboundButtonSegment(
-                value: 0,
-                icon: Icon(Icons.dark_mode),
-                label: Text('暗色'),
-              ),
-              ReboundButtonSegment(
-                value: 1,
-                icon: Icon(Icons.auto_mode),
-                label: Text('跟随系统'),
-              ),
-              ReboundButtonSegment(
-                value: 2,
-                icon: Icon(Icons.light_mode),
-                label: Text('浅色'),
-              ),
-            ],
-            onChange: (set) => setState(() => _segSelected = set.first),
-          ),
-        ),
-        _card(
-          title: 'AnimatedExpansion（基于 Flutter Expansible，收起后卸载子树）',
-          desc:
-              '点击标题展开/收起；收起动画完成后内容从树上移除（maintainState:false 性能改进）。最近切换日志：${_groupExpanded ? '展开' : '收起'}。',
-          child: AnimatedExpansion(
-            title: Text('展开一个分组（点我）'),
-            onChange: () => setState(() => _groupExpanded = !_groupExpanded),
-            children: [
-              for (int i = 0; i < 30; i++)
-                Container(
-                  height: 32,
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text('收起后这 30 行不再参与构建 - 第 $i 项'),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ════════ 12. copper 风格开关 / 滑条（ReboundSwitch / CopperSlider） ════════
-  Widget _switchSliderSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('12. ReboundSwitch / CopperSlider'),
-        _card(
-          title: 'ReboundSwitch(copper 风格开关)',
-          desc: '轨道 + 滑块，选中/未选中平滑过渡；选中轨道变主题色。当前：${_switchOn ? '开' : '关'}。',
-          child: ReboundSwitch(
-            value: _switchOn,
-            onChanged: (v) => setState(() {
-              _switchOn = v;
-            }),
-          ),
-        ),
-        _card(
-          title: 'CopperSlider(点击 / 拖动 / 刻度吸附)',
-          desc:
-              '轨道 + 填充 + 滑块，点击定位、拖动调整、拖拽时显示浮标；divisions 非空时吸附刻度。当前：${(_sliderValue * 100).round()}。',
-          child: CopperSlider(
-            value: _sliderValue,
-            divisions: 10,
-            label: '${(_sliderValue * 100).round()}',
-            onChanged: (v) => setState(() => _sliderValue = v),
-          ),
-        ),
-        _card(
-          title: 'SwitchSettingBar / SliderSettingBar(弹性标题列)',
-          desc: '标题列自适应：空间足时 150 固定宽，空间不足自动收缩 + 省略号。缩窗口即可观察。',
-          child: Column(
-            spacing: 12,
-            children: [
-              const SwitchSettingBar(title: '某个开关设置很长', value: true),
-              SliderSettingBar(title: '某个滑条设置很长', value: 0.6),
-            ],
-          ),
-        ),
-        _card(
-          title: '竖排方案试验：描述在上、开关在下',
-          desc: '把具体控件放在描述下方（描述居左、控件右对齐独立成行），而非横排右侧。窗口缩窄时描述行仍可完整显示。',
-          child: Column(
-            spacing: 12,
-            children: [
-              // 横排对照：描述 + 右侧控件
-              SwitchSettingBar(
-                title: '横排对照开关',
-                value: _switchOn,
-                onChanged: (v) => setState(() => _switchOn = v),
-              ),
-              // 竖排试验：描述一行、开关下一行贴右
-              Row(
-                children: [
-                  const Expanded(child: Text('开启某项高级功能')),
-                  ReboundSwitch(
-                    value: _switchOn,
-                    onChanged: (v) => setState(() => _switchOn = v),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // 竖排变体：描述 + 副说明 + 控件贴右
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('开启自动更新'),
-                        Text(
-                          '更新到最新版本',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                        const SizedBox(height: 4),
-                        ReboundSwitch(
-                          value: _switchOn,
-                          onChanged: (v) => setState(() => _switchOn = v),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ════════ 13. DragSelectList 拖动连续选择 ════════
-  Widget _dragSelectSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('13. DragSelectList（点击 + 拖动连续选择）'),
-        _card(
-          title: 'DragSelectList：点击切换选中，按住拖动连续清除/选中',
-          desc:
-              '点击某行切换选中；桌面/短列表按住直接拖动，移动端长按后拖动，可整段连续选中/清除'
-              '（起点未选→整段选中，起点已选→整段清除）。列表放在固定高度容器内（自身可滚动）；'
-              '列表可滚动时上下滑动仍滚动，长按再拖动才进入多选。可切换「允许拖动选择」对比开关效果。',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: [
-              // 微调控件：拖动开关 + 选中数 + 清空
-              Row(
-                spacing: 12,
-                children: [
-                  const Text('允许拖动选择'),
-                  ReboundSwitch(
-                    value: _dragSelectEnabled,
-                    onChanged: (v) => setState(() => _dragSelectEnabled = v),
-                  ),
-                  const Spacer(),
-                  Text('已选 ${_dragSelectedIndexes.length} 项'),
-                  ReboundMenuButton(
-                    label: '清空',
-                    onTap: () => setState(_dragSelectedIndexes.clear),
-                  ),
-                ],
-              ),
-              // 固定高度，给内部 SingleChildScrollView 一个有界视口；
-              // 项数超高时可滚动，同时保留拖动连续选择
-              SizedBox(
-                height: 260,
-                child: DragSelectList(
-                  itemCount: _demoModNames.length,
-                  dragSelect: _dragSelectEnabled,
-                  itemSpacing: 4,
-                  selected: _dragSelectedIndexes,
-                  onToggle: (index, selected) => setState(() {
-                    if (selected) {
-                      _dragSelectedIndexes.add(index);
-                    } else {
-                      _dragSelectedIndexes.remove(index);
-                    }
-                  }),
-                  itemBuilder: (context, index, isSelected) =>
-                      _demoDragTile(index, isSelected),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 演示项：ReboundListTile 自带选中态/按压反馈，onTap 负责点击切换。
-  /// 拖动连续选择的 pan 由外层 DragSelectList 处理，与条目 onTap 互不干扰。
-  Widget _demoDragTile(int index, bool selected) {
-    return ReboundListTile(
-      itemSpacing: 10,
-      leading: Icon(
-        selected ? Icons.check_box : Icons.check_box_outline_blank,
-        size: 20,
-      ),
-      title: Text(_demoModNames[index]),
-      subtitle: Text(selected ? '已选中（起点已选→整段清除）' : '未选中（起点未选→整段选中）'),
-      selected: selected,
-      onTap: () => setState(() {
-        if (selected) {
-          _dragSelectedIndexes.remove(index);
-        } else {
-          _dragSelectedIndexes.add(index);
-        }
-      }),
-    );
-  }
-
-  // ════════ 14. ModGithubMeta 临时测试（模拟资源候选选择逻辑） ════════
-  Widget _modMetaSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('14. ModGithubMeta 临时测试'),
-        for (var i = 0; i < _mockMods.length; i++)
-          _card(
-            title:
-                '${_mockMods[i].meta.name}（${_mockMods[i].hasJava ? 'java' : '非java'}）',
-            desc: 'tag=${_mockMods[i].meta.tag}，${_mockMods[i].meta.describe}',
-            child: _mockAssetSelection(i),
-          ),
-      ],
-    );
-  }
-
-  /// 每个 mock 模拟下载弹窗里的资源候选展示：多个 → 下拉、单个 → 只读、无 → 提示。
-  Widget _mockAssetSelection(int mockIndex) {
-    final theme = Theme.of(context);
-    final mock = _mockMods[mockIndex];
-    final candidates = mock.meta.assetsOfType(mock.hasJava ? '.jar' : '.zip');
-
-    if (candidates.isEmpty) {
-      final hint = mock.hasJava
-          ? '该版本未提供编译产物，将跳转到对应 tag 下载源码'
-          : '该版本未发布编译产物，将自动下载该版本的源码';
-      return Row(
-        spacing: 4,
-        children: [
-          Icon(Icons.info_outline, color: theme.colorScheme.error, size: 20),
-          Expanded(
-            child: Text(
-              hint,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (candidates.length == 1) {
-      return Row(
-        spacing: 4,
-        children: [
-          Icon(Icons.description_outlined, size: 18),
-          Expanded(
-            child: Text(
-              candidates.first.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Text(
-            _formatSize(candidates.first.size),
-            style: theme.textTheme.bodySmall,
-          ),
-        ],
-      );
-    }
-
-    // 多个候选：下拉选择，默认体积最大在前
-    final value = _mockSelectedAssetIndexes[mockIndex].clamp(
-      0,
-      candidates.length - 1,
-    );
-    return Column(
-      spacing: 4,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('选择要下载的文件，体积最大一般为 mod 本体', style: theme.textTheme.bodySmall),
-        DropdownButton<int>(
-          value: value,
-          isExpanded: true,
-          items: [
-            for (var i = 0; i < candidates.length; i++)
-              DropdownMenuItem<int>(
-                value: i,
-                child: Row(
-                  children: [
-                    Icon(Icons.description_outlined, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        candidates[i].name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      _formatSize(candidates[i].size),
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-          ],
-          onChanged: (v) =>
-              setState(() => _mockSelectedAssetIndexes[mockIndex] = v ?? 0),
-        ),
-      ],
-    );
-  }
-
-  String _formatSize(int bytes) {
-    const kb = 1024;
-    const mb = kb * 1024;
-    const gb = mb * 1024;
-    if (bytes < kb) return '$bytes B';
-    if (bytes < mb) return '${(bytes / kb).toStringAsFixed(1)} KB';
-    if (bytes < gb) return '${(bytes / mb).toStringAsFixed(1)} MB';
-    return '${(bytes / gb).toStringAsFixed(1)} GB';
-  }
-
-  // ════════ 15. 胶囊操作栏（CapsuleActionBar） ════════
-  Widget _capsuleActionBarSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('15. CapsuleActionBar（胶囊操作栏）'),
-        _card(
-          title: '图标按钮装在一颗胶囊里：收纳 / 向下展开',
-          desc:
-              '顶部键控制收纳（收纳后只剩它）；展开时向下长出其余按钮，胶囊跟着变长。'
-              '按钮只有图标，作用靠 HintLayer 提示（桌面悬停、移动端长按）。'
-              '最近点击：$_capsuleLastAction。',
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: CapsuleActionBar(
-              actions: [
-                CapsuleAction(
-                  icon: Icons.refresh,
-                  hint: '刷新版本列表',
-                  onTap: () => setState(() => _capsuleLastAction = '刷新版本列表'),
-                ),
-                CapsuleAction(
-                  icon: Icons.tag,
-                  hint: '下载指定 build',
-                  onTap: () =>
-                      setState(() => _capsuleLastAction = '下载指定 build'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ════════ 16. README 载入骨架（ReadmeSkeleton） ════════
-  Widget _readmeSkeletonSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('16. ReadmeSkeleton（README 载入骨架）'),
-        _card(
-          title: 'README 弹窗载入期间的占位骨架',
-          desc:
-              '按 README 的常见结构摆占位块（徽标行 / 标题 / 正文行 / 图片块），'
-              '整体做缓慢的呼吸式明暗变化。实际使用时尺寸由 README 弹窗给定'
-              '（0.85 宽 × 0.75 高），这里用固定高度预览，改块高 / 圆角 / 呼吸快慢看这里。',
-          child: SizedBox(
-            height: 420,
-            child: CopperSingleChildScrollView(
-              child: const Padding(
-                padding: EdgeInsets.fromLTRB(20, 28, 20, 16),
-                child: ReadmeSkeleton(),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ════════ 17. 缺 Java 提示（确认弹窗 → 下载弹窗） ════════
-  Widget _javaMissingPromptSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('17. 缺 Java 提示'),
-        _card(
-          title: '启动时没找到可用 Java：确认弹窗 → 确定 → 下载弹窗',
-          desc:
-              '走的是启动任务同一个入口 showJavaMissingPrompt（没有第二份实现），'
-              '所以这里的观感就是启动失败时的观感；重点看确认弹窗收掉之后，'
-              '下载弹窗有没有被它那次 pop 一并关掉。'
-              '两个按钮只是传不同的大版本，用来对照推荐 Java 版本的变化（v8→17、v4→8）；'
-              '下载弹窗里可以直接关掉，不会真的装东西。',
-          child: Row(
-            children: [
-              IconTextButton(
-                icon: Icons.rocket_launch_outlined,
-                content: 'v8（推荐 Java 17）',
-                onTap: () =>
-                    showJavaMissingPrompt(releaseInt: 8, context: context),
-              ),
-              const SizedBox(width: 12),
-              IconTextButton(
-                icon: Icons.history,
-                content: 'v4 老版本（推荐 Java 8）',
-                onTap: () =>
-                    showJavaMissingPrompt(releaseInt: 4, context: context),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ════════ 18. 描边进度（BorderProgress） ════════
-  Widget _borderProgressSection() {
-    final colors = AppColors.of(context);
-    final labelStyle = TextStyle(color: colors.itemPrimary);
-
-    /// 一块小牌子，形状照任务抽屉那个「N 项任务」抄，方便对照实际观感
-    Widget chip(String text) => Container(
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        borderRadius: const BorderRadius.all(Radius.circular(4)),
-      ),
-      child: Text(text, style: labelStyle),
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('18. BorderProgress（描边进度）'),
-        _card(
-          title: '沿子组件外沿画一圈进度（颜色取主题语义色）',
-          desc:
-              '进度从左上角顺时针走；拖下面的滑杆改值，null 那一档是不确定态（只画轨道）。'
-              '描边画在子组件外面（由 strokeWidth 让出内边距），不遮内容；'
-              '圆角要与子组件自己的圆角一致，右边两块是不同圆角/粗细的对照。',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  BorderProgress(progress: _borderProgress, child: chip('照任务抽屉那块牌子')),
-                  const SizedBox(width: 24),
-                  BorderProgress(
-                    progress: _borderProgress,
-                    strokeWidth: 4,
-                    borderRadius: const BorderRadius.all(Radius.circular(12)),
-                    child: chip('粗描边 + 大圆角'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '当前值：${_borderProgress?.toStringAsFixed(2) ?? 'null（不确定态）'}',
-                style: labelStyle,
-              ),
-              CopperSlider(
-                value: _borderProgress ?? 0,
-                onChanged: (value) => setState(() => _borderProgress = value),
-              ),
-              Row(
-                children: [
-                  IconTextButton(
-                    icon: Icons.restart_alt,
-                    content: '0.35',
-                    onTap: () => setState(() => _borderProgress = 0.35),
-                  ),
-                  const SizedBox(width: 12),
-                  IconTextButton(
-                    icon: Icons.all_inclusive,
-                    content: '不确定态',
-                    onTap: () => setState(() => _borderProgress = null),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -792,8 +113,7 @@ class TestState extends State<Test> {
           desc:
               '层次是底座 → 四片钻臂 → 顶盖 → 中心亮点 → 铜粒。'
               '一个周期走一步：钻臂转到下一个 90 度 → 中心亮点闪到最亮（就是"钻到了"那一下）'
-              '→ 从中心弹出一粒铜，这粒铜既是这次的产物、也接上下一次转动。'
-              '下面四块是不确定态（内部自循环）的尺寸对照。',
+              '→ 从中心弹出一粒铜。下面四块是不停转的尺寸对照。',
           child: Wrap(
             spacing: 24,
             runSpacing: 24,
@@ -819,11 +139,12 @@ class TestState extends State<Test> {
           ),
         ),
         _card(
-          title: '确定态 / 出错态：滑杆拖进度，按钮切状态',
+          title: '三种状态：旋转 / 结束 / 错误（点哪颗切哪个）',
           desc:
-              '确定态用滑杆的值驱动这一步，拖到 0.6 看闪光与弹铜、拖到 1 看一轮走完。'
-              '出错态是"停转 + 中心亮点转红常亮"，停在钻完那一步不再动。'
-              '起停用旁边那颗按钮切（不解绑组件，只切 progress 给不给值）。',
+              '旋转态不停转、只闪灯不出铜；结束态只转一次、转到头弹一粒铜就停住；'
+              '错误态只转一次、转到头后中心亮点转红、整套金属略微泛红。'
+              '切状态会**等当前这一步走完**（转完那 90 度再进新状态），所以看不到半路被打断的钻头 —— '
+              '可以趁它转的时候连点几下，看它是走完才切。右边那块实时记 onCycleFinished 的次数。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -833,74 +154,41 @@ class TestState extends State<Test> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   _buildDrillPlate(
-                    label:
-                        '确定态 ${_drillProgress.toStringAsFixed(2)}'
-                        '${_drillAuto ? '（滑杆先停自循环）' : ''}',
-                    child: _drillAuto
-                        ? const DrillLoading(size: 72)
-                        : DrillLoading(size: 72, progress: _drillProgress),
-                  ),
-                  _buildDrillPlate(
-                    label: _drillError ? '出错态：停转 + 红点' : '出错态（点下面切换）',
-                    child: DrillLoading(size: 72, error: _drillError),
+                    label: '三种状态共用这一块',
+                    child: DrillLoading(size: 96, state: _drillState),
                   ),
                   _buildDrillPlate(
                     label: '回调已计 $_drillCycles 步',
                     child: DrillLoading(
-                      size: 48,
+                      size: 64,
+                      state: _drillState,
                       onCycleFinished: _onDrillCycle,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              CopperSlider(
-                value: _drillProgress,
-                onChanged: (value) => setState(() {
-                  _drillProgress = value;
-                  _drillAuto = false;
-                }),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _drillAuto
-                    ? '现在左边那块是自循环；拖动滑杆或点「切到确定态」改用确定进度'
-                    : '现在走确定进度；点「切回自循环」交还给组件内部驱动',
-                style: labelStyle,
-              ),
+              Text(_drillStateHint, style: labelStyle),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  IconTextButton(
-                    icon: Icons.restart_alt,
-                    content: '0.6（闪光弹铜）',
-                    onTap: () => setState(() {
-                      _drillProgress = 0.6;
-                      _drillAuto = false;
-                    }),
-                  ),
-                  IconTextButton(
-                    icon: Icons.flag,
-                    content: '1.0（一轮结束）',
-                    onTap: () => setState(() {
-                      _drillProgress = 1;
-                      _drillAuto = false;
-                    }),
-                  ),
-                  IconTextButton(
-                    icon: Icons.all_inclusive,
-                    content: _drillAuto ? '切到确定态' : '切回自循环',
-                    onTap: () => setState(() => _drillAuto = !_drillAuto),
-                  ),
-                  IconTextButton(
-                    icon: _drillError
-                        ? Icons.check_circle
-                        : Icons.error_outline,
-                    content: _drillError ? '恢复正常' : '切到出错态',
-                    onTap: () => setState(() => _drillError = !_drillError),
-                  ),
+                  for (final state in DrillLoadingState.values)
+                    IconTextButton(
+                      icon: switch (state) {
+                        DrillLoadingState.spinning => Icons.rotate_right,
+                        DrillLoadingState.completing =>
+                          Icons.check_circle_outline,
+                        DrillLoadingState.error => Icons.error_outline,
+                      },
+                      content: switch (state) {
+                        DrillLoadingState.spinning => '旋转态',
+                        DrillLoadingState.completing => '结束态（转一次弹铜）',
+                        DrillLoadingState.error => '错误态（转一次转红）',
+                      },
+                      onTap: () => setState(() => _drillState = state),
+                    ),
                 ],
               ),
             ],
