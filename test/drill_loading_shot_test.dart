@@ -52,13 +52,20 @@ void main() {
               extensions: [isDark ? AppColors.dark : AppColors.light],
             ),
             home: Scaffold(
-              backgroundColor: isDark
-                  ? const Color(0xFF202020)
-                  : const Color(0xFFE8E8E8),
               body: Center(
                 child: RepaintBoundary(
                   key: const ValueKey('shot'),
-                  child: DrillLoading(size: 120, state: state),
+                  // 外面留一圈不透明的页面底色：截图里才看得到承托层与页面的对比
+                  // （紧贴组件截的话，透明区在图片查看器里会被合成成白的）
+                  child: ColoredBox(
+                    color: isDark
+                        ? AppColors.dark.pageBackground
+                        : AppColors.light.pageBackground,
+                    child: Padding(
+                      padding: const EdgeInsets.all(40),
+                      child: DrillLoading(size: 120, state: state),
+                    ),
+                  ),
                 ),
               ),
             ),

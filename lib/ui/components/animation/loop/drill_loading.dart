@@ -345,6 +345,10 @@ class _DrillLoadingState extends State<DrillLoading>
               chipFlight: showChip ? _chipFlight(cycle) : null,
               chipAngle: _chipAngle,
               chipGravity: _chipGravity,
+              backdrop: DrillPaint.backdropOf(
+                colors,
+                isDark: Theme.of(context).brightness == Brightness.dark,
+              ),
               tint: tint,
               tone: DrillTone.of(context),
               hubColor: isError ? colors.error : colors.interactive,
@@ -371,16 +375,19 @@ class _DrillLoadingPainter extends CustomPainter {
     required this.chipFlight,
     required this.chipAngle,
     required this.chipGravity,
+    required this.backdrop,
     required this.tint,
     required this.tone,
     required this.hubColor,
     required this.drillScale,
   });
 
-  /// 各层描边宽（贴图网格单位）：线条化靠它撑形状，但给粗了整块会糊成一片灰
+  /// 各层描边宽（贴图网格单位）
+  ///
+  /// 全图只有描边、没有填充，所以这几档就是"线有多粗"；给粗了整块会糊成一片灰
   static const double _baseStrokeWidth = 0.9;
   static const double _bladeStrokeWidth = 0.8;
-  static const double _topStrokeWidth = 0.8;
+  static const double _topStrokeWidth = 0.7;
 
   /// 钻头当前转角（弧度）
   final double spin;
@@ -396,6 +403,9 @@ class _DrillLoadingPainter extends CustomPainter {
 
   /// 铜粒末端的重力下沉量，占钻头半径的比例
   final double chipGravity;
+
+  /// 底座轮廓底下的极淡承托色
+  final Color backdrop;
 
   /// 出错泛红的程度（0~1）
   final double tint;
@@ -422,7 +432,7 @@ class _DrillLoadingPainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// 底座：八边形台面，四片钻臂都落在它上面
+  /// 底座轮廓：只画线不填充；底下垫一层极淡的承托色把形状托住
   void _paintBase(Canvas canvas) {
     final plate = DrillPaint.octagon(
       DrillPaint.baseHalf * drillScale,
@@ -432,7 +442,7 @@ class _DrillLoadingPainter extends CustomPainter {
       plate,
       Paint()
         ..style = PaintingStyle.fill
-        ..color = tone.baseFill,
+        ..color = backdrop,
     );
     canvas.drawPath(
       plate,
@@ -445,11 +455,9 @@ class _DrillLoadingPainter extends CustomPainter {
 
   /// 四片钻臂整体绕中心旋转
   ///
-  /// 填充画并集；描边画"并集减去内缩并集"的环带，所以交汇处一条线都没有
+  /// 只描外轮廓：填充与描边都不画在交汇处，臂与臂之间一条线都没有。
+  /// 轮廓用"并集减去内缩并集"的环带算出来，比逐片描边再裁剪干净
   void _paintBlades(Canvas canvas) {
-    final fill = Paint()
-      ..style = PaintingStyle.fill
-      ..color = tone.bladeFill;
     final outline = Paint()
       ..style = PaintingStyle.fill
       ..color = _tintStroke(tone.bladeStroke, DrillPaint.errorBladeTint);
@@ -457,22 +465,15 @@ class _DrillLoadingPainter extends CustomPainter {
     canvas.save();
     canvas.rotate(spin);
     canvas.scale(drillScale);
-    canvas.drawPath(DrillPaint.bladeUnion(), fill);
     canvas.drawPath(DrillPaint.bladeOutline(_bladeStrokeWidth), outline);
     canvas.restore();
   }
 
-  /// 顶盖：压住钻臂的根部，只让伸出顶盖的那一截露出来当"在转的钻头"
+  /// 顶盖：压住钻臂根部的轮廓，让伸出顶盖的那一截成为"在转的钻头"
   void _paintTop(Canvas canvas) {
     final cap = DrillPaint.octagon(
       DrillPaint.topHalf * drillScale,
       3.5 * drillScale,
-    );
-    canvas.drawPath(
-      cap,
-      Paint()
-        ..style = PaintingStyle.fill
-        ..color = tone.topFill,
     );
     canvas.drawPath(
       cap,

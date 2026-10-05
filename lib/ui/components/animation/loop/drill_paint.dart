@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 /// 铜钻视觉常量与几何：线条化的 Mindustry 机械钻头
@@ -35,7 +36,9 @@ abstract final class DrillPaint {
 
   // ── 线条化配色的明暗两套 ──
 
-  /// 暗色主题：底座压暗当底、顶盖居中、钻臂压得比顶盖更沉 —— 只靠那圈亮描边勾出"在转的钻头"
+  /// 暗色主题：底座压暗当底、顶盖居中、钻臂压得比钻臂更沉 —— 只靠那圈亮描边勾出"在转的钻头"
+  ///
+  /// `baseFill` 已不再用于绘制，承托层改由 [DrillPaint.backdropOf] 从页面底色算
   static const DrillTone darkTone = DrillTone(
     baseFill: Color(0xFF2B2E35),
     baseStroke: Color(0xFF5C636E),
@@ -54,6 +57,20 @@ abstract final class DrillPaint {
     bladeFill: Color(0xFFF2F4F7),
     bladeStroke: Color(0xFF4E545E),
   );
+
+  /// 承托层的两档不透明度：暗色页面本身很暗，要压到 12% 才看得出托住了一块；
+  /// 亮色页面得压一半，否则浅底衬托不出来
+  static const double backdropAlphaDark = 0.12;
+  static const double backdropAlphaLight = 0.5;
+
+  /// 承托层：拿页面底色乘不透明度
+  ///
+  /// 全图只有描边，光有线会显得几根线条飘在页面上；垫一层**极淡**的底把形状托住。
+  /// 不是"给形状上色"，所以跟着页面底色走、不另配颜色
+  static Color backdropOf(AppColors colors, {required bool isDark}) {
+    final alpha = isDark ? backdropAlphaDark : backdropAlphaLight;
+    return colors.pageBackground.withAlpha((alpha * 255).round());
+  }
 
   /// 出错时**线条**往红里偏的色相；填充色不动，所以是"结构线条略微变红"而不是整块泛红
   static const Color errorTint = Color(0xFFC0392B);
