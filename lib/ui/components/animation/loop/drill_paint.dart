@@ -26,11 +26,11 @@ abstract final class DrillPaint {
   static const double baseHalf = 30;
   static const double baseCorner = 6;
 
-  /// 控件四角留的余量比例；只给弹出的铜粒留位置，钻头本体尽量占满
-  static const double layoutInset = 0.04;
-
   /// 钻头外接半径占控件边长的比例
-  static const double drillRadiusRatio = (0.5 - layoutInset) * 0.92;
+  ///
+  /// 给到 1.06 是"贴着控件边"：八边形四个平面正好落在控件四边，
+  /// 四角的空隙留给弹出的铜粒；再大就会被控件裁掉
+  static const double drillRadiusRatio = 1.06;
 
   // ── 线条化配色的明暗两套 ──
 
@@ -54,13 +54,13 @@ abstract final class DrillPaint {
     bladeStroke: Color(0xFF4E545E),
   );
 
-  /// 出错时整组往红里偏的色相
+  /// 出错时**线条**往红里偏的色相；填充色不动，所以是"结构线条略微变红"而不是整块泛红
   static const Color errorTint = Color(0xFFC0392B);
 
-  /// 出错时各层往红里偏多少：底座最重、钻臂最轻，读起来是"整套东西出事了"而不是只换了个灯
-  static const double errorBladeTint = 0.18;
-  static const double errorTopTint = 0.22;
-  static const double errorBaseTint = 0.3;
+  /// 出错时各层描边往红里偏多少：要"略微"，只要看得出线条偏红就够
+  static const double errorBaseTint = 0.36;
+  static const double errorTopTint = 0.32;
+  static const double errorBladeTint = 0.3;
 
   /// 把 [color] 往 [errorTint] 混 [amount]（0~1）
   static Color tinted(Color color, double amount) {

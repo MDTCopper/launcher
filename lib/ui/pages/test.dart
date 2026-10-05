@@ -128,8 +128,8 @@ class TestState extends State<Test> {
                 child: const DrillLoading(size: 28),
               ),
               _buildDrillPlate(
-                label: '48（默认）',
-                child: const DrillLoading(size: 48),
+                label: '56（默认）',
+                child: const DrillLoading(),
               ),
               _buildDrillPlate(
                 label: '96',
@@ -142,7 +142,7 @@ class TestState extends State<Test> {
           title: '三种状态：旋转 / 结束 / 错误（点哪颗切哪个）',
           desc:
               '旋转态不停转、只闪灯不出铜；结束态只转一次、转到头弹一粒铜就停住；'
-              '错误态只转一次、转到头后中心亮点转红、整套金属略微泛红。'
+              '错误态只转一次、转到头后中心亮点转红、结构线条略微变红，不出铜。'
               '切状态会**等当前这一步走完**（转完那 90 度再进新状态），所以看不到半路被打断的钻头 —— '
               '可以趁它转的时候连点几下，看它是走完才切。右边那块实时记 onCycleFinished 的次数。',
           child: Column(

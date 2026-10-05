@@ -25,7 +25,7 @@ class DrillLoading extends StatefulWidget {
   const DrillLoading({
     super.key,
     this.state = DrillLoadingState.spinning,
-    this.size = 48,
+    this.size = 56,
     this.cycle = const Duration(milliseconds: 1100),
     this.onCycleFinished,
     this.probe,
@@ -272,8 +272,8 @@ class _DrillLoadingState extends State<DrillLoading>
         animation: _controller,
         builder: (context, _) {
           final cycle = _controller.value.clamp(0.0, 1.0);
-          // 旋转态只闪灯，铜粒是"钻完了"的结果；完成 / 出错态转到头才弹
-          final showChip = _mode != DrillLoadingState.spinning;
+          // 只有结束态弹铜：错误态是"没钻出东西"，一个铜粒都不出
+          final showChip = _mode == DrillLoadingState.completing;
           return CustomPaint(
             painter: _DrillLoadingPainter(
               spin: _spinSequence.transform(cycle),
@@ -355,14 +355,14 @@ class _DrillLoadingPainter extends CustomPainter {
       plate,
       Paint()
         ..style = PaintingStyle.fill
-        ..color = _tint(tone.baseFill, DrillPaint.errorBaseTint),
+        ..color = tone.baseFill,
     );
     canvas.drawPath(
       plate,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2 * drillScale
-        ..color = _tint(tone.baseStroke, DrillPaint.errorBaseTint),
+        ..color = _tintStroke(tone.baseStroke, DrillPaint.errorBaseTint),
     );
   }
 
@@ -374,11 +374,11 @@ class _DrillLoadingPainter extends CustomPainter {
     final single = DrillPaint.blade();
     final fill = Paint()
       ..style = PaintingStyle.fill
-      ..color = _tint(tone.bladeFill, DrillPaint.errorBladeTint);
+      ..color = tone.bladeFill;
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6 * drillScale
-      ..color = _tint(tone.bladeStroke, DrillPaint.errorBladeTint);
+      ..color = _tintStroke(tone.bladeStroke, DrillPaint.errorBladeTint);
 
     canvas.save();
     canvas.rotate(spin);
@@ -406,14 +406,14 @@ class _DrillLoadingPainter extends CustomPainter {
       cap,
       Paint()
         ..style = PaintingStyle.fill
-        ..color = _tint(tone.topFill, DrillPaint.errorTopTint),
+        ..color = tone.topFill,
     );
     canvas.drawPath(
       cap,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.6 * drillScale
-        ..color = _tint(tone.topStroke, DrillPaint.errorTopTint),
+        ..color = _tintStroke(tone.topStroke, DrillPaint.errorTopTint),
     );
   }
 
@@ -438,7 +438,7 @@ class _DrillLoadingPainter extends CustomPainter {
     canvas.restore();
   }
 
-  Color _tint(Color color, double amount) =>
+  Color _tintStroke(Color color, double amount) =>
       DrillPaint.tinted(color, amount * tint);
 
   @override
