@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'design_about_rework_page.dart';
 import 'design_experiments_page.dart';
+import 'design_mods_rework_page.dart';
 import 'design_setting_rework_page.dart';
 import 'design_structure_page.dart';
 
@@ -31,6 +32,7 @@ class _DesignExamplePageState extends State<DesignExamplePage>
     DesignExperimentsPage(),
     DesignAboutReworkPage(),
     DesignSettingReworkPage(),
+    DesignModsReworkPage(),
   ];
 
   void moveTo(int i) {
@@ -48,6 +50,8 @@ class _DesignExamplePageState extends State<DesignExamplePage>
         _index = 2;
       case designSettingReworkPageRouteKey:
         _index = 3;
+      case designModsReworkPageRouteKey:
+        _index = 4;
     }
   }
 
@@ -84,6 +88,13 @@ class _DesignExamplePageState extends State<DesignExamplePage>
             content: '设置页重做',
             onTap: () => moveTo(3),
             selected: _index == 3,
+            collapse: collapse,
+          ),
+          NavigationTile(
+            icon: const Icon(Icons.extension_outlined),
+            content: '模组页重做',
+            onTap: () => moveTo(4),
+            selected: _index == 4,
             collapse: collapse,
           ),
         ],
