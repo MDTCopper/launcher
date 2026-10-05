@@ -1,4 +1,5 @@
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
+import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
 import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 
@@ -167,6 +168,11 @@ class TestState extends State<Test> {
   // ── 第 18 区演示状态（BorderProgress 描边进度）──
   double? _borderProgress = 0.35; // null = 不确定态（只画轨道）
 
+  // ── 第 19 区演示状态（DrillLoading 铜钻头循环，ui-anim）──
+  double _drillProgress = 0.75; // 确定态用；0.7~0.86 是铜块露脸的窗口
+  int _drillCycleCount = 0; // 不确定态下走完的周期数
+  bool _countDrillCycle = false; // 打开后周期结束才回调，避免每 2.4 秒 setState
+
   @override
   void dispose() {
     listController.dispose();
@@ -227,6 +233,7 @@ class TestState extends State<Test> {
           _readmeSkeletonSection(),
           _javaMissingPromptSection(),
           _borderProgressSection(),
+          _drillLoadingSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -737,6 +744,115 @@ class TestState extends State<Test> {
                   ),
                 ],
               ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════ 19. 铜钻头循环（DrillLoading） ════════
+
+  void _onDrillCycle() => setState(() => _drillCycleCount++);
+
+  Widget _drillLoadingSection() {
+    final colors = AppColors.of(context);
+    final labelStyle = TextStyle(color: colors.itemPrimary);
+
+    /// 一块底色牌子，模拟真实等待场景（进度圈一般在卡片/对话框里）
+    Widget plate({required String label, required Widget child}) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.cardBackground,
+        borderRadius: const BorderRadius.all(Radius.circular(6)),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        children: [
+          child,
+          const SizedBox(height: 8),
+          Text(label, style: labelStyle.copyWith(fontSize: 12)),
+        ],
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('19. DrillLoading（铜钻头循环）'),
+        _card(
+          title: '线条化的 Mindustry 机械钻头，边钻边把铜矿收走',
+          desc:
+              '层次照游戏里 Drill.java 那张机械钻头的四层（底座 / 钻头 / 顶盖 / 矿物）线条化，外面再套一圈周期进度。'
+              '四片钻臂伸出顶盖，走一段停一下，伸出那一截就是"在转的钻头"；铜块在钻臂底下被反复扫过。'
+              '拖滑杆看确定态（0.7~0.86 之间是铜块露脸的窗口），滑到 1 看铜粒弹出、外环走满。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 24,
+                runSpacing: 24,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  plate(label: '24', child: const DrillLoading(size: 24)),
+                  plate(
+                    label: '48（默认）',
+                    child: DrillLoading(
+                      size: 48,
+                      onCycleFinished: _countDrillCycle ? _onDrillCycle : null,
+                    ),
+                  ),
+                  plate(label: '96', child: const DrillLoading(size: 96)),
+                  plate(
+                    label: '确定态 ${_drillProgress.toStringAsFixed(2)}',
+                    child: DrillLoading(size: 72, progress: _drillProgress),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _countDrillCycle
+                    ? '不确定态已走完 $_drillCycleCount 个周期（onCycleFinished 计数中）'
+                    : 'onCycleFinished 计数已暂停，点下面按钮打开',
+                style: labelStyle,
+              ),
+              const SizedBox(height: 8),
+              CopperSlider(
+                value: _drillProgress,
+                onChanged: (value) => setState(() => _drillProgress = value),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  IconTextButton(
+                    icon: Icons.restart_alt,
+                    content: '0.75',
+                    onTap: () => setState(() => _drillProgress = 0.75),
+                  ),
+                  const SizedBox(width: 12),
+                  IconTextButton(
+                    icon: Icons.all_inclusive,
+                    content: _countDrillCycle ? '停止计数' : '开始计数',
+                    onTap: () {
+                      setState(() {
+                        _countDrillCycle = !_countDrillCycle;
+                        _drillCycleCount = 0;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _card(
+          title: '周期长一点的对照（cycle: 5 秒）',
+          desc: '只改了周期时长，转速跟着变慢；确认慢速下四片钻头与铜矿的遮露关系还看得清。',
+          child: Row(
+            children: [
+              const DrillLoading(size: 48, cycle: Duration(seconds: 5)),
+              const SizedBox(width: 24),
+              const DrillLoading(size: 48),
             ],
           ),
         ),
