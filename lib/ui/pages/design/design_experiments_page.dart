@@ -1,4 +1,5 @@
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/copper_card.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -356,6 +357,39 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
               ),
             ],
           ),
+          _buildFocusSpecimen(
+            caption: '主行动的取法（浅色下；括号里是文字与它自己底色的对比度）',
+            actions: [
+              _buildTintedAction(
+                background: colors.interactive,
+                foreground: colors.itemOnInteractive,
+                label: '旧观感 copper700（2.95:1）',
+              ),
+              _buildTintedAction(
+                background: colors.interactiveHigh,
+                foreground: colors.itemOnInteractive,
+                label: '现在 copper900（7.1:1）',
+              ),
+              _buildTintedAction(
+                // 候选值：Palette.copper800，#9E6B30 —— 现在 AppColors 里取不到，要加 token
+                background: const Color(0xFF9E6B30),
+                foreground: colors.itemOnInteractive,
+                label: '候选 copper800（4.6:1）',
+              ),
+              _buildTintedAction(
+                background: colors.indicatorBackground,
+                foreground: colors.interactiveHigh,
+                label: '软底 copper300 + copper900 字（5.9:1）',
+              ),
+            ],
+          ),
+          Text(
+            '四种取法的差别不在对比度够不够（除了旧观感），而在「块感」：'
+            '浅色主题的卡是 #E9E9E9，copper300 软底与卡明度几乎相同、只剩一点暖调，块感最弱；'
+            'copper900 块感最强但发闷；copper800 是中间那档 —— 它现在取不到，'
+            '要正式用就得给 AppColors 加一对「实心强调 / 其上文字」token',
+            style: theme.textTheme.bodySmall,
+          ),
           Text('依据', style: theme.textTheme.titleSmall),
           for (final item in _focusRules)
             Row(
@@ -698,6 +732,40 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
                 ),
         ),
       ],
+    );
+  }
+
+  /// 只用于对照的实验按钮：可指定底与字，用来比较主行动在浅色下的几种取法
+  Widget _buildTintedAction({
+    required Color background,
+    required Color foreground,
+    required String label,
+  }) {
+    final theme = Theme.of(context);
+
+    return ReboundButton(
+      backgroundColor: background,
+      borderRadius: AppRadius.controlShape,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.section,
+        vertical: AppSpacing.related,
+      ),
+      onTap: () {},
+      child: DefaultTextStyle(
+        style: (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
+          color: foreground,
+        ),
+        child: IconTheme(
+          data: IconTheme.of(
+            context,
+          ).copyWith(color: foreground, size: AppIconSize.item),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: AppSpacing.related,
+            children: [const Icon(Icons.play_arrow), Text(label)],
+          ),
+        ),
+      ),
     );
   }
 
