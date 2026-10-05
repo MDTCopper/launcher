@@ -394,9 +394,9 @@ class _DrillLoadingPainter extends CustomPainter {
   ///
   /// 全图只有描边、没有填充。`_bladeStrokeWidth` 是**四片臂并集那条外轮廓线**的宽度，
   /// 不是单片梯形的宽度 —— 单片的粗细由 `DrillPaint.toothRootHalfWidth` 那几个管
-  static const double _baseStrokeWidth = 0.55;
-  static const double _bladeStrokeWidth = 2.2;
-  static const double _topStrokeWidth = 0.45;
+  static const double _baseStrokeWidth = 0.4;
+  static const double _bladeStrokeWidth = 0.25;
+  static const double _topStrokeWidth = 0.3;
 
   /// 钻头当前转角（弧度）
   final double spin;
