@@ -7,6 +7,7 @@ import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
+import 'package:copper_launcher/ui/pages/design/design_example_page.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
@@ -218,6 +219,7 @@ class _DesignSystemPageState extends State<DesignSystemPage> {
       '颜色取 AppColors.of(context) 的语义色，文字取 theme.textTheme 的语义名，不写 fontSize 与 Colors.xxx',
       '页面骨架用 ListContentPanel，区块用 ContentPanelModule，长列表用 ContentListPanelModule',
       '动手前先在本页与「组件选型」里找，再翻 flutter 与 pub，都不合适才新建组件，新建后回本页补一节',
+      '页面骨架怎么拼看实例页：它就是一个按本规范写成的普通功能页，可以整页照抄',
     ];
 
     return ContentPanelModule(
@@ -246,6 +248,15 @@ class _DesignSystemPageState extends State<DesignSystemPage> {
                 Expanded(child: Text(rule, style: hintStyle)),
               ],
             ),
+          IconTextButton(
+            icon: Icons.open_in_new,
+            content: '看实例页：一个完整页面长什么样',
+            onTap: () => Navigator.pushNamed(
+              context,
+              designExamplePageRouteKey,
+              arguments: {'lead': '设计规范', 'title': '实例'},
+            ),
+          ),
         ],
       ),
     );

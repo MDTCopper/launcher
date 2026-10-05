@@ -1,5 +1,7 @@
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/ui/pages/cloud/cloud_save_page.dart';
+import 'package:copper_launcher/ui/pages/design/design_example_page.dart';
+import 'package:copper_launcher/ui/pages/design/design_system_page.dart';
 import 'package:copper_launcher/ui/pages/overview/game_user_page.dart';
 import 'package:copper_launcher/ui/pages/overview/version_select.dart';
 import 'package:copper_launcher/ui/pages/overview/version_setting.dart';
@@ -21,6 +23,8 @@ import 'package:flutter/cupertino.dart';
 ///由容器页根据路由名定位到具体分项），与主要页面强相关的独立页面也跟随其下
 const Map<String, Widget> routeMap = {
   '/test': Test(),
+  designSystemPageRouteKey: DesignSystemPage(),
+  designExamplePageRouteKey: DesignExamplePage(),
 
   //概览
   '/': LaunchPage(),
