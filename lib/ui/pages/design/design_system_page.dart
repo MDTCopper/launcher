@@ -8,6 +8,7 @@ import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/pages/design/design_example_page.dart';
+import 'package:copper_launcher/ui/pages/design/design_quick_switch.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
@@ -186,22 +187,32 @@ class _DesignSystemPageState extends State<DesignSystemPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ListContentPanel(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.block,
-        vertical: AppSpacing.related,
-      ),
-      items: [
-        _buildIntroModule(),
-        _buildSpacingModule(),
-        _buildRadiusModule(),
-        _buildBorderModule(),
-        _buildIconModule(),
-        _buildHeightModule(),
-        _buildTypeModule(),
-        _buildComponentModule(),
-        _buildStateModule(),
-        _buildLegacyModule(),
+    return Stack(
+      children: [
+        ListContentPanel(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.block,
+            vertical: AppSpacing.related,
+          ),
+          items: [
+            _buildIntroModule(),
+            _buildSpacingModule(),
+            _buildRadiusModule(),
+            _buildBorderModule(),
+            _buildIconModule(),
+            _buildHeightModule(),
+            _buildTypeModule(),
+            _buildComponentModule(),
+            _buildStateModule(),
+            _buildLegacyModule(),
+          ],
+        ),
+        // 设计审视用：随手切亮 / 暗与主题色
+        const Positioned(
+          left: AppSpacing.block,
+          bottom: AppSpacing.block,
+          child: DesignQuickSwitch(),
+        ),
       ],
     );
   }

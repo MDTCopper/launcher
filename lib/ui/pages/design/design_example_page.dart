@@ -2,11 +2,13 @@ import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
+import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
 import 'design_about_rework_page.dart';
 import 'design_experiments_page.dart';
 import 'design_mods_rework_page.dart';
+import 'design_quick_switch.dart';
 import 'design_setting_rework_page.dart';
 import 'design_structure_page.dart';
 
@@ -57,49 +59,59 @@ class _DesignExamplePageState extends State<DesignExamplePage>
 
   @override
   Widget build(BuildContext context) {
-    return MainPageLayout(
-      navigationRail: PageNavigationRail(
-        collapse: collapse,
-        width: 137,
-        items: [
-          NavigationTile(
-            icon: const Icon(Icons.view_agenda_outlined),
-            content: '结构样板',
-            onTap: () => moveTo(0),
-            selected: _index == 0,
+    return Stack(
+      children: [
+        MainPageLayout(
+          navigationRail: PageNavigationRail(
             collapse: collapse,
+            width: 137,
+            items: [
+              NavigationTile(
+                icon: const Icon(Icons.view_agenda_outlined),
+                content: '结构样板',
+                onTap: () => moveTo(0),
+                selected: _index == 0,
+                collapse: collapse,
+              ),
+              NavigationTile(
+                icon: const Icon(Icons.science_outlined),
+                content: '试验对照',
+                onTap: () => moveTo(1),
+                selected: _index == 1,
+                collapse: collapse,
+              ),
+              NavigationTile(
+                icon: const Icon(Icons.restart_alt),
+                content: '关于页重做',
+                onTap: () => moveTo(2),
+                selected: _index == 2,
+                collapse: collapse,
+              ),
+              NavigationTile(
+                icon: const Icon(Icons.tune),
+                content: '设置页重做',
+                onTap: () => moveTo(3),
+                selected: _index == 3,
+                collapse: collapse,
+              ),
+              NavigationTile(
+                icon: const Icon(Icons.extension_outlined),
+                content: '模组页重做',
+                onTap: () => moveTo(4),
+                selected: _index == 4,
+                collapse: collapse,
+              ),
+            ],
           ),
-          NavigationTile(
-            icon: const Icon(Icons.science_outlined),
-            content: '试验对照',
-            onTap: () => moveTo(1),
-            selected: _index == 1,
-            collapse: collapse,
-          ),
-          NavigationTile(
-            icon: const Icon(Icons.restart_alt),
-            content: '关于页重做',
-            onTap: () => moveTo(2),
-            selected: _index == 2,
-            collapse: collapse,
-          ),
-          NavigationTile(
-            icon: const Icon(Icons.tune),
-            content: '设置页重做',
-            onTap: () => moveTo(3),
-            selected: _index == 3,
-            collapse: collapse,
-          ),
-          NavigationTile(
-            icon: const Icon(Icons.extension_outlined),
-            content: '模组页重做',
-            onTap: () => moveTo(4),
-            selected: _index == 4,
-            collapse: collapse,
-          ),
-        ],
-      ),
-      page: pages[_index],
+          page: pages[_index],
+        ),
+        // 设计审视用：随手切亮 / 暗与主题色
+        const Positioned(
+          left: AppSpacing.block,
+          bottom: AppSpacing.block,
+          child: DesignQuickSwitch(),
+        ),
+      ],
     );
   }
 }
