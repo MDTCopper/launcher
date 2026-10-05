@@ -167,7 +167,9 @@ class _DrillLoadingState extends State<DrillLoading>
   void didUpdateWidget(covariant DrillLoading oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.cycle != widget.cycle) _controller.duration = widget.cycle;
-    if (oldWidget.state != widget.state) _requestState(widget.state);
+    if (oldWidget.state != widget.state) {
+      _requestState(widget.state);
+    }
   }
 
   @override
@@ -177,16 +179,24 @@ class _DrillLoadingState extends State<DrillLoading>
     super.dispose();
   }
 
-  /// 请求切到 [target]：可以立刻切就切，否则挂起等这一步走完
+  /// 请求切到 [target]
+  ///
+  /// 一律先挂起、延到帧后再落地：
+  /// - 正在转那半段时，落地要等这一步走完（[_finishStep] 里的 `_canSwitchNow` 把着）
+  /// - [didUpdateWidget] 是 build 期间跑的，直接落地会重置控制器、同步回调
+  ///   [DrillLoading.onCycleFinished]，父组件在回调里 `setState` 就炸
+  ///   "setState() called during build"
   void _requestState(DrillLoadingState target) {
     if (target == _mode && _pendingState == null) return;
 
-    if (_canSwitchNow) {
-      _applyMode(target);
-      return;
-    }
     setState(() => _pendingState = target);
     _publishProbe();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final pending = _pendingState;
+      if (pending == null || !_canSwitchNow) return;
+      _applyMode(pending);
+    });
   }
 
   /// 只有"转完了、停在停顿里"才允许切状态，免得看见半路被打断的钻头
@@ -200,16 +210,20 @@ class _DrillLoadingState extends State<DrillLoading>
   }
 
   void _applyMode(DrillLoadingState target) {
-    setState(() {
-      _mode = target;
-      _pendingState = null;
-      _settled = false;
-    });
+    // 归零控制器的那一下会同步触发监听器，得挡住（它会把"归零"当成一次回卷）
+    _applyingMode = true;
+    _mode = target;
+    _pendingState = null;
+    _settled = false;
     _controller.value = 0;
     _lastStepValue = 0;
     _inPause = false;
     widget.probe?.step = 0;
+    _applyingMode = false;
+
     _publishProbe();
+    if (mounted) setState(() {});
+
     switch (target) {
       case DrillLoadingState.spinning:
         _flashController.reverse();
@@ -231,6 +245,9 @@ class _DrillLoadingState extends State<DrillLoading>
 
   void _onFlashTick() => setState(() {});
 
+  /// 在 [_applyMode] 里把控制器归零的那一下，值也是往回跳，得挡住那次误报
+  bool _applyingMode = false;
+
   /// 每一帧都更新"是否转完了"；`repeat()` 自己回卷、**从不发 completed**，
   /// 所以旋转态的"这一步结束"只能靠值往回跳认出来，切换也在这里落地
   void _onStepTick() {
@@ -239,7 +256,9 @@ class _DrillLoadingState extends State<DrillLoading>
     _lastStepValue = value;
     _inPause = value >= _spinPortion;
     widget.probe?.step = value;
-    if (wrapped) _finishStep();
+    if (!wrapped || _applyingMode) return;
+    // 回卷 = 这一步结束；只跑一次的完成 / 错误态走 status 回调，别报两次
+    if (_mode == DrillLoadingState.spinning) _finishStep();
   }
 
   /// 一步走完：先发回调，再把挂起的切换落地
@@ -250,7 +269,7 @@ class _DrillLoadingState extends State<DrillLoading>
       _applyMode(pending);
       return;
     }
-    if (_mode != DrillLoadingState.spinning) _settled = true;
+    if (_mode != DrillLoadingState.spinning) setState(() => _settled = true);
   }
 
   void _onStepStatus(AnimationStatus status) {
