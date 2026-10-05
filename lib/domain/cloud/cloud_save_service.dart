@@ -295,13 +295,15 @@ class CloudSaveService {
   /// 把某个快照拉下来并解进本机数据目录
   ///
   /// 严格按官方要求：**先落临时文件 → 校验字节数与 sha256 → 才交给解包**；
-  /// 解包按 [mode] 处理同名文件 —— 默认留两份，**不覆盖本机**
+  /// 解包按 [mode] 处理同名文件 —— 默认留两份，**不覆盖本机**。
+  /// [applyModStates] 默认关：这条路是「把云上那份拿下来」，不该顺手改本机设置
   static Future<CloudImportReport> download({
     required String accessToken,
     required Mindustry version,
     required String slotId,
     required String snapshotId,
     CloudImportMode mode = CloudImportMode.keepBoth,
+    bool applyModStates = false,
     HttpStatusCallback? onStatus,
     CancelToken? cancelToken,
   }) async {
@@ -313,7 +315,12 @@ class CloudSaveService {
       cancelToken: cancelToken,
     );
     try {
-      return await _extract(tempPath, version: version, mode: mode);
+      return await _extract(
+        tempPath,
+        version: version,
+        mode: mode,
+        applyModStates: applyModStates,
+      );
     } finally {
       _deleteQuietly(tempPath);
     }
@@ -322,12 +329,15 @@ class CloudSaveService {
   /// 用云端快照**覆盖本机**这份数据目录（页面上那个「恢复」）
   ///
   /// 覆盖前先把本机这份导出成 zip 存进 [backupDir]；**备份失败就中止** ——
-  /// 不能在没有退路的情况下盖掉玩家的存档
+  /// 不能在没有退路的情况下盖掉玩家的存档。
+  /// [applyModStates] 默认**开**：云包记着当时哪些模组是启用的，不写回去会出现
+  /// 「存档要 NewHorizon 但模组没启用」这类错配
   static Future<CloudSaveRestoreResult> restore({
     required String accessToken,
     required Mindustry version,
     required String slotId,
     required String snapshotId,
+    bool applyModStates = true,
     void Function(String status)? onStatus,
     HttpStatusCallback? onProgress,
     CancelToken? cancelToken,
@@ -350,6 +360,7 @@ class CloudSaveService {
         tempPath,
         version: version,
         mode: CloudImportMode.overwrite,
+        applyModStates: applyModStates,
       );
       _pruneBackups();
       return CloudSaveRestoreResult(
@@ -437,9 +448,20 @@ class CloudSaveService {
     String archivePath, {
     required Mindustry version,
     required CloudImportMode mode,
+    required bool applyModStates,
   }) async {
     final reader = await CloudArchiveReader.open(archivePath);
-    return reader.extractTo(dataPath: version.dataPath, mode: mode);
+    final report = await reader.extractTo(
+      dataPath: version.dataPath,
+      mode: mode,
+    );
+    if (applyModStates) {
+      report.appliedModStates = CloudArchiveReader.mergeModStates(
+        dataPath: version.dataPath,
+        states: reader.manifest.modStates,
+      );
+    }
+    return report;
   }
 
   /// 「恢复」前留的底：把本机这份按云包格式导出到 [backupDir]
