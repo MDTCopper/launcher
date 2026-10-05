@@ -12,14 +12,18 @@ class ScrollFadeMask extends StatefulWidget {
   final Widget child;
   final ScrollController controller;
   final Axis scrollDirection;
-  final double fadeSize; // 遮罩宽度（水平）/ 高度（垂直）
+  /// 遮罩厚度：垂直方向是高度，水平方向是宽度
+  final double fadeSize;
+
+  /// 遮罩厚度默认值
+  static const double kDefaultFadeSize = 20;
 
   const ScrollFadeMask({
     super.key,
     required this.child,
     required this.controller,
     this.scrollDirection = Axis.vertical,
-    this.fadeSize = 20,
+    this.fadeSize = kDefaultFadeSize,
   });
 
   @override
@@ -80,8 +84,8 @@ class _ScrollFadeMaskState extends State<ScrollFadeMask>
     });
   }
 
-  /// 两端淡化：起始端从全透明渐入，结束端渐出到全透明；只淡一端时另一端
-  /// 全程不透明，两端都淡化时中间按不透明段插值（太窄就直接首尾相接）
+  /// 两端淡化：起始端从全透明渐入，结束端渐出到全透明；只淡一端时另一段
+  /// 全程不透明（渐变两端之外按端点色延伸），两端都淡化时中间是不透明段
   ///
   /// [stop] 是遮罩长度占主轴长度的比例，由 [build] 按实际约束算出来
   LinearGradient _buildFadeGradient(double stop) {
@@ -94,6 +98,7 @@ class _ScrollFadeMaskState extends State<ScrollFadeMask>
       return const LinearGradient(colors: [opaque, opaque]);
     }
 
+    // 每端只占 stop 这一段，剩下那段全不透明
     final stops = <double>[];
     final colors = <Color>[];
 
@@ -102,8 +107,7 @@ class _ScrollFadeMaskState extends State<ScrollFadeMask>
       colors.addAll([transparent, opaque]);
     }
     if (showEndFade) {
-      final start = showStartFade ? 1 - stop : 0.0;
-      stops.addAll([start, 1.0]);
+      stops.addAll([1 - stop, 1.0]);
       colors.addAll([opaque, transparent]);
     }
     return LinearGradient(

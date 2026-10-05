@@ -33,6 +33,7 @@ class CopperSingleChildScrollView extends StatefulWidget {
 
   // ── 渐变遮罩 ──
   final bool fadeMask;
+  final double fadeSize;
 
   const CopperSingleChildScrollView({
     super.key,
@@ -54,6 +55,7 @@ class CopperSingleChildScrollView extends StatefulWidget {
     this.scrollbarAlignment,
     this.showScrollbar = true,
     this.fadeMask = true,
+    this.fadeSize = ScrollFadeMask.kDefaultFadeSize,
   });
 
   @override
@@ -104,6 +106,7 @@ class _CopperSingleChildScrollViewState
         scrollbarAlignment: widget.scrollbarAlignment,
         showScrollbar: widget.showScrollbar,
         fadeMask: widget.fadeMask,
+        fadeSize: widget.fadeSize,
         child: child,
       );
     } else if (widget.fadeMask) {
@@ -111,6 +114,7 @@ class _CopperSingleChildScrollViewState
       child = ScrollFadeMask(
         controller: _scrollController,
         scrollDirection: widget.scrollDirection,
+        fadeSize: widget.fadeSize,
         child: child,
       );
     }

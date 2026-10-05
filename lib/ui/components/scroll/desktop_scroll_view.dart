@@ -26,6 +26,7 @@ class DesktopScrollViewContainer extends StatefulWidget {
     this.estimatedMaxScrollExtent,
     this.showScrollbar = true,
     this.fadeMask = false,
+    this.fadeSize = ScrollFadeMask.kDefaultFadeSize,
   });
 
   final Widget child;
@@ -55,6 +56,9 @@ class DesktopScrollViewContainer extends StatefulWidget {
 
   /// 是否对内容两端做淡化遮罩；遮罩只包内容，滚动条画在其上层不受影响
   final bool fadeMask;
+
+  /// 淡化遮罩厚度（垂直：高度，水平：宽度）
+  final double fadeSize;
 
   final ScrollController controller;
 
@@ -542,6 +546,7 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
     return ScrollFadeMask(
       controller: _controller,
       scrollDirection: widget.scrollDirection,
+      fadeSize: widget.fadeSize,
       child: widget.child,
     );
   }

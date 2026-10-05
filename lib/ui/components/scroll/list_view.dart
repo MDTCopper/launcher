@@ -42,6 +42,7 @@ class CopperListView extends StatefulWidget {
 
   // ── 渐变遮罩 ──
   final bool fadeMask;
+  final double fadeSize;
 
   /// 预测最大偏移（惰性列表提供）：滚动条用预测计算，避免惰性估算跳变
   final double? estimatedMaxScrollExtent;
@@ -71,6 +72,7 @@ class CopperListView extends StatefulWidget {
     this.scrollbarAlignment,
     this.showScrollbar = true,
     this.fadeMask = true,
+    this.fadeSize = ScrollFadeMask.kDefaultFadeSize,
     this.estimatedMaxScrollExtent,
   }) : itemBuilder = null,
        itemCount = null;
@@ -101,6 +103,7 @@ class CopperListView extends StatefulWidget {
     this.scrollbarAlignment,
     this.showScrollbar = true,
     this.fadeMask = true,
+    this.fadeSize = ScrollFadeMask.kDefaultFadeSize,
     this.estimatedMaxScrollExtent,
   }) : children = const [];
 
@@ -183,6 +186,7 @@ class _CopperListViewState extends State<CopperListView> {
         scrollbarAlignment: widget.scrollbarAlignment,
         showScrollbar: widget.showScrollbar,
         fadeMask: widget.fadeMask,
+        fadeSize: widget.fadeSize,
         estimatedMaxScrollExtent: widget.estimatedMaxScrollExtent,
         child: child,
       );
@@ -191,6 +195,7 @@ class _CopperListViewState extends State<CopperListView> {
       child = ScrollFadeMask(
         controller: _scrollController,
         scrollDirection: widget.scrollDirection,
+        fadeSize: widget.fadeSize,
         child: child,
       );
     }
