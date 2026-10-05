@@ -30,6 +30,7 @@ class _Skin {
     required this.sunken,
     required this.border,
     required this.borderStrong,
+    required this.controlBorder,
     required this.textPrimary,
     required this.textSecondary,
     required this.textTertiary,
@@ -48,12 +49,217 @@ class _Skin {
     required this.shadow,
   });
 
+  /// 从一个主题色相生成整套皮肤
+  ///
+  /// 两条规则：① **中性色跟着主题色相走**（低饱和的同一色相 ⇒ 冷主题得冷灰、
+  /// 暖主题得暖灰，强调色才不会像外来物）② **该满足对比度的档不解固定值，
+  /// 而是解出来** —— 浅色取「白字刚好压得住的最亮那一档」、暗色取「对卡面刚够
+  /// 显眼的最暗那一档」，于是四个主题色自动得到各自合适的那一档
+  factory _Skin.of({required double hue, required bool dark}) {
+    // 中性色的饱和度：低到不喧哗，但要够看出冷暖 —— 色温就是这个差
+    Color neutral(double lightness, [double saturation = 0.07]) =>
+        HSLColor.fromAHSL(1, hue, saturation, lightness).toColor();
+
+    if (!dark) {
+      final surface = neutral(0.99, 0.035);
+      final page = neutral(0.945, 0.08);
+      final sunken = neutral(0.885, 0.09);
+      final onAccent = neutral(0.995, 0.03);
+      final tint = HSLColor.fromAHSL(1, hue, 0.38, 0.86).toColor();
+
+      return _Skin(
+        page: page,
+        surface: surface,
+        raised: surface,
+        sunken: sunken,
+        border: neutral(0.86, 0.1),
+        borderStrong: neutral(0.72, 0.11),
+        // 控件边界按 WCAG 1.4.11 要有 3:1，容器描边不用
+        controlBorder: _solveOn(
+          hue: hue,
+          saturation: 0.12,
+          background: surface,
+          target: 3,
+          lighter: false,
+        ),
+        // 正文与次要文字目标高一些；**小字（三级）也提到 5.5 且饱和度更低** ——
+        // 字号越小越吃对比度，给它带色只会更难读
+        textPrimary: _solveOn(
+          hue: hue,
+          saturation: 0.05,
+          background: surface,
+          target: 13,
+          lighter: false,
+        ),
+        textSecondary: _solveOn(
+          hue: hue,
+          saturation: 0.05,
+          background: surface,
+          target: 7,
+          lighter: false,
+        ),
+        textTertiary: _solveOn(
+          hue: hue,
+          saturation: 0.03,
+          background: surface,
+          target: 5.5,
+          lighter: false,
+        ),
+        // 实心：白字刚好压得住的最亮那一档（越亮越不显闷）
+        accent: _solveOn(
+          hue: hue,
+          saturation: 0.55,
+          background: onAccent,
+          target: 4.8,
+          lighter: false,
+        ),
+        accentText: _solveOn(
+          hue: hue,
+          saturation: 0.6,
+          background: surface,
+          target: 5,
+          lighter: false,
+        ),
+        onAccent: onAccent,
+        accentTint: tint,
+        onAccentTint: _solveOn(
+          hue: hue,
+          saturation: 0.5,
+          background: tint,
+          target: 6.5,
+          lighter: false,
+        ),
+        danger: _solveOn(
+          hue: 2,
+          saturation: 0.5,
+          background: onAccent,
+          target: 4.8,
+          lighter: false,
+        ),
+        onDanger: onAccent,
+        success: _solveOn(
+          hue: 145,
+          saturation: 0.4,
+          background: onAccent,
+          target: 4.8,
+          lighter: false,
+        ),
+        warning: _solveOn(
+          hue: 36,
+          saturation: 0.6,
+          background: onAccent,
+          target: 4.8,
+          lighter: false,
+        ),
+        hover: const Color(0x0F000000),
+        pressed: const Color(0x1A000000),
+        selected: HSLColor.fromAHSL(0.16, hue, 0.6, 0.5).toColor(),
+        shadow: HSLColor.fromAHSL(0.10, hue, 0.5, 0.25).toColor(),
+      );
+    }
+
+    final surface = neutral(0.125, 0.07);
+    final raised = neutral(0.165, 0.07);
+    final onAccent = neutral(0.99, 0.03);
+    final tint = HSLColor.fromAHSL(1, hue, 0.32, 0.19).toColor();
+
+    return _Skin(
+      page: neutral(0.085, 0.07),
+      surface: surface,
+      raised: raised,
+      sunken: neutral(0.065, 0.07),
+      border: neutral(0.22, 0.1),
+      borderStrong: neutral(0.3, 0.11),
+      controlBorder: _solveOn(
+        hue: hue,
+        saturation: 0.12,
+        background: surface,
+        target: 3,
+        lighter: true,
+      ),
+      textPrimary: _solveOn(
+        hue: hue,
+        saturation: 0.05,
+        background: surface,
+        target: 13,
+        lighter: true,
+      ),
+      textSecondary: _solveOn(
+        hue: hue,
+        saturation: 0.05,
+        background: surface,
+        target: 7,
+        lighter: true,
+      ),
+      textTertiary: _solveOn(
+        hue: hue,
+        saturation: 0.03,
+        background: surface,
+        target: 5.5,
+        lighter: true,
+      ),
+      // 暗色的实心：对卡面刚够显眼的最暗那一档（旧值 6.3:1 就是「一块亮铜砸在近黑上」）
+      accent: _solveOn(
+        hue: hue,
+        saturation: 0.5,
+        background: surface,
+        target: 3.4,
+        lighter: true,
+      ),
+      accentText: _solveOn(
+        hue: hue,
+        saturation: 0.55,
+        background: surface,
+        target: 5.5,
+        lighter: true,
+      ),
+      onAccent: onAccent,
+      accentTint: tint,
+      onAccentTint: _solveOn(
+        hue: hue,
+        saturation: 0.5,
+        background: tint,
+        target: 6.5,
+        lighter: true,
+      ),
+      danger: _solveOn(
+        hue: 2,
+        saturation: 0.45,
+        background: onAccent,
+        target: 4.8,
+        lighter: false,
+      ),
+      onDanger: onAccent,
+      success: _solveOn(
+        hue: 145,
+        saturation: 0.45,
+        background: surface,
+        target: 5.5,
+        lighter: true,
+      ),
+      warning: _solveOn(
+        hue: 36,
+        saturation: 0.6,
+        background: surface,
+        target: 5.5,
+        lighter: true,
+      ),
+      hover: const Color(0x14FFFFFF),
+      pressed: const Color(0x1FFFFFFF),
+      selected: HSLColor.fromAHSL(0.18, hue, 0.6, 0.5).toColor(),
+      shadow: const Color(0x66000000),
+    );
+  }
+
   final Color page;
   final Color surface;
   final Color raised;
   final Color sunken;
   final Color border;
   final Color borderStrong;
+
+  /// 控件（输入框 / 分段 / 开关轨道）的边界：按 1.4.11 解到 3:1
+  final Color controlBorder;
   final Color textPrimary;
   final Color textSecondary;
   final Color textTertiary;
@@ -78,58 +284,6 @@ class _Skin {
   final Color pressed;
   final Color selected;
   final Color shadow;
-
-  static const light = _Skin(
-    page: Color(0xFFF4F3F1),
-    surface: Color(0xFFFFFFFF),
-    raised: Color(0xFFFFFFFF),
-    sunken: Color(0xFFE4E1DD),
-    border: Color(0xFFDCD8D2),
-    borderStrong: Color(0xFFBFB9B1),
-    textPrimary: Color(0xFF1F1D1B),
-    textSecondary: Color(0xFF5C5852),
-    textTertiary: Color(0xFF797369),
-    // 浅色实心：从 #8F5A26 提亮到这一档（白字 4.82:1，仍达标；旧值对白卡 5.74 显得过重）
-    accent: Color(0xFF9C6327),
-    accentText: Color(0xFF9C6327),
-    onAccent: Color(0xFFFFFBF7),
-    accentTint: Color(0xFFE8CBA8),
-    onAccentTint: Color(0xFF5E3711),
-    danger: Color(0xFFA83232),
-    onDanger: Color(0xFFFFFBF7),
-    success: Color(0xFF2F6B3A),
-    warning: Color(0xFF8A5A00),
-    hover: Color(0x0F000000),
-    pressed: Color(0x1A000000),
-    selected: Color(0x178F5A26),
-    shadow: Color(0x14000000),
-  );
-
-  static const dark = _Skin(
-    page: Color(0xFF171614),
-    surface: Color(0xFF201F1D),
-    raised: Color(0xFF2A2825),
-    sunken: Color(0xFF141311),
-    border: Color(0xFF3A3733),
-    borderStrong: Color(0xFF514D47),
-    textPrimary: Color(0xFFF0EDE9),
-    textSecondary: Color(0xFFB4AEA6),
-    textTertiary: Color(0xFF8E8981),
-    // 暗色的实心比旧的 copper600 深一档：对卡片 3.3:1（旧值 6.3:1，太跳）
-    accent: Color(0xFF9A6229),
-    accentText: Color(0xFFD9A76B),
-    onAccent: Color(0xFFFFFBF7),
-    accentTint: Color(0xFF4A3620),
-    onAccentTint: Color(0xFFE3BE8F),
-    danger: Color(0xFFBA4C4C),
-    onDanger: Color(0xFFFFFBF7),
-    success: Color(0xFF7FBF8A),
-    warning: Color(0xFFD8A657),
-    hover: Color(0x14FFFFFF),
-    pressed: Color(0x1FFFFFFF),
-    selected: Color(0x2E9A6229),
-    shadow: Color(0x66000000),
-  );
 }
 
 /// 文字层级：桌面密度，靠字重不靠把尺寸吹大
@@ -182,9 +336,21 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     (name: 'Pac-Man', desc: 'v0.4.2 · 小游戏 · 已禁用'),
   ];
 
-  _Skin get _skin => Theme.of(context).brightness == Brightness.dark
-      ? _Skin.dark
-      : _Skin.light;
+  /// 模版自己的主题色相（对应 Copper 的四个主题色），只影响这一页；
+  /// 换色相就能看出「中性色跟着走」带来的色温差异
+  double _hue = 33;
+
+  static const _hues = <({String name, double hue})>[
+    (name: '铜', hue: 33),
+    (name: '钛', hue: 210),
+    (name: '钍', hue: 305),
+    (name: '塑钢', hue: 97),
+  ];
+
+  _Skin get _skin => _Skin.of(
+    hue: _hue,
+    dark: Theme.of(context).brightness == Brightness.dark,
+  );
 
   // ── 交互 ──
 
@@ -200,6 +366,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         vertical: _Space.xl,
       ),
       items: [
+        _buildHueSwitch(skin),
         _buildHeader(skin),
         _buildSection(
           skin,
@@ -264,6 +431,36 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         _buildCompareWithCopper(skin),
         _buildPaletteTable(skin),
       ],
+    );
+  }
+
+  // ════════ 色相开关：同一套推导，四个主题色各来一遍 ════════
+
+  Widget _buildHueSwitch(_Skin skin) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: _Space.lg),
+      child: Row(
+        spacing: _Space.md,
+        children: [
+          Text(
+            '主题色相（色温）',
+            style: _Type.caption.copyWith(color: skin.textTertiary),
+          ),
+          SizedBox(
+            width: 320,
+            child: _buildSegment(
+              skin,
+              options: [for (final item in _hues) item.name],
+              value: _hues.indexWhere((item) => item.hue == _hue),
+              onTap: (index) => setState(() => _hue = _hues[index].hue),
+            ),
+          ),
+          Text(
+            '换一个色相，整套中性色与强调色都会跟着重算',
+            style: _Type.micro.copyWith(color: skin.textTertiary),
+          ),
+        ],
+      ),
     );
   }
 
@@ -493,6 +690,11 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         height: 22,
         padding: const EdgeInsets.all(3),
         alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_Radius.pill),
+          // 关着的时候轨道也要认得出来（1.4.11 那条 3:1）
+          border: value ? null : Border.all(color: skin.controlBorder),
+        ),
         child: Container(
           width: 16,
           height: 16,
@@ -516,6 +718,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       decoration: BoxDecoration(
         color: skin.sunken,
         borderRadius: BorderRadius.circular(_Radius.control + _Space.xs),
+        border: Border.all(color: skin.controlBorder),
       ),
       child: Row(
         children: [
@@ -675,7 +878,13 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         name: '三级文字 / 卡面',
         fg: skin.textTertiary,
         bg: skin.surface,
-        need: '≥ 4.5',
+        need: '≥ 5.5：字号越小门槛越高，这一档几乎不带色',
+      ),
+      (
+        name: '控件边界 / 卡面',
+        fg: skin.controlBorder,
+        bg: skin.surface,
+        need: '≥ 3（WCAG 1.4.11，输入框 / 分段 / 开关这类靠它认出来）',
       ),
       (name: '实心按钮上的字', fg: skin.onAccent, bg: skin.accent, need: '≥ 4.5'),
       (
@@ -962,4 +1171,40 @@ double _luminance(Color color) {
   return 0.2126 * channel(color.r) +
       0.7152 * channel(color.g) +
       0.0722 * channel(color.b);
+}
+
+/// 解出「刚好满足对比度」的一档颜色：色相与饱和度固定，对明度做二分
+///
+/// [lighter] 为 true ⇒ 要一个比底色亮的颜色（暗色主题），取**最小**达标的那一档；
+/// false ⇒ 要一个比底色暗的颜色，取**最大**达标的那一档。
+/// 于是浅色的实心是「白字将将压住的最亮铜」、暗色的实心是「刚够显眼的最暗铜」，
+/// 四个主题色各自解出自己合适的那一档，不必逐个手调
+Color _solveOn({
+  required double hue,
+  required double saturation,
+  required Color background,
+  required double target,
+  required bool lighter,
+}) {
+  var low = 0.0;
+  var high = 1.0;
+  for (var i = 0; i < 22; i++) {
+    final mid = (low + high) / 2;
+    final candidate = HSLColor.fromAHSL(1, hue, saturation, mid).toColor();
+    final ok = _contrast(candidate, background) >= target;
+    if (lighter) {
+      if (ok) {
+        high = mid;
+      } else {
+        low = mid;
+      }
+    } else {
+      if (ok) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+  }
+  return HSLColor.fromAHSL(1, hue, saturation, lighter ? high : low).toColor();
 }
