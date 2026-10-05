@@ -102,7 +102,7 @@ abstract final class DrillPaint {
   /// 四片钻臂并成一个形状
   ///
   /// 分开画时四条臂在轮毂处两两相交，**每片各自的描边会在交叠处留下内轮廓**
-  /// （顶点的尖角看着像拼错位）；先并成一条路径，描边再按它裁剪，缝就没了
+  /// （顶点的尖角看着像拼错位）；并起来之后只描外轮廓就没这问题
   static Path bladeUnion() {
     final cached = _bladeUnionCache;
     if (cached != null) return cached;
@@ -117,6 +117,26 @@ abstract final class DrillPaint {
       );
     }
     return _bladeUnionCache = union;
+  }
+
+  /// 钻臂的描边带：并集减去"内缩一圈的并集"
+  ///
+  /// 逐片描边 + `clipPath(union)` 仍会在**交汇处的凹角**留下短线（那些位置在并集边界上）；
+  /// 画成环带就只剩真正的外轮廓 —— [inset] 是描边宽度（贴图网格单位）
+  static Path bladeOutline(double inset) {
+    final shrink = (toothOuterRadius - inset) / toothOuterRadius;
+    final single = blade().transform(
+      Matrix4.diagonal3Values(shrink, shrink, 1).storage,
+    );
+    var inner = single;
+    for (var quarter = 1; quarter < 4; quarter++) {
+      inner = Path.combine(
+        PathOperation.union,
+        inner,
+        single.transform(Matrix4.rotationZ(math.pi / 2 * quarter).storage),
+      );
+    }
+    return Path.combine(PathOperation.difference, bladeUnion(), inner);
   }
 
   /// 轮毂亮点的实心半径与柔光半径；实心点要盖过顶盖中央，柔光再往外化开

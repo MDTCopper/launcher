@@ -26,7 +26,7 @@ class DrillLoading extends StatefulWidget {
     super.key,
     this.state = DrillLoadingState.spinning,
     this.size = 56,
-    this.cycle = const Duration(milliseconds: 1100),
+    this.cycle = const Duration(milliseconds: 1600),
     this.onCycleFinished,
     this.probe,
   });
@@ -88,6 +88,21 @@ class _DrillLoadingState extends State<DrillLoading>
   static const double _chipFrom = 0.32;
   static const double _chipTo = 0.58;
 
+  /// 铜粒落地时的重力下沉量，占钻头半径的比例
+  static const double _chipGravity = 0.5;
+
+  /// 回弹幅度（弧度）：走完那一步后往回弹一下再收住
+  static const double _reboundAmplitude = 0.1;
+
+  /// 回弹从这一步的哪一段开始
+  static const double _reboundFrom = 0.7;
+
+  /// 铜粒的掷出方向（弧度）；每步随机一次，但永远朝上
+  double _chipAngle = 0;
+
+  /// 掷方向的随机源：固定种子，免得每次重建组件时序列跳
+  final math.Random _random = math.Random(20261005);
+
   /// 闪光衰减后到下一轮起转之间的余量
   static const double _lightTail = 0.2;
 
@@ -113,12 +128,15 @@ class _DrillLoadingState extends State<DrillLoading>
   DrillLoadingState? _pendingState;
 
   /// 钻头转角：一步从 0 平滑转到 90 度；四片钻臂 90 度一循环，接得上下一次
+  ///
+  /// 走完那一步之后叠一点**衰减回弹**（[_reboundAmplitude] 的正弦摆），
+  /// 读起来是"咔一下到位、再弹回去"而不是匀着滑到位
   late final TweenSequence<double> _spinSequence = TweenSequence<double>([
     TweenSequenceItem(
       tween: Tween(
         begin: 0.0,
         end: math.pi / 2,
-      ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+      ).chain(CurveTween(curve: Curves.easeInOutSine)),
       weight: _spinPortion,
     ),
     TweenSequenceItem(
@@ -229,7 +247,8 @@ class _DrillLoadingState extends State<DrillLoading>
         _flashController.reverse();
         _startIfNeeded();
       case DrillLoadingState.completing:
-        // 只转一次：转完停在 1，铜粒留在弹出的位置
+        // 只转一次：转完停在 1，铜粒留在弹出的位置；方向现在就掷定
+        _rollChipAngle();
         if (!_controller.isAnimating) _controller.forward(from: 0);
       case DrillLoadingState.error:
         _flashController.forward(from: 0);
@@ -269,7 +288,25 @@ class _DrillLoadingState extends State<DrillLoading>
       _applyMode(pending);
       return;
     }
-    if (_mode != DrillLoadingState.spinning) setState(() => _settled = true);
+    if (_mode != DrillLoadingState.spinning) {
+      setState(() => _settled = true);
+      return;
+    }
+    // 旋转态：在这一步结束时就把下一粒铜的方向掷好，弹出时直接用
+    _rollChipAngle();
+  }
+
+  /// 掷下一粒铜的方向：每次随机，但**限定不向下**
+  ///
+  /// 画布 y 向下，所以 y 分量取负；x 在 [-1, 1] 上随机 ⇒ 水平方向落在 (0°, 180°)，
+  /// 也就是只会朝上半圈飞出去
+  void _rollChipAngle() {
+    const cos = 0.35;
+    final sin = -math.sqrt(1 - cos * cos);
+    final t = _random.nextDouble() * 2 - 1;
+    final x = t * cos;
+    final y = sin * (1 - t.abs());
+    _chipAngle = math.atan2(y, x);
   }
 
   void _onStepStatus(AnimationStatus status) {
@@ -295,11 +332,13 @@ class _DrillLoadingState extends State<DrillLoading>
           final showChip = _mode == DrillLoadingState.completing;
           return CustomPaint(
             painter: _DrillLoadingPainter(
-              spin: _spinSequence.transform(cycle),
+              spin: _spinSequence.transform(cycle) + _rebound(cycle),
               light: isError
                   ? _flashController.value
                   : _lightSequence.transform(cycle),
               chipFlight: showChip ? _chipFlight(cycle) : null,
+              chipAngle: _chipAngle,
+              chipGravity: _chipGravity,
               tint: tint,
               tone: DrillTone.of(context),
               hubColor: isError ? colors.error : colors.interactive,
@@ -317,6 +356,13 @@ class _DrillLoadingState extends State<DrillLoading>
     if (cycle < _chipFrom) return null;
     return ((cycle - _chipFrom) / (_chipTo - _chipFrom)).clamp(0, 1);
   }
+
+  /// 到位后的衰减回弹：到了 [_reboundFrom] 那一段才开始摆，越摆越小
+  double _rebound(double cycle) {
+    if (cycle <= _reboundFrom) return 0;
+    final t = (cycle - _reboundFrom) / (1 - _reboundFrom);
+    return _reboundAmplitude * math.sin(t * math.pi * 2) * (1 - t);
+  }
 }
 
 class _DrillLoadingPainter extends CustomPainter {
@@ -324,6 +370,8 @@ class _DrillLoadingPainter extends CustomPainter {
     required this.spin,
     required this.light,
     required this.chipFlight,
+    required this.chipAngle,
+    required this.chipGravity,
     required this.tint,
     required this.tone,
     required this.hubColor,
@@ -343,6 +391,12 @@ class _DrillLoadingPainter extends CustomPainter {
 
   /// 铜粒飞行进度；null 表示这一步不出铜
   final double? chipFlight;
+
+  /// 铜粒的掷出方向（弧度）
+  final double chipAngle;
+
+  /// 铜粒末端的重力下沉量，占钻头半径的比例
+  final double chipGravity;
 
   /// 出错泛红的程度（0~1）
   final double tint;
@@ -392,31 +446,20 @@ class _DrillLoadingPainter extends CustomPainter {
 
   /// 四片钻臂整体绕中心旋转
   ///
-  /// 描边按并集裁剪：四片各自的轮廓线会在轮毂交叠处留下内轮廓，看起来像拼错位
+  /// 填充画并集；描边画"并集减去内缩并集"的环带，所以交汇处一条线都没有
   void _paintBlades(Canvas canvas) {
-    final union = DrillPaint.bladeUnion();
-    final single = DrillPaint.blade();
     final fill = Paint()
       ..style = PaintingStyle.fill
       ..color = tone.bladeFill;
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = _bladeStrokeWidth * drillScale
+    final outline = Paint()
+      ..style = PaintingStyle.fill
       ..color = _tintStroke(tone.bladeStroke, DrillPaint.errorBladeTint);
 
     canvas.save();
     canvas.rotate(spin);
     canvas.scale(drillScale);
-    canvas.drawPath(union, fill);
-    canvas.save();
-    canvas.clipPath(union, doAntiAlias: true);
-    for (var quarter = 0; quarter < 4; quarter++) {
-      canvas.save();
-      canvas.rotate(math.pi / 2 * quarter);
-      canvas.drawPath(single, stroke);
-      canvas.restore();
-    }
-    canvas.restore();
+    canvas.drawPath(DrillPaint.bladeUnion(), fill);
+    canvas.drawPath(DrillPaint.bladeOutline(_bladeStrokeWidth), outline);
     canvas.restore();
   }
 
@@ -441,17 +484,18 @@ class _DrillLoadingPainter extends CustomPainter {
     );
   }
 
-  /// 铜粒：这一步钻完的产物，从中心弹出
+  /// 铜粒：这一步钻完的产物，从中心按 [_chipAngle] 掷出去，落点受重力往下压
   void _paintChip(Canvas canvas, double drillRadius) {
     final flight = chipFlight;
     if (flight == null) return;
 
-    // 起点贴着轮毂，弹出一段距离后淡出
+    // 起点贴着轮毂；重力让轨迹在末段往下沉，所以是斜抛不是直线
     final distance = drillRadius * (0.2 + 0.85 * flight);
+    final gravity = drillRadius * chipGravity * flight * flight;
     canvas.save();
     canvas.translate(
-      distance * math.cos(-math.pi / 4),
-      distance * math.sin(-math.pi / 4),
+      distance * math.cos(chipAngle),
+      distance * math.sin(chipAngle) + gravity,
     );
     canvas.rotate(flight * math.pi / 3);
     DrillPaint.paintItem(
@@ -470,6 +514,8 @@ class _DrillLoadingPainter extends CustomPainter {
     return oldDelegate.spin != spin ||
         oldDelegate.light != light ||
         oldDelegate.chipFlight != chipFlight ||
+        oldDelegate.chipAngle != chipAngle ||
+        oldDelegate.chipGravity != chipGravity ||
         oldDelegate.tint != tint ||
         oldDelegate.tone != tone ||
         oldDelegate.hubColor != hubColor ||

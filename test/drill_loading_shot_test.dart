@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// 组件自己驱动 Controller，所以取帧靠 `pump(时长)` 推进，而不是给 progress
 void main() {
   // 一步 = 转 0.6 + 停 0.4；窗口要裹得下一个 120 的钻头
-  const step = Duration(milliseconds: 1100);
+  const step = Duration(milliseconds: 1600);
 
   testWidgets('渲染铜钻头三种状态并截图', (tester) async {
     tester.view.physicalSize = const Size(1260, 420);
@@ -31,7 +31,8 @@ void main() {
       ('旋转_停顿', DrillLoadingState.spinning, at(0.8)),
       ('结束_起手', DrillLoadingState.completing, at(0.1)),
       ('结束_旋转中', DrillLoadingState.completing, at(0.35)),
-      ('结束_弹铜', DrillLoadingState.completing, at(0.45)),
+      ('结束_弹铜', DrillLoadingState.completing, at(0.5)),
+      ('结束_回弹', DrillLoadingState.completing, at(0.85)),
       ('结束_停住', DrillLoadingState.completing, at(1.0)),
       ('错误_起手', DrillLoadingState.error, at(0.1)),
       ('错误_旋转中', DrillLoadingState.error, at(0.45)),

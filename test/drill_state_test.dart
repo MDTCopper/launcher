@@ -47,8 +47,9 @@ void main() {
       }
     }
 
+    // 默认一步 1600ms：下面的等待量都按它留足（含切状态时正在走的那一步）
     await show();
-    await advance(300);
+    await advance(400);
     expect(probe.step, lessThan(0.6), reason: '这一步应当还在转');
 
     state = DrillLoadingState.completing;
@@ -58,19 +59,19 @@ void main() {
     expect(probe.pending, DrillLoadingState.completing);
 
     await show();
-    await advance(1000);
+    await advance(1600);
     expect(probe.active, DrillLoadingState.completing, reason: '一步走完才切过去');
 
     // 结束态只走一步，之后停住
-    await advance(1500);
+    await advance(2000);
     final settled = cycles;
-    await advance(3000);
+    await advance(4000);
     expect(cycles, settled, reason: '结束态停住后不该再走步');
 
     // 切回旋转态应当重新转起来
     state = DrillLoadingState.spinning;
     await show();
-    await advance(1500);
+    await advance(2000);
     expect(cycles, greaterThan(settled), reason: '回到旋转态应当继续走步');
   });
 }
