@@ -12,35 +12,45 @@ import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 import '../util/app_paths.dart';
+import '../util/io/config_backups.dart';
 import '../util/io/token_encryptor.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
+
+import 'package:path/path.dart' as p;
 
 part 'app_config.g.dart';
 
 /// 用于存储应用的全局配置，更改完成后需调用`save`，同步配置文件
 late AppConfig config;
 
-Future<void> initAppConfig() async {
-  final File file;
+/// 这次启动是不是从备份里救回来的；非 null 时值是那份备份的文件名
+///
+/// 给界面用（可以据此提示用户「配置坏过、已用备份恢复」），启动阶段自己没法弹通知
+String? configRecoveredFromBackup;
 
-  if (kDebugMode) {
-    file = File(AppPaths.configJson);
-    if (!await file.exists()) {
-      await createAppConfig();
-    }
-    final jsonStr = await file.readAsString();
-    final json = jsonDecode(jsonStr) as Map<String, dynamic>;
-    config = AppConfig.fromJson(json);
+Future<void> initAppConfig() async {
+  final loaded = await _readConfigFile();
+
+  if (loaded != null) {
+    config = AppConfig.fromJson(loaded);
   } else {
-    file = File(AppPaths.configBin);
-    if (!await file.exists()) {
-      await createAppConfig();
+    // 配置读不出来（写坏了 / 被手改坏了）：先用备份顶上，一份可用备份都没有才用默认配置。
+    // 原来这里是直接抛异常的 —— 配置一坏启动器就起不来，只能自己去删文件
+    final backup = ConfigBackups.newestReadable(AppPaths.copperLauncher);
+    if (backup != null) {
+      configRecoveredFromBackup = p.basename(backup.file.path);
+      addLogAndPrint(
+        .warning,
+        '配置读不出来，已用备份 $configRecoveredFromBackup 恢复',
+        tag: 'Config',
+      );
+      config = AppConfig.fromJson(backup.json);
+    } else {
+      addLogAndPrint(.error, '配置读不出来且没有可用备份，按默认配置启动', tag: 'Config');
+      config = AppConfig(version: appVersion);
     }
-    final encodedData = await file.readAsString();
-    config = AppConfig.fromJson(
-      jsonDecode(utf8.decode(base64Decode(encodedData))),
-    );
   }
+
   //配置里记的启动器版本要跟上当前构建：`AppConfig.version` 原先只在首次创建配置时写入一次
   //（构造函数默认值），之后一直被文件里的旧值覆盖，永远停在那个版本
   config.version = appVersion;
@@ -48,7 +58,33 @@ Future<void> initAppConfig() async {
   if (config.normalizeStoredPaths()) {
     addLogAndPrint(.info, '配置里的路径已归一化为记录形态', tag: 'Path');
   }
+  // 拿到一份能用的配置之后再留底：一次运行最多一份，与 config.save 的调用频率无关
+  ConfigBackups.write(root: AppPaths.copperLauncher, json: config.toJson());
   await config.save();
+}
+
+/// 读当前形态的配置文件（debug 是 json、release 是 bin），读不出来给 null
+///
+/// 文件不存在时就地创建一份默认的，与原来的行为一致
+Future<Map<String, dynamic>?> _readConfigFile() async {
+  try {
+    if (kDebugMode) {
+      final file = File(AppPaths.configJson);
+      if (!await file.exists()) await createAppConfig();
+      return jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    }
+    final file = File(AppPaths.configBin);
+    if (!await file.exists()) await createAppConfig();
+    return jsonDecode(utf8.decode(base64Decode(await file.readAsString())))
+        as Map<String, dynamic>;
+  } catch (error) {
+    addLogAndPrint(
+      .error,
+      '配置文件读不出来：${removeNewlines('$error')}',
+      tag: 'Config',
+    );
+    return null;
+  }
 }
 
 Future<void> checkGameVersionExists() async {

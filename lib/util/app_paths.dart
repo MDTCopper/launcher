@@ -26,6 +26,13 @@ abstract class AppPaths {
     await initDefaultDataPath();
   }
 
+  /// 用例把数据根指到临时目录；传 null 恢复默认
+  ///
+  /// `init()` 要平台插件（`flutter test` 里没有），而没 init 时数据根是工作目录
+  /// （仓库根）—— 直接跑 `initAppConfig()` 之类会动到真实配置，所以留这个口子
+  @visibleForTesting
+  static void overrideForTesting(String? root) => _copperLauncher = root;
+
   /// 决定数据根目录
   ///
   /// 以 **exe 所在目录**为锚，而不是工作目录：`p.current` 是进程工作目录，
