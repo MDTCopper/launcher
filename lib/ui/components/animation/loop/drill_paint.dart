@@ -14,10 +14,10 @@ abstract final class DrillPaint {
 
   /// 钻臂：根端 / 末端半宽与内外半径
   ///
-  /// 臂要**窄**：宽臂在轮毂处会糊成一团、整体看不出是十字，
-  /// 那样"转过 8 度"和"往回 8 度"看起来一样 —— 过冲就会读成"突然动了一下"
-  static const double toothRootHalfWidth = 9;
-  static const double toothTipHalfWidth = 5;
+  /// 关键是**斜边的斜度**：根端与末端差得越多、收得越急，臂看着就越厚。
+  /// 这里取 7 → 2.5（只差 4.5），斜边平缓，读起来是针状而不是楔形
+  static const double toothRootHalfWidth = 7;
+  static const double toothTipHalfWidth = 2.5;
   static const double toothInnerRadius = 4;
   static const double toothOuterRadius = 28;
 

@@ -105,22 +105,27 @@ void main() {
           extensions: const [AppColors.dark],
         ),
         home: Scaffold(
-          backgroundColor: const Color(0xFF202020),
           body: Center(
             child: RepaintBoundary(
               key: const ValueKey('shot'),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: const [
-                  DrillLoading(size: 16),
-                  SizedBox(width: 16),
-                  DrillLoading(size: 28),
-                  SizedBox(width: 16),
-                  DrillLoading(size: 48),
-                  SizedBox(width: 16),
-                  DrillLoading(size: 96),
-                ],
+              child: ColoredBox(
+                color: AppColors.dark.pageBackground,
+                child: const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      DrillLoading(size: 16),
+                      SizedBox(width: 16),
+                      DrillLoading(size: 28),
+                      SizedBox(width: 16),
+                      DrillLoading(size: 48),
+                      SizedBox(width: 16),
+                      DrillLoading(size: 96),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
