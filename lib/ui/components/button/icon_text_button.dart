@@ -52,13 +52,22 @@ class IconTextButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final (weightBackground, weightForeground) = switch (weight) {
-      ActionWeight.primary => (colors.interactive, colors.itemOnInteractive),
+      // 浅色下 interactive 太浅（明度 0.28，其上文字只有 2.95:1），实心档按主题取更深的一档；
+      // 暗色下 interactive 本身相对卡片已经是亮块，不再加深
+      ActionWeight.primary => (
+        isDark ? colors.interactive : colors.interactiveHigh,
+        colors.itemOnInteractive,
+      ),
       ActionWeight.secondary => (
         colors.highBackgroundOnCard,
         colors.itemSecondary,
       ),
-      ActionWeight.tertiary => (Colors.transparent, colors.interactive),
+      // 三级不给主题色：主题色文字会比中性底 + 灰字的二级更抢眼，层级会倒挂
+      ActionWeight.tertiary => (Colors.transparent, colors.itemSecondary),
+      // danger 只有 colors.error 这一档可用（更深的那档在 Palette 层，
+      // 按分层规矩 Widget 不能直接取）⇒ 它的对比度问题留给色板那一轮
       ActionWeight.danger => (colors.error, colors.itemOnInteractive),
     };
 
