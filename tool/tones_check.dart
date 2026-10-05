@@ -123,15 +123,22 @@ void main() {
       var pillWhite = toneLuminance(pill) > toneLuminance(t.sunken);
       if (shiftOf(pillAmount, pillWhite) < 3) {
         pillWhite = !pillWhite;
-        pillAmount = pillAmount / 2;
+        pillAmount = pillAmount * 0.5;
       }
       final pillHover = on(pill, pillAmount, pillWhite);
+      // 按下反向推满（压到另一侧）：只推一半会比悬停更贴近凹槽底，反而更糊
+      var pressAmount = dark ? 0.16 : 0.13;
+      var pressWhite = toneLuminance(pill) > toneLuminance(t.sunken);
+      if (shiftOf(pressAmount, pressWhite) < 3) pressWhite = !pressWhite;
+      final pillPress = on(pill, pressAmount, pressWhite);
       print(
         '  分段选中格：静止 ${hex(pill)} → 悬停 ${hex(pillHover)}'
         '（对凹槽底 ${hex(t.sunken)} 的区分度 '
-        '${toneContrast(pillHover, t.sunken).toStringAsFixed(2)}:1）',
+        '${toneContrast(pillHover, t.sunken).toStringAsFixed(2)}:1）'
+        ' → 按下 ${hex(pillPress)}（${toneContrast(pillPress, t.sunken).toStringAsFixed(2)}:1）',
       );
       pair('悬停后的选中格 / 凹槽底', pillHover, t.sunken, 1.08, failures: failures);
+      pair('按下后的选中格 / 凹槽底', pillPress, t.sunken, 1.08, failures: failures);
 
       // 控件面与卡面的区分（容器的层级差，故意低但不能没有）；
       // 亮色的「抬升」与卡面同色（普通按钮靠文字认，不靠底色差），所以只查暗色

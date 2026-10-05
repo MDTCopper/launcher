@@ -148,17 +148,20 @@ class TemplateSkin {
   ///    画在**内容之上**的，给不透明色会直接把字盖掉（用户 2026-10-05「部分按钮悬停字会消失」）
   /// ② **方向按「离开它坐着的那个面」**，不是一律按主题：同一个主题里，控件可能坐在卡面上、
   ///    也可能坐在分段的凹槽底上，一律叠白/黑会让其中一种撞上它的底
-  /// ③ **推不动就反向推一半**：亮色下分段的选中格已经接近白色（tone 98），再提亮几乎没有
+  /// ③ **推不动就反向推**：亮色下分段的选中格已经接近白色（tone 98），再提亮几乎没有
   ///    变化，而叠一层黑又会落到凹槽底（tone 90）上 —— 看着像选中格在悬停时消失
-  ///    （用户 2026-10-05「激活按钮在悬停时会与背景融合」）
+  ///    （用户 2026-10-05「激活按钮在悬停时会与背景融合」）。
+  ///    反向推的幅度**按状态分**：悬停只推一半，留在自己这一侧（离底还有 1.1 以上）；
+  ///    按下推满，**直接压到另一侧** —— 只推一半时按下会比悬停更贴近那个底，反而更糊
+  ///    （用户 2026-10-05「激活的按钮的点击效果的融合现象更严重」）
   /// ④ 透明底：它显示的就是坐着的那个面，按主题方向给
   ///
   /// [on] 是控件实际坐着的面，默认卡面；分段里传它的凹槽底
   Color hoverOn(Color base, {Color? on}) =>
-      _stateOn(base, on ?? surface, dark ? 0.10 : 0.08);
+      _stateOn(base, on ?? surface, dark ? 0.10 : 0.08, flipped: 0.5);
 
   Color pressedOn(Color base, {Color? on}) =>
-      _stateOn(base, on ?? surface, dark ? 0.16 : 0.13);
+      _stateOn(base, on ?? surface, dark ? 0.16 : 0.13, flipped: 1);
 
   /// 实心按钮的状态：**朝远离其上文字的方向**走 —— 文字是近白，所以两个主题都压暗，
   /// 幅度再大一档（饱和实心上 6~8% 的叠层几乎看不出，用户 2026-10-05
@@ -171,7 +174,12 @@ class TemplateSkin {
   Color solidPressedOn(Color base) =>
       _overlayOn(base, dark ? 0.24 : 0.22, Colors.black);
 
-  Color _stateOn(Color base, Color backdrop, double amount) {
+  Color _stateOn(
+    Color base,
+    Color backdrop,
+    double amount, {
+    required double flipped,
+  }) {
     if (base.a < 1) {
       return _overlayOn(base, amount, dark ? Colors.white : Colors.black);
     }
@@ -181,7 +189,7 @@ class TemplateSkin {
     var applied = amount;
     if (_shift(base, overlay, applied) < 3) {
       overlay = lighter ? Colors.black : Colors.white;
-      applied = amount / 2;
+      applied = amount * flipped;
     }
     return _overlayOn(base, applied, overlay);
   }

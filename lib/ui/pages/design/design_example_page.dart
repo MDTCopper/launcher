@@ -6,6 +6,7 @@ import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
 import 'design_about_rework_page.dart';
+import 'design_components_page.dart';
 import 'design_experiments_page.dart';
 import 'design_mods_rework_page.dart';
 import 'design_quick_switch.dart';
@@ -32,6 +33,7 @@ class _DesignExamplePageState extends State<DesignExamplePage>
 
   late final List<Widget> pages = const [
     DesignStructurePage(),
+    DesignComponentsPage(),
     DesignExperimentsPage(),
     DesignAboutReworkPage(),
     DesignSettingReworkPage(),
@@ -48,16 +50,18 @@ class _DesignExamplePageState extends State<DesignExamplePage>
     super.didChangeDependencies();
     // 按进入时的路由决定初始分项
     switch (ModalRoute.of(context)?.settings.name) {
-      case designExperimentsPageRouteKey:
+      case designComponentsPageRouteKey:
         _index = 1;
-      case designAboutReworkPageRouteKey:
+      case designExperimentsPageRouteKey:
         _index = 2;
-      case designSettingReworkPageRouteKey:
+      case designAboutReworkPageRouteKey:
         _index = 3;
-      case designModsReworkPageRouteKey:
+      case designSettingReworkPageRouteKey:
         _index = 4;
-      case designTemplatePageRouteKey:
+      case designModsReworkPageRouteKey:
         _index = 5;
+      case designTemplatePageRouteKey:
+        _index = 6;
     }
   }
 
@@ -79,37 +83,44 @@ class _DesignExamplePageState extends State<DesignExamplePage>
               ),
               NavigationTile(
                 icon: const Icon(Icons.science_outlined),
-                content: '试验对照',
+                content: '组件定义',
                 onTap: () => moveTo(1),
                 selected: _index == 1,
                 collapse: collapse,
               ),
               NavigationTile(
-                icon: const Icon(Icons.restart_alt),
-                content: '关于页重做',
+                icon: const Icon(Icons.balance_outlined),
+                content: '试验对照',
                 onTap: () => moveTo(2),
                 selected: _index == 2,
                 collapse: collapse,
               ),
               NavigationTile(
-                icon: const Icon(Icons.tune),
-                content: '设置页重做',
+                icon: const Icon(Icons.restart_alt),
+                content: '关于页重做',
                 onTap: () => moveTo(3),
                 selected: _index == 3,
                 collapse: collapse,
               ),
               NavigationTile(
-                icon: const Icon(Icons.extension_outlined),
-                content: '模组页重做',
+                icon: const Icon(Icons.tune),
+                content: '设置页重做',
                 onTap: () => moveTo(4),
                 selected: _index == 4,
                 collapse: collapse,
               ),
               NavigationTile(
-                icon: const Icon(Icons.auto_awesome_outlined),
-                content: '参考模版',
+                icon: const Icon(Icons.extension_outlined),
+                content: '模组页重做',
                 onTap: () => moveTo(5),
                 selected: _index == 5,
+                collapse: collapse,
+              ),
+              NavigationTile(
+                icon: const Icon(Icons.auto_awesome_outlined),
+                content: '参考模版',
+                onTap: () => moveTo(6),
+                selected: _index == 6,
                 collapse: collapse,
               ),
             ],
