@@ -64,6 +64,10 @@ logs/
 .test/
 tool/build_release_state.json
 config.*
+# 运行时产物：云存档的临时目录与「恢复前备份」。
+# debug 下数据根就是仓库根，这两个目录会落在仓库里，别提交
+tmp/
+cloud-backups/
 # 云存档的账号态（含 refresh token）与「数据目录 → 云端槽位」的绑定；
 # debug 运行时数据根就是仓库根，这两个文件会落在仓库里，绝不能提交
 mdtbbs_account.json
