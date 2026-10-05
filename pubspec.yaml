@@ -38,6 +38,9 @@ dependencies:
   mime: ^2.0.0
   archive: ^4.0.9
   hjson_dart: ^0.1.1
+  # HCT（CAM16 + L*）色彩空间与色调色板：设计规范的配色按「一个种子推出全部」算
+  # （见 .project_status/components.md 的「配色系统」一节）
+  material_color_utilities: ^0.13.0
   properties: ^2.1.1
   async: ^2.13.1
   file_selector: ^1.1.0

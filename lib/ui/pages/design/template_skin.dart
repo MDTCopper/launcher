@@ -1,29 +1,38 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
-/// Copper 四个主题色对应的色相：换一个色相，整套皮肤重算
-abstract final class TemplateHues {
-  static const copper = 33.0;
-  static const titanium = 210.0;
-  static const thorium = 305.0;
-  static const plastanium = 97.0;
+import 'template_tones.dart';
 
-  static const named = <({String name, double hue})>[
-    (name: '铜', hue: copper),
-    (name: '钛', hue: titanium),
-    (name: '钍', hue: thorium),
-    (name: '塑钢', hue: plastanium),
+/// Copper 四个主题色：**换一个种子，整套皮肤重算**
+///
+/// 2026-10-05 换到 A 路线（HCT）：这四个数是**旧 HSL 色相在 CAM16 刻度上的坐标**
+/// ——用一次性探针把 `HSL 33 / 210 / 305 / 97 @ S .5 L .5` 换算过来，色度按各主题
+/// 原有的浓度保留，所以观感与之前一致，只是坐标系换成了**感知均匀**的那个。
+/// 与 M3 一样：种子给「色相 + 色度」，其余全部推出来
+abstract final class TemplateHues {
+  static const named = <({String name, double hue, double chroma})>[
+    (name: '铜', hue: 68.7, chroma: 37),
+    (name: '钛', hue: 253.4, chroma: 46),
+    (name: '钍', hue: 336.2, chroma: 74),
+    (name: '塑钢', hue: 136.9, chroma: 67),
   ];
+
+  static const copper = 68.7;
+  static const titanium = 253.4;
+  static const thorium = 336.2;
+  static const plastanium = 136.9;
+
+  /// 每个色相自带的色度（种子浓度）；认不出来就给铜的
+  static double chromaOf(double hue) => named
+      .firstWhere((item) => item.hue == hue, orElse: () => named.first)
+      .chroma;
 }
 
 /// 参考模版的皮肤层：**这一层就是将来要套进 Copper 的东西**
 ///
-/// 只有两条规则（详见 `.project_status/components.md` 的「参考模版」一节）：
-/// ① 中性色跟着主题色相走 ⇒ 四个主题各得自己的冷暖
-/// ② 该满足对比度的档用二分解出来 ⇒ 不写死、换色相自动重算
+/// 色值本身全部由 [TemplateTones]（A 路线：HCT tone 档 + 按目标对比度二分反解）算出来，
+/// 这里只做三件事：① 包成 Flutter 的 [Color] ② 给出叠层（hover / pressed / 选中 / 阴影
+/// ——这几样业界也都是手写）③ 提供按底色算状态色的 [hoverOn] / [pressedOn]。
 /// 与 `design_template_page.dart` 的组件与规则部分共用
-
 class TemplateSkin {
   const TemplateSkin({
     required this.dark,
@@ -53,226 +62,44 @@ class TemplateSkin {
     required this.shadow,
   });
 
-  /// 从一个主题色相生成整套皮肤
-  ///
-  /// 两条规则：① **中性色跟着主题色相走**（低饱和的同一色相 ⇒ 冷主题得冷灰、
-  /// 暖主题得暖灰，强调色才不会像外来物）② **该满足对比度的档不解固定值，
-  /// 而是解出来** —— 浅色取「白字刚好压得住的最亮那一档」、暗色取「对卡面刚够
-  /// 显眼的最暗那一档」，于是四个主题色自动得到各自合适的那一档
+  /// 从一个主题种子（色相 + 自带的色度）生成整套皮肤
   factory TemplateSkin.of({required double hue, required bool dark}) {
-    // 中性色的饱和度：低到不喧哗，但要够看出冷暖 —— 色温就是这个差
-    Color neutral(double lightness, [double saturation = 0.07]) =>
-        HSLColor.fromAHSL(1, hue, saturation, lightness).toColor();
-
-    if (!dark) {
-      final surface = neutral(0.99, 0.035);
-      final page = neutral(0.945, 0.08);
-      final sunken = neutral(0.885, 0.09);
-      final onAccent = neutral(0.995, 0.03);
-      final tint = HSLColor.fromAHSL(1, hue, 0.38, 0.86).toColor();
-
-      return TemplateSkin(
-        dark: false,
-        page: page,
-        surface: surface,
-        raised: surface,
-        sunken: sunken,
-        border: neutral(0.86, 0.1),
-        borderStrong: neutral(0.72, 0.11),
-        // 控件边界按 WCAG 1.4.11 要有 3:1，容器描边不用
-        controlBorder: _solveOn(
-          hue: hue,
-          saturation: 0.12,
-          background: surface,
-          target: 3,
-          lighter: false,
-        ),
-        // 正文与次要文字目标高一些；**小字（三级）也提到 5.5 且饱和度更低** ——
-        // 字号越小越吃对比度，给它带色只会更难读
-        textPrimary: _solveOn(
-          hue: hue,
-          saturation: 0.05,
-          background: surface,
-          target: 13,
-          lighter: false,
-        ),
-        textSecondary: _solveOn(
-          hue: hue,
-          saturation: 0.05,
-          background: surface,
-          target: 7,
-          lighter: false,
-        ),
-        textTertiary: _solveOn(
-          hue: hue,
-          saturation: 0.03,
-          background: surface,
-          target: 5.5,
-          lighter: false,
-        ),
-        // 实心：白字刚好压得住的最亮那一档（越亮越不显闷）
-        accent: _solveOn(
-          hue: hue,
-          saturation: 0.55,
-          background: onAccent,
-          target: 4.8,
-          lighter: false,
-        ),
-        accentText: _solveOn(
-          hue: hue,
-          saturation: 0.6,
-          background: surface,
-          target: 5,
-          lighter: false,
-        ),
-        onAccent: onAccent,
-        accentTint: tint,
-        onAccentTint: _solveOn(
-          hue: hue,
-          saturation: 0.5,
-          background: tint,
-          target: 6.5,
-          lighter: false,
-        ),
-        danger: _solveOn(
-          hue: 2,
-          saturation: 0.5,
-          background: onAccent,
-          target: 4.8,
-          lighter: false,
-        ),
-        // 危险色的「文字」形态单独解：实心那一档是给白字铺底用的，
-        // 直接拿去当文字色在暗色下会不达标
-        dangerText: _solveOn(
-          hue: 2,
-          saturation: 0.5,
-          background: surface,
-          target: 5,
-          lighter: false,
-        ),
-        onDanger: onAccent,
-        success: _solveOn(
-          hue: 145,
-          saturation: 0.4,
-          background: onAccent,
-          target: 4.8,
-          lighter: false,
-        ),
-        warning: _solveOn(
-          hue: 36,
-          saturation: 0.6,
-          background: onAccent,
-          target: 4.8,
-          lighter: false,
-        ),
-        hover: const Color(0x0F000000),
-        pressed: const Color(0x1A000000),
-        selected: HSLColor.fromAHSL(0.16, hue, 0.6, 0.5).toColor(),
-        shadow: HSLColor.fromAHSL(0.10, hue, 0.5, 0.25).toColor(),
-      );
-    }
-
-    final surface = neutral(0.125, 0.07);
-    final raised = neutral(0.165, 0.07);
-    final onAccent = neutral(0.99, 0.03);
-    final tint = HSLColor.fromAHSL(1, hue, 0.32, 0.19).toColor();
+    final chroma = TemplateHues.chromaOf(hue);
+    final tones = TemplateTones.of(hue: hue, chroma: chroma, dark: dark);
+    // 阴影与选中态要一点色度：用一个低色度的色阶，别用主题色的满色度
+    final shadowRamp = ToneRamp(hue, 12);
+    final accent = Color(tones.accent);
 
     return TemplateSkin(
-      dark: true,
-      page: neutral(0.085, 0.07),
-      surface: surface,
-      raised: raised,
-      sunken: neutral(0.065, 0.07),
-      border: neutral(0.22, 0.1),
-      borderStrong: neutral(0.3, 0.11),
-      controlBorder: _solveOn(
-        hue: hue,
-        saturation: 0.12,
-        background: surface,
-        target: 3,
-        lighter: true,
-      ),
-      textPrimary: _solveOn(
-        hue: hue,
-        saturation: 0.05,
-        background: surface,
-        target: 13,
-        lighter: true,
-      ),
-      textSecondary: _solveOn(
-        hue: hue,
-        saturation: 0.05,
-        background: surface,
-        target: 7,
-        lighter: true,
-      ),
-      textTertiary: _solveOn(
-        hue: hue,
-        saturation: 0.03,
-        background: surface,
-        target: 5.5,
-        lighter: true,
-      ),
-      // 暗色的实心：对卡面刚够显眼的最暗那一档（旧值 6.3:1 就是「一块亮铜砸在近黑上」）
-      accent: _solveOn(
-        hue: hue,
-        saturation: 0.5,
-        background: surface,
-        target: 3.4,
-        lighter: true,
-      ),
-      accentText: _solveOn(
-        hue: hue,
-        // 暗色下这一档是**亮的小字与图标**（提示条图标、链接、标记），饱和度
-        // 0.55 时钍 / 塑钢会跑出很鲜的粉与绿，小字上显得吵 ⇒ 降到 0.38，
-        // 对比度仍锁在 5.5（用户 2026-10-05：小字在暗色下的主题色还是重）
-        saturation: 0.38,
-        background: surface,
-        target: 5.5,
-        lighter: true,
-      ),
-      onAccent: onAccent,
-      accentTint: tint,
-      onAccentTint: _solveOn(
-        hue: hue,
-        saturation: 0.5,
-        background: tint,
-        target: 6.5,
-        lighter: true,
-      ),
-      danger: _solveOn(
-        hue: 2,
-        saturation: 0.45,
-        background: onAccent,
-        target: 4.8,
-        lighter: false,
-      ),
-      dangerText: _solveOn(
-        hue: 2,
-        saturation: 0.5,
-        background: surface,
-        target: 5.5,
-        lighter: true,
-      ),
-      onDanger: onAccent,
-      success: _solveOn(
-        hue: 145,
-        saturation: 0.45,
-        background: surface,
-        target: 5.5,
-        lighter: true,
-      ),
-      warning: _solveOn(
-        hue: 36,
-        saturation: 0.6,
-        background: surface,
-        target: 5.5,
-        lighter: true,
-      ),
-      hover: const Color(0x14FFFFFF),
-      pressed: const Color(0x1FFFFFFF),
-      selected: HSLColor.fromAHSL(0.18, hue, 0.6, 0.5).toColor(),
-      shadow: const Color(0x66000000),
+      dark: dark,
+      page: Color(tones.page),
+      surface: Color(tones.surface),
+      raised: Color(tones.raised),
+      sunken: Color(tones.sunken),
+      border: Color(tones.border),
+      borderStrong: Color(tones.borderStrong),
+      controlBorder: Color(tones.controlBorder),
+      textPrimary: Color(tones.textPrimary),
+      textSecondary: Color(tones.textSecondary),
+      textTertiary: Color(tones.textTertiary),
+      accent: accent,
+      accentText: Color(tones.accentText),
+      onAccent: Color(tones.onAccent),
+      accentTint: Color(tones.accentTint),
+      onAccentTint: Color(tones.onAccentTint),
+      danger: Color(tones.danger),
+      dangerText: Color(tones.dangerText),
+      onDanger: Color(tones.onDanger),
+      success: Color(tones.success),
+      warning: Color(tones.warning),
+      // ── 叠层：手写（业界也如此），方向按主题 ──
+      hover: dark ? const Color(0x14FFFFFF) : const Color(0x0F000000),
+      pressed: dark ? const Color(0x1FFFFFFF) : const Color(0x1A000000),
+      // 选中态就是强调色的一层薄底（原来写的是 HSL 半饱和色，现在是解出来的强调色）
+      selected: accent.withAlpha(((dark ? 0.18 : 0.16) * 255).round()),
+      shadow: dark
+          ? const Color(0x66000000)
+          : Color(shadowRamp.at(25)).withAlpha((0.10 * 255).round()),
     );
   }
 
@@ -339,7 +166,7 @@ class TemplateSkin {
 
     final target =
         (towardsCard != null &&
-            templateLuminance(base) < templateLuminance(surface))
+            toneLuminance(base.toARGB32()) < toneLuminance(surface.toARGB32()))
         ? Color.lerp(base, surface, towardsCard)!
         : Color.alphaBlend(overlay.withAlpha((amount * 255).round()), base);
 
@@ -404,58 +231,9 @@ class TemplateRadius {
   static const pill = 999.0;
 }
 
-double templateContrast(Color a, Color b) {
-  final la = templateLuminance(a);
-  final lb = templateLuminance(b);
-  final hi = math.max(la, lb);
-  final lo = math.min(la, lb);
-  return (hi + 0.05) / (lo + 0.05);
-}
+/// WCAG 2.x 对比度（判定函数只能用它；APCA 仍是草案，只当诊断）
+/// 计算本身在纯 Dart 的 `template_tones.dart` 里，这里只是给 Flutter 的 [Color] 用
+double templateContrast(Color a, Color b) =>
+    toneContrast(a.toARGB32(), b.toARGB32());
 
-double templateLuminance(Color color) {
-  double channel(double value) {
-    return value <= 0.03928
-        ? value / 12.92
-        : math.pow((value + 0.055) / 1.055, 2.4).toDouble();
-  }
-
-  return 0.2126 * channel(color.r) +
-      0.7152 * channel(color.g) +
-      0.0722 * channel(color.b);
-}
-
-/// 解出「刚好满足对比度」的一档颜色：色相与饱和度固定，对明度做二分
-///
-/// [lighter] 为 true ⇒ 要一个比底色亮的颜色（暗色主题），取**最小**达标的那一档；
-/// false ⇒ 要一个比底色暗的颜色，取**最大**达标的那一档。
-/// 于是浅色的实心是「白字将将压住的最亮铜」、暗色的实心是「刚够显眼的最暗铜」，
-/// 四个主题色各自解出自己合适的那一档，不必逐个手调
-Color _solveOn({
-  required double hue,
-  required double saturation,
-  required Color background,
-  required double target,
-  required bool lighter,
-}) {
-  var low = 0.0;
-  var high = 1.0;
-  for (var i = 0; i < 22; i++) {
-    final mid = (low + high) / 2;
-    final candidate = HSLColor.fromAHSL(1, hue, saturation, mid).toColor();
-    final ok = templateContrast(candidate, background) >= target;
-    if (lighter) {
-      if (ok) {
-        high = mid;
-      } else {
-        low = mid;
-      }
-    } else {
-      if (ok) {
-        low = mid;
-      } else {
-        high = mid;
-      }
-    }
-  }
-  return HSLColor.fromAHSL(1, hue, saturation, lighter ? high : low).toColor();
-}
+double templateLuminance(Color color) => toneLuminance(color.toARGB32());
