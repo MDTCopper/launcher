@@ -358,7 +358,7 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
             ],
           ),
           _buildFocusSpecimen(
-            caption: '主行动的取法（浅色下；括号里是文字与它自己底色的对比度）',
+            caption: '主行动的取法（这一行是浅色的对照；括号里是文字与它自己底色的对比度）',
             actions: [
               _buildTintedAction(
                 background: colors.interactive,
@@ -384,10 +384,10 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
             ],
           ),
           Text(
-            '用户 2026-10-05 拍板：回到旧观感 copper700 —— copper900 虽然对比达标（7.1:1）但发闷，'
-            '宁可接受 2.95:1 的对比不达标。铜色要到 copper800 那档才能两头兼顾，'
-            '而它现在取不到（只存在于 Palette，AppColors 里没有），要走 B 类加一对'
-            '「实心强调 / 其上文字」token 才用得上',
+            '暗色那边的问题相反：实心块 copper600 对近黑的卡是 6.32:1，是「一块亮铜」；'
+            '暗色想退只能退到 interactiveLow（= copper700，4.66:1）。'
+            '浅色则是六个面之间全在 1.1:1 左右、分不出层级 —— '
+            '两个主题的根子是同一个：AppColors 只有「明度差」这一种表达层级的手段，而这套值没按主题校准',
             style: theme.textTheme.bodySmall,
           ),
           Text('依据', style: theme.textTheme.titleSmall),
