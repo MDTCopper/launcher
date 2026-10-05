@@ -38,6 +38,7 @@ class CopperListView extends StatefulWidget {
   final double trackpadSensitivity;
   final double maxVelocity;
   final AlignmentGeometry? scrollbarAlignment;
+  final bool showScrollbar;
 
   // ── 渐变遮罩 ──
   final bool fadeMask;
@@ -68,6 +69,7 @@ class CopperListView extends StatefulWidget {
     this.trackpadSensitivity = 1.0,
     this.maxVelocity = 3000,
     this.scrollbarAlignment,
+    this.showScrollbar = true,
     this.fadeMask = true,
     this.estimatedMaxScrollExtent,
   }) : itemBuilder = null,
@@ -97,6 +99,7 @@ class CopperListView extends StatefulWidget {
     this.trackpadSensitivity = 1.0,
     this.maxVelocity = 3000,
     this.scrollbarAlignment,
+    this.showScrollbar = true,
     this.fadeMask = true,
     this.estimatedMaxScrollExtent,
   }) : children = const [];
@@ -178,11 +181,13 @@ class _CopperListViewState extends State<CopperListView> {
         trackpadSensitivity: widget.trackpadSensitivity,
         maxVelocity: widget.maxVelocity,
         scrollbarAlignment: widget.scrollbarAlignment,
+        showScrollbar: widget.showScrollbar,
+        fadeMask: widget.fadeMask,
         estimatedMaxScrollExtent: widget.estimatedMaxScrollExtent,
         child: child,
       );
-    }
-    if (widget.fadeMask && !widget.shrinkWrap) {
+    } else if (widget.fadeMask && !widget.shrinkWrap) {
+      // 非桌面端没有自绘滚动条，遮罩直接包滚动视图
       child = ScrollFadeMask(
         controller: _scrollController,
         scrollDirection: widget.scrollDirection,

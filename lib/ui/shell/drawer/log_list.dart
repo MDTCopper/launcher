@@ -275,9 +275,15 @@ class _TaskLogListState extends State<TaskLogList> {
     );
 
     if (Platform.isWindows) {
-      list = DesktopScrollViewContainer(controller: controller, child: list);
+      list = DesktopScrollViewContainer(
+        controller: controller,
+        fadeMask: true,
+        child: list,
+      );
+    } else {
+      // 非 Windows 没有自绘滚动条，遮罩直接包滚动视图
+      list = ScrollFadeMask(controller: controller, child: list);
     }
-    list = ScrollFadeMask(controller: controller, child: list);
     return list;
   }
 }

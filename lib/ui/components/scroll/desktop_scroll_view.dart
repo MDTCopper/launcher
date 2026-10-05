@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:copper_launcher/ui/components/scroll/scroll_fade_mask.dart';
 import 'package:copper_launcher/ui/util/mixin/stateful_mixin.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +24,8 @@ class DesktopScrollViewContainer extends StatefulWidget {
     this.scrollbarAlignment,
     this.maxVelocity = 2000,
     this.estimatedMaxScrollExtent,
+    this.showScrollbar = true,
+    this.fadeMask = false,
   });
 
   final Widget child;
@@ -46,6 +49,12 @@ class DesktopScrollViewContainer extends StatefulWidget {
   /// 触控板惯性速度上限（px/s），<= 0 表示不限速
   /// 速度经 tanh 非线性映射：低速≈真实，高速渐近逼近该值
   final double maxVelocity;
+
+  /// 是否绘制滚动条；关掉后滚轮与触控板照常接管
+  final bool showScrollbar;
+
+  /// 是否对内容两端做淡化遮罩；遮罩只包内容，滚动条画在其上层不受影响
+  final bool fadeMask;
 
   final ScrollController controller;
 
@@ -521,9 +530,19 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
             }
             return false;
           },
-          child: widget.child,
+          child: _buildContent(),
         ),
       ),
+    );
+  }
+
+  /// 内容两端淡化；遮罩只包内容，滚动条画在 Stack 上层所以不被淡化
+  Widget _buildContent() {
+    if (!widget.fadeMask) return widget.child;
+    return ScrollFadeMask(
+      controller: _controller,
+      scrollDirection: widget.scrollDirection,
+      child: widget.child,
     );
   }
 
@@ -715,7 +734,8 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
         // Align 在松散约束下会撑满 constraints.biggest（如下拉菜单
         // maxHeight 封顶 200）→ 把整个 Stack 撑成 200、菜单莫名变高；
         // 页面级紧约束下两者结果一致，行为不变
-        if (_controller.hasClients) Positioned.fill(child: _buildScrollBar()),
+        if (_controller.hasClients && widget.showScrollbar)
+          Positioned.fill(child: _buildScrollBar()),
       ],
     );
   }

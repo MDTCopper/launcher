@@ -29,6 +29,7 @@ class CopperSingleChildScrollView extends StatefulWidget {
   final double trackpadSensitivity; // 触控板灵敏度
   final double maxVelocity; // 触控板惯性速度上限
   final AlignmentGeometry? scrollbarAlignment; // 滚动条位置
+  final bool showScrollbar; // 是否绘制滚动条
 
   // ── 渐变遮罩 ──
   final bool fadeMask;
@@ -51,6 +52,7 @@ class CopperSingleChildScrollView extends StatefulWidget {
     this.trackpadSensitivity = 1.0,
     this.maxVelocity = 3000,
     this.scrollbarAlignment,
+    this.showScrollbar = true,
     this.fadeMask = true,
   });
 
@@ -100,10 +102,12 @@ class _CopperSingleChildScrollViewState
         trackpadSensitivity: widget.trackpadSensitivity,
         maxVelocity: widget.maxVelocity,
         scrollbarAlignment: widget.scrollbarAlignment,
+        showScrollbar: widget.showScrollbar,
+        fadeMask: widget.fadeMask,
         child: child,
       );
-    }
-    if (widget.fadeMask) {
+    } else if (widget.fadeMask) {
+      // 非桌面端没有自绘滚动条，遮罩直接包滚动视图
       child = ScrollFadeMask(
         controller: _scrollController,
         scrollDirection: widget.scrollDirection,

@@ -1,8 +1,13 @@
-import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-/// 滚动渐变遮罩：内容滚动时在起始/结束端显示渐隐遮罩（垂直：顶部/底部，
+/// 滚动渐变遮罩：内容滚动时在起始/结束端沿线淡化（垂直：顶部/底部，
 /// 水平：左侧/右侧），模拟内容"沉入/浮出"的效果
+///
+/// 用 shader 遮罩按不透明度淡化组件自身，不铺任何颜色 —— 淡出后露出的是
+/// 真实背景，落在卡片、弹层、页面哪种底色上都对
+///
+/// 遮罩一直挂在树上，到边界那一端把不透明度置 1；淡化随滚动重绘直接切过来，
+/// 不做补间
 class ScrollFadeMask extends StatefulWidget {
   final Widget child;
   final ScrollController controller;
@@ -34,10 +39,15 @@ class _ScrollFadeMaskState extends State<ScrollFadeMask>
     widget.controller.addListener(_updateFade);
     WidgetsBinding.instance.addObserver(this);
     _updateFade();
+    // initState 时位置还没接上，帧后再算一次，否则首帧到边界那一端不淡化
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateFade();
+    });
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_updateFade);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -48,80 +58,84 @@ class _ScrollFadeMaskState extends State<ScrollFadeMask>
     _updateFade();
   }
 
+  @override
+  void didUpdateWidget(covariant ScrollFadeMask oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_updateFade);
+      widget.controller.addListener(_updateFade);
+      _updateFade();
+    }
+  }
+
   void _updateFade() {
     if (!widget.controller.hasClients) return;
-    final maxScroll = widget.controller.position.maxScrollExtent;
-    final offset = widget.controller.offset;
+    final position = widget.controller.position;
+    final showStart = position.pixels > 0;
+    final showEnd = position.pixels < position.maxScrollExtent;
+    if (showStart == showStartFade && showEnd == showEndFade) return;
     setState(() {
-      showStartFade = offset > 0;
-      showEndFade = offset < maxScroll;
+      showStartFade = showStart;
+      showEndFade = showEnd;
     });
   }
 
-  /// 渐变遮罩：[start] 为 true 时起始端（顶部 / 左侧）渐隐，否则结束端
-  Widget _buildFade(bool show, bool start) {
-    final colors = AppColors.of(context);
-    // IgnorePointer：遮罩只做视觉渐隐，不拦截下层交互（点击 / 滚动 / 悬停）
-    return IgnorePointer(
-      child: AnimatedOpacity(
-        opacity: show ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 100),
-        child: Container(
-          height: _isVertical ? widget.fadeSize : double.infinity,
-          width: _isVertical ? double.infinity : widget.fadeSize,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: _isVertical
-                  ? (start ? Alignment.topCenter : Alignment.bottomCenter)
-                  : (start ? Alignment.centerLeft : Alignment.centerRight),
-              end: _isVertical
-                  ? (start ? Alignment.bottomCenter : Alignment.topCenter)
-                  : (start ? Alignment.centerRight : Alignment.centerLeft),
-              colors: [
-                colors.cardBackground,
-                colors.cardBackground.withAlpha(0),
-              ],
-            ),
-          ),
-        ),
-      ),
+  /// 两端淡化：起始端从全透明渐入，结束端渐出到全透明；只淡一端时另一端
+  /// 全程不透明，两端都淡化时中间按不透明段插值（太窄就直接首尾相接）
+  ///
+  /// [stop] 是遮罩长度占主轴长度的比例，由 [build] 按实际约束算出来
+  LinearGradient _buildFadeGradient(double stop) {
+    const opaque = Color(0xFF000000);
+    const transparent = Color(0x00000000);
+
+    // 两端都不淡化（内容没溢出、或正停在两端之间）：给一段全不透明渐变，
+    // 颜色数不少于 2 是 shader 的硬要求
+    if (!showStartFade && !showEndFade) {
+      return const LinearGradient(colors: [opaque, opaque]);
+    }
+
+    final stops = <double>[];
+    final colors = <Color>[];
+
+    if (showStartFade) {
+      stops.addAll([0.0, stop]);
+      colors.addAll([transparent, opaque]);
+    }
+    if (showEndFade) {
+      final start = showStartFade ? 1 - stop : 0.0;
+      stops.addAll([start, 1.0]);
+      colors.addAll([opaque, transparent]);
+    }
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: _isVertical ? Alignment.bottomLeft : Alignment.topRight,
+      colors: colors,
+      stops: stops,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        widget.child,
-        if (_isVertical)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _buildFade(showStartFade, true),
-          )
-        else
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: _buildFade(showStartFade, true),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mainAxisLength = _isVertical
+            ? constraints.maxHeight
+            : constraints.maxWidth;
+        // 主轴无界（如 shrinkWrap 的列表）时沿该轴没有可淡化的长度
+        if (mainAxisLength <= 0 || !mainAxisLength.isFinite) {
+          return widget.child;
+        }
+
+        // 遮罩不能超过主轴一半，否则两端淡化会啃到中间
+        final stop = (widget.fadeSize / mainAxisLength).clamp(0.0, 0.5);
+        return ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (bounds) => _buildFadeGradient(stop).createShader(
+            Rect.fromLTWH(0, 0, bounds.width, bounds.height),
           ),
-        if (_isVertical)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildFade(showEndFade, false),
-          )
-        else
-          Positioned(
-            right: 0,
-            top: 0,
-            bottom: 0,
-            child: _buildFade(showEndFade, false),
-          ),
-      ],
+          child: widget.child,
+        );
+      },
     );
   }
 }
