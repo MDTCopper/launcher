@@ -103,6 +103,36 @@ void main() {
           '换来悬停可见且白字升到 ${toneContrast(t.onAccent, hovered).toStringAsFixed(2)}:1',
         );
       }
+      // 分段：选中格坐着的「底」是凹槽而不是卡面 —— 悬停后不能掉到凹槽那一侧
+      final pill = t.raised;
+      double shiftOf(double amount, bool white) {
+        final o = white ? 255 : 0;
+        var best = 0.0;
+        for (final v in [
+          (pill >> 16) & 0xFF,
+          (pill >> 8) & 0xFF,
+          pill & 0xFF,
+        ]) {
+          final moved = ((o - v) * amount).abs();
+          if (moved > best) best = moved;
+        }
+        return best;
+      }
+
+      var pillAmount = dark ? 0.10 : 0.08;
+      var pillWhite = toneLuminance(pill) > toneLuminance(t.sunken);
+      if (shiftOf(pillAmount, pillWhite) < 3) {
+        pillWhite = !pillWhite;
+        pillAmount = pillAmount / 2;
+      }
+      final pillHover = on(pill, pillAmount, pillWhite);
+      print(
+        '  分段选中格：静止 ${hex(pill)} → 悬停 ${hex(pillHover)}'
+        '（对凹槽底 ${hex(t.sunken)} 的区分度 '
+        '${toneContrast(pillHover, t.sunken).toStringAsFixed(2)}:1）',
+      );
+      pair('悬停后的选中格 / 凹槽底', pillHover, t.sunken, 1.08, failures: failures);
+
       // 控件面与卡面的区分（容器的层级差，故意低但不能没有）；
       // 亮色的「抬升」与卡面同色（普通按钮靠文字认，不靠底色差），所以只查暗色
       pair('控件面 / 卡面（层级差）', t.sunken, t.surface, 1.2, failures: failures);

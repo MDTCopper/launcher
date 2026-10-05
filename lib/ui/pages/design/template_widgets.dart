@@ -1,5 +1,6 @@
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
 import 'template_skin.dart';
@@ -225,6 +226,12 @@ class TemplateSwitchRow extends StatelessWidget {
 }
 
 /// 按钮：几何完全一样，只差底色与前景
+///
+/// 四档的**面**：实心 = 主题色底；标准（plain）= 抬升底 + 1px 描边；安静（quiet）= 无面；
+/// 破坏（danger）= 无面 + 危险文字。标准档为什么必须有描边：亮色的卡面已经接近白，
+/// 抬升底与卡面同色 ⇒ 只靠底色差根本看不出是个按钮（用户 2026-10-05
+/// 「亮色和暗色的按钮类型不一致，亮色没有软底」）——Fluent 的标准按钮在亮色下就是
+/// 「面 + 描边」，描边才是它可辨认的原因，暗色下那层更亮的面只是额外加的一档
 class TemplateButton extends StatelessWidget {
   const TemplateButton({
     super.key,
@@ -252,7 +259,7 @@ class TemplateButton extends StatelessWidget {
     // 实心上的状态要更明显，而且是「压暗」而不是按主题方向（见 solidHoverOn）
     final solid = kind == TemplateButtonKind.solid;
 
-    return ReboundButton(
+    final button = ReboundButton(
       onTap: onTap ?? () {},
       backgroundColor: background,
       hoverColor: solid
@@ -281,6 +288,20 @@ class TemplateButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    // 标准档的面靠描边可辨认（前景层画，不然会被自己的底色盖住）
+    if (kind != TemplateButtonKind.plain) return button;
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TemplateRadius.control),
+        border: Border.all(
+          color: skin.controlBorder,
+          width: AppBorderWidth.hairline,
+        ),
+      ),
+      child: button,
     );
   }
 }
@@ -364,13 +385,17 @@ class TemplateSegment extends StatelessWidget {
               child: ReboundContainer(
                 onTap: () => onTap(i),
                 borderRadius: BorderRadius.circular(TemplateRadius.control),
-                // 选中的那一格用抬升档：暗色里控件面（凹槽档）比卡面亮，选中要更亮一层
+                // 选中的那一格用抬升档：暗色里控件面比卡面亮，选中要更亮一层
                 backgroundColor: value == i ? skin.raised : Colors.transparent,
+                // 状态色的「底」是分段的凹槽而不是卡面 —— 亮色下选中格接近白，
+                // 叠黑会落到凹槽底上、看着像选中格在悬停时消失
                 hoverColor: skin.hoverOn(
                   value == i ? skin.raised : Colors.transparent,
+                  on: skin.sunken,
                 ),
                 highlightColor: skin.pressedOn(
                   value == i ? skin.raised : Colors.transparent,
+                  on: skin.sunken,
                 ),
                 padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
                 child: Text(

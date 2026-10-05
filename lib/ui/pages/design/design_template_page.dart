@@ -1,6 +1,7 @@
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
+import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
 import 'template_skin.dart';
@@ -455,11 +456,14 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
                 onTap: () => onTap(i),
                 borderRadius: BorderRadius.circular(TemplateRadius.control),
                 backgroundColor: value == i ? skin.raised : Colors.transparent,
+                // 状态色的底是分段的凹槽而不是卡面（与共享层一致）
                 hoverColor: skin.hoverOn(
                   value == i ? skin.raised : Colors.transparent,
+                  on: skin.sunken,
                 ),
                 highlightColor: skin.pressedOn(
                   value == i ? skin.raised : Colors.transparent,
+                  on: skin.sunken,
                 ),
                 padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
                 child: Text(
@@ -492,7 +496,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       _Kind.danger => (Colors.transparent, skin.dangerText),
     };
 
-    return ReboundButton(
+    final button = ReboundButton(
       onTap: _noop,
       backgroundColor: background,
       hoverColor: kind == _Kind.solid
@@ -521,6 +525,20 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
           ),
         ),
       ),
+    );
+
+    // 标准档靠 1px 描边可辨认（前景层画，否则会被自己的底色盖住）；与共享层一致
+    if (kind != _Kind.plain) return button;
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TemplateRadius.control),
+        border: Border.all(
+          color: skin.controlBorder,
+          width: AppBorderWidth.hairline,
+        ),
+      ),
+      child: button,
     );
   }
 

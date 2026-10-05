@@ -143,17 +143,22 @@ class TemplateSkin {
 
   /// 悬停 / 按下：压在**控件自己的底色**上算出来的一层
   ///
-  /// 三条规则（前两条是踩出来的）：
+  /// 四条规则（前三条都是踩出来的）：
   /// ① **必须是半透明的一层** —— `ReboundContainer` 的悬浮层是 `Positioned.fill`
   ///    画在**内容之上**的，给不透明色会直接把字盖掉（用户 2026-10-05「部分按钮悬停字会消失」）
-  /// ② 方向按「离卡面更远」：亮色压暗；暗色下控件面比卡面**亮**（Fluent 的暗色模型是
-  ///    抬升即提亮）⇒ 提亮，而且不会撞上卡面。原来暗色把控件面压在卡面**之下**，
-  ///    提亮一层就正好落在卡面上，只能压到 2% 才不越界 ⇒ 悬停几乎看不出
-  ///    （用户 2026-10-05「暗一点的按钮悬停几乎没有效果」）
-  /// ③ 透明底就叠在卡面上，直接给
-  Color hoverOn(Color base) => _stateOn(base, dark ? 0.10 : 0.08);
+  /// ② **方向按「离开它坐着的那个面」**，不是一律按主题：同一个主题里，控件可能坐在卡面上、
+  ///    也可能坐在分段的凹槽底上，一律叠白/黑会让其中一种撞上它的底
+  /// ③ **推不动就反向推一半**：亮色下分段的选中格已经接近白色（tone 98），再提亮几乎没有
+  ///    变化，而叠一层黑又会落到凹槽底（tone 90）上 —— 看着像选中格在悬停时消失
+  ///    （用户 2026-10-05「激活按钮在悬停时会与背景融合」）
+  /// ④ 透明底：它显示的就是坐着的那个面，按主题方向给
+  ///
+  /// [on] 是控件实际坐着的面，默认卡面；分段里传它的凹槽底
+  Color hoverOn(Color base, {Color? on}) =>
+      _stateOn(base, on ?? surface, dark ? 0.10 : 0.08);
 
-  Color pressedOn(Color base) => _stateOn(base, dark ? 0.16 : 0.13);
+  Color pressedOn(Color base, {Color? on}) =>
+      _stateOn(base, on ?? surface, dark ? 0.16 : 0.13);
 
   /// 实心按钮的状态：**朝远离其上文字的方向**走 —— 文字是近白，所以两个主题都压暗，
   /// 幅度再大一档（饱和实心上 6~8% 的叠层几乎看不出，用户 2026-10-05
@@ -166,8 +171,35 @@ class TemplateSkin {
   Color solidPressedOn(Color base) =>
       _overlayOn(base, dark ? 0.24 : 0.22, Colors.black);
 
-  Color _stateOn(Color base, double amount) =>
-      _overlayOn(base, amount, dark ? Colors.white : Colors.black);
+  Color _stateOn(Color base, Color backdrop, double amount) {
+    if (base.a < 1) {
+      return _overlayOn(base, amount, dark ? Colors.white : Colors.black);
+    }
+    final lighter =
+        toneLuminance(base.toARGB32()) > toneLuminance(backdrop.toARGB32());
+    var overlay = lighter ? Colors.white : Colors.black;
+    var applied = amount;
+    if (_shift(base, overlay, applied) < 3) {
+      overlay = lighter ? Colors.black : Colors.white;
+      applied = amount / 2;
+    }
+    return _overlayOn(base, applied, overlay);
+  }
+
+  /// 叠一层之后通道最大的位移（用来判断「这个方向还推得动吗」）
+  double _shift(Color base, Color overlay, double amount) {
+    final channels = [
+      (base.r * 255, overlay.r * 255),
+      (base.g * 255, overlay.g * 255),
+      (base.b * 255, overlay.b * 255),
+    ];
+    var shift = 0.0;
+    for (final (b, o) in channels) {
+      final moved = (o * amount + b * (1 - amount) - b).abs();
+      if (moved > shift) shift = moved;
+    }
+    return shift;
+  }
 
   Color _overlayOn(Color base, double amount, Color overlay) =>
       overlay.withAlpha((amount * 255).round());
