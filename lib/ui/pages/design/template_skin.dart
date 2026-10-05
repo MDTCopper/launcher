@@ -220,7 +220,10 @@ class TemplateSkin {
       ),
       accentText: _solveOn(
         hue: hue,
-        saturation: 0.55,
+        // 暗色下这一档是**亮的小字与图标**（提示条图标、链接、标记），饱和度
+        // 0.55 时钍 / 塑钢会跑出很鲜的粉与绿，小字上显得吵 ⇒ 降到 0.38，
+        // 对比度仍锁在 5.5（用户 2026-10-05：小字在暗色下的主题色还是重）
+        saturation: 0.38,
         background: surface,
         target: 5.5,
         lighter: true,
