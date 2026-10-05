@@ -77,6 +77,9 @@ class CloudSaveService {
   /// 「恢复」前的本机备份放这里，同样**不在游戏数据目录里**
   static String get backupDir => p.join(_root, 'cloud-backups');
 
+  /// 清单哈希缓存（按大小与修改时间复用 sha256，见 `CloudHashCache`）
+  static String get hashCachePath => p.join(_root, 'cloud-manifest-cache.json');
+
   /// 备份文件名前缀（清理旧备份时按它认人）
   static const backupFilePrefix = 'cloud-backup-';
 
@@ -234,7 +237,7 @@ class CloudSaveService {
 
     try {
       onStatus?.call('打包本机存档');
-      final export = await CloudArchive.export(
+      final export = await _exportWithCache(
         version: version,
         outputPath: archivePath,
         deviceName: name,
@@ -474,7 +477,7 @@ class CloudSaveService {
         .substring(0, 19)
         .replaceAll(RegExp('[:.]'), '-');
     try {
-      return await CloudArchive.export(
+      return await _exportWithCache(
         version: version,
         outputPath: p.join(backupDir, '$backupFilePrefix$stamp.zip'),
         deviceName: deviceName,
@@ -482,6 +485,39 @@ class CloudSaveService {
     } catch (error) {
       throw MdtbbsException(
         message: '备份本机存档失败，已中止恢复：${removeNewlines('$error')}',
+      );
+    }
+  }
+
+  /// 导出云包，顺带用上哈希缓存
+  ///
+  /// 一次扫描要给真数据里 248 MiB 的模组 jar 逐份算指纹（约 4-6 秒），而缓存让
+  /// **没变过的文件只 stat 一次**。缓存读写失败都不影响导出（见 [CloudHashCache]）
+  static Future<CloudArchiveExport> _exportWithCache({
+    required Mindustry version,
+    required String outputPath,
+    required String deviceName,
+    bool includePreviews = false,
+    bool includeModBytes = false,
+    void Function(String status)? onStatus,
+  }) async {
+    final cache = CloudHashCache.load(hashCachePath);
+    try {
+      return await CloudArchive.export(
+        version: version,
+        outputPath: outputPath,
+        deviceName: deviceName,
+        includePreviews: includePreviews,
+        includeModBytes: includeModBytes,
+        onStatus: onStatus,
+        cache: cache,
+      );
+    } finally {
+      cache.save();
+      addLog(
+        .info,
+        '清单哈希缓存：复用 ${cache.hits} 份 / 重算 ${cache.misses} 份',
+        tag: 'Cloud',
       );
     }
   }

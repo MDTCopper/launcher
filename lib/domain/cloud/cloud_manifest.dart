@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -287,13 +290,15 @@ class CloudManifest {
   /// 扫一遍这个版本的数据目录，生成清单（**纯本地，不联网**）
   ///
   /// [includeModBytes] 为 true 时把模组字节也算成「随包带」（私有模组没法重新下载）；
-  /// [includePreviews] 为 true 时把游戏生成的预览图也带上
+  /// [includePreviews] 为 true 时把游戏生成的预览图也带上；
+  /// [cache] 传了就复用没变过的文件的哈希（见 [CloudHashCache]）
   static Future<CloudManifest> scan({
     required Mindustry version,
     required String deviceName,
     String? account,
     bool includeModBytes = false,
     bool includePreviews = false,
+    CloudHashCache? cache,
   }) async {
     final dataPath = version.dataPath;
     final settings = _readModStates(dataPath);
@@ -305,6 +310,7 @@ class CloudManifest {
         await _scanFolder(
           directory: p.join(dataPath, category.folder),
           category: category,
+          cache: cache,
         ),
       );
     }
@@ -317,6 +323,7 @@ class CloudManifest {
           isCopper: isCopper,
           states: settings,
           includeBytes: includeModBytes,
+          cache: cache,
         ),
       );
     }
@@ -337,6 +344,7 @@ class CloudManifest {
   static Future<List<CloudFileEntry>> _scanFolder({
     required String directory,
     required CloudCategory category,
+    CloudHashCache? cache,
   }) async {
     final folder = Directory(directory);
     if (!folder.existsSync()) return const [];
@@ -361,7 +369,7 @@ class CloudManifest {
           category: category,
           name: name,
           size: entity.lengthSync(),
-          sha256: sha256OfFile(entity.path),
+          sha256: cache?.hashOf(entity.path) ?? sha256OfFile(entity.path),
           meta: meta,
         ),
       );
@@ -375,6 +383,7 @@ class CloudManifest {
     required bool isCopper,
     required Map<String, bool> states,
     required bool includeBytes,
+    CloudHashCache? cache,
   }) async {
     final folder = Directory(directory);
     if (!folder.existsSync()) return const [];
@@ -400,7 +409,7 @@ class CloudManifest {
         CloudModEntry(
           fileName: name,
           size: entity.lengthSync(),
-          sha256: sha256OfFile(entity.path),
+          sha256: cache?.hashOf(entity.path) ?? sha256OfFile(entity.path),
           isCopper: isCopper,
           internalName: mod?.internalName,
           displayName: mod?.name,
@@ -437,10 +446,152 @@ class CloudManifest {
 }
 
 /// 文件的 sha256（清单的完整性凭据）
-String sha256OfFile(String path) => sha256OfBytes(File(path).readAsBytesSync());
+///
+/// **逐块读着算**：模组 jar 动辄几十 MB（真数据 15 个共 248 MiB），
+/// 整份读进内存既慢又白占内存
+String sha256OfFile(String path) {
+  late Digest digest;
+  final sink = sha256.startChunkedConversion(
+    _DigestSink((value) => digest = value),
+  );
+  final handle = File(path).openSync();
+  try {
+    const chunkSize = 64 * 1024;
+    while (true) {
+      final chunk = handle.readSync(chunkSize);
+      if (chunk.isEmpty) break;
+      sink.add(chunk);
+    }
+  } finally {
+    handle.closeSync();
+  }
+  sink.close();
+  return digest.toString();
+}
+
+/// `startChunkedConversion` 要的是 `Sink<Digest>`，这里收下最后那一个结果
+class _DigestSink implements Sink<Digest> {
+  _DigestSink(this._onDone);
+
+  final void Function(Digest digest) _onDone;
+
+  @override
+  void add(Digest data) => _onDone(data);
+
+  @override
+  void close() {}
+}
 
 /// 一段字节的 sha256（打包 / 解包逐份校验都用它）
 String sha256OfBytes(List<int> bytes) => sha256.convert(bytes).toString();
+
+/// 文件哈希缓存：按 `(大小, 修改时间)` 判断上次算出来的 sha256 还能不能复用
+///
+/// 一次扫描要给真数据里 **248 MiB 的模组 jar** 逐份算指纹（清单必须记内容），
+/// 而扫描在上传前、备份前、将来的自动同步判断里都会跑 ⇒ 没变过的文件只 `stat` 一次。
+///
+/// 任何读 / 写失败都当**没有缓存**处理，绝不因为缓存把上传搞挂；
+/// 「大小与修改时间都没变」是唯一判据 —— 同秒内改成长度相同的字节会拿到旧哈希，
+/// 但那会在打包后的逐份复核里被判出来（`CloudArchiveExport.dropped`），不会进云包
+class CloudHashCache {
+  CloudHashCache._(this.path, this._entries);
+
+  /// 缓存文件路径（通常放在数据根下）
+  final String path;
+
+  final Map<String, _HashEntry> _entries;
+
+  /// 本次扫到过的路径：写回时只留这些，删掉的文件不会永远占着条目
+  final Set<String> _seen = {};
+
+  int hits = 0;
+  int misses = 0;
+
+  static CloudHashCache load(String path) {
+    final file = File(path);
+    if (!file.existsSync()) return CloudHashCache._(path, {});
+    try {
+      final decoded = jsonDecode(file.readAsStringSync());
+      final raw = decoded is Map ? decoded['entries'] : null;
+      if (raw is! Map) return CloudHashCache._(path, {});
+
+      final entries = <String, _HashEntry>{};
+      raw.forEach((key, value) {
+        if (value is! Map) return;
+        final size = value['size'];
+        final mtime = value['mtime'];
+        final sha = value['sha256'];
+        if (size is int && mtime is int && sha is String && sha.length == 64) {
+          entries['$key'] = _HashEntry(size, mtime, sha);
+        }
+      });
+      return CloudHashCache._(path, entries);
+    } catch (error) {
+      addLog(
+        .warning,
+        '哈希缓存读不出来，当没有缓存处理：${removeNewlines('$error')}',
+        tag: 'Cloud',
+      );
+      return CloudHashCache._(path, {});
+    }
+  }
+
+  /// 这个文件的 sha256：大小与修改时间都没变就复用上次那份
+  String hashOf(String path) {
+    final key = _key(path);
+    _seen.add(key);
+
+    final stat = File(path).statSync();
+    final mtime = stat.modified.millisecondsSinceEpoch;
+    final cached = _entries[key];
+    if (cached != null && cached.size == stat.size && cached.mtime == mtime) {
+      hits++;
+      return cached.sha256;
+    }
+
+    final sha = sha256OfFile(path);
+    misses++;
+    _entries[key] = _HashEntry(stat.size, mtime, sha);
+    return sha;
+  }
+
+  void save() {
+    try {
+      final directory = Directory(p.dirname(path));
+      if (!directory.existsSync()) directory.createSync(recursive: true);
+      File(path).writeAsStringSync(
+        jsonEncode({
+          'version': 1,
+          'entries': {
+            for (final entry in _entries.entries)
+              if (_seen.contains(entry.key))
+                entry.key: {
+                  'size': entry.value.size,
+                  'mtime': entry.value.mtime,
+                  'sha256': entry.value.sha256,
+                },
+          },
+        }),
+      );
+    } catch (error) {
+      addLog(.warning, '哈希缓存写入失败：${removeNewlines('$error')}', tag: 'Cloud');
+    }
+  }
+
+  /// 路径大小写不敏感的平台上要归一，否则同一个文件会记成两条
+  static String _key(String path) {
+    final normalized = p.normalize(path);
+    return Platform.isWindows ? normalized.toLowerCase() : normalized;
+  }
+}
+
+class _HashEntry {
+  const _HashEntry(this.size, this.mtime, this.sha256);
+
+  final int size;
+  final int mtime;
+  final String sha256;
+}
 
 /// 走加载器的版本才有 loader 版本号（就从记录里的 jar 文件名读，与库内复用同口径）
 class LoaderLibraryVersion {

@@ -54,6 +54,7 @@ class CloudArchive {
     bool includePreviews = false,
     bool includeModBytes = false,
     void Function(String status)? onStatus,
+    CloudHashCache? cache,
   }) async {
     final manifest = await CloudManifest.scan(
       version: version,
@@ -61,6 +62,7 @@ class CloudArchive {
       account: account,
       includePreviews: includePreviews,
       includeModBytes: includeModBytes,
+      cache: cache,
     );
     final dataPath = version.dataPath;
     final dropped = <String>[];
