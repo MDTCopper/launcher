@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'design_about_rework_page.dart';
 import 'design_experiments_page.dart';
+import 'design_setting_rework_page.dart';
 import 'design_structure_page.dart';
 
 const designExamplePageRouteKey = '/design/example';
@@ -29,6 +30,7 @@ class _DesignExamplePageState extends State<DesignExamplePage>
     DesignStructurePage(),
     DesignExperimentsPage(),
     DesignAboutReworkPage(),
+    DesignSettingReworkPage(),
   ];
 
   void moveTo(int i) {
@@ -44,6 +46,8 @@ class _DesignExamplePageState extends State<DesignExamplePage>
         _index = 1;
       case designAboutReworkPageRouteKey:
         _index = 2;
+      case designSettingReworkPageRouteKey:
+        _index = 3;
     }
   }
 
@@ -73,6 +77,13 @@ class _DesignExamplePageState extends State<DesignExamplePage>
             content: '关于页重做',
             onTap: () => moveTo(2),
             selected: _index == 2,
+            collapse: collapse,
+          ),
+          NavigationTile(
+            icon: const Icon(Icons.tune),
+            content: '设置页重做',
+            onTap: () => moveTo(3),
+            selected: _index == 3,
             collapse: collapse,
           ),
         ],
