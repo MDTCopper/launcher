@@ -222,9 +222,13 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
 
   // ════════ 分组卡：标题在卡内、小字、中性色 ════════
 
+  /// 分组卡：标题在卡外、小字中性色；标题不给就是一张纯内容卡
+  ///
+  /// **内容一律落在卡面上** —— 行直接贴在页面底上时，静止状态看不出这一组从哪到哪，
+  /// 只有悬停才显形；卡面提供的是「共同区域」这条最省力的分组手段（2026-10-05 用户指出）
   Widget _buildSection(
     TemplateSkin skin, {
-    required String title,
+    String? title,
     required Widget child,
     EdgeInsetsGeometry padding = const EdgeInsets.all(TemplateSpace.lg),
   }) {
@@ -234,13 +238,14 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: TemplateSpace.sm,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: TemplateSpace.xs),
-            child: Text(
-              title,
-              style: TemplateType.section.copyWith(color: skin.textSecondary),
+          if (title != null)
+            Padding(
+              padding: const EdgeInsets.only(left: TemplateSpace.xs),
+              child: Text(
+                title,
+                style: TemplateType.section.copyWith(color: skin.textSecondary),
+              ),
             ),
-          ),
           DecoratedBox(
             decoration: BoxDecoration(
               color: skin.surface,
@@ -898,35 +903,85 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       spacing: TemplateSpace.lg,
       children: [
         _buildMockLabel(skin, '模拟页：主页'),
-        _buildRow(
+        // 当前版本：一张卡面 + 唯一的实心主行动
+        _buildSection(
           skin,
-          padding: const EdgeInsets.all(TemplateSpace.lg),
-          child: Row(
+          padding: const EdgeInsets.all(TemplateSpace.sm),
+          child: Column(
+            spacing: 2,
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: skin.accentTint,
-                  borderRadius: BorderRadius.circular(TemplateRadius.card),
-                ),
-                child: Icon(Icons.memory, size: 28, color: skin.onAccentTint),
-              ),
-              const SizedBox(width: TemplateSpace.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: TemplateSpace.xs,
+              _buildRow(
+                skin,
+                padding: const EdgeInsets.all(TemplateSpace.md),
+                child: Row(
                   children: [
-                    Text(
-                      'v160.5',
-                      style: TemplateType.page.copyWith(
-                        color: skin.textPrimary,
+                    Container(
+                      width: 56,
+                      height: 56,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: skin.accentTint,
+                        borderRadius: BorderRadius.circular(
+                          TemplateRadius.card,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.memory,
+                        size: 28,
+                        color: skin.onAccentTint,
                       ),
                     ),
+                    const SizedBox(width: TemplateSpace.lg),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: TemplateSpace.xs,
+                        children: [
+                          Text(
+                            'v160.5',
+                            style: TemplateType.page.copyWith(
+                              color: skin.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            '桌面版 · Copper 加载器 · 已隔离数据目录',
+                            style: TemplateType.caption.copyWith(
+                              color: skin.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: TemplateSpace.lg),
+                    _buildButton(
+                      skin,
+                      label: '启动游戏',
+                      icon: Icons.play_arrow,
+                      kind: _Kind.solid,
+                    ),
+                  ],
+                ),
+              ),
+              _buildRow(
+                skin,
+                child: Row(
+                  spacing: TemplateSpace.md,
+                  children: [
+                    _buildButton(
+                      skin,
+                      label: '版本设置',
+                      icon: Icons.tune,
+                      kind: _Kind.plain,
+                    ),
+                    _buildButton(
+                      skin,
+                      label: '打开数据目录',
+                      icon: Icons.folder_open,
+                      kind: _Kind.quiet,
+                    ),
+                    const Spacer(),
                     Text(
-                      '桌面版 · Copper 加载器 · 已隔离数据目录',
+                      '上次启动 2 小时前',
                       style: TemplateType.caption.copyWith(
                         color: skin.textTertiary,
                       ),
@@ -934,50 +989,26 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
                   ],
                 ),
               ),
-              const SizedBox(width: TemplateSpace.lg),
-              _buildButton(
-                skin,
-                label: '启动游戏',
-                icon: Icons.play_arrow,
-                kind: _Kind.solid,
-              ),
             ],
           ),
         ),
-        Row(
-          spacing: TemplateSpace.md,
-          children: [
-            _buildButton(
-              skin,
-              label: '版本设置',
-              icon: Icons.tune,
-              kind: _Kind.plain,
-            ),
-            _buildButton(
-              skin,
-              label: '打开数据目录',
-              icon: Icons.folder_open,
-              kind: _Kind.quiet,
-            ),
-            const Spacer(),
-            Text(
-              '上次启动 2 小时前',
-              style: TemplateType.caption.copyWith(color: skin.textTertiary),
-            ),
-          ],
-        ),
-        Wrap(
-          spacing: TemplateSpace.md,
-          runSpacing: TemplateSpace.md,
-          children: [
-            for (final item in const [
-              (icon: Icons.save, label: '存档'),
-              (icon: Icons.map_outlined, label: '地图'),
-              (icon: Icons.paste, label: '蓝图'),
-              (icon: Icons.extension_outlined, label: '模组'),
-            ])
-              _buildShortcut(skin, icon: item.icon, label: item.label),
-          ],
+        _buildSection(
+          skin,
+          title: '快捷入口',
+          padding: const EdgeInsets.all(TemplateSpace.sm),
+          child: Wrap(
+            spacing: TemplateSpace.md,
+            runSpacing: TemplateSpace.md,
+            children: [
+              for (final item in const [
+                (icon: Icons.save, label: '存档'),
+                (icon: Icons.map_outlined, label: '地图'),
+                (icon: Icons.paste, label: '蓝图'),
+                (icon: Icons.extension_outlined, label: '模组'),
+              ])
+                _buildShortcut(skin, icon: item.icon, label: item.label),
+            ],
+          ),
         ),
         _buildNotice(skin),
       ],
@@ -990,77 +1021,103 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       spacing: TemplateSpace.lg,
       children: [
         _buildMockLabel(skin, '模拟页：下载页'),
-        // 搜索框：控件边界那道描边就是给它用的（1.4.11 要 3:1）
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: TemplateSpace.md,
-            vertical: TemplateSpace.md,
-          ),
-          decoration: BoxDecoration(
-            color: skin.sunken,
-            borderRadius: BorderRadius.circular(TemplateRadius.control),
-            border: Border.all(color: skin.controlBorder),
-          ),
-          child: Row(
-            spacing: TemplateSpace.md,
+        // 控件也落在卡面上：搜索框 + 筛选
+        _buildSection(
+          skin,
+          padding: const EdgeInsets.all(TemplateSpace.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: TemplateSpace.lg,
             children: [
-              Icon(Icons.search, size: 18, color: skin.textTertiary),
-              Text(
-                '搜索版本号，如 160.5 / v8',
-                style: TemplateType.item.copyWith(color: skin.textTertiary),
+              // 搜索框：控件边界那道描边就是给它用的（1.4.11 要 3:1）
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: TemplateSpace.md,
+                  vertical: TemplateSpace.md,
+                ),
+                decoration: BoxDecoration(
+                  color: skin.sunken,
+                  borderRadius: BorderRadius.circular(TemplateRadius.control),
+                  border: Border.all(color: skin.controlBorder),
+                ),
+                child: Row(
+                  spacing: TemplateSpace.md,
+                  children: [
+                    Icon(Icons.search, size: 18, color: skin.textTertiary),
+                    Text(
+                      '搜索版本号，如 160.5 / v8',
+                      style: TemplateType.item.copyWith(
+                        color: skin.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildSegment(
+                skin,
+                options: const ['全部', '正式版', '预览版', 'BE'],
+                value: _downloadFilter,
+                onTap: (index) => setState(() => _downloadFilter = index),
               ),
             ],
           ),
         ),
-        _buildSegment(
+        _buildSection(
           skin,
-          options: const ['全部', '正式版', '预览版', 'BE'],
-          value: _downloadFilter,
-          onTap: (index) => setState(() => _downloadFilter = index),
+          title: '版本列表（${_downloadVersions.length}）',
+          padding: const EdgeInsets.all(TemplateSpace.sm),
+          child: Column(
+            spacing: 2,
+            children: [
+              for (final item in _downloadVersions)
+                _buildRow(
+                  skin,
+                  selected: _selectedVersions.contains(item.tag),
+                  onTap: () => setState(() {
+                    if (!_selectedVersions.remove(item.tag)) {
+                      _selectedVersions.add(item.tag);
+                    }
+                  }),
+                  child: _buildDownloadRow(skin, item),
+                ),
+            ],
+          ),
         ),
-        Column(
-          spacing: 2,
-          children: [
-            for (final item in _downloadVersions)
-              _buildRow(
-                skin,
-                selected: _selectedVersions.contains(item.tag),
-                onTap: () => setState(() {
-                  if (!_selectedVersions.remove(item.tag)) {
-                    _selectedVersions.add(item.tag);
-                  }
-                }),
-                child: _buildDownloadRow(skin, item),
+        // 选中后浮出的操作栏（这里不浮，直接排在下面，也是一张卡）
+        _buildSection(
+          skin,
+          padding: const EdgeInsets.symmetric(
+            horizontal: TemplateSpace.lg,
+            vertical: TemplateSpace.md,
+          ),
+          child: Row(
+            spacing: TemplateSpace.md,
+            children: [
+              Text(
+                '已选 ${_selectedVersions.length}',
+                style: TemplateType.caption.copyWith(color: skin.textTertiary),
               ),
-          ],
-        ),
-        Row(
-          spacing: TemplateSpace.md,
-          children: [
-            Text(
-              '已选 ${_selectedVersions.length}',
-              style: TemplateType.caption.copyWith(color: skin.textTertiary),
-            ),
-            const Spacer(),
-            _buildButton(
-              skin,
-              label: '下载',
-              icon: Icons.download,
-              kind: _Kind.plain,
-            ),
-            _buildButton(
-              skin,
-              label: '删除',
-              icon: Icons.delete_outline,
-              kind: _Kind.danger,
-            ),
-            _buildButton(
-              skin,
-              label: '取消选择',
-              icon: Icons.close,
-              kind: _Kind.quiet,
-            ),
-          ],
+              const Spacer(),
+              _buildButton(
+                skin,
+                label: '下载',
+                icon: Icons.download,
+                kind: _Kind.plain,
+              ),
+              _buildButton(
+                skin,
+                label: '删除',
+                icon: Icons.delete_outline,
+                kind: _Kind.danger,
+              ),
+              _buildButton(
+                skin,
+                label: '取消选择',
+                icon: Icons.close,
+                kind: _Kind.quiet,
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -1143,48 +1200,54 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
       spacing: TemplateSpace.lg,
       children: [
         _buildMockLabel(skin, '模拟页：云存档页'),
-        _buildRow(
+        _buildSection(
           skin,
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: skin.accentTint,
-                  shape: BoxShape.circle,
+          padding: const EdgeInsets.all(TemplateSpace.sm),
+          child: _buildRow(
+            skin,
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: skin.accentTint,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '雨',
+                    style: TemplateType.item.copyWith(color: skin.onAccentTint),
+                  ),
                 ),
-                child: Text(
-                  '雨',
-                  style: TemplateType.item.copyWith(color: skin.onAccentTint),
+                const SizedBox(width: TemplateSpace.md),
+                Expanded(
+                  child: _buildTwoLine(skin, 'rainfall', '已登录 · 配额 200 MB'),
                 ),
-              ),
-              const SizedBox(width: TemplateSpace.md),
-              Expanded(
-                child: _buildTwoLine(skin, 'rainfall', '已登录 · 配额 200 MB'),
-              ),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: skin.success,
-                  shape: BoxShape.circle,
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: skin.success,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: TemplateSpace.sm),
-              Text(
-                '已同步',
-                style: TemplateType.caption.copyWith(color: skin.textSecondary),
-              ),
-              const SizedBox(width: TemplateSpace.lg),
-              _buildButton(
-                skin,
-                label: '退出登录',
-                icon: Icons.logout,
-                kind: _Kind.quiet,
-              ),
-            ],
+                const SizedBox(width: TemplateSpace.sm),
+                Text(
+                  '已同步',
+                  style: TemplateType.caption.copyWith(
+                    color: skin.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: TemplateSpace.lg),
+                _buildButton(
+                  skin,
+                  label: '退出登录',
+                  icon: Icons.logout,
+                  kind: _Kind.quiet,
+                ),
+              ],
+            ),
           ),
         ),
         _buildSection(
@@ -1226,43 +1289,50 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
             ],
           ),
         ),
-        Column(
-          spacing: 2,
-          children: [
-            for (final item in const [
-              (time: '今天 13:54', size: '16.6 MB', pinned: true),
-              (time: '昨天 21:02', size: '16.4 MB', pinned: false),
-              (time: '10-03 19:20', size: '15.9 MB', pinned: false),
-            ])
-              _buildRow(
-                skin,
-                child: Row(
-                  children: [
-                    Expanded(child: _buildTwoLine(skin, item.time, item.size)),
-                    if (item.pinned) ...[
-                      Icon(
-                        Icons.push_pin_outlined,
-                        size: 16,
-                        color: skin.accentText,
+        _buildSection(
+          skin,
+          title: '快照历史',
+          padding: const EdgeInsets.all(TemplateSpace.sm),
+          child: Column(
+            spacing: 2,
+            children: [
+              for (final item in const [
+                (time: '今天 13:54', size: '16.6 MB', pinned: true),
+                (time: '昨天 21:02', size: '16.4 MB', pinned: false),
+                (time: '10-03 19:20', size: '15.9 MB', pinned: false),
+              ])
+                _buildRow(
+                  skin,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _buildTwoLine(skin, item.time, item.size),
                       ),
-                      const SizedBox(width: TemplateSpace.sm),
-                      Text(
-                        '已固定',
-                        style: TemplateType.caption.copyWith(
+                      if (item.pinned) ...[
+                        Icon(
+                          Icons.push_pin_outlined,
+                          size: 16,
                           color: skin.accentText,
                         ),
-                      ),
-                    ] else
-                      _buildButton(
-                        skin,
-                        label: '恢复',
-                        icon: Icons.restore,
-                        kind: _Kind.quiet,
-                      ),
-                  ],
+                        const SizedBox(width: TemplateSpace.sm),
+                        Text(
+                          '已固定',
+                          style: TemplateType.caption.copyWith(
+                            color: skin.accentText,
+                          ),
+                        ),
+                      ] else
+                        _buildButton(
+                          skin,
+                          label: '恢复',
+                          icon: Icons.restore,
+                          kind: _Kind.quiet,
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ],
     );
