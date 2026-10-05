@@ -232,8 +232,10 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
     required Widget child,
     EdgeInsetsGeometry padding = const EdgeInsets.all(TemplateSpace.lg),
   }) {
+    // 卡间距：这里只给 12，`ListContentPanel` 默认再给 12 ⇒ 合计 24（组间）。
+    // 别只改这里，两组加起来 36 会显得空（2026-10-05 用户指出过大）
     return Padding(
-      padding: const EdgeInsets.only(bottom: TemplateSpace.xl),
+      padding: const EdgeInsets.only(bottom: TemplateSpace.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: TemplateSpace.sm,
@@ -243,7 +245,7 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
               padding: const EdgeInsets.only(left: TemplateSpace.xs),
               child: Text(
                 title,
-                style: TemplateType.section.copyWith(color: skin.textSecondary),
+                style: TemplateType.section.copyWith(color: skin.textPrimary),
               ),
             ),
           DecoratedBox(

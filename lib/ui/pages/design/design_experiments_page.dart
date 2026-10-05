@@ -200,7 +200,8 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
           ),
           _buildSpecimen(
             caption:
-                '改法：卡片标题 titleMedium 14 w600 + itemPrimary；条目 bodyMedium 14 + itemPrimary；'
+                '改法：卡片标题 titleLarge 16 w600 + itemPrimary（同尺寸，只降字重、去主题色）；'
+                '条目 bodyMedium 14 + itemPrimary；'
                 '说明 bodySmall 12 + itemSecondary；主题色只留给交互与图标',
             tuned: true,
           ),
@@ -237,8 +238,9 @@ class _DesignExperimentsPageState extends State<DesignExperimentsPage> {
     final textTheme = theme.textTheme;
 
     // 改法只做三件事：换 textTheme 的档位、标题去主题色、正文提到 itemPrimary
+    // 标题仍是 16：旧的是 headlineSmall（16 bold + 主题色），改法是 titleLarge（16 w600 + 中性主色）
     final titleStyle = tuned
-        ? textTheme.titleMedium?.copyWith(color: colors.itemPrimary)
+        ? textTheme.titleLarge?.copyWith(color: colors.itemPrimary)
         : textTheme.headlineSmall?.copyWith(color: colors.interactive);
     final itemStyle = tuned
         ? textTheme.bodyMedium?.copyWith(color: colors.itemPrimary)

@@ -307,6 +307,12 @@ class TemplateSkin {
 }
 
 /// 文字层级：桌面密度，靠字重不靠把尺寸吹大
+///
+/// **卡片标题 16 w600**（2026-10-05 用户看完样张：「标题是否有些小了」）。
+/// 原来按 Fluent 的「空间紧时才用 Body Strong 14 w600」定成 14，但样张的卡里
+/// 留白是足的（组间 24 / 内衬 16），14 的标题跟 14 的正文只差字重、压不住卡；
+/// 16 w600 正好是项目里 `titleLarge` 那一档 ⇒ 与旧页面同尺寸，只把 bold 降成 w600、
+/// 主题色换成中性主色
 class TemplateType {
   static const page = TextStyle(
     fontSize: 20,
@@ -314,8 +320,8 @@ class TemplateType {
     fontWeight: FontWeight.w600,
   );
   static const section = TextStyle(
-    fontSize: 14,
-    height: 20 / 14,
+    fontSize: 16,
+    height: 22 / 16,
     fontWeight: FontWeight.w600,
   );
   static const item = TextStyle(fontSize: 14, height: 20 / 14);

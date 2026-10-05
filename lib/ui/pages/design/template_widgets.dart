@@ -31,8 +31,11 @@ class TemplateSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 卡间距：本组件只给 12，外面 `ListContentPanel` 默认还会再给 12
+    // ⇒ 卡底到下一个标题合计 24（组间），这是规范里定下的组间距离。
+    // **改一边要改另一边**，别只改这里让两组加起来变成 36（2026-10-05 用户指出过大）
     return Padding(
-      padding: const EdgeInsets.only(bottom: TemplateSpace.xl),
+      padding: const EdgeInsets.only(bottom: TemplateSpace.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: TemplateSpace.sm,
@@ -42,7 +45,7 @@ class TemplateSection extends StatelessWidget {
               padding: const EdgeInsets.only(left: TemplateSpace.xs),
               child: Text(
                 title!,
-                style: TemplateType.section.copyWith(color: skin.textSecondary),
+                style: TemplateType.section.copyWith(color: skin.textPrimary),
               ),
             ),
           DecoratedBox(
