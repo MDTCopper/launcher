@@ -109,21 +109,20 @@ void main() {
       (double, double) stops({required bool hover, required bool press}) {
         if (dark) {
           if (press) return (26, 31);
-          if (hover) return (33, 28);
+          if (hover) return (32, 27);
           return (29, 25);
         }
         if (press) return (94, 97);
-        if (hover) return (97, 94);
-        return (98, 95);
+        if (hover) return (97, 95);
+        return (98, 96);
       }
 
       final restStops = stops(hover: false, press: false);
       final hoverStops = stops(hover: true, press: false);
-      final pressStops = stops(hover: false, press: true);
       String ramp((double, double) s) =>
           '${hex(neutralRamp.at(s.$1))}→${hex(neutralRamp.at(s.$2))}';
       print(
-        '  分段选中格渐变：静止 ${ramp(restStops)} / 悬停 ${ramp(hoverStops)} / 按下 ${ramp(pressStops)}'
+        '  分段选中格渐变：静止 ${ramp(restStops)} / 悬停 ${ramp(hoverStops)}'
         '（凹槽底 ${hex(t.sunken)}）',
       );
       double darkestOf((double, double) s) => s.$1 < s.$2 ? s.$1 : s.$2;
@@ -134,16 +133,10 @@ void main() {
         1.08,
         failures: failures,
       );
+      // 按下不改底色（只留回弹缩放），所以只查静止与悬停两档
       pair(
         '悬停渐变最暗的一端 / 凹槽底',
         neutralRamp.at(darkestOf(hoverStops)),
-        t.sunken,
-        1.08,
-        failures: failures,
-      );
-      pair(
-        '按下渐变最暗的一端 / 凹槽底',
-        neutralRamp.at(darkestOf(pressStops)),
         t.sunken,
         1.08,
         failures: failures,

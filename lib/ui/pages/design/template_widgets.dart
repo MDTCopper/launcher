@@ -420,22 +420,18 @@ class _SegmentPill extends StatefulWidget {
 
 class _SegmentPillState extends State<_SegmentPill> {
   bool _hover = false;
-  bool _pressed = false;
 
-  /// 选中格的渐变两端（tone）：静止 / 悬停 / 按下；按下那对是反过来的
+  /// 选中格的渐变两端（tone）：静止 / 悬停
   ///
   /// 取值的两条边界：**最暗的一档不能碰到凹槽底**（亮色底 tone 90 / 暗色底 20，
-  /// 最暗只到 94 / 26，实测留 1.1:1 以上），又要看得出变化；
+  /// 最暗只到 95 / 26，实测留 1.1:1 以上），又要看得出变化；
   /// 亮色下选中格已经贴着上限（tone 98），所以变化只能往下走
+  ///
+  /// **按下不改底色**：点击瞬间把渐变反过来会让整格底色翻个方向，看着像突变；
+  /// 按下的反馈只留回弹缩放
   (double, double) get _stops {
-    if (widget.skin.dark) {
-      if (_pressed) return (26, 31);
-      if (_hover) return (33, 28);
-      return (29, 25);
-    }
-    if (_pressed) return (94, 97);
-    if (_hover) return (97, 94);
-    return (98, 95);
+    if (widget.skin.dark) return _hover ? (32, 27) : (29, 25);
+    return _hover ? (97, 95) : (98, 96);
   }
 
   @override
@@ -443,51 +439,50 @@ class _SegmentPillState extends State<_SegmentPill> {
     final skin = widget.skin;
     final selected = widget.selected;
 
-    // 分段的单格要按悬停 / 按下换渐变的**方向**，而 rebound 的两个状态是它自己的内部状态
-    // （没有回调可用）⇒ 这里自己监听指针：MouseRegion / Listener 都是被动观察，
-    // 不会抢走 rebound 的点击与回弹
+    // 需要按悬停换渐变，而 rebound 的悬停是它自己的内部状态（没有回调可用）
+    // ⇒ 这里自己监听指针：MouseRegion 是被动观察，不抢点击与回弹
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: Listener(
-        onPointerDown: (_) => setState(() => _pressed = true),
-        onPointerUp: (_) => setState(() => _pressed = false),
-        onPointerCancel: (_) => setState(() => _pressed = false),
-        child: ReboundContainer(
-          onTap: widget.onTap,
-          pressedScale: 0.96,
-          borderRadius: BorderRadius.circular(TemplateRadius.control),
-          backgroundColor: Colors.transparent,
-          // 状态由渐变表达，这里不再叠色（叠色正是「融合」的来源）
-          hoverColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 110),
-            curve: Curves.easeOut,
-            decoration: selected
-                ? BoxDecoration(
-                    borderRadius: BorderRadius.circular(TemplateRadius.control),
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        skin.neutralTone(_stops.$1),
-                        skin.neutralTone(_stops.$2),
-                      ],
-                    ),
-                  )
-                : BoxDecoration(
-                    borderRadius: BorderRadius.circular(TemplateRadius.control),
-                    color: _hover ? skin.hoverOn(Colors.transparent) : null,
-                  ),
-            child: Text(
-              widget.label,
-              textAlign: TextAlign.center,
-              style: TemplateType.item.copyWith(
-                color: selected ? skin.textPrimary : skin.textSecondary,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              ),
+      child: ReboundContainer(
+        onTap: widget.onTap,
+        pressedScale: 0.96,
+        borderRadius: BorderRadius.circular(TemplateRadius.control),
+        backgroundColor: Colors.transparent,
+        // 状态由渐变表达，这里不再叠色（叠色正是「融合」的来源）；
+        // 主题的水波（splash）也关掉，不然点击瞬间会闪过一层旧强调色
+        hoverColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        splashColor: Colors.transparent,
+        padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
+        // 一律用渐变（未选中＝两端同色的透明/薄底）：同类型之间才插值得平滑，
+        // 底色与渐变互换时会硬切
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(TemplateRadius.control),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: selected
+                  ? [skin.neutralTone(_stops.$1), skin.neutralTone(_stops.$2)]
+                  : [
+                      _hover
+                          ? skin.hoverOn(Colors.transparent)
+                          : Colors.transparent,
+                      _hover
+                          ? skin.hoverOn(Colors.transparent)
+                          : Colors.transparent,
+                    ],
+            ),
+          ),
+          child: Text(
+            widget.label,
+            textAlign: TextAlign.center,
+            style: TemplateType.item.copyWith(
+              color: selected ? skin.textPrimary : skin.textSecondary,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
         ),
