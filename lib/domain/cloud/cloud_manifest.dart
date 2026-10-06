@@ -243,6 +243,17 @@ class CloudManifest {
   int get includedBytes =>
       includedFiles.fold(0, (sum, file) => sum + file.size);
 
+  /// 各文件的 sha256，键是数据目录内的**相对路径**（`saves/0.msav`、`mods/x.jar`）
+  ///
+  /// 用来判断「本机与上次同步相比改没改」—— 与云端比不了逐文件（服务端一个快照只有一个
+  /// 整包 sha256），所以这份投影只跟**本机自己记的上次同步**比
+  Map<String, String> get fileHashes => {
+    for (final file in includedFiles)
+      '${file.category.folder}/${file.name}': file.sha256,
+    for (final mod in mods)
+      '${mod.isCopper ? 'copper/mods' : 'mods'}/${mod.fileName}': mod.sha256,
+  };
+
   /// 这次要随包带字节的模组（私有模组），它们的体积也要算进配额
   List<CloudModEntry> get includedModBytes => [
     for (final mod in mods)

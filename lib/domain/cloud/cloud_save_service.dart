@@ -21,6 +21,7 @@ class CloudSaveUploadResult {
     required this.snapshot,
     required this.archiveBytes,
     required this.dropped,
+    this.alreadyUpToDate = false,
   });
 
   final CloudSaveSlot slot;
@@ -33,6 +34,79 @@ class CloudSaveUploadResult {
 
   /// 扫完到打包之间又变过、没能进包的文件
   final List<String> dropped;
+
+  /// 本来报冲突，但比下来**云端 head 与本机这份内容相同** ⇒ 什么也不用做
+  final bool alreadyUpToDate;
+}
+
+/// 这个数据目录现在处于什么状态（页面上的状态点、自动同步判断都用它）
+enum CloudSyncStatus {
+  /// 云端还没有这个数据目录的槽位
+  noSlot,
+
+  /// 本机与云端一致
+  upToDate,
+
+  /// 本机改过了，等上传
+  pendingUpload,
+
+  /// 云端有新的、本机没动过 —— 可以直接下载
+  pendingDownload,
+
+  /// 两边都改过：我们没有合并语义，只能让用户选（覆盖 / 留副本）
+  conflicted,
+}
+
+/// 本地记的「这个数据目录上次同步到哪儿」
+///
+/// 没有它就只能在上传时被服务端 409 告知冲突，或者让用户自己看时间猜；
+/// 有了它才能在本地分辨「本机改没改 / 云端有没有新的」（Steam 的 `remotecache.vdf` 干的就是这事）
+class CloudSyncState {
+  const CloudSyncState({
+    required this.slotId,
+    this.snapshotId,
+    this.files = const {},
+  });
+
+  final String slotId;
+
+  /// 上次同步到的云端快照（上传成功后是新快照，恢复后是那个被恢复的快照）
+  final String? snapshotId;
+
+  /// 上次同步时各文件的 sha256（键是数据目录内的相对路径）
+  final Map<String, String> files;
+
+  Map<String, dynamic> toJson() => {
+    'slot_id': slotId,
+    if (snapshotId != null) 'snapshot_id': snapshotId,
+    if (files.isNotEmpty) 'files': files,
+  };
+
+  /// 读一条绑定；认不出来给 null
+  ///
+  /// 兼容老形态（值是**槽位 id 字符串**，那时还没有「上次同步到哪儿」这回事）
+  static CloudSyncState? fromJson(Object? value) {
+    if (value is String && value.isNotEmpty) {
+      return CloudSyncState(slotId: value);
+    }
+    if (value is! Map) return null;
+
+    final slotId = '${value['slot_id'] ?? ''}';
+    if (slotId.isEmpty) return null;
+    final rawFiles = value['files'];
+    return CloudSyncState(
+      slotId: slotId,
+      snapshotId: value['snapshot_id'] is String
+          ? value['snapshot_id'] as String
+          : null,
+      files: rawFiles is Map
+          ? {
+              for (final entry in rawFiles.entries)
+                if (entry.value is String) '${entry.key}': '${entry.value}',
+            }
+          : const {},
+    );
+  }
 }
 
 /// 一次「恢复」的结果
@@ -117,9 +191,9 @@ class CloudSaveService {
   }) async {
     final name = deviceName ?? CloudSaveService.deviceName;
     final dataPath = _normalize(version.dataPath);
-    final bindings = _loadBindings();
+    final states = _loadStates();
 
-    final boundId = bindings[dataPath];
+    final boundId = states[dataPath]?.slotId;
     if (boundId != null) {
       try {
         return await MdtbbsCloudSaveApi.slot(
@@ -131,8 +205,8 @@ class CloudSaveService {
         // 云端删掉了 / 换账号了：绑定作废，往下走按名字再认一次
         if (error.statusCode != 404) rethrow;
         addLog(.info, '云端槽位已不存在，重新认一个', tag: 'Cloud');
-        bindings.remove(dataPath);
-        _saveBindings(bindings);
+        states.remove(dataPath);
+        _saveStates(states);
       }
     }
 
@@ -250,23 +324,51 @@ class CloudSaveService {
       final sha256 = sha256OfBytes(bytes);
 
       onStatus?.call('申请上传额度');
-      final session = await MdtbbsCloudSaveApi.createUpload(
-        accessToken: accessToken,
-        slotId: slot.id,
-        sha256: sha256,
-        size: bytes.length,
-        baseSnapshotId: slot.currentSnapshotId,
-        reason: reason,
-        conflictPolicy: conflictPolicy,
-        confirmCurrentSnapshotId: confirmCurrentSnapshotId,
-        game: CloudSaveGameInfo(
-          version: version.release,
-          build: version.versionNumber ?? version.releaseInt,
-        ),
-        mods: _modsOf(export.manifest),
-        deviceId: name,
-        cancelToken: cancelToken,
-      );
+      final CloudSaveUploadSession session;
+      try {
+        session = await MdtbbsCloudSaveApi.createUpload(
+          accessToken: accessToken,
+          slotId: slot.id,
+          sha256: sha256,
+          size: bytes.length,
+          baseSnapshotId: slot.currentSnapshotId,
+          reason: reason,
+          conflictPolicy: conflictPolicy,
+          confirmCurrentSnapshotId: confirmCurrentSnapshotId,
+          game: CloudSaveGameInfo(
+            version: version.release,
+            build: version.versionNumber ?? version.releaseInt,
+          ),
+          mods: _modsOf(export.manifest),
+          deviceId: name,
+          cancelToken: cancelToken,
+        );
+      } on MdtbbsException catch (error) {
+        // 冲突先比内容再定：云端 head 与本机这份逐字节相同（同 sha256）就不是冲突 ——
+        // 常见于「绑定丢了 / 换设备重传 / 上次传成功但没记下状态」这些其实没变的情况
+        if (!error.isConflict) rethrow;
+        final head = await MdtbbsCloudSaveApi.slot(
+          accessToken: accessToken,
+          slotId: slot.id,
+          cancelToken: cancelToken,
+        );
+        if (head.currentSnapshot?.sha256 != sha256) rethrow;
+
+        addLog(.info, '云端 head 与本机这份内容相同，按已同步处理', tag: 'Cloud');
+        _rememberSynced(
+          version,
+          slotId: slot.id,
+          snapshotId: head.currentSnapshotId,
+          files: export.manifest.fileHashes,
+        );
+        return CloudSaveUploadResult(
+          slot: slot,
+          snapshot: head.currentSnapshot,
+          archiveBytes: bytes.length,
+          dropped: export.dropped,
+          alreadyUpToDate: true,
+        );
+      }
 
       onStatus?.call('上传云包');
       await MdtbbsCloudSaveApi.putUploadBytes(
@@ -282,6 +384,22 @@ class CloudSaveService {
         accessToken: accessToken,
         uploadId: session.uploadId,
         cancelToken: cancelToken,
+      );
+
+      // 记下「同步到哪个快照」：commit 的响应解不出快照时问一次槽位拿 head id，
+      // 否则下一次状态判断会把「刚传上去的」误报成「云端有新的」
+      final headId =
+          snapshot?.id ??
+          (await MdtbbsCloudSaveApi.slot(
+            accessToken: accessToken,
+            slotId: slot.id,
+            cancelToken: cancelToken,
+          )).currentSnapshotId;
+      _rememberSynced(
+        version,
+        slotId: slot.id,
+        snapshotId: headId,
+        files: export.manifest.fileHashes,
       );
 
       return CloudSaveUploadResult(
@@ -318,12 +436,13 @@ class CloudSaveService {
       cancelToken: cancelToken,
     );
     try {
-      return await _extract(
+      final extracted = await _extract(
         tempPath,
         version: version,
         mode: mode,
         applyModStates: applyModStates,
       );
+      return extracted.report;
     } finally {
       _deleteQuietly(tempPath);
     }
@@ -359,15 +478,24 @@ class CloudSaveService {
 
     try {
       onStatus?.call('覆盖本机存档');
-      final report = await _extract(
+      final extracted = await _extract(
         tempPath,
         version: version,
         mode: CloudImportMode.overwrite,
         applyModStates: applyModStates,
       );
       _pruneBackups();
+      // 落干净了才记「同步到这个快照」；有拒收说明本机与云上并不一致，别谎报
+      if (extracted.report.rejected.isEmpty) {
+        _rememberSynced(
+          version,
+          slotId: slotId,
+          snapshotId: snapshotId,
+          files: extracted.manifest.fileHashes,
+        );
+      }
       return CloudSaveRestoreResult(
-        report: report,
+        report: extracted.report,
         backupPath: backup.path,
         backupBytes: backup.bytes,
       );
@@ -447,7 +575,7 @@ class CloudSaveService {
     }
   }
 
-  static Future<CloudImportReport> _extract(
+  static Future<({CloudImportReport report, CloudManifest manifest})> _extract(
     String archivePath, {
     required Mindustry version,
     required CloudImportMode mode,
@@ -464,7 +592,7 @@ class CloudSaveService {
         states: reader.manifest.modStates,
       );
     }
-    return report;
+    return (report: report, manifest: reader.manifest);
   }
 
   /// 「恢复」前留的底：把本机这份按云包格式导出到 [backupDir]
@@ -552,9 +680,9 @@ class CloudSaveService {
       slotId: slotId,
       cancelToken: cancelToken,
     );
-    final bindings = _loadBindings();
-    bindings.removeWhere((_, value) => value == slotId);
-    _saveBindings(bindings);
+    final states = _loadStates();
+    states.removeWhere((_, value) => value.slotId == slotId);
+    _saveStates(states);
   }
 
   static List<CloudSaveModInfo> _modsOf(CloudManifest manifest) => [
@@ -568,15 +696,100 @@ class CloudSaveService {
         ),
   ];
 
-  // ---- 本地绑定：数据目录 → 云端槽位 id ----
+  // ---- 本地绑定：数据目录 → 云端槽位 + 上次同步到哪儿 ----
 
-  static Map<String, String> _loadBindings() {
+  /// 这个数据目录上次同步到哪儿；没记过给 null
+  static CloudSyncState? localState(Mindustry version) =>
+      _loadStates()[_normalize(version.dataPath)];
+
+  /// 现在处于什么状态（**纯函数**，不联网、不扫盘）
+  ///
+  /// [localHashes] 是本机现在的文件投影（`CloudManifest.fileHashes`）；没有本机记录时
+  /// 只能保守判断：本机有东西 + 云端有 head ⇒ 当作冲突让用户选，别替他把一边盖掉
+  static CloudSyncStatus statusOf({
+    required CloudSaveSlot? slot,
+    required CloudSyncState? state,
+    required Map<String, String> localHashes,
+  }) {
+    if (slot == null) return CloudSyncStatus.noSlot;
+
+    final localChanged = state == null
+        ? localHashes.isNotEmpty
+        : !_sameHashes(localHashes, state.files);
+    final remoteChanged = state == null
+        ? slot.currentSnapshotId != null
+        : slot.currentSnapshotId != null &&
+              slot.currentSnapshotId != state.snapshotId;
+
+    if (localChanged && remoteChanged) return CloudSyncStatus.conflicted;
+    if (localChanged) return CloudSyncStatus.pendingUpload;
+    if (remoteChanged) return CloudSyncStatus.pendingDownload;
+    return CloudSyncStatus.upToDate;
+  }
+
+  /// 扫一遍本机清单（走哈希缓存）后判状态；页面要显示「状态点」时用它
+  ///
+  /// 代价是一次扫描（真数据热扫约 0.67 s）；只要网络那半的便宜判断用
+  /// [statusOf] + 只读槽位就够
+  static Future<
+    ({CloudSyncStatus status, CloudSaveSlot? slot, CloudManifest manifest})
+  >
+  syncStatus({
+    required String accessToken,
+    required Mindustry version,
+    String? deviceName,
+    bool includePreviews = false,
+    CancelToken? cancelToken,
+  }) async {
+    final name = deviceName ?? CloudSaveService.deviceName;
+    final slot = await findSlot(
+      accessToken: accessToken,
+      version: version,
+      deviceName: name,
+      cancelToken: cancelToken,
+    );
+    final cache = CloudHashCache.load(hashCachePath);
+    final manifest = await CloudManifest.scan(
+      version: version,
+      deviceName: name,
+      includePreviews: includePreviews,
+      cache: cache,
+    );
+    cache.save();
+    return (
+      status: statusOf(
+        slot: slot,
+        state: localState(version),
+        localHashes: manifest.fileHashes,
+      ),
+      slot: slot,
+      manifest: manifest,
+    );
+  }
+
+  static bool _sameHashes(Map<String, String> a, Map<String, String> b) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
+  }
+
+  static Map<String, CloudSyncState> _loadStates() {
     final file = File(_bindingPath);
     if (!file.existsSync()) return {};
     try {
       final decoded = jsonDecode(file.readAsStringSync());
       if (decoded is! Map) return {};
-      return decoded.map((key, value) => MapEntry('$key', '$value'));
+
+      // 新形态是 { version, slots: { 数据目录: {...} } }；老形态直接是 { 数据目录: 槽位id }
+      final raw = decoded['slots'] is Map ? decoded['slots'] as Map : decoded;
+      final states = <String, CloudSyncState>{};
+      for (final entry in raw.entries) {
+        final state = CloudSyncState.fromJson(entry.value);
+        if (state != null) states['${entry.key}'] = state;
+      }
+      return states;
     } catch (error) {
       addLog(
         .warning,
@@ -587,20 +800,50 @@ class CloudSaveService {
     }
   }
 
-  static void _saveBindings(Map<String, String> bindings) {
+  static void _saveStates(Map<String, CloudSyncState> states) {
     try {
       final directory = Directory(p.dirname(_bindingPath));
       if (!directory.existsSync()) directory.createSync(recursive: true);
-      File(_bindingPath).writeAsStringSync(jsonEncode(bindings), flush: true);
+      File(_bindingPath).writeAsStringSync(
+        jsonEncode({
+          'version': 2,
+          'slots': {
+            for (final entry in states.entries) entry.key: entry.value.toJson(),
+          },
+        }),
+        flush: true,
+      );
     } catch (error) {
       addLog(.warning, '云槽位绑定写入失败：${removeNewlines('$error')}', tag: 'Cloud');
     }
   }
 
+  /// 记下「这个数据目录同步到哪个槽位 / 哪个快照 / 哪些文件」
+  static void _rememberSynced(
+    Mindustry version, {
+    required String slotId,
+    required String? snapshotId,
+    required Map<String, String> files,
+  }) {
+    final states = _loadStates();
+    states[_normalize(version.dataPath)] = CloudSyncState(
+      slotId: slotId,
+      snapshotId: snapshotId,
+      files: files,
+    );
+    _saveStates(states);
+  }
+
   static void _bind(String dataPath, String slotId) {
-    final bindings = _loadBindings();
-    bindings[dataPath] = slotId;
-    _saveBindings(bindings);
+    final states = _loadStates();
+    final existing = states[dataPath];
+    // 只是认了个槽位：上次同步到哪儿保持不变（别把已有记录清了）
+    states[dataPath] = CloudSyncState(
+      slotId: slotId,
+      snapshotId: existing?.snapshotId,
+      files: existing?.files ?? const {},
+    );
+    _saveStates(states);
   }
 
   /// 路径大小写不敏感的平台上要归一，否则同一个目录会记成两条绑定
