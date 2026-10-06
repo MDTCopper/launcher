@@ -109,6 +109,109 @@ class CloudSyncState {
   }
 }
 
+/// 一侧（本机 / 云端）的「这份存档是什么」
+///
+/// 冲突弹窗要能写出「本机：我的图 · 波次 42 · 12 分钟前」对「云上：云图 · 波次 30 ·
+/// 来自 PHONE」，靠的就是这里；两侧字段并非都齐 —— 快照那套只有云端有，
+/// 游戏写在存档里的保存时刻只有本机有
+class CloudSyncSide {
+  const CloudSyncSide({
+    this.deviceName,
+    this.snapshotId,
+    this.revision,
+    this.mapName,
+    this.wave,
+    this.playtimeSeconds,
+    this.savedAt,
+    this.createdAt,
+    this.fileCount = 0,
+    this.totalBytes = 0,
+    this.modCount = 0,
+  });
+
+  /// 本机侧是这台设备；云端侧是上传那台设备
+  final String? deviceName;
+
+  /// 云端快照 id 与版本号；本机侧没有
+  final String? snapshotId;
+  final int? revision;
+
+  /// 最新那份存档的地图名 / 波次 / 游玩时长（秒）；读不出来给 null
+  final String? mapName;
+  final int? wave;
+  final int? playtimeSeconds;
+
+  /// 游戏写在存档 meta 里的保存时刻；本机侧有
+  final DateTime? savedAt;
+
+  /// 快照创建时间；云端侧有
+  final DateTime? createdAt;
+
+  /// 本机侧是清单收进来的文件数；云端侧服务端不给，恒为 0
+  final int fileCount;
+
+  /// 本机侧是清单合计（**未压缩**，zip 之后更小）；云端侧是服务端记的快照体积 ——
+  /// 两侧口径不同，别直接拿来比大小
+  final int totalBytes;
+
+  /// 模组数量（云端侧是快照里的模组摘要条数）
+  final int modCount;
+}
+
+/// 一次同步判断的完整结果：**状态 + 两侧各是什么 + 本机改了哪些文件**
+///
+/// 页面拿它画状态点、拼冲突弹窗的两侧对照，不用自己再扫一遍或猜
+class CloudSyncOutcome {
+  const CloudSyncOutcome({
+    required this.status,
+    required this.local,
+    this.slot,
+    this.remote,
+    this.changedFiles = const [],
+  });
+
+  final CloudSyncStatus status;
+
+  /// 本机这一侧（清单刚扫过，永远有）
+  final CloudSyncSide local;
+
+  /// 云端槽位；null 表示这个数据目录还没传过
+  final CloudSaveSlot? slot;
+
+  /// 云端 head 那一侧；槽位还没有快照时给 null
+  final CloudSyncSide? remote;
+
+  /// 与上次同步相比变了哪些文件（数据目录内的相对路径，已排序）；
+  /// **没有上次记录时给空** —— 没有基线就说不出「变了哪些」
+  final List<String> changedFiles;
+
+  String? get slotId => slot?.id;
+
+  /// 云端 head 的快照 id；上传要拿它当 `base_snapshot_id`
+  String? get currentSnapshotId => slot?.currentSnapshotId;
+}
+
+/// 云端 head 与本机这份**内容不同**的冲突：带上两侧信息，界面直接拿去问用户
+///
+/// 继承 [MdtbbsException] 是有意的 —— 既有 `on MdtbbsException` 的调用点不用改，
+/// `isConflict` 与 `conflictCurrentSnapshotId` 照旧能用
+class CloudSaveConflictException extends MdtbbsException {
+  CloudSaveConflictException({
+    required this.outcome,
+    required MdtbbsException cause,
+  }) : super(
+         statusCode: cause.statusCode,
+         code: cause.code,
+         message: cause.message,
+         requestId: cause.requestId,
+         retryable: cause.retryable,
+         details: cause.details,
+       );
+
+  /// 比过内容、确定两边不一样的当下判断；两侧信息都在里面
+  final CloudSyncOutcome outcome;
+}
+
 /// 一次「恢复」的结果
 class CloudSaveRestoreResult {
   const CloudSaveRestoreResult({
@@ -339,6 +442,8 @@ class CloudSaveService {
             version: version.release,
             build: version.versionNumber ?? version.releaseInt,
           ),
+          // 带上「本机在玩哪张图」：云端列表与冲突对照都靠它，不带就全是 null
+          save: _displayInfoOf(_newestSave(export.manifest)?.meta),
           mods: _modsOf(export.manifest),
           deviceId: name,
           cancelToken: cancelToken,
@@ -352,7 +457,16 @@ class CloudSaveService {
           slotId: slot.id,
           cancelToken: cancelToken,
         );
-        if (head.currentSnapshot?.sha256 != sha256) rethrow;
+        if (head.currentSnapshot?.sha256 != sha256) {
+          throw CloudSaveConflictException(
+            cause: error,
+            outcome: outcomeOf(
+              slot: head,
+              state: localState(version),
+              manifest: export.manifest,
+            ),
+          );
+        }
 
         addLog(.info, '云端 head 与本机这份内容相同，按已同步处理', tag: 'Cloud');
         _rememberSynced(
@@ -727,14 +841,11 @@ class CloudSaveService {
     return CloudSyncStatus.upToDate;
   }
 
-  /// 扫一遍本机清单（走哈希缓存）后判状态；页面要显示「状态点」时用它
+  /// 扫一遍本机清单（走哈希缓存）后给出完整判断；页面要显示「状态点」时用它
   ///
   /// 代价是一次扫描（真数据热扫约 0.67 s）；只要网络那半的便宜判断用
   /// [statusOf] + 只读槽位就够
-  static Future<
-    ({CloudSyncStatus status, CloudSaveSlot? slot, CloudManifest manifest})
-  >
-  syncStatus({
+  static Future<CloudSyncOutcome> syncStatus({
     required String accessToken,
     required Mindustry version,
     String? deviceName,
@@ -756,15 +867,118 @@ class CloudSaveService {
       cache: cache,
     );
     cache.save();
-    return (
-      status: statusOf(
-        slot: slot,
-        state: localState(version),
-        localHashes: manifest.fileHashes,
-      ),
+    return outcomeOf(
       slot: slot,
+      state: localState(version),
       manifest: manifest,
     );
+  }
+
+  /// 完整判断：状态 + 两侧各是什么 + 本机改了哪些文件
+  ///
+  /// **纯函数**（清单由调用方扫好）—— 与 [statusOf] 同一套判据，只是把界面要用的
+  /// 上下文一起给出来；冲突时拿它拼「本机 vs 云上」的对照
+  static CloudSyncOutcome outcomeOf({
+    required CloudSaveSlot? slot,
+    required CloudSyncState? state,
+    required CloudManifest manifest,
+  }) {
+    final snapshot = slot?.currentSnapshot;
+    return CloudSyncOutcome(
+      status: statusOf(
+        slot: slot,
+        state: state,
+        localHashes: manifest.fileHashes,
+      ),
+      local: _sideOfManifest(manifest),
+      slot: slot,
+      remote: snapshot == null ? null : _sideOfSnapshot(snapshot),
+      changedFiles: _changedFiles(state?.files, manifest.fileHashes),
+    );
+  }
+
+  /// 本机这一侧：最新那份存档的地图 / 波次 / 时长，加清单合计
+  static CloudSyncSide _sideOfManifest(CloudManifest manifest) {
+    final newest = _newestSave(manifest);
+    final save = _displayInfoOf(newest?.meta);
+    return CloudSyncSide(
+      deviceName: manifest.deviceName,
+      mapName: save?.mapName,
+      wave: save?.wave,
+      playtimeSeconds: save?.playtimeSeconds,
+      savedAt: newest?.savedAt,
+      fileCount: manifest.includedFiles.length,
+      totalBytes: manifest.totalIncludedBytes,
+      modCount: manifest.mods.length,
+    );
+  }
+
+  /// 云端 head 那一侧
+  static CloudSyncSide _sideOfSnapshot(CloudSaveSnapshot snapshot) {
+    final save = snapshot.save;
+    return CloudSyncSide(
+      deviceName: snapshot.deviceId,
+      snapshotId: snapshot.id,
+      revision: snapshot.revision,
+      mapName: save?.mapName,
+      wave: save?.wave,
+      playtimeSeconds: save?.playtimeSeconds,
+      createdAt: snapshot.createdAt,
+      totalBytes: snapshot.size ?? 0,
+      modCount: snapshot.mods?.count ?? 0,
+    );
+  }
+
+  /// 本机最新那份存档：按游戏写在 meta 里的 `saved` 取最大，读不出时间的排最后
+  static CloudFileEntry? _newestSave(CloudManifest manifest) {
+    CloudFileEntry? newest;
+    var newestAt = -1;
+    for (final file in manifest.files) {
+      if (file.category != CloudCategory.save) continue;
+      final at = file.savedAt?.millisecondsSinceEpoch ?? 0;
+      if (at < newestAt) continue;
+      newest = file;
+      newestAt = at;
+    }
+    return newest;
+  }
+
+  /// 与上次同步相比变了哪些文件（内容变了 / 新增 / 没了，已排序）；
+  /// [baseline] 为 null（没有上次记录）时给空
+  static List<String> _changedFiles(
+    Map<String, String>? baseline,
+    Map<String, String> current,
+  ) {
+    if (baseline == null) return const [];
+    final changed = <String>[
+      for (final entry in current.entries)
+        if (baseline[entry.key] != entry.value) entry.key,
+      for (final path in baseline.keys)
+        if (!current.containsKey(path)) path,
+    ];
+    changed.sort();
+    return changed;
+  }
+
+  /// 存档摘要（上传体里的 `save`，服务端列表与冲突对照都读它）
+  ///
+  /// 直接读 meta 原字段而不走 [CloudFileEntry.mapSave]：`MapSave` 会给缺失项填展示用的
+  /// 「未知」，那个不该当成地图名发给服务端
+  static CloudSaveDisplayInfo? _displayInfoOf(Map<String, dynamic>? meta) {
+    if (meta == null) return null;
+    final mapName = meta['mapname'];
+    final wave = meta['wave'];
+    final playtime = meta['playtime'];
+    final info = CloudSaveDisplayInfo(
+      mapName: mapName is String && mapName.isNotEmpty ? mapName : null,
+      wave: wave is int && wave > 0 ? wave : null,
+      playtimeSeconds: playtime is int && playtime > 0
+          ? playtime ~/ 1000
+          : null,
+    );
+    final empty =
+        info.mapName == null && info.wave == null && info.playtimeSeconds == null;
+    return empty ? null : info;
   }
 
   static bool _sameHashes(Map<String, String> a, Map<String, String> b) {
