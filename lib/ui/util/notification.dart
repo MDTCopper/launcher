@@ -103,8 +103,13 @@ class NotificationManager {
     if (_overlayEntry == null || !(_overlayEntry?.mounted ?? false)) {
       _overlayEntry = OverlayEntry(
         builder: (_) {
-          //通知落在右上角：右边缘对齐，顶边让开 40 高的顶栏
-          return Positioned(top: 56, right: 0, child: _widget);
+          //通知落在右上角：铺满整块再靠右上对齐，顶边让开 40 高的顶栏
+          return Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 56),
+              child: Align(alignment: Alignment.topRight, child: _widget),
+            ),
+          );
         },
       );
       Overlay.of(context).insert(_overlayEntry!);
@@ -203,18 +208,15 @@ class _NotificationWidgetState extends State<NotificationWidget> {
       constraints: BoxConstraints(maxWidth: 300),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           for (final item in _itemList)
-            Align(
-              // key 必须放在 Column 直接 children 层：若 key 藏在包装内部，
-              // 移除条目后按 index 匹配包装层（Align 无 key），
-              // 深层 _NoticeItem 会被重建并重播入场动画
+            // key 必须落在 Column 的直接 children 上：藏在包装里时，
+            // 删中间一条会让后面那条按 index 复用包装层、被重建并重播入场动画
+            _NoticeItem(
               key: ValueKey(item.id),
-              alignment: Alignment.centerRight,
-              child: _NoticeItem(
-                item: item,
-                onRemove: () => _removeById(item.id),
-              ),
+              item: item,
+              onRemove: () => _removeById(item.id),
             ),
         ],
       ),
@@ -234,7 +236,7 @@ class _NoticeItem extends StatefulWidget {
   final _NoticeData item;
   final VoidCallback onRemove;
 
-  const _NoticeItem({required this.item, required this.onRemove});
+  const _NoticeItem({super.key, required this.item, required this.onRemove});
 
   @override
   State<_NoticeItem> createState() => _NoticeItemState();
