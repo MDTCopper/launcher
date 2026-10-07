@@ -477,9 +477,12 @@ class MdtbbsClient {
       // 报障时维护者拿不到任何线索
       message = _rawSnippet(data) ?? '';
     }
+    // 500 的错误体常常是纯文本、信封里没有 request_id ⇒ 再去响应头里找一次
+    // （报障时要的就是它，服务端多半把追踪 ID 放在头里）
+    final requestId = _requestIdOf(meta, response?.headers.map);
+
     if (message.isEmpty) {
       final status = response?.statusCode;
-      final requestId = meta?['request_id'];
       message = status == null
           ? (error.message ?? '')
           : 'HTTP $status 且服务端没给错误详情'
@@ -490,19 +493,50 @@ class MdtbbsClient {
       statusCode: response?.statusCode,
       code: code,
       message: message,
-      requestId: meta?['request_id'] as String?,
+      requestId: requestId,
       retryable: errorBody?['retryable'] == true,
       details: (errorBody?['details'] as List?) ?? const [],
     );
 
-    // 路径与方法一起记：哪个请求挂的、服务端说了什么，日志里一眼能看出来
+    // 路径与方法一起记：哪个请求挂的、服务端说了什么，日志里一眼能看出来；
+    // 追踪 ID 不论从哪来都记上 —— 报障时靠的就是这一行
     addLog(
       .warning,
       '请求失败 ${error.requestOptions.method} ${error.requestOptions.path}'
-      '：${failure.message}',
+      '：${failure.message}'
+      '${requestId == null ? '' : '（request_id: $requestId）'}',
       tag: 'Mdtbbs',
     );
     return failure;
+  }
+
+  /// 追踪 ID 可能藏在响应头里 —— `meta.request_id` 只有 V1 信封的错误体才有
+  static const _requestIdHeaders = [
+    'x-request-id',
+    'x-requestid',
+    'request-id',
+    'x-trace-id',
+    'x-amzn-trace-id',
+    'cf-ray',
+  ];
+
+  /// 先认信封里的 `meta.request_id`，没有再去响应头里找常见的追踪 ID
+  static String? _requestIdOf(
+    Map<String, dynamic>? meta,
+    Map<String, List<String>>? headers,
+  ) {
+    final fromBody = meta?['request_id'];
+    if (fromBody is String && fromBody.trim().isNotEmpty) {
+      return fromBody.trim();
+    }
+    if (headers == null) return null;
+    for (final entry in headers.entries) {
+      if (!_requestIdHeaders.contains(entry.key.toLowerCase())) continue;
+      for (final value in entry.value) {
+        if (value.trim().isNotEmpty) return value.trim();
+      }
+    }
+    return null;
   }
 
   /// 认不出的错误体截一段原文（换行压平、超长截断）
