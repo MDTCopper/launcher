@@ -100,39 +100,40 @@ class _ModViewPageState extends State<ModViewPage> {
   }
 
   List<ModOfficialListEntry> get filteredMods {
-    final double v;
+    //version -2 = 跟随所选版本；一个版本都没选到时没有比较基准，按「不限版本」处理
+    final double? v = switch (version) {
+      -2 => double.tryParse(
+        config.versionOptions.selectedVersion?.release
+                .replaceFirst('v', '')
+                .split('.')
+                .first ??
+            '',
+      ),
+      -1 => null,
+      _ => version.toDouble(),
+    };
 
-    if (version == -2) {
-      v = double.parse(
-        config.versionOptions.selectedVersion!.release
-            .substring(1)
-            .split('.')
-            .first,
-      );
-    } else {
-      v = version.toDouble();
-    }
+    final minGameVersion = ModVersionGate.instance.mod.resultOf(v ?? 0);
 
-    final minGameVersion = ModVersionGate.instance.mod.resultOf(v);
-
-    final minJavaGameVersion = ModVersionGate.instance.java.resultOf(v);
+    final minJavaGameVersion = ModVersionGate.instance.java.resultOf(v ?? 0);
 
     final l = modMetas.toList();
     return l.where((it) {
       final isJava = it.hasJava;
-      final modMin = double.parse(it.minGameVersion);
+      final modMin = double.tryParse(it.minGameVersion);
 
       bool support;
 
-      //不限版本，不过滤
-      if (version == -1) {
+      //不限版本 / 没选到版本，不过滤
+      if (v == null) {
         support = true;
+      } else if (modMin == null) {
+        //官方列表里出现过读不成数字的 minGameVersion（例如 "157.1，"），按版本未知排除
+        support = false;
+      } else if (isJava) {
+        support = modMin >= minJavaGameVersion && modMin <= v;
       } else {
-        if (isJava) {
-          support = modMin >= minJavaGameVersion && modMin <= v;
-        } else {
-          support = modMin >= minGameVersion && modMin <= v;
-        }
+        support = modMin >= minGameVersion && modMin <= v;
       }
 
       final type = it.hasJava
@@ -270,17 +271,8 @@ class _ModViewPageState extends State<ModViewPage> {
                 .toList(),
           );
         }
-        if (previousModMetaMap.isEmpty) {
-          var res = await cio.get(github3MonthsModMetaUrl);
-          if (res.statusCode != 200) throw Exception('链接失败');
-          List<dynamic> jsons = jsonDecode(res.data);
-          final List<ModOfficialListEntry> list = jsons
-              .map<ModOfficialListEntry>(
-                (it) => ModOfficialListEntry.fromJson(it),
-              )
-              .toList();
-          previousModMetaMap = {for (final it in list) it.repo: it};
-        }
+        //官方仓库没有「3 个月前」的 ref（无 tag），拿不到上升榜基线：
+        //previousModMetaMap 保持空，热度排序走 starsDifferenceCache 的兜底分支
 
         return true;
       } catch (e) {
@@ -824,21 +816,24 @@ class _ModViewPageState extends State<ModViewPage> {
         Widget child;
 
         final state = snapshot.connectionState;
-        if (snapshot.hasError) child = buildFetchFailed();
-        if (state == ConnectionState.waiting) {
+        if (snapshot.hasError) {
+          child = buildFetchFailed();
+        } else if (state == ConnectionState.waiting) {
           child = buildLoading();
         } else if (modMetas.isEmpty) {
           child = buildFetchFailed();
         } else {
           child = ContentPanelModule(
-            child: FutureBuilder(
+            child: FutureBuilder<List<ModOfficialListEntry>>(
               future: sortedMods,
               builder: (_, s) {
+                if (s.hasError) return buildFetchFailed();
                 if (s.connectionState == ConnectionState.waiting) {
                   return SizedBox();
                 }
 
-                final length = s.data!.length;
+                final mods = s.data ?? const <ModOfficialListEntry>[];
+                final length = mods.length;
 
                 if (length == 0) {
                   return Column(
@@ -864,7 +859,7 @@ class _ModViewPageState extends State<ModViewPage> {
                 return Column(
                   spacing: 8,
                   children: [
-                    for (int i = begin; i < end; i++) _buildModTile(s.data![i]),
+                    for (int i = begin; i < end; i++) _buildModTile(mods[i]),
                     Pager(
                       index,
                       endPage: index == endIndex,
