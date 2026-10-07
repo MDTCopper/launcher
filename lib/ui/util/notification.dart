@@ -472,7 +472,8 @@ class _NoticeItemState extends State<_NoticeItem>
 
     return SizeTransition(
       sizeFactor: sizeFactor,
-      alignment: Alignment(-1.0, -1.0),
+      //纵向收缩不动宽度 ⇒ 这一层的盒子仍占满宽度，卡片得靠右对齐才贴住右边缘
+      alignment: Alignment(1.0, -1.0),
       child: Padding(
         padding: const EdgeInsets.only(right: 12),
         child: Padding(padding: const EdgeInsets.only(bottom: 12), child: item),
