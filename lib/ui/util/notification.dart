@@ -103,7 +103,8 @@ class NotificationManager {
     if (_overlayEntry == null || !(_overlayEntry?.mounted ?? false)) {
       _overlayEntry = OverlayEntry(
         builder: (_) {
-          return Positioned(top: 56, left: 0, child: _widget);
+          //通知落在右上角：右边缘对齐，顶边让开 40 高的顶栏
+          return Positioned(top: 56, right: 0, child: _widget);
         },
       );
       Overlay.of(context).insert(_overlayEntry!);
@@ -209,7 +210,7 @@ class _NotificationWidgetState extends State<NotificationWidget> {
               // 移除条目后按 index 匹配包装层（Align 无 key），
               // 深层 _NoticeItem 会被重建并重播入场动画
               key: ValueKey(item.id),
-              alignment: Alignment.centerLeft,
+              alignment: Alignment.centerRight,
               child: _NoticeItem(
                 item: item,
                 onRemove: () => _removeById(item.id),
@@ -221,12 +222,12 @@ class _NotificationWidgetState extends State<NotificationWidget> {
   }
 }
 
-/// 通知条目：自持入场 / 退场动画 + 左滑删除
+/// 通知条目：自持入场 / 退场动画 + 右滑删除
 ///
-/// - **入场**：仅 左滑入 + 淡入（无展开动画），播完保持显示
+/// - **入场**：仅 右滑入 + 淡入（无展开动画），播完保持显示
 /// - **退场**：分段 —— 点击先缩小（scale 1.0→0.92）→ 停顿 → 划出+淡出 →
 ///   最后占位收缩（SizeTransition，下方通知才上移）
-/// - **左滑删除**：跟手左移，超过 [dismissDistance] 松手即退场删除；
+/// - **右滑删除**：跟手右移，超过 [dismissDistance] 松手即退场删除；
 ///   未超阈值松手回弹恢复（无删除背景层）
 /// - 定时器到期也走同一退场路径，`onRemove` 只在退场动画结束后触发一次
 class _NoticeItem extends StatefulWidget {
@@ -282,7 +283,7 @@ class _NoticeItemState extends State<_NoticeItem>
   bool _byTap = false;
   Timer? _timer;
 
-  /// 左滑删除：手势累计偏移（负值左移）
+  /// 右滑删除：手势累计偏移（正值右移）
   double _dragX = 0;
 
   /// 滑动删除阈值（px）
@@ -375,20 +376,20 @@ class _NoticeItemState extends State<_NoticeItem>
     _shrinkController.forward(from: 0);
   }
 
-  // ─── 左滑删除手势 ───
+  // ─── 右滑删除手势 ───
 
   void _onDragUpdate(DragUpdateDetails d) {
     if (_removing) return;
     _dragBackController.stop();
     setState(() {
       // delta.dx 是单帧增量，必须累计；否则 item 只动一下就被"定格"
-      _dragX = (_dragX + d.delta.dx).clamp(-_dismissDistance * 1.5, 0.0);
+      _dragX = (_dragX + d.delta.dx).clamp(0.0, _dismissDistance * 1.5);
     });
   }
 
   void _onDragEnd(DragEndDetails d) {
     if (_removing) return;
-    if (_dragX <= -_dismissDistance) {
+    if (_dragX >= _dismissDistance) {
       _remove();
     } else {
       // 未达阈值：缓慢归位
@@ -399,7 +400,7 @@ class _NoticeItemState extends State<_NoticeItem>
 
   @override
   Widget build(BuildContext context) {
-    final enterPosition = Tween(begin: const Offset(-0.35, 0), end: Offset.zero)
+    final enterPosition = Tween(begin: const Offset(0.35, 0), end: Offset.zero)
         .animate(
           CurvedAnimation(parent: _controller, curve: _kEnterPositionCurve),
         );
@@ -415,7 +416,7 @@ class _NoticeItemState extends State<_NoticeItem>
     );
 
     final swipePosition = _removing
-        ? Tween(begin: Offset.zero, end: const Offset(-0.35, 0)).animate(
+        ? Tween(begin: Offset.zero, end: const Offset(0.35, 0)).animate(
             CurvedAnimation(parent: _swipeController, curve: _kSwipeCurve),
           )
         : const AlwaysStoppedAnimation(Offset.zero);
@@ -471,7 +472,7 @@ class _NoticeItemState extends State<_NoticeItem>
       sizeFactor: sizeFactor,
       alignment: Alignment(-1.0, -1.0),
       child: Padding(
-        padding: const EdgeInsets.only(left: 12),
+        padding: const EdgeInsets.only(right: 12),
         child: Padding(padding: const EdgeInsets.only(bottom: 12), child: item),
       ),
     );
