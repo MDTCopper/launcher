@@ -149,10 +149,14 @@ class _NotificationWidgetState extends State<NotificationWidget> {
           children: [
             Icon(icon, size: 28),
             if (title != null)
-              Text(
-                title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: theme.colorScheme.primary,
+              //标题没有宽度上限会撑破这行，交给 Flexible 按剩余宽度省略号收尾
+              Flexible(
+                child: Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
               ),
           ],
