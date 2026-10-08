@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:async/async.dart';
@@ -14,6 +15,7 @@ import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/format/time_since.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
@@ -76,6 +78,9 @@ class _ModViewPageState extends State<ModViewPage> {
     if (version == -2 && config.versionOptions.selectedVersion == null) {
       version = -1;
     }
+
+    //热度（上升榜）得有基线才算得出来，先把这条拉起来，别挡列表
+    unawaited(_loadPreviousModMetaMap());
   }
 
   @override
@@ -249,6 +254,7 @@ class _ModViewPageState extends State<ModViewPage> {
 
   CancelableOperation<bool>? _fetchModMetasOperation;
   var _refreshModMetas = true;
+  bool _baselineLoading = false;
 
   Future<bool> _fetchModMetas() async {
     if (!_refreshModMetas && _fetchModMetasOperation != null) {
@@ -263,16 +269,16 @@ class _ModViewPageState extends State<ModViewPage> {
           var res = await cio.get(githubModMetaUrl);
           if (res.statusCode != 200) throw Exception('链接失败');
           List<dynamic> jsons = jsonDecode(res.data);
-          modMetas.addAll(
-            jsons
-                .map<ModOfficialListEntry>(
-                  (it) => ModOfficialListEntry.fromJson(it),
-                )
-                .toList(),
-          );
+          final list = jsons
+              .map<ModOfficialListEntry>(
+                (it) => ModOfficialListEntry.fromJson(it),
+              )
+              .toList();
+          //重试 / 离开再回来时列表可能已被另一个 fetch 填过，
+          //按 repo 去重合并，绝不整份追加两遍
+          final seen = {for (final it in modMetas) it.repo};
+          modMetas.addAll(list.where((it) => seen.add(it.repo)));
         }
-        //官方仓库没有「3 个月前」的 ref（无 tag），拿不到上升榜基线：
-        //previousModMetaMap 保持空，热度排序走 starsDifferenceCache 的兜底分支
 
         return true;
       } catch (e) {
@@ -287,6 +293,50 @@ class _ModViewPageState extends State<ModViewPage> {
 
     _fetchModMetasOperation = CancelableOperation<bool>.fromFuture(fetch());
     return await _fetchModMetasOperation!.value;
+  }
+
+  /// 热度（上升榜）的基线：约 3 个月前的 mods.json
+  ///
+  /// 官方 mods.json 每天自动更新数次、仓库里没有 tag，所以先问 API 要那个时间点的提交，
+  /// 再按提交 SHA 取文件（`@{3months}` 那种 ref 官方不认）；失败只当没有基线，不影响列表
+  Future<void> _loadPreviousModMetaMap() async {
+    if (_baselineLoading || previousModMetaMap.isNotEmpty) return;
+    _baselineLoading = true;
+    try {
+      final until = DateTime.now()
+          .toUtc()
+          .subtract(const Duration(days: 90))
+          .toIso8601String();
+      final commitRes = await cio.get(
+        '$githubAPI/repos/Anuken/MindustryMods/commits'
+        '?path=mods.json&until=$until&per_page=1',
+      );
+      if (commitRes.statusCode != 200) throw Exception('提交列表拿不到');
+      final commits = jsonDecode(commitRes.data) as List<dynamic>;
+      final sha = (commits.first as Map)['sha'] as String?;
+      if (sha == null) throw Exception('提交里没有 sha');
+
+      final res = await cio.get(
+        '$githubRAW/Anuken/MindustryMods/$sha/mods.json',
+      );
+      if (res.statusCode != 200) throw Exception('旧快照拿不到');
+      final jsons = jsonDecode(res.data) as List<dynamic>;
+      final list = jsons
+          .map<ModOfficialListEntry>((it) => ModOfficialListEntry.fromJson(it))
+          .toList();
+      previousModMetaMap = {for (final it in list) it.repo: it};
+
+      if (!mounted) return;
+      //基线到手，热度的 star 差要重算
+      setState(() {
+        conditionChange = true;
+        sortedModCache = [];
+      });
+    } catch (e) {
+      addLog(.warning, '模组热度基线取不到：${removeNewlines('$e')}', tag: 'ModDownload');
+    } finally {
+      _baselineLoading = false;
+    }
   }
 
   // ===========================
