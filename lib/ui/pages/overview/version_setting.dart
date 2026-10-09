@@ -32,6 +32,9 @@ import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
+import 'package:copper_launcher/ui/pages/cloud/cloud_save_page.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
@@ -158,6 +161,23 @@ class _About extends StatefulWidget {
 }
 
 class _AboutState extends State<_About> {
+  /// BBS 登录态：云存档要求先登录，没登录时这块只给引导
+  bool _cloudLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCloudAccount();
+  }
+
+  /// 登录态是异步的（读盘 + 可能刷新令牌），首帧之后再问
+  Future<void> _loadCloudAccount() async {
+    final accounts = AccountManager.instance;
+    if (accounts.isConfigured) await accounts.restore();
+    if (!mounted) return;
+    setState(() => _cloudLoggedIn = accounts.isLoggedIn);
+  }
+
   /// 崩溃日志目录（游戏侧 默认数据目录/crashes）
   String get _crashesPath => _mindustry.crashesPath;
 
@@ -657,6 +677,8 @@ pause
       items: [
         _buildVersionInfoPanel(),
 
+        ContentPanelModule(title: '云存档', child: _buildCloudSaveSection()),
+
         ContentPanelModule(
           title: '快捷方式',
           child: Column(
@@ -848,6 +870,104 @@ pause
           ),
         ),
       ],
+    );
+  }
+
+  /// 云存档这块：未登录只给引导，登录后给开关 + 简短状态 + 打开菜单
+  ///
+  /// 开关按**数据目录**记（同步单元就是数据目录），多个版本共用一份目录时共用同一个
+  /// 开关 —— 那种情况必须写清楚，不然用户会以为「这是这个版本自己的设置」
+  Widget _buildCloudSaveSection() {
+    final theme = Theme.of(context);
+    final accounts = AccountManager.instance;
+
+    if (!accounts.isConfigured || !_cloudLoggedIn) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SettingBarRow(
+            title: '云存档',
+            control: Text('登录 BBS 后可用', style: theme.textTheme.bodyMedium),
+          ),
+          const SizedBox(height: 16),
+          IconTextButton(
+            icon: Icons.cloud_outlined,
+            content: '去 BBS 登录',
+            onTap: _openCloudSave,
+          ),
+        ],
+      );
+    }
+
+    final enabled = CloudSaveService.isEnabled(_mindustry);
+    final shared = _versionsSharingDataPath - 1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchSettingBar(
+          title: '云存档',
+          value: enabled,
+          onChanged: _setCloudEnabled,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          enabled ? _cloudStatusText : '没开：这个版本不参与云存档',
+          style: theme.textTheme.labelMedium,
+        ),
+        if (shared > 0) ...[
+          const SizedBox(height: 8),
+          Text(
+            '这个版本与其他 $shared 个版本共用数据目录，开关是这份目录的',
+            style: theme.textTheme.labelMedium,
+          ),
+        ],
+        const SizedBox(height: 16),
+        IconTextButton(
+          icon: Icons.cloud_outlined,
+          content: '打开云存档',
+          onTap: _openCloudSave,
+        ),
+      ],
+    );
+  }
+
+  /// 本地能说清的状态（不联网、不扫盘）：传没传过 / 上次同步到哪个快照
+  String get _cloudStatusText {
+    final state = CloudSaveService.localState(_mindustry);
+    if (state == null) return '还没传过，打开云存档可以传这个版本';
+    final snapshotId = state.snapshotId;
+    if (snapshotId == null || snapshotId.length < 8) return '已绑定云端槽位';
+    return '上次同步到快照 ${snapshotId.substring(0, 8)}';
+  }
+
+  /// 有多少个版本共用这份数据目录（含自己）
+  int get _versionsSharingDataPath {
+    final path = p.normalize(_mindustry.dataPath);
+    var count = 0;
+    for (final fold in config.versionOptions.versionFolds) {
+      for (final version in fold.versions) {
+        if (p.normalize(version.dataPath) == path) count++;
+      }
+    }
+    return count;
+  }
+
+  void _setCloudEnabled(bool value) {
+    CloudSaveService.setEnabled(_mindustry, value);
+    setState(() {});
+    addLog(
+      .info,
+      '[${_mindustry.tag}] 云存档${value ? '开启' : '关闭'}，数据目录：${_mindustry.dataPath}',
+      tag: 'Cloud',
+    );
+  }
+
+  /// 打开云存档菜单：把**这个版本**带过去（导航栏那条路不带参数 = 当前选中版本）
+  void _openCloudSave() {
+    Navigator.pushNamed(
+      context,
+      cloudSavePageRouteKey,
+      arguments: {'lead': '版本设置', 'title': '云存档', 'version': _mindustry},
     );
   }
 }

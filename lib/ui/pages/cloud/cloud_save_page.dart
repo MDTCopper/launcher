@@ -52,7 +52,14 @@ class _CloudSavePageState extends State<CloudSavePage> {
   /// 上传进度 0–1
   double _busyProgress = 0;
 
-  Mindustry? get _selectedVersion => config.versionOptions.selectedVersion;
+  /// 这次操作哪个版本
+  ///
+  /// 路由参数优先（版本设置里点进来的那份），没带参数就是**当前选中版本**
+  /// （导航栏「概览 → BBS」那条路，行为与以前一致）
+  Mindustry? get _selectedVersion =>
+      (ModalRoute.of(context)?.settings.arguments as Map?)?['version']
+          as Mindustry? ??
+      config.versionOptions.selectedVersion;
 
   AccountManager get _accounts => AccountManager.instance;
 

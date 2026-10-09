@@ -812,6 +812,24 @@ class CloudSaveService {
 
   // ---- 本地绑定：数据目录 → 云端槽位 + 上次同步到哪儿 ----
 
+  /// 开了云存档的数据目录清单（开关按**数据目录**存：同步单元就是它，
+  /// 多个版本共用一份目录时天然共用这个开关，UI 按版本呈现）
+  static String get enabledPath => p.join(_root, 'cloud-enabled.json');
+
+  /// 这个版本用的那份数据目录开没开云存档
+  ///
+  /// 没记过就是没开；上传过一次会由 [_bind] 顺手把它标成开（用户既然传了，就是在用它）
+  static bool isEnabled(Mindustry version) =>
+      _loadEnabled().contains(_normalize(version.dataPath));
+
+  /// 开关：只动这份清单，槽位绑定与「上次同步到哪儿」一个不碰
+  static void setEnabled(Mindustry version, bool enabled) {
+    final paths = _loadEnabled();
+    final path = _normalize(version.dataPath);
+    final changed = enabled ? paths.add(path) : paths.remove(path);
+    if (changed) _saveEnabled(paths);
+  }
+
   /// 这个数据目录上次同步到哪儿；没记过给 null
   static CloudSyncState? localState(Mindustry version) =>
       _loadStates()[_normalize(version.dataPath)];
@@ -1032,6 +1050,41 @@ class CloudSaveService {
     }
   }
 
+  static Set<String> _loadEnabled() {
+    final file = File(enabledPath);
+    if (!file.existsSync()) return {};
+    try {
+      final decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map) return {};
+      final raw = decoded['data_paths'];
+      if (raw is! List) return {};
+      return {
+        for (final item in raw)
+          if (item is String) item,
+      };
+    } catch (error) {
+      addLog(
+        .warning,
+        '云存档开关读取失败，按都没开处理：${removeNewlines('$error')}',
+        tag: 'Cloud',
+      );
+      return {};
+    }
+  }
+
+  static void _saveEnabled(Set<String> paths) {
+    try {
+      final directory = Directory(p.dirname(enabledPath));
+      if (!directory.existsSync()) directory.createSync(recursive: true);
+      File(enabledPath).writeAsStringSync(
+        jsonEncode({'version': 1, 'data_paths': paths.toList()}),
+        flush: true,
+      );
+    } catch (error) {
+      addLog(.warning, '云存档开关写入失败：${removeNewlines('$error')}', tag: 'Cloud');
+    }
+  }
+
   /// 记下「这个数据目录同步到哪个槽位 / 哪个快照 / 哪些文件」
   static void _rememberSynced(
     Mindustry version, {
@@ -1058,6 +1111,10 @@ class CloudSaveService {
       files: existing?.files ?? const {},
     );
     _saveStates(states);
+
+    // 认过槽位就说明这份数据目录在用云存档，把开关一并标上
+    final paths = _loadEnabled();
+    if (paths.add(_normalize(dataPath))) _saveEnabled(paths);
   }
 
   /// 路径大小写不敏感的平台上要归一，否则同一个目录会记成两条绑定
