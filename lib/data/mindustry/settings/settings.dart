@@ -193,6 +193,7 @@ class MindustrySettings {
 
   void saveTo(String path) {
     _ensureWritable();
+    _backupBeforeWrite(path);
     _filePath = path;
     final bytes = SettingsBinCodec.encode(_data);
     final file = File(path);
@@ -211,6 +212,7 @@ class MindustrySettings {
 
   Future<void> saveToAsync(String path) async {
     _ensureWritable();
+    _backupBeforeWrite(path);
     _filePath = path;
     final bytes = SettingsBinCodec.encode(_data);
     final file = File(path);
@@ -218,6 +220,21 @@ class MindustrySettings {
       await file.create(recursive: true);
     }
     await File(path).writeAsBytes(bytes);
+  }
+
+  /// 写回前先留一份底：`<path>.copper-backup`（只留一份，下次写覆盖它）
+  ///
+  /// 我们这套 `decode → encode` 万一不保真（或以后有人改坏），玩家的键位与存档标题
+  /// （游戏记在 `save-<文件名>-name`）还能从这份找回来。放在数据根 ——
+  /// **不在 Steam 云会扫的目录里，也不会进我们的云包**（云包只收清单点名的文件）
+  ///
+  /// 留底失败不拦写入（它本来就是"更保险"那一步）
+  void _backupBeforeWrite(String path) {
+    try {
+      final file = File(path);
+      if (!file.existsSync()) return;
+      File('$path.copper-backup').writeAsBytesSync(file.readAsBytesSync());
+    } catch (_) {}
   }
 
   // ─────────────────────────────────────────
