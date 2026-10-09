@@ -271,8 +271,14 @@ class LaunchMindustryTask extends Task {
           ' ',
         );
 
-    // 云存档：启动前按需把云端那份拉下来（只对启用了云存档的目录；失败不拦启动）
-    await CloudAutoSync.beforeLaunch(mindustry);
+    // 云存档：启动前按需把云端那份拉下来；**冲突要玩家选，没选就不启动**
+    if (!await CloudAutoSync.beforeLaunch(mindustry)) {
+      addTaskLog(LogEntry(LogType.info, '云存档冲突没处理，已停止启动'));
+      addLog(.info, '云存档冲突没处理，停止启动 [${mindustry.tag}]', tag: 'Cloud');
+      status = TaskStatus.cancel;
+      updateDisplay();
+      return;
+    }
 
     if (supportsSettingsOverride && config.setting.mindustrySettingsOverride) {
       setting.applyPatch(config.setting.mindustrySettings);

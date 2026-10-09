@@ -1,3 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:archive/archive.dart';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
@@ -5,6 +10,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_cloud_save_api.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
+import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/cloud/cloud_notes.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
@@ -19,7 +25,9 @@ import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/date_time_format.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 const versionCloudSavePageRouteKey = '/cloud_save/version';
 
@@ -388,7 +396,73 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         _buildVersionPanel(),
         _buildSnapshotPanel(),
         _buildHintsPanel(),
+        if (kDebugMode) _buildDebugPanel(),
       ],
+    );
+  }
+
+  /// 调试模块（仅 debug）：不用真开游戏就能试云存档的传 / 拉 / 冲突
+  ///
+  /// 「伪造一份存档」往这个版本的数据目录里写一份游戏认得的假存档（同名，内容每次不同）
+  /// ⇒ 再点上传 / 跑一次启动前检查，就能把三种状态都走一遍
+  Widget _buildDebugPanel() {
+    final theme = Theme.of(context);
+    final version = _selectedVersion;
+    if (version == null) return const SizedBox.shrink();
+
+    return ContentPanelModule(
+      title: '调试（仅 debug）',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 8,
+        children: [
+          Text(
+            '往数据目录写一份假存档，用来试「上传 / 启动前拉取 / 冲突」；'
+            '别在游戏跑着的时候点。',
+            style: theme.textTheme.labelMedium,
+          ),
+          Row(
+            spacing: 8,
+            children: [
+              IconTextButton(
+                icon: Icons.science_outlined,
+                content: '伪造一份存档',
+                onTap: _busy == null
+                    ? () {
+                        _writeDebugSave(version.dataPath);
+                        addNotice(
+                          icon: Icons.check,
+                          title: '已写入假存档',
+                          content: 'saves/copper-debug.msav',
+                        );
+                        _reload();
+                      }
+                    : null,
+              ),
+              IconTextButton(
+                icon: Icons.cloud_download_outlined,
+                content: '跑一次启动前检查',
+                onTap: _busy == null
+                    ? () async {
+                        await CloudAutoSync.beforeLaunch(version);
+                        await _reload();
+                      }
+                    : null,
+              ),
+              IconTextButton(
+                icon: Icons.cloud_upload_outlined,
+                content: '跑一次退出后上传',
+                onTap: _busy == null
+                    ? () async {
+                        await CloudAutoSync.afterGameExit(version);
+                        await _reload();
+                      }
+                    : null,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -616,4 +690,48 @@ class _SnapshotTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 调试用：往数据目录写一份**游戏那套读法能认**的假存档（zlib + MSAV + meta 区）
+///
+/// 名字固定（`copper-debug.msav`）、波次每次不同 ⇒ 反复点就能造出「本机改了」，
+/// 配合上传就能造出冲突。只在 debug 下由「调试」模块调用
+void _writeDebugSave(String dataPath) {
+  final metaBytes = BytesBuilder();
+  void u16(BytesBuilder builder, int value) =>
+      builder.add([(value >> 8) & 0xFF, value & 0xFF]);
+  void utf(BytesBuilder builder, String text) {
+    final bytes = utf8.encode(text);
+    u16(builder, bytes.length);
+    builder.add(bytes);
+  }
+
+  final meta = {
+    'mapname': '调试存档',
+    'wave': '${DateTime.now().millisecondsSinceEpoch % 1000}',
+    'build': '160',
+    'saved': '${DateTime.now().millisecondsSinceEpoch}',
+    'playtime': '7993185',
+  };
+  u16(metaBytes, meta.length);
+  meta.forEach((key, value) {
+    utf(metaBytes, key);
+    utf(metaBytes, value);
+  });
+
+  final raw = BytesBuilder();
+  void i32(BytesBuilder builder, int value) => builder.add([
+    (value >> 24) & 0xFF,
+    (value >> 16) & 0xFF,
+    (value >> 8) & 0xFF,
+    value & 0xFF,
+  ]);
+  raw.add(utf8.encode('MSAV'));
+  i32(raw, 13);
+  i32(raw, metaBytes.length);
+  raw.add(metaBytes.takeBytes());
+
+  final file = File(p.join(dataPath, 'saves', 'copper-debug.msav'))
+    ..createSync(recursive: true);
+  file.writeAsBytesSync(ZLibEncoder().encodeBytes(raw.takeBytes()));
 }
