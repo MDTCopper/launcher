@@ -36,6 +36,8 @@
         <!-- Limits from Mindustry -->
         <meta-data android:name="android.max_aspect" android:value="2.1"/>
 
+        <!-- 输入法只做叠加、不改窗口尺寸：启动器尺寸不受输入法影响，
+             输入交给 Dart 侧的全局辅助输入条（浮在键盘上方）承接 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -44,7 +46,7 @@
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustNothing">
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
                  while the Flutter UI initializes. After that, this theme continues

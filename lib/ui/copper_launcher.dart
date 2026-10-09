@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/pages/bridge_install_page.dart';
 import 'package:copper_launcher/ui/shell/app_shell.dart';
+import 'package:copper_launcher/ui/shell/parts/auxiliary_input_bar.dart';
 import 'package:copper_launcher/ui/theme/app_theme.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:flutter/material.dart';
@@ -43,6 +44,7 @@ class CopperLauncherState extends State<CopperLauncher> {
         darkTheme: buildTheme(Brightness.dark, themeColor),
         themeMode: themeMode,
         debugShowCheckedModeBanner: false,
+        builder: _buildPlatformOverlay,
         home: isRuntimeReady
             ? AppShell(key: PageKeyProvider.shellKey)
             : BridgeInstallPage(
@@ -50,5 +52,19 @@ class CopperLauncherState extends State<CopperLauncher> {
               ),
       ),
     );
+  }
+
+  /// 移动端的输入法处理：输入法不改启动器的尺寸，输入改由辅助输入条承接
+  Widget _buildPlatformOverlay(BuildContext context, Widget? child) {
+    if (child == null) return const SizedBox.shrink();
+    if (!Platform.isAndroid) return child;
+
+    // 底部输入法内边距从整棵应用子树摘掉：键盘弹起时页面不缩、不被顶起
+    final content = MediaQuery(
+      data: MediaQuery.of(context).removeViewInsets(removeBottom: true),
+      child: child,
+    );
+    // 条挂在 navigator 之上，弹窗里的输入框聚焦时也接管得到
+    return AuxiliaryInputBar(child: content);
   }
 }
