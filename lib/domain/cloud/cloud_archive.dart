@@ -290,6 +290,10 @@ class CloudArchiveReader {
   }) async {
     final report = CloudImportReport(manifest: manifest);
 
+    // 包里**确实带到**的目的地：留两份 / 冲突跳过时，报告里记的是改名后的路径，
+    // 不能拿它去判断「包里有没有这一份」（那是两个问题）
+    final landed = <String>{};
+
     // 清单点名的路径 → 该落哪儿、该是什么哈希
     final planned = <String, _PlannedFile>{};
     for (final entry in manifest.includedFiles) {
@@ -346,6 +350,7 @@ class CloudArchiveReader {
 
       // 目的地（清单定的）与「按默认策略实际该落哪儿」；目标已有同名不同内容时两者不同
       final destination = target.destination;
+      landed.add(destination);
       final settled = _settleDestination(destination, target.sha256, content);
       if (settled == null) {
         report.unchanged.add(destination);
@@ -378,12 +383,7 @@ class CloudArchiveReader {
     // 清单里有、包里没有的（导出时被丢掉的那种）
     for (final entry in planned.entries) {
       if (report.rejected.any((item) => item.path == entry.key)) continue;
-      final exists =
-          report.written.contains(entry.value.destination) ||
-          report.keptBoth.contains(entry.value.destination) ||
-          report.overwritten.contains(entry.value.destination) ||
-          report.unchanged.contains(entry.value.destination);
-      if (!exists) {
+      if (!landed.contains(entry.value.destination)) {
         report.rejected.add(CloudRejection(entry.key, '包里没带这一份'));
       }
     }
