@@ -816,6 +816,9 @@ class CloudSaveService {
   /// 多个版本共用一份目录时天然共用这个开关，UI 按版本呈现）
   static String get enabledPath => p.join(_root, 'cloud-enabled.json');
 
+  /// 绑定文件（`<数据根>/mdtbbs_cloud_slots.json`）：数据目录 → 云端槽位 + 上次同步到哪儿
+  static String get bindingPath => _bindingPath;
+
   /// 这个版本用的那份数据目录开没开云存档
   ///
   /// 没记过就是没开；上传过一次会由 [_bind] 顺手把它标成开（用户既然传了，就是在用它）
@@ -995,7 +998,9 @@ class CloudSaveService {
           : null,
     );
     final empty =
-        info.mapName == null && info.wave == null && info.playtimeSeconds == null;
+        info.mapName == null &&
+        info.wave == null &&
+        info.playtimeSeconds == null;
     return empty ? null : info;
   }
 

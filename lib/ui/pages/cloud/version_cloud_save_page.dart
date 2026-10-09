@@ -461,6 +461,27 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
               ),
             ],
           ),
+          Row(
+            spacing: 8,
+            children: [
+              IconTextButton(
+                icon: Icons.link_off,
+                content: '清掉本机同步记录（造冲突）',
+                onTap: _busy == null
+                    ? () {
+                        final file = File(CloudSaveService.bindingPath);
+                        if (file.existsSync()) file.deleteSync();
+                        addNotice(
+                          icon: Icons.check,
+                          title: '已清掉本机同步记录',
+                          content: '再改一次本机存档，就会出现「两边都改过」的冲突',
+                        );
+                        _reload();
+                      }
+                    : null,
+              ),
+            ],
+          ),
         ],
       ),
     );
