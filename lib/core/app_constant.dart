@@ -58,8 +58,11 @@ const mindustryManifestBase = 'https://file.mdtbbs.cn';
 const githubModMetaUrl = '$githubRAW/Anuken/MindustryMods/master/mods.json';
 
 ///$githubRAW/Anuken/MindustryMods/@{3months}/mods.json
+///
+/// ref 用 GitHub 的相对时间写法 `@{3months}`，但在 raw 上**必须百分号编码**；
+/// 字面量 `@{3months}` 会 404，`%40%7B3months%7D` 才是能取到的那条
 const github3MonthsModMetaUrl =
-    '$githubRAW/Anuken/MindustryMods/@{3months}/mods.json';
+    '$githubRAW/Anuken/MindustryMods/%40%7B3months%7D/mods.json';
 
 /// mindustry.top 资源站地图接口基址（站点拥有者公开的接口，前端可直连）；
 /// 站点页面 www.mindustry.top/map 经 Nuxt 服务端把 /api 前缀代理到此处

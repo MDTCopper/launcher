@@ -297,29 +297,14 @@ class _ModViewPageState extends State<ModViewPage> {
 
   /// 热度（上升榜）的基线：约 3 个月前的 mods.json
   ///
-  /// 官方 mods.json 每天自动更新数次、仓库里没有 tag，所以先问 API 要那个时间点的提交，
-  /// 再按提交 SHA 取文件（`@{3months}` 那种 ref 官方不认）；失败只当没有基线，不影响列表
+  /// 官方仓库没有 tag，走 GitHub 的相对时间 ref（见 `github3MonthsModMetaUrl` 的编码说明）；
+  /// 失败只当没有基线，记一条日志就算了，绝不牵连列表本身
   Future<void> _loadPreviousModMetaMap() async {
     if (_baselineLoading || previousModMetaMap.isNotEmpty) return;
     _baselineLoading = true;
     try {
-      final until = DateTime.now()
-          .toUtc()
-          .subtract(const Duration(days: 90))
-          .toIso8601String();
-      final commitRes = await cio.get(
-        '$githubAPI/repos/Anuken/MindustryMods/commits'
-        '?path=mods.json&until=$until&per_page=1',
-      );
-      if (commitRes.statusCode != 200) throw Exception('提交列表拿不到');
-      final commits = jsonDecode(commitRes.data) as List<dynamic>;
-      final sha = (commits.first as Map)['sha'] as String?;
-      if (sha == null) throw Exception('提交里没有 sha');
-
-      final res = await cio.get(
-        '$githubRAW/Anuken/MindustryMods/$sha/mods.json',
-      );
-      if (res.statusCode != 200) throw Exception('旧快照拿不到');
+      final res = await cio.get(github3MonthsModMetaUrl);
+      if (res.statusCode != 200) throw Exception('链接失败');
       final jsons = jsonDecode(res.data) as List<dynamic>;
       final list = jsons
           .map<ModOfficialListEntry>((it) => ModOfficialListEntry.fromJson(it))
