@@ -274,9 +274,11 @@ class LaunchMindustryTask extends Task {
     }
 
     //应用当前选中的游戏内用户：覆盖玩家的 name / color-0
-    //（放在通用设置之后，用户信息优先）
+    //（放在通用设置之后，用户信息优先；「账户」页可以把这个覆写关掉）
     final user = config.setting.currentGameUser;
-    if (supportsSettingsOverride && user != null) {
+    final overrideIdentity =
+        config.setting.getCustomSetting('game_user_override', true) == true;
+    if (supportsSettingsOverride && overrideIdentity && user != null) {
       setting.name = user.name;
       // 禁止：UUID 是联机身份，不随用户覆写
       // setting.uuid = user.uuid;
@@ -291,7 +293,8 @@ class LaunchMindustryTask extends Task {
       .info,
       '启动决策 [${mindustry.tag}]：Java：$javaPath；内存：$maxMemory；'
       '数据目录：${mindustry.dataPath}；隔离：${mindustry.isolation ? '开' : '关'}；'
-      'settings 覆写：${supportsSettingsOverride && config.setting.mindustrySettingsOverride ? '是' : '否'}',
+      'settings 覆写：${supportsSettingsOverride && config.setting.mindustrySettingsOverride ? '是' : '否'}；'
+      '身份覆写：${overrideIdentity && user != null ? '是' : '否'}',
       tag: 'Launch',
     );
 

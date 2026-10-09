@@ -74,6 +74,8 @@ cloud-manifest-cache.json
 # debug 运行时数据根就是仓库根，这两个文件会落在仓库里，绝不能提交
 mdtbbs_account.json
 mdtbbs_cloud_slots.json
+# 云存档的「哪些数据目录开了云存档」开关
+cloud-enabled.json
 /lib/abandon_mystery_code/
 /lib/test/
 analyze_out.txt

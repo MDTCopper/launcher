@@ -1,6 +1,7 @@
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
+import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/pages/cloud/cloud_save_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_system_page.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
@@ -47,7 +48,11 @@ class AppShellState extends State<AppShell> {
       label: '概览',
       items: [
         RailItem(label: '主页', icon: Icons.home_filled, route: '/'),
-        RailItem(label: '游戏内用户', icon: Icons.person_outline, route: '/user'),
+        RailItem(
+          label: '账户',
+          icon: Icons.account_circle_outlined,
+          route: accountPageRouteKey,
+        ),
         RailItem(
           label: 'BBS',
           icon: Icons.person_outline,
