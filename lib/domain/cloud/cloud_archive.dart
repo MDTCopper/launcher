@@ -5,8 +5,6 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
-import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
-import 'package:copper_launcher/util/io/log.dart';
 import 'package:path/path.dart' as p;
 
 /// 云包（zip 容器）：`copper-save.json` 清单 + 勾选的资源（+ 可选的模组字节）
@@ -91,12 +89,14 @@ class CloudArchive {
       final bytes = source.existsSync() ? source.readAsBytesSync() : null;
       if (bytes == null || sha256OfBytes(bytes) != entry.sha256) {
         entry.included = false;
-        dropped.add('${entry.category.folder}/${entry.name}');
+        dropped.add(CloudCategory.entryNameOf(entry.category, entry.name));
         continue;
       }
       archive.add(
-        ArchiveFile.bytes('${entry.category.folder}/${entry.name}', bytes)
-          ..compression = CompressionType.none,
+        ArchiveFile.bytes(
+          CloudCategory.entryNameOf(entry.category, entry.name),
+          bytes,
+        )..compression = CompressionType.none,
       );
     }
 
@@ -253,43 +253,6 @@ class CloudArchiveReader {
   /// - 逐份校验 sha256，对不上的一律不落地（记进 [CloudImportReport.rejected]）；
   /// - 只写清单里点过名的东西，包里多出来的条目当没看见（也会记一笔）；
   /// - 同名文件按 [mode] 处理，**默认留两份**（`<名字>-cloud-<哈希前 8 位>.<扩展名>`）；
-  /// 把云包记的模组启用状态合回本机 `settings.bin`，返回真正改动的条数
-  ///
-  /// **只动 `mod-<内部名>-enabled` 这几个键** —— 键位 / 画面 / 语言这些本机设置一个不碰
-  /// （整份文件是「解了再编」，往返在 12 份真数据上逐字节一致）；写入走「临时文件 + 改名」，
-  /// 不会留半份坏文件。本机没有 `settings.bin` 时按空文件起，游戏读不到的键用自己的默认值
-  static int mergeModStates({
-    required String dataPath,
-    required Map<String, bool> states,
-  }) {
-    if (states.isEmpty) return 0;
-
-    final path = p.join(dataPath, 'settings.bin');
-    final settings = MindustrySettings.fromFile(path);
-    // 文件在但解不开时**一个字节都不能写**：那会拿一份空实例把玩家的键位 / 存档标题
-    // （游戏把标题记在 `save-<文件名>-name`）全清掉
-    if (File(path).existsSync() && !settings.readable) {
-      addLog(.warning, 'settings.bin 读不出来，跳过模组启用状态写回（不动玩家设置）', tag: 'Cloud');
-      return 0;
-    }
-
-    var changed = 0;
-    for (final entry in states.entries) {
-      if (settings['mod-${entry.key}-enabled'] == entry.value) continue;
-      settings.setModEnabled(entry.key, entry.value);
-      changed++;
-    }
-    if (changed == 0) return 0;
-
-    _writeAtomicallySync(
-      File(path),
-      SettingsBinCodec.encode(settings.data),
-      // 与解包同一个理由：临时文件不能落在 Steam 云会扫的目录里
-      tempDir: p.join(dataPath, 'tmp'),
-    );
-    return changed;
-  }
-
   /// - 模组字节按 `isCopper` 落回 `mods/` 或 `copper/mods/`，**不认识的模组不代装**。
   Future<CloudImportReport> extractTo({
     required String dataPath,
@@ -307,11 +270,14 @@ class CloudArchiveReader {
       final name = _safeName(entry.name);
       if (name == null) {
         report.rejected.add(
-          CloudRejection('${entry.category.folder}/${entry.name}', '名字不合法'),
+          CloudRejection(
+            CloudCategory.entryNameOf(entry.category, entry.name),
+            '名字不合法',
+          ),
         );
         continue;
       }
-      planned['${entry.category.folder}/$name'] = _PlannedFile(
+      planned[CloudCategory.entryNameOf(entry.category, name)] = _PlannedFile(
         sha256: entry.sha256,
         destination: p.join(dataPath, entry.category.folder, name),
       );

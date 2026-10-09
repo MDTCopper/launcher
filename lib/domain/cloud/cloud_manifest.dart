@@ -14,13 +14,23 @@ enum CloudCategory {
   save('saves', '存档'),
   map('maps', '地图'),
   schematic('schematics', '蓝图'),
-  preview('previews', '预览图');
+  preview('previews', '预览图'),
+
+  /// `settings.bin` 整份同步（folder 为空 = 数据目录根下）
+  ///
+  /// **绝不自己改这个文件**：键位 / UI / 存档标题（游戏把标题记在 `save-<文件名>-name`）
+  /// 都在里面，我们的编解码器一旦有出入就会把玩家设置改坏 —— 当普通文件逐字节同步
+  settings('', '设置');
 
   const CloudCategory(this.folder, this.label);
 
-  /// 数据目录下的目录名，也是云包里的目录名
+  /// 数据目录下的目录名，也是云包里的目录名（[settings] 为空 = 根下）
   final String folder;
   final String label;
+
+  /// 云包里的条目名（根下的条目不带前缀）
+  static String entryNameOf(CloudCategory category, String name) =>
+      category.folder.isEmpty ? name : '${category.folder}/$name';
 }
 
 /// 云端包对应的游戏版本：一个 tag 一个包
@@ -249,7 +259,7 @@ class CloudManifest {
   /// 整包 sha256），所以这份投影只跟**本机自己记的上次同步**比
   Map<String, String> get fileHashes => {
     for (final file in includedFiles)
-      '${file.category.folder}/${file.name}': file.sha256,
+      CloudCategory.entryNameOf(file.category, file.name): file.sha256,
     for (final mod in mods)
       '${mod.isCopper ? 'copper/mods' : 'mods'}/${mod.fileName}': mod.sha256,
   };
@@ -317,11 +327,28 @@ class CloudManifest {
     final files = <CloudFileEntry>[];
     for (final category in CloudCategory.values) {
       if (category == CloudCategory.preview && !includePreviews) continue;
+      // settings 不在子目录里，单独处理（见下）
+      if (category == CloudCategory.settings) continue;
       files.addAll(
         await _scanFolder(
           directory: p.join(dataPath, category.folder),
           category: category,
           cache: cache,
+        ),
+      );
+    }
+
+    // 设置文件：整份当文件同步（键位 / UI / 存档标题都在里面）
+    final settingsFile = File(p.join(dataPath, 'settings.bin'));
+    if (settingsFile.existsSync()) {
+      files.add(
+        CloudFileEntry(
+          category: CloudCategory.settings,
+          name: 'settings.bin',
+          size: settingsFile.lengthSync(),
+          sha256:
+              cache?.hashOf(settingsFile.path) ??
+              sha256OfFile(settingsFile.path),
         ),
       );
     }

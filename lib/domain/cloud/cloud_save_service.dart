@@ -538,14 +538,13 @@ class CloudSaveService {
   ///
   /// 严格按官方要求：**先落临时文件 → 校验字节数与 sha256 → 才交给解包**；
   /// 解包按 [mode] 处理同名文件 —— 默认留两份，**不覆盖本机**。
-  /// [applyModStates] 默认关：这条路是「把云上那份拿下来」，不该顺手改本机设置
+  /// `settings.bin` 也在这条路上当普通文件同步（含键位 / UI / 存档标题）
   static Future<CloudImportReport> download({
     required String accessToken,
     required Mindustry version,
     required String slotId,
     required String snapshotId,
     CloudImportMode mode = CloudImportMode.keepBoth,
-    bool applyModStates = false,
     HttpStatusCallback? onStatus,
     CancelToken? cancelToken,
   }) async {
@@ -557,12 +556,7 @@ class CloudSaveService {
       cancelToken: cancelToken,
     );
     try {
-      final extracted = await _extract(
-        tempPath,
-        version: version,
-        mode: mode,
-        applyModStates: applyModStates,
-      );
+      final extracted = await _extract(tempPath, version: version, mode: mode);
       return extracted.report;
     } finally {
       _deleteQuietly(tempPath);
@@ -573,14 +567,13 @@ class CloudSaveService {
   ///
   /// 覆盖前先把本机这份导出成 zip 存进 [backupDir]；**备份失败就中止** ——
   /// 不能在没有退路的情况下盖掉玩家的存档。
-  /// [applyModStates] 默认**开**：云包记着当时哪些模组是启用的，不写回去会出现
-  /// 「存档要 NewHorizon 但模组没启用」这类错配
+  /// `settings.bin` 与存档一样**逐字节落地**（含键位 / UI / 存档标题），
+  /// 我们不再自己解码改写它
   static Future<CloudSaveRestoreResult> restore({
     required String accessToken,
     required Mindustry version,
     required String slotId,
     required String snapshotId,
-    bool applyModStates = true,
     void Function(String status)? onStatus,
     HttpStatusCallback? onProgress,
     CancelToken? cancelToken,
@@ -603,7 +596,6 @@ class CloudSaveService {
         tempPath,
         version: version,
         mode: CloudImportMode.overwrite,
-        applyModStates: applyModStates,
       );
       _pruneBackups();
       // 落干净了才记「同步到这个快照」；有拒收说明本机与云上并不一致，别谎报
@@ -700,19 +692,12 @@ class CloudSaveService {
     String archivePath, {
     required Mindustry version,
     required CloudImportMode mode,
-    required bool applyModStates,
   }) async {
     final reader = await CloudArchiveReader.open(archivePath);
     final report = await reader.extractTo(
       dataPath: version.dataPath,
       mode: mode,
     );
-    if (applyModStates) {
-      report.appliedModStates = CloudArchiveReader.mergeModStates(
-        dataPath: version.dataPath,
-        states: reader.manifest.modStates,
-      );
-    }
     return (report: report, manifest: reader.manifest);
   }
 
