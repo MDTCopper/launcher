@@ -24,20 +24,80 @@ class CloudAutoSync {
 
   static bool get isBusy => _pending != null;
 
+  /// 启动前那次「查云端」最多等这么久，超了就问玩家要不要直接启动
+  static const syncTimeout = Duration(seconds: 30);
+
+  /// 软件启动后检查一次（**只查不改**）：需要用户处理的给一条通知，其余静默
+  ///
+  /// 由启动后台任务调用（选中版本、启用了云存档、已登录才会真查）
+  static Future<void> check(Mindustry version) async {
+    try {
+      if (!CloudSaveService.isEnabled(version)) return;
+      final token = await _token();
+      if (token == null) return;
+
+      final outcome = await CloudSaveService.syncStatus(
+        accessToken: token,
+        version: version,
+      );
+      addLog(
+        .info,
+        '云存档检查 [${version.tag}]：${outcome.status.name}',
+        tag: 'Cloud',
+      );
+
+      switch (outcome.status) {
+        case CloudSyncStatus.pendingDownload:
+          addNotice(
+            icon: Icons.cloud_download_outlined,
+            title: '云端有更新的存档',
+            content: '启动游戏时会自动拉下来（覆盖前先备份）',
+          );
+        case CloudSyncStatus.conflicted:
+          addNotice(
+            icon: Icons.warning_amber_outlined,
+            title: '云存档有冲突',
+            content: '启动游戏时会让你选一份；也可以现在去「版本设置 → 云存档」处理',
+          );
+        case CloudSyncStatus.pendingUpload:
+          addNotice(
+            icon: Icons.cloud_upload_outlined,
+            title: '本机存档有改动',
+            content: '游戏退出后会自动上传',
+          );
+        default:
+          return;
+      }
+    } catch (error) {
+      addLog(.warning, '云存档启动检查失败：${removeNewlines('$error')}', tag: 'Cloud');
+    }
+  }
+
   /// 游戏**启动前**：云端有新东西、本机没改过 ⇒ 拉下来
   ///
-  /// 返回 **false = 这次别启动**（冲突弹窗玩家没选）；出错一律返回 true（不拦启动）。
-  /// 覆盖前自备份由 [CloudSaveService.restore] 负责（备份做不出来它会中止）
+  /// 返回 **false = 这次别启动**（冲突没选 / 同步超时后选了取消）；出错一律返回 true
+  /// （不拦启动）。覆盖前自备份由 [CloudSaveService.restore] 负责（备份做不出来会中止）
   static Future<bool> beforeLaunch(Mindustry version) async {
     try {
       if (!CloudSaveService.isEnabled(version)) return true;
       final token = await _token();
       if (token == null) return true;
 
-      final outcome = await CloudSaveService.syncStatus(
-        accessToken: token,
-        version: version,
-      );
+      final CloudSyncOutcome outcome;
+      try {
+        outcome = await CloudSaveService.syncStatus(
+          accessToken: token,
+          version: version,
+        ).timeout(syncTimeout);
+      } on TimeoutException {
+        //超时：问玩家要不要直接启动（与 Steam 云一致）
+        addLog(
+          .warning,
+          '云存档检查超时（${syncTimeout.inSeconds} 秒），问玩家要不要直接启动',
+          tag: 'Cloud',
+        );
+        return await showCloudSyncTimeoutPrompt(versionTag: version.tag);
+      }
       final slotId = outcome.slotId;
       final snapshotId = outcome.remote?.snapshotId;
 

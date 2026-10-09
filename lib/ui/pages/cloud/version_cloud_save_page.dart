@@ -17,6 +17,7 @@ import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/percent_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/tips/warning_bar.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
@@ -25,6 +26,7 @@ import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/date_time_format.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -391,6 +393,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   Widget build(BuildContext context) {
     return ListContentPanel(
       items: [
+        _buildEnablePanel(),
         if (!_accounts.isLoggedIn) _buildLoginHint(),
         if (_error != null) _buildErrorHint(),
         _buildVersionPanel(),
@@ -398,6 +401,56 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         _buildHintsPanel(),
         if (kDebugMode) _buildDebugPanel(),
       ],
+    );
+  }
+
+  /// 这一页的开头：**按版本开关云存档**
+  ///
+  /// 与「概览 → 账户」里那个开关是同一个（按数据目录记）；共用一份数据目录的版本
+  /// 共用同一个开关，所以要把这件事写出来
+  Widget _buildEnablePanel() {
+    final theme = Theme.of(context);
+    final version = _selectedVersion;
+    if (version == null) return const SizedBox.shrink();
+
+    final enabled = CloudSaveService.isEnabled(version);
+    final shared =
+        CloudSaveService.versionsSharingDataPath(
+          version,
+          config.versionOptions.versionFolds.expand((fold) => fold.versions),
+        ) -
+        1;
+
+    return ContentPanelModule(
+      title: '云存档',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 8,
+        children: [
+          SwitchSettingBar(
+            title: '启用云存档',
+            value: enabled,
+            onChanged: (value) {
+              CloudSaveService.setEnabled(version, value);
+              setState(() {});
+              addLog(
+                .info,
+                '[${version.tag}] 云存档${value ? '开启' : '关闭'}，数据目录：${version.dataPath}',
+                tag: 'Cloud',
+              );
+            },
+          ),
+          Text(
+            enabled ? '开启后：启动游戏前拉云端、退出游戏后自动上传' : '没开：这个版本不参与云存档',
+            style: theme.textTheme.labelMedium,
+          ),
+          if (shared > 0)
+            Text(
+              '这个版本与其他 $shared 个版本共用数据目录，开关是这份目录的',
+              style: theme.textTheme.labelMedium,
+            ),
+        ],
+      ),
     );
   }
 

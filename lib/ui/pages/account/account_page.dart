@@ -19,7 +19,6 @@ import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 
 const accountPageRouteKey = '/account';
 
@@ -415,7 +414,12 @@ class _AccountPageState extends State<AccountPage> {
     }
 
     final enabled = CloudSaveService.isEnabled(version);
-    final shared = _versionsSharingDataPath(version) - 1;
+    final shared =
+        CloudSaveService.versionsSharingDataPath(
+          version,
+          config.versionOptions.versionFolds.expand((fold) => fold.versions),
+        ) -
+        1;
     return ContentPanelModule(
       title: '云存档',
       child: Column(
@@ -437,18 +441,6 @@ class _AccountPageState extends State<AccountPage> {
         ],
       ),
     );
-  }
-
-  /// 有多少个版本共用这份数据目录（含自己）
-  int _versionsSharingDataPath(Mindustry version) {
-    final path = p.normalize(version.dataPath);
-    var count = 0;
-    for (final fold in config.versionOptions.versionFolds) {
-      for (final other in fold.versions) {
-        if (p.normalize(other.dataPath) == path) count++;
-      }
-    }
-    return count;
   }
 
   void _setCloudEnabled(Mindustry version, bool value) {

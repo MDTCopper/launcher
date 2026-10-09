@@ -34,6 +34,83 @@ Future<CloudConflictChoice> showCloudConflictPrompt({
   return choice ?? CloudConflictChoice.cancel;
 }
 
+/// 同步**超时**时问玩家：要不要直接启动（与 Steam 云那套一致）
+///
+/// 返回 true = 直接启动；false = 不启动（取消 / 关掉弹窗都算不启动）
+Future<bool> showCloudSyncTimeoutPrompt({
+  String? versionTag,
+  BuildContext? context,
+}) async {
+  final choice = await showAnimatedDialog<bool>(
+    context: context,
+    pageBuilder: (_, _, _) => _CloudTimeoutDialog(versionTag: versionTag),
+  );
+  return choice ?? false;
+}
+
+class _CloudTimeoutDialog extends StatelessWidget {
+  const _CloudTimeoutDialog({this.versionTag});
+
+  final String? versionTag;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final screen = MediaQuery.of(context).size;
+
+    return Center(
+      child: Material(
+        elevation: 8,
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          constraints: BoxConstraints(maxWidth: screen.width * 0.5),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(8),
+            border: Border(
+              top: BorderSide(color: colors.border, width: 1.5),
+              left: BorderSide(color: colors.border, width: 0.75),
+              right: BorderSide(color: colors.border, width: 0.75),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 12,
+            children: [
+              Text('云存档同步超时', style: theme.textTheme.titleLarge),
+              Text(
+                '${versionTag == null ? '这个版本' : '「$versionTag」'}的云存档还没同步完。'
+                '直接启动就用本机现在的存档，退出游戏后还会再传一次。',
+                style: theme.textTheme.bodySmall,
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                spacing: 8,
+                children: [
+                  IconTextButton(
+                    icon: Icons.play_arrow,
+                    content: '直接启动',
+                    onTap: () => Navigator.of(context).pop(true),
+                  ),
+                  IconTextButton(
+                    icon: Icons.close,
+                    content: '取消',
+                    onTap: () => Navigator.of(context).pop(false),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CloudConflictDialog extends StatelessWidget {
   const _CloudConflictDialog({required this.outcome, this.versionTag});
 

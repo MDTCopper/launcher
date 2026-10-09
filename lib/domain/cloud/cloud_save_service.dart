@@ -833,6 +833,21 @@ class CloudSaveService {
     if (changed) _saveEnabled(paths);
   }
 
+  /// 有多少个版本共用这份数据目录（含自己）
+  ///
+  /// 开关按数据目录记 ⇒ 共用目录的版本共用同一个开关，UI 得把这件事说清楚
+  static int versionsSharingDataPath(
+    Mindustry version,
+    Iterable<Mindustry> versions,
+  ) {
+    final path = _normalize(version.dataPath);
+    var count = 0;
+    for (final other in versions) {
+      if (_normalize(other.dataPath) == path) count++;
+    }
+    return count;
+  }
+
   /// 这个数据目录上次同步到哪儿；没记过给 null
   static CloudSyncState? localState(Mindustry version) =>
       _loadStates()[_normalize(version.dataPath)];
