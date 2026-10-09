@@ -23,20 +23,30 @@ part 'settings.g.dart';
 ///
 /// ```
 class MindustrySettings {
-    /// 内部存储所有键值对；键名为 Mindustry 原始格式
+  /// 内部存储所有键值对；键名为 Mindustry 原始格式
   final Map<String, dynamic> _data;
 
   /// 来源文件路径（用于 [save]）
   String? _filePath;
+
+  /// 这份实例是不是从**能读的**文件来的
+  ///
+  /// 文件不存在（新版本第一次启动）→ true：空实例是正常的；
+  /// **文件在、但解不开 → false**：这种实例**绝不能整份写回去**，那会把玩家
+  /// 的键位 / 存档标题（游戏把标题记在 `save-<文件名>-name`）之类全清掉
+  final bool readable;
 
   // ─────────────────────────────────────────
   // 构造函数
   // ─────────────────────────────────────────
 
   /// 从 Map 构建
-  MindustrySettings._(this._data, [this._filePath]);
+  MindustrySettings._(this._data, [this._filePath, this.readable = true]);
 
-  /// 从 settings.bin 文件路径加载；文件不存在或读取失败返回空实例
+  /// 从 settings.bin 文件路径加载
+  ///
+  /// 文件不存在 → 空实例（[readable] 为 true，新版本第一次启动就是这种）；
+  /// **文件在但读不出来 → 空实例且 [readable] 为 false**，调用方据此避免把它写回去
   factory MindustrySettings.fromFile(String path) {
     try {
       final file = File(path);
@@ -46,7 +56,7 @@ class MindustrySettings {
       final bytes = file.readAsBytesSync();
       return MindustrySettings.fromBytes(bytes, path);
     } catch (_) {
-      return MindustrySettings._({}, path);
+      return MindustrySettings._({}, path, false);
     }
   }
 
@@ -784,6 +794,7 @@ class MindustrySettingsPatch {
   /// 移动端：自动瞄准
   @JsonKey(name: 'autoTarget')
   bool? autoTarget;
+
   /// 移动端：键盘模式
   @JsonKey(name: 'keyboard')
   bool? keyboard;

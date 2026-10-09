@@ -6,6 +6,7 @@ import 'package:archive/archive.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/util/io/mindustry_save_file/settings_bin_codec.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:path/path.dart' as p;
 
 /// 云包（zip 容器）：`copper-save.json` 清单 + 勾选的资源（+ 可选的模组字节）
@@ -265,6 +266,12 @@ class CloudArchiveReader {
 
     final path = p.join(dataPath, 'settings.bin');
     final settings = MindustrySettings.fromFile(path);
+    // 文件在但解不开时**一个字节都不能写**：那会拿一份空实例把玩家的键位 / 存档标题
+    // （游戏把标题记在 `save-<文件名>-name`）全清掉
+    if (File(path).existsSync() && !settings.readable) {
+      addLog(.warning, 'settings.bin 读不出来，跳过模组启用状态写回（不动玩家设置）', tag: 'Cloud');
+      return 0;
+    }
 
     var changed = 0;
     for (final entry in states.entries) {

@@ -184,6 +184,18 @@ class LaunchMindustryTask extends Task {
     final settingPath = mindustry.settingPath;
     final setting = MindustrySettings.fromFile(settingPath);
 
+    // 文件在但解不开时整段覆写都要跳过：空实例写回去会清掉玩家的键位与存档标题
+    // （游戏把标题记在 settings 的 `save-<文件名>-name` 里）
+    final settingsReadable =
+        !File(settingPath).existsSync() || setting.readable;
+    if (!settingsReadable) {
+      addLog(
+        .warning,
+        'settings.bin 读不出来，跳过这次设置覆写 [${mindustry.tag}]',
+        tag: 'Launch',
+      );
+    }
+
     //窗口大小和最大化在jvm的启动参数（fullscreen 写 settings.bin 需版本支持，老版本无相关参数，无法支持）
     WindowSize? winSize;
     bool? maximize;
@@ -201,7 +213,7 @@ class LaunchMindustryTask extends Task {
         winSize = launchOption.customWindowSize;
         break;
     }
-    if (supportsSettingsOverride) {
+    if (supportsSettingsOverride && settingsReadable) {
       setting.fullscreen = fullscreen;
     }
 
@@ -280,7 +292,9 @@ class LaunchMindustryTask extends Task {
       return;
     }
 
-    if (supportsSettingsOverride && config.setting.mindustrySettingsOverride) {
+    if (supportsSettingsOverride &&
+        settingsReadable &&
+        config.setting.mindustrySettingsOverride) {
       setting.applyPatch(config.setting.mindustrySettings);
     }
 
@@ -289,14 +303,19 @@ class LaunchMindustryTask extends Task {
     final user = config.setting.currentGameUser;
     final overrideIdentity =
         config.setting.getCustomSetting('game_user_override', true) == true;
-    if (supportsSettingsOverride && overrideIdentity && user != null) {
+    if (supportsSettingsOverride &&
+        settingsReadable &&
+        overrideIdentity &&
+        user != null) {
       setting.name = user.name;
       // 禁止：UUID 是联机身份，不随用户覆写
       // setting.uuid = user.uuid;
       setting.color0 = user.color;
     }
 
-    if (supportsSettingsOverride && setting.data.isNotEmpty) {
+    if (supportsSettingsOverride &&
+        settingsReadable &&
+        setting.data.isNotEmpty) {
       await setting.saveAsync();
     }
     //启动前的决策（Java / 内存 / 数据目录 / 覆写）是"改了没生效"的第一现场，记一条
@@ -305,7 +324,8 @@ class LaunchMindustryTask extends Task {
       '启动决策 [${mindustry.tag}]：Java：$javaPath；内存：$maxMemory；'
       '数据目录：${mindustry.dataPath}；隔离：${mindustry.isolation ? '开' : '关'}；'
       'settings 覆写：${supportsSettingsOverride && config.setting.mindustrySettingsOverride ? '是' : '否'}；'
-      '身份覆写：${overrideIdentity && user != null ? '是' : '否'}',
+      '身份覆写：${overrideIdentity && user != null ? '是' : '否'}；'
+      'settings 可读：${settingsReadable ? '是' : '否'}',
       tag: 'Launch',
     );
 
