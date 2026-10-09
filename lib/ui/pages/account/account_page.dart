@@ -390,6 +390,16 @@ class _AccountPageState extends State<AccountPage> {
                     color: colors.itemHint,
                   ),
                 ),
+                if (quota.maxUnpinnedVersionsPerSlot != null ||
+                    quota.maxUnpinnedAgeDays != null)
+                  Text(
+                    '未固定的快照：最多保留 '
+                    '${quota.maxUnpinnedVersionsPerSlot ?? '?'} 版 / '
+                    '${quota.maxUnpinnedAgeDays ?? '?'} 天；要长期留就固定它',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colors.itemHint,
+                    ),
+                  ),
               ],
             ),
     );

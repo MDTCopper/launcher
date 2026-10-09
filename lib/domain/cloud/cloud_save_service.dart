@@ -270,13 +270,6 @@ class CloudSaveService {
   /// 备份只留最近这么多份：每次恢复留一份会一直涨
   static const backupKeep = 5;
 
-  /// 上传时记的「哪台设备」：**设备名 + 系统**
-  ///
-  /// 服务端的快照里没有平台字段，而冲突对照要能看出「这台是 Windows、那台是安卓」
-  /// ⇒ 把系统跟在设备名后面（只影响展示与快照里那一栏，槽位名不受影响）
-  static String deviceIdOf(String deviceName) =>
-      '$deviceName (${Platform.operatingSystem})';
-
   /// 槽位名：设备名 + 游戏版本（上限 100 字符，这里截断兜底）
   static String slotNameFor({
     required String deviceName,
@@ -459,8 +452,7 @@ class CloudSaveService {
           // 带上「本机在玩哪张图」：云端列表与冲突对照都靠它，不带就全是 null
           save: _displayInfoOf(_newestSave(export.manifest)?.meta),
           mods: _modsOf(export.manifest),
-          //设备名后面带上系统，冲突对照能看出两边是什么机器
-          deviceId: deviceIdOf(name),
+          deviceId: name,
           cancelToken: cancelToken,
         );
       } on MdtbbsException catch (error) {

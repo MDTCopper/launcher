@@ -697,6 +697,12 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             ),
           ),
           Text(
+            CloudNotes.retentionHint,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.itemSecondary,
+            ),
+          ),
+          Text(
             CloudNotes.gameRunningHint,
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.itemSecondary,

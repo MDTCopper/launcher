@@ -14,4 +14,9 @@ class CloudNotes {
 
   /// 游戏运行中两边同时写数据目录最容易出事
   static const gameRunningHint = '游戏运行中不能同步：先退出游戏，避免两边同时写存档。';
+
+  /// 服务端的保留策略（2026-10-03 对线上核过：`retention` 两条）
+  static const retentionHint =
+      '云端每个槽位最多留 20 个未固定的快照、且只保留 90 天；'
+      '想长期留的版本要在云端历史里「固定」住。';
 }
