@@ -178,7 +178,21 @@ class MindustrySettings {
     saveTo(_filePath!);
   }
 
+  /// 写回文件前先确认这份实例**是从能读的文件来的**
+  ///
+  /// [readable] 为 false 说明文件在、但我们解不开 ⇒ 整份写回等于拿空实例把玩家的
+  /// 键位 / 存档标题（游戏记在 `save-<文件名>-name`）全清掉 ⇒ **一律拒绝写**。
+  /// 这是所有写回路径的唯一出口，调用方不必各自记得检查
+  void _ensureWritable() {
+    if (!readable) {
+      throw StateError(
+        'settings.bin 读不出来，拒绝整份写回（那会清掉玩家的键位与存档标题）',
+      );
+    }
+  }
+
   void saveTo(String path) {
+    _ensureWritable();
     _filePath = path;
     final bytes = SettingsBinCodec.encode(_data);
     final file = File(path);
@@ -196,6 +210,7 @@ class MindustrySettings {
   }
 
   Future<void> saveToAsync(String path) async {
+    _ensureWritable();
     _filePath = path;
     final bytes = SettingsBinCodec.encode(_data);
     final file = File(path);
