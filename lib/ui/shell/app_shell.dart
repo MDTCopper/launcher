@@ -303,6 +303,9 @@ class AppShellState extends State<AppShell> {
     final colors = AppColors.of(context);
 
     Widget shell = Scaffold(
+      // 键盘不改启动器尺寸：输入法内边距由辅助输入条承接，页面自己不跟着缩
+      resizeToAvoidBottomInset: false,
+      backgroundColor: colors.pageBackground,
       endDrawer: Drawer(
         backgroundColor: colors.pageBackground.withAlpha(230),
         width: MediaQuery.of(context).size.width * 0.45,
@@ -315,6 +318,22 @@ class AppShellState extends State<AppShell> {
         valueListenable: LauncherTray.instance.isWindowHidden,
         builder: (context, isHidden, _) =>
             TickerMode(enabled: !isHidden, child: _buildShellBody(colors)),
+      ),
+    );
+
+    // 刘海 / 挖孔与系统栏：取 viewPadding 留安全区，输入法弹起时这一圈边距不变
+    // 外层铺一层页面底色，填住留出来的那几条，免得露出窗口底色
+    final safe = MediaQuery.viewPaddingOf(context);
+    shell = ColoredBox(
+      color: colors.pageBackground,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: safe.left,
+          top: safe.top,
+          right: safe.right,
+          bottom: safe.bottom,
+        ),
+        child: shell,
       ),
     );
 
