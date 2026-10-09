@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
@@ -158,11 +160,25 @@ class _CloudConflictDialog extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: 12,
                 children: [
-                  Expanded(child: _buildSide(context, '本机', outcome.local)),
-                  Expanded(child: _buildSide(context, '云端', outcome.remote)),
+                  Expanded(
+                    child: _buildSide(context, '本机', outcome.local, local: true),
+                  ),
+                  Expanded(
+                    child: _buildSide(
+                      context,
+                      '云端',
+                      outcome.remote,
+                      local: false,
+                    ),
+                  ),
                 ],
               ),
-              if (outcome.changedFiles.isNotEmpty)
+              if (!outcome.hasBaseline)
+                Text(
+                  '没有上次同步的逐文件记录，判断不了具体改了哪些文件',
+                  style: theme.textTheme.labelMedium,
+                )
+              else if (outcome.changedFiles.isNotEmpty)
                 Text(
                   '本机改了 ${outcome.changedFiles.length} 个文件'
                   '（${outcome.changedFiles.take(3).join('、')}'
@@ -200,20 +216,29 @@ class _CloudConflictDialog extends StatelessWidget {
     );
   }
 
-  /// 一侧的「这份存档是什么」：地图 / 波次 / 时长 / 设备 / 时间
-  Widget _buildSide(BuildContext context, String title, CloudSyncSide? side) {
+  /// 一侧的「这份存档是什么」：**时间 / 设备名 / 系统**
+  ///
+  /// 云端侧的设备串是上传时写的「设备名 (系统)」（服务端快照没有平台字段），
+  /// 本机侧直接读当前平台；时间：本机看存档时间、云端看上传（快照创建）时间
+  Widget _buildSide(
+    BuildContext context,
+    String title,
+    CloudSyncSide? side, {
+    required bool local,
+  }) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    final createdAt = side?.createdAt?.toLocal();
-    final savedAt = side?.savedAt?.toLocal();
+
+    final rawDevice = side?.deviceName ?? '';
+    final deviceName = local ? rawDevice : _deviceNameOf(rawDevice);
+    final system = local ? _readableSystem(Platform.operatingSystem) : _systemOf(rawDevice);
+    final at = local ? side?.savedAt?.toLocal() : side?.createdAt?.toLocal();
+
     final lines = <String>[
-      if (side?.mapName != null) '地图：${side!.mapName}',
-      if (side?.wave != null) '波次：${side!.wave}',
-      if (side?.playtimeSeconds != null)
-        '时长：${(side!.playtimeSeconds! / 60).round()} 分钟',
-      if (side?.deviceName != null) '设备：${side!.deviceName}',
-      if (createdAt != null) '快照：${createdAt.format('MM-dd HH:mm')}',
-      if (savedAt != null) '存档：${savedAt.format('MM-dd HH:mm')}',
+      if (at != null)
+        '${local ? '存档时间' : '上传时间'}：${at.format('yyyy-MM-dd HH:mm')}',
+      if (deviceName.isNotEmpty) '设备：$deviceName',
+      if (system.isNotEmpty) '系统：$system',
     ];
 
     return Container(
@@ -237,3 +262,27 @@ class _CloudConflictDialog extends StatelessWidget {
     );
   }
 }
+
+/// 从上传时记的「设备名 (系统)」里拆设备名；没有括号就当整串是设备名
+String _deviceNameOf(String raw) {
+  final index = raw.lastIndexOf(' (');
+  if (index < 0 || !raw.endsWith(')')) return raw;
+  return raw.substring(0, index);
+}
+
+/// 从「设备名 (系统)」里拆系统；没有括号给空串
+String _systemOf(String raw) {
+  final index = raw.lastIndexOf(' (');
+  if (index < 0 || !raw.endsWith(')')) return '';
+  return _readableSystem(raw.substring(index + 2, raw.length - 1));
+}
+
+/// `Platform.operatingSystem` 给的是 windows / macos 这种小写名，转成能读的写法
+String _readableSystem(String os) => switch (os) {
+  'windows' => 'Windows',
+  'macos' => 'macOS',
+  'linux' => 'Linux',
+  'android' => 'Android',
+  'ios' => 'iOS',
+  _ => os,
+};

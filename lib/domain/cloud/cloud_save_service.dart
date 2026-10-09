@@ -168,6 +168,7 @@ class CloudSyncOutcome {
     this.slot,
     this.remote,
     this.changedFiles = const [],
+    this.hasBaseline = false,
   });
 
   final CloudSyncStatus status;
@@ -182,8 +183,14 @@ class CloudSyncOutcome {
   final CloudSyncSide? remote;
 
   /// 与上次同步相比变了哪些文件（数据目录内的相对路径，已排序）；
-  /// **没有上次记录时给空** —— 没有基线就说不出「变了哪些」
+  /// **没有可用基线时给空**（没记过，或记过但没逐文件哈希）—— 没有基线就说不出「变了哪些」
   final List<String> changedFiles;
+
+  /// 有没有**可用的逐文件基线**（上次同步时记下的那批哈希）
+  ///
+  /// `false` 时 [changedFiles] 一定是空，界面该说的是「没有上次同步的逐文件记录」，
+  /// 而不是「一个文件都没改」
+  final bool hasBaseline;
 
   String? get slotId => slot?.id;
 
@@ -262,6 +269,13 @@ class CloudSaveService {
 
   /// 备份只留最近这么多份：每次恢复留一份会一直涨
   static const backupKeep = 5;
+
+  /// 上传时记的「哪台设备」：**设备名 + 系统**
+  ///
+  /// 服务端的快照里没有平台字段，而冲突对照要能看出「这台是 Windows、那台是安卓」
+  /// ⇒ 把系统跟在设备名后面（只影响展示与快照里那一栏，槽位名不受影响）
+  static String deviceIdOf(String deviceName) =>
+      '$deviceName (${Platform.operatingSystem})';
 
   /// 槽位名：设备名 + 游戏版本（上限 100 字符，这里截断兜底）
   static String slotNameFor({
@@ -445,7 +459,8 @@ class CloudSaveService {
           // 带上「本机在玩哪张图」：云端列表与冲突对照都靠它，不带就全是 null
           save: _displayInfoOf(_newestSave(export.manifest)?.meta),
           mods: _modsOf(export.manifest),
-          deviceId: name,
+          //设备名后面带上系统，冲突对照能看出两边是什么机器
+          deviceId: deviceIdOf(name),
           cancelToken: cancelToken,
         );
       } on MdtbbsException catch (error) {
@@ -930,6 +945,7 @@ class CloudSaveService {
       slot: slot,
       remote: snapshot == null ? null : _sideOfSnapshot(snapshot),
       changedFiles: _changedFiles(state?.files, manifest.fileHashes),
+      hasBaseline: state != null && state.files.isNotEmpty,
     );
   }
 
@@ -980,12 +996,12 @@ class CloudSaveService {
   }
 
   /// 与上次同步相比变了哪些文件（内容变了 / 新增 / 没了，已排序）；
-  /// [baseline] 为 null（没有上次记录）时给空
+  /// **没有可用的基线**（没记过，或记过但没逐文件哈希）时给空 —— 说不出「变了哪些」
   static List<String> _changedFiles(
     Map<String, String>? baseline,
     Map<String, String> current,
   ) {
-    if (baseline == null) return const [];
+    if (baseline == null || baseline.isEmpty) return const [];
     final changed = <String>[
       for (final entry in current.entries)
         if (baseline[entry.key] != entry.value) entry.key,
