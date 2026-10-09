@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/task.dart';
@@ -269,6 +271,9 @@ class LaunchMindustryTask extends Task {
           ' ',
         );
 
+    // 云存档：启动前按需把云端那份拉下来（只对启用了云存档的目录；失败不拦启动）
+    await CloudAutoSync.beforeLaunch(mindustry);
+
     if (supportsSettingsOverride && config.setting.mindustrySettingsOverride) {
       setting.applyPatch(config.setting.mindustrySettings);
     }
@@ -357,6 +362,8 @@ class LaunchMindustryTask extends Task {
         }
         //托盘模式下按恢复窗口选项决定是否弹出主窗口
         LauncherTray.instance.showIfRestoreOnExit();
+        // 云存档：游戏退出后自动上传（只对启用了云存档的目录；失败只提示）
+        unawaited(CloudAutoSync.afterGameExit(mindustry));
         if (log.contains('0')) {
           NotificationManager.addNotice(
             icon: Icons.info_outline,

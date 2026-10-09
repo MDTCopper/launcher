@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
@@ -306,6 +307,8 @@ class LauncherTray extends TrayListener with WindowListener {
   /// 退出启动器
   Future<void> quitApp() async {
     addLog(.info, '托盘：退出启动器', tag: 'Tray');
+    // 有正在跑的云存档自动上传就等它传完（最多 60 秒），别把刚打完的存档丢掉
+    await CloudAutoSync.waitForPending();
     await trayManager.destroy();
     await windowManager.destroy();
   }
