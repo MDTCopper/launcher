@@ -21,25 +21,22 @@ import 'package:copper_launcher/util/format/date_time_format.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:flutter/material.dart';
 
-const cloudSavePageRouteKey = '/cloud_save';
+const versionCloudSavePageRouteKey = '/cloud_save/version';
 
-/// 云存档页：MDTBBS 账号 + 当前版本的云端槽位与快照
+/// 版本设置里的「云存档」页：**这一个版本**的云端槽位与快照
 ///
-/// 同步单元是**数据目录**不是版本：页面按「当前选中版本」呈现，但云端槽位绑的是
-/// 它那份数据目录（见 `CloudSaveService`）。所以这里显示的是「这个版本用的那份
-/// 数据目录」的云端状态
+/// 同步单元是**数据目录**不是版本：页面认路由参数里的那份版本（没带参数就退回
+/// 当前选中版本），云端槽位绑的是它的数据目录（见 `CloudSaveService`）
 ///
 /// **加载时不创建槽位** —— 建槽要占配额，是用户点「上传」才做的事
-class CloudSavePage extends StatefulWidget {
-  const CloudSavePage({super.key});
+class VersionCloudSavePage extends StatefulWidget {
+  const VersionCloudSavePage({super.key});
 
   @override
-  State<CloudSavePage> createState() => _CloudSavePageState();
+  State<VersionCloudSavePage> createState() => _VersionCloudSavePageState();
 }
 
-class _CloudSavePageState extends State<CloudSavePage> {
-  MdtbbsAccount? _account;
-  CloudSaveQuota? _quota;
+class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   CloudSaveSlot? _slot;
   List<CloudSaveSnapshot> _snapshots = const [];
 
@@ -52,10 +49,7 @@ class _CloudSavePageState extends State<CloudSavePage> {
   /// 上传进度 0–1
   double _busyProgress = 0;
 
-  /// 这次操作哪个版本
-  ///
-  /// 路由参数优先（版本设置里点进来的那份），没带参数就是**当前选中版本**
-  /// （导航栏「概览 → BBS」那条路，行为与以前一致）
+  /// 这次操作哪个版本：路由参数（版本设置里带过来的那份）优先
   Mindustry? get _selectedVersion =>
       (ModalRoute.of(context)?.settings.arguments as Map?)?['version']
           as Mindustry? ??
@@ -72,7 +66,7 @@ class _CloudSavePageState extends State<CloudSavePage> {
 
   // ── 数据 ──
 
-  /// 拉一遍账号 / 配额 / 当前版本槽位 / 快照历史
+  /// 拉一遍这个版本的云端槽位与快照历史
   Future<void> _reload() async {
     if (!_accounts.isConfigured) {
       setState(() => _error = null);
@@ -90,8 +84,6 @@ class _CloudSavePageState extends State<CloudSavePage> {
         if (!mounted) return;
         setState(() {
           _loading = false;
-          _account = null;
-          _quota = null;
           _slot = null;
           _snapshots = const [];
         });
@@ -102,9 +94,6 @@ class _CloudSavePageState extends State<CloudSavePage> {
       if (token == null) {
         throw const MdtbbsException(message: '登录已失效，请重新登录');
       }
-
-      final account = await _accounts.loadAccount();
-      final quota = await CloudSaveService.quota(accessToken: token);
 
       // 只查不建：没有槽位就是「这个版本还没传过」
       final version = _selectedVersion;
@@ -124,8 +113,6 @@ class _CloudSavePageState extends State<CloudSavePage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _account = account;
-        _quota = quota;
         _slot = slot;
         _snapshots = snapshots;
       });
@@ -145,41 +132,6 @@ class _CloudSavePageState extends State<CloudSavePage> {
   }
 
   // ── 动作 ──
-
-  Future<void> _login() async {
-    setState(() => _busy = '等待浏览器授权…');
-    try {
-      // 会在系统浏览器里打开授权页，这里只等回调
-      await _accounts.login();
-      if (!mounted) return;
-      addNotice(icon: Icons.cloud_done_outlined, title: '已登录 MDTBBS');
-      await _reload();
-    } catch (error) {
-      if (!mounted) return;
-      addNotice(
-        icon: Icons.error_outline,
-        title: '登录没成功',
-        content: removeNewlines('$error'),
-      );
-    } finally {
-      if (mounted) setState(() => _busy = null);
-    }
-  }
-
-  void _logout() {
-    showConfirmationPopup(
-      context: context,
-      type: ConfirmationType.warning,
-      title: '退出 MDTBBS 账号？',
-      content: '会撤销这个启动器的登录凭证并清掉本地账号信息；云端存档不受影响',
-      action: () async {
-        await _accounts.logout();
-        if (!mounted) return;
-        addNotice(icon: Icons.logout, title: '已退出登录');
-        await _reload();
-      },
-    );
-  }
 
   /// 上传当前版本的数据目录
   ///
@@ -431,8 +383,8 @@ class _CloudSavePageState extends State<CloudSavePage> {
   Widget build(BuildContext context) {
     return ListContentPanel(
       items: [
-        _buildAccountPanel(),
-        _buildQuotaPanel(),
+        if (!_accounts.isLoggedIn) _buildLoginHint(),
+        if (_error != null) _buildErrorHint(),
         _buildVersionPanel(),
         _buildSnapshotPanel(),
         _buildHintsPanel(),
@@ -440,141 +392,31 @@ class _CloudSavePageState extends State<CloudSavePage> {
     );
   }
 
-  Widget _buildAccountPanel() {
+  /// 拉取失败要说出来（登录失效 / 网络不通都会走到这）
+  Widget _buildErrorHint() {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    final account = _account;
-
-    if (!_accounts.isConfigured) {
-      return ContentPanelModule(
-        title: '账号',
-        child: Text(
-          '这个构建还没配置 MDTBBS 的 client_id，云存档不可用',
-          style: theme.textTheme.bodyMedium?.copyWith(color: colors.itemHint),
-        ),
-      );
-    }
-
     return ContentPanelModule(
-      title: '账号',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 8,
-        children: [
-          if (account == null)
-            Text(
-              '登录 MDTBBS 账号后，可以把存档同步到社区云端。'
-              '登录在系统浏览器里完成，启动器不接触你的密码。',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.itemSecondary,
-              ),
-            )
-          else
-            Row(
-              spacing: 8,
-              children: [
-                Icon(Icons.account_circle_outlined, color: colors.itemPrimary),
-                Expanded(
-                  child: Text(
-                    account.username ?? account.subject,
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                ),
-                if (account.phoneVerified == false)
-                  Text(
-                    '手机号未验证（云端写操作会被拒）',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: colors.error,
-                    ),
-                  ),
-              ],
-            ),
-          if (_busy != null)
-            Row(
-              spacing: 8,
-              children: [
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                Expanded(child: Text(_busy!, style: theme.textTheme.bodySmall)),
-              ],
-            ),
-          Row(
-            spacing: 8,
-            children: [
-              if (account == null)
-                IconTextButton(
-                  icon: Icons.login,
-                  content: '登录 MDTBBS',
-                  onTap: _busy == null ? _login : null,
-                )
-              else ...[
-                IconTextButton(
-                  icon: Icons.refresh,
-                  content: '刷新',
-                  onTap: _loading ? null : _reload,
-                ),
-                IconTextButton(
-                  icon: Icons.logout,
-                  content: '退出登录',
-                  onTap: _logout,
-                ),
-              ],
-            ],
-          ),
-          if (_error != null)
-            Text(
-              _error!,
-              style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
-            ),
-        ],
+      title: '读取失败',
+      child: Text(
+        _error!,
+        style: theme.textTheme.bodyMedium?.copyWith(color: colors.error),
       ),
     );
   }
 
-  Widget _buildQuotaPanel() {
+  /// 没登录时页面要能自己说明白：上传 / 恢复都要账号（登录在「账户」页）
+  Widget _buildLoginHint() {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    final quota = _quota;
-
     return ContentPanelModule(
-      title: '云端用量',
-      child: quota == null
-          ? Text(
-              _accounts.isLoggedIn ? '读取中…' : '登录后显示',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.itemHint,
-              ),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 8,
-              children: [
-                PercentBar(
-                  total: (quota.limitBytes ?? 1).toDouble(),
-                  dataList: [
-                    PercentBarData(value: (quota.usedBytes ?? 0).toDouble()),
-                  ],
-                ),
-                Text(
-                  '${formatBytes(quota.usedBytes ?? 0)} / '
-                  '${formatBytes(quota.limitBytes ?? 0)}'
-                  '　槽位 ${quota.slotsUsed ?? 0}/${quota.slotsLimit ?? 0}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.itemSecondary,
-                  ),
-                ),
-                Text(
-                  '单个云包上限 ${formatBytes(quota.maxFileSizeBytes ?? 0)}；'
-                  '模组默认只记清单不带字节（带字节很容易超上限）',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: colors.itemHint,
-                  ),
-                ),
-              ],
-            ),
+      title: '需要 BBS 账号',
+      child: Text(
+        '云存档按账号存；登录在「概览 → 账户」里完成，登录后回到这一页即可上传与恢复。',
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: colors.itemSecondary,
+        ),
+      ),
     );
   }
 

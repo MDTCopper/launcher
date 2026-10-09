@@ -1,20 +1,25 @@
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/mindustry/player_colors.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
+import 'package:copper_launcher/ui/components/percent_bar.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 const accountPageRouteKey = '/account';
 
@@ -38,6 +43,7 @@ class _AccountPageState extends State<AccountPage> {
   bool _override = true;
   bool _busy = false;
   MdtbbsAccount? _account;
+  CloudSaveQuota? _quota;
 
   AccountManager get _accounts => AccountManager.instance;
 
@@ -121,8 +127,15 @@ class _AccountPageState extends State<AccountPage> {
       await accounts.restore();
       if (!accounts.isLoggedIn) return;
       final account = await accounts.loadAccount();
+      final token = await accounts.ensureAccessToken();
+      final quota = token == null
+          ? null
+          : await CloudSaveService.quota(accessToken: token);
       if (!mounted) return;
-      setState(() => _account = account);
+      setState(() {
+        _account = account;
+        _quota = quota;
+      });
       // 名字还空着就拿 BBS 用户名当默认（用户自己改过就听用户的）
       if (_nameController.text.trim().isEmpty) {
         final username = account.username;
@@ -174,7 +187,12 @@ class _AccountPageState extends State<AccountPage> {
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
-      items: [_buildIdentityPanel(), _buildCommunityPanel()],
+      items: [
+        _buildIdentityPanel(),
+        _buildCommunityPanel(),
+        _buildQuotaPanel(),
+        _buildCloudSavePanel(),
+      ],
     );
   }
 
@@ -330,6 +348,116 @@ class _AccountPageState extends State<AccountPage> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 云端用量（登录后才有）
+  Widget _buildQuotaPanel() {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final quota = _quota;
+
+    return ContentPanelModule(
+      title: '云端用量',
+      child: quota == null
+          ? Text(
+              _accounts.isLoggedIn ? '读取中…' : '登录后显示',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.itemHint,
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 8,
+              children: [
+                PercentBar(
+                  total: (quota.limitBytes ?? 1).toDouble(),
+                  dataList: [
+                    PercentBarData(value: (quota.usedBytes ?? 0).toDouble()),
+                  ],
+                ),
+                Text(
+                  '${formatBytes(quota.usedBytes ?? 0)} / '
+                  '${formatBytes(quota.limitBytes ?? 0)}'
+                  '　槽位 ${quota.slotsUsed ?? 0}/${quota.slotsLimit ?? 0}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.itemSecondary,
+                  ),
+                ),
+                Text(
+                  '单个云包上限 ${formatBytes(quota.maxFileSizeBytes ?? 0)}；'
+                  '模组默认只记清单不带字节（带字节很容易超上限）',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.itemHint,
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  /// 云存档：按**当前选中版本**启用
+  ///
+  /// 开关按数据目录记（同步单元就是它），共用一份目录的版本共用同一个开关 —— 那种
+  /// 情况必须写清楚，不然用户会以为「这是这个版本自己的设置」
+  Widget _buildCloudSavePanel() {
+    final theme = Theme.of(context);
+    final version = config.versionOptions.selectedVersion;
+
+    if (version == null) {
+      return ContentPanelModule(
+        title: '云存档',
+        child: Text(
+          '先在主页选一个游戏版本——云存档是按版本的数据目录来的',
+          style: theme.textTheme.bodyMedium,
+        ),
+      );
+    }
+
+    final enabled = CloudSaveService.isEnabled(version);
+    final shared = _versionsSharingDataPath(version) - 1;
+    return ContentPanelModule(
+      title: '云存档',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 8,
+        children: [
+          SwitchSettingBar(
+            title: '启用云存档',
+            value: enabled,
+            onChanged: (value) => _setCloudEnabled(version, value),
+          ),
+          Text('当前版本：${version.tag}', style: theme.textTheme.labelMedium),
+          if (shared > 0)
+            Text(
+              '这个版本与其他 $shared 个版本共用数据目录，开关是这份目录的',
+              style: theme.textTheme.labelMedium,
+            ),
+          Text('上传 / 恢复在「版本设置 → 云存档」里', style: theme.textTheme.labelMedium),
+        ],
+      ),
+    );
+  }
+
+  /// 有多少个版本共用这份数据目录（含自己）
+  int _versionsSharingDataPath(Mindustry version) {
+    final path = p.normalize(version.dataPath);
+    var count = 0;
+    for (final fold in config.versionOptions.versionFolds) {
+      for (final other in fold.versions) {
+        if (p.normalize(other.dataPath) == path) count++;
+      }
+    }
+    return count;
+  }
+
+  void _setCloudEnabled(Mindustry version, bool value) {
+    CloudSaveService.setEnabled(version, value);
+    setState(() {});
+    addLog(
+      .info,
+      '[${version.tag}] 云存档${value ? '开启' : '关闭'}，数据目录：${version.dataPath}',
+      tag: 'Cloud',
     );
   }
 

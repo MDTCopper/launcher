@@ -1,6 +1,6 @@
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
-import 'package:copper_launcher/ui/pages/cloud/cloud_save_page.dart';
+import 'package:copper_launcher/ui/pages/cloud/version_cloud_save_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_about_rework_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_components_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_example_page.dart';
@@ -9,10 +9,10 @@ import 'package:copper_launcher/ui/pages/design/design_mods_rework_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_setting_rework_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_system_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_template_page.dart';
-import 'package:copper_launcher/ui/pages/overview/game_user_page.dart';
 import 'package:copper_launcher/ui/pages/overview/version_select.dart';
 import 'package:copper_launcher/ui/pages/overview/version_setting.dart';
 import 'package:copper_launcher/ui/pages/mindustry/mindustry_download_page.dart';
+import 'package:copper_launcher/ui/pages/online/online_page.dart';
 
 import 'package:copper_launcher/ui/pages/resource/mod_download_page.dart';
 import 'package:copper_launcher/ui/pages/resource/resource.dart';
@@ -43,8 +43,8 @@ const Map<String, Widget> routeMap = {
   '/': LaunchPage(),
   '/version_select': VersionSelectPage(),
   '/version_setting': VersionSettingPage(),
-  gameUserPageRouteKey: GameUserPage(),
   accountPageRouteKey: AccountPage(),
+  onlinePageRouteKey: OnlinePage(),
 
   //发现 - Mindustry
   '/mindustry_download': MindustryDownloadPage(),
@@ -55,7 +55,7 @@ const Map<String, Widget> routeMap = {
   packageViewPageRouteKey: ResourcePage(),
   blueprintViewPageRouteKey: ResourcePage(),
   mapViewPageRouteKey: ResourcePage(),
-  cloudSavePageRouteKey: CloudSavePage(),
+  versionCloudSavePageRouteKey: VersionCloudSavePage(),
 
   '/mod_view/download': ModDownloadPage(),
 
