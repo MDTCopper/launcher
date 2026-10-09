@@ -117,11 +117,7 @@ Future<void> _initWindows() async {
 }
 
 Future<void> _initAndroidView() async {
-  // 设置屏幕方向为横屏
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+  //不锁方向：启动器跟随设备方向，游戏自己的 Activity 仍是 sensorLandscape
   //隐藏状态栏和导航栏
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 }
