@@ -321,22 +321,6 @@ class AppShellState extends State<AppShell> {
       ),
     );
 
-    // 刘海 / 挖孔与系统栏：取 viewPadding 留安全区，输入法弹起时这一圈边距不变
-    // 外层铺一层页面底色，填住留出来的那几条，免得露出窗口底色
-    final safe = MediaQuery.viewPaddingOf(context);
-    shell = ColoredBox(
-      color: colors.pageBackground,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: safe.left,
-          top: safe.top,
-          right: safe.right,
-          bottom: safe.bottom,
-        ),
-        child: shell,
-      ),
-    );
-
     if (isDesktop) {
       return DragFileField(onDragDone: _handleDragFile, child: shell);
     }
@@ -344,17 +328,32 @@ class AppShellState extends State<AppShell> {
   }
 
   Widget _buildShellBody(AppColors colors) {
+    // 刘海 / 挖孔与系统栏：取 viewPadding（不随输入法变）让开安全区；
+    // 让开的那几条由各自那块的底色继续铺满，别在外围围出一圈生硬的边
+    final safe = MediaQuery.viewPaddingOf(context);
+
     return Row(
       children: [
         // ── 左侧导航 ──
-        NavigationRail(
-          navigatorKey: _navigatorKey,
-          currentRoute: _currentRoute,
-          currentRootRoute: _currentRootRoute,
-          sections: _sections,
-          itemsAtBottom: _items,
+        // 挖孔落在这一侧时，栏里的内容往里让，条子仍铺导航栏自己的底色
+        ColoredBox(
+          color: colors.cardBackground,
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: safe.left,
+              top: safe.top,
+              bottom: safe.bottom,
+            ),
+            child: NavigationRail(
+              navigatorKey: _navigatorKey,
+              currentRoute: _currentRoute,
+              currentRootRoute: _currentRootRoute,
+              sections: _sections,
+              itemsAtBottom: _items,
 
-          onNavigate: _onRootNavigate,
+              onNavigate: _onRootNavigate,
+            ),
+          ),
         ),
 
         VerticalDivider(width: 1, thickness: 1, color: colors.border),
@@ -363,11 +362,18 @@ class AppShellState extends State<AppShell> {
         Expanded(
           child: ColorfulBackground(
             colorful: config.setting.personalizationOptions.colorfulBackground,
-            child: Column(
-              children: [
-                _buildTopbar(),
-                Expanded(child: _buildNavigator()),
-              ],
+            child: Padding(
+              padding: EdgeInsets.only(
+                top: safe.top,
+                right: safe.right,
+                bottom: safe.bottom,
+              ),
+              child: Column(
+                children: [
+                  _buildTopbar(),
+                  Expanded(child: _buildNavigator()),
+                ],
+              ),
             ),
           ),
         ),
