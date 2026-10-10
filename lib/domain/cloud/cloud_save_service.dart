@@ -8,6 +8,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -22,6 +23,7 @@ class CloudSaveUploadResult {
     required this.archiveBytes,
     required this.dropped,
     this.alreadyUpToDate = false,
+    this.quotaGuard = const CloudQuotaGuard(),
   });
 
   final CloudSaveSlot slot;
@@ -37,6 +39,32 @@ class CloudSaveUploadResult {
 
   /// 本来报冲突，但比下来**云端 head 与本机这份内容相同** ⇒ 什么也不用做
   final bool alreadyUpToDate;
+
+  /// 这次上传前为了腾空间做了什么（清理了几个旧快照 / 还剩多少额度）
+  final CloudQuotaGuard quotaGuard;
+}
+
+/// 上传前的配额守卫结果
+///
+/// 存档一大就很容易把 200 MiB 额度顶满，而服务端的保留策略是**按版本数**清的
+/// （每槽位 20 个未固定 / 90 天），不按容量 ⇒ 空间不够时得自己先删最旧的未固定快照
+class CloudQuotaGuard {
+  const CloudQuotaGuard({
+    this.deletedSnapshots = 0,
+    this.freedBytes = 0,
+    this.remainingBytes,
+  });
+
+  /// 这次为腾空间删掉的旧快照数
+  final int deletedSnapshots;
+
+  /// 删掉它们腾出来的字节数（按服务端给的快照体积估）
+  final int freedBytes;
+
+  /// 这次上传之后还剩多少额度；服务端没给额度时为 null
+  final int? remainingBytes;
+
+  bool get cleaned => deletedSnapshots > 0;
 }
 
 /// 这个数据目录现在处于什么状态（页面上的状态点、自动同步判断都用它）
@@ -433,6 +461,15 @@ class CloudSaveService {
       final bytes = File(archivePath).readAsBytesSync();
       final sha256 = sha256OfBytes(bytes);
 
+      onStatus?.call('检查云端空间');
+      final guard = await _makeRoomForUpload(
+        accessToken: accessToken,
+        slot: slot,
+        newBytes: bytes.length,
+        onStatus: onStatus,
+        cancelToken: cancelToken,
+      );
+
       onStatus?.call('申请上传额度');
       final CloudSaveUploadSession session;
       try {
@@ -528,10 +565,112 @@ class CloudSaveService {
         snapshot: snapshot,
         archiveBytes: bytes.length,
         dropped: export.dropped,
+        quotaGuard: guard,
       );
     } finally {
       _deleteQuietly(archivePath);
     }
+  }
+
+  /// 上传前看额度够不够；不够就删**最旧的未固定快照**腾地方
+  ///
+  /// 服务端的保留策略按版本数清（每槽位 20 个未固定 / 90 天），**不按容量** ⇒
+  /// 存档一大就会顶满 200 MiB。这里只做两件事：
+  /// - 额度够 / 读不到额度（服务端没给、请求失败）⇒ 直接放行，交给服务端判
+  /// - 额度不够 ⇒ 从最旧的未固定快照开始删（**固定的与当前 head 不碰**），
+  ///   删完还差就抛 [MdtbbsException]（码 `QUOTA_INSUFFICIENT`），**不上传**
+  static Future<CloudQuotaGuard> _makeRoomForUpload({
+    required String accessToken,
+    required CloudSaveSlot slot,
+    required int newBytes,
+    void Function(String status)? onStatus,
+    CancelToken? cancelToken,
+  }) async {
+    final CloudSaveQuota quota;
+    try {
+      quota = await MdtbbsCloudSaveApi.quota(
+        accessToken: accessToken,
+        cancelToken: cancelToken,
+      );
+    } catch (error) {
+      addLog(
+        .warning,
+        '读不到云端配额，跳过空间检查：${removeNewlines('$error')}',
+        tag: 'Cloud',
+      );
+      return const CloudQuotaGuard();
+    }
+
+    final limit = quota.limitBytes;
+    final used = quota.usedBytes;
+    // 服务端没给额度就别拿猜出来的数字拦玩家
+    if (limit == null || used == null) {
+      return CloudQuotaGuard(remainingBytes: quota.remainingBytes);
+    }
+    if (used + newBytes <= limit) {
+      return CloudQuotaGuard(remainingBytes: limit - used - newBytes);
+    }
+
+    onStatus?.call('云端空间不够，清理旧快照');
+    final page = await MdtbbsCloudSaveApi.listSnapshots(
+      accessToken: accessToken,
+      slotId: slot.id,
+      limit: 100,
+      cancelToken: cancelToken,
+    );
+    final head = slot.currentSnapshotId;
+    final candidates =
+        page.snapshots.where((item) => !item.pinned && item.id != head).toList()
+          ..sort(
+            (a, b) => (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+                .compareTo(
+                  b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+                ),
+          );
+
+    var freed = 0;
+    var deleted = 0;
+    for (final snapshot in candidates) {
+      if (used + newBytes - freed <= limit) break;
+      try {
+        await MdtbbsCloudSaveApi.deleteSnapshot(
+          accessToken: accessToken,
+          slotId: slot.id,
+          snapshotId: snapshot.id,
+          cancelToken: cancelToken,
+        );
+      } catch (error) {
+        addLog(
+          .warning,
+          '删旧快照 ${snapshot.id} 失败：${removeNewlines('$error')}',
+          tag: 'Cloud',
+        );
+        continue;
+      }
+      freed += snapshot.size ?? 0;
+      deleted++;
+      addLog(
+        .info,
+        '云端空间不够，删掉第 ${snapshot.revision ?? 0} 版旧快照（${snapshot.size ?? 0} 字节）',
+        tag: 'Cloud',
+      );
+    }
+
+    final stillShort = used + newBytes - freed - limit;
+    if (stillShort > 0) {
+      throw MdtbbsException(
+        code: 'QUOTA_INSUFFICIENT',
+        message:
+            '云端空间不够：这次要 ${formatBytes(newBytes)}，'
+            '清掉 $deleted 个旧快照后还差 ${formatBytes(stillShort)}；'
+            '先把要长期留的版本固定住、再删掉一些旧快照后重试',
+      );
+    }
+    return CloudQuotaGuard(
+      deletedSnapshots: deleted,
+      freedBytes: freed,
+      remainingBytes: limit - (used + newBytes - freed),
+    );
   }
 
   /// 把某个快照拉下来并解进本机数据目录

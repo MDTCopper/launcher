@@ -198,13 +198,20 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
 
       if (!mounted) return;
       final dropped = result.dropped;
+      final guard = result.quotaGuard;
+      final parts = <String>[
+        '云包 ${formatBytes(result.archiveBytes)}',
+        if (dropped.isNotEmpty) '有 ${dropped.length} 个文件在打包时被改动过，没进包',
+        // 空间不够时我们自己删了旧快照，得说出来（不然用户不知道历史少了版本）
+        if (guard.cleaned)
+          '云端空间不够，已清理 ${guard.deletedSnapshots} 个旧快照、腾出 ${formatBytes(guard.freedBytes)}',
+        if (guard.remainingBytes != null)
+          '云端还剩 ${formatBytes(guard.remainingBytes!)}',
+      ];
       addNotice(
         icon: Icons.cloud_upload_outlined,
         title: '已上传到云端',
-        content: dropped.isEmpty
-            ? '云包 ${formatBytes(result.archiveBytes)}'
-            : '云包 ${formatBytes(result.archiveBytes)}；'
-                  '有 ${dropped.length} 个文件在打包时被改动过，没进包',
+        content: parts.join('；'),
       );
       await _reload();
     } on MdtbbsException catch (error) {
