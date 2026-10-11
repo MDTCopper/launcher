@@ -42,6 +42,31 @@ class AccountManager {
 
   String? get subject => _stored?.subject;
 
+  /// 联机服务（LanLink 控制面）的令牌
+  ///
+  /// 它与 BBS 是同一个论坛账号，所以不另开一份登录态：存进同一份账号文件，
+  /// 退出 BBS 时整份被清掉，联机令牌跟着失效
+  String? get lanlinkToken => _stored?.lanlinkToken;
+
+  bool get hasLanlinkToken => _stored?.hasLanlinkToken ?? false;
+
+  /// 记下联机服务令牌；**没有 BBS 账号态时直接忽略**
+  ///
+  /// 联机账号是附属在社区账号上的，没有账号就不该单独存在一份联机登录
+  void saveLanlinkToken(String token) {
+    final stored = _stored;
+    if (stored == null || token.isEmpty) return;
+    _stored = stored.copyWith(lanlinkToken: token);
+    AccountStore.save(_stored!);
+  }
+
+  void clearLanlinkToken() {
+    final stored = _stored;
+    if (stored == null) return;
+    _stored = stored.copyWith(clearLanlinkToken: true);
+    AccountStore.save(_stored!);
+  }
+
   /// 启动时读一次盘：client_id 换过就当作未登录（那份 token 属于别的应用）
   ///
   /// 先清内存再读：否则「盘上没有账号态」或「client_id 不符」时，

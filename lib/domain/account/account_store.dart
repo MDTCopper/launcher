@@ -18,6 +18,7 @@ class StoredAccount {
     this.subject,
     this.username,
     this.refreshToken,
+    this.lanlinkToken,
     this.pendingRefreshKey,
     this.pendingRefreshToken,
     this.pendingRefreshAt,
@@ -31,6 +32,12 @@ class StoredAccount {
 
   /// 刷新时会轮换，成功必须原子覆盖这一份
   final String? refreshToken;
+
+  /// 联机服务（LanLink 控制面）的令牌
+  ///
+  /// 它与 BBS 是同一个论坛账号，所以跟 refresh token 存一份；
+  /// 退出 BBS 时整份账号文件被清掉，联机令牌自然跟着失效
+  final String? lanlinkToken;
 
   /// 上一次刷新用的幂等键与那次用的原 refresh token
   ///
@@ -48,6 +55,8 @@ class StoredAccount {
 
   bool get isLoggedIn => refreshToken != null && refreshToken!.isNotEmpty;
 
+  bool get hasLanlinkToken => lanlinkToken != null && lanlinkToken!.isNotEmpty;
+
   bool matchesClient(String id) => clientId == id;
 
   /// 这笔未决尝试还在重试窗口内
@@ -62,15 +71,20 @@ class StoredAccount {
     String? subject,
     String? username,
     String? refreshToken,
+    String? lanlinkToken,
     String? pendingRefreshKey,
     String? pendingRefreshToken,
     DateTime? pendingRefreshAt,
     bool clearPendingRefresh = false,
+    bool clearLanlinkToken = false,
   }) => StoredAccount(
     clientId: clientId ?? this.clientId,
     subject: subject ?? this.subject,
     username: username ?? this.username,
     refreshToken: refreshToken ?? this.refreshToken,
+    lanlinkToken: clearLanlinkToken
+        ? null
+        : (lanlinkToken ?? this.lanlinkToken),
     pendingRefreshKey: clearPendingRefresh
         ? null
         : (pendingRefreshKey ?? this.pendingRefreshKey),
@@ -87,6 +101,7 @@ class StoredAccount {
     'subject': ?subject,
     'username': ?username,
     'refreshToken': ?refreshToken,
+    'lanlinkToken': ?lanlinkToken,
     'pendingRefreshKey': ?pendingRefreshKey,
     'pendingRefreshToken': ?pendingRefreshToken,
     'pendingRefreshAt': ?pendingRefreshAt?.toIso8601String(),
@@ -97,6 +112,7 @@ class StoredAccount {
     subject: json['subject'] as String?,
     username: json['username'] as String?,
     refreshToken: json['refreshToken'] as String?,
+    lanlinkToken: json['lanlinkToken'] as String?,
     pendingRefreshKey: json['pendingRefreshKey'] as String?,
     pendingRefreshToken: json['pendingRefreshToken'] as String?,
     pendingRefreshAt: DateTime.tryParse('${json['pendingRefreshAt']}'),
@@ -129,16 +145,23 @@ class AccountStore {
       if (decoded is! Map) return null;
       final json = decoded.cast<String, dynamic>();
       final account = StoredAccount.fromJson(json);
-      return account.copyWith(
-        refreshToken: _restore(
-          account.refreshToken,
-          json['refreshTokenEncrypted'] == true,
-        ),
-        pendingRefreshToken: _restore(
-          account.pendingRefreshToken,
-          json['pendingRefreshTokenEncrypted'] == true,
-        ),
-      );
+      return account
+          .copyWith(
+            refreshToken: _restore(
+              account.refreshToken,
+              json['refreshTokenEncrypted'] == true,
+            ),
+            pendingRefreshToken: _restore(
+              account.pendingRefreshToken,
+              json['pendingRefreshTokenEncrypted'] == true,
+            ),
+          )
+          .copyWith(
+            lanlinkToken: _restore(
+              account.lanlinkToken,
+              json['lanlinkTokenEncrypted'] == true,
+            ),
+          );
     } catch (error) {
       addLog(
         .warning,
@@ -156,14 +179,17 @@ class AccountStore {
 
       final refresh = _protect(account.refreshToken);
       final pending = _protect(account.pendingRefreshToken);
+      final lanlink = _protect(account.lanlinkToken);
       final payload = account.copyWith(
         refreshToken: refresh.value,
         pendingRefreshToken: pending.value,
+        lanlinkToken: lanlink.value,
       );
 
       final json = payload.toJson()
         ..['refreshTokenEncrypted'] = refresh.encrypted
-        ..['pendingRefreshTokenEncrypted'] = pending.encrypted;
+        ..['pendingRefreshTokenEncrypted'] = pending.encrypted
+        ..['lanlinkTokenEncrypted'] = lanlink.encrypted;
 
       final temporary = File('$filePath.tmp');
       temporary.writeAsStringSync(jsonEncode(json), flush: true);
