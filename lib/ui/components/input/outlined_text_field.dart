@@ -85,6 +85,7 @@ class OutlinedTextField extends StatefulWidget {
     this.error,
     this.decoration,
     this.onEditingComplete,
+    this.obscureText = false,
   });
 
   final String? label;
@@ -101,6 +102,9 @@ class OutlinedTextField extends StatefulWidget {
   final FocusNode? focusNode;
   final bool? enable;
   final VoidCallback? onEditingComplete;
+
+  /// 口令类输入用它遮住内容；默认按普通文本显示
+  final bool obscureText;
 
   @override
   State<StatefulWidget> createState() => _OutlinedTextFieldState();
@@ -349,6 +353,7 @@ class _OutlinedTextFieldState extends State<OutlinedTextField>
                   controller: _textEditingController,
                   focusNode: focusNode,
                   cursorHeight: 18,
+                  obscureText: widget.obscureText,
                   inputFormatters: widget.inputFormatters,
                   style: theme.textTheme.bodyMedium,
                   decoration: inputDecoration,
