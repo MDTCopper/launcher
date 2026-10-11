@@ -9,8 +9,6 @@ import 'dart:typed_data';
 ///
 /// 方向语义：房主发出的 UDP 帧填**房客 peerId**，房客发出的填**房主 peerId**
 class MdtbbsRelayFrame {
-  MdtbbsRelayFrame._();
-
   static const List<int> _magic = [0x4D, 0x4C, 0x52, 0x31]; // "MLR1"
   static const int version = 1;
 
