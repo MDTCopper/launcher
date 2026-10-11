@@ -12,7 +12,8 @@ import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/gpu_preference.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/material.dart'
+    show AppLifecycleListener, AppLifecycleState, Icons;
 
 import 'package:path/path.dart' as p;
 
@@ -33,6 +34,9 @@ class MindustryLauncher {
   /// 主动停止且游戏未完全启动时，需清理残留的 launchid.dat 哨兵文件，
   /// 避免下次启动被 Mindustry 误判为「mod 加载崩溃」而全部禁用 mod
   bool _stoppedByLauncher = false;
+
+  /// 桥那条路的游戏退出监听（桌面那条路靠 [Process.exitCode]，Android 没有句柄）
+  BridgeGameExitWatcher? _bridgeExitWatcher;
 
   // 校验 Java 环境是否可用
   Future<bool> _checkJavaEnv({String? javaExecutable}) async {
@@ -241,7 +245,8 @@ class MindustryLauncher {
   /// 与桌面那条路的区别：不校验桌面 JDK、不认窗口参数、不建 [Process]（游戏由桥在
   /// 自己起的进程里跑）；arc 原生库跟着**具体游戏版本**走，缺了就在这儿现下（同版本
   /// 只下一次）。`Bridge.launch` 只是把参数交出去，起没起来要看界面切没切到游戏
-  /// 或 `<数据目录>/last_log.txt`
+  /// 或 `<数据目录>/last_log.txt`；退出没有进程回调，由 [_watchBridgeGameExit] 盯
+  /// Activity 生命周期
   Future<bool> _startWithBridge(
     Mindustry mindustry, {
     Memory? maxMemory,
@@ -361,12 +366,35 @@ class MindustryLauncher {
     }
 
     _dataPath = mindustry.dataPath;
+    _watchBridgeGameExit();
     addLogAndPrint(
       .info,
       'Android 桥：已交给桥启动（${mindustry.tag}）：${args.join(' ')}',
       tag: 'Launch',
     );
     return true;
+  }
+
+  /// 桥启动之后开始盯游戏退出
+  ///
+  /// 桥在自己的进程里跑游戏（`:mdt_process`），Dart 侧没有 [Process] 可以等；能用的
+  /// 信号只有 Activity 生命周期 —— 游戏 Activity 与启动器同在一个 task，它起来后
+  /// 启动器退到后台，它结束（正常退出或崩掉）后启动器回到前台
+  void _watchBridgeGameExit() {
+    _bridgeExitWatcher?.stop();
+    _bridgeExitWatcher = BridgeGameExitWatcher(
+      onGameExit: _reportBridgeGameExit,
+    )..start();
+  }
+
+  /// 桥的这次运行结束了：往日志流补一条退出事件，任务侧现成的退出分支照常收尾
+  ///
+  /// 桥不给退出码，崩溃与正常退出在 Activity 上分不出来，一律按正常退出报
+  void _reportBridgeGameExit() {
+    final controller = _logController;
+    if (controller == null || controller.isClosed) return;
+    controller.add('exit 0');
+    controller.close();
   }
 
   void _listenToJarLogs() {
@@ -464,11 +492,9 @@ class MindustryLauncher {
     if (maximize != null) {
       args.add('-maximized');
       args.add(maximize.toString());
-    } else {
-      if (windowSize != null) {
-        args.add('-maximized');
-        args.add('false');
-      }
+    } else if (windowSize != null) {
+      args.add('-maximized');
+      args.add('false');
     }
 
     //Mindustry在桌面端测试移动端界面参数
@@ -476,6 +502,8 @@ class MindustryLauncher {
   }
 
   void dispose() {
+    _bridgeExitWatcher?.stop();
+    _bridgeExitWatcher = null;
     _logController?.close();
     _logController = null;
     if (_jarProcess != null) {
@@ -502,5 +530,46 @@ class MindustryLauncher {
         tag: 'Launch',
       );
     }
+  }
+}
+
+/// 桥那条路的游戏退出判据（Android）
+///
+/// 桥在自己的进程里跑游戏，Dart 侧没有进程句柄；可用的只有 Activity 生命周期 ——
+/// 游戏 Activity 与启动器同在一个 task，它起来后启动器退到后台，它结束（正常退出或
+/// 崩掉）后启动器回到前台 ⇒ 只认「离开过前台、又回到前台」这一条
+class BridgeGameExitWatcher {
+  BridgeGameExitWatcher({required void Function() onGameExit})
+    : _onGameExit = onGameExit;
+
+  final void Function() _onGameExit;
+
+  AppLifecycleListener? _listener;
+
+  bool _leftForeground = false;
+
+  /// 把参数交给桥之后调用：游戏 Activity 这时才刚要起来
+  void start() {
+    stop();
+    _listener = AppLifecycleListener(onStateChange: handleLifecycleState);
+  }
+
+  /// 不再监听：启动失败、任务收尾、启动器关闭
+  void stop() {
+    _listener?.dispose();
+    _listener = null;
+    _leftForeground = false;
+  }
+
+  /// 判据本体，用例直接喂状态
+  @visibleForTesting
+  void handleLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      _leftForeground = true;
+      return;
+    }
+    if (!_leftForeground) return;
+    stop();
+    _onGameExit();
   }
 }
