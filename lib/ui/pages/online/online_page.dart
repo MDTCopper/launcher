@@ -96,14 +96,25 @@ class _OnlinePageState extends State<OnlinePage> {
     });
   }
 
-  /// 账号态由账户层拥有，这里只读、不缓存
+  /// 账号态由账户层拥有，这里只读、不缓存；
+  /// 顺手读一次账号资料（联机写操作要求手机号验证，提示要用）
   Future<void> _refreshAccount() async {
     if (_accounts.isConfigured) {
       await _accounts.restore();
+      if (_accounts.isLoggedIn) {
+        try {
+          await _accounts.loadAccount();
+        } on Object {
+          // 读不到资料不影响页面，按未知处理
+        }
+      }
     }
     if (!mounted) return;
     setState(() {});
   }
+
+  /// 联机写操作（建会话 / 加入 / 邀请）都要求手机号验证（站长确认）
+  bool get _phoneVerified => _accounts.account?.phoneVerified == true;
 
   /// 拿 BBS 的 Bearer 令牌（过期内会自动刷新）；未登录返回 null
   Future<String?> _bbsToken() => _accounts.ensureAccessToken();
@@ -462,6 +473,12 @@ class _OnlinePageState extends State<OnlinePage> {
               color: colors.itemSecondary,
             ),
           ),
+          if (_accounts.isLoggedIn && !_phoneVerified)
+            Text(
+              '手机号还没验证：建会话 / 加入这类写操作会被服务端拒绝'
+              '（去论坛完成验证后重试）',
+              style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
+            ),
           if (session != null)
             _buildOfficialSessionCard(session)
           else ...[

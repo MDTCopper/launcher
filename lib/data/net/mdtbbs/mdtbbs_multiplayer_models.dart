@@ -189,7 +189,7 @@ class MdtbbsCreatedSession {
   final MdtbbsPeer peer;
   final String resumeToken;
 
-  /// 只在创建响应里出现一次；丢了就只剩撤销/重建（能否撤销在 P0 待确认）
+  /// 只在创建响应里返回一次（API 不会再给）；**房间从控制面注销前可复用**
   final String? joinCode;
 
   factory MdtbbsCreatedSession.fromJson(Map<String, dynamic> json) =>

@@ -66,8 +66,9 @@ class MdtbbsMultiplayerApi {
   /// 创建会话
   ///
   /// [visibility] 取 `capabilities.visibility`；[joinPolicy] 取 `joinPolicies`
-  /// （`private + open` 不允许）；[maxPlayers] 2–64，缺省 8。
-  /// 不公开会话的返回里带**一次性展示**的 joinCode
+  /// （合法组合 = 除 `private + open` 外全部）；[maxPlayers] 2–64，缺省 8。
+  /// 不公开会话的返回里带 joinCode（API 只回这一次，房间存续期间可复用）。
+  /// **联机写操作要求手机号验证**（站长确认），未验证会被拒
   static Future<MdtbbsCreatedSession> createSession({
     required String accessToken,
     required String gameId,
@@ -280,7 +281,8 @@ class MdtbbsMultiplayerApi {
 
   // ── 邀请 ────────────────────────────────────────────────────
 
-  /// 邀请好友进自己的会话；[targetUserId] 是论坛用户整数 ID（原样传回）
+  /// 邀请好友进自己的会话；[targetUserId] 是论坛用户整数 ID（原样传回）。
+  /// 联机写操作要求手机号验证（站长确认），未验证会被拒
   static Future<MdtbbsInvite> createInvite({
     required String accessToken,
     required String sessionId,
