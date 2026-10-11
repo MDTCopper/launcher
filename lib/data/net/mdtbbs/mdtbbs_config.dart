@@ -67,11 +67,14 @@ class MdtbbsConfig {
   /// 会直接在授权页报 `invalid_scope`（实测过）。本应用的获批清单见
   /// `GET https://auth.mdtbbs.cn/api/public/apps/<clientId>`（无需登录）
   ///
-  /// - **不含 `openid`**：该应用未获批它，带上就登不进去；账号标识由 `profile`
-  ///   与论坛 `/api/v1/me` 提供，够用
   /// - 一次申请全（`resource.*` 与联机那几项是给后续功能占位）：用户只授权一次，
   ///   后面新功能不必再弹一次授权页
+  /// - `openid`（2026-10-11 补上）：**联机服务的换令牌端点实测要求它** ——
+  ///   没有它的令牌会被 `POST /api/auth/mindauth/exchange` 以 401 `invalid_oauth_token`
+  ///   挡下（对照组：模组客户端带 openid 就通）。它给的是**稳定账号标识** `sub`；
+  ///   ⇒ **加了之后，已授权的用户要重新授权一次**，否则换不出联机令牌
   static const scopes = <String>[
+    'openid',
     'profile',
     'game_content.saves.read',
     'game_content.saves.write',
