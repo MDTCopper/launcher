@@ -1,6 +1,7 @@
 import 'package:copper_launcher/data/net/lanlink/lanlink_api.dart';
 import 'package:copper_launcher/data/net/lanlink/lanlink_models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_api.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/lanlink/lanlink_service.dart';
@@ -35,6 +36,7 @@ class _OnlinePageState extends State<OnlinePage> {
 
   AccountManager get _accounts => AccountManager.instance;
   LanLinkService get _lanlink => LanLinkService.instance;
+  MdtbbsMultiplayerService get _mp => MdtbbsMultiplayerService.instance;
 
   bool _busy = false;
   String? _message;
@@ -195,6 +197,10 @@ class _OnlinePageState extends State<OnlinePage> {
         maxPlayers: maxPlayers,
       );
       _resumeToken = created.resumeToken;
+      _mp.storeResumeToken(
+        sessionId: created.session.id,
+        token: created.resumeToken,
+      );
       if (!mounted) return;
       setState(() {
         _created = created;
@@ -236,6 +242,7 @@ class _OnlinePageState extends State<OnlinePage> {
         joinCode: code,
       );
       _resumeToken = joined.resumeToken;
+      _mp.storeResumeToken(sessionId: session.id, token: joined.resumeToken);
       if (!mounted) return;
       setState(() {
         _current = session;
@@ -250,6 +257,36 @@ class _OnlinePageState extends State<OnlinePage> {
     }
   }
 
+  /// 启动官方中继的本机代理：房主桥到本机游戏，房客绑 6567 给游戏连
+  Future<void> _startProxy(String sessionId) async {
+    final token = await _bbsToken();
+    if (token == null) {
+      _showMessage('请先登录社区账号', isError: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final address = await _mp.startProxy(
+        accessToken: token,
+        sessionId: sessionId,
+      );
+      if (!mounted) return;
+      setState(() {});
+      _showMessage('本机代理已启动，游戏里连 $address');
+    } on Object catch (error) {
+      _showMessage('启动本机代理失败：$error', isError: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _stopProxy() async {
+    await _mp.stopProxy();
+    if (!mounted) return;
+    setState(() {});
+    _showMessage('本机代理已停止');
+  }
+
   Future<void> _leaveSession() async {
     final session = _current;
     final token = await _bbsToken();
@@ -261,6 +298,7 @@ class _OnlinePageState extends State<OnlinePage> {
         sessionId: session.id,
       );
       _resumeToken = '';
+      await _mp.stopProxy();
       if (!mounted) return;
       setState(() {
         _current = null;
@@ -547,9 +585,28 @@ class _OnlinePageState extends State<OnlinePage> {
                 color: colors.itemSecondary,
               ),
             ),
+          if (_mp.isProxyRunning)
+            Text(
+              '本机代理已启动：游戏里连 ${_mp.localAddress}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            ),
           Row(
             spacing: 8,
             children: [
+              if (!_mp.isProxyRunning)
+                IconTextButton(
+                  icon: Icons.lan_outlined,
+                  content: '启动本机代理',
+                  onTap: _busy ? null : () => _startProxy(session.id),
+                )
+              else
+                IconTextButton(
+                  icon: Icons.lan_outlined,
+                  content: '停止本机代理',
+                  onTap: _busy ? null : _stopProxy,
+                ),
               IconTextButton(
                 icon: Icons.refresh,
                 content: '刷新对端',

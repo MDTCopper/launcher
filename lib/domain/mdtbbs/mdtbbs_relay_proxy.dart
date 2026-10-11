@@ -165,15 +165,13 @@ class MdtbbsRelayGuestProxy {
 ///
 /// ⚠ **对端接入的信令尚未经实测**（参考实现只覆盖房客侧）：目前按与房客对称的
 /// 方式处理中继分派的流，实际信令名联调时以隧道日志校准
+///
+/// **不绑本机端口**：6567 是游戏自己监听的；这里只有出站 TCP 连接与
+/// 按对端分（临时端口）的 UDP 套接字
 class MdtbbsRelayHostBridge {
-  MdtbbsRelayHostBridge({
-    required this.tunnel,
-    required this.ports,
-    this.gamePort = 6567,
-  });
+  MdtbbsRelayHostBridge({required this.tunnel, this.gamePort = 6567});
 
   final MdtbbsRelayTunnel tunnel;
-  final MdtbbsRelayProxyPorts ports;
 
   /// 本机游戏监听端口
   final int gamePort;
@@ -190,7 +188,6 @@ class MdtbbsRelayHostBridge {
 
   Future<void> start() async {
     _subscription = tunnel.signals.listen(_onSignal);
-    ports.udpSocket.listen(_onUdpEvent);
     addLog(.info, '房主桥已就绪：中继 → 127.0.0.1:$gamePort', tag: 'Multiplayer');
   }
 
@@ -208,19 +205,7 @@ class MdtbbsRelayHostBridge {
     _udpBridges.clear();
     _pendingUdpBridges.clear();
     _bufferedUdp.clear();
-    ports.tcpServer.close();
-    ports.udpSocket.close();
     addLog(.info, '房主桥已关闭', tag: 'Multiplayer');
-  }
-
-  void _onUdpEvent(RawSocketEvent event) {
-    if (event != RawSocketEvent.read) return;
-    final datagram = ports.udpSocket.receive();
-    if (datagram == null || datagram.data.isEmpty) return;
-    // 游戏的回程没有指明对端：投给所有已建立的对端桥
-    for (final peerId in _udpBridges.keys) {
-      tunnel.sendUdpDatagram(peerId, datagram.data);
-    }
   }
 
   void _onSignal(MdtbbsRelaySignal signal) {
