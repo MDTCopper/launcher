@@ -17,11 +17,15 @@ class MdtbbsRelayAuthOk extends MdtbbsRelaySignal {
     required this.sessionId,
     required this.peerId,
     required this.peerRole,
+    required this.expiresAt,
   });
 
   final String sessionId;
   final String peerId;
   final String peerRole;
+
+  /// 凭证到期时间（续签按它排，比 ttl 倒数准）
+  final String? expiresAt;
 }
 
 class MdtbbsRelayTcpOpenPending extends MdtbbsRelaySignal {
@@ -40,6 +44,14 @@ class MdtbbsRelayTcpOpenFailed extends MdtbbsRelaySignal {
   const MdtbbsRelayTcpOpenFailed({required this.streamId});
 
   final int streamId;
+}
+
+/// 房主侧：本机游戏连接的结果（服务端回给房主）
+class MdtbbsRelayTcpOpenResult extends MdtbbsRelaySignal {
+  const MdtbbsRelayTcpOpenResult({required this.streamId, required this.ok});
+
+  final int streamId;
+  final bool ok;
 }
 
 class MdtbbsRelayTcpData extends MdtbbsRelaySignal {
@@ -77,14 +89,26 @@ class MdtbbsRelayClosed extends MdtbbsRelaySignal {
   final String reason;
 }
 
+class MdtbbsRelayException implements Exception {
+  const MdtbbsRelayException(this.message, {this.authRejected = false});
+
+  final String message;
+
+  /// 认证被拒（AUTH_INVALID）：分配凭证后代理节点要异步同步几秒，
+  /// 立即连会撞上；这类失败等几秒重试即可
+  final bool authRejected;
+
+  @override
+  String toString() => message;
+}
+
 /// 官方中继隧道（MLR1 over WSS）
 ///
-/// 生命周期：[start] 建连并发 auth → 等 `auth_ok` → 之后由 [signals] 驱动上层桥接；
-/// 凭证 TTL 到期前 [renewBefore] 秒用 [allocateRelay] 重新拿一份并发 reauth；
-/// 续签时 `endpoint` / `agent_id` 与当前不一致视为异常（换代理节点必须整体重建）。
+/// 生命周期：[start] 申请凭证 → 建连 → auth → 等 `auth_ok` → 之后由 [signals]
+/// 驱动上层桥接；凭证到期前 [renewBefore] 秒用 [allocateRelay] 拿新凭证发 reauth。
 ///
-/// **同时只允许一条待确认的本地 TCP 连接**（`tcp_open_pending` 只回一个 stream_id，
-/// 与参考实现一致），上层要排队
+/// **分配凭证后代理节点要异步同步几秒**，立即认证会撞 AUTH_INVALID（实测
+/// 2026-10-12）——认证被拒就等 5 秒重试，前两次同凭证、第三次换新凭证。
 class MdtbbsRelayTunnel {
   MdtbbsRelayTunnel({
     required this.allocateRelay,
@@ -106,21 +130,61 @@ class MdtbbsRelayTunnel {
   bool _closing = false;
 
   final _signals = StreamController<MdtbbsRelaySignal>.broadcast();
-  final _authOk = Completer<MdtbbsRelayAuthOk>();
-
-  /// 认证结果；[start] 完成后即已完成
-  Future<MdtbbsRelayAuthOk> get authOk => _authOk.future;
+  Completer<MdtbbsRelayAuthOk>? _authCompleter;
 
   /// 信令与数据都从这里出（广播流，允许多个订阅者各取所需）
   Stream<MdtbbsRelaySignal> get signals => _signals.stream;
 
-  /// 当前凭证到期时间戳（毫秒）；续签后更新
+  /// 当前凭证到期时间；续签后更新
   DateTime? _credentialExpiresAt;
   DateTime? get credentialExpiresAt => _credentialExpiresAt;
 
-  /// 发送锁不需要：dart 的 WebSocket.add 是同步入队
+  /// 建连并认证；带 AUTH_INVALID 重试
   Future<MdtbbsRelayAuthOk> start() async {
     _allocation = await allocateRelay();
+    Object? lastError;
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      try {
+        final auth = await _connectAndAuth();
+        _scheduleRenewal(expiresAt: auth.expiresAt);
+        return auth;
+      } on MdtbbsRelayException catch (error) {
+        lastError = error;
+        await _teardownSocket();
+        if (!error.authRejected || attempt == 3) rethrow;
+        addLog(.info, '认证被拒（第 $attempt 次），等代理节点同步后重试…', tag: 'Multiplayer');
+        await Future<void>.delayed(const Duration(seconds: 5));
+        if (attempt == 2) _allocation = await allocateRelay();
+      }
+    }
+    throw lastError ?? const MdtbbsRelayException('中继认证失败');
+  }
+
+  Future<MdtbbsRelayAuthOk> _connectAndAuth() {
+    final completer = Completer<MdtbbsRelayAuthOk>();
+    _authCompleter = completer;
+    return _connect().then((_) {
+      addLog(
+        .info,
+        '已发送中继认证（op=auth，agent=${_allocation!.agentId}，凭证不落日志）',
+        tag: 'Multiplayer',
+      );
+      _sendJson({
+        'op': 'auth',
+        'version': MdtbbsRelayFrame.version,
+        'credential': _allocation!.credential,
+      });
+      return completer.future.timeout(
+        authTimeout,
+        onTimeout: () {
+          unawaited(_teardownSocket());
+          throw const MdtbbsRelayException('中继 auth_ok 超时');
+        },
+      );
+    });
+  }
+
+  Future<void> _connect() async {
     final endpoint = _allocation!.endpoint;
     addLog(.info, '连接官方中继：$endpoint', tag: 'Multiplayer');
     // 中继端口可能整个不可达：不设超时会永远挂住，把上层卡死
@@ -137,16 +201,19 @@ class MdtbbsRelayTunnel {
       onError: (Object error) => _finish('中继连接异常：$error'),
       cancelOnError: true,
     );
-    _sendJson({
-      'op': 'auth',
-      'version': MdtbbsRelayFrame.version,
-      'credential': _allocation!.credential,
-    });
-    _scheduleRenewal();
-    return _authOk.future.timeout(
-      authTimeout,
-      onTimeout: () => throw const MdtbbsRelayException('中继 auth_ok 超时'),
-    );
+  }
+
+  Future<void> _teardownSocket() async {
+    final subscription = _subscription;
+    final socket = _socket;
+    _subscription = null;
+    _socket = null;
+    await subscription?.cancel();
+    try {
+      await socket?.close();
+    } on Object {
+      // 已经断了
+    }
   }
 
   /// 申请一条到目标对端的 TCP 流；返回中继分配的 streamId
@@ -180,14 +247,7 @@ class MdtbbsRelayTunnel {
     _closing = true;
     _renewTimer?.cancel();
     _renewTimer = null;
-    try {
-      await _socket?.close();
-    } on Object {
-      // 已经断了
-    }
-    await _subscription?.cancel();
-    _subscription = null;
-    _socket = null;
+    await _teardownSocket();
     _finish('已关闭');
     await _signals.close();
   }
@@ -222,32 +282,41 @@ class MdtbbsRelayTunnel {
           sessionId: '${json['session_id'] ?? ''}',
           peerId: '${json['peer_id'] ?? ''}',
           peerRole: '${json['peer_role'] ?? ''}',
+          expiresAt: json['expires_at']?.toString(),
         );
-        addLog(.info, '中继已认证：role=${signal.peerRole}', tag: 'Multiplayer');
-        if (!_authOk.isCompleted) _authOk.complete(signal);
+        addLog(
+          .info,
+          '中继已认证：role=${signal.peerRole}，凭证到 ${signal.expiresAt}',
+          tag: 'Multiplayer',
+        );
+        _authCompleter?.complete(signal);
         _emit(signal);
       case 'reauth_ok':
         addLog(.info, '中继凭证已续签', tag: 'Multiplayer');
       case 'tcp_open_pending':
-        _emit(
-          MdtbbsRelayTcpOpenPending(
-            streamId: (json['stream_id'] as num?)?.toInt() ?? 0,
-          ),
-        );
+        final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
+        addLog(.info, '中继分配 stream $streamId', tag: 'Multiplayer');
+        _emit(MdtbbsRelayTcpOpenPending(streamId: streamId));
       case 'tcp_opened':
-        _emit(
-          MdtbbsRelayTcpOpened(
-            streamId: (json['stream_id'] as num?)?.toInt() ?? 0,
-          ),
-        );
+        final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
+        addLog(.info, 'stream $streamId 已就绪', tag: 'Multiplayer');
+        _emit(MdtbbsRelayTcpOpened(streamId: streamId));
       case 'tcp_open_failed':
-        _emit(
-          MdtbbsRelayTcpOpenFailed(
-            streamId: (json['stream_id'] as num?)?.toInt() ?? 0,
-          ),
-        );
+        final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
+        addLog(.warning, 'stream $streamId 打开失败', tag: 'Multiplayer');
+        _emit(MdtbbsRelayTcpOpenFailed(streamId: streamId));
+      case 'tcp_open_result':
+        final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
+        final ok = json['ok'] == true || json['success'] == true;
+        addLog(.info, 'stream $streamId 本机连接结果：$ok', tag: 'Multiplayer');
+        _emit(MdtbbsRelayTcpOpenResult(streamId: streamId, ok: ok));
       case 'error':
-        _emit(MdtbbsRelayError(code: '${json['code'] ?? ''}'));
+        final code = '${json['code'] ?? ''}';
+        addLog(.warning, '中继报错：code=$code', tag: 'Multiplayer');
+        _authCompleter?.completeError(
+          MdtbbsRelayException('中继认证被拒（$code）', authRejected: true),
+        );
+        _emit(MdtbbsRelayError(code: code));
       default:
         addLog(.info, '未处理的中继 op：${json['op']}', tag: 'Multiplayer');
     }
@@ -283,15 +352,23 @@ class MdtbbsRelayTunnel {
     }
   }
 
-  /// TTL 到期前 [renewBefore] 秒续签；续签失败且已不足 8 秒才收尾
-  void _scheduleRenewal() {
+  /// 到期前 [renewBefore] 秒续签；auth_ok 带的 `expires_at` 比 ttl 倒数准
+  void _scheduleRenewal({String? expiresAt}) {
     final allocation = _allocation;
     if (allocation == null || _closing) return;
-    final ttl = allocation.expiresIn > 0
-        ? allocation.expiresIn
-        : MdtbbsRelayFrameMaxTtl.capabilitiesFallback;
-    _credentialExpiresAt = DateTime.now().add(Duration(seconds: ttl));
-    final delaySeconds = ttl - renewBefore;
+    final fallback = DateTime.now().add(
+      Duration(
+        seconds: allocation.expiresIn > 0
+            ? allocation.expiresIn
+            : MdtbbsRelayFrameMaxTtl.capabilitiesFallback,
+      ),
+    );
+    final parsed = expiresAt == null ? null : DateTime.tryParse(expiresAt);
+    _credentialExpiresAt = parsed ?? fallback;
+    final secondsLeft = _credentialExpiresAt!
+        .difference(DateTime.now())
+        .inSeconds;
+    final delaySeconds = secondsLeft - renewBefore;
     _renewTimer?.cancel();
     _renewTimer = Timer(
       Duration(seconds: delaySeconds <= 0 ? 0 : delaySeconds),
@@ -362,21 +439,16 @@ class MdtbbsRelayTunnel {
     if (_closing) return;
     _closing = true;
     _renewTimer?.cancel();
+    final completer = _authCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.completeError(MdtbbsRelayException(reason));
+    }
+    addLog(.warning, '中继连接结束：$reason', tag: 'Multiplayer');
     _emit(MdtbbsRelayClosed(reason: reason));
   }
 }
 
 /// 续签间隔的兜底值（服务端没给 ttl 时按 120 秒）
-class MdtbbsRelayException implements Exception {
-  const MdtbbsRelayException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
-/// 与 capabilities 的 ttl 兜底保持一致；这里单列避免反向依赖模型文件
 class MdtbbsRelayFrameMaxTtl {
   MdtbbsRelayFrameMaxTtl._();
 
