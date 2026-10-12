@@ -290,8 +290,12 @@ class FileReader {
     Uint8List bytes,
     Uint8List header,
   ) {
-    // settings.bin 前 2 字节可能是 00 00 或 zlib 头 (78 xx)
-    if (!_isZlib(header) && !(header[0] == 0x00 && header[1] == 0x00)) {
+    // settings.bin 前 2 字节可能是 00 00 或 zlib 头 (78 xx)；
+    // 不足 2 字节（空文件 / 中断的下载残留）认不出来，直接判不是
+    final looksLikeSettings =
+        _isZlib(header) ||
+        (header.length >= 2 && header[0] == 0x00 && header[1] == 0x00);
+    if (!looksLikeSettings) {
       return null;
     }
     try {
