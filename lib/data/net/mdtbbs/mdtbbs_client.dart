@@ -184,9 +184,11 @@ class MdtbbsClient {
     Map<String, String>? headers,
     Map<String, dynamic>? queryParameters,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) => _send(
     'GET',
     path,
+    timeout: timeout,
     accessToken: accessToken,
     headers: headers,
     queryParameters: queryParameters,
@@ -199,9 +201,11 @@ class MdtbbsClient {
     String? accessToken,
     Map<String, String>? headers,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) => _send(
     'POST',
     path,
+    timeout: timeout,
     body: body,
     accessToken: accessToken,
     headers: headers,
@@ -214,9 +218,11 @@ class MdtbbsClient {
     String? accessToken,
     Map<String, String>? headers,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) => _send(
     'PATCH',
     path,
+    timeout: timeout,
     body: body,
     accessToken: accessToken,
     headers: headers,
@@ -229,9 +235,11 @@ class MdtbbsClient {
     String? accessToken,
     Map<String, String>? headers,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) => _send(
     'DELETE',
     path,
+    timeout: timeout,
     body: body,
     accessToken: accessToken,
     headers: headers,
@@ -349,15 +357,23 @@ class MdtbbsClient {
     Map<String, String>? headers,
     Map<String, dynamic>? queryParameters,
     CancelToken? cancelToken,
-  }) async => (await _sendEnvelope(
-    method,
-    path,
-    body: body,
-    accessToken: accessToken,
-    headers: headers,
-    queryParameters: queryParameters,
-    cancelToken: cancelToken,
-  )).data;
+    Duration? timeout,
+  }) async {
+    // cio 的 receive 超时是 600 秒，挂一次就把 UI 卡十分钟——调用方可收紧
+    final future = _sendEnvelope(
+      method,
+      path,
+      body: body,
+      accessToken: accessToken,
+      headers: headers,
+      queryParameters: queryParameters,
+      cancelToken: cancelToken,
+    );
+    final envelope = timeout == null
+        ? await future
+        : await future.timeout(timeout);
+    return envelope.data;
+  }
 
   static Future<MdtbbsEnvelope> _sendEnvelope(
     String method,
@@ -371,6 +387,7 @@ class MdtbbsClient {
   }) async {
     final url = urlOf(path);
     final isWrite = method != 'GET';
+    addLog(.debug, '\$method \$url', tag: 'Mdtbbs');
     // 写请求先确保手里有 CSRF 令牌，否则会被守卫直接 403
     if (isWrite) await _ensureCsrf(accessToken, cancelToken);
 

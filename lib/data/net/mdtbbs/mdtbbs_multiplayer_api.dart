@@ -20,6 +20,10 @@ class MdtbbsMultiplayerApi {
 
   static const _base = '/multiplayer';
 
+  /// 联机接口都是快请求：cio 的 receive 超时是 600 秒，这里统一收紧，
+  /// 否则一笔挂住的请求会把 UI 卡十分钟
+  static const Duration _callTimeout = Duration(seconds: 30);
+
   // ── 能力与偏好 ──────────────────────────────────────────────
 
   /// 展示联机入口前先核对：四个布尔 + 顶层 `multiplayer` 标志
@@ -31,6 +35,7 @@ class MdtbbsMultiplayerApi {
       '$_base/capabilities',
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsMultiplayerCapabilities.fromJson(_map(data));
   }
@@ -43,6 +48,7 @@ class MdtbbsMultiplayerApi {
       '$_base/preferences',
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsMultiplayerPreferences.fromJson(_map(data));
   }
@@ -58,6 +64,7 @@ class MdtbbsMultiplayerApi {
       body: {'client_id': clientId},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
   }
 
@@ -93,6 +100,7 @@ class MdtbbsMultiplayerApi {
       },
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsCreatedSession.fromJson(_map(data));
   }
@@ -107,6 +115,7 @@ class MdtbbsMultiplayerApi {
       '$_base/sessions/$sessionId',
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsSession.fromJson(_map(data));
   }
@@ -121,6 +130,7 @@ class MdtbbsMultiplayerApi {
         '$_base/sessions/mine',
         accessToken: accessToken,
         cancelToken: cancelToken,
+        timeout: _callTimeout,
       );
       return MdtbbsSession.fromJson(_map(data));
     } on MdtbbsException catch (error) {
@@ -139,6 +149,7 @@ class MdtbbsMultiplayerApi {
       '$_base/sessions/$sessionId/peers',
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return _list(data).map(MdtbbsPeer.fromJson).toList();
   }
@@ -156,6 +167,7 @@ class MdtbbsMultiplayerApi {
       body: {'code': code},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsSession.fromJson(_map(data));
   }
@@ -184,6 +196,7 @@ class MdtbbsMultiplayerApi {
       },
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsJoinResult.fromJson(_map(data));
   }
@@ -201,6 +214,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     final map = _map(data);
     return MdtbbsLeaveOutcome(
@@ -221,6 +235,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     final map = _map(data);
     return MdtbbsHeartbeat(
@@ -245,6 +260,7 @@ class MdtbbsMultiplayerApi {
       body: {'candidate': candidate.toRequestJson()},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsCandidate.fromJson(_map(data));
   }
@@ -260,6 +276,7 @@ class MdtbbsMultiplayerApi {
       '$_base/sessions/$sessionId/peers/$peerId/candidates',
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return _list(data).map(MdtbbsCandidate.fromJson).toList();
   }
@@ -276,6 +293,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
   }
 
@@ -294,6 +312,7 @@ class MdtbbsMultiplayerApi {
       body: {'session_id': sessionId, 'target_user_id': targetUserId},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsInvite.fromJson(_map(data));
   }
@@ -307,6 +326,7 @@ class MdtbbsMultiplayerApi {
       '$_base/invites',
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return _list(data).map(MdtbbsInvite.fromJson).toList();
   }
@@ -322,6 +342,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsJoinIntent.fromJson(_map(data));
   }
@@ -338,6 +359,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
   }
 
@@ -354,6 +376,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
   }
 
@@ -368,6 +391,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsJoinIntent.fromJson(_map(data));
   }
@@ -382,6 +406,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
   }
 
@@ -399,6 +424,7 @@ class MdtbbsMultiplayerApi {
       },
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsJoinIntent.fromJson(_map(data));
   }
@@ -414,6 +440,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsJoinResult.fromJson(_map(data));
   }
@@ -434,6 +461,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     return MdtbbsRelayAllocation.fromJson(_map(data));
   }

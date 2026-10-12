@@ -479,6 +479,13 @@ class _OnlinePageState extends State<OnlinePage> {
               '（去论坛完成验证后重试）',
               style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
             ),
+          if (_busy)
+            Text(
+              '处理中…（按钮暂时不可用）',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.itemHint,
+              ),
+            ),
           if (session != null)
             _buildOfficialSessionCard(session)
           else ...[
