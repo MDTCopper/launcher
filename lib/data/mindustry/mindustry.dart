@@ -116,16 +116,16 @@ class Mindustry {
   String? jvmParameter;
 
   ///返回游戏版本号 (double)
-  double get releaseDouble {
-    if (!isBe) return double.parse(release.substring(1));
-    return double.parse(release);
-  }
+  ///
+  ///`release` 来自配置文件与网络，可能是空串或非数字（手改过的配置、异常的 tag）；
+  ///一律 [double.tryParse]，读不出数字按 0（未知 / 过旧）处理，不让脏数据升级成异常
+  double get releaseDouble => double.tryParse(_releaseDigits) ?? 0;
 
-  ///返回游戏版本号 (int)
-  int get releaseInt {
-    if (!isBe) return int.parse(release.substring(1).split('.').first);
-    return int.parse(release.split('.').first);
-  }
+  ///返回游戏版本号 (int)；读不出数字时同样给 0
+  int get releaseInt => int.tryParse(_releaseDigits.split('.').first) ?? 0;
+
+  /// `release` 里的纯数字部分：正式版去掉前缀 `v`（`v159.7` → `159.7`），BE 本来就是数字
+  String get _releaseDigits => isBe ? release : release.replaceFirst('v', '');
 
   ///游戏目录路径（[path] 的可用形态）
   String get resolvedPath => AppPaths.resolveStoredPath(path);
