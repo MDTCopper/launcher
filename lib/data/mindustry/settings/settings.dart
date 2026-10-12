@@ -719,7 +719,11 @@ class MindustrySettings {
   Map<String, bool> get modStates {
     final result = <String, bool>{};
     _data.forEach((key, value) {
-      if (key.startsWith('mod-') && key.endsWith('-enabled') && value is bool) {
+      // 前后缀共 12 个字符：键名不比它长时取不出内部名（如键名恰好是 `mod-enabled`）
+      if (key.length > 12 &&
+          key.startsWith('mod-') &&
+          key.endsWith('-enabled') &&
+          value is bool) {
         result[key.substring(4, key.length - 8)] = value;
       }
     });

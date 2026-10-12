@@ -471,10 +471,13 @@ class CloudManifest {
       final states = <String, bool>{};
       for (final entry in settings.entries) {
         final key = entry.key;
+        // 前后缀共 12 个字符：键名不比它长时取不出内部名（如键名恰好是 `mod-enabled`），
+        // 取不出来就跳过这一条，别让整份启用状态都读不出来
+        if (key.length <= prefix.length + suffix.length) continue;
         if (!key.startsWith(prefix) || !key.endsWith(suffix)) continue;
-        final name = key.substring(prefix.length, key.length - suffix.length);
-        if (name.isEmpty || entry.value is! bool) continue;
-        states[name] = entry.value as bool;
+        if (entry.value is! bool) continue;
+        states[key.substring(prefix.length, key.length - suffix.length)] =
+            entry.value as bool;
       }
       return states;
     } catch (_) {
