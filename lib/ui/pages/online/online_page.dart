@@ -12,6 +12,7 @@ import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -154,22 +155,37 @@ class _OnlinePageState extends State<OnlinePage> {
     }
   }
 
-  Future<void> _refreshPeers(String sessionId) async {
-    final token = await _bbsToken();
-    if (token == null) return;
+  Future<void> _refreshPeers(String sessionId, {bool announce = false}) async {
+    setState(() => _busy = true);
     try {
+      final token = await _bbsToken();
+      if (token == null) {
+        _showMessage('拿不到社区账号的访问令牌，请到账户页重新登录', isError: true);
+        return;
+      }
       final peers = await MdtbbsMultiplayerApi.peers(
         accessToken: token,
         sessionId: sessionId,
       );
       if (!mounted) return;
       setState(() => _peers = peers);
+      if (announce) {
+        _showMessage(peers.isEmpty ? '对端：暂无' : '对端：${peers.length} 个（已刷新）');
+      }
     } on Object catch (error) {
       _showMessage('读取对端失败：$error', isError: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   void _showMessage(String text, {bool isError = false}) {
+    // 通知不一定看得见（页面长、通知可能被挡），日志里必须留痕
+    if (isError) {
+      addLog(.warning, text, tag: 'Multiplayer');
+    } else {
+      addLog(.info, text, tag: 'Multiplayer');
+    }
     if (!mounted) return;
     setState(() {
       _message = text;
@@ -300,8 +316,15 @@ class _OnlinePageState extends State<OnlinePage> {
 
   Future<void> _leaveSession() async {
     final session = _current;
+    if (session == null) {
+      _showMessage('当前没有会话可退出', isError: true);
+      return;
+    }
     final token = await _bbsToken();
-    if (session == null || token == null) return;
+    if (token == null) {
+      _showMessage('拿不到社区账号的访问令牌，请到账户页重新登录', isError: true);
+      return;
+    }
     setState(() => _busy = true);
     try {
       final outcome = await MdtbbsMultiplayerApi.leave(
@@ -388,9 +411,10 @@ class _OnlinePageState extends State<OnlinePage> {
     return ListContentPanel(
       items: [
         _buildAccountStrip(),
+        // 状态紧跟账号条：页面很长，放最底部等于没有反馈
+        if (_message != null) _buildMessagePanel(),
         _buildOfficialPanel(),
         _buildMdtCompatPanel(),
-        if (_message != null) _buildMessagePanel(),
       ],
     );
   }
@@ -415,6 +439,7 @@ class _OnlinePageState extends State<OnlinePage> {
           ),
           if (!bbs)
             IconTextButton(
+              pressedScale: 0.96,
               icon: Icons.account_circle_outlined,
               content: '去账户页登录',
               onTap: () => Navigator.pushNamed(context, accountPageRouteKey),
@@ -520,6 +545,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   ),
                 ),
                 IconTextButton(
+                  pressedScale: 0.96,
                   icon: Icons.add_circle_outline,
                   content: '创建会话',
                   onTap: _busy ? null : _createSession,
@@ -544,6 +570,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   ),
                 ),
                 IconTextButton(
+                  pressedScale: 0.96,
                   icon: Icons.login,
                   content: '加入',
                   onTap: _busy ? null : _joinByCode,
@@ -587,6 +614,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   ),
                 ),
                 IconTextButton(
+                  pressedScale: 0.96,
                   icon: Icons.copy,
                   content: '复制',
                   onTap: () => _copy(created.joinCode!, '加入码'),
@@ -621,22 +649,28 @@ class _OnlinePageState extends State<OnlinePage> {
             children: [
               if (!_mp.isProxyRunning)
                 IconTextButton(
+                  pressedScale: 0.96,
                   icon: Icons.lan_outlined,
                   content: '启动本机代理',
                   onTap: _busy ? null : () => _startProxy(session.id),
                 )
               else
                 IconTextButton(
+                  pressedScale: 0.96,
                   icon: Icons.lan_outlined,
                   content: '停止本机代理',
                   onTap: _busy ? null : _stopProxy,
                 ),
               IconTextButton(
+                pressedScale: 0.96,
                 icon: Icons.refresh,
                 content: '刷新对端',
-                onTap: _busy ? null : () => _refreshPeers(session.id),
+                onTap: _busy
+                    ? null
+                    : () => _refreshPeers(session.id, announce: true),
               ),
               IconTextButton(
+                pressedScale: 0.96,
                 icon: Icons.logout,
                 content: '退出会话',
                 onTap: _busy ? null : _leaveSession,
@@ -690,6 +724,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   ),
                 ),
                 IconTextButton(
+                  pressedScale: 0.96,
                   icon: Icons.search,
                   content: '解析',
                   onTap: _busy ? null : _resolveMdtRoom,
@@ -726,6 +761,7 @@ class _OnlinePageState extends State<OnlinePage> {
             ),
           ),
           IconTextButton(
+            pressedScale: 0.96,
             icon: Icons.login,
             content: '加入',
             onTap: _busy ? null : () => _joinMdtRoom(room),
@@ -759,6 +795,7 @@ class _OnlinePageState extends State<OnlinePage> {
             ),
           ),
           IconTextButton(
+            pressedScale: 0.96,
             icon: Icons.logout,
             content: '退出房间',
             onTap: _busy ? null : _leaveMdtRoom,

@@ -387,7 +387,7 @@ class MdtbbsClient {
   }) async {
     final url = urlOf(path);
     final isWrite = method != 'GET';
-    addLog(.debug, '\$method \$url', tag: 'Mdtbbs');
+    addLog(.debug, '$method $url', tag: 'Mdtbbs');
     // 写请求先确保手里有 CSRF 令牌，否则会被守卫直接 403
     if (isWrite) await _ensureCsrf(accessToken, cancelToken);
 
