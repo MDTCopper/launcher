@@ -123,7 +123,13 @@ class MdtbbsRelayTunnel {
     _allocation = await allocateRelay();
     final endpoint = _allocation!.endpoint;
     addLog(.info, '连接官方中继：$endpoint', tag: 'Multiplayer');
-    final socket = await WebSocket.connect(endpoint);
+    // 中继端口可能整个不可达：不设超时会永远挂住，把上层卡死
+    final socket = await WebSocket.connect(endpoint).timeout(
+      authTimeout,
+      onTimeout: () {
+        throw MdtbbsRelayException('连接中继超时（$endpoint）');
+      },
+    );
     _socket = socket;
     _subscription = socket.listen(
       _onMessage,

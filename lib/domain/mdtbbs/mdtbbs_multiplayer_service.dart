@@ -63,13 +63,14 @@ class MdtbbsMultiplayerService {
       ),
     );
     try {
-      final auth = await tunnel.start();
+      // 整段兜底超时：任何一步挂住都要变成错误，免得页面按钮永久禁用
+      final auth = await tunnel.start().timeout(const Duration(seconds: 30));
       _sessionId = sessionId;
       _peerRole = auth.peerRole;
 
       if (auth.peerRole == 'owner') {
         final bridge = MdtbbsRelayHostBridge(tunnel: tunnel);
-        await bridge.start();
+        await bridge.start().timeout(const Duration(seconds: 10));
         _host = bridge;
         _localAddress = '127.0.0.1:6567';
       } else {
@@ -81,7 +82,7 @@ class MdtbbsMultiplayerService {
         final peers = await MdtbbsMultiplayerApi.peers(
           accessToken: accessToken,
           sessionId: sessionId,
-        );
+        ).timeout(const Duration(seconds: 15));
         final owner = peers.where((p) => p.role == 'owner').toList();
         if (owner.isEmpty) {
           await tunnel.dispose();
