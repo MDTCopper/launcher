@@ -360,7 +360,7 @@ class _OnlinePageState extends State<OnlinePage> {
         sessionId: session.id,
       );
       _resumeToken = '';
-      _mp.stopHeartbeat();
+      _mp.forgetSession();
       await _mp.stopProxy();
       if (!mounted) return;
       setState(() {

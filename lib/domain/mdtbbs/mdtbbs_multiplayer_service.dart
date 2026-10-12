@@ -28,7 +28,9 @@ class MdtbbsMultiplayerService {
   String? _resumeToken;
 
   Timer? _heartbeatTimer;
-  String? _peerId;
+  String? _heartbeatPeerId;
+  String? _heartbeatSessionId;
+  Future<String?> Function()? _heartbeatTokenProvider;
   int _heartbeatFailures = 0;
 
   bool get isProxyRunning => _tunnel != null;
@@ -58,13 +60,36 @@ class MdtbbsMultiplayerService {
     required String peerId,
     required Future<String?> Function() tokenProvider,
   }) {
-    stopHeartbeat();
-    _peerId = peerId;
+    _heartbeatPeerId = peerId;
+    _heartbeatSessionId = sessionId;
+    _heartbeatTokenProvider = tokenProvider;
     _heartbeatFailures = 0;
+    _armHeartbeat();
+    addLog(.info, '已开始对端心跳（30 秒一次，peer=$peerId）', tag: 'Multiplayer');
+  }
+
+  /// 页面重进 / 代理重启后续上心跳：只要本进程里还记得自己的 peerId
+  void resumeHeartbeat({
+    required String sessionId,
+    required Future<String?> Function() tokenProvider,
+  }) {
+    final peerId = _heartbeatPeerId;
+    if (peerId == null || _heartbeatSessionId != sessionId) return;
+    _heartbeatTokenProvider = tokenProvider;
+    if (_heartbeatTimer != null) return;
+    _armHeartbeat();
+    addLog(.info, '已恢复对端心跳（peer=$peerId）', tag: 'Multiplayer');
+  }
+
+  void _armHeartbeat() {
+    _heartbeatTimer?.cancel();
+    final sessionId = _heartbeatSessionId;
+    final peerId = _heartbeatPeerId;
+    final tokenProvider = _heartbeatTokenProvider;
+    if (sessionId == null || peerId == null || tokenProvider == null) return;
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       unawaited(_beat(sessionId, peerId, tokenProvider));
     });
-    addLog(.info, '已开始对端心跳（30 秒一次，peer=$peerId）', tag: 'Multiplayer');
   }
 
   Future<void> _beat(
@@ -74,7 +99,10 @@ class MdtbbsMultiplayerService {
   ) async {
     try {
       final token = await tokenProvider();
-      if (token == null) return;
+      if (token == null) {
+        addLog(.warning, '心跳拿不到访问令牌，跳过这次', tag: 'Multiplayer');
+        return;
+      }
       final beat = await MdtbbsMultiplayerApi.peerHeartbeat(
         accessToken: token,
         sessionId: sessionId,
@@ -99,15 +127,26 @@ class MdtbbsMultiplayerService {
     }
   }
 
+  /// 只停计时器，**保留 sessionId / peerId**（代理重启或切页回来要续）
   void stopHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
-    _peerId = null;
+  }
+
+  /// 会话结束才彻底忘掉
+  void forgetSession() {
+    stopHeartbeat();
+    _heartbeatPeerId = null;
+    _heartbeatSessionId = null;
+    _heartbeatTokenProvider = null;
     _heartbeatFailures = 0;
   }
 
   /// 当前心跳绑定的对端
-  String? get heartbeatPeerId => _peerId;
+  String? get heartbeatPeerId => _heartbeatPeerId;
+
+  /// 心跳是否在跑
+  bool get isHeartbeating => _heartbeatTimer != null;
 
   /// 启动本机代理：申请中继凭证 → 隧道认证 → 按角色起桥或代理
   ///
@@ -179,7 +218,6 @@ class MdtbbsMultiplayerService {
   }
 
   Future<void> stopProxy() async {
-    stopHeartbeat();
     final guest = _guest;
     final host = _host;
     final tunnel = _tunnel;
