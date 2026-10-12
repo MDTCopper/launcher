@@ -9,6 +9,7 @@ import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/io/os.dart';
 import 'package:path/path.dart' as p;
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:flutter/material.dart';
@@ -115,12 +116,25 @@ Future<Mindustry?> importLocalGame({
 }
 
 ///默认文件夹：与下载落点一致（[AppPaths.versions]）；配置里找不到就用第一个兜底
+///
+///一个分类都没有时（启动时把缺失目录的记录删光了）按 [VersionOptions] 的口径补一个，
+///否则 `folds.first` 会抛 StateError
 VersionFold defaultVersionFold() {
   final defaultPath = p.normalize(AppPaths.versions);
   final folds = config.versionOptions.versionFolds;
   for (final fold in folds) {
     //按解析后的路径比：记录形态可能是相对、也可能还是老的绝对路径
     if (p.normalize(fold.resolvedPath) == defaultPath) return fold;
+  }
+  if (folds.isEmpty) {
+    final fold = VersionFold(
+      tag: isDesktop ? '默认文件夹' : '默认分类',
+      path: AppPaths.toStoredPath(AppPaths.versions),
+      versions: [],
+    );
+    folds.add(fold);
+    addLog(.info, '版本分类空了，重建默认分类：${fold.resolvedPath}', tag: 'Import');
+    return fold;
   }
   return folds.first;
 }
