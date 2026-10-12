@@ -27,6 +27,10 @@ class MdtbbsMultiplayerService {
   /// **内存暂存**，断线恢复（P5）时用，退出会话即弃
   String? _resumeToken;
 
+  Timer? _heartbeatTimer;
+  String? _peerId;
+  int _heartbeatFailures = 0;
+
   bool get isProxyRunning => _tunnel != null;
 
   /// 当前会话（代理启动后才有意义）
@@ -46,6 +50,64 @@ class MdtbbsMultiplayerService {
 
   /// 当前会话的恢复令牌（P5 的断线恢复用：join 时作为 `resume_token` 提交）
   String? get resumeToken => _resumeToken;
+
+  /// 开始对端心跳：**30 秒一次**，90 秒收不到服务端就把我们判过期
+  /// （不心跳的会话会被清理，`sessions/mine` 随后就查不到了）
+  void startHeartbeat({
+    required String sessionId,
+    required String peerId,
+    required Future<String?> Function() tokenProvider,
+  }) {
+    stopHeartbeat();
+    _peerId = peerId;
+    _heartbeatFailures = 0;
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      unawaited(_beat(sessionId, peerId, tokenProvider));
+    });
+    addLog(.info, '已开始对端心跳（30 秒一次，peer=$peerId）', tag: 'Multiplayer');
+  }
+
+  Future<void> _beat(
+    String sessionId,
+    String peerId,
+    Future<String?> Function() tokenProvider,
+  ) async {
+    try {
+      final token = await tokenProvider();
+      if (token == null) return;
+      final beat = await MdtbbsMultiplayerApi.peerHeartbeat(
+        accessToken: token,
+        sessionId: sessionId,
+        peerId: peerId,
+      );
+      _heartbeatFailures = 0;
+      addLog(
+        .debug,
+        '心跳成功（服务端节奏 ${beat.heartbeatIntervalSeconds}s / 判定 ${beat.expiresInSeconds}s）',
+        tag: 'Multiplayer',
+      );
+    } on Object catch (error) {
+      _heartbeatFailures++;
+      addLog(
+        .warning,
+        '心跳失败（第 $_heartbeatFailures 次）：$error',
+        tag: 'Multiplayer',
+      );
+      if (_heartbeatFailures >= 3) {
+        addLog(.error, '心跳连续失败，会话多半已被判过期', tag: 'Multiplayer');
+      }
+    }
+  }
+
+  void stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    _peerId = null;
+    _heartbeatFailures = 0;
+  }
+
+  /// 当前心跳绑定的对端
+  String? get heartbeatPeerId => _peerId;
 
   /// 启动本机代理：申请中继凭证 → 隧道认证 → 按角色起桥或代理
   ///
@@ -117,6 +179,7 @@ class MdtbbsMultiplayerService {
   }
 
   Future<void> stopProxy() async {
+    stopHeartbeat();
     final guest = _guest;
     final host = _host;
     final tunnel = _tunnel;

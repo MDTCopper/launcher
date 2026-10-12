@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:copper_launcher/data/net/lanlink/lanlink_api.dart';
 import 'package:copper_launcher/data/net/lanlink/lanlink_models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_api.dart';
@@ -149,14 +151,32 @@ class _OnlinePageState extends State<OnlinePage> {
       );
       if (!mounted) return;
       setState(() => _current = session);
-      if (session != null) await _refreshPeers(session.id);
+      if (session != null) {
+        unawaited(_refreshPeers(session.id));
+        // 已有会话也补心跳：不然它会被判过期
+        final peers = await MdtbbsMultiplayerApi.peers(
+          accessToken: token,
+          sessionId: session.id,
+        );
+        final mine = peers.where(
+          (p) => p.userId == '${_accounts.account?.subject ?? ''}',
+        );
+        if (mine.isNotEmpty) {
+          _mp.startHeartbeat(
+            sessionId: session.id,
+            peerId: mine.first.peerId,
+            tokenProvider: _bbsToken,
+          );
+        }
+      }
     } on Object catch (error) {
       _showMessage('读取当前会话失败：$error', isError: true);
     }
   }
 
+  /// 刷新对端：**不占用 _busy**（它只是刷新列表，不该把整页按钮禁掉），
+  /// 挂住也只影响自己
   Future<void> _refreshPeers(String sessionId, {bool announce = false}) async {
-    setState(() => _busy = true);
     try {
       final token = await _bbsToken();
       if (token == null) {
@@ -174,8 +194,6 @@ class _OnlinePageState extends State<OnlinePage> {
       }
     } on Object catch (error) {
       _showMessage('读取对端失败：$error', isError: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -238,7 +256,12 @@ class _OnlinePageState extends State<OnlinePage> {
             ? '会话已创建（${created.session.id}）'
             : '会话已创建，加入码 ${created.joinCode}（只显示这一次，先记下来）',
       );
-      await _refreshPeers(created.session.id);
+      _mp.startHeartbeat(
+        sessionId: created.session.id,
+        peerId: created.peer.peerId,
+        tokenProvider: _bbsToken,
+      );
+      unawaited(_refreshPeers(created.session.id));
     } on Object catch (error) {
       _showMessage('创建会话失败：$error', isError: true);
     } finally {
@@ -276,7 +299,12 @@ class _OnlinePageState extends State<OnlinePage> {
         _created = null;
       });
       _showMessage('已加入会话（${session.id}）');
-      await _refreshPeers(session.id);
+      _mp.startHeartbeat(
+        sessionId: session.id,
+        peerId: joined.peer.peerId,
+        tokenProvider: _bbsToken,
+      );
+      unawaited(_refreshPeers(session.id));
     } on Object catch (error) {
       _showMessage('加入失败：$error', isError: true);
     } finally {
@@ -332,6 +360,7 @@ class _OnlinePageState extends State<OnlinePage> {
         sessionId: session.id,
       );
       _resumeToken = '';
+      _mp.stopHeartbeat();
       await _mp.stopProxy();
       if (!mounted) return;
       setState(() {
