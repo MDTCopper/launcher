@@ -216,6 +216,7 @@ class MdtbbsRelayAllocation {
     required this.endpoint,
     required this.credential,
     required this.expiresIn,
+    this.requestId,
   });
 
   final String allocationId;
@@ -228,6 +229,9 @@ class MdtbbsRelayAllocation {
   /// 凭证有效期（秒），实测与 capabilities 的 ttl 一致（120）
   final int expiresIn;
 
+  /// 这次分配请求的 `request_id`（诊断用：中继拒绝认证时交给管理员查）
+  final String? requestId;
+
   factory MdtbbsRelayAllocation.fromJson(Map<String, dynamic> json) =>
       MdtbbsRelayAllocation(
         allocationId: '${json['allocation_id'] ?? ''}',
@@ -235,6 +239,7 @@ class MdtbbsRelayAllocation {
         endpoint: '${json['endpoint'] ?? ''}',
         credential: '${json['credential'] ?? ''}',
         expiresIn: (json['expires_in'] as num?)?.toInt() ?? 0,
+        requestId: json['_requestId']?.toString(),
       );
 }
 

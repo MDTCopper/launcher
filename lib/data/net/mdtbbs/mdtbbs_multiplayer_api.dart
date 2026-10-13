@@ -456,14 +456,15 @@ class MdtbbsMultiplayerApi {
     required String sessionId,
     CancelToken? cancelToken,
   }) async {
-    final data = await MdtbbsClient.postJson(
+    final envelope = await MdtbbsClient.postEnvelope(
       '$_base/sessions/$sessionId/relay',
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
-      timeout: _callTimeout,
     );
-    return MdtbbsRelayAllocation.fromJson(_map(data));
+    final map = _map(envelope.data);
+    if (envelope.requestId != null) map['_requestId'] = envelope.requestId;
+    return MdtbbsRelayAllocation.fromJson(map);
   }
 
   // ── 工具 ────────────────────────────────────────────────────

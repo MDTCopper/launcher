@@ -519,8 +519,8 @@ class MdtbbsMultiplayerService {
           '请等 1~2 分钟再试（或先离开房间重新进入）';
     }
     if (text.contains('AUTH_INVALID')) {
-      return '中继认证被拒（AUTH_INVALID）：官方中继暂时没认下这份凭证。'
-          '请等 1~2 分钟再试；若一直如此，可能是官方中继侧的问题';
+      return '中继认证被拒（AUTH_INVALID）：官方中继没认下这份凭证。'
+          '日志里有一行「中继拒绝认证（诊断用）」，把它发给管理员即可定位';
     }
     return text;
   }

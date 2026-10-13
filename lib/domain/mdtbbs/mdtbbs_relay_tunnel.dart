@@ -146,6 +146,16 @@ class MdtbbsRelayTunnel {
   /// 重新分配会立刻撞上「一个对端一条分配」的额度（429），把入口堵死
   Future<MdtbbsRelayAuthOk> start() async {
     _allocation = await allocateRelay();
+    final alloc = _allocation!;
+    _credentialExpiresAt = DateTime.now().add(
+      Duration(seconds: alloc.expiresIn > 0 ? alloc.expiresIn : 120),
+    );
+    addLogAndPrint(
+      .info,
+      '中继凭证已分配：agent=${alloc.agentId} alloc=${alloc.allocationId} '
+      'ttl=${alloc.expiresIn}s 分配请求=${alloc.requestId ?? '—'}',
+      tag: 'Multiplayer',
+    );
     Object? lastError;
     for (var attempt = 1; attempt <= 3; attempt++) {
       try {
@@ -324,6 +334,20 @@ class MdtbbsRelayTunnel {
       case 'error':
         final code = '${json['code'] ?? ''}';
         addLogAndPrint(.warning, '中继报错：code=$code', tag: 'Multiplayer');
+        if (code == 'AUTH_INVALID') {
+          // 诊断行：不含凭证本体，管理员可凭这些 id 去中继侧查
+          final allocation = _allocation;
+          final expiresAt = _credentialExpiresAt?.toIso8601String() ?? '—';
+          addLogAndPrint(
+            .warning,
+            '中继拒绝认证（诊断用）：'
+            'alloc=${allocation?.allocationId ?? '—'} '
+            'agent=${allocation?.agentId ?? '—'} '
+            '分配请求=${allocation?.requestId ?? '—'} '
+            '凭证到期=$expiresAt',
+            tag: 'Multiplayer',
+          );
+        }
         _authCompleter?.completeError(
           MdtbbsRelayException('中继认证被拒（$code）', authRejected: true),
         );

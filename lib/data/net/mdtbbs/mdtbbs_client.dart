@@ -334,6 +334,23 @@ class MdtbbsClient {
   }
 
   /// 需要读 `meta`（翻页游标 / request_id）时用这个
+  /// 与 [getEnvelope] 对应的写请求版本：要 `meta.request_id` 时用它
+  static Future<MdtbbsEnvelope> postEnvelope(
+    String path, {
+    Object? body,
+    String? accessToken,
+    Map<String, String>? headers,
+    CancelToken? cancelToken,
+    Duration? timeout,
+  }) => _sendEnvelope(
+    'POST',
+    path,
+    body: body,
+    accessToken: accessToken,
+    headers: headers,
+    cancelToken: cancelToken,
+  );
+
   static Future<MdtbbsEnvelope> getEnvelope(
     String path, {
     String? accessToken,
