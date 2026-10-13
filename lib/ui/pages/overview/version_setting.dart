@@ -551,7 +551,7 @@ pause
                   onTap: _generateLaunchScript,
                 ),
               //加载器文件不在了：给条路补回来，否则这版只能删了重建
-              if (isDesktop && _isLoaderMissing)
+              if (_isLoaderMissing)
                 IconTextButton(
                   icon: Icons.build_circle_outlined,
                   content: '补齐加载器',
@@ -760,16 +760,16 @@ pause
                     onTap: _createVariant,
                   ),
                   //换启动器（原版 ↔ Copper 加载器）也是建新版本，不是改当前这个
-                  if (isDesktop)
-                    _LauncherVariantButton(
-                      mindustry: _mindustry,
-                      onPick: (launcher, loaderPath, pendingLoader) =>
-                          _createVariantWithLauncher(
-                            launcher: launcher,
-                            loaderPath: loaderPath,
-                            pendingLoader: pendingLoader,
-                          ),
-                    ),
+                  //Android 上同样给这个入口：loader 是桌面 jar，桥那套跑的就是它
+                  _LauncherVariantButton(
+                    mindustry: _mindustry,
+                    onPick: (launcher, loaderPath, pendingLoader) =>
+                        _createVariantWithLauncher(
+                          launcher: launcher,
+                          loaderPath: loaderPath,
+                          pendingLoader: pendingLoader,
+                        ),
+                  ),
                 ],
               ),
             ],
