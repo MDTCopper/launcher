@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
@@ -7,6 +9,8 @@ import 'package:copper_launcher/ui/pages/design/design_system_page.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/util/android_host.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/os.dart';
@@ -41,6 +45,12 @@ class AppShellState extends State<AppShell> {
   // ── 导航配置 ──
 
   bool get canPop => _navigatorKey.currentState?.canPop() == true;
+
+  /// 返回键连按的判定窗口：两下之间超过它就算新的一轮（重新提醒）
+  static const _backTwiceWindow = Duration(seconds: 2);
+
+  /// 上一次按返回键的时刻；null = 还没按过
+  DateTime? _lastBackPressedAt;
 
   String _currentRootRoute = '/';
   static final _sections = [
@@ -105,6 +115,37 @@ class AppShellState extends State<AppShell> {
   }
 
   late final routeWatcher = _RouteWatcher(_onRouteChanged);
+
+  // ── 系统返回键 ──
+
+  /// 安卓返回键与全面屏手势都走这里
+  ///
+  /// 子路由先返回一层；到了底层路由要**连按两下**：第一下只提醒，免得误触把启动器关掉。
+  /// 第二下也不结束进程，只是退到后台（见 [AndroidHost.moveTaskToBack]）
+  void _handleSystemBack(bool didPop, Object? result) {
+    if (didPop) return;
+
+    final navigator = _navigatorKey.currentState;
+    if (navigator != null && navigator.canPop()) {
+      unawaited(navigator.maybePop());
+      return;
+    }
+
+    final now = DateTime.now();
+    final last = _lastBackPressedAt;
+    if (last == null || now.difference(last) > _backTwiceWindow) {
+      _lastBackPressedAt = now;
+      addNotice(
+        icon: Icons.exit_to_app,
+        title: '再按一次',
+        content: '再按一次返回键，启动器退到后台',
+      );
+      return;
+    }
+
+    _lastBackPressedAt = null;
+    unawaited(AndroidHost.moveTaskToBack());
+  }
 
   // ── 路由监听 更新导航栏高亮和面包屑 ──
 
@@ -291,8 +332,6 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  //TODO: 安卓端退出程序
-
   Widget _buildNavigator() {
     Widget child = Navigator(
       key: PageKeyProvider.navigatorKey,
@@ -329,7 +368,12 @@ class AppShellState extends State<AppShell> {
     if (isDesktop) {
       return DragFileField(onDragDone: _handleDragFile, child: shell);
     }
-    return shell;
+    // 桌面端没有系统返回键；移动端把它接管过来
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _handleSystemBack,
+      child: shell,
+    );
   }
 
   Widget _buildShellBody(AppColors colors) {
