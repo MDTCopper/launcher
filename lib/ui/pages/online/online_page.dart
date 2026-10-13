@@ -806,8 +806,8 @@ class _OnlinePageState extends State<OnlinePage> {
   /// 「私有」和「不公开」在中文里几乎同义，用户分不出来，
   /// 但一个是不给码（要邀请）、一个是给码（凭码就能进）
   String _visibilityLabel(String value) => switch (value) {
-    'private' => '邀请制',
-    'friends' => '好友可见',
+    'private' => '仅我可见',
+    'friends' => '仅好友可见',
     'unlisted' => '凭加入码',
     _ => value,
   };
@@ -817,9 +817,9 @@ class _OnlinePageState extends State<OnlinePage> {
   /// 好友与邀请这两档依赖我们还没做的功能（好友列表 / 邀请流程），
   /// 提示里直接写明，别让用户选了才发现用不了
   String _visibilityHint(String value) => switch (value) {
-    'private' => '⚠ 只有被我邀请的人能进；不给加入码（邀请功能还没做）',
-    'friends' => '⚠ 只有好友能进；不给加入码（好友列表还没做）',
-    'unlisted' => '不在大厅里露面；持有加入码的人都能进（会给码）',
+    'private' => '别人看不到这个房间；只有我放行的人能进，不给加入码（放行靠邀请，还没做）',
+    'friends' => '⚠ 好友在他们自己的列表里能看到并直接进；不给加入码（好友列表还没做）',
+    'unlisted' => '任何列表里都看不到；拿到加入码的人都能进（会给码）',
     _ => '',
   };
 
