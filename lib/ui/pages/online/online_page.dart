@@ -1,12 +1,10 @@
-import 'dart:async';
-
 import 'package:copper_launcher/data/net/lanlink/lanlink_api.dart';
 import 'package:copper_launcher/data/net/lanlink/lanlink_models.dart';
-import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_api.dart';
-import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
-import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/lanlink/lanlink_service.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
+import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_state.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
@@ -22,9 +20,10 @@ import 'package:flutter/services.dart';
 const onlinePageRouteKey = '/online';
 
 /// 联机页：**主线是 BBS 官方会话**（MindAuth OAuth，免密码），
-/// 另留一个「MDT 兼容」块（LanLink 房间码加入，走匿名接口，不需要联机服务登录）。
+/// 另留一个「MDT 兼容」块（LanLink 房间码加入，走匿名接口，不需要登录）。
 ///
-/// 官方会话目前是控制面部分（建会话 / 加入码 / 对端）；进服数据通道（中继）待 P2/P3。
+/// 本页**不持有会话状态、也不发网络请求**：官方那一半全部订阅
+/// [MdtbbsMultiplayerService.state]，页内只剩输入框内容与 MDT 的临时解析结果
 class OnlinePage extends StatefulWidget {
   const OnlinePage({super.key});
 
@@ -38,46 +37,22 @@ class _OnlinePageState extends State<OnlinePage> {
   final _maxPlayersController = TextEditingController(text: '8');
   final _mdtCodeController = TextEditingController();
 
-  AccountManager get _accounts => AccountManager.instance;
-  LanLinkService get _lanlink => LanLinkService.instance;
   MdtbbsMultiplayerService get _mp => MdtbbsMultiplayerService.instance;
+  LanLinkService get _lanlink => LanLinkService.instance;
+  AccountManager get _accounts => AccountManager.instance;
 
-  bool _busy = false;
-  String? _message;
-  bool _messageIsError = false;
-
-  // ── 官方会话 ──
-  MdtbbsMultiplayerCapabilities? _capabilities;
-  MdtbbsCreatedSession? _created;
-  MdtbbsSession? _current;
-  List<MdtbbsPeer> _peers = const [];
-
-  /// 恢复令牌：**内存暂存**，P5 再决定安全持久化（绑定用户与 client、一次性、会轮换）
-  String _resumeToken = '';
+  // 创建房间的选项（纯输入状态，留在页面）
   String _visibility = 'private';
   String _joinPolicy = 'friends';
 
-  // ── MDT 兼容（LanLink 房间码）──
+  // MDT 块自己的状态：与官方那半互不影响
+  bool _mdtBusy = false;
   LanLinkRoom? _mdtRoom;
-
-  /// 页面是侧栏里的常驻单例：从别的页回来时 State 还活着，得靠路由刷新
-  bool _ready = false;
-  bool _wasCurrent = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final current = ModalRoute.of(context)?.isCurrent ?? true;
-    if (_ready && current && !_wasCurrent) {
-      _refreshAccount();
-    }
-    _wasCurrent = current;
   }
 
   @override
@@ -90,337 +65,47 @@ class _OnlinePageState extends State<OnlinePage> {
   }
 
   Future<void> _initialize() async {
-    await _refreshAccount();
-    await _refreshCapabilities();
-    await _refreshCurrentSession();
+    // 落盘状态先点亮，再核验能力（服务里已有状态时会直接跳过，不会重复拉）
+    await _mp.restore();
+    await _mp.loadCapabilities();
     if (!mounted) return;
-    setState(() {
-      _mdtRoom = _lanlink.activeRoom;
-      _ready = true;
-    });
+    setState(() => _mdtRoom = _lanlink.activeRoom);
   }
 
-  /// 账号态由账户层拥有，这里只读、不缓存；
-  /// 顺手读一次账号资料（联机写操作要求手机号验证，提示要用）
-  Future<void> _refreshAccount() async {
-    if (_accounts.isConfigured) {
-      await _accounts.restore();
-      if (_accounts.isLoggedIn) {
-        try {
-          await _accounts.loadAccount();
-        } on Object {
-          // 读不到资料不影响页面，按未知处理
-        }
-      }
-    }
-    if (!mounted) return;
-    setState(() {});
-  }
-
-  /// 联机写操作（建会话 / 加入 / 邀请）都要求手机号验证（站长确认）
-  bool get _phoneVerified => _accounts.account?.phoneVerified == true;
-
-  /// 拿 BBS 的 Bearer 令牌（过期内会自动刷新）；未登录返回 null
-  Future<String?> _bbsToken() => _accounts.ensureAccessToken();
-
-  Future<void> _refreshCapabilities() async {
-    final token = await _bbsToken();
-    if (token == null) return;
-    try {
-      final caps = await MdtbbsMultiplayerApi.capabilities(accessToken: token);
-      if (!mounted) return;
-      setState(() {
-        _capabilities = caps;
-        _visibility = caps.visibility.contains(_visibility)
-            ? _visibility
-            : (caps.visibility.isEmpty ? 'private' : caps.visibility.first);
-        _joinPolicy = caps.joinPolicies.contains(_joinPolicy)
-            ? _joinPolicy
-            : (caps.joinPolicies.isEmpty ? 'friends' : caps.joinPolicies.first);
-      });
-    } on Object catch (error) {
-      _showMessage('读取联机功能状态失败：$error', isError: true);
-    }
-  }
-
-  Future<void> _refreshCurrentSession() async {
-    final token = await _bbsToken();
-    if (token == null) return;
-    try {
-      final session = await MdtbbsMultiplayerApi.currentSession(
-        accessToken: token,
-      );
-      if (!mounted) return;
-      setState(() => _current = session);
-      if (session != null) {
-        unawaited(_refreshPeers(session.id));
-        // 已有会话也补心跳：不然它会被判过期
-        final peers = await MdtbbsMultiplayerApi.peers(
-          accessToken: token,
-          sessionId: session.id,
-        );
-        final mine = peers.where(
-          (p) => p.userId == '${_accounts.account?.subject ?? ''}',
-        );
-        if (mine.isNotEmpty) {
-          _mp.startHeartbeat(
-            sessionId: session.id,
-            peerId: mine.first.peerId,
-            tokenProvider: _bbsToken,
-          );
-        }
-      }
-    } on Object catch (error) {
-      _showMessage('读取房间状态失败：$error', isError: true);
-    }
-  }
-
-  /// 刷新对端：**不占用 _busy**（它只是刷新列表，不该把整页按钮禁掉），
-  /// 挂住也只影响自己
-  Future<void> _refreshPeers(String sessionId, {bool announce = false}) async {
-    try {
-      final token = await _bbsToken();
-      if (token == null) {
-        _showMessage('登录状态已失效，请到账户页重新登录', isError: true);
-        return;
-      }
-      final peers = await MdtbbsMultiplayerApi.peers(
-        accessToken: token,
-        sessionId: sessionId,
-      );
-      if (!mounted) return;
-      setState(() => _peers = peers);
-      if (announce) {
-        _showMessage(peers.isEmpty ? '成员：暂无' : '成员：${peers.length} 人');
-      }
-    } on Object catch (error) {
-      _showMessage('刷新成员失败：$error', isError: true);
-    }
-  }
-
-  void _showMessage(String text, {bool isError = false}) {
-    // 通知不一定看得见（页面长、通知可能被挡），日志里必须留痕
-    if (isError) {
-      addLog(.warning, text, tag: 'Multiplayer');
-    } else {
-      addLog(.info, text, tag: 'Multiplayer');
-    }
-    if (!mounted) return;
-    setState(() {
-      _message = text;
-      _messageIsError = isError;
-    });
-    // 页面很长，反馈只在页底会被误读成「没反应」；右下角通知保证看得见
-    addNotice(
-      icon: isError ? Icons.error_outline : Icons.check_circle_outline,
-      title: isError ? '联机操作失败' : '联机',
-      content: text,
-      duration: const Duration(seconds: 8),
-    );
-  }
-
-  // ── 官方会话动作 ──
-
-  Future<void> _createSession() async {
-    final token = await _bbsToken();
-    if (token == null) {
-      _showMessage('请先登录社区账号', isError: true);
-      return;
-    }
-    final maxPlayers = int.tryParse(_maxPlayersController.text.trim()) ?? 8;
-    if (maxPlayers < 2 || maxPlayers > 64) {
-      _showMessage('人数上限需在 2–64 之间', isError: true);
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      final created = await MdtbbsMultiplayerApi.createSession(
-        accessToken: token,
-        gameId: 'mindustry',
-        activityName: _activityNameController.text.trim(),
-        visibility: _visibility,
-        joinPolicy: _joinPolicy,
-        maxPlayers: maxPlayers,
-      );
-      _resumeToken = created.resumeToken;
-      _mp.storeResumeToken(
-        sessionId: created.session.id,
-        token: created.resumeToken,
-      );
-      if (!mounted) return;
-      setState(() {
-        _created = created;
-        _current = created.session;
-      });
-      _showMessage(
-        created.joinCode == null
-            ? '房间建好了（${created.session.id}）'
-            : '房间建好了，加入码 ${created.joinCode}（服务端只给这一次，先记下来）',
-      );
-      _mp.startHeartbeat(
-        sessionId: created.session.id,
-        peerId: created.peer.peerId,
-        tokenProvider: _bbsToken,
-      );
-      unawaited(_refreshPeers(created.session.id));
-    } on Object catch (error) {
-      _showMessage('创建房间失败：$error', isError: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _joinByCode() async {
-    final token = await _bbsToken();
-    if (token == null) {
-      _showMessage('请先登录社区账号', isError: true);
-      return;
-    }
-    final code = _joinCodeController.text.trim();
-    if (code.isEmpty) {
-      _showMessage('请输入加入码', isError: true);
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      final session = await MdtbbsMultiplayerApi.resolveCode(
-        accessToken: token,
-        code: code,
-      );
-      final joined = await MdtbbsMultiplayerApi.join(
-        accessToken: token,
-        sessionId: session.id,
-        joinCode: code,
-      );
-      _resumeToken = joined.resumeToken;
-      _mp.storeResumeToken(sessionId: session.id, token: joined.resumeToken);
-      if (!mounted) return;
-      setState(() {
-        _current = session;
-        _created = null;
-      });
-      _showMessage('已加入房间（${session.id}）');
-      _mp.startHeartbeat(
-        sessionId: session.id,
-        peerId: joined.peer.peerId,
-        tokenProvider: _bbsToken,
-      );
-      unawaited(_refreshPeers(session.id));
-    } on Object catch (error) {
-      _showMessage('加入失败：$error', isError: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  /// 启动官方中继的本机代理：房主桥到本机游戏，房客绑 6567 给游戏连
-  Future<void> _startProxy(String sessionId) async {
-    final token = await _bbsToken();
-    if (token == null) {
-      _showMessage('请先登录社区账号', isError: true);
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      final address = await _mp.startProxy(
-        accessToken: token,
-        sessionId: sessionId,
-      );
-      if (!mounted) return;
-      setState(() {});
-      _showMessage('联机通道已启动，请在游戏中连接 $address');
-    } on Object catch (error) {
-      _showMessage('启动联机通道失败：$error', isError: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _stopProxy() async {
-    await _mp.stopProxy();
-    if (!mounted) return;
-    setState(() {});
-    _showMessage('联机通道已停止');
-  }
-
-  Future<void> _leaveSession() async {
-    final session = _current;
-    if (session == null) {
-      _showMessage('当前不在任何房间中', isError: true);
-      return;
-    }
-    final token = await _bbsToken();
-    if (token == null) {
-      _showMessage('登录好像过期了，去账户页重新登录一次', isError: true);
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      final outcome = await MdtbbsMultiplayerApi.leave(
-        accessToken: token,
-        sessionId: session.id,
-      );
-      _resumeToken = '';
-      _mp.forgetSession();
-      await _mp.stopProxy();
-      if (!mounted) return;
-      setState(() {
-        _current = null;
-        _created = null;
-        _peers = const [];
-      });
-      _showMessage(
-        outcome.isOwnerLeaving
-            ? '已离开房间；你是房主，房间将在 ${outcome.graceSeconds} 秒后关闭'
-            : '已退出会话',
-      );
-    } on Object catch (error) {
-      _showMessage('离开房间失败：$error', isError: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  // ── MDT 兼容（LanLink 房间码，匿名可用）──
+  // ── MDT 兼容（LanLink 房间码，匿名可用） ──────────────────────
 
   Future<void> _resolveMdtRoom() async {
     final code = LanLinkRoomCode.tryParse(_mdtCodeController.text);
     if (code == null) {
-      _showMessage('MDT 房间码格式：MDT-XXXXXX', isError: true);
+      _showMdt('MDT 房间码格式：MDT-XXXXXX', isError: true);
       return;
     }
-    setState(() => _busy = true);
+    setState(() => _mdtBusy = true);
     try {
       final room = await _lanlink.resolve(code);
       if (!mounted) return;
       setState(() => _mdtRoom = room);
-      _showMessage(room == null ? '房间不存在或已关闭' : '已找到房间：${room.code}');
+      _showMdt(room == null ? '房间不存在或已关闭' : '已找到房间：${room.code}');
     } on LanLinkException catch (error) {
-      _showMessage(
-        error.message.isEmpty ? '$error' : error.message,
-        isError: true,
-      );
+      _showMdt(error.message.isEmpty ? '$error' : error.message, isError: true);
     } on Object catch (error) {
-      _showMessage('查询房间失败：$error', isError: true);
+      _showMdt('查询房间失败：$error', isError: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _mdtBusy = false);
     }
   }
 
   Future<void> _joinMdtRoom(LanLinkRoom room) async {
-    setState(() => _busy = true);
+    setState(() => _mdtBusy = true);
     try {
       final session = await _lanlink.join(room);
-      _showMessage('已就绪：进入游戏 → 加入游戏 → 在「局域网游戏」中选择「${session.roomName}」');
+      _showMdt('已就绪：进入游戏 → 加入游戏 → 在「局域网游戏」中选择「${session.roomName}」');
     } on LanLinkException catch (error) {
-      _showMessage(
-        error.message.isEmpty ? '$error' : error.message,
-        isError: true,
-      );
+      _showMdt(error.message.isEmpty ? '$error' : error.message, isError: true);
     } on Object catch (error) {
-      _showMessage('加入失败：$error', isError: true);
+      _showMdt('加入房间失败：$error', isError: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _mdtBusy = false);
     }
   }
 
@@ -428,32 +113,49 @@ class _OnlinePageState extends State<OnlinePage> {
     await _lanlink.leave();
     if (!mounted) return;
     setState(() => _mdtRoom = null);
-    _showMessage('已离开房间');
+    _showMdt('已离开房间');
+  }
+
+  void _showMdt(String text, {bool isError = false}) {
+    if (isError) {
+      addLog(.warning, text, tag: 'Multiplayer');
+    } else {
+      addLog(.info, text, tag: 'Multiplayer');
+    }
+    addNotice(
+      icon: isError ? Icons.error_outline : Icons.check_circle_outline,
+      title: isError ? '联机操作失败' : '联机',
+      content: text,
+      duration: const Duration(seconds: 6),
+    );
   }
 
   Future<void> _copy(String text, String label) async {
     await Clipboard.setData(ClipboardData(text: text));
-    _showMessage('$label 已复制：$text');
+    _showMdt('$label 已复制：$text');
   }
+
+  // ── 构建 ────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return ListContentPanel(
-      items: [
-        _buildAccountStrip(),
-        // 状态紧跟账号条：页面很长，放最底部等于没有反馈
-        if (_message != null) _buildMessagePanel(),
-        _buildOfficialPanel(),
-        _buildMdtCompatPanel(),
-      ],
+    return ValueListenableBuilder<MultiplayerState>(
+      valueListenable: _mp.state,
+      builder: (context, state, _) => ListContentPanel(
+        items: [
+          _buildAccountStrip(),
+          if (state.lastMessage != null) _buildMessagePanel(state),
+          _buildOfficialPanel(state),
+          _buildMdtCompatPanel(),
+        ],
+      ),
     );
   }
 
-  /// 链路状态条：官方会话需要社区账号（OAuth）；MDT 兼容不需要登录
   Widget _buildAccountStrip() {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    final bbs = _accounts.isLoggedIn;
+    final loggedIn = _accounts.isLoggedIn;
     return ContentPanelModule(
       title: '账号状态',
       child: Column(
@@ -461,14 +163,14 @@ class _OnlinePageState extends State<OnlinePage> {
         spacing: 4,
         children: [
           Text(
-            bbs
+            loggedIn
                 ? '✓ 社区账号：已登录（创建 / 加入房间需要；MDT 房间无需登录）'
                 : '× 社区账号：未登录（创建 / 加入房间需要；MDT 房间无需登录）',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: bbs ? colors.itemSecondary : colors.error,
+              color: loggedIn ? colors.itemSecondary : colors.error,
             ),
           ),
-          if (!bbs)
+          if (!loggedIn)
             IconTextButton(
               pressedScale: 0.96,
               icon: Icons.account_circle_outlined,
@@ -480,11 +182,39 @@ class _OnlinePageState extends State<OnlinePage> {
     );
   }
 
-  Widget _buildOfficialPanel() {
+  Widget _buildMessagePanel(MultiplayerState state) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    final caps = _capabilities;
-    final session = _current;
+    return ContentPanelModule(
+      title: '状态',
+      child: Row(
+        spacing: 8,
+        children: [
+          Expanded(
+            child: Text(
+              state.lastMessage ?? '',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: state.lastMessageIsError
+                    ? theme.colorScheme.error
+                    : colors.itemSecondary,
+              ),
+            ),
+          ),
+          IconTextButton(
+            pressedScale: 0.96,
+            icon: Icons.close,
+            content: '知道了',
+            onTap: _mp.clearMessage,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOfficialPanel(MultiplayerState state) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final caps = state.capabilities;
 
     if (!_accounts.isLoggedIn) {
       return ContentPanelModule(
@@ -501,7 +231,7 @@ class _OnlinePageState extends State<OnlinePage> {
       return ContentPanelModule(
         title: '会话（官方）',
         child: Text(
-          '正在读取联机能力…',
+          state.loadingCapabilities ? '正在读取联机功能…' : '正在准备…',
           style: theme.textTheme.bodyMedium?.copyWith(color: colors.itemHint),
         ),
       );
@@ -515,7 +245,31 @@ class _OnlinePageState extends State<OnlinePage> {
         ),
       );
     }
+    if (_accounts.account?.phoneVerified != true) {
+      return ContentPanelModule(
+        title: '会话（官方）',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 6,
+          children: [
+            Text(
+              '手机号未验证：创建 / 加入房间会被服务端拒绝，请先到论坛完成手机号验证',
+              style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
+            ),
+            IconTextButton(
+              pressedScale: 0.96,
+              icon: Icons.refresh,
+              content: '我已验证，重新检查',
+              onTap: () => _accounts.loadAccount().then((_) {
+                if (mounted) setState(() {});
+              }),
+            ),
+          ],
+        ),
+      );
+    }
 
+    final session = state.session;
     return ContentPanelModule(
       title: '会话（官方）',
       child: Column(
@@ -529,21 +283,17 @@ class _OnlinePageState extends State<OnlinePage> {
               color: colors.itemSecondary,
             ),
           ),
-          if (_accounts.isLoggedIn && !_phoneVerified)
-            Text(
-              '手机号未验证：创建 / 加入房间会被服务端拒绝，'
-              '请先到论坛完成手机号验证',
-              style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
-            ),
-          if (_busy)
-            Text(
-              '处理中…',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.itemHint,
-              ),
-            ),
+          if (state.anyBusy)
+            Text(state.workloadLabel, style: theme.textTheme.bodySmall),
           if (session != null)
-            _buildOfficialSessionCard(session)
+            _buildSessionCard(state, session)
+          else if (state.waitingForSession)
+            Text(
+              '正在恢复房间…（加入码 ${state.joinCode ?? '—'}）',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            )
           else ...[
             Row(
               spacing: 8,
@@ -552,7 +302,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   child: OutlinedTextField(
                     controller: _activityNameController,
                     label: '活动名（可选）',
-                    enable: !_busy,
+                    enable: !state.creating,
                   ),
                 ),
                 SizedBox(
@@ -560,7 +310,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   child: OutlinedTextField(
                     controller: _maxPlayersController,
                     label: '人数',
-                    enable: !_busy,
+                    enable: !state.creating,
                   ),
                 ),
               ],
@@ -579,7 +329,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   ActionButton(
                     content: Text(_visibilityLabel(value)),
                     selected: _visibility == value,
-                    enable: !_busy,
+                    enable: !state.creating,
                     onTap: () => setState(() {
                       _visibility = value;
                       // private 不能配 open，自动换成合法组合
@@ -608,7 +358,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   ActionButton(
                     content: Text(_joinPolicyLabel(value)),
                     selected: _joinPolicy == value,
-                    enable: !_busy,
+                    enable: !state.creating,
                     onTap: () => setState(() {
                       _joinPolicy = value;
                       // 反过来：open 与 private 不合，自动改成不公开
@@ -637,7 +387,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   pressedScale: 0.96,
                   icon: Icons.add_circle_outline,
                   content: '创建房间',
-                  onTap: _busy ? null : _createSession,
+                  onTap: state.creating ? null : _createRoom,
                 ),
               ],
             ),
@@ -654,15 +404,15 @@ class _OnlinePageState extends State<OnlinePage> {
                   child: OutlinedTextField(
                     controller: _joinCodeController,
                     label: '加入码',
-                    enable: !_busy,
-                    onEditingComplete: _joinByCode,
+                    enable: !state.joining,
+                    onEditingComplete: _joinRoom,
                   ),
                 ),
                 IconTextButton(
                   pressedScale: 0.96,
                   icon: Icons.login,
                   content: '加入房间',
-                  onTap: _busy ? null : _joinByCode,
+                  onTap: state.joining ? null : _joinRoom,
                 ),
               ],
             ),
@@ -672,10 +422,19 @@ class _OnlinePageState extends State<OnlinePage> {
     );
   }
 
-  Widget _buildOfficialSessionCard(MdtbbsSession session) {
+  Future<void> _createRoom() => _mp.create(
+    activityName: _activityNameController.text.trim(),
+    visibility: _visibility,
+    joinPolicy: _joinPolicy,
+    maxPlayers: int.tryParse(_maxPlayersController.text.trim()) ?? 8,
+  );
+
+  Future<void> _joinRoom() => _mp.joinByCode(_joinCodeController.text);
+
+  Widget _buildSessionCard(MultiplayerState state, MdtbbsSession session) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    final created = _created;
+    final peers = state.peers;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -687,18 +446,16 @@ class _OnlinePageState extends State<OnlinePage> {
         spacing: 6,
         children: [
           Text(
-            created?.session.id == session.id && created != null
-                ? '我创建的房间'
-                : '已加入',
+            state.self?.role == 'owner' ? '我创建的房间' : '已加入',
             style: theme.textTheme.titleSmall,
           ),
-          if (created?.joinCode != null)
+          if (state.joinCode != null)
             Row(
               spacing: 8,
               children: [
                 Expanded(
                   child: Text(
-                    '加入码 ${created!.joinCode}',
+                    '加入码 ${state.joinCode}',
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
@@ -706,29 +463,23 @@ class _OnlinePageState extends State<OnlinePage> {
                   pressedScale: 0.96,
                   icon: Icons.copy,
                   content: '复制',
-                  onTap: () => _copy(created.joinCode!, '加入码'),
+                  onTap: () => _copy(state.joinCode!, '加入码'),
                 ),
               ],
             ),
           Text(
-            '${_visibilityLabel(session.visibility)} · ${_joinPolicyLabel(session.joinPolicy)}    '
+            '${_visibilityLabel(session.visibility)} · '
+            '${_joinPolicyLabel(session.joinPolicy)}    '
             '${session.currentPlayers}/${session.maxPlayers} 人    '
             '${_statusLabel(session.status)}'
-            '${_resumeToken.isEmpty ? '' : '    断线后 60 秒内可恢复'}',
+            '${state.heartbeatFailures == 0 ? '' : '    心跳异常 ${state.heartbeatFailures} 次'}',
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.itemSecondary,
             ),
           ),
-          if (_peers.isNotEmpty)
+          if (peers.isNotEmpty)
             Text(
-              '成员：${_peers.map((p) => '${_roleLabel(p.role)}·${_peerStatusLabel(p.status)}').join('、')}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.itemSecondary,
-              ),
-            ),
-          if (_mp.isProxyRunning)
-            Text(
-              '联机通道已启动：请在游戏中连接 ${_mp.localAddress}',
+              '成员：${peers.map((p) => '${_roleLabel(p.role)}·${_peerStatusLabel(p.status)}').join('、')}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.itemSecondary,
               ),
@@ -736,36 +487,43 @@ class _OnlinePageState extends State<OnlinePage> {
           Row(
             spacing: 8,
             children: [
-              if (!_mp.isProxyRunning)
+              if (!state.proxyRunning)
                 IconTextButton(
                   pressedScale: 0.96,
                   icon: Icons.lan_outlined,
                   content: '启动联机通道',
-                  onTap: _busy ? null : () => _startProxy(session.id),
+                  onTap: state.startingProxy ? null : _mp.startProxy,
                 )
               else
                 IconTextButton(
                   pressedScale: 0.96,
                   icon: Icons.lan_outlined,
                   content: '停止联机通道',
-                  onTap: _busy ? null : _stopProxy,
+                  onTap: state.stoppingProxy ? null : _mp.stopProxy,
                 ),
               IconTextButton(
                 pressedScale: 0.96,
                 icon: Icons.refresh,
                 content: '刷新成员',
-                onTap: _busy
+                onTap: state.refreshingPeers
                     ? null
-                    : () => _refreshPeers(session.id, announce: true),
+                    : () => _mp.refreshPeers(announce: true),
               ),
               IconTextButton(
                 pressedScale: 0.96,
                 icon: Icons.logout,
                 content: '离开房间',
-                onTap: _busy ? null : _leaveSession,
+                onTap: state.leaving ? null : _mp.leave,
               ),
             ],
           ),
+          if (state.proxyRunning)
+            Text(
+              '联机通道已启动：请在游戏中连接 ${state.localAddress}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            ),
           Text(
             '官方中继尚未完成：目前可创建 / 加入房间、查看成员，暂不支持直接进入游戏。',
             style: theme.textTheme.labelSmall?.copyWith(color: colors.itemHint),
@@ -775,8 +533,7 @@ class _OnlinePageState extends State<OnlinePage> {
     );
   }
 
-  /// MDT 兼容：LanLink 房间码加入。**匿名可用**（房间信息是公开接口），
-  /// 保留它是因为 MDT 模组用户都在这个生态里
+  /// MDT 兼容：LanLink 房间码加入。**匿名可用**（房间信息是公开接口）
   Widget _buildMdtCompatPanel() {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
@@ -807,7 +564,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   child: OutlinedTextField(
                     controller: _mdtCodeController,
                     label: 'MDT 房间码',
-                    enable: !_busy,
+                    enable: !_mdtBusy,
                     onEditingComplete: _resolveMdtRoom,
                   ),
                 ),
@@ -815,7 +572,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   pressedScale: 0.96,
                   icon: Icons.search,
                   content: '查询',
-                  onTap: _busy ? null : _resolveMdtRoom,
+                  onTap: _mdtBusy ? null : _resolveMdtRoom,
                 ),
               ],
             ),
@@ -852,7 +609,7 @@ class _OnlinePageState extends State<OnlinePage> {
             pressedScale: 0.96,
             icon: Icons.login,
             content: '加入房间',
-            onTap: _busy ? null : () => _joinMdtRoom(room),
+            onTap: _mdtBusy ? null : () => _joinMdtRoom(room),
           ),
         ],
       ),
@@ -886,7 +643,7 @@ class _OnlinePageState extends State<OnlinePage> {
             pressedScale: 0.96,
             icon: Icons.logout,
             content: '离开房间',
-            onTap: _busy ? null : _leaveMdtRoom,
+            onTap: _mdtBusy ? null : _leaveMdtRoom,
           ),
         ],
       ),
@@ -925,20 +682,4 @@ class _OnlinePageState extends State<OnlinePage> {
     'expired' => '已过期',
     _ => status,
   };
-
-  Widget _buildMessagePanel() {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    return ContentPanelModule(
-      title: '状态',
-      child: Text(
-        _message ?? '',
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: _messageIsError
-              ? theme.colorScheme.error
-              : colors.itemSecondary,
-        ),
-      ),
-    );
-  }
 }
