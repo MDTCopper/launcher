@@ -67,6 +67,14 @@ class _OnlinePageState extends State<OnlinePage> {
   Future<void> _initialize() async {
     // 落盘状态先点亮，再核验能力（服务里已有状态时会直接跳过，不会重复拉）
     await _mp.restore();
+    // 账号资料只在内存里没有时读一次（手机号验证态要用它），不是每次进页面都拉
+    if (_accounts.isLoggedIn && _accounts.account == null) {
+      try {
+        await _accounts.loadAccount();
+      } on Object {
+        // 读不到就按未知处理，页面照常
+      }
+    }
     await _mp.loadCapabilities();
     if (!mounted) return;
     setState(() => _mdtRoom = _lanlink.activeRoom);
@@ -139,23 +147,27 @@ class _OnlinePageState extends State<OnlinePage> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<MultiplayerState>(
-      valueListenable: _mp.state,
-      builder: (context, state, _) => ListContentPanel(
-        items: [
-          _buildAccountStrip(),
-          if (state.lastMessage != null) _buildMessagePanel(state),
-          _buildOfficialPanel(state),
-          _buildMdtCompatPanel(),
-        ],
-      ),
+    return AnimatedBuilder(
+      // 账号态与服务状态一起订阅：登录 / 退出、会话变化都能立刻反映
+      animation: Listenable.merge([_mp.state, _accounts.snapshot]),
+      builder: (context, _) {
+        final state = _mp.state.value;
+        return ListContentPanel(
+          items: [
+            _buildAccountStrip(),
+            if (state.lastMessage != null) _buildMessagePanel(state),
+            _buildOfficialPanel(state),
+            _buildMdtCompatPanel(),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildAccountStrip() {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    final loggedIn = _accounts.isLoggedIn;
+    final loggedIn = _accounts.snapshot.value.loggedIn;
     return ContentPanelModule(
       title: '账号状态',
       child: Column(
@@ -216,7 +228,7 @@ class _OnlinePageState extends State<OnlinePage> {
     final colors = AppColors.of(context);
     final caps = state.capabilities;
 
-    if (!_accounts.isLoggedIn) {
+    if (!_accounts.snapshot.value.loggedIn) {
       return ContentPanelModule(
         title: '会话（官方）',
         child: Text(
@@ -245,7 +257,7 @@ class _OnlinePageState extends State<OnlinePage> {
         ),
       );
     }
-    if (_accounts.account?.phoneVerified != true) {
+    if (!_accounts.snapshot.value.phoneVerified) {
       return ContentPanelModule(
         title: '会话（官方）',
         child: Column(

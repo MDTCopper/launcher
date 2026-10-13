@@ -16,6 +16,29 @@ import 'package:uuid/uuid.dart';
 ///
 /// 登录用 Authorization Code + PKCE，**在系统浏览器里完成**（启动器不接触密码）；
 /// access token 只在内存，refresh token 落盘。刷新的幂等规则见 [refresh]
+/// 账号态的快照：界面订阅它就够，不必自己去问、也不必每次进页面重拉
+class AccountSnapshot {
+  const AccountSnapshot({
+    required this.loggedIn,
+    this.username,
+    this.phoneVerified = false,
+    this.hasLanlinkToken = false,
+    this.subject,
+    this.hasMultiplayerSession = false,
+  });
+
+  final bool loggedIn;
+  final String? username;
+
+  /// 联机写操作（创建 / 加入房间）要求手机号验证
+  final bool phoneVerified;
+  final bool hasLanlinkToken;
+  final String? subject;
+
+  /// 是否有一份落盘的联机会话（界面可先显示「恢复中」）
+  final bool hasMultiplayerSession;
+}
+
 class AccountManager {
   AccountManager._();
 
@@ -28,10 +51,43 @@ class AccountManager {
   static Future<bool> _launchInBrowser(Uri url) =>
       launchUrl(url, mode: LaunchMode.externalApplication);
 
-  StoredAccount? _stored;
+  /// 账号态快照；界面订阅它
+  final ValueNotifier<AccountSnapshot> snapshot = ValueNotifier(
+    const AccountSnapshot(loggedIn: false),
+  );
+
+  StoredAccount? _storedField;
+  MdtbbsAccount? _accountField;
+
+  /// 读写都走这两个漏斗：任何一处赋值都会广播一次快照，
+  /// 省得在每个改账号态的方法里各写一遍通知（漏一处界面就不同步）
+  StoredAccount? get _stored => _storedField;
+  set _stored(StoredAccount? value) {
+    _storedField = value;
+    _publish();
+  }
+
+  MdtbbsAccount? get _account => _accountField;
+  set _account(MdtbbsAccount? value) {
+    _accountField = value;
+    _publish();
+  }
+
+  void _publish() {
+    final stored = _storedField;
+    final account = _accountField;
+    snapshot.value = AccountSnapshot(
+      loggedIn: stored?.isLoggedIn ?? false,
+      username: account?.username ?? stored?.username,
+      phoneVerified: account?.phoneVerified ?? false,
+      hasLanlinkToken: stored?.hasLanlinkToken ?? false,
+      subject: stored?.subject,
+      hasMultiplayerSession: stored?.multiplayerSession != null,
+    );
+  }
+
   String? _accessToken;
   DateTime? _accessTokenExpiresAt;
-  MdtbbsAccount? _account;
 
   /// 是不是配了 client_id；没配就别显示登录入口
   bool get isConfigured => MdtbbsConfig.isConfigured;

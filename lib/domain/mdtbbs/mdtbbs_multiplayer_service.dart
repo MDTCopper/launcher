@@ -4,8 +4,11 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_api.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/account/account_store.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_state.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_session_task.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_relay_proxy.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_relay_tunnel.dart';
+import 'package:copper_launcher/domain/task.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/foundation.dart';
@@ -32,6 +35,11 @@ class MdtbbsMultiplayerService {
   MdtbbsRelayHostBridge? _host;
   StreamSubscription<MdtbbsRelaySignal>? _signalSubscription;
 
+  /// 会话任务卡片：owner 是任务管理器（页面切走也不失控）
+  late final MultiplayerSessionTask _sessionTask = MultiplayerSessionTask(
+    onCancel: leave,
+  );
+
   Timer? _heartbeatTimer;
   String? _heartbeatPeerId;
   String? _heartbeatSessionId;
@@ -40,7 +48,21 @@ class MdtbbsMultiplayerService {
   /// 拿 BBS 的 Bearer 令牌；未登录返回 null
   Future<String?> _token() => _accounts.ensureAccessToken();
 
-  void _set(MultiplayerState next) => state.value = next;
+  void _set(MultiplayerState next) {
+    state.value = next;
+    // 会话在，任务卡片跟着刷新（人数 / 心跳 / 通道状态）
+    if (_sessionTask.status == TaskStatus.process) {
+      _sessionTask.updateFrom(next);
+    }
+  }
+
+  /// 开会话时挂上任务卡片；结束（离开 / 被服务端清掉）时收尾
+  void _beginSessionTask() {
+    _sessionTask.reset();
+    addTask(_sessionTask);
+  }
+
+  void _finishSessionTask() => _sessionTask.finish();
 
   MultiplayerState get _current => state.value;
 
@@ -123,6 +145,7 @@ class MdtbbsMultiplayerService {
       );
       if (session == null) {
         _accounts.clearMultiplayerSession();
+        _finishSessionTask();
         _set(
           _current.copyWith(
             clearSession: true,
@@ -134,6 +157,7 @@ class MdtbbsMultiplayerService {
         return;
       }
       _set(_current.copyWith(session: session, resuming: false));
+      _beginSessionTask();
       _armHeartbeat();
       await refreshPeers();
     } on Object catch (error) {
@@ -186,6 +210,7 @@ class MdtbbsMultiplayerService {
           creating: false,
         ),
       );
+      _beginSessionTask();
       _notify(
         created.joinCode == null
             ? '房间已创建（${created.session.id}）'
@@ -237,6 +262,7 @@ class MdtbbsMultiplayerService {
           joining: false,
         ),
       );
+      _beginSessionTask();
       _notify('已加入房间（${session.id}）');
       _armHeartbeat();
       unawaited(refreshPeers());
@@ -264,6 +290,7 @@ class MdtbbsMultiplayerService {
         sessionId: session.id,
       );
       forgetSession();
+      _finishSessionTask();
       await stopProxy();
       _accounts.clearMultiplayerSession();
       _set(

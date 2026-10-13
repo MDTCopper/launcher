@@ -38,6 +38,8 @@ abstract class Task implements Listenable {
         return Icons.rocket_launch;
       case TaskType.download:
         return Icons.download;
+      case TaskType.multiplayer:
+        return Icons.lan_outlined;
     }
   }
 
@@ -49,6 +51,8 @@ abstract class Task implements Listenable {
         return '启动';
       case TaskType.download:
         return '下载';
+      case TaskType.multiplayer:
+        return '联机';
     }
   }
 
@@ -112,7 +116,7 @@ abstract class Task implements Listenable {
   Future<void> runTask();
 }
 
-enum TaskType { check, launch, download }
+enum TaskType { check, launch, download, multiplayer }
 
 enum TaskStatus { pending, process, completed, failed, paused, cancel }
 
