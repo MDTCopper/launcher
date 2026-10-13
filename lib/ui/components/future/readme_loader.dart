@@ -4,7 +4,7 @@ import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/ui/components/future/readme_view.dart';
 import 'package:copper_launcher/ui/components/future/readme_source.dart';
 import 'package:copper_launcher/ui/components/future/shields_badge.dart';
-import 'package:copper_launcher/ui/components/scroll/desktop_scroll_view.dart';
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/material.dart';
@@ -75,20 +75,21 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
   }
 
   /// 弹窗外框：载入骨架与内容共用同一套尺寸与滚动容器，载入完成时不会跳一下
+  ///
+  /// 滚动交给 Copper 那一套：桌面走自绘滚动条，移动端走原生触摸。
+  /// 自己拼「桌面容器 + 不可滚动内容」在手机上没有滚轮、也够不着自绘滚动条 ⇒ 滑不动
   Widget _buildFrame(Widget child) {
     final size = MediaQuery.of(context).size;
 
     return SizedBox(
       height: size.height * 0.75,
       width: size.width * 0.85,
-      child: DesktopScrollViewContainer(
+      child: CopperSingleChildScrollView(
         controller: controller,
-        child: SingleChildScrollView(
-          controller: controller,
-          physics: NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
-          child: child,
-        ),
+        // 上下两条渐变是这里自己画的（见 build 里那两层 Positioned），别再叠一层遮罩
+        fadeMask: false,
+        padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
+        child: child,
       ),
     );
   }
