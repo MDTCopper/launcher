@@ -22,7 +22,9 @@ import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:copper_launcher/util/system_info.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
+import '../../ui/dialog/game_log_dialog.dart';
 import '../../ui/shell/drawer/log_list.dart';
 import '../../ui/util/notification.dart';
 
@@ -94,13 +96,43 @@ class LaunchMindustryTask extends Task {
                   backgroundColor: colors.highBackgroundOnCard,
                   icon: Icon(Icons.terminal),
                   content: Text('进程日志'),
-                  onTap: () {},
+                  onTap: () => _showGameLog(context),
                 ),
               ),
           ],
         ),
       ],
     );
+  }
+
+  /// 游戏自己的日志文件（`last_log.txt`）
+  ///
+  /// v126 之前游戏把数据落在 `<数据目录>/Mindustry/` 下，所以两个位置都找一遍
+  File? _gameLogFile() {
+    for (final path in [
+      p.join(mindustry.dataPath, 'last_log.txt'),
+      p.join(mindustry.dataPath, 'Mindustry', 'last_log.txt'),
+    ]) {
+      final file = File(path);
+      if (file.existsSync()) return file;
+    }
+    return null;
+  }
+
+  /// 进程日志：游戏写在自己数据目录里的 `last_log.txt`
+  ///
+  /// 桥那条路（Android）拿不到进程的 stdout，这份文件是唯一能看的
+  void _showGameLog(BuildContext context) {
+    final file = _gameLogFile();
+    if (file == null) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '没有日志',
+        content: '这个版本的数据目录下没有 last_log.txt',
+      );
+      return;
+    }
+    showLogFileDialog(context, path: file.path, text: file.readAsStringSync());
   }
 
   @override
