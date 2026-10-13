@@ -26,6 +26,11 @@ class MultiplayerState {
     this.startingProxy = false,
     this.stoppingProxy = false,
     this.loadingCapabilities = false,
+    this.invites = const [],
+    this.sentInvites = const [],
+    this.loadingInvites = false,
+    this.inviting = false,
+    this.busyInviteId,
   });
 
   // ── 能力（进页面拉一次，缓存住） ──
@@ -69,6 +74,22 @@ class MultiplayerState {
 
   bool get inSession => session != null;
 
+  // ── 邀请 ──
+  /// 收到的邀请；只有 5 分钟有效期，靠页面可见时定时刷
+  final List<MdtbbsInvite> invites;
+
+  /// **我发出的邀请**：服务端不提供「我发出的」列表，只能在创建响应里记下来
+  /// ⇒ 这是内存态，重启即丢（列表本身也会在 5 分钟后失效，不值得落盘）
+  final List<MdtbbsInvite> sentInvites;
+
+  final bool loadingInvites;
+
+  /// 正在发邀请（弹窗里按这个禁用按钮）
+  final bool inviting;
+
+  /// 正在处理的邀请 ID（接受 / 拒绝 / 撤销）：按操作粒度禁用，不整页锁死
+  final String? busyInviteId;
+
   /// 从落盘恢复过会话 ID、但服务端快照还没回来
   bool get waitingForSession => session == null && joinCode != null;
 
@@ -79,7 +100,8 @@ class MultiplayerState {
       leaving ||
       refreshingPeers ||
       startingProxy ||
-      stoppingProxy;
+      stoppingProxy ||
+      inviting;
 
   String get workloadLabel {
     if (creating) return '正在创建房间…';
@@ -88,9 +110,13 @@ class MultiplayerState {
     if (startingProxy) return '正在启动联机通道…';
     if (stoppingProxy) return '正在停止联机通道…';
     if (refreshingPeers) return '正在刷新成员…';
+    if (inviting) return '正在发送邀请…';
     if (resuming) return '正在恢复房间…';
     return '处理中…';
   }
+
+  /// 待处理的邀请条数（页面上的角标用）
+  int get pendingInviteCount => invites.length;
 
   MultiplayerState copyWith({
     MdtbbsMultiplayerCapabilities? capabilities,
@@ -113,11 +139,19 @@ class MultiplayerState {
     bool? refreshingPeers,
     bool? startingProxy,
     bool? stoppingProxy,
+    List<MdtbbsInvite>? invites,
+    List<MdtbbsInvite>? sentInvites,
+    bool? loadingInvites,
+    bool? inviting,
+    String? busyInviteId,
     bool clearSession = false,
     bool clearJoinCode = false,
     bool clearSelf = false,
     bool clearLocalAddress = false,
     bool clearMessage = false,
+    bool clearInvites = false,
+    bool clearSentInvites = false,
+    bool clearBusyInvite = false,
   }) => MultiplayerState(
     capabilities: capabilities ?? this.capabilities,
     capabilitiesLoaded: capabilitiesLoaded ?? this.capabilitiesLoaded,
@@ -141,5 +175,12 @@ class MultiplayerState {
     refreshingPeers: refreshingPeers ?? this.refreshingPeers,
     startingProxy: startingProxy ?? this.startingProxy,
     stoppingProxy: stoppingProxy ?? this.stoppingProxy,
+    invites: clearInvites ? const [] : (invites ?? this.invites),
+    sentInvites: clearSentInvites
+        ? const []
+        : (sentInvites ?? this.sentInvites),
+    loadingInvites: loadingInvites ?? this.loadingInvites,
+    inviting: inviting ?? this.inviting,
+    busyInviteId: clearBusyInvite ? null : (busyInviteId ?? this.busyInviteId),
   );
 }

@@ -299,12 +299,13 @@ class MdtbbsMultiplayerApi {
 
   // ── 邀请 ────────────────────────────────────────────────────
 
-  /// 邀请好友进自己的会话；[targetUserId] 是论坛用户整数 ID（原样传回）。
+  /// 邀请好友进自己的会话；[targetUserId] 是论坛**整数**用户 ID
+  /// （文档与 OpenAPI 都写 `target_user_id` 是 number，**不能传字符串**）。
   /// 联机写操作要求手机号验证（站长确认），未验证会被拒
   static Future<MdtbbsInvite> createInvite({
     required String accessToken,
     required String sessionId,
-    required String targetUserId,
+    required int targetUserId,
     CancelToken? cancelToken,
   }) async {
     final data = await MdtbbsClient.postJson(

@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_api.dart';
+import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/account/account_store.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_error_text.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_state.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_session_task.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_relay_proxy.dart';
@@ -47,7 +49,13 @@ class MdtbbsMultiplayerService {
   int _heartbeatFailures = 0;
 
   /// 拿 BBS 的 Bearer 令牌；未登录返回 null
-  Future<String?> _token() => _accounts.ensureAccessToken();
+  Future<String?> _token() async => tokenOverride != null
+      ? tokenOverride!()
+      : _accounts.ensureAccessToken();
+
+  /// 用例里替换令牌来源；生产代码不设置它
+  @visibleForTesting
+  static Future<String?> Function()? tokenOverride;
 
   void _set(MultiplayerState next) {
     state.value = next;
@@ -153,6 +161,8 @@ class MdtbbsMultiplayerService {
             clearJoinCode: true,
             clearSelf: true,
             resuming: false,
+            // 房间没了，我发给别人的邀请也就没意义了
+            clearSentInvites: true,
           ),
         );
         return;
@@ -310,6 +320,8 @@ class MdtbbsMultiplayerService {
           clearSelf: true,
           peers: const [],
           leaving: false,
+          // 我发出的邀请都指向这个房间，房间不要了就一并清掉
+          clearSentInvites: true,
         ),
       );
       _notify(
@@ -346,6 +358,218 @@ class MdtbbsMultiplayerService {
       _notify('刷新成员失败：$error', isError: true);
     }
   }
+
+  // ── 邀请 ────────────────────────────────────────────────────
+  //
+  // 服务端只提供「我收到的邀请」（`GET /multiplayer/invites`），**没有「我发出的」列表**
+  // ⇒ 发出的那几条只能在创建响应里记进状态（内存态，重启即丢；它们本身 5 分钟就失效）
+
+  Timer? _inviteTimer;
+
+  /// 页面可见时开着：邀请 5 分钟过期、又没有实时通道（P3 realtime 那步做完再换成推送），
+  /// 只能定时拉一下才看得见新邀请
+  void startInvitePolling({Duration interval = const Duration(seconds: 20)}) {
+    stopInvitePolling();
+    _inviteTimer = Timer.periodic(interval, (_) {
+      unawaited(refreshInvites());
+    });
+  }
+
+  void stopInvitePolling() {
+    _inviteTimer?.cancel();
+    _inviteTimer = null;
+  }
+
+  /// 刷一次「收到的邀请」
+  Future<void> refreshInvites({bool announce = false}) async {
+    final token = await _token();
+    if (token == null) return;
+    _set(_current.copyWith(loadingInvites: true));
+    try {
+      final invites = await MdtbbsMultiplayerApi.invites(
+        accessToken: token,
+      );
+      _set(_current.copyWith(invites: invites, loadingInvites: false));
+      if (announce) {
+        _notify(invites.isEmpty ? '没有待处理的邀请' : '待处理邀请 ${invites.length} 条');
+      }
+    } on Object catch (error) {
+      _set(_current.copyWith(loadingInvites: false));
+      // 轮询失败很常见（切页 / 掉网），只在用户主动刷时说一句
+      if (announce) {
+        _notify('读取邀请失败：${describeMdtbbsError(error)}', isError: true);
+      } else {
+        addLogAndPrint(
+          .debug,
+          '读取邀请失败（轮询）：${describeMdtbbsError(error)}',
+          tag: 'Multiplayer',
+        );
+      }
+    }
+  }
+
+  /// 邀请好友进当前会话；[targetUserId] 是论坛**整数**用户 ID
+  Future<void> inviteFriend(int targetUserId) async {
+    final session = _current.session;
+    if (session == null) {
+      _notify('先创建或加入一个房间，再邀请好友', isError: true);
+      return;
+    }
+    if (targetUserId <= 0) {
+      _notify('用户 ID 不对', isError: true);
+      return;
+    }
+    if (_current.inviting) return;
+    final token = await _token();
+    if (token == null) {
+      _notify('请先登录社区账号', isError: true);
+      return;
+    }
+    _set(_current.copyWith(inviting: true));
+    try {
+      final invite = await MdtbbsMultiplayerApi.createInvite(
+        accessToken: token,
+        sessionId: session.id,
+        targetUserId: targetUserId,
+      );
+      _set(
+        _current.copyWith(
+          // 同一个目标重复邀请时，服务端可能给新的 invite_id ⇒ 按 id 去重后放最前
+          sentInvites: [
+            invite,
+            for (final sent in _current.sentInvites)
+              if (sent.inviteId != invite.inviteId) sent,
+          ],
+          inviting: false,
+        ),
+      );
+      _notify('已邀请用户 $targetUserId（邀请 5 分钟内有效）');
+    } on Object catch (error) {
+      _set(_current.copyWith(inviting: false));
+      _notify('邀请失败：${describeMdtbbsError(error)}', isError: true);
+    }
+  }
+
+  /// 撤销我发出的邀请
+  Future<void> revokeInvite(String inviteId) =>
+      _respondInvite(inviteId, revoke: true);
+
+  /// 拒绝收到的邀请
+  Future<void> declineInvite(String inviteId) =>
+      _respondInvite(inviteId, revoke: false);
+
+  Future<void> _respondInvite(String inviteId, {required bool revoke}) async {
+    if (inviteId.isEmpty) {
+      _notify('这条邀请没有 ID，无法处理', isError: true);
+      return;
+    }
+    if (_current.busyInviteId != null) return;
+    final token = await _token();
+    if (token == null) {
+      _notify('请先登录社区账号', isError: true);
+      return;
+    }
+    _set(_current.copyWith(busyInviteId: inviteId));
+    try {
+      await MdtbbsMultiplayerApi.respondInvite(
+        accessToken: token,
+        inviteId: inviteId,
+        revoke: revoke,
+      );
+      _set(
+        _current.copyWith(
+          clearBusyInvite: true,
+          invites: revoke ? _current.invites : _withoutInvite(inviteId),
+          sentInvites:
+              revoke ? _withoutSentInvite(inviteId) : _current.sentInvites,
+        ),
+      );
+      _notify(revoke ? '已撤销邀请' : '已拒绝邀请');
+    } on Object catch (error) {
+      _set(_current.copyWith(clearBusyInvite: true));
+      _notify(
+        '${revoke ? '撤销' : '拒绝'}邀请失败：${describeMdtbbsError(error)}',
+        isError: true,
+      );
+    }
+  }
+
+  /// 接受收到的邀请：拿加入意图 → 消费 → 成为对端
+  ///
+  /// 收尾与「用加入码加入」共用同一套（落盘 / 心跳 / 任务卡片 / 刷成员），
+  /// 只有一处不同：这条路**没有加入码**（邀请不需要码）
+  Future<void> acceptInvite(String inviteId) async {
+    final invite = _inviteOf(inviteId);
+    if (invite == null) {
+      _notify('这条邀请已经不在了', isError: true);
+      return;
+    }
+    if (_current.session != null) {
+      _notify('已经在房间里了，先离开再接受邀请', isError: true);
+      return;
+    }
+    if (_current.busyInviteId != null) return;
+    final token = await _token();
+    if (token == null) {
+      _notify('请先登录社区账号', isError: true);
+      return;
+    }
+    _set(_current.copyWith(busyInviteId: inviteId));
+    try {
+      final intent = await MdtbbsMultiplayerApi.acceptInvite(
+        accessToken: token,
+        inviteId: inviteId,
+      );
+      final joined = await MdtbbsMultiplayerApi.consumeJoinIntent(
+        accessToken: token,
+        intentId: intent.intentId,
+      );
+      final session = await MdtbbsMultiplayerApi.session(
+        accessToken: token,
+        sessionId: invite.sessionId,
+      );
+      _rememberSession(
+        sessionId: session.id,
+        peerId: joined.peer.peerId,
+        resumeToken: joined.resumeToken,
+        activityName: session.activityName,
+      );
+      _set(
+        _current.copyWith(
+          session: session,
+          self: joined.peer,
+          resuming: false,
+          clearJoinCode: true,
+          clearBusyInvite: true,
+          invites: _withoutInvite(inviteId),
+        ),
+      );
+      _beginSessionTask();
+      _notify('已接受邀请，进入房间（${session.id}）');
+      _armHeartbeat();
+      unawaited(refreshPeers());
+    } on Object catch (error) {
+      _set(_current.copyWith(clearBusyInvite: true));
+      _notify('接受邀请失败：${describeMdtbbsError(error)}', isError: true);
+    }
+  }
+
+  MdtbbsInvite? _inviteOf(String inviteId) {
+    for (final invite in _current.invites) {
+      if (invite.inviteId == inviteId) return invite;
+    }
+    return null;
+  }
+
+  List<MdtbbsInvite> _withoutInvite(String inviteId) => [
+    for (final invite in _current.invites)
+      if (invite.inviteId != inviteId) invite,
+  ];
+
+  List<MdtbbsInvite> _withoutSentInvite(String inviteId) => [
+    for (final invite in _current.sentInvites)
+      if (invite.inviteId != inviteId) invite,
+  ];
 
   // ── 心跳 ────────────────────────────────────────────────────
 
