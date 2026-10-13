@@ -44,7 +44,7 @@ class _OnlinePageState extends State<OnlinePage> {
 
   // 创建房间的选项（纯输入状态，留在页面）
   //
-  // 默认「凭加入码」：实测**只有不公开（unlisted）会返回加入码**，
+  // 默认「凭加入码」：实测**只有 unlisted 会返回加入码**，
   // private / friends 都不给（那两种得靠邀请，邀请还没做）
   String _visibility = 'unlisted';
   String _joinPolicy = 'open';
@@ -418,7 +418,7 @@ class _OnlinePageState extends State<OnlinePage> {
                       enable: !state.creating,
                       onTap: () => setState(() {
                         _joinPolicy = value;
-                        // 反过来：open 与 private 不合，自动改成不公开
+                        // 反过来：open 与 private 不合，自动改成凭加入码
                         if (value == 'open' && _visibility == 'private') {
                           _visibility = 'unlisted';
                         }
@@ -695,26 +695,29 @@ class _OnlinePageState extends State<OnlinePage> {
   }
 
   /// 服务端的枚举给用户看时都换成中文（英文值只留在代码里比对）
+  /// 按「怎么才能进」命名，不按「公开程度」——
+  /// 「私有」和「不公开」在中文里几乎同义，用户分不出来，
+  /// 但一个是不给码（要邀请）、一个是给码（凭码就能进）
   String _visibilityLabel(String value) => switch (value) {
-    'private' => '私有',
+    'private' => '邀请制',
     'friends' => '好友可见',
-    'unlisted' => '不公开',
+    'unlisted' => '凭加入码',
     _ => value,
   };
 
-  /// 可见范围对「能不能拿到加入码」的影响（只有不公开会给码）
+  /// 可见范围对「能不能拿到加入码」的影响（只有 unlisted 会给码）
   ///
   /// 好友与邀请这两档依赖我们还没做的功能（好友列表 / 邀请流程），
   /// 提示里直接写明，别让用户选了才发现用不了
   String _visibilityHint(String value) => switch (value) {
-    'private' => '⚠ 只让被邀请的人进；不给加入码（邀请功能还没做）',
-    'friends' => '⚠ 只让好友进；不给加入码（好友列表还没做）',
-    'unlisted' => '不在列表里露面，靠加入码进；会给码',
+    'private' => '⚠ 只有被我邀请的人能进；不给加入码（邀请功能还没做）',
+    'friends' => '⚠ 只有好友能进；不给加入码（好友列表还没做）',
+    'unlisted' => '不在大厅里露面；持有加入码的人都能进（会给码）',
     _ => '',
   };
 
   String _joinPolicyLabel(String value) => switch (value) {
-    'open' => '码到即可进',
+    'open' => '有码即可进',
     'friends' => '⚠ 仅好友（好友列表未做）',
     'request' => '需我同意',
     'invite_only' => '⚠ 仅邀请（邀请未做）',
