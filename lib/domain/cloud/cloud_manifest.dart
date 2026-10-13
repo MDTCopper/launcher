@@ -162,6 +162,7 @@ class CloudModEntry {
     this.displayName,
     this.version,
     this.enabled,
+    this.source,
     this.includeBytes = false,
   });
 
@@ -180,6 +181,13 @@ class CloudModEntry {
   /// 打包时它在本地是不是启用着（要跟着云包走，否则恢复出来「装了但没生效」）
   final bool? enabled;
 
+  /// 模组自己的来源（jar 内 `mod.hjson` 的 `repo` 字段，形如 `作者/仓库`）
+  ///
+  /// 恢复后「一键补全缺的模组」要靠它才知道去哪儿下 —— 光有显示名对不上：
+  /// 官方列表里同名不同仓库的有 6 对。模组没写 `repo` 时是 null，
+  /// 那种只能提示用户自己装（或按名字去官方列表里碰运气）
+  final String? source;
+
   /// 是否随包带字节（私有模组只能这样备份）
   bool includeBytes;
 
@@ -192,6 +200,7 @@ class CloudModEntry {
     if (displayName != null) 'displayName': displayName,
     if (version != null) 'version': version,
     if (enabled != null) 'enabled': enabled,
+    if (source != null && source!.isNotEmpty) 'source': source,
     if (includeBytes) 'includeBytes': true,
   };
 
@@ -204,6 +213,7 @@ class CloudModEntry {
     displayName: json['displayName'] as String?,
     version: json['version'] as String?,
     enabled: json['enabled'] is bool ? json['enabled'] as bool : null,
+    source: json['source'] as String?,
     includeBytes: json['includeBytes'] == true,
   );
 }
@@ -434,10 +444,15 @@ class CloudManifest {
       if (name.startsWith('copper-core')) continue;
 
       Mod? mod;
+      // 模组自己的仓库：`mod.hjson` 里那个 `repo`（形如 `作者/仓库`）。
+      // 不往 `Mod` 上加字段 —— 那是 json_serializable 生成的类，加字段就要重跑
+      // build_runner，这里直接从解析出来的原始 map 取
+      var source = '';
       try {
         final reader = await FileReader.fromPath(entity.path);
         if (reader.type == ResourceType.mod && reader.meta != null) {
           mod = Mod.fromJson(reader.meta!);
+          source = '${reader.meta!['repo'] ?? ''}'.trim();
         }
       } catch (_) {
         mod = null;
@@ -453,6 +468,7 @@ class CloudManifest {
           displayName: mod?.name,
           version: mod?.version,
           enabled: mod == null ? null : (states[mod.internalName] ?? true),
+          source: source.isEmpty ? null : source,
           includeBytes: includeBytes,
         ),
       );
