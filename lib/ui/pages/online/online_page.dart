@@ -19,11 +19,12 @@ import 'package:flutter/services.dart';
 
 const onlinePageRouteKey = '/online';
 
-/// 联机页：**主线是 BBS 官方会话**（MindAuth OAuth，免密码），
-/// 另留一个「MDT 兼容」块（LanLink 房间码加入，走匿名接口，不需要登录）。
-///
-/// 本页**不持有会话状态、也不发网络请求**：官方那一半全部订阅
-/// [MdtbbsMultiplayerService.state]，页内只剩输入框内容与 MDT 的临时解析结果
+/// chips 的统一内边距（与项目其它页的 chips 一致）
+const kChipPadding = EdgeInsets.symmetric(horizontal: 12, vertical: 4);
+
+/// 人数上限的常用值：比让人手输数字省事，也不会输错
+const kMaxPlayerChoices = [2, 4, 8, 16, 32];
+
 class OnlinePage extends StatefulWidget {
   const OnlinePage({super.key});
 
@@ -34,7 +35,7 @@ class OnlinePage extends StatefulWidget {
 class _OnlinePageState extends State<OnlinePage> {
   final _joinCodeController = TextEditingController();
   final _activityNameController = TextEditingController();
-  final _maxPlayersController = TextEditingController(text: '8');
+  final _maxPlayers = ValueNotifier<int>(8);
   final _mdtCodeController = TextEditingController();
 
   MdtbbsMultiplayerService get _mp => MdtbbsMultiplayerService.instance;
@@ -43,10 +44,15 @@ class _OnlinePageState extends State<OnlinePage> {
 
   // 创建房间的选项（纯输入状态，留在页面）
   //
-  // 默认按「给加入码」来：实测**只有不公开（unlisted）会返回加入码**，
+  // 默认「凭加入码」：实测**只有不公开（unlisted）会返回加入码**，
   // private / friends 都不给（那两种得靠邀请，邀请还没做）
   String _visibility = 'unlisted';
   String _joinPolicy = 'open';
+  bool _advancedOpen = false;
+
+  /// 「进房需我同意」：对应服务端的 `join_policy = request`。
+  /// 单独做成开关而不是并列档位——它和「凭加入码」不是一个层级的事
+  bool _requireApproval = false;
 
   // MDT 块自己的状态：与官方那半互不影响
   bool _mdtBusy = false;
@@ -62,7 +68,7 @@ class _OnlinePageState extends State<OnlinePage> {
   void dispose() {
     _joinCodeController.dispose();
     _activityNameController.dispose();
-    _maxPlayersController.dispose();
+    _maxPlayers.dispose();
     _mdtCodeController.dispose();
     super.dispose();
   }
@@ -80,6 +86,13 @@ class _OnlinePageState extends State<OnlinePage> {
     }
     await _mp.loadCapabilities();
     if (!mounted) return;
+    // 房间名给个像样的默认值，好友在列表里看到的就不是 "mindustry" 了
+    if (_activityNameController.text.trim().isEmpty) {
+      final name = _accounts.account?.username;
+      _activityNameController.text = name == null || name.isEmpty
+          ? '我的房间'
+          : '$name 的房间';
+    }
     setState(() => _mdtRoom = _lanlink.activeRoom);
   }
 
@@ -310,28 +323,14 @@ class _OnlinePageState extends State<OnlinePage> {
               ),
             )
           else ...[
-            Row(
-              spacing: 8,
-              children: [
-                Expanded(
-                  child: OutlinedTextField(
-                    controller: _activityNameController,
-                    label: '活动名（可选）',
-                    enable: !state.creating,
-                  ),
-                ),
-                SizedBox(
-                  width: 100,
-                  child: OutlinedTextField(
-                    controller: _maxPlayersController,
-                    label: '人数',
-                    enable: !state.creating,
-                  ),
-                ),
-              ],
+            Text('创建房间', style: theme.textTheme.titleSmall),
+            OutlinedTextField(
+              controller: _activityNameController,
+              label: '房间名（好友看到的）',
+              enable: !state.creating,
             ),
             Text(
-              '可见范围',
+              '人数上限',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.itemSecondary,
               ),
@@ -340,65 +339,95 @@ class _OnlinePageState extends State<OnlinePage> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final value in caps.visibility)
+                for (final count in kMaxPlayerChoices)
                   ActionButton(
-                    content: Text(_visibilityLabel(value)),
-                    hint: _visibilityHint(value),
-                    selected: _visibility == value,
+                    content: Text('$count 人'),
+                    selected: _maxPlayers.value == count,
                     enable: !state.creating,
-                    onTap: () => setState(() {
-                      _visibility = value;
-                      // private 不能配 open，自动换成合法组合
-                      if (value == 'private' && _joinPolicy == 'open') {
-                        _joinPolicy = 'friends';
-                      }
-                    }),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
+                    onTap: () => setState(() => _maxPlayers.value = count),
+                    padding: kChipPadding,
                   ),
               ],
             ),
-            Text(
-              '加入方式',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.itemSecondary,
-              ),
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final value in caps.joinPolicies)
-                  ActionButton(
-                    content: Text(_joinPolicyLabel(value)),
-                    selected: _joinPolicy == value,
-                    enable: !state.creating,
-                    onTap: () => setState(() {
-                      _joinPolicy = value;
-                      // 反过来：open 与 private 不合，自动改成不公开
-                      if (value == 'open' && _visibility == 'private') {
-                        _visibility = 'unlisted';
-                      }
-                    }),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                  ),
-              ],
+            ActionButton(
+              content: const Text('进房需我同意'),
+              hint: '开着的话，别人拿到加入码也得等我批准才能进来',
+              selected: _requireApproval,
+              enable: !state.creating,
+              onTap: () => setState(() => _requireApproval = !_requireApproval),
+              padding: kChipPadding,
             ),
             Text(
-              _visibility == 'unlisted'
-                  ? '创建后会给出加入码，发给好友即可加入'
-                  : '这种可见范围不会给加入码（要邀请才能进，邀请还没做）',
+              _requireApproval
+                  ? '创建后会给出加入码；别人用码申请，我同意后才进得来'
+                  : '创建后会给出加入码，谁拿到码谁能进',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: _visibility == 'unlisted'
-                    ? colors.itemHint
-                    : colors.error,
+                color: colors.itemHint,
               ),
             ),
+            IconTextButton(
+              pressedScale: 0.96,
+              icon: _advancedOpen
+                  ? Icons.keyboard_arrow_up
+                  : Icons.keyboard_arrow_down,
+              content: _advancedOpen ? '收起更多设置' : '更多设置',
+              onTap: () => setState(() => _advancedOpen = !_advancedOpen),
+            ),
+            if (_advancedOpen) ...[
+              Text(
+                '可见范围',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.itemSecondary,
+                ),
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final value in caps.visibility)
+                    ActionButton(
+                      content: Text(_visibilityLabel(value)),
+                      hint: _visibilityHint(value),
+                      selected: _visibility == value,
+                      enable: !state.creating,
+                      onTap: () => setState(() {
+                        _visibility = value;
+                        // private 不能配 open，自动换成合法组合
+                        if (value == 'private' && _joinPolicy == 'open') {
+                          _joinPolicy = 'friends';
+                        }
+                      }),
+                      padding: kChipPadding,
+                    ),
+                ],
+              ),
+              Text(
+                '加入方式',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.itemSecondary,
+                ),
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final value in caps.joinPolicies)
+                    ActionButton(
+                      content: Text(_joinPolicyLabel(value)),
+                      selected: _joinPolicy == value,
+                      enable: !state.creating,
+                      onTap: () => setState(() {
+                        _joinPolicy = value;
+                        // 反过来：open 与 private 不合，自动改成不公开
+                        if (value == 'open' && _visibility == 'private') {
+                          _visibility = 'unlisted';
+                        }
+                      }),
+                      padding: kChipPadding,
+                    ),
+                ],
+              ),
+            ],
             Row(
               spacing: 8,
               children: [
@@ -410,12 +439,7 @@ class _OnlinePageState extends State<OnlinePage> {
                 ),
               ],
             ),
-            Text(
-              '或者用加入码加入：',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.itemSecondary,
-              ),
-            ),
+            Text('加入房间', style: theme.textTheme.titleSmall),
             Row(
               spacing: 8,
               children: [
@@ -444,8 +468,8 @@ class _OnlinePageState extends State<OnlinePage> {
   Future<void> _createRoom() => _mp.create(
     activityName: _activityNameController.text.trim(),
     visibility: _visibility,
-    joinPolicy: _joinPolicy,
-    maxPlayers: int.tryParse(_maxPlayersController.text.trim()) ?? 8,
+    joinPolicy: _requireApproval ? 'request' : _joinPolicy,
+    maxPlayers: _maxPlayers.value,
   );
 
   Future<void> _joinRoom() => _mp.joinByCode(_joinCodeController.text);
@@ -679,18 +703,21 @@ class _OnlinePageState extends State<OnlinePage> {
   };
 
   /// 可见范围对「能不能拿到加入码」的影响（只有不公开会给码）
+  ///
+  /// 好友与邀请这两档依赖我们还没做的功能（好友列表 / 邀请流程），
+  /// 提示里直接写明，别让用户选了才发现用不了
   String _visibilityHint(String value) => switch (value) {
-    'private' => '只让被邀请的人进；不给加入码',
-    'friends' => '只让好友进；不给加入码',
+    'private' => '⚠ 只让被邀请的人进；不给加入码（邀请功能还没做）',
+    'friends' => '⚠ 只让好友进；不给加入码（好友列表还没做）',
     'unlisted' => '不在列表里露面，靠加入码进；会给码',
     _ => '',
   };
 
   String _joinPolicyLabel(String value) => switch (value) {
-    'open' => '任何人可加入',
-    'friends' => '仅好友可加入',
-    'request' => '需申请',
-    'invite_only' => '仅限邀请',
+    'open' => '码到即可进',
+    'friends' => '⚠ 仅好友（好友列表未做）',
+    'request' => '需我同意',
+    'invite_only' => '⚠ 仅邀请（邀请未做）',
     _ => value,
   };
 

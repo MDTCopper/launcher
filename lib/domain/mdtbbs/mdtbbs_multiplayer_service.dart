@@ -13,6 +13,7 @@ import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// 官方联机的**唯一状态源**：会话、能力、通道、心跳都由它持有
 ///
@@ -211,10 +212,19 @@ class MdtbbsMultiplayerService {
         ),
       );
       _beginSessionTask();
+      // 加入码服务端只给这一次，直接放进剪贴板，省掉「还得点一下复制」
+      final joinCode = created.joinCode;
+      if (joinCode != null) {
+        try {
+          await Clipboard.setData(ClipboardData(text: joinCode));
+        } on Object {
+          // 剪贴板不可用不影响建房
+        }
+      }
       _notify(
-        created.joinCode == null
+        joinCode == null
             ? '房间已创建（${created.session.id}）；这个可见范围不给加入码，只能靠邀请'
-            : '房间已创建，加入码 ${created.joinCode}（服务端只给这一次，先记下来）',
+            : '房间已创建，加入码 $joinCode（已复制到剪贴板）',
       );
       _armHeartbeat();
       unawaited(refreshPeers());

@@ -183,22 +183,30 @@ class LanLinkService {
   /// 不需要我们自己打洞；试连超时给得短，别让用户等
   Future<({String host, int tcpPort, int udpPort, bool direct})>
   _chooseUpstream(LanLinkRoom room) async {
-    for (final candidate in room.directCandidates) {
-      if (!candidate.isValid) continue;
-      final reachable = await _isReachable(candidate.addr, candidate.tcpPort);
-      addLogAndPrint(
-        .info,
-        '直连候选 ${candidate.mode} ${candidate.addr}:${candidate.tcpPort}'
-        ' → ${reachable ? '可用' : '不通'}',
-        tag: 'LanLink',
-      );
-      if (reachable) {
-        return (
-          host: candidate.addr,
-          tcpPort: candidate.tcpPort,
-          udpPort: candidate.udpPort,
-          direct: true,
+    final candidates = room.directCandidates.where((it) => it.isValid).toList();
+    if (candidates.isNotEmpty) {
+      // **并行**试连：串行会按 1.5 秒 × 候选数加在加入耗时上，
+      // 而实测基本都回落中继，不值得让用户等
+      final reachable = await Future.wait([
+        for (final candidate in candidates)
+          _isReachable(candidate.addr, candidate.tcpPort),
+      ]);
+      for (var index = 0; index < candidates.length; index++) {
+        final candidate = candidates[index];
+        addLogAndPrint(
+          .info,
+          '直连候选 ${candidate.mode} ${candidate.addr}:${candidate.tcpPort}'
+          ' → ${reachable[index] ? '可用' : '不通'}',
+          tag: 'LanLink',
         );
+        if (reachable[index]) {
+          return (
+            host: candidate.addr,
+            tcpPort: candidate.tcpPort,
+            udpPort: candidate.udpPort,
+            direct: true,
+          );
+        }
       }
     }
     addLogAndPrint(
