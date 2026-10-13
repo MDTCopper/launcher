@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
@@ -42,60 +43,74 @@ class ColorfulBackground extends StatefulWidget {
 }
 
 class _ColorfulBackgroundState extends State<ColorfulBackground>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: widget.duration,
-  );
+    with WidgetsBindingObserver {
+  /// 动画进度（0~1）：由 [_ticker] 按节流后的间隔推进
+  ///
+  /// 用 [ValueNotifier] 而不是每帧 `setState`：只让 painter 重绘，不重建组件树
+  final ValueNotifier<double> _progress = ValueNotifier<double>(0);
 
-  /// 上一次实际绘制到的动画进度（阶梯值）
-  double _lastPainted = -1;
+  /// 进度按真实时间算（`duration` 走一圈）：定时器抖动不影响漂移速度
+  final Stopwatch _clock = Stopwatch();
 
-  /// 重绘步进：进度跨过它才真正重绘（按窗口大小动态调整）
-  double _step = 0.0036;
+  /// 重绘定时器；不动画（流光层关着）时为 null
+  Timer? _ticker;
+
+  /// 当前的重绘间隔，按窗口大小算，见 [repaintIntervalFor]
+  Duration _interval = const Duration(milliseconds: 33);
 
   /// 调整窗口结束后的恢复延迟
   static const _resizeResumeDelay = Duration(milliseconds: 500);
 
   Timer? _resizeResumeTimer;
 
+  /// 该不该出帧：流光层开着且要动画时才转
+  bool get _animating => widget.animate && widget.colorful;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (widget.animate && widget.colorful) _controller.repeat();
+    if (_animating) _startTicking();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 窗口尺寸变了就换一档间隔（MediaQuery 依赖会走到这里）
+    _updateInterval();
   }
 
   @override
   void didChangeMetrics() {
     // 调整窗口 / 最大化时暂停动画：每帧重绘成本 ∝ 像素数，resize 期间
     // 尺寸连续变化会让全窗口图层连续重绘，尺寸稳定一段时间后恢复
-    if (widget.animate && widget.colorful && _controller.isAnimating) {
-      _controller.stop();
-    }
+    _stopTicking();
     _resizeResumeTimer?.cancel();
-    if (!widget.animate || !widget.colorful) return;
+    if (!_animating) return;
     _resizeResumeTimer = Timer(_resizeResumeDelay, () {
-      if (!mounted || !widget.animate || !widget.colorful) return;
-      if (!_controller.isAnimating) _controller.repeat();
+      if (!mounted || !_animating) return;
+      _updateInterval();
+      _startTicking();
     });
   }
 
   @override
   void didUpdateWidget(covariant ColorfulBackground oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 流光层关掉时不能起动画：build 会走 !colorful 的早退分支、不挂 painter，
-    // 但 Ticker 一旦跑起来就一直 requestFrame，每帧出帧白耗 CPU / GPU
-    if (widget.animate && widget.colorful && !_controller.isAnimating) {
-      _controller.repeat();
-    } else if ((!widget.animate || !widget.colorful) &&
-        _controller.isAnimating) {
-      _controller.stop();
+
+    if (!_animating) {
+      // 流光层关掉时不能留着表：build 走 !colorful 的早退分支、不挂 painter，
+      // 定时器空转只是白白出帧
       _resizeResumeTimer?.cancel();
+      _stopTicking();
+      return;
     }
-    if (oldWidget.duration != widget.duration) {
-      _controller.duration = widget.duration;
-      _updateStep();
+
+    // 关掉又打开、或周期变了：按新的间隔重新起表
+    final wasAnimating = oldWidget.animate && oldWidget.colorful;
+    if (!wasAnimating || oldWidget.duration != widget.duration) {
+      _updateInterval();
+      _startTicking();
     }
   }
 
@@ -103,8 +118,37 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
   void dispose() {
     _resizeResumeTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    _controller.dispose();
+    _stopTicking();
+    _progress.dispose();
     super.dispose();
+  }
+
+  /// 起表：每 [_interval] 推一次进度（重复调用不会叠表）
+  void _startTicking() {
+    _ticker?.cancel();
+    _clock.start();
+    _ticker = Timer.periodic(_interval, (_) => _advance());
+  }
+
+  void _stopTicking() {
+    _ticker?.cancel();
+    _ticker = null;
+    _clock.stop();
+  }
+
+  /// 按真实时间推进进度：`duration` 走完一圈
+  void _advance() {
+    final cycle = widget.duration.inMicroseconds;
+    if (cycle <= 0) return;
+    _progress.value = (_clock.elapsedMicroseconds % cycle) / cycle;
+  }
+
+  /// 按窗口大小更新重绘间隔；间隔真的变了就按新周期重新起表
+  void _updateInterval() {
+    final next = repaintIntervalFor(MediaQuery.sizeOf(context), widget.duration);
+    if (next == _interval) return;
+    _interval = next;
+    if (_ticker != null) _startTicking();
   }
 
   @override
@@ -126,31 +170,12 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
         // 光效层
         Positioned.fill(
           child: RepaintBoundary(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                _updateStep();
-                return AnimatedBuilder(
-                  animation: _controller,
-                  builder: (_, _) {
-                    final value = _controller.value;
-                    // 按窗口大小决定的步进节流：进度跨过一步才更新绘制值，
-                    // 其余帧 painter 的 shouldRepaint 为 false、不重绘；
-                    // 否则这个全窗口图层每帧全屏重绘，成本随像素数线性增长
-                    if (_lastPainted < 0 ||
-                        value < _lastPainted ||
-                        value - _lastPainted >= _step) {
-                      _lastPainted = value;
-                    }
-                    return CustomPaint(
-                      painter: _ColorfulBackgroundPainter(
-                        colors: colors,
-                        progress: _lastPainted < 0 ? 0 : _lastPainted,
-                        intensity: widget.intensity,
-                      ),
-                    );
-                  },
-                );
-              },
+            child: CustomPaint(
+              painter: _ColorfulBackgroundPainter(
+                colors: colors,
+                progress: _progress,
+                intensity: widget.intensity,
+              ),
             ),
           ),
         ),
@@ -158,24 +183,24 @@ class _ColorfulBackgroundState extends State<ColorfulBackground>
       ],
     );
   }
-
-  /// 按窗口大小决定重绘步进：窗口越大，每帧重绘的像素越多，步进越大
-  /// （重绘频率越低）；光斑漂移缓慢，低帧率视觉上几乎无差别
-  void _updateStep() {
-    _step = repaintStepFor(MediaQuery.sizeOf(context), widget.duration);
-  }
 }
 
-/// 依据窗口逻辑面积计算重绘步进（进度跨过该值才重绘一次）
+/// 依据窗口逻辑面积计算重绘间隔（多久推一次进度）
+///
+/// 窗口越大，每帧重绘的像素越多 ⇒ 间隔越长；光斑漂移缓慢，低帧率视觉上几乎无差别。
+/// 这就是**出帧频率**：动画不再挂在 vsync 上（Ticker 每个刷新帧都要出帧，
+/// 60Hz / 120Hz 屏上白烧 CPU），改成定时器按这个间隔推一次进度
 @visibleForTesting
-double repaintStepFor(Size size, Duration duration) {
+Duration repaintIntervalFor(Size size, Duration duration) {
   final interval = switch (size.width * size.height) {
     < 500000 => 33.0, // 小窗 ~30fps
     < 1200000 => 50.0, // ~20fps
     < 2200000 => 83.0, // ~12fps
     _ => 125.0, // 大窗 / 4K ~8fps
   };
-  return (interval / duration.inMilliseconds).clamp(0.001, 1.0);
+  // 一个周期至少出一帧：周期特别短时别让间隔超过它
+  final longest = math.max(1, duration.inMilliseconds);
+  return Duration(milliseconds: math.min(interval.round(), longest));
 }
 
 /// 光点配置
@@ -241,10 +266,14 @@ class _ColorfulBackgroundPainter extends CustomPainter {
     required this.colors,
     required this.progress,
     required this.intensity,
-  }) : _baseHue = HSLColor.fromColor(colors.interactive).hue;
+  }) : _baseHue = HSLColor.fromColor(colors.interactive).hue,
+       super(repaint: progress);
 
   final AppColors colors;
-  final double progress;
+
+  /// 动画进度（0~1）：由外面的定时器推，这里只读值
+  final ValueListenable<double> progress;
+
   final double intensity;
   final double _baseHue;
 
@@ -321,7 +350,7 @@ class _ColorfulBackgroundPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final t = progress * 2 * math.pi;
+    final t = progress.value * 2 * math.pi;
 
     _paintSpots(canvas, size, t);
   }
@@ -375,6 +404,6 @@ class _ColorfulBackgroundPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ColorfulBackgroundPainter oldDelegate) =>
       oldDelegate.colors != colors ||
-      oldDelegate.progress != progress ||
+      oldDelegate.progress.value != progress.value ||
       oldDelegate.intensity != intensity;
 }
