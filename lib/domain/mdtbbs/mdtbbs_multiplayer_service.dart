@@ -465,7 +465,7 @@ class MdtbbsMultiplayerService {
     } on Object catch (error) {
       await tunnel.dispose();
       _set(_current.copyWith(startingProxy: false));
-      _notify('启动联机通道失败：$error', isError: true);
+      _notify('启动联机通道失败：${_describeProxyError(error)}', isError: true);
       return;
     }
     _tunnel = tunnel;
@@ -509,6 +509,20 @@ class MdtbbsMultiplayerService {
       );
     }
     if (wasRunning) _notify('联机通道已停止');
+  }
+
+  /// 把中继的两种典型失败翻成人话
+  String _describeProxyError(Object error) {
+    final text = '$error';
+    if (text.contains('RELAY_LIMIT_REACHED') || text.contains('额度已满')) {
+      return '官方中继并发额度已满：同一个房间的这个身份同时只能占 1 条中继连接。'
+          '请等 1~2 分钟再试（或先离开房间重新进入）';
+    }
+    if (text.contains('AUTH_INVALID')) {
+      return '中继认证被拒（AUTH_INVALID）：官方中继暂时没认下这份凭证。'
+          '请等 1~2 分钟再试；若一直如此，可能是官方中继侧的问题';
+    }
+    return text;
   }
 
   // ── 落盘 ────────────────────────────────────────────────────

@@ -107,8 +107,9 @@ class MdtbbsRelayException implements Exception {
 /// 生命周期：[start] 申请凭证 → 建连 → auth → 等 `auth_ok` → 之后由 [signals]
 /// 驱动上层桥接；凭证到期前 [renewBefore] 秒用 [allocateRelay] 拿新凭证发 reauth。
 ///
-/// **分配凭证后代理节点要异步同步几秒**，立即认证会撞 AUTH_INVALID（实测
-/// 2026-10-12）——认证被拒就等 5 秒重试，前两次同凭证、第三次换新凭证。
+/// **一个对端同时只允许 1 条中继分配**（实测 2026-10-13：同一会话第二次
+/// `POST /relay` 立刻 429 `RELAY_LIMIT_REACHED`）⇒ 认证失败后**绝不重新分配**，
+/// 只用同一份凭证退避重试；重新分配会把入口自己堵死。
 class MdtbbsRelayTunnel {
   MdtbbsRelayTunnel({
     required this.allocateRelay,
@@ -139,7 +140,10 @@ class MdtbbsRelayTunnel {
   DateTime? _credentialExpiresAt;
   DateTime? get credentialExpiresAt => _credentialExpiresAt;
 
-  /// 建连并认证；带 AUTH_INVALID 重试
+  /// 建连并认证
+  ///
+  /// 认证被拒（`AUTH_INVALID`）只用**同一份凭证**退避重试 ——
+  /// 重新分配会立刻撞上「一个对端一条分配」的额度（429），把入口堵死
   Future<MdtbbsRelayAuthOk> start() async {
     _allocation = await allocateRelay();
     Object? lastError;
@@ -154,11 +158,10 @@ class MdtbbsRelayTunnel {
         if (!error.authRejected || attempt == 3) rethrow;
         addLogAndPrint(
           .info,
-          '认证被拒（第 $attempt 次），等代理节点同步后重试…',
+          '中继认证被拒（第 $attempt 次），${5 * attempt} 秒后用同一份凭证重试…',
           tag: 'Multiplayer',
         );
-        await Future<void>.delayed(const Duration(seconds: 5));
-        if (attempt == 2) _allocation = await allocateRelay();
+        await Future<void>.delayed(Duration(seconds: 5 * attempt));
       }
     }
     throw lastError ?? const MdtbbsRelayException('中继认证失败');
