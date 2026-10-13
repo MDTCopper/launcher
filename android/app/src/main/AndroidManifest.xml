@@ -38,8 +38,8 @@
 
         <!-- 输入法只做叠加、不改窗口尺寸：启动器尺寸不受输入法影响，
              输入交给 Dart 侧的全局辅助输入条（浮在键盘上方）承接 -->
-        <!-- fullSensor：四个方向都跟着陀螺仪走，且不受系统旋转锁摆布 ——
-             否则玩过横屏游戏、用户的锁停在横屏之后，启动器会一直横着 -->
+        <!-- portrait：启动器暂时锁竖屏（横屏布局还没做）；
+             游戏是另一个 activity（:mdt_process，sensorLandscape），不受这里影响 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -48,7 +48,7 @@
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:screenOrientation="fullSensor"
+            android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustNothing">
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
