@@ -75,7 +75,7 @@ class MdtbbsRelayGuestProxy {
     _subscription = tunnel.signals.listen(_onSignal);
     ports.tcpServer.listen(_onGameTcpConnected, onError: (_) {});
     ports.udpSocket.listen(_onUdpEvent);
-    addLog(
+    addLogAndPrint(
       .info,
       '房客代理已就绪：$localAddress → 房主 $ownerPeerId',
       tag: 'Multiplayer',
@@ -92,7 +92,7 @@ class MdtbbsRelayGuestProxy {
     _streams.clear();
     ports.tcpServer.close();
     ports.udpSocket.close();
-    addLog(.info, '房客代理已关闭', tag: 'Multiplayer');
+    addLogAndPrint(.info, '房客代理已关闭', tag: 'Multiplayer');
   }
 
   void _onUdpEvent(RawSocketEvent event) {
@@ -119,7 +119,7 @@ class MdtbbsRelayGuestProxy {
               return;
             }
             _streams[streamId] = socket;
-            addLog(.info, '中继分配 stream $streamId', tag: 'Multiplayer');
+            addLogAndPrint(.info, '中继分配 stream $streamId', tag: 'Multiplayer');
             socket.listen(
               (Uint8List data) => tunnel.sendTcpData(streamId, data),
               onDone: () => _dropStream(streamId),
@@ -128,7 +128,7 @@ class MdtbbsRelayGuestProxy {
             );
           })
           .catchError((Object error) {
-            addLog(.warning, '申请中继通道失败：$error', tag: 'Multiplayer');
+            addLogAndPrint(.warning, '申请中继通道失败：$error', tag: 'Multiplayer');
             socket.destroy();
           }),
     );
@@ -188,7 +188,11 @@ class MdtbbsRelayHostBridge {
 
   Future<void> start() async {
     _subscription = tunnel.signals.listen(_onSignal);
-    addLog(.info, '房主桥已就绪：中继 → 127.0.0.1:$gamePort', tag: 'Multiplayer');
+    addLogAndPrint(
+      .info,
+      '房主桥已就绪：中继 → 127.0.0.1:$gamePort',
+      tag: 'Multiplayer',
+    );
   }
 
   Future<void> dispose() async {
@@ -205,7 +209,7 @@ class MdtbbsRelayHostBridge {
     _udpBridges.clear();
     _pendingUdpBridges.clear();
     _bufferedUdp.clear();
-    addLog(.info, '房主桥已关闭', tag: 'Multiplayer');
+    addLogAndPrint(.info, '房主桥已关闭', tag: 'Multiplayer');
   }
 
   void _onSignal(MdtbbsRelaySignal signal) {
@@ -247,10 +251,14 @@ class MdtbbsRelayHostBridge {
               onError: (_) => _dropBridge(streamId),
               cancelOnError: true,
             );
-            addLog(.info, '房主侧已为 stream $streamId 接上本机游戏', tag: 'Multiplayer');
+            addLogAndPrint(
+              .info,
+              '房主侧已为 stream $streamId 接上本机游戏',
+              tag: 'Multiplayer',
+            );
           })
           .catchError((Object error) {
-            addLog(.warning, '连本机游戏失败：$error', tag: 'Multiplayer');
+            addLogAndPrint(.warning, '连本机游戏失败：$error', tag: 'Multiplayer');
             _dropBridge(streamId);
           }),
     );
@@ -296,7 +304,7 @@ class MdtbbsRelayHostBridge {
         tunnel.sendUdpDatagram(peerId, datagram.data);
       });
     } on Object catch (error) {
-      addLog(.warning, '对端 UDP 桥建立失败：$error', tag: 'Multiplayer');
+      addLogAndPrint(.warning, '对端 UDP 桥建立失败：$error', tag: 'Multiplayer');
       _bufferedUdp.remove(peerId);
     }
   }

@@ -69,9 +69,9 @@ class MdtbbsMultiplayerService {
   /// 统一出口：日志 + 右下角通知 + 存进状态（切页回来还看得到）
   void _notify(String text, {bool isError = false}) {
     if (isError) {
-      addLog(.warning, text, tag: 'Multiplayer');
+      addLogAndPrint(.warning, text, tag: 'Multiplayer');
     } else {
-      addLog(.info, text, tag: 'Multiplayer');
+      addLogAndPrint(.info, text, tag: 'Multiplayer');
     }
     addNotice(
       icon: isError ? Icons.error_outline : Icons.check_circle_outline,
@@ -120,7 +120,7 @@ class MdtbbsMultiplayerService {
     final stored = _accounts.multiplayerSession;
     if (stored == null || !stored.isFresh(DateTime.now())) {
       if (stored != null) {
-        addLog(.info, '落盘的联机会话太旧，丢弃', tag: 'Multiplayer');
+        addLogAndPrint(.info, '落盘的联机会话太旧，丢弃', tag: 'Multiplayer');
         _accounts.clearMultiplayerSession();
       }
       return;
@@ -213,7 +213,7 @@ class MdtbbsMultiplayerService {
       _beginSessionTask();
       _notify(
         created.joinCode == null
-            ? '房间已创建（${created.session.id}）'
+            ? '房间已创建（${created.session.id}）；这个可见范围不给加入码，只能靠邀请'
             : '房间已创建，加入码 ${created.joinCode}（服务端只给这一次，先记下来）',
       );
       _armHeartbeat();
@@ -353,7 +353,7 @@ class MdtbbsMultiplayerService {
     try {
       final token = await _token();
       if (token == null) {
-        addLog(.warning, '心跳拿不到访问令牌，跳过这次', tag: 'Multiplayer');
+        addLogAndPrint(.warning, '心跳拿不到访问令牌，跳过这次', tag: 'Multiplayer');
         return;
       }
       final beat = await MdtbbsMultiplayerApi.peerHeartbeat(
@@ -368,7 +368,7 @@ class MdtbbsMultiplayerService {
           heartbeatFailures: 0,
         ),
       );
-      addLog(
+      addLogAndPrint(
         .debug,
         '心跳成功（服务端节奏 ${beat.heartbeatIntervalSeconds}s / 判定 ${beat.expiresInSeconds}s）',
         tag: 'Multiplayer',
@@ -376,13 +376,13 @@ class MdtbbsMultiplayerService {
     } on Object catch (error) {
       _heartbeatFailures++;
       _set(_current.copyWith(heartbeatFailures: _heartbeatFailures));
-      addLog(
+      addLogAndPrint(
         .warning,
         '心跳失败（第 $_heartbeatFailures 次）：$error',
         tag: 'Multiplayer',
       );
       if (_heartbeatFailures >= 3) {
-        addLog(.error, '心跳连续失败，会话多半已被判过期', tag: 'Multiplayer');
+        addLogAndPrint(.error, '心跳连续失败，会话多半已被判过期', tag: 'Multiplayer');
       }
     }
   }
@@ -471,7 +471,7 @@ class MdtbbsMultiplayerService {
     _tunnel = tunnel;
     _signalSubscription = tunnel.signals.listen((signal) {
       if (signal is MdtbbsRelayClosed) {
-        addLog(.info, '官方中继已断开：${signal.reason}', tag: 'Multiplayer');
+        addLogAndPrint(.info, '官方中继已断开：${signal.reason}', tag: 'Multiplayer');
         unawaited(stopProxy());
       }
     });

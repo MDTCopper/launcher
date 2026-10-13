@@ -42,8 +42,11 @@ class _OnlinePageState extends State<OnlinePage> {
   AccountManager get _accounts => AccountManager.instance;
 
   // 创建房间的选项（纯输入状态，留在页面）
-  String _visibility = 'private';
-  String _joinPolicy = 'friends';
+  //
+  // 默认按「给加入码」来：实测**只有不公开（unlisted）会返回加入码**，
+  // private / friends 都不给（那两种得靠邀请，邀请还没做）
+  String _visibility = 'unlisted';
+  String _joinPolicy = 'open';
 
   // MDT 块自己的状态：与官方那半互不影响
   bool _mdtBusy = false;
@@ -126,9 +129,9 @@ class _OnlinePageState extends State<OnlinePage> {
 
   void _showMdt(String text, {bool isError = false}) {
     if (isError) {
-      addLog(.warning, text, tag: 'Multiplayer');
+      addLogAndPrint(.warning, text, tag: 'Multiplayer');
     } else {
-      addLog(.info, text, tag: 'Multiplayer');
+      addLogAndPrint(.info, text, tag: 'Multiplayer');
     }
     addNotice(
       icon: isError ? Icons.error_outline : Icons.check_circle_outline,
@@ -340,6 +343,7 @@ class _OnlinePageState extends State<OnlinePage> {
                 for (final value in caps.visibility)
                   ActionButton(
                     content: Text(_visibilityLabel(value)),
+                    hint: _visibilityHint(value),
                     selected: _visibility == value,
                     enable: !state.creating,
                     onTap: () => setState(() {
@@ -385,13 +389,16 @@ class _OnlinePageState extends State<OnlinePage> {
                   ),
               ],
             ),
-            if (_visibility != 'private')
-              Text(
-                '创建后会给出加入码，发给好友即可加入',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.itemHint,
-                ),
+            Text(
+              _visibility == 'unlisted'
+                  ? '创建后会给出加入码，发给好友即可加入'
+                  : '这种可见范围不会给加入码（要邀请才能进，邀请还没做）',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: _visibility == 'unlisted'
+                    ? colors.itemHint
+                    : colors.error,
               ),
+            ),
             Row(
               spacing: 8,
               children: [
@@ -668,6 +675,14 @@ class _OnlinePageState extends State<OnlinePage> {
     'friends' => '好友可见',
     'unlisted' => '不公开',
     _ => value,
+  };
+
+  /// 可见范围对「能不能拿到加入码」的影响（只有不公开会给码）
+  String _visibilityHint(String value) => switch (value) {
+    'private' => '只让被邀请的人进；不给加入码',
+    'friends' => '只让好友进；不给加入码',
+    'unlisted' => '不在列表里露面，靠加入码进；会给码',
+    _ => '',
   };
 
   String _joinPolicyLabel(String value) => switch (value) {

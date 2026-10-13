@@ -154,7 +154,7 @@ class AccountManager {
     if (stored == null) return;
     if (!MdtbbsConfig.isConfigured ||
         !stored.matchesClient(MdtbbsConfig.clientId)) {
-      addLog(.info, '账号态的 client_id 与当前配置不符，按未登录处理', tag: 'Account');
+      addLogAndPrint(.info, '账号态的 client_id 与当前配置不符，按未登录处理', tag: 'Account');
       AccountStore.clear();
       return;
     }
@@ -285,12 +285,12 @@ class AccountManager {
       );
     } on MdtbbsException catch (error) {
       if (error.code == 'invalid_grant') {
-        addLog(.warning, '登录已失效，需要重新登录', tag: 'Account');
+        addLogAndPrint(.warning, '登录已失效，需要重新登录', tag: 'Account');
         _forget();
         return false;
       }
       // 超时 / 5xx 时结果未知：留着未决尝试，10 分钟内用同一个 key 重试
-      addLog(
+      addLogAndPrint(
         .warning,
         '刷新登录凭证失败，稍后可用同一幂等键重试：${removeNewlines('$error')}',
         tag: 'Account',
@@ -316,7 +316,7 @@ class AccountManager {
       try {
         await MdtbbsAccountApi.revoke(token: token, cancelToken: cancelToken);
       } catch (error) {
-        addLog(
+        addLogAndPrint(
           .warning,
           '撤销登录凭证失败，仍按退出处理：${removeNewlines('$error')}',
           tag: 'Account',

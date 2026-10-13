@@ -152,7 +152,11 @@ class MdtbbsRelayTunnel {
         lastError = error;
         await _teardownSocket();
         if (!error.authRejected || attempt == 3) rethrow;
-        addLog(.info, '认证被拒（第 $attempt 次），等代理节点同步后重试…', tag: 'Multiplayer');
+        addLogAndPrint(
+          .info,
+          '认证被拒（第 $attempt 次），等代理节点同步后重试…',
+          tag: 'Multiplayer',
+        );
         await Future<void>.delayed(const Duration(seconds: 5));
         if (attempt == 2) _allocation = await allocateRelay();
       }
@@ -164,7 +168,7 @@ class MdtbbsRelayTunnel {
     final completer = Completer<MdtbbsRelayAuthOk>();
     _authCompleter = completer;
     return _connect().then((_) {
-      addLog(
+      addLogAndPrint(
         .info,
         '已发送中继认证（op=auth，agent=${_allocation!.agentId}，凭证不落日志）',
         tag: 'Multiplayer',
@@ -186,7 +190,7 @@ class MdtbbsRelayTunnel {
 
   Future<void> _connect() async {
     final endpoint = _allocation!.endpoint;
-    addLog(.info, '连接官方中继：$endpoint', tag: 'Multiplayer');
+    addLogAndPrint(.info, '连接官方中继：$endpoint', tag: 'Multiplayer');
     // 中继端口可能整个不可达：不设超时会永远挂住，把上层卡死
     final socket = await WebSocket.connect(endpoint).timeout(
       authTimeout,
@@ -273,7 +277,7 @@ class MdtbbsRelayTunnel {
     try {
       json = (jsonDecode(text) as Map).cast<String, dynamic>();
     } on Object {
-      addLog(.warning, '中继返回了非 JSON 文本帧', tag: 'Multiplayer');
+      addLogAndPrint(.warning, '中继返回了非 JSON 文本帧', tag: 'Multiplayer');
       return;
     }
     switch ('${json['op'] ?? ''}') {
@@ -284,7 +288,7 @@ class MdtbbsRelayTunnel {
           peerRole: '${json['peer_role'] ?? ''}',
           expiresAt: json['expires_at']?.toString(),
         );
-        addLog(
+        addLogAndPrint(
           .info,
           '中继已认证：role=${signal.peerRole}，凭证到 ${signal.expiresAt}',
           tag: 'Multiplayer',
@@ -292,40 +296,44 @@ class MdtbbsRelayTunnel {
         _authCompleter?.complete(signal);
         _emit(signal);
       case 'reauth_ok':
-        addLog(.info, '中继凭证已续签', tag: 'Multiplayer');
+        addLogAndPrint(.info, '中继凭证已续签', tag: 'Multiplayer');
       case 'tcp_open_pending':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
-        addLog(.info, '中继分配 stream $streamId', tag: 'Multiplayer');
+        addLogAndPrint(.info, '中继分配 stream $streamId', tag: 'Multiplayer');
         _emit(MdtbbsRelayTcpOpenPending(streamId: streamId));
       case 'tcp_opened':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
-        addLog(.info, 'stream $streamId 已就绪', tag: 'Multiplayer');
+        addLogAndPrint(.info, 'stream $streamId 已就绪', tag: 'Multiplayer');
         _emit(MdtbbsRelayTcpOpened(streamId: streamId));
       case 'tcp_open_failed':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
-        addLog(.warning, 'stream $streamId 打开失败', tag: 'Multiplayer');
+        addLogAndPrint(.warning, 'stream $streamId 打开失败', tag: 'Multiplayer');
         _emit(MdtbbsRelayTcpOpenFailed(streamId: streamId));
       case 'tcp_open_result':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
         final ok = json['ok'] == true || json['success'] == true;
-        addLog(.info, 'stream $streamId 本机连接结果：$ok', tag: 'Multiplayer');
+        addLogAndPrint(
+          .info,
+          'stream $streamId 本机连接结果：$ok',
+          tag: 'Multiplayer',
+        );
         _emit(MdtbbsRelayTcpOpenResult(streamId: streamId, ok: ok));
       case 'error':
         final code = '${json['code'] ?? ''}';
-        addLog(.warning, '中继报错：code=$code', tag: 'Multiplayer');
+        addLogAndPrint(.warning, '中继报错：code=$code', tag: 'Multiplayer');
         _authCompleter?.completeError(
           MdtbbsRelayException('中继认证被拒（$code）', authRejected: true),
         );
         _emit(MdtbbsRelayError(code: code));
       default:
-        addLog(.info, '未处理的中继 op：${json['op']}', tag: 'Multiplayer');
+        addLogAndPrint(.info, '未处理的中继 op：${json['op']}', tag: 'Multiplayer');
     }
   }
 
   void _onBinary(Uint8List frame) {
     final parsed = MdtbbsRelayFrame.parse(frame);
     if (parsed == null) {
-      addLog(
+      addLogAndPrint(
         .warning,
         '收到无法解析的 MLR1 帧（长度 ${frame.length}）',
         tag: 'Multiplayer',
@@ -400,7 +408,7 @@ class MdtbbsRelayTunnel {
           ? 0
           : expiresAt.difference(DateTime.now()).inSeconds;
       if (secondsLeft < 8) {
-        addLog(
+        addLogAndPrint(
           .error,
           '续签失败且凭证即将到期（剩 $secondsLeft 秒）：$error',
           tag: 'Multiplayer',
@@ -408,7 +416,7 @@ class MdtbbsRelayTunnel {
         _finish('中继凭证续签失败');
         return;
       }
-      addLog(
+      addLogAndPrint(
         .warning,
         '续签失败（剩 $secondsLeft 秒），稍后重试：$error',
         tag: 'Multiplayer',
@@ -427,7 +435,7 @@ class MdtbbsRelayTunnel {
     try {
       socket.add(jsonEncode(payload));
     } on Object catch (error) {
-      addLog(.warning, '中继信令发送失败：$error', tag: 'Multiplayer');
+      addLogAndPrint(.warning, '中继信令发送失败：$error', tag: 'Multiplayer');
     }
   }
 
@@ -443,7 +451,7 @@ class MdtbbsRelayTunnel {
     if (completer != null && !completer.isCompleted) {
       completer.completeError(MdtbbsRelayException(reason));
     }
-    addLog(.warning, '中继连接结束：$reason', tag: 'Multiplayer');
+    addLogAndPrint(.warning, '中继连接结束：$reason', tag: 'Multiplayer');
     _emit(MdtbbsRelayClosed(reason: reason));
   }
 }
