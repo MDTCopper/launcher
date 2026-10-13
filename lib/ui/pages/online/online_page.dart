@@ -7,6 +7,7 @@ import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/lanlink/lanlink_service.dart';
+import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -564,16 +565,74 @@ class _OnlinePageState extends State<OnlinePage> {
                 ),
               ],
             ),
+            Text(
+              '可见范围',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final value in caps.visibility)
+                  ActionButton(
+                    content: Text(_visibilityLabel(value)),
+                    selected: _visibility == value,
+                    enable: !_busy,
+                    onTap: () => setState(() {
+                      _visibility = value;
+                      // private 不能配 open，自动换成合法组合
+                      if (value == 'private' && _joinPolicy == 'open') {
+                        _joinPolicy = 'friends';
+                      }
+                    }),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                  ),
+              ],
+            ),
+            Text(
+              '加入方式',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final value in caps.joinPolicies)
+                  ActionButton(
+                    content: Text(_joinPolicyLabel(value)),
+                    selected: _joinPolicy == value,
+                    enable: !_busy,
+                    onTap: () => setState(() {
+                      _joinPolicy = value;
+                      // 反过来：open 与 private 不合，自动改成不公开
+                      if (value == 'open' && _visibility == 'private') {
+                        _visibility = 'unlisted';
+                      }
+                    }),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                  ),
+              ],
+            ),
+            if (_visibility != 'private')
+              Text(
+                '创建后会给出加入码，发给好友即可加入',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.itemHint,
+                ),
+              ),
             Row(
               spacing: 8,
               children: [
-                Text(
-                  '当前：${_visibilityLabel(_visibility)} · ${_joinPolicyLabel(_joinPolicy)}'
-                  '（可见性与加入策略的选择入口尚未开放）',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.itemSecondary,
-                  ),
-                ),
                 IconTextButton(
                   pressedScale: 0.96,
                   icon: Icons.add_circle_outline,
