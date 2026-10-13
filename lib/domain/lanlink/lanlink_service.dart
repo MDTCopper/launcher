@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:copper_launcher/data/net/lanlink/lanlink_api.dart';
 import 'package:copper_launcher/data/net/lanlink/lanlink_host_client.dart';
@@ -39,6 +40,9 @@ class LanLinkService {
   /// 开房后的房间信息（房间码与公网地址都在里面）
   LanLinkHostRoom? get hostedRoom => _hostedRoom;
   bool get isHosting => _hostSession?.isRunning ?? false;
+
+  /// 当前这条桥走的是直连还是节点中继（界面提示用）
+  bool get isDirectJoined => _active?.direct ?? false;
 
   /// MDT 兼容：本机桥地址（游戏「局域网游戏」列表里显示的就是它）
   String get localAddress =>
@@ -157,16 +161,71 @@ class LanLinkService {
     // 进房与开房互斥：本机要么是房主要么是客人
     await leave();
     await stopHosting();
+    // **直连优先**：候选地址先试连通，都不通才回落节点中继
+    final upstream = await _chooseUpstream(room);
     final session = LanLinkJoinSession(
       roomCode: room.code,
-      remoteHost: room.nodeAddr,
-      remotePort: room.roomPort,
+      remoteHost: upstream.host,
+      remotePort: upstream.tcpPort,
+      remoteUdpPort: upstream.udpPort,
+      direct: upstream.direct,
       roomName: room.name.isEmpty ? room.code : room.name,
     );
     await session.start();
     _active = session;
     _activeRoom = room;
     return session;
+  }
+
+  /// 直连优先：把房间给的候选逐个试 TCP 连通，全不通回落节点中继
+  ///
+  /// 候选是模组那边发布出来的（`upnp` / `stun` / `manual`），所以这条路
+  /// 不需要我们自己打洞；试连超时给得短，别让用户等
+  Future<({String host, int tcpPort, int udpPort, bool direct})>
+  _chooseUpstream(LanLinkRoom room) async {
+    for (final candidate in room.directCandidates) {
+      if (!candidate.isValid) continue;
+      final reachable = await _isReachable(candidate.addr, candidate.tcpPort);
+      addLogAndPrint(
+        .info,
+        '直连候选 ${candidate.mode} ${candidate.addr}:${candidate.tcpPort}'
+        ' → ${reachable ? '可用' : '不通'}',
+        tag: 'LanLink',
+      );
+      if (reachable) {
+        return (
+          host: candidate.addr,
+          tcpPort: candidate.tcpPort,
+          udpPort: candidate.udpPort,
+          direct: true,
+        );
+      }
+    }
+    addLogAndPrint(
+      .info,
+      '直连都不通，回落节点中继 ${room.nodeAddr}:${room.roomPort}',
+      tag: 'LanLink',
+    );
+    return (
+      host: room.nodeAddr,
+      tcpPort: room.roomPort,
+      udpPort: room.roomPort,
+      direct: false,
+    );
+  }
+
+  Future<bool> _isReachable(String host, int port) async {
+    try {
+      final socket = await Socket.connect(
+        host,
+        port,
+        timeout: const Duration(milliseconds: 1500),
+      );
+      socket.destroy();
+      return true;
+    } on Object {
+      return false;
+    }
   }
 
   Future<void> leave() async {

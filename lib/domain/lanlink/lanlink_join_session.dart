@@ -21,6 +21,8 @@ class LanLinkJoinSession {
     required this.remoteHost,
     required this.remotePort,
     required this.roomName,
+    this.remoteUdpPort,
+    this.direct = false,
     this.preferredLocalPort = defaultLocalPort,
   });
 
@@ -36,6 +38,14 @@ class LanLinkJoinSession {
   final String remoteHost;
   final int remotePort;
   final String roomName;
+
+  /// 直连候选可能给的 UDP 端口与 TCP 不同；不给就跟随 [remotePort]
+  final int? remoteUdpPort;
+
+  /// 走的是直连（候选地址）还是节点中继 —— 只用于提示与日志
+  final bool direct;
+
+  int get effectiveUdpPort => remoteUdpPort ?? remotePort;
 
   /// 期望的本地端口；被占用时会自动往后找，实际值看 [localPort]
   final int preferredLocalPort;
@@ -74,7 +84,8 @@ class LanLinkJoinSession {
     _running = true;
     addLog(
       .info,
-      '联机桥已启动：$localAddress → $remoteHost:$remotePort（房间 $roomCode）',
+      '联机桥已启动：$localAddress → $remoteHost:$remotePort'
+      '（房间 $roomCode，${direct ? '直连' : '经节点中继'}）',
       tag: 'LanLink',
     );
   }
@@ -199,7 +210,7 @@ class LanLinkJoinSession {
         if (datagram == null) return;
         _gameUdpAddress = datagram.address;
         _gameUdpPort = datagram.port;
-        upstream.send(datagram.data, remote, remotePort);
+        upstream.send(datagram.data, remote, effectiveUdpPort);
       }),
     );
     _subscriptions.add(

@@ -649,7 +649,8 @@ class _OnlinePageState extends State<OnlinePage> {
         spacing: 6,
         children: [
           Text(
-            '已连接：${room.name.isEmpty ? room.code : room.name}',
+            '已连接：${room.name.isEmpty ? room.code : room.name}'
+            '（${_lanlink.isDirectJoined ? '直连' : '经节点中继'}）',
             style: theme.textTheme.titleSmall,
           ),
           Text(
