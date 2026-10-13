@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:copper_launcher/data/net/lanlink/lanlink_api.dart';
 import 'package:copper_launcher/data/net/lanlink/lanlink_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
@@ -57,6 +59,8 @@ class _OnlinePageState extends State<OnlinePage> {
   // MDT 块自己的状态：与官方那半互不影响
   bool _mdtBusy = false;
   LanLinkRoom? _mdtRoom;
+  List<LanLinkRoom> _publicRooms = const [];
+  bool _publicRoomsLoading = false;
 
   @override
   void initState() {
@@ -94,6 +98,23 @@ class _OnlinePageState extends State<OnlinePage> {
           : '$name 的房间';
     }
     setState(() => _mdtRoom = _lanlink.activeRoom);
+    unawaited(_loadPublicRooms());
+  }
+
+  /// 公开房间列表：LanLink 那边开房时勾了「公开」的房间会出现在这里，
+  /// **任何人不用房间码就能看到直接加入**（官方 API 没有这个大厅）
+  Future<void> _loadPublicRooms() async {
+    if (_publicRoomsLoading) return;
+    setState(() => _publicRoomsLoading = true);
+    try {
+      final rooms = await _lanlink.publicRooms();
+      if (!mounted) return;
+      setState(() => _publicRooms = rooms);
+    } on Object catch (error) {
+      addLogAndPrint(.warning, '拉公开房间失败：$error', tag: 'LanLink');
+    } finally {
+      if (mounted) setState(() => _publicRoomsLoading = false);
+    }
   }
 
   // ── MDT 兼容（LanLink 房间码，匿名可用） ──────────────────────
@@ -152,6 +173,16 @@ class _OnlinePageState extends State<OnlinePage> {
       content: text,
       duration: const Duration(seconds: 6),
     );
+  }
+
+  /// 分享房间：服务端没有「公开」这种可见性（实测 public 会被 400 拒），
+  /// 把房间信息发到群 / 论坛就是现在唯一的"公开"办法
+  String _shareText(MdtbbsSession session) {
+    final name = session.activityName?.trim();
+    return '【Copper 联机】'
+        '${name == null || name.isEmpty ? '联机房间' : name}\n'
+        '加入码 ${_mp.state.value.joinCode}\n'
+        '用 Copper 启动器 → 联机 → 加入房间，填这个码即可';
   }
 
   Future<void> _copy(String text, String label) async {
@@ -505,8 +536,14 @@ class _OnlinePageState extends State<OnlinePage> {
                 IconTextButton(
                   pressedScale: 0.96,
                   icon: Icons.copy,
-                  content: '复制',
+                  content: '复制码',
                   onTap: () => _copy(state.joinCode!, '加入码'),
+                ),
+                IconTextButton(
+                  pressedScale: 0.96,
+                  icon: Icons.ios_share,
+                  content: '分享房间',
+                  onTap: () => _copy(_shareText(session), '房间信息'),
                 ),
               ],
             ),
@@ -595,6 +632,31 @@ class _OnlinePageState extends State<OnlinePage> {
               color: colors.itemSecondary,
             ),
           ),
+          if (!joined) ...[
+            Row(
+              spacing: 8,
+              children: [
+                Text('公开房间', style: theme.textTheme.titleSmall),
+                IconTextButton(
+                  pressedScale: 0.96,
+                  icon: Icons.refresh,
+                  content: '刷新',
+                  onTap: _publicRoomsLoading ? null : _loadPublicRooms,
+                ),
+              ],
+            ),
+            if (_publicRooms.isEmpty)
+              Text(
+                _publicRoomsLoading
+                    ? '正在读取公开房间…'
+                    : '现在没有公开房间（开房的人勾了「公开」才会出现在这里）',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.itemHint,
+                ),
+              )
+            else
+              for (final room in _publicRooms) _buildPublicRoomRow(room),
+          ],
           if (joined)
             _buildMdtJoinedCard(room)
           else if (_mdtRoom != null)
@@ -619,6 +681,51 @@ class _OnlinePageState extends State<OnlinePage> {
                 ),
               ],
             ),
+        ],
+      ),
+    );
+  }
+
+  /// 公开房间里的一行：不用码，点一下就进
+  Widget _buildPublicRoomRow(LanLinkRoom room) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final canDirect = room.directCandidates.any((it) => it.isValid);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        spacing: 8,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: [
+                Text(
+                  room.name.isEmpty ? room.code : room.name,
+                  style: theme.textTheme.bodyLarge,
+                ),
+                Text(
+                  '房主 ${room.ownerUsername} · 节点 ${room.nodeName}'
+                  '${canDirect ? ' · 可直连' : ''}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.itemSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconTextButton(
+            pressedScale: 0.96,
+            icon: Icons.login,
+            content: '加入房间',
+            onTap: _mdtBusy ? null : () => _joinMdtRoom(room),
+          ),
         ],
       ),
     );
