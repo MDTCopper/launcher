@@ -22,7 +22,7 @@ class MdtbbsFriendUser {
 
   factory MdtbbsFriendUser.fromJson(Map<String, dynamic> json) =>
       MdtbbsFriendUser(
-        userId: (json['id'] as num?)?.toInt() ?? 0,
+        userId: _asInt(json['id']) ?? 0,
         username: '${json['username'] ?? ''}',
         avatarUrl: json['avatar_url']?.toString(),
         friendshipSince: json['friendship_since']?.toString(),
@@ -42,7 +42,7 @@ class MdtbbsFriendPresence {
   bool get isOnline => status != 'offline';
 
   factory MdtbbsFriendPresence.fromJson(Map<String, dynamic> json) {
-    final seconds = (json['last_seen_at'] as num?)?.toInt();
+    final seconds = _asInt(json['last_seen_at']);
     return MdtbbsFriendPresence(
       // 认不出就按离线，别把状态不明的人显示成在线
       status: '${json['status'] ?? 'offline'}',
@@ -96,8 +96,8 @@ class MdtbbsFriendActivity {
       state: json['state']?.toString(),
       gameId: game['id']?.toString(),
       gameVersion: game['version']?.toString(),
-      partyCurrent: (party['current'] as num?)?.toInt(),
-      partyMax: (party['max'] as num?)?.toInt(),
+      partyCurrent: _asInt(party['current']),
+      partyMax: _asInt(party['max']),
       joinSessionId: join['session_id']?.toString(),
       clientId: json['client_id']?.toString(),
       clientName: client['name']?.toString(),
@@ -206,11 +206,11 @@ class MdtbbsFriendPage {
     ];
     return MdtbbsFriendPage(
       entries: entries,
-      page: (pagination['page'] as num?)?.toInt() ?? 1,
-      limit: (pagination['limit'] as num?)?.toInt() ?? entries.length,
-      total: (pagination['total'] as num?)?.toInt() ?? entries.length,
-      totalPages: (pagination['totalPages'] as num?)?.toInt() ??
-          (pagination['total_pages'] as num?)?.toInt() ??
+      page: _asInt(pagination['page']) ?? 1,
+      limit: _asInt(pagination['limit']) ?? entries.length,
+      total: _asInt(pagination['total']) ?? entries.length,
+      totalPages: _asInt(pagination['totalPages']) ??
+          _asInt(pagination['total_pages']) ??
           1,
     );
   }
@@ -252,14 +252,27 @@ class MdtbbsFriendRequest {
     );
   }
 
-  /// 请求人可能挂在 `requester` / `sender` / `user` 等键下，
-  /// 也可能直接把 `id` + `username` 摊在顶层
+  /// 请求人可能挂在 `requester` / `sender` / `user` 等键下，也可能把用户字段
+  /// 直接摊在顶层。顶层那种**必须认出数字 ID 才敢当用户**：顶层的 `id` 是
+  /// **请求 ID**（字符串），拿它当用户 ID 会直接崩
   static Map<String, dynamic>? _userPayloadOf(Map<String, dynamic> json) {
     for (final key in const ['requester', 'sender', 'user', 'from', 'target']) {
       final value = json[key];
       if (value is Map) return value.cast<String, dynamic>();
     }
-    return json.containsKey('username') ? json : null;
+    final username = json['username'];
+    if (username is! String || username.isEmpty) return null;
+    for (final key in const ['user_id', 'id_user', 'target_user_id', 'id']) {
+      final userId = _asInt(json[key]);
+      if (userId != null) {
+        return {
+          'id': userId,
+          'username': username,
+          'avatar_url': json['avatar_url'],
+        };
+      }
+    }
+    return null;
   }
 }
 
@@ -291,17 +304,15 @@ class MdtbbsFriendRequestPage {
           if (row is Map)
             MdtbbsFriendRequest.fromJson(row.cast<String, dynamic>()),
       ],
-      total: (json['total'] as num?)?.toInt() ?? rows.length,
-      page: (pagination['page'] as num?)?.toInt() ??
-          (json['page'] as num?)?.toInt() ??
-          1,
-      limit: (pagination['limit'] as num?)?.toInt() ??
-          (json['limit'] as num?)?.toInt() ??
+      total: _asInt(json['total']) ?? rows.length,
+      page: _asInt(pagination['page']) ?? _asInt(json['page']) ?? 1,
+      limit: _asInt(pagination['limit']) ??
+          _asInt(json['limit']) ??
           rows.length,
-      totalPages: (pagination['totalPages'] as num?)?.toInt() ??
-          (pagination['total_pages'] as num?)?.toInt() ??
-          (json['totalPages'] as num?)?.toInt() ??
-          (json['total_pages'] as num?)?.toInt() ??
+      totalPages: _asInt(pagination['totalPages']) ??
+          _asInt(pagination['total_pages']) ??
+          _asInt(json['totalPages']) ??
+          _asInt(json['total_pages']) ??
           1,
     );
   }
@@ -323,4 +334,15 @@ extension MdtbbsFriendJoinTarget on MdtbbsFriendEntry {
     final sessionId = activity?.joinSessionId;
     return (sessionId?.isEmpty ?? true) ? null : sessionId;
   }
+}
+
+/// 数字字段一律宽容解析
+///
+/// 服务端把数字给成字符串不是没先例（官方 `mods.json` 的 `minGameVersion` 就混进过
+/// `"157.1，"` 这种），而这里一个 `as num` 就能把整份好友列表打成异常 —— 宁可读不出
+/// 当没有，也不让一个字段毁掉整个列表
+int? _asInt(Object? value) {
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim());
+  return null;
 }
