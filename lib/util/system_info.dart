@@ -8,6 +8,7 @@ import 'package:system_info2/system_info2.dart' as s;
 import 'package:win32/win32.dart';
 
 import '../util/art_binding.dart';
+import 'cgroup_memory.dart';
 
 /// 系统信息查询
 ///
@@ -17,6 +18,10 @@ import '../util/art_binding.dart';
 ///   应用可用内存）；失败回退 `/proc/meminfo`（物理内存全局值）
 /// - Linux：直接读 `/proc/meminfo`
 /// - macOS：system_info2（`vm_stat` / `sysctl`，轻量，用 isolate 防阻塞）
+///
+/// **Linux / Android 的 `/proc/meminfo` 报的是宿主内核的内存**，在容器 / 受限环境里
+/// 比应用实际能用的大得多（WSL2、docker、Android 的 app cgroup 都这样）⇒
+/// 一律再与 cgroup 限额取 min，见 [CgroupMemory]
 class SysInfo {
   /// Windows 总物理内存缓存
   static int? _totalMemoryCache;
@@ -46,7 +51,7 @@ class SysInfo {
     }
     if (Platform.isAndroid) {
       final total = _androidTotalMemory();
-      if (total != null) return total;
+      if (total != null) return CgroupMemory.cap(total);
     }
     if (Platform.isLinux || Platform.isAndroid) {
       final info = _readProcMeminfo();
@@ -127,6 +132,9 @@ class SysInfo {
   ///
   /// 内容形如 `MemTotal:       32768508 kB`；[availableKiloBytes] 是
   /// MemAvailable（含可回收缓存），[freeKiloBytes] 是 MemFree（严格空闲）
+  ///
+  /// 三个值都先与 cgroup 限额取 min —— meminfo 报的是**宿主内核**的内存，
+  /// 容器 / 受限环境里比应用实际能用的大
   static ({int totalKiloBytes, int freeKiloBytes, int availableKiloBytes})
   _readProcMeminfo() {
     int valueOf(String key) {
@@ -139,10 +147,13 @@ class SysInfo {
       return 0;
     }
 
+    int cappedKiloBytes(String key) =>
+        CgroupMemory.cap(valueOf(key) * 1024) ~/ 1024;
+
     return (
-      totalKiloBytes: valueOf('MemTotal'),
-      freeKiloBytes: valueOf('MemFree'),
-      availableKiloBytes: valueOf('MemAvailable'),
+      totalKiloBytes: cappedKiloBytes('MemTotal'),
+      freeKiloBytes: cappedKiloBytes('MemFree'),
+      availableKiloBytes: cappedKiloBytes('MemAvailable'),
     );
   }
 
