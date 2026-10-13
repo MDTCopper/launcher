@@ -25,4 +25,17 @@ class AndroidHost {
       addLog(.warning, '退到后台失败：${removeNewlines('$error')}', tag: 'Host');
     }
   }
+
+  /// 结束游戏进程（`:mdt_process`）
+  ///
+  /// 游戏由桥跑在那个进程里，Dart 侧没有 [Process] 句柄；宿主那边走的是
+  /// `io.github.copper.GameProcess`（桥启动前清上一局用的同一份）
+  static Future<void> killGameProcess() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('killGameProcess');
+    } on Object catch (error) {
+      addLog(.warning, '结束游戏进程失败：${removeNewlines('$error')}', tag: 'Host');
+    }
+  }
 }

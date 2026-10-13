@@ -8,6 +8,7 @@ import 'package:copper_launcher/domain/bridge_payload.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/domain/steam_client.dart';
 import 'package:copper_launcher/domain/steam_library.dart';
+import 'package:copper_launcher/util/android_host.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/gpu_preference.dart';
@@ -417,7 +418,19 @@ class MindustryLauncher {
     });
   }
 
+  /// 结束游戏。
+  ///
+  /// Android 上游戏由桥跑在 `:mdt_process` 里，Dart 侧没有句柄 ⇒ 请宿主去杀
+  /// （`GameProcess` 那套 —— 桥每次启动前清上一局用的也是同一份）。
+  /// 进程一没，游戏 Activity 就结束、启动器回到前台，退出事件由
+  /// [BridgeGameExitWatcher] 照常上报
   Future<bool> stopMindustryJar() async {
+    if (Platform.isAndroid) {
+      addLogAndPrint(.info, '请求结束游戏进程', tag: 'Launch');
+      await AndroidHost.killGameProcess();
+      return true;
+    }
+
     if (_jarProcess == null) return true;
 
     try {
