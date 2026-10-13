@@ -190,6 +190,22 @@ class CopperIO {
 
   int _maxRetries = 5;
 
+  ///下载的停滞看门狗：单个连接这么久没有新字节就断掉，交给重试接管
+  ///
+  ///dio 在两次数据之间计时（`handleResponseStream`），所以这就是「时间戳 + 周期
+  ///tick」的现成实现；全局 [_receiveTimeout] 的 600 秒是给普通 API 请求的宽限，
+  ///下载沿用会让「连接活着却不发数据」白挂十分钟
+  static const Duration _downloadIdleTimeout = Duration(seconds: 30);
+
+  ///失败重试的退避区间：第 n 次等 random(0, min(cap, base * 2^n))，全抖动
+  static const int _retryBackoffBaseMs = 500;
+  static const int _retryBackoffCapMs = 5000;
+
+  ///进度批量上报的门槛：累计这么多字节才做一次分块汇总与速率通知
+  static const int _progressReportBytes = 256 * KB;
+
+  final Random _random = Random();
+
   String get userAgent => 'CopperLauncher/$appVersion';
 
   ///应用设置：token / 代理 / 下载默认值 / 镜像策略全部由**入参**提供，
@@ -880,6 +896,15 @@ class CopperIO {
 
   // ---- Download ----
 
+  ///重试前的等待：指数退避 + 全抖动
+  ///
+  ///固定间隔会让同时失败的多个分块在同一时刻重试（惊群）；封顶则保证长断网时
+  ///重试间隔不会无限拉长
+  Duration _retryDelay(int attempt) {
+    final ceilingMs = min(_retryBackoffCapMs, _retryBackoffBaseMs << attempt);
+    return Duration(milliseconds: _random.nextInt(ceilingMs + 1));
+  }
+
   ///统一分块下载：能拿到大小且服务端支持 Range 且足够大 → 多分块并发
   ///（临时分块可断点续传）；否则退化为单流下载
   ///
@@ -972,7 +997,7 @@ class CopperIO {
       return;
     }
 
-    await _downloadChunked(
+    await _downloadChunkedWithFallback(
       url: url,
       savePath: savePath,
       totalSize: totalSize,
@@ -984,6 +1009,54 @@ class CopperIO {
       onStatus: onStatus,
       headers: headers,
     );
+  }
+
+  ///走分块并发；服务端忽略 Range 时退化为单流整包
+  ///
+  ///「HEAD 广播 Accept-Ranges、带 Range 的 GET 却回 200」在代理 / 网关上并不罕见，
+  ///那种响应不能往分块文件里写，只能整包重下
+  Future<void> _downloadChunkedWithFallback({
+    required String url,
+    required String savePath,
+    required int totalSize,
+    required int chunkCount,
+    int? speedLimit,
+    String? tempPath,
+    CancelToken? cancelToken,
+    bool deleteOnError = true,
+    HttpStatusCallback? onStatus,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      await _downloadChunked(
+        url: url,
+        savePath: savePath,
+        totalSize: totalSize,
+        chunkCount: chunkCount,
+        speedLimit: speedLimit,
+        tempPath: tempPath,
+        cancelToken: cancelToken,
+        deleteOnError: deleteOnError,
+        onStatus: onStatus,
+        headers: headers,
+      );
+    } on _RangeIgnored {
+      addLog(
+        .debug,
+        '服务端忽略 Range（带 Range 的 GET 回了整包），退化为单流下载：$url',
+        tag: 'Download',
+      );
+      await _downloadSingleStream(
+        url: url,
+        savePath: savePath,
+        totalSize: totalSize,
+        speedLimit: speedLimit,
+        cancelToken: cancelToken,
+        deleteOnError: deleteOnError,
+        onStatus: onStatus,
+        headers: headers,
+      );
+    }
   }
 
   Future<void> _downloadSingleStream({
@@ -1024,7 +1097,12 @@ class CopperIO {
 
       final response = await _dio!.get(
         url,
-        options: Options(responseType: ResponseType.stream, headers: headers),
+        options: Options(
+          responseType: ResponseType.stream,
+          //停滞看门狗：两次数据之间超过它没字节，dio 就断掉这条连接
+          receiveTimeout: _downloadIdleTimeout,
+          headers: headers,
+        ),
         cancelToken: cancelToken,
       );
 
@@ -1218,79 +1296,51 @@ class CopperIO {
 
     onStatus?.call(state);
 
-    Future<bool> checkConnection(_Chunk chunk, {int tryTime = 0}) async {
-      if (chunk.status == HttpChunkStatus.complete) return true;
-      chunk.status = HttpChunkStatus.connecting;
-      refreshChunkStats();
-      final rangeHeader = {'Range': 'bytes=${chunk.start}-${chunk.end}'};
-      try {
-        final res = await _dio!.head(
-          url,
-          options: Options(headers: {...?headers, ...rangeHeader}),
-          cancelToken: cancelToken,
-        );
-        if (res.statusCode == 206) {
-          chunk.status = HttpChunkStatus.downloading;
-          refreshChunkStats();
-          return true;
-        }
-        throw DioException(requestOptions: RequestOptions());
-      } on DioException catch (e) {
-        if (CancelToken.isCancel(e)) rethrow;
-        // 连接类失败（断网 / 代理不可用）重试没意义
-        // 所以这类只再试一次；其它错误（服务端抖动等）才按上限重试
-        final retryLimit = isTransportFailure(e) ? 1 : _maxRetries;
-        if (tryTime < retryLimit) {
-          await Future.delayed(const Duration(milliseconds: 500));
-          return checkConnection(chunk, tryTime: tryTime + 1);
-        }
-        addLog(
-          .debug,
-          '分块 ${chunk.index + 1} 连接失败：${e.type.name}',
-          tag: 'Download',
-        );
-        return false;
-      }
-    }
-
-    final connectionsOk = await Future.wait(
-      chunks.map((c) => checkConnection(c)),
-    );
-    if (!connectionsOk.every((ok) => ok)) {
-      periodicTimer.cancel();
-      speedCalc.cancel();
-      state.status = HttpDownloadStatus.failed;
-      onStatus?.call(state);
-      final failedCount = connectionsOk.where((ok) => !ok).length;
-      addLog(
-        .error,
-        '分块连接失败：$failedCount / $chunkCount 个分块连不上（$url）',
-        tag: 'Download',
-      );
-      throw Exception('部分分块连不上服务器：网络不通或代理不可用？');
-    }
-
-    state.status = HttpDownloadStatus.downloading;
+    // 服务端是否忽略 Range（回整包 200）：一旦判定，其余分块立即收手，
+    // 由 _downloadChunkedWithFallback 退化为单流整包重下
+    var rangeIgnored = false;
 
     Future<void> downloadChunk(_Chunk chunk, {int tryTime = 0}) async {
       if (chunk.status == HttpChunkStatus.complete) return;
-      final rangeHeader = {'Range': 'bytes=${chunk.start}-${chunk.end}'};
+      if (rangeIgnored) return;
+
+      // 请求区间从 nextOffset 起：续传与重试都接着已落盘的位置，已收的部分不重下
+      final rangeHeader = {'Range': 'bytes=${chunk.nextOffset}-${chunk.end}'};
+      //只在首次尝试标「连接中」：重试途中保持原状态，免得界面在「分块明细」与
+      //「分块连接中」之间来回跳
+      if (tryTime == 0) {
+        chunk.status = HttpChunkStatus.connecting;
+        refreshChunkStats();
+      }
 
       try {
         final resp = await _dio!.get(
           url,
           options: Options(
             responseType: ResponseType.stream,
+            //停滞看门狗：两次数据之间超过它没字节，dio 就断掉这条连接
+            receiveTimeout: _downloadIdleTimeout,
             headers: {...?headers, ...rangeHeader},
           ),
           cancelToken: cancelToken,
         );
 
+        // 带 Range 只认 206：回 200 说明服务端根本没看 Range，
+        // 把整包写进分块文件只会拼出一个比源大的错文件
+        if (resp.statusCode != 206) {
+          rangeIgnored = true;
+          throw _RangeIgnored();
+        }
+
+        chunk.status = HttpChunkStatus.downloading;
+        refreshChunkStats();
+
         final file = File(chunk.path);
         final sink = file.openWrite(mode: FileMode.append);
+        var pendingReport = 0;
 
         await for (final data in (resp.data as ResponseBody).stream) {
-          if (cancelToken?.isCancelled == true) {
+          if (cancelToken?.isCancelled == true || rangeIgnored) {
             await sink.close();
             return;
           }
@@ -1300,29 +1350,49 @@ class CopperIO {
           }
 
           sink.add(data);
-          //累计收到的字节数（含续传部分），避免每块重复打开文件句柄
+          //累计收到的字节数（含续传部分），避免每块重复打开文件句柄；
+          //进度逐包更新才跟手，分块汇总与速率通知按批做（见 _progressReportBytes）
           chunk.received += data.length;
-          refreshChunkStats();
-          notifier.value = state.downloaded;
+          chunk.nextOffset += data.length;
+          state.downloaded += data.length;
+          if (state.total > 0) state.progress = state.downloaded / state.total;
+          pendingReport += data.length;
+          if (pendingReport >= _progressReportBytes) {
+            pendingReport = 0;
+            refreshChunkStats();
+            notifier.value = state.downloaded;
+          }
         }
 
         await sink.close();
         chunk.status = HttpChunkStatus.complete;
         refreshChunkStats();
         notifier.value = state.downloaded;
-      } on DioException catch (e) {
-        if (CancelToken.isCancel(e)) rethrow;
-        // 同 checkConnection：断网时不再空转 5 轮，只再试一次
-        final retryLimit = isTransportFailure(e) ? 1 : _maxRetries;
+      } on _RangeIgnored {
+        rethrow;
+      } catch (e) {
+        //用户取消照旧往外抛
+        if (cancelToken?.isCancelled == true ||
+            (e is DioException && CancelToken.isCancel(e))) {
+          rethrow;
+        }
+        //读到一半被对端掐断时，dio 把原始错误（HttpException）直接抛给响应体流，
+        //不是 DioException —— 那同样是弱网断连，要按一样的退避重试接着下
+        final isTransport = e is! DioException || isTransportFailure(e);
+        // 断网时不再空转多轮：连接类失败只再试一次；其它错误（服务端抖动等）按上限重试
+        final retryLimit = isTransport ? 1 : _maxRetries;
         if (tryTime < retryLimit) {
-          await Future.delayed(const Duration(milliseconds: 500));
+          await Future.delayed(_retryDelay(tryTime));
           await downloadChunk(chunk, tryTime: tryTime + 1);
         } else {
+          final reason = e is DioException
+              ? e.type.name
+              : e.runtimeType.toString();
           chunk.status = HttpChunkStatus.failed;
           refreshChunkStats();
           addLog(
             .error,
-            '分块 ${chunk.index + 1} 下载失败：${e.type.name}'
+            '分块 ${chunk.index + 1} 下载失败：$reason'
             '（已收 ${chunk.received}/${chunk.size} 字节）',
             tag: 'Download',
           );
@@ -1332,7 +1402,10 @@ class CopperIO {
     }
 
     try {
-      await Future.wait(chunks.map((c) => downloadChunk(c)), eagerError: true);
+      state.status = HttpDownloadStatus.downloading;
+      //等所有分块收手再收尾：某块失败时其它块正占着临时文件，提前清会删不掉、
+      //退出 Range 忽略那条路时兄弟块也会抢在收尾时继续写
+      await Future.wait(chunks.map((c) => downloadChunk(c)));
 
       periodicTimer.cancel();
       speedCalc.cancel();
@@ -1360,6 +1433,14 @@ class CopperIO {
         '（${state.downloaded} 字节）',
         tag: 'Download',
       );
+    } on _RangeIgnored {
+      //换个下载形态重来，不算失败：分块留下的临时文件一律清掉，单流会整份重写
+      periodicTimer.cancel();
+      speedCalc.cancel();
+      for (final c in chunks) {
+        await _deleteWithRetry(File(c.path));
+      }
+      rethrow;
     } on DioException {
       periodicTimer.cancel();
       speedCalc.cancel();
@@ -1400,16 +1481,28 @@ class CopperIO {
 
 class _Chunk {
   final int index;
+
+  ///本块在源文件里的起始偏移（续传时已跳过已落盘的部分）
   final int start;
   final int end;
   final int size;
   int received;
+
+  ///下一个要请求的绝对偏移：重试时从这里接，已收的字节不重下
+  int nextOffset;
   final String path;
   HttpChunkStatus status;
 
   _Chunk(this.path, this.index, this.start, this.end, this.received, this.size)
-    : status = HttpChunkStatus.pending;
+    : nextOffset = start,
+      status = HttpChunkStatus.pending;
 }
+
+///服务端（或中间网关）嘴上支持 Range、实际回整包 200
+///
+///**故意不是 [DioException]**：调用方（[_downloadChunkedWithFallback]）据此
+///换成单流整包重下
+class _RangeIgnored implements Exception {}
 
 /// 是否连接类失败（网络不通 / 代理不可用，属于「可重试」的网络问题）
 ///
