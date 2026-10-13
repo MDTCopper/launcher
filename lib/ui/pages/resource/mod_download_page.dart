@@ -242,8 +242,13 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
             return buildOverView(Icons.source_outlined, s.data!);
           }
 
+          // 读不出数字的版本号一律按「未知」处理：官方 mod.json 里真出现过 `157.1，`
+          final modMin = double.tryParse(s.data!.substring(1));
+          if (modMin == null) {
+            return buildOverView(Icons.info_outlined, s.data!);
+          }
+
           bool support;
-          final modMin = double.parse(s.data!.substring(1));
           if (modListMeta.hasJava) {
             final minGameVersion = ModVersionGate.instance.java.resultOf(
               version.releaseDouble,
