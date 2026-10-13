@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/domain/bridge_installer.dart';
 import 'package:copper_launcher/ui/pages/bridge_install_page.dart';
 import 'package:copper_launcher/ui/shell/app_shell.dart';
 import 'package:copper_launcher/ui/shell/parts/auxiliary_input_bar.dart';
@@ -21,7 +22,10 @@ class CopperLauncher extends StatefulWidget {
 
 class CopperLauncherState extends State<CopperLauncher> {
   /// 桥的运行环境装好了没：桌面端不需要这份载荷，Android 上要装完才进主页
-  bool isRuntimeReady = !Platform.isAndroid;
+  ///
+  /// **这里就要同步判一次**：交给安装页判的话，它必然先建一帧、再在 post-frame
+  /// 回调里发现「其实早装好了」⇒ 每次启动都闪过那一页
+  bool isRuntimeReady = !Platform.isAndroid || BridgeInstaller.isRuntimeReady();
 
   void updateTheme() => setState(() {
     final setting = config.setting.personalizationOptions;
