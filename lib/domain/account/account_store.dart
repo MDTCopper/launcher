@@ -12,6 +12,79 @@ import 'package:path/path.dart' as p;
 ///
 /// **access token 只在内存**（一小时就过期，没必要写盘）；这里存的是能换回它的
 /// refresh token，以及与刷新幂等性有关的那笔「未决尝试」
+/// 联机会话的持久化片段
+///
+/// 状态曾经只存在页面里 ⇒ 切页就丢；而 **加入码服务端只在创建响应里给一次**，
+/// 丢了找不回；恢复令牌又是一次性的、绑定用户与 OAuth 客户端，重启后恢复也要它
+class StoredMultiplayerSession {
+  const StoredMultiplayerSession({
+    required this.sessionId,
+    this.peerId,
+    this.resumeToken,
+    this.joinCode,
+    this.activityName,
+    this.savedAt,
+  });
+
+  /// 服务端给的不透明会话 ID（原样传回）
+  final String sessionId;
+
+  /// 自己在这个会话里的对端 ID（心跳要用）
+  final String? peerId;
+
+  /// 恢复令牌：秘密，落盘前加密
+  final String? resumeToken;
+
+  /// 加入码：服务端只在创建响应里给一次，必须自己存
+  final String? joinCode;
+
+  final String? activityName;
+  final DateTime? savedAt;
+
+  /// 超过这个时长就不再当作有效会话（服务端也会自己过期，这里只是别显示陈年数据）
+  static const maxAge = Duration(hours: 6);
+
+  bool isFresh(DateTime now) {
+    final at = savedAt;
+    if (at == null) return true;
+    return now.difference(at) < maxAge;
+  }
+
+  StoredMultiplayerSession copyWith({
+    String? peerId,
+    String? resumeToken,
+    String? joinCode,
+    String? activityName,
+    DateTime? savedAt,
+  }) => StoredMultiplayerSession(
+    sessionId: sessionId,
+    peerId: peerId ?? this.peerId,
+    resumeToken: resumeToken ?? this.resumeToken,
+    joinCode: joinCode ?? this.joinCode,
+    activityName: activityName ?? this.activityName,
+    savedAt: savedAt ?? this.savedAt,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'sessionId': sessionId,
+    'peerId': ?peerId,
+    'resumeToken': ?resumeToken,
+    'joinCode': ?joinCode,
+    'activityName': ?activityName,
+    'savedAt': ?savedAt?.toIso8601String(),
+  };
+
+  factory StoredMultiplayerSession.fromJson(Map<String, dynamic> json) =>
+      StoredMultiplayerSession(
+        sessionId: '${json['sessionId'] ?? ''}',
+        peerId: json['peerId'] as String?,
+        resumeToken: json['resumeToken'] as String?,
+        joinCode: json['joinCode'] as String?,
+        activityName: json['activityName'] as String?,
+        savedAt: DateTime.tryParse('${json['savedAt']}'),
+      );
+}
+
 class StoredAccount {
   const StoredAccount({
     this.clientId,
@@ -19,6 +92,7 @@ class StoredAccount {
     this.username,
     this.refreshToken,
     this.lanlinkToken,
+    this.multiplayerSession,
     this.pendingRefreshKey,
     this.pendingRefreshToken,
     this.pendingRefreshAt,
@@ -38,6 +112,9 @@ class StoredAccount {
   /// 它与 BBS 是同一个论坛账号，所以跟 refresh token 存一份；
   /// 退出 BBS 时整份账号文件被清掉，联机令牌自然跟着失效
   final String? lanlinkToken;
+
+  /// 联机会话（官方 multiplayer）：与账号绑一份，退出账号即清
+  final StoredMultiplayerSession? multiplayerSession;
 
   /// 上一次刷新用的幂等键与那次用的原 refresh token
   ///
@@ -72,11 +149,13 @@ class StoredAccount {
     String? username,
     String? refreshToken,
     String? lanlinkToken,
+    StoredMultiplayerSession? multiplayerSession,
     String? pendingRefreshKey,
     String? pendingRefreshToken,
     DateTime? pendingRefreshAt,
     bool clearPendingRefresh = false,
     bool clearLanlinkToken = false,
+    bool clearMultiplayerSession = false,
   }) => StoredAccount(
     clientId: clientId ?? this.clientId,
     subject: subject ?? this.subject,
@@ -85,6 +164,9 @@ class StoredAccount {
     lanlinkToken: clearLanlinkToken
         ? null
         : (lanlinkToken ?? this.lanlinkToken),
+    multiplayerSession: clearMultiplayerSession
+        ? null
+        : (multiplayerSession ?? this.multiplayerSession),
     pendingRefreshKey: clearPendingRefresh
         ? null
         : (pendingRefreshKey ?? this.pendingRefreshKey),
@@ -102,6 +184,7 @@ class StoredAccount {
     'username': ?username,
     'refreshToken': ?refreshToken,
     'lanlinkToken': ?lanlinkToken,
+    'multiplayerSession': ?multiplayerSession?.toJson(),
     'pendingRefreshKey': ?pendingRefreshKey,
     'pendingRefreshToken': ?pendingRefreshToken,
     'pendingRefreshAt': ?pendingRefreshAt?.toIso8601String(),
@@ -113,6 +196,11 @@ class StoredAccount {
     username: json['username'] as String?,
     refreshToken: json['refreshToken'] as String?,
     lanlinkToken: json['lanlinkToken'] as String?,
+    multiplayerSession: (json['multiplayerSession'] as Map?) == null
+        ? null
+        : StoredMultiplayerSession.fromJson(
+            (json['multiplayerSession'] as Map).cast<String, dynamic>(),
+          ),
     pendingRefreshKey: json['pendingRefreshKey'] as String?,
     pendingRefreshToken: json['pendingRefreshToken'] as String?,
     pendingRefreshAt: DateTime.tryParse('${json['pendingRefreshAt']}'),
@@ -161,6 +249,15 @@ class AccountStore {
               account.lanlinkToken,
               json['lanlinkTokenEncrypted'] == true,
             ),
+          )
+          .copyWith(
+            // 会话片段里的恢复令牌也是秘密，同一套解密
+            multiplayerSession: account.multiplayerSession?.copyWith(
+              resumeToken: _restore(
+                account.multiplayerSession?.resumeToken,
+                json['multiplayerResumeTokenEncrypted'] == true,
+              ),
+            ),
           );
     } catch (error) {
       addLog(
@@ -180,16 +277,20 @@ class AccountStore {
       final refresh = _protect(account.refreshToken);
       final pending = _protect(account.pendingRefreshToken);
       final lanlink = _protect(account.lanlinkToken);
+      final session = account.multiplayerSession;
+      final resume = _protect(session?.resumeToken);
       final payload = account.copyWith(
         refreshToken: refresh.value,
         pendingRefreshToken: pending.value,
         lanlinkToken: lanlink.value,
+        multiplayerSession: session?.copyWith(resumeToken: resume.value),
       );
 
       final json = payload.toJson()
         ..['refreshTokenEncrypted'] = refresh.encrypted
         ..['pendingRefreshTokenEncrypted'] = pending.encrypted
-        ..['lanlinkTokenEncrypted'] = lanlink.encrypted;
+        ..['lanlinkTokenEncrypted'] = lanlink.encrypted
+        ..['multiplayerResumeTokenEncrypted'] = resume.encrypted;
 
       final temporary = File('$filePath.tmp');
       temporary.writeAsStringSync(jsonEncode(json), flush: true);

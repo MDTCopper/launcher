@@ -60,6 +60,26 @@ class AccountManager {
     AccountStore.save(_stored!);
   }
 
+  /// 联机会话（官方 multiplayer）：加入码只在创建响应里给一次，必须落盘
+  StoredMultiplayerSession? get multiplayerSession =>
+      _stored?.multiplayerSession;
+
+  void saveMultiplayerSession(StoredMultiplayerSession session) {
+    final stored = _stored;
+    if (stored == null) return;
+    _stored = stored.copyWith(
+      multiplayerSession: session.copyWith(savedAt: DateTime.now()),
+    );
+    AccountStore.save(_stored!);
+  }
+
+  void clearMultiplayerSession() {
+    final stored = _stored;
+    if (stored == null || stored.multiplayerSession == null) return;
+    _stored = stored.copyWith(clearMultiplayerSession: true);
+    AccountStore.save(_stored!);
+  }
+
   void clearLanlinkToken() {
     final stored = _stored;
     if (stored == null) return;
