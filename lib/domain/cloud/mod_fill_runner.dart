@@ -56,6 +56,34 @@ class ModFillOutcome {
   String get displayName => CloudRestoreGap.displayNameOf(mod);
 }
 
+/// 一句话说清补全的结果：排上几个、哪些只能自己装、哪些版本对不上
+///
+/// 名字最多列 3 个（通知里放不下更多），其余用「等」收掉
+String describeFillOutcomes(List<ModFillOutcome> outcomes) {
+  List<ModFillOutcome> of(ModFillStatus status) =>
+      [for (final it in outcomes) if (it.status == status) it];
+
+  final queued = of(ModFillStatus.queued);
+  final manual = [...of(ModFillStatus.noSource), ...of(ModFillStatus.notInOfficialList)];
+  final incompatible = of(ModFillStatus.incompatible);
+  final failed = of(ModFillStatus.failed);
+  final stale = of(ModFillStatus.carriedInPackage);
+
+  final parts = <String>[
+    if (queued.isNotEmpty) '已排入下载 ${queued.length} 个（${_namesOf(queued)}）',
+    if (manual.isNotEmpty) '要你自己装 ${manual.length} 个（${_namesOf(manual)}）',
+    if (incompatible.isNotEmpty) '版本对不上 ${incompatible.length} 个（${_namesOf(incompatible)}）',
+    if (stale.isNotEmpty) '有 ${stale.length} 个该重新下载云端快照（包里带了字节却没落地）',
+    if (failed.isNotEmpty) '补不了 ${failed.length} 个（${_namesOf(failed)}）',
+  ];
+  return parts.isEmpty ? '没有要补的' : parts.join('；');
+}
+
+String _namesOf(List<ModFillOutcome> outcomes) {
+  final names = outcomes.take(3).map((it) => it.displayName).join('、');
+  return outcomes.length > 3 ? '$names 等' : names;
+}
+
 /// GitHub 走 API 认这个 UA（与模组页的 `modDownloadHeaders` 同义；
 /// 那几个常量在 UI 层，域层不去引它）
 const _defaultHeaders = {'User-Agent': 'MindustryModDownloader'};

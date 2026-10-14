@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
+import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
 import 'package:copper_launcher/ui/dialog/cloud_conflict_prompt.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
@@ -116,6 +118,7 @@ class CloudAutoSync {
             title: '已自动恢复云端存档',
             content: '写入 ${result.report.written.length} 份（覆盖前已备份）',
           );
+          _notifyRestoreGap(version, result.report);
           return true;
         case CloudSyncStatus.conflicted:
           //两边都改过：让玩家自己选；没选就**不启动**
@@ -162,6 +165,7 @@ class CloudAutoSync {
           title: '已用云端覆盖本机',
           content: '写入 ${result.report.written.length} 份（覆盖前已备份）',
         );
+        _notifyRestoreGap(version, result.report);
         return true;
       case CloudConflictChoice.useLocal:
         addLog(.info, '云存档冲突：玩家选择用本机覆盖云端 [${version.tag}]', tag: 'Cloud');
@@ -182,6 +186,24 @@ class CloudAutoSync {
         addLog(.info, '云存档冲突：玩家没选，按不启动处理 [${version.tag}]', tag: 'Cloud');
         return false;
     }
+  }
+
+  /// 恢复完顺手看一眼本机还缺什么，缺就提一句
+  ///
+  /// **只提示、不弹窗、不拦启动**：补全要往数据目录写模组，而这时候游戏马上要起 ——
+  /// 与其跟启动抢着写，不如让用户自己在「云存档」页点
+  static void _notifyRestoreGap(Mindustry version, CloudImportReport report) {
+    final gap = computeRestoreGap(
+      dataPath: version.dataPath,
+      manifest: report.manifest,
+      installedGameTags: installedGameIdentifiers(),
+    );
+    if (gap.isEmpty) return;
+    addNotice(
+      icon: Icons.extension_outlined,
+      title: '云端包里有本机没有的东西',
+      content: '${describeRestoreGap(gap)}；去「云存档」页可以一键补全',
+    );
   }
 
   /// 游戏**退出后**：把本机这份传上去；关启动器前用 [waitForPending] 等它

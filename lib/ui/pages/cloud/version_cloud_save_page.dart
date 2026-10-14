@@ -12,7 +12,9 @@ import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/cloud/cloud_notes.dart';
+import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
+import 'package:copper_launcher/domain/cloud/mod_fill_runner.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -20,6 +22,7 @@ import 'package:copper_launcher/ui/components/percent_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/tips/warning_bar.dart';
+import 'package:copper_launcher/ui/dialog/cloud_restore_gap_prompt.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
@@ -303,6 +306,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         title: '已从云端恢复',
         content: _restoreSummary(report),
       );
+      await _offerRestoreGaps(version: version, report: report);
     } catch (error) {
       if (!mounted) return;
       addNotice(
@@ -312,6 +316,50 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       );
     } finally {
       if (mounted) setState(() => _busy = null);
+    }
+  }
+
+  /// 恢复完本机还缺东西时问一句：缺哪些模组 / 缺哪个游戏版本，能补的一键补
+  Future<void> _offerRestoreGaps({
+    required Mindustry version,
+    required CloudImportReport report,
+  }) async {
+    final gap = computeRestoreGap(
+      dataPath: version.dataPath,
+      manifest: report.manifest,
+      installedGameTags: installedGameIdentifiers(),
+    );
+    if (!mounted || gap.isEmpty) return;
+
+    final choice = await showRestoreGapPrompt(
+      gap: gap,
+      version: version,
+      versionTag: version.tag,
+    );
+    if (choice != CloudRestoreGapChoice.fillMods || !mounted) return;
+
+    setState(() => _busy = '正在补全模组…');
+    try {
+      final outcomes = await fillMissingMods(
+        gap: gap,
+        version: version,
+        onStatus: (status) {
+          if (mounted) setState(() => _busy = status);
+        },
+      );
+      if (!mounted) return;
+      addNotice(
+        icon: Icons.extension_outlined,
+        title: '模组补全',
+        content: describeFillOutcomes(outcomes),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      addNotice(
+        icon: Icons.error_outline,
+        title: '模组补全失败',
+        content: removeNewlines('$error'),
+      );
     }
   }
 

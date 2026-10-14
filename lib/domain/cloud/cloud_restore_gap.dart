@@ -52,6 +52,16 @@ class CloudRestoreGap {
   }
 }
 
+/// 一句话说清「恢复完还缺什么」—— 通知与弹窗共用一份说法，别各写各的
+String describeRestoreGap(CloudRestoreGap gap) {
+  final parts = <String>[
+    if (gap.missingMods.isNotEmpty) '缺 ${gap.missingMods.length} 个模组',
+    if (gap.missingGame != null) '本机没有游戏版本 ${gap.missingGame!.release}',
+  ];
+  if (parts.isEmpty) return '什么都不缺';
+  return '${parts.join('、')}（恢复到 ${gap.dataPath}）';
+}
+
 /// 比对「包里的清单」与「本机现状」
 ///
 /// 纯计算：不联网、不写盘。[installedGameTags] 传本机装着的版本标识
