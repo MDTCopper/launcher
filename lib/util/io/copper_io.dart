@@ -204,6 +204,28 @@ class CopperIO {
   ///进度批量上报的门槛：累计这么多字节才做一次分块汇总与速率通知
   static const int _progressReportBytes = 256 * KB;
 
+  ///动态并发的启用门槛：小文件爬坡的预热成本大于收益，走固定并发
+  static const int _dynamicScaleMinSize = 32 * MB;
+
+  ///扩容决策的采样窗口；窗口速率取最近 3 个的均值，抹掉块切换 / 慢启动的抖
+  ///
+  ///取 500ms 是为了「多块同时在跑」的那一段能采到样：块下得快时 1 秒的窗口
+  ///会整段错过，慢块也就永远没得比
+  static const Duration _scaleSampleWindow = Duration(milliseconds: 500);
+
+  ///单连接已到这个速率就认为带宽池充足，不再加连接
+  static const double _sufficientBytesPerSecond = 1.5 * MB;
+
+  ///扩容的最小增益：低于它说明带宽池已饱和，多加连接只是多开销
+  static const double _scaleMinGain = 0.10;
+
+  ///慢块判定：窗口速率低于「链路跑得到多快」这个经验基准的比例，且连续这么多窗口
+  static const double _slowChunkRatio = 0.15;
+  static const int _slowChunkStreak = 4;
+
+  ///慢块拆出来的每半至少这么多字节，太短不值得拆
+  static const int _minSplitBytes = 512 * KB;
+
   final Random _random = Random();
 
   String get userAgent => 'CopperLauncher/$appVersion';
@@ -1340,8 +1362,20 @@ class CopperIO {
 
     onStatus?.call(state);
 
-    Future<void> downloadChunk(_Chunk chunk, {int tryTime = 0}) async {
-      if (chunk.status == HttpChunkStatus.complete) return;
+    //自适应调度：worker 池取「剩余最大」的块（快 worker 自然多干）；
+    //≥32MB 的文件先只开 1 个连接探带宽，按增益扩容；明显慢的块拆一半让出去
+    final maxWorkers = chunks.length;
+    final dynamicScale = maxWorkers > 1 && totalSize >= _dynamicScaleMinSize;
+    var activeWorkers = 0;
+    var scaleSaturated = !dynamicScale;
+    var lastScaleRate = 0.0;
+    final recentRates = <double>[];
+    var lastSampleBytes = 0;
+    var lastSampleAt = DateTime.now();
+    final finished = Completer<void>();
+    final workerFutures = <Future<void>>[];
+
+    Future<void> downloadPiece(_Chunk chunk, {int tryTime = 0}) async {
       if (rangeIgnored) return;
 
       //请求区间从 nextOffset 起：续传与重试都接着已落盘的位置，已收的部分不重下
@@ -1448,7 +1482,7 @@ class CopperIO {
         final retryLimit = isTransport ? 1 : _maxRetries;
         if (tryTime < retryLimit) {
           await Future.delayed(_retryDelay(tryTime));
-          await downloadChunk(chunk, tryTime: tryTime + 1);
+          await downloadPiece(chunk, tryTime: tryTime + 1);
         } else {
           final reason = e is DioException
               ? e.type.name
@@ -1468,6 +1502,184 @@ class CopperIO {
       }
     }
 
+    var healthyRate = 0.0;
+    ///没有活干的 worker 在这里等新块（拆分出来的尾部）或整单收尾
+    var waitingWorkers = <Completer<void>>[];
+
+    void notifyWork() {
+      final waiters = waitingWorkers;
+      waitingWorkers = [];
+      for (final waiter in waiters) {
+        if (!waiter.isCompleted) waiter.complete();
+      }
+    }
+
+    _Chunk? claimNext() {
+      if (finished.isCompleted || rangeIgnored) return null;
+      if (cancelToken?.isCancelled == true) return null;
+      _Chunk? best;
+      for (final chunk in chunks) {
+        if (chunk.claimed || chunk.remaining <= 0) continue;
+        if (best == null || chunk.remaining > best.remaining) best = chunk;
+      }
+      best?.claimed = true;
+      return best;
+    }
+
+    ///一个 worker：领块 → 下完 → 再领；暂时没活就挂着等，别退出
+    ///
+    ///不能「没活就退」：慢块拖到后期时其它 worker 早退了，拆分出来的尾部会没人接
+    Future<void> workerLoop() async {
+      try {
+        while (!finished.isCompleted) {
+          final chunk = claimNext();
+          if (chunk == null) {
+            if (rangeIgnored || cancelToken?.isCancelled == true) return;
+            final waiter = Completer<void>();
+            waitingWorkers.add(waiter);
+            await Future.any([waiter.future, finished.future]);
+            continue;
+          }
+
+          final startedAt = DateTime.now();
+          final bytesBefore = chunk.received;
+          await downloadPiece(chunk);
+
+          //块下完时的整体速率也是「链路能有多快」的样本（窗口采样可能整段错过）
+          final seconds =
+              DateTime.now().difference(startedAt).inMilliseconds / 1000;
+          final downloaded = chunk.received - bytesBefore;
+          if (chunk.status == HttpChunkStatus.complete &&
+              seconds > 0 &&
+              downloaded >= 256 * KB) {
+            final rate = downloaded / seconds;
+            if (rate > healthyRate) healthyRate = rate;
+          }
+
+          //只有每块都真的下满才算完成：判定「忽略 Range」时兄弟块是提前收手的
+          if (!rangeIgnored &&
+              chunks.every((c) => c.status == HttpChunkStatus.complete) &&
+              !finished.isCompleted) {
+            finished.complete();
+          }
+        }
+      } catch (error, stack) {
+        if (!finished.isCompleted) finished.completeError(error, stack);
+      }
+    }
+
+    void spawnWorker() {
+      activeWorkers++;
+      workerFutures.add(workerLoop());
+    }
+
+    ///慢块让出尾部：本块收缩到 [start, mid]，新块接管 [mid+1, end]
+    void splitChunk(_Chunk chunk) {
+      final remaining = chunk.remaining;
+      if (remaining < _minSplitBytes * 2) return;
+
+      final mid = chunk.nextOffset + remaining ~/ 2;
+      final tail = _Chunk(chunks.length, mid, chunk.end, chunk.end - mid + 1, 0);
+      chunk.end = mid - 1;
+      chunk.size = chunk.end - chunk.start + 1;
+      chunk.slowStreak = 0;
+      chunks.add(tail);
+      refreshChunkStats();
+      state.chunkCount = chunks.length;
+      notifyWork();
+      addLog(
+        .debug,
+        '分块 ${chunk.index + 1} 明显慢于其它块，把尾部 ${tail.index + 1} 让出去',
+        tag: 'Download',
+      );
+    }
+
+    ///每个采样窗口看一遍：在跑的块里谁明显慢
+    ///
+    ///基准取「链路跑得到多快」的经验值（窗口最高速率 + 已完成块的整体速率），
+    ///不取「其它块的中位数」——后者在尾部阶段只有慢块自己，反而永远拆不了，
+    ///而尾部正是最该拆的时候
+    void splitSlowChunks(double elapsedSeconds) {
+      final inFlight = chunks
+          .where((c) => c.status == HttpChunkStatus.downloading)
+          .toList();
+      if (inFlight.isEmpty) return;
+
+      final rates = <_Chunk, double>{};
+      for (final chunk in inFlight) {
+        rates[chunk] = (chunk.received - chunk.sampledBytes) / elapsedSeconds;
+        chunk.sampledBytes = chunk.received;
+      }
+      for (final rate in rates.values) {
+        if (rate > healthyRate) healthyRate = rate;
+      }
+      if (healthyRate <= 0) return;
+
+      for (final entry in rates.entries) {
+        final chunk = entry.key;
+        if (entry.value < healthyRate * _slowChunkRatio) {
+          chunk.slowStreak++;
+        } else {
+          chunk.slowStreak = 0;
+        }
+        if (chunk.slowStreak >= _slowChunkStreak) {
+          chunk.slowStreak = 0;
+          splitChunk(chunk);
+        }
+      }
+    }
+
+    ///扩容决策：单连接够快就停；上一轮扩容没换来 ≥10% 增益也停
+    void scaleIfNeeded(double smoothedRate) {
+      if (scaleSaturated || activeWorkers >= maxWorkers) return;
+
+      if (smoothedRate >= _sufficientBytesPerSecond) {
+        scaleSaturated = true;
+        addLog(
+          .debug,
+          '单连接已 ${(smoothedRate / MB).toStringAsFixed(1)}MB/s，带宽充足不再扩容',
+          tag: 'Download',
+        );
+        return;
+      }
+      if (lastScaleRate == 0 || smoothedRate >= lastScaleRate * (1 + _scaleMinGain)) {
+        lastScaleRate = smoothedRate;
+        spawnWorker();
+        addLog(
+          .debug,
+          '扩到 $activeWorkers 个连接（平滑速率 '
+          '${(smoothedRate / MB).toStringAsFixed(1)}MB/s）',
+          tag: 'Download',
+        );
+      } else {
+        scaleSaturated = true;
+        addLog(
+          .debug,
+          '扩容增益不足（${(smoothedRate / MB).toStringAsFixed(1)}MB/s），'
+          '判定带宽池饱和，停在 $activeWorkers 个连接',
+          tag: 'Download',
+        );
+      }
+    }
+
+    final sampleTimer = Timer.periodic(_scaleSampleWindow, (_) {
+      final now = DateTime.now();
+      final elapsed = now.difference(lastSampleAt).inMilliseconds / 1000;
+      if (elapsed <= 0) return;
+
+      final rate = (state.downloaded - lastSampleBytes) / elapsed;
+      lastSampleBytes = state.downloaded;
+      lastSampleAt = now;
+
+      recentRates.add(rate);
+      if (recentRates.length > 3) recentRates.removeAt(0);
+      final smoothed =
+          recentRates.reduce((a, b) => a + b) / recentRates.length;
+
+      if (state.downloaded < totalSize) splitSlowChunks(elapsed);
+      scaleIfNeeded(smoothed);
+    });
+
     ///失败收尾：按 [deleteOnError] 决定清掉续传现场还是保住进度
     Future<void> finishFailed() async {
       if (deleteOnError) {
@@ -1481,11 +1693,19 @@ class CopperIO {
 
     try {
       state.status = HttpDownloadStatus.downloading;
-      //等所有分块收手再收尾：某块失败时其它块可能还占着 `.part` 的句柄
-      await Future.wait(chunks.map((c) => downloadChunk(c)));
+      //固定并发就一次开满；大文件先开 1 个探带宽，后面按增益加
+      final initialWorkers = dynamicScale ? 1 : maxWorkers;
+      for (var i = 0; i < initialWorkers; i++) {
+        spawnWorker();
+      }
+
+      await finished.future;
+      //等所有 worker 收手再收尾：可能还有 worker 正占着 `.part` 的句柄
+      await Future.wait(workerFutures);
 
       periodicTimer.cancel();
       speedCalc.cancel();
+      sampleTimer.cancel();
 
       state.status = HttpDownloadStatus.merging;
       state.speed = 0;
@@ -1511,16 +1731,22 @@ class CopperIO {
       //换个下载形态重来，不算失败：`.part` 与元数据一律清掉，单流会整份重写
       periodicTimer.cancel();
       speedCalc.cancel();
+      sampleTimer.cancel();
+      await Future.wait(workerFutures);
       await _cleanupPartial(partialFile, metaPath);
       rethrow;
     } on DioException {
       periodicTimer.cancel();
       speedCalc.cancel();
+      sampleTimer.cancel();
+      await Future.wait(workerFutures);
       await finishFailed();
       rethrow;
     } catch (_) {
       periodicTimer.cancel();
       speedCalc.cancel();
+      sampleTimer.cancel();
+      await Future.wait(workerFutures);
       await finishFailed();
       rethrow;
     }
@@ -1650,19 +1876,35 @@ class _Chunk {
 
   ///本块在源文件里的起始偏移（区间本身，不随下载进度变）
   final int start;
-  final int end;
-  final int size;
+
+  ///本块区间的末尾；慢块被拆分时会把尾部让给新块，所以要可变
+  int end;
+  int size;
 
   ///已收字节数（含续传带过来的部分）
   int received;
 
   ///下一个要写的绝对偏移：续传与重试都从这里接，已收的字节不重下
   int nextOffset;
+
+  ///上一次速率采样时的 [received]（算窗口速率用）
+  int sampledBytes = 0;
+
+  ///连续多少个采样窗口明显慢于其它块
+  int slowStreak = 0;
+
+  ///已被某个 worker 领走（避免重复下载同一区间）
+  bool claimed = false;
+
   HttpChunkStatus status;
 
   _Chunk(this.index, this.start, this.end, this.size, this.received)
     : nextOffset = start + received,
+      sampledBytes = received,
       status = HttpChunkStatus.pending;
+
+  ///还没下完的字节数
+  int get remaining => end - nextOffset + 1;
 }
 
 ///服务端（或中间网关）嘴上支持 Range、实际回整包 200
