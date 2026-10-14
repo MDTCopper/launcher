@@ -968,6 +968,7 @@ class CopperIO {
     // 此时退化为单流，大小改由 GET 响应头补齐（见 _downloadSingleStream）
     var totalSize = 0;
     var rangeSupported = false;
+    String? etag;
     try {
       final headResp = await _dio!.head(
         url,
@@ -978,6 +979,8 @@ class CopperIO {
           int.tryParse(headResp.headers.value('content-length') ?? '0') ?? 0;
       rangeSupported =
           headResp.headers.value('accept-ranges')?.toLowerCase() == 'bytes';
+      //续传/重试带 If-Range 用：源一变服务器就回整包，避免新旧数据拼在一起
+      etag = headResp.headers.value('etag');
     } on DioException catch (e) {
       // 用户取消照旧抛出；HEAD 被拒 / 网络类失败则退化为单流，不在这里终止
       if (CancelToken.isCancel(e)) rethrow;
@@ -1004,6 +1007,7 @@ class CopperIO {
       chunkCount: effectiveChunkCount,
       speedLimit: effectiveSpeedLimit,
       tempPath: tempPath,
+      etag: etag,
       cancelToken: cancelToken,
       deleteOnError: deleteOnError,
       onStatus: onStatus,
@@ -1014,7 +1018,7 @@ class CopperIO {
   ///走分块并发；服务端忽略 Range 时退化为单流整包
   ///
   ///「HEAD 广播 Accept-Ranges、带 Range 的 GET 却回 200」在代理 / 网关上并不罕见，
-  ///那种响应不能往分块文件里写，只能整包重下
+  ///那种响应不能往分块区间里写，只能整包重下
   Future<void> _downloadChunkedWithFallback({
     required String url,
     required String savePath,
@@ -1022,6 +1026,7 @@ class CopperIO {
     required int chunkCount,
     int? speedLimit,
     String? tempPath,
+    String? etag,
     CancelToken? cancelToken,
     bool deleteOnError = true,
     HttpStatusCallback? onStatus,
@@ -1035,6 +1040,7 @@ class CopperIO {
         chunkCount: chunkCount,
         speedLimit: speedLimit,
         tempPath: tempPath,
+        etag: etag,
         cancelToken: cancelToken,
         deleteOnError: deleteOnError,
         onStatus: onStatus,
@@ -1186,6 +1192,11 @@ class CopperIO {
     }
   }
 
+  ///分块并发下载：各块**直接写进同一个 `.part` 文件的自己那段区间**
+  ///
+  ///不再「每块一个临时文件 + 收尾合并」：省掉收尾那整轮读一遍写一遍与 2× 磁盘
+  ///占用，慢块拆分也只是改区间。续传现场在 `.part.json`（区间 + 已收字节 + ETag），
+  ///下完把 `.part` 改名成 [savePath]
   Future<void> _downloadChunked({
     required String url,
     required String savePath,
@@ -1193,6 +1204,7 @@ class CopperIO {
     int chunkCount = 8,
     int? speedLimit,
     String? tempPath,
+    String? etag,
     CancelToken? cancelToken,
     bool deleteOnError = true,
     HttpStatusCallback? onStatus,
@@ -1205,39 +1217,25 @@ class CopperIO {
     }
     chunkCount = max(1, chunkCount);
 
-    final chunkSize = totalSize ~/ chunkCount;
-    tempPath ??= '$savePath.temp.';
+    final partialPath = tempPath ?? '$savePath.part';
+    final metaPath = '$partialPath.json';
+    final partialFile = File(partialPath);
 
-    final List<_Chunk> chunks = [];
-    for (int i = 0; i < chunkCount; i++) {
-      final start = i * chunkSize;
-      final end = i == chunkCount - 1 ? totalSize - 1 : (i + 1) * chunkSize - 1;
-      final size = end - start + 1;
-      final path = '$tempPath$i';
-      final file = File(path);
+    final chunks = await _planChunks(
+      partialFile: partialFile,
+      metaPath: metaPath,
+      url: url,
+      totalSize: totalSize,
+      chunkCount: chunkCount,
+      etag: etag,
+    );
 
-      int received = 0;
-      if (await file.exists()) {
-        received = await file.length();
-        if (received > size) {
-          await file.delete();
-          received = 0;
-        }
-      }
-
-      final chunk = _Chunk(path, i, start + received, end, received, size);
-      if (chunk.start > chunk.end) {
-        chunk.status = HttpChunkStatus.complete;
-      }
-      chunks.add(chunk);
-    }
-
-    // 续传信息对排查很有用：临时分块还在就有多少接着下
+    // 续传信息对排查很有用：现场还在就有多少接着下
     final resumedChunks = chunks.where((c) => c.received > 0).length;
     final resumedBytes = chunks.fold<int>(0, (sum, c) => sum + c.received);
     addLog(
       .debug,
-      '分块准备：$chunkCount 个（总 $totalSize 字节），'
+      '分块准备：${chunks.length} 个（总 $totalSize 字节），'
       '续传 $resumedChunks 个 / $resumedBytes 字节',
       tag: 'Download',
     );
@@ -1245,12 +1243,12 @@ class CopperIO {
     // HttpDownloadState 即缓存 —— 各部分各写各的，不冲突
     final state = HttpDownloadState(
       total: totalSize,
-      chunkCount: chunkCount,
+      chunkCount: chunks.length,
       status: HttpDownloadStatus.connecting,
     );
 
     // 分工：
-    //   各分块 stream loop → state.downloaded (汇总), state.chunks[i].received, state.progress
+    //   各分块 stream loop → state.downloaded (汇总), state.received, state.progress
     //   chunk 状态变更 → state.completedChunks, state.connectingChunks, state.chunks
     //   SpeedCalculator → state.speed
     //   Timer → 只读 state 回调
@@ -1259,6 +1257,47 @@ class CopperIO {
       dataNotifier: notifier,
       updateCallback: (s) => state.speed = s,
     );
+
+    //内部中止令牌：判定「服务端忽略 Range」时用它把其余分块立刻收掉
+    //（只靠标志位的话，停滞中的分块要等到看门狗超时才收手）；用户取消原样传导
+    final abortToken = CancelToken();
+    if (cancelToken != null) {
+      unawaited(cancelToken.whenCancel.then((_) => abortToken.cancel()));
+    }
+
+    // 服务端是否忽略 Range（回整包 200）：一旦判定，其余分块立即收手，
+    // 由 _downloadChunkedWithFallback 退化为单流整包重下
+    var rangeIgnored = false;
+
+    var lastMetaAt = DateTime.now();
+    var lastMetaBytes = -1;
+    var metaWriting = false;
+
+    ///把续传现场写进元数据：块完成时、以及下载中每 2 秒一次
+    Future<void> saveMeta() async {
+      if (metaWriting) return;
+      metaWriting = true;
+      try {
+        await File(metaPath).writeAsString(
+          jsonEncode({
+            'url': url,
+            'total': totalSize,
+            'etag': etag,
+            'chunks': [
+              for (final c in chunks)
+                {'start': c.start, 'end': c.end, 'received': c.received},
+            ],
+          }),
+          flush: true,
+        );
+        lastMetaAt = DateTime.now();
+        lastMetaBytes = state.downloaded;
+      } catch (_) {
+        //写不进元数据不影响这次下载，只是下次续传要从零开始
+      } finally {
+        metaWriting = false;
+      }
+    }
 
     final periodicTimer = Timer.periodic(const Duration(milliseconds: 100), (
       _,
@@ -1276,6 +1315,11 @@ class CopperIO {
           )
           .toList();
       onStatus?.call(state);
+      //续传要扛得住进程被杀（安卓上很常见）：下载途中也定期落一次进度
+      if (DateTime.now().difference(lastMetaAt) >= const Duration(seconds: 2) &&
+          state.downloaded != lastMetaBytes) {
+        unawaited(saveMeta());
+      }
     });
 
     // 共享限速器 —— 所有分块共用，控制总速率
@@ -1296,16 +1340,16 @@ class CopperIO {
 
     onStatus?.call(state);
 
-    // 服务端是否忽略 Range（回整包 200）：一旦判定，其余分块立即收手，
-    // 由 _downloadChunkedWithFallback 退化为单流整包重下
-    var rangeIgnored = false;
-
     Future<void> downloadChunk(_Chunk chunk, {int tryTime = 0}) async {
       if (chunk.status == HttpChunkStatus.complete) return;
       if (rangeIgnored) return;
 
-      // 请求区间从 nextOffset 起：续传与重试都接着已落盘的位置，已收的部分不重下
-      final rangeHeader = {'Range': 'bytes=${chunk.nextOffset}-${chunk.end}'};
+      //请求区间从 nextOffset 起：续传与重试都接着已落盘的位置，已收的部分不重下
+      final rangeHeader = {
+        'Range': 'bytes=${chunk.nextOffset}-${chunk.end}',
+        //源变了就让服务器回整包（200），走「忽略 Range」那条路整份重下
+        if (etag != null && etag.isNotEmpty) 'If-Range': etag,
+      };
       //只在首次尝试标「连接中」：重试途中保持原状态，免得界面在「分块明细」与
       //「分块连接中」之间来回跳
       if (tryTime == 0) {
@@ -1313,6 +1357,7 @@ class CopperIO {
         refreshChunkStats();
       }
 
+      RandomAccessFile? raf;
       try {
         final resp = await _dio!.get(
           url,
@@ -1322,52 +1367,72 @@ class CopperIO {
             receiveTimeout: _downloadIdleTimeout,
             headers: {...?headers, ...rangeHeader},
           ),
-          cancelToken: cancelToken,
+          cancelToken: abortToken,
         );
 
-        // 带 Range 只认 206：回 200 说明服务端根本没看 Range，
-        // 把整包写进分块文件只会拼出一个比源大的错文件
+        //带 Range 只认 206：回 200 说明服务端没看 Range（或源已变），
+        //整包写进这一段区间只会拼出错文件
         if (resp.statusCode != 206) {
           rangeIgnored = true;
+          abortToken.cancel();
           throw _RangeIgnored();
         }
 
         chunk.status = HttpChunkStatus.downloading;
         refreshChunkStats();
 
-        final file = File(chunk.path);
-        final sink = file.openWrite(mode: FileMode.append);
+        //每块独占一个句柄，块内偏移连续递增：只在首个数据包定位一次
+        //
+        //必须是 writeOnlyAppend：[FileMode.writeOnly] 打开就把文件截断，
+        //会把预分配的 `.part` 清成 0；append 模式只是把位置摆到末尾，
+        //setPosition 照常生效（本机实测：两个句柄各写各的区间互不干扰）
+        raf = await partialFile.open(mode: FileMode.writeOnlyAppend);
+        await raf.setPosition(chunk.nextOffset);
+        var writeOffset = chunk.nextOffset;
         var pendingReport = 0;
 
         await for (final data in (resp.data as ResponseBody).stream) {
-          if (cancelToken?.isCancelled == true || rangeIgnored) {
-            await sink.close();
-            return;
-          }
+          if (data.isEmpty) continue;
+          if (cancelToken?.isCancelled == true || rangeIgnored) return;
+
+          //块级边界裁剪：区间被拆小之后，在途连接多发的数据必须丢掉
+          final allowed = chunk.end + 1 - writeOffset;
+          if (allowed <= 0) break;
+          final piece = data.length > allowed ? data.sublist(0, allowed) : data;
 
           if (rateLimiter != null) {
-            await rateLimiter.throttle(data.length);
+            await rateLimiter.throttle(piece.length);
           }
 
-          sink.add(data);
-          //累计收到的字节数（含续传部分），避免每块重复打开文件句柄；
-          //进度逐包更新才跟手，分块汇总与速率通知按批做（见 _progressReportBytes）
-          chunk.received += data.length;
-          chunk.nextOffset += data.length;
-          state.downloaded += data.length;
+          await raf.writeFrom(piece);
+          writeOffset += piece.length;
+          //累计收到的字节数（含续传部分）；进度逐包更新才跟手，
+          //分块汇总与速率通知按批做（见 _progressReportBytes）
+          chunk.received += piece.length;
+          chunk.nextOffset = writeOffset;
+          state.downloaded += piece.length;
           if (state.total > 0) state.progress = state.downloaded / state.total;
-          pendingReport += data.length;
+          pendingReport += piece.length;
           if (pendingReport >= _progressReportBytes) {
             pendingReport = 0;
             refreshChunkStats();
             notifier.value = state.downloaded;
           }
+
+          //下满即成功：服务器可能发完还拖着连接（黑洞 / keep-alive），
+          //等流自然结束会白等一个看门狗周期
+          if (chunk.nextOffset > chunk.end) break;
         }
 
-        await sink.close();
+        //没下满就收尾：预分配的 `.part` 里那一段还是 0，放任成功就是静默损坏
+        if (chunk.nextOffset <= chunk.end) {
+          throw HttpException('分块 ${chunk.index + 1} 提前结束');
+        }
+
         chunk.status = HttpChunkStatus.complete;
         refreshChunkStats();
         notifier.value = state.downloaded;
+        await saveMeta();
       } on _RangeIgnored {
         rethrow;
       } catch (e) {
@@ -1398,13 +1463,25 @@ class CopperIO {
           );
           throw Exception('分块 [${chunk.index}] 下载失败');
         }
+      } finally {
+        await raf?.close();
       }
+    }
+
+    ///失败收尾：按 [deleteOnError] 决定清掉续传现场还是保住进度
+    Future<void> finishFailed() async {
+      if (deleteOnError) {
+        await _cleanupPartial(partialFile, metaPath);
+      } else {
+        await saveMeta();
+      }
+      state.status = HttpDownloadStatus.failed;
+      onStatus?.call(state);
     }
 
     try {
       state.status = HttpDownloadStatus.downloading;
-      //等所有分块收手再收尾：某块失败时其它块正占着临时文件，提前清会删不掉、
-      //退出 Range 忽略那条路时兄弟块也会抢在收尾时继续写
+      //等所有分块收手再收尾：某块失败时其它块可能还占着 `.part` 的句柄
       await Future.wait(chunks.map((c) => downloadChunk(c)));
 
       periodicTimer.cancel();
@@ -1414,55 +1491,144 @@ class CopperIO {
       state.speed = 0;
       onStatus?.call(state);
 
-      final file = File(savePath);
-      final sink = file.openWrite();
-      for (final chunk in chunks) {
-        final tempFile = File(chunk.path);
-        await sink.addStream(tempFile.openRead());
-        await _deleteWithRetry(tempFile);
-      }
-      await sink.close();
+      //收尾：`.part` 改名成目标文件，续传现场作废（改名是元数据操作，不搬字节）
+      final target = File(savePath);
+      if (await target.exists()) await _deleteWithRetry(target);
+      await partialFile.rename(savePath);
+      await _deleteQuietly(File(metaPath));
 
       state.status = HttpDownloadStatus.completed;
       state.progress = 1.0;
-      state.completedChunks = chunkCount;
+      state.completedChunks = chunks.length;
       onStatus?.call(state);
       addLog(
         .debug,
-        '分块下载完成：$chunkCount 个分块已合并 → $savePath'
+        '分块下载完成：${chunks.length} 个分块 → $savePath'
         '（${state.downloaded} 字节）',
         tag: 'Download',
       );
     } on _RangeIgnored {
-      //换个下载形态重来，不算失败：分块留下的临时文件一律清掉，单流会整份重写
+      //换个下载形态重来，不算失败：`.part` 与元数据一律清掉，单流会整份重写
       periodicTimer.cancel();
       speedCalc.cancel();
-      for (final c in chunks) {
-        await _deleteWithRetry(File(c.path));
-      }
+      await _cleanupPartial(partialFile, metaPath);
       rethrow;
     } on DioException {
       periodicTimer.cancel();
       speedCalc.cancel();
-      if (deleteOnError) {
-        for (final c in chunks) {
-          await _deleteWithRetry(File(c.path));
-        }
-      }
-      state.status = HttpDownloadStatus.failed;
-      onStatus?.call(state);
+      await finishFailed();
       rethrow;
     } catch (_) {
       periodicTimer.cancel();
       speedCalc.cancel();
-      if (deleteOnError) {
-        for (final c in chunks) {
-          await _deleteWithRetry(File(c.path));
-        }
-      }
-      state.status = HttpDownloadStatus.failed;
-      onStatus?.call(state);
+      await finishFailed();
       rethrow;
+    }
+  }
+
+  ///规划分块：能从 `.part.json` 恢复就恢复已下部分，否则清掉现场从零开始
+  ///
+  ///新现场会把 `.part` 预分配到全量长度，所以「文件长度 == 总大小」是续传的
+  ///前提之一；元数据对不上（源变了 / 区间拼不满 / 文件被删过）就当没有，重下
+  Future<List<_Chunk>> _planChunks({
+    required File partialFile,
+    required String metaPath,
+    required String url,
+    required int totalSize,
+    required int chunkCount,
+    required String? etag,
+  }) async {
+    final resumed = await _readResumeMeta(
+      partialFile: partialFile,
+      metaPath: metaPath,
+      url: url,
+      totalSize: totalSize,
+      etag: etag,
+    );
+    if (resumed != null) return resumed;
+
+    await _cleanupPartial(partialFile, metaPath);
+
+    final raf = await partialFile.open(mode: FileMode.write);
+    await raf.truncate(totalSize);
+    await raf.close();
+
+    final chunkSize = totalSize ~/ chunkCount;
+    final chunks = <_Chunk>[];
+    for (var i = 0; i < chunkCount; i++) {
+      final start = i * chunkSize;
+      final end = i == chunkCount - 1 ? totalSize - 1 : (i + 1) * chunkSize - 1;
+      chunks.add(_Chunk(i, start, end, end - start + 1, 0));
+    }
+    return chunks;
+  }
+
+  ///读续传元数据；不可用（没有 / 坏了 / 跟当前源对不上）返回 null
+  Future<List<_Chunk>?> _readResumeMeta({
+    required File partialFile,
+    required String metaPath,
+    required String url,
+    required int totalSize,
+    required String? etag,
+  }) async {
+    final metaFile = File(metaPath);
+    if (!await metaFile.exists() || !await partialFile.exists()) return null;
+    if (await partialFile.length() != totalSize) return null;
+
+    try {
+      final meta = jsonDecode(await metaFile.readAsString());
+      if (meta is! Map<String, dynamic>) return null;
+      if (meta['url'] != url || meta['total'] != totalSize) return null;
+
+      //ETag 只做「两边都有就必须相同」：镜像节点不一定回 ETag，缺了就按旧的接着下
+      final savedEtag = meta['etag'];
+      final currentEtag = etag;
+      if (savedEtag is String &&
+          savedEtag.isNotEmpty &&
+          currentEtag != null &&
+          currentEtag.isNotEmpty &&
+          savedEtag != currentEtag) {
+        return null;
+      }
+
+      final rawChunks = meta['chunks'];
+      if (rawChunks is! List || rawChunks.isEmpty) return null;
+
+      final chunks = <_Chunk>[];
+      var cursor = 0;
+      for (var i = 0; i < rawChunks.length; i++) {
+        final item = rawChunks[i];
+        if (item is! Map<String, dynamic>) return null;
+        final start = item['start'];
+        final end = item['end'];
+        final received = item['received'];
+        if (start is! int || end is! int || received is! int) return null;
+        //区间必须严丝合缝地拼满整个文件：对不上说明元数据是上一轮留下的
+        if (start != cursor || end < start || end >= totalSize) return null;
+        if (received < 0 || received > end - start + 1) return null;
+        chunks.add(_Chunk(i, start, end, end - start + 1, received));
+        cursor = end + 1;
+      }
+      if (cursor != totalSize) return null;
+      return chunks;
+    } catch (_) {
+      //元数据坏了（写到一半被杀）当没有：从零开始总比拼出个错文件强
+      return null;
+    }
+  }
+
+  ///清掉续传现场：`.part` 与它的元数据
+  Future<void> _cleanupPartial(File partialFile, String metaPath) async {
+    await _deleteWithRetry(partialFile);
+    await _deleteQuietly(File(metaPath));
+  }
+
+  ///删临时文件，删不掉也不抛
+  Future<void> _deleteQuietly(File file) async {
+    try {
+      if (await file.exists()) await file.delete();
+    } on FileSystemException {
+      //留给系统清理
     }
   }
 
@@ -1482,19 +1648,20 @@ class CopperIO {
 class _Chunk {
   final int index;
 
-  ///本块在源文件里的起始偏移（续传时已跳过已落盘的部分）
+  ///本块在源文件里的起始偏移（区间本身，不随下载进度变）
   final int start;
   final int end;
   final int size;
+
+  ///已收字节数（含续传带过来的部分）
   int received;
 
-  ///下一个要请求的绝对偏移：重试时从这里接，已收的字节不重下
+  ///下一个要写的绝对偏移：续传与重试都从这里接，已收的字节不重下
   int nextOffset;
-  final String path;
   HttpChunkStatus status;
 
-  _Chunk(this.path, this.index, this.start, this.end, this.received, this.size)
-    : nextOffset = start,
+  _Chunk(this.index, this.start, this.end, this.size, this.received)
+    : nextOffset = start + received,
       status = HttpChunkStatus.pending;
 }
 
