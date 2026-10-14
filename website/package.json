@@ -1,0 +1,15 @@
+{
+  "name": "copper-launcher-website",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Copper Launcher 官网落地页",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

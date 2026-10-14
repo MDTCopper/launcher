@@ -1,0 +1,63 @@
+name: 官网
+
+# 只认 website/ 下的改动；源码、发布与手动构建两个 workflow 完全不受影响
+#
+# 前置：仓库 Pages 的 Source 要是「GitHub Actions」。
+# 下面 configure-pages 带 enablement 会尝试自动开启，失败就在
+# Settings → Pages 里手动选一次，之后这条链路就稳定了
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: website-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: 安装依赖
+        working-directory: website
+        run: npm ci
+
+      - name: 构建
+        working-directory: website
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/dist
+
+  deploy:
+    name: 发布
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

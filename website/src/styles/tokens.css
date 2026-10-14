@@ -1,0 +1,66 @@
+/* 设计令牌；颜色取自启动器暗色主题（lib/ui/theme/palette.dart 与 app_colors.dart 的 AppColors.dark） */
+:root {
+  color-scheme: dark;
+
+  /* copper 阶 */
+  --copper-100: #f9f5f0;
+  --copper-300: #f0e9e0;
+  --copper-400: #d9c1a0;
+  --copper-500: #c8a06e;
+  --copper-600: #c89958;
+  --copper-700: #b8863e;
+
+  /* neutral 阶 */
+  --neutral-100: #f5f5f5;
+  --neutral-200: #dfdfdf;
+  --neutral-300: #c8c8c8;
+  --neutral-400: #adadad;
+  --neutral-500: #7d7d7d;
+  --neutral-700: #4c4c4c;
+  --neutral-750: #3c3c3c;
+  --neutral-800: #2f2f2f;
+  --neutral-850: #202020;
+  --neutral-950: #121212;
+
+  /* 语义色 */
+  --page: var(--neutral-950);
+  --card: var(--neutral-850);
+  --card-low: var(--neutral-950);
+  --card-high: var(--neutral-800);
+  --elevated: #252525;
+  --text: var(--neutral-200);
+  --text-secondary: var(--neutral-300);
+  --text-hint: var(--neutral-400);
+  --on-interactive: var(--neutral-100);
+  --brand: var(--copper-600);
+  --brand-strong: var(--copper-700);
+  --brand-soft: var(--copper-400);
+  --brand-line: var(--copper-500);
+  --splash: rgba(194, 166, 134, 0.125);
+  --border: var(--neutral-750);
+  --border-strong: var(--neutral-500);
+  --focus: var(--copper-500);
+  --warning: #d9a64a;
+  --error: #c94f4f;
+  --success: #6baa6b;
+
+  /* 排版 */
+  --font-sans: 'Noto Sans CJK SC', 'Microsoft YaHei', 'PingFang SC', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, 'JetBrains Mono', monospace;
+
+  /* 圆角与间距 */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+
+  --page-max: 1120px;
+  --header-height: 60px;
+}
