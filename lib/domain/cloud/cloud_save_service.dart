@@ -263,6 +263,26 @@ class CloudSaveRestoreResult {
   final int backupBytes;
 }
 
+/// 一份「覆盖前自备份」（`<数据根>/cloud-backups/cloud-backup-<时间戳>.zip`）
+///
+/// 每次覆盖性恢复都会留一份，只保留最近 [CloudSaveService.backupKeep] 份 ——
+/// 但在这之前**没有任何入口能看见 / 还原它们**，等于存了却拿不出来
+class CloudBackupFile {
+  const CloudBackupFile({
+    required this.path,
+    required this.name,
+    required this.bytes,
+    this.createdAt,
+  });
+
+  final String path;
+  final String name;
+  final int bytes;
+
+  /// 从文件名里的时间戳解出来的时刻（解不出给 null，不影响展示与还原）
+  final DateTime? createdAt;
+}
+
 /// 云存档的编排层：本地云包（`CloudArchive`）↔ MDTBBS 云存档接口
 ///
 /// 同步单元是**数据目录**：一个数据目录一个槽位，槽位名默认「设备名 · 游戏版本」。
@@ -754,6 +774,82 @@ class CloudSaveService {
     } finally {
       _deleteQuietly(tempPath);
     }
+  }
+
+  /// 列出本机自备份，**最新在前**
+  ///
+  /// 文件名里就是时间戳（`cloud-backup-2026-10-15T19-30-00.zip`），所以按名字倒序
+  /// 就是时间倒序 —— 与 [_pruneBackups] 的清理顺序同一套口径
+  static List<CloudBackupFile> backups() {
+    final directory = Directory(backupDir);
+    if (!directory.existsSync()) return const [];
+    final files =
+        [
+          for (final entity in directory.listSync())
+            if (entity is File &&
+                p.basename(entity.path).startsWith(backupFilePrefix))
+              entity,
+        ]..sort((a, b) => b.path.compareTo(a.path));
+    return [
+      for (final file in files)
+        CloudBackupFile(
+          path: file.path,
+          name: p.basename(file.path),
+          bytes: file.lengthSync(),
+          createdAt: _stampOf(p.basename(file.path)),
+        ),
+    ];
+  }
+
+  /// 用某份自备份**覆盖**本机数据目录
+  ///
+  /// 与云端恢复同一条规矩：**覆盖前先留底**（那份新的自备份就是这次的后路，
+  /// 所以「还原」本身也能再退回去）。**不动本地同步记录** —— 本机内容已经与云端 head
+  /// 不一致了，之后该判成待上传 / 冲突由状态机去说，别在这里谎报已同步
+  static Future<CloudSaveRestoreResult> restoreBackup({
+    required Mindustry version,
+    required String backupPath,
+  }) async {
+    if (!File(backupPath).existsSync()) {
+      throw const MdtbbsException(message: '这份自备份已经不在了');
+    }
+    final safety = await _backupForRestore(version);
+    final extracted = await _extract(
+      backupPath,
+      version: version,
+      mode: CloudImportMode.overwrite,
+    );
+    _pruneBackups();
+    addLogAndPrint(
+      .info,
+      '用本机自备份还原：${p.basename(backupPath)}',
+      tag: 'Cloud',
+    );
+    return CloudSaveRestoreResult(
+      report: extracted.report,
+      backupPath: safety.path,
+      backupBytes: safety.bytes,
+    );
+  }
+
+  /// 从备份文件名里解出时刻；解不出给 null（不影响展示与还原）
+  static DateTime? _stampOf(String name) {
+    final raw = name.substring(
+      backupFilePrefix.length,
+      name.length - (name.endsWith('.zip') ? 4 : 0),
+    );
+    final match = RegExp(
+      r'^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})',
+    ).firstMatch(raw);
+    if (match == null) return null;
+    return DateTime(
+      int.parse(match[1]!),
+      int.parse(match[2]!),
+      int.parse(match[3]!),
+      int.parse(match[4]!),
+      int.parse(match[5]!),
+      int.parse(match[6]!),
+    );
   }
 
   /// 固定 / 取消固定：固定的快照不会被服务端的保留策略清掉

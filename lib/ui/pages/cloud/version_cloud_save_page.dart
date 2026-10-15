@@ -24,6 +24,7 @@ import 'package:copper_launcher/ui/components/percent_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/tips/warning_bar.dart';
+import 'package:copper_launcher/ui/dialog/cloud_backup_prompt.dart';
 import 'package:copper_launcher/ui/dialog/cloud_restore_gap_prompt.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
@@ -431,6 +432,45 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     return parts.join('，');
   }
 
+  /// 本机自备份：列出 → 选一份 → 覆盖回本机
+  ///
+  /// 「还原」本身也会先留一份新备份（域层负责），所以这一步同样能退回去
+  Future<void> _openBackups() async {
+    final version = _selectedVersion;
+    if (version == null) return;
+
+    final chosen = await showCloudBackupPrompt(
+      backups: CloudSaveService.backups(),
+      versionTag: version.tag,
+    );
+    if (chosen == null || !mounted) return;
+
+    setState(() => _busy = '正在用自备份还原…');
+    try {
+      final result = await CloudSaveService.restoreBackup(
+        version: version,
+        backupPath: chosen.path,
+      );
+      if (!mounted) return;
+      addNotice(
+        icon: Icons.settings_backup_restore,
+        title: '已用本机自备份还原',
+        content:
+            '${_restoreSummary(result.report)}；覆盖前那份留在 ${result.backupPath.split(RegExp(r'[\\/]')).last}',
+      );
+      await _reload();
+    } catch (error) {
+      if (!mounted) return;
+      addNotice(
+        icon: Icons.error_outline,
+        title: '还原失败',
+        content: removeNewlines('$error'),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
+  }
+
   void _deleteSnapshot(CloudSaveSnapshot snapshot) {
     showConfirmationPopup(
       context: context,
@@ -802,6 +842,16 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             CloudNotes.overwriteBackupHint,
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.itemSecondary,
+            ),
+          ),
+          // 覆盖前那份备份得有个入口能看见 / 还原 —— 不然等于存了拿不出来
+          // （备份只留最近 5 份，列一次目录很便宜）
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconTextButton(
+              icon: Icons.settings_backup_restore,
+              content: '本机自备份（${CloudSaveService.backups().length}）',
+              onTap: _openBackups,
             ),
           ),
           Text(
