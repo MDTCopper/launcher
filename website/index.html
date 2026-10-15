@@ -10,6 +10,7 @@
   <meta property="og:description" content="多版本管理、Copper 加载器与模组、系统托盘、Android 桥，全部收在一个界面里。">
   <!-- 分享卡片要绝对地址，换域名时这里跟着改 -->
   <meta property="og:image" content="https://mdtcopper.github.io/launcher/ui-demo.png">
+  <meta name="theme-color" content="#121212">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="stylesheet" href="/src/styles/tokens.css">
   <link rel="stylesheet" href="/src/styles/base.css">
@@ -36,22 +37,29 @@
 
   <section class="hero">
     <div class="container hero-inner">
-      <p class="hero-eyebrow">Mindustry 第三方启动器</p>
-      <h1 class="hero-title">把 Mindustry 装进一个趁手的启动器</h1>
-      <p class="hero-lead">
-        多版本共存、Copper 加载器与模组管理、GitHub 镜像加速、系统托盘，桌面端与手机端同一套体验。
-        基于 Flutter 开发，Windows / Linux / Android 三平台。
-      </p>
-      <div class="hero-actions">
-        <a class="button button-primary" id="hero-download" href="#download">下载启动器</a>
-        <a class="button button-secondary" href="https://github.com/MDTCopper/launcher" target="_blank" rel="noreferrer noopener">查看源码</a>
+      <div class="hero-copy">
+        <p class="hero-eyebrow">Mindustry 第三方启动器</p>
+        <h1 class="hero-title">把 Mindustry 装进一个趁手的启动器</h1>
+        <p class="hero-lead">
+          多版本共存、Copper 加载器与模组管理、GitHub 镜像加速、系统托盘，桌面端与手机端同一套体验。
+          基于 Flutter 开发，Windows / Linux / Android 三平台。
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" id="hero-download" href="#download">下载启动器</a>
+          <a class="button button-secondary" href="https://github.com/MDTCopper/launcher" target="_blank" rel="noreferrer noopener">查看源码</a>
+        </div>
+        <p class="hero-hint" data-role="hero-hint">当前全部产物都是内测版，尚未发布正式版</p>
+        <ul class="platform-badges">
+          <li>Windows</li>
+          <li>Linux</li>
+          <li>Android</li>
+        </ul>
       </div>
-      <p class="hero-hint" data-role="hero-hint">当前全部产物都是内测版，尚未发布正式版</p>
-      <ul class="platform-badges">
-        <li>Windows</li>
-        <li>Linux</li>
-        <li>Android</li>
-      </ul>
+
+      <figure class="hero-shot">
+        <img src="/ui-demo.png" alt="Copper Launcher 主界面：左侧导航、版本卡片与启动按钮" width="932" height="553">
+        <figcaption>深色 / 浅色 / 跟随系统三档，多套主题色</figcaption>
+      </figure>
     </div>
   </section>
 
@@ -126,17 +134,23 @@
     <div class="container">
       <header class="section-head">
         <h2>界面</h2>
-        <p>自研 UI 风格，不完全跟随 Material 3：自带按压回弹、浮层、下拉选择、滑动菜单等组件体系。</p>
+        <p>自研 UI 风格，不完全跟随 Material 3：按压回弹、浮层、滚动都是自己写的。</p>
       </header>
 
-      <figure class="preview-figure card">
-        <a class="preview-link" href="https://github.com/MDTCopper/launcher/blob/main/.readme/UI-demo.png" target="_blank" rel="noreferrer noopener">
-          <img src="/ui-demo.png" alt="Copper Launcher 主界面：左侧导航、版本卡片与启动按钮" width="932" height="553" loading="lazy">
-        </a>
-        <figcaption class="preview-caption">
-          多套主题色，支持深色 / 浅色 / 跟随系统；下载与解压进度、任务日志收在后台任务抽屉里。
-        </figcaption>
-      </figure>
+      <ul class="ui-points">
+        <li>
+          <b>自研组件体系</b>
+          按压回弹、浮层、下拉选择、滑动菜单都是自绘的，界面里没有 Material 默认观感。
+        </li>
+        <li>
+          <b>多套主题色</b>
+          铜、钛、钍、塑钢四套配色，每套都有深色与浅色，也可以跟随系统。
+        </li>
+        <li>
+          <b>后台任务抽屉</b>
+          下载与解压进度、任务日志集中在一处查看，不挡着版本列表。
+        </li>
+      </ul>
     </div>
   </section>
 
@@ -148,6 +162,10 @@
           产物由 GitHub Actions 构建，全部发布在
           <a href="https://github.com/MDTCopper/launcher/releases" target="_blank" rel="noreferrer noopener">GitHub Releases</a>。
           下面的列表直接读最近的 release，不用手工挑文件。
+        </p>
+        <p class="download-pick">
+          拿不准就按这个挑：Windows 选<b>安装包</b>，装完能在启动器里直接更新；手机选 <code>arm64-v8a</code>，
+          只有老设备才用 <code>armeabi-v7a</code>。Java 不用自备，缺了启动器会自己从 Adoptium 下。
         </p>
       </header>
 

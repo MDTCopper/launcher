@@ -70,7 +70,29 @@
 }
 
 .hero-inner {
-  max-width: 62em;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: var(--space-7);
+  align-items: center;
+}
+
+.hero-shot {
+  margin: 0;
+}
+
+.hero-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+
+.hero-shot figcaption {
+  margin-top: var(--space-3);
+  color: var(--text-hint);
+  font-size: 0.82rem;
 }
 
 .hero-eyebrow {
@@ -206,6 +228,27 @@
   font-size: 0.88rem;
 }
 
+/* 界面要点：不放在卡面里，靠铜色上边线分组，与特性卡区分开 */
+.ui-points {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-5);
+}
+
+.ui-points li {
+  padding-top: var(--space-4);
+  border-top: 2px solid var(--brand);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.ui-points b {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* 下载 */
 
 .channel {
@@ -234,6 +277,19 @@
   margin-top: var(--space-2);
   color: var(--text-hint);
   font-size: 0.88rem;
+}
+
+/* 「该下哪个」的引导：用铜色竖线从说明文字里挑出来 */
+.download-pick {
+  margin-top: var(--space-4);
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--brand);
+  color: var(--text-secondary);
+}
+
+.download-pick b {
+  color: var(--brand-soft);
+  font-weight: 600;
 }
 
 .platform-grid {
@@ -428,6 +484,13 @@
 }
 
 /* 窄屏 */
+
+@media (max-width: 900px) {
+  .hero-inner {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+  }
+}
 
 @media (max-width: 720px) {
   .site-nav {

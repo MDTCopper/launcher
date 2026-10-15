@@ -11,7 +11,7 @@ const PLATFORMS = [
   {
     id: 'windows',
     name: 'Windows',
-    hint: 'Windows 10 / 11 · x64',
+    hint: 'x64',
     matches: (fileName) => fileName.includes('-windows'),
     variants: [
       {

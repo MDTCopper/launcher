@@ -44,11 +44,24 @@ function renderChannels(channels) {
     }
 
     empty.hidden = true;
-    version.textContent = `${channel.label} · ${formatDate(channel.publishedAt)} 发布`;
+    renderChannelVersion(version, channel);
     for (const platformInfo of channel.platforms) {
       grid.append(buildPlatformCard(platformInfo));
     }
   }
+}
+
+// 版本行右侧给一个直达该 release 的入口，想知道这版改了什么就点进去
+function renderChannelVersion(node, channel) {
+  const notes = el('a', null, '更新说明');
+  notes.href = channel.url;
+  notes.target = '_blank';
+  notes.rel = 'noreferrer noopener';
+
+  node.replaceChildren(
+    document.createTextNode(`${channel.label} · ${formatDate(channel.publishedAt)} 发布 · `),
+    notes,
+  );
 }
 
 function buildPlatformCard(platformInfo) {
