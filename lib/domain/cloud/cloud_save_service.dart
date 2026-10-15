@@ -263,6 +263,26 @@ class CloudSaveRestoreResult {
   final int backupBytes;
 }
 
+/// 上传前的体积预估：**清单合计（未压缩）**
+///
+/// 页面拿它显示「这次约 X MB」，好与云端剩余配额对照。**别拿它当上传字节数**：
+/// `.msav` / `.msch` 在包里原样存（本来就 zlib 过），只有模组 jar 会压 ⇒ 真实包更小
+class CloudUploadEstimate {
+  const CloudUploadEstimate({
+    required this.bytes,
+    required this.fileCount,
+    required this.modCount,
+  });
+
+  final int bytes;
+  final int fileCount;
+
+  /// 清单里记着的模组数（**字节默认不进包**，这里只用来提示）
+  final int modCount;
+
+  bool get isEmpty => bytes == 0;
+}
+
 /// 一份「覆盖前自备份」（`<数据根>/cloud-backups/cloud-backup-<时间戳>.zip`）
 ///
 /// 每次覆盖性恢复都会留一份，只保留最近 [CloudSaveService.backupKeep] 份 ——
@@ -773,6 +793,36 @@ class CloudSaveService {
       );
     } finally {
       _deleteQuietly(tempPath);
+    }
+  }
+
+  /// 这次上传大概多大（清单合计、未压缩）与有几份文件 / 几个模组
+  ///
+  /// 给页面显示「这次约 X MB」用。走哈希缓存（真数据热扫约 0.67 s）；
+  /// 真上传时还会再扫一次 —— 那次要的就是哈希，这里只为显示
+  static Future<CloudUploadEstimate> estimateUpload(Mindustry version) async {
+    final cache = CloudHashCache.load(hashCachePath);
+    try {
+      final manifest = await CloudManifest.scan(
+        version: version,
+        deviceName: deviceName,
+        cache: cache,
+      );
+      var bytes = 0;
+      for (final entry in manifest.includedFiles) {
+        bytes += entry.size;
+      }
+      // 随包带的模组字节也算进去（默认不带，带了就占配额）
+      for (final mod in manifest.includedModBytes) {
+        bytes += mod.size;
+      }
+      return CloudUploadEstimate(
+        bytes: bytes,
+        fileCount: manifest.includedFiles.length,
+        modCount: manifest.mods.length,
+      );
+    } finally {
+      cache.save();
     }
   }
 

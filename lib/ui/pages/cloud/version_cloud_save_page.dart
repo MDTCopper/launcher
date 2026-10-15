@@ -71,6 +71,10 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           as Mindustry? ??
       config.versionOptions.selectedVersion;
 
+  /// 上传前的预算：这次大概多大（清单合计、未压缩）与云端还剩多少
+  CloudUploadEstimate? _estimate;
+  CloudSaveQuota? _quota;
+
   AccountManager get _accounts => AccountManager.instance;
 
   @override
@@ -126,11 +130,29 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
               slotId: slot.id,
             )).snapshots;
 
+      // 预算：两个都失败也不影响这页（只记日志）
+      CloudUploadEstimate? estimate;
+      if (version != null) {
+        try {
+          estimate = await CloudSaveService.estimateUpload(version);
+        } catch (error) {
+          addLog(.warning, '算本机清单体积失败：${removeNewlines('$error')}', tag: 'Cloud');
+        }
+      }
+      CloudSaveQuota? quota;
+      try {
+        quota = await CloudSaveService.quota(accessToken: token);
+      } catch (error) {
+        addLog(.warning, '读云端配额失败：${removeNewlines('$error')}', tag: 'Cloud');
+      }
+
       if (!mounted) return;
       setState(() {
         _loading = false;
         _slot = slot;
         _snapshots = snapshots;
+        _estimate = estimate;
+        _quota = quota;
       });
     } on MdtbbsException catch (error) {
       if (!mounted) return;
@@ -762,6 +784,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
                 color: colors.itemSecondary,
               ),
             ),
+          if (_buildBudgetLine(context) case final budget?) budget,
           if (_busy != null && _busyProgress > 0) ...[
             PercentBar(
               total: 1,
@@ -788,6 +811,52 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 「这次约 X MB · 云端还剩 Y MB」—— 传之前就把话说清（完全没有预算时返回 null）
+  ///
+  /// 估的是**清单合计（未压缩）**：`.msav` / `.msch` 在包里原样存（本来就 zlib 过），
+  /// 只有模组 jar 会压 ⇒ 真实包会小一点，所以说「约」
+  Widget? _buildBudgetLine(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final estimate = _estimate;
+    final quota = _quota;
+    final used = quota?.usedBytes;
+    final limit = quota?.limitBytes;
+    final remaining = (used == null || limit == null) ? null : limit - used;
+
+    final parts = <String>[
+      if (estimate != null)
+        '这次约 ${formatBytes(estimate.bytes)}'
+            '（${estimate.fileCount} 份文件'
+            '${estimate.modCount == 0 ? '' : ' · ${estimate.modCount} 个模组'}）',
+      if (remaining != null)
+        '云端还剩 ${formatBytes(remaining)}'
+            '${limit == null ? '' : ' / 共 ${formatBytes(limit)}'}',
+    ];
+    if (parts.isEmpty) return null;
+
+    final tooBig =
+        estimate != null && remaining != null && estimate.bytes > remaining;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 4,
+      children: [
+        Text(
+          parts.join(' · '),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.itemSecondary,
+          ),
+        ),
+        if (tooBig)
+          Text(
+            '按未压缩算可能不够：上传前会自动清最旧的未固定快照腾地方，'
+            '要是固定太多腾不出来，去下面「云端历史」取消固定或删几个。',
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.itemHint),
+          ),
+      ],
     );
   }
 
