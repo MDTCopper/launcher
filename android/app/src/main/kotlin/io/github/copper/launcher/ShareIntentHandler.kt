@@ -9,7 +9,7 @@ import android.util.Log
 import java.io.File
 
 /**
- * 系统分享进来的文件（ACTION_SEND / ACTION_SEND_MULTIPLE）。
+ * 系统送进来的文件（ACTION_SEND / ACTION_SEND_MULTIPLE / ACTION_VIEW）。
  *
  * Dart 读不了 content:// ，所以这里先把每一份复制成应用缓存目录里的真文件，
  * 再把本机路径交给 Dart 侧；怎么导仍由 Dart 决定（与桌面拖入同一条路）。
@@ -36,12 +36,18 @@ class ShareIntentHandler(context: Context) {
      */
     @Synchronized
     fun accept(intent: Intent?): List<String> {
-        val uris = sharedUris(intent ?: return emptyList())
+        if (intent == null) return emptyList()
+        // 排查用：面板里不出现 Copper 时（发送方的类型不在白名单）这条什么都不会打，
+        // 所以真机上「有没有这条日志」本身就是结论之一（tag = ShareIntent）
+        Log.i(TAG, "收到分享：action=${intent.action} type=${intent.type}")
+
+        val uris = sharedUris(intent)
         if (uris.isEmpty()) return emptyList()
 
         val targetDir = prepareTargetDir()
         val copied = mutableListOf<String>()
         for (uri in uris) {
+            Log.i(TAG, "分享文件：$uri（type=${appContext.contentResolver.getType(uri)}）")
             copyToCache(uri, targetDir)?.let { copied.add(it) }
         }
         pending.addAll(copied)
@@ -53,6 +59,8 @@ class ShareIntentHandler(context: Context) {
         when (intent.action) {
             Intent.ACTION_SEND -> singleSharedUri(intent)?.let { uris.add(it) }
             Intent.ACTION_SEND_MULTIPLE -> uris.addAll(multipleSharedUris(intent))
+            //「用其他应用打开」：文件挂在 data 上，与分享是同一条路
+            Intent.ACTION_VIEW -> intent.data?.let { uris.add(it) }
             else -> return emptyList()
         }
         // 有的应用把文件塞在 ClipData 里而不是 EXTRA_STREAM，两边都收
