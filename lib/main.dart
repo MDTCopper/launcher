@@ -6,6 +6,8 @@ import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
 import 'package:copper_launcher/ui/dialog/resource_importer.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -69,13 +71,30 @@ Future<void> _initialize() async {
 
 ///导入一份系统分享进来的文件
 ///
-///冷启动时界面还没建好，先等一帧——导入弹窗要挂在 shell 上
+///导入弹窗挂在 shell 上（`showDefaultDialogPopup` 拿不到全局 Context 会直接抛），
+///而冷启动那次分享远早于界面、安卓上还可能先停在环境配置页，所以等 shell 建出来再走
 Future<void> _importSharedFiles(List<String> files) async {
-  await WidgetsBinding.instance.endOfFrame;
+  if (!await _waitForShell()) {
+    addNotice(
+      icon: Icons.info_outline,
+      title: '有文件等着导入',
+      content: '界面还没准备好，稍后重新分享一次即可',
+    );
+    return;
+  }
   await showResourceImporter(
     files,
     mindustry: config.versionOptions.selectedVersion,
   );
+}
+
+///等 shell 挂上 Context；最多 30 秒，等不到返回 false
+Future<bool> _waitForShell() async {
+  for (var attempt = 0; attempt < 300; attempt++) {
+    if (PageKeyProvider.shellKey.currentContext != null) return true;
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
+  return false;
 }
 
 void _checkPlatform() {
