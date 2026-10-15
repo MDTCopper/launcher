@@ -27,8 +27,9 @@ Future<MdtbbsRelayProxyPorts?> bindRelayProxyPorts({
   for (var offset = 0; offset <= fallbackCount; offset++) {
     final candidate = preferred + offset;
     if (candidate > 65535) break;
+    ServerSocket? tcp;
     try {
-      final tcp = await ServerSocket.bind(
+      tcp = await ServerSocket.bind(
         InternetAddress.loopbackIPv4,
         candidate,
       );
@@ -38,6 +39,7 @@ Future<MdtbbsRelayProxyPorts?> bindRelayProxyPorts({
       );
       return MdtbbsRelayProxyPorts._(tcp, udp, tcp.port);
     } on Object {
+      await tcp?.close();
       continue;
     }
   }
