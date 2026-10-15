@@ -346,7 +346,9 @@ class MdtbbsRelayTunnel {
           tag: 'Multiplayer',
         );
         final completer = _authCompleter;
-        if (completer != null && !completer.isCompleted) completer.complete(signal);
+        if (completer != null && !completer.isCompleted) {
+          completer.complete(signal);
+        }
         _emit(signal);
       case 'reauth_ok':
         final completer = _reauthCompleter;
@@ -393,9 +395,7 @@ class MdtbbsRelayTunnel {
         final reauth = _reauthCompleter;
         if (reauth != null && !reauth.isCompleted) {
           reauth.completeError(
-            MdtbbsRelayException(
-              code.isEmpty ? '中继续签失败' : '中继续签被拒（$code）',
-            ),
+            MdtbbsRelayException(code.isEmpty ? '中继续签失败' : '中继续签被拒（$code）'),
           );
         }
         _emit(MdtbbsRelayError(code: code));
@@ -416,7 +416,12 @@ class MdtbbsRelayTunnel {
     }
     switch (parsed.type) {
       case MdtbbsRelayFrame.typeTcpData:
-        _emit(MdtbbsRelayTcpData(streamId: parsed.streamId, payload: parsed.payload));
+        _emit(
+          MdtbbsRelayTcpData(
+            streamId: parsed.streamId,
+            payload: parsed.payload,
+          ),
+        );
       case MdtbbsRelayFrame.typeTcpClose:
         _emit(MdtbbsRelayTcpClosed(streamId: parsed.streamId));
       case MdtbbsRelayFrame.typeUdpDatagram:
@@ -441,7 +446,9 @@ class MdtbbsRelayTunnel {
     );
     final parsed = expiresAt == null ? null : DateTime.tryParse(expiresAt);
     _credentialExpiresAt = parsed ?? fallback;
-    final secondsLeft = _credentialExpiresAt!.difference(DateTime.now()).inSeconds;
+    final secondsLeft = _credentialExpiresAt!
+        .difference(DateTime.now())
+        .inSeconds;
     final delaySeconds = secondsLeft - renewBefore;
     _renewTimer?.cancel();
     _renewTimer = Timer(

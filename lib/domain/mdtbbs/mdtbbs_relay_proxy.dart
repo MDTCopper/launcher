@@ -29,10 +29,7 @@ Future<MdtbbsRelayProxyPorts?> bindRelayProxyPorts({
     if (candidate > 65535) break;
     ServerSocket? tcp;
     try {
-      tcp = await ServerSocket.bind(
-        InternetAddress.loopbackIPv4,
-        candidate,
-      );
+      tcp = await ServerSocket.bind(InternetAddress.loopbackIPv4, candidate);
       final udp = await RawDatagramSocket.bind(
         InternetAddress.loopbackIPv4,
         candidate,
