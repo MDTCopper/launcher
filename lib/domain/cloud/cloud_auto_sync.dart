@@ -1,13 +1,17 @@
 import 'dart:async';
 
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
 import 'package:copper_launcher/ui/dialog/cloud_conflict_prompt.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
@@ -107,9 +111,9 @@ class CloudAutoSync {
         case CloudSyncStatus.pendingDownload:
           if (slotId == null || snapshotId == null) return true;
           addLog(.info, '云存档：启动前发现云端更新，先恢复 [${version.tag}]', tag: 'Cloud');
-          final result = await CloudSaveService.restore(
-            accessToken: token,
+          final result = await _restoreWithCard(
             version: version,
+            token: token,
             slotId: slotId,
             snapshotId: snapshotId,
           );
@@ -154,9 +158,9 @@ class CloudAutoSync {
       case CloudConflictChoice.useCloud:
         if (slotId == null || snapshotId == null) return true;
         addLog(.info, '云存档冲突：玩家选择用云端覆盖本机 [${version.tag}]', tag: 'Cloud');
-        final result = await CloudSaveService.restore(
-          accessToken: token,
+        final result = await _restoreWithCard(
           version: version,
+          token: token,
           slotId: slotId,
           snapshotId: snapshotId,
         );
@@ -186,6 +190,42 @@ class CloudAutoSync {
         addLog(.info, '云存档冲突：玩家没选，按不启动处理 [${version.tag}]', tag: 'Cloud');
         return false;
     }
+  }
+
+  /// 恢复一次，并且**让任务抽屉里看得见**（启动前那两条路以前只有日志）
+  ///
+  /// 失败时把任务里那次捕获的原始异常抛回去 —— 调用方按类型分支（冲突 / 网络）不用改
+  static Future<CloudSaveRestoreResult> _restoreWithCard({
+    required Mindustry version,
+    required String token,
+    required String slotId,
+    required String snapshotId,
+  }) async {
+    CloudSaveRestoreResult? outcome;
+    final syncTask = CloudSyncTask(
+      direction: CloudSyncDirection.download,
+      versionTag: version.tag,
+      onRun: (task) async {
+        outcome = await CloudSaveService.restore(
+          accessToken: token,
+          version: version,
+          slotId: slotId,
+          snapshotId: snapshotId,
+          onStatus: task.setPhase,
+          onProgress: task.acceptProgress,
+          cancelToken: task.cancelToken,
+        );
+        return '写入 ${outcome!.report.written.length} 份（覆盖前已备份）';
+      },
+    );
+    addTask(syncTask);
+    await syncTask.done;
+
+    final result = outcome;
+    if (result == null) {
+      throw syncTask.error ?? const MdtbbsException(message: '云端恢复被取消');
+    }
+    return result;
   }
 
   /// 恢复完顺手看一眼本机还缺什么，缺就提一句
@@ -224,16 +264,39 @@ class CloudAutoSync {
       final token = await _token();
       if (token == null) return;
 
-      final result = await CloudSaveService.upload(
-        accessToken: token,
-        version: version,
-        reason: CloudSaveUploadReason.afterExit,
+      // 挂成任务：抽屉 / 托盘 / 任务栏都看得见进度，也能当场取消
+      final syncTask = CloudSyncTask(
+        direction: CloudSyncDirection.upload,
+        versionTag: version.tag,
+        onRun: (task) async {
+          final result = await CloudSaveService.upload(
+            accessToken: token,
+            version: version,
+            reason: CloudSaveUploadReason.afterExit,
+            onStatus: task.setPhase,
+            onSendProgress: task.acceptBytes,
+            cancelToken: task.cancelToken,
+          );
+          return result.alreadyUpToDate
+              ? '与云端一致，没有重复上传'
+              : '已上传 ${formatBytes(result.archiveBytes)}';
+        },
       );
-      addLog(
-        .info,
-        '云存档：退出后已自动上传 [${version.tag}]（${result.archiveBytes} 字节）',
-        tag: 'Cloud',
-      );
+      addTask(syncTask);
+      await syncTask.done;
+
+      if (syncTask.succeeded) {
+        addLog(
+          .info,
+          '云存档：退出后已自动上传 [${version.tag}]（${syncTask.result}）',
+          tag: 'Cloud',
+        );
+      } else if (syncTask.error != null) {
+        // 异常原样抛出去：下面按类型分支（冲突要单独那一条通知）
+        throw syncTask.error!;
+      } else {
+        addLog(.warning, '云存档：退出后自动上传被取消 [${version.tag}]', tag: 'Cloud');
+      }
     } on CloudSaveConflictException catch (error) {
       addNotice(
         icon: Icons.warning_amber_outlined,
