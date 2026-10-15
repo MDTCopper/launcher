@@ -301,13 +301,13 @@ class MdtbbsRelayTunnel {
   }
 
   Future<void> dispose() async {
-    if (_closing) return;
+    if (_signals.isClosed) return;
     _closing = true;
     _renewTimer?.cancel();
     _renewTimer = null;
     _completePendingWaiters('已关闭');
     await _teardownSocket();
-    await _signals.close();
+    if (!_signals.isClosed) await _signals.close();
   }
 
   void _onMessage(dynamic message) {
