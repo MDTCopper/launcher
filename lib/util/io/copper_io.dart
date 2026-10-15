@@ -185,8 +185,23 @@ class CopperIO {
   ///镜像使用策略（由 [applySettings] 注入，默认优先官方源）
   MirrorStrategy _mirrorStrategy = MirrorStrategy.githubFirst;
 
-  Duration _connectTimeout = const Duration(seconds: 20);
-  Duration _receiveTimeout = const Duration(seconds: 600);
+  ///超时按**场景**分档 —— 一个 20s / 600s 打天下是错的：小请求要快失败好让镜像
+  ///回退早点接上，大传输要给足连接时间、中途靠停滞看门狗收口
+  ///
+  ///- 探针（探大小 / Range / 节点可达）：答案只是几个响应头，失败要快
+  ///- 普通请求（API / JSON）：连接短、接收给到分钟级（长轮询类调用方自己收紧）
+  ///- 真在传文件：连接给足，接收用「两次数据之间」的停滞看门狗
+  static const Duration _probeConnectTimeout = Duration(seconds: 8);
+  static const Duration _probeReceiveTimeout = Duration(seconds: 12);
+
+  ///下载连接的建立时间：比普通请求宽（要传几十上百 MB，值得多等一会儿）
+  static const Duration _downloadConnectTimeout = Duration(seconds: 30);
+
+  Duration _connectTimeout = const Duration(seconds: 10);
+  Duration _receiveTimeout = const Duration(seconds: 60);
+
+  ///上传（云存档 PUT）连着不动就算卡住：两包数据之间超过它就断
+  static const Duration _sendTimeout = Duration(seconds: 60);
 
   int _maxRetries = 5;
 
@@ -299,6 +314,7 @@ class CopperIO {
     final baseOptions = BaseOptions(
       connectTimeout: _connectTimeout,
       receiveTimeout: _receiveTimeout,
+      sendTimeout: _sendTimeout,
     );
 
     final adapter = IOHttpClientAdapter(
@@ -510,7 +526,15 @@ class CopperIO {
   Future<bool> _probeReachable(String url) async {
     _ensureInit();
     try {
-      await _dio!.head(url, options: Options(validateStatus: (_) => true));
+      await _dio!.head(
+        url,
+        options: Options(
+          validateStatus: (_) => true,
+          //节点探测：不通就赶紧下一个，别让一条死节点拖住整族人
+          connectTimeout: _probeConnectTimeout,
+          receiveTimeout: _probeReceiveTimeout,
+        ),
+      );
       return true;
     } on DioException {
       return false;
@@ -795,7 +819,12 @@ class CopperIO {
       url,
       (effectiveUrl) => _dio!.head(
         effectiveUrl,
-        options: Options(headers: headers),
+        //HEAD 基本都是探针（探大小 / Range / 可达性）：按探针那档给超时
+        options: Options(
+          headers: headers,
+          connectTimeout: _probeConnectTimeout,
+          receiveTimeout: _probeReceiveTimeout,
+        ),
         cancelToken: cancelToken,
       ),
     );
@@ -1009,7 +1038,12 @@ class CopperIO {
     try {
       final headResp = await _dio!.head(
         url,
-        options: Options(headers: headers),
+        //探大小 / Range / ETag：探不到就退单流，不值得在这儿等太久
+        options: Options(
+          headers: headers,
+          connectTimeout: _probeConnectTimeout,
+          receiveTimeout: _probeReceiveTimeout,
+        ),
         cancelToken: cancelToken,
       );
       totalSize =
@@ -1156,6 +1190,8 @@ class CopperIO {
             url,
             options: Options(
               responseType: ResponseType.stream,
+              //下载这一档：建连给足，接收用停滞看门狗
+              connectTimeout: _downloadConnectTimeout,
               //停滞看门狗：两次数据之间超过它没字节，dio 就断掉这条连接
               receiveTimeout: _downloadIdleTimeout,
               headers: {
@@ -1500,6 +1536,8 @@ class CopperIO {
           url,
           options: Options(
             responseType: ResponseType.stream,
+            //下载这一档：建连给足（要传几十上百 MB），接收用停滞看门狗
+            connectTimeout: _downloadConnectTimeout,
             //停滞看门狗：两次数据之间超过它没字节，dio 就断掉这条连接
             receiveTimeout: _downloadIdleTimeout,
             headers: {...?headers, ...rangeHeader},
