@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 /// 只返回一个空的桥接组件 —— 框架会把它塞进自己的 overlay entry，外面还套一层
 /// 淡入与跟随选区的 LayerLink，面板交给全局 [ContextMenu] 画，免得两层淡入叠加
 ///
+/// 触摸平台排成横向一排（与系统自带的浮动文字工具栏同形制），桌面保持竖排
+///
 /// 剪贴板一律交给框架给的 `onPressed`，它已经处理了 `obscureText` 与剪贴板状态
 Widget copperTextContextMenu(
   BuildContext context,
@@ -20,6 +22,11 @@ Widget copperTextContextMenu(
   }
   return _CopperTextContextMenuBridge(state: editableTextState);
 }
+
+/// 触摸平台的文本菜单：横排
+const _touchTextMenuStyle = ContextMenuStyle(
+  layout: ContextMenuLayout.horizontal,
+);
 
 /// 只负责「框架弹出 / 收起菜单」与铜面板之间的两条连接，自己不画东西
 class _CopperTextContextMenuBridge extends StatefulWidget {
@@ -69,6 +76,7 @@ class _CopperTextContextMenuBridgeState
       position: widget.state.contextMenuAnchors.primaryAnchor,
       entries: entries,
       positionDelegate: _delegateFor(context),
+      style: _styleFor(context),
     );
     _generation = ContextMenu.controller.showGeneration;
     unawaited(
@@ -82,14 +90,18 @@ class _CopperTextContextMenuBridgeState
 
   /// 判据取 Theme 的 platform 而不是 `dart:io Platform`：输入框是长按出菜单
   /// 还是右键出菜单由框架按平台决定，两边要同一个口径
-  ContextMenuPositionDelegate _delegateFor(BuildContext context) {
+  bool _isTouch(BuildContext context) {
     final platform = Theme.of(context).platform;
-    final isTouch =
-        platform == TargetPlatform.android || platform == TargetPlatform.iOS;
-    return isTouch
-        ? const ContextMenuMobilePosition()
-        : const ContextMenuDesktopPosition();
+    return platform == TargetPlatform.android || platform == TargetPlatform.iOS;
   }
+
+  ContextMenuPositionDelegate _delegateFor(BuildContext context) =>
+      _isTouch(context)
+      ? const ContextMenuMobilePosition()
+      : const ContextMenuDesktopPosition();
+
+  ContextMenuStyle _styleFor(BuildContext context) =>
+      _isTouch(context) ? _touchTextMenuStyle : const ContextMenuStyle();
 
   /// 条目直接照框架给的来：顺序不动、不可用的（`onPressed` 为空）不显示
   List<ContextMenuEntry> _entriesOf(EditableTextState state) {

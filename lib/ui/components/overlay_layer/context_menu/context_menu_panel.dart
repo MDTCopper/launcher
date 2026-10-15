@@ -11,11 +11,17 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+/// 菜单排布方向
+///
+/// [horizontal] 给文本菜单用：一排横着排，与触摸平台自带的浮动文字工具栏同形制
+enum ContextMenuLayout { vertical, horizontal }
+
 /// 菜单外观与节奏
 ///
 /// [itemHeight] 为空时按平台取：桌面 32 紧凑，移动端 48 触控下限
 class ContextMenuStyle {
   const ContextMenuStyle({
+    this.layout = ContextMenuLayout.vertical,
     this.itemHeight,
     this.minWidth = 168,
     this.maxWidth = 248,
@@ -27,6 +33,9 @@ class ContextMenuStyle {
     this.hoverCloseDelay = const Duration(milliseconds: 240),
     this.dismissOnScrollOutside = true,
   });
+
+  /// 排布方向；横向时宽度不受 [maxWidth] 限制（一排能铺多宽铺多宽）
+  final ContextMenuLayout layout;
 
   final double? itemHeight;
   final double minWidth;
@@ -298,9 +307,11 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
         media.size.width -
         media.padding.horizontal -
         widget.style.screenMargin * 2;
-    final cap = available < widget.style.maxWidth
+    final cap = widget.style.layout == ContextMenuLayout.horizontal
         ? available
-        : widget.style.maxWidth;
+        : (available < widget.style.maxWidth
+              ? available
+              : widget.style.maxWidth);
     return cap < 1 ? 1 : cap;
   }
 
@@ -441,32 +452,54 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
   }
 
   Widget _buildPanelBody() {
+    final horizontal = widget.style.layout == ContextMenuLayout.horizontal;
     return MouseRegion(
       onEnter: (_) => widget.callbacks.onPanelHover(true),
       onExit: (_) => widget.callbacks.onPanelHover(false),
       child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: _minPanelWidth(),
-          maxWidth: _maxPanelWidth(),
-        ),
-        child: IntrinsicWidth(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.tight),
-            // 图标尺寸统一在这一层给，条目里只按状态改颜色
-            child: IconTheme(
-              data: const IconThemeData(size: AppIconSize.inline),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: _maxPanelHeight()),
-                child: SingleChildScrollView(
-                  // 换内容（同级菜单替换）时淡入，位置与尺寸交给外面的布局动画
-                  child: FadeTransition(
-                    opacity: _content,
-                    child: _buildEntries(),
+        constraints: horizontal
+            // 横向：宽度交给那一排自己撑（不受 maxWidth 限制），别去量内在宽度
+            ? BoxConstraints(
+                maxWidth: _maxPanelWidth(),
+                maxHeight: _maxPanelHeight(),
+              )
+            : BoxConstraints(
+                minWidth: _minPanelWidth(),
+                maxWidth: _maxPanelWidth(),
+              ),
+        child: horizontal
+            ? _buildHorizontalBody()
+            : IntrinsicWidth(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.tight),
+                  // 图标尺寸统一在这一层给，条目里只按状态改颜色
+                  child: IconTheme(
+                    data: const IconThemeData(size: AppIconSize.inline),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: _maxPanelHeight()),
+                      child: SingleChildScrollView(
+                        // 换内容（同级菜单替换）时淡入，位置与尺寸交给外面的布局动画
+                        child: FadeTransition(
+                          opacity: _content,
+                          child: _buildEntries(),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
+      ),
+    );
+  }
+
+  Widget _buildHorizontalBody() {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.tight),
+      child: IconTheme(
+        data: const IconThemeData(size: AppIconSize.inline),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: FadeTransition(opacity: _content, child: _buildEntries()),
         ),
       ),
     );
@@ -507,15 +540,19 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
   }
 
   Widget _buildEntries() {
+    final horizontal = widget.style.layout == ContextMenuLayout.horizontal;
     final children = <Widget>[];
     for (var index = 0; index < widget.entries.length; index++) {
       final entry = widget.entries[index];
       children.add(switch (entry) {
-        ContextMenuDivider() => const _EntryDivider(),
+        ContextMenuDivider() => _EntryDivider(horizontal: horizontal),
         ContextMenuHeader(:final label) => _EntryHeader(label: label),
         ContextMenuAction() => _buildActionTile(entry, index),
         ContextMenuSubmenu() => _buildSubmenuTile(entry, index),
       });
+    }
+    if (horizontal) {
+      return Row(mainAxisSize: MainAxisSize.min, children: children);
     }
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -534,6 +571,7 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
       enabled: entry.isEnabled,
       trailing: entry.checked ? Icons.check : null,
       accentTrailing: entry.checked,
+      horizontal: widget.style.layout == ContextMenuLayout.horizontal,
       height: widget.style.resolvedItemHeight,
       onTap: (itemContext) =>
           widget.callbacks.onEntryActivated(index, _itemRectOf(itemContext)),
@@ -549,6 +587,7 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
       enabled: entry.enabled,
       trailing: Icons.chevron_right,
       active: widget.activeIndex == index,
+      horizontal: widget.style.layout == ContextMenuLayout.horizontal,
       height: widget.style.resolvedItemHeight,
       onTap: (itemContext) =>
           widget.callbacks.onEntryActivated(index, _itemRectOf(itemContext)),
@@ -566,6 +605,7 @@ class _EntryTile extends StatelessWidget {
   const _EntryTile({
     required this.label,
     required this.height,
+    this.horizontal = false,
     this.icon,
     this.trailing,
     this.danger = false,
@@ -578,6 +618,9 @@ class _EntryTile extends StatelessWidget {
 
   final String label;
   final double height;
+
+  /// 横向排布（文本菜单那排）：高度只兜下限、内衬换个方向
+  final bool horizontal;
   final IconData? icon;
   final IconData? trailing;
   final bool danger;
@@ -591,6 +634,21 @@ class _EntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: (_) => onHover?.call(context, true),
+      onExit: (_) => onHover?.call(context, false),
+      child: horizontal
+          // 横向：高度只兜个下限，宽度交给内容
+          ? ConstrainedBox(
+              constraints: BoxConstraints(minHeight: height),
+              child: _buildTileBody(context),
+            )
+          : SizedBox(height: height, child: _buildTileBody(context)),
+    );
+  }
+
+  Widget _buildTileBody(BuildContext context) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     final foreground = !enabled
@@ -598,81 +656,85 @@ class _EntryTile extends StatelessWidget {
         : danger
         ? colors.error
         : colors.itemSecondary;
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: (_) => onHover?.call(context, true),
-      onExit: (_) => onHover?.call(context, false),
-      child: SizedBox(
-        height: height,
-        child: ReboundButton(
-          onTap: enabled ? () => onTap?.call(context) : null,
-          pressedScale: 0.98,
-          hoverElevation: 0,
-          borderRadius: AppRadius.itemShape,
-          backgroundColor: active
-              ? colors.highBackgroundOnCard
-              : Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.related),
-          child: Stack(
-            alignment: Alignment.center,
+    return ReboundButton(
+      onTap: enabled ? () => onTap?.call(context) : null,
+      pressedScale: 0.98,
+      hoverElevation: 0,
+      borderRadius: AppRadius.itemShape,
+      backgroundColor: active
+          ? colors.highBackgroundOnCard
+          : Colors.transparent,
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontal ? AppSpacing.group : AppSpacing.related,
+        vertical: horizontal ? AppSpacing.tight : 0,
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (icon != null) ...[
-                    // 尺寸由面板那层的 IconTheme 给，这里只改颜色
-                    IconTheme(
-                      data: IconTheme.of(context).copyWith(color: foreground),
-                      child: Icon(icon),
-                    ),
-                    const SizedBox(width: AppSpacing.related),
-                  ],
-                  // 文字要可收缩：窄窗口放不下时靠它 ellipsis，否则整行会撑破
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: foreground,
-                      ),
-                    ),
-                  ),
-                  if (trailing != null)
-                    const SizedBox(
-                      width: AppIconSize.inline + AppSpacing.tight,
-                    ),
-                ],
-              ),
-              if (trailing != null)
-                Positioned(
-                  right: 0,
-                  child: Icon(
-                    trailing,
-                    color: accentTrailing
-                        ? colors.interactive
-                        : colors.itemHint,
+              if (icon != null) ...[
+                // 尺寸由面板那层的 IconTheme 给，这里只改颜色
+                IconTheme(
+                  data: IconTheme.of(context).copyWith(color: foreground),
+                  child: Icon(icon),
+                ),
+                const SizedBox(width: AppSpacing.related),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: foreground,
                   ),
                 ),
+              ),
+              if (trailing != null)
+                const SizedBox(width: AppIconSize.inline + AppSpacing.tight),
             ],
           ),
-        ),
+          if (trailing != null)
+            Positioned(
+              right: 0,
+              child: Icon(
+                trailing,
+                color: accentTrailing ? colors.interactive : colors.itemHint,
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
 class _EntryDivider extends StatelessWidget {
-  const _EntryDivider();
+  const _EntryDivider({this.horizontal = false});
+
+  /// 横向排布时画成一竖条
+  final bool horizontal;
 
   @override
   Widget build(BuildContext context) {
+    final color = AppColors.of(context).border;
+    if (horizontal) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.tight),
+        child: SizedBox(
+          width: AppBorderWidth.hairline,
+          height: AppIconSize.inline,
+          child: ColoredBox(color: color),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.tight),
       child: SizedBox(
         height: AppBorderWidth.hairline,
-        child: ColoredBox(color: AppColors.of(context).border),
+        child: ColoredBox(color: color),
       ),
     );
   }
