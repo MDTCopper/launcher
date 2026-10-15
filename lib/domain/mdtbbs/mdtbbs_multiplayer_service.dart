@@ -143,8 +143,10 @@ class MdtbbsMultiplayerService {
       stopInvitePolling();
       forgetSession();
       _finishSessionTask();
-      await stopProxy(announce: false);
+      // 先同步清掉旧账号的可见状态，再异步释放旧网络资源。
+      // 这样新账号即使在 teardown 期间登录并建好状态，也不会被旧 reset 的尾声覆盖。
       _set(const MultiplayerState());
+      await stopProxy(announce: false);
     } finally {
       _accountResetInFlight = false;
     }
