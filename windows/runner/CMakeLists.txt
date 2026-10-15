@@ -7,6 +7,7 @@ project(runner LANGUAGES CXX)
 #
 # Any new source files that you add to the application should be added here.
 add_executable(${BINARY_NAME} WIN32
+  "file_drag_out.cpp"
   "flutter_window.cpp"
   "main.cpp"
   "utils.cpp"
@@ -34,7 +35,13 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
+# 拖出那套：DoDragDrop / OleInitialize 在 ole32，SHCreateStdEnumFMTETC 在 shell32
+target_link_libraries(${BINARY_NAME} PRIVATE "ole32.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE "shell32.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+
+# 源码里的中文注释与文案：MSVC 默认按系统代码页读，中文 Windows 上会读坏
+target_compile_options(${BINARY_NAME} PRIVATE "/utf-8")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
