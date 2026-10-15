@@ -1,5 +1,6 @@
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_host.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
@@ -51,22 +52,48 @@ class _AuxiliaryInputBarState extends State<AuxiliaryInputBar> {
   /// 所以自带一个只装这条的 Overlay，挂在 navigator 的旁边而不是里面
   late final OverlayEntry barEntry = OverlayEntry(builder: _buildBarHost);
 
+  /// 条这份 Overlay：菜单要提到这一层（应用自己的 Overlay 在条下面，会被盖住）
+  final barOverlayKey = GlobalKey<OverlayState>();
+
+  /// 量条的高度，登记给菜单当底部禁区
+  final barKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     FocusManager.instance.addListener(_handleFocusChanged);
     inputController.addListener(_pushToHolder);
+    ContextMenuHost.overlayResolver = _resolveOverlay;
     _handleFocusChanged();
   }
 
   @override
   void dispose() {
     FocusManager.instance.removeListener(_handleFocusChanged);
+    if (ContextMenuHost.overlayResolver == _resolveOverlay) {
+      ContextMenuHost.overlayResolver = null;
+    }
+    ContextMenuHost.bottomObstruction.value = 0;
     _detachHolder();
     inputController.dispose();
     inputFocusNode.dispose();
     barState.dispose();
     super.dispose();
+  }
+
+  OverlayState? _resolveOverlay(BuildContext context) =>
+      barOverlayKey.currentState ?? Overlay.of(context, rootOverlay: true);
+
+  /// 把「条占住的底部高度」登记给菜单，键盘收起时清 0
+  void _schedulePublishObstruction() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = barKey.currentContext?.findRenderObject();
+      final height = box is RenderBox && box.hasSize ? box.size.height : 0.0;
+      ContextMenuHost.bottomObstruction.value = barState.value.visible
+          ? height
+          : 0;
+    });
   }
 
   /// 接管对象已经销毁时拿不到内容，别去碰它那份控制器
@@ -173,12 +200,15 @@ class _AuxiliaryInputBarState extends State<AuxiliaryInputBar> {
     if (wasVisible && !visible) _scheduleFocusRelease();
     wasVisible = visible;
     barState.value = (visible: visible, keyboardInset: keyboardInset);
+    if (visible) _schedulePublishObstruction();
 
     return Stack(
       fit: StackFit.expand,
       children: [
         widget.child,
-        Positioned.fill(child: Overlay(initialEntries: [barEntry])),
+        Positioned.fill(
+          child: Overlay(key: barOverlayKey, initialEntries: [barEntry]),
+        ),
       ],
     );
   }
@@ -209,7 +239,7 @@ class _AuxiliaryInputBarState extends State<AuxiliaryInputBar> {
                   alignment: Alignment.bottomCenter,
                   child: Padding(
                     padding: EdgeInsets.only(bottom: state.keyboardInset),
-                    child: _buildInputBar(),
+                    child: KeyedSubtree(key: barKey, child: _buildInputBar()),
                   ),
                 )
               : const SizedBox.shrink(key: ValueKey('bar-hidden')),

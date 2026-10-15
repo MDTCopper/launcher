@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 export 'context_menu_controller.dart';
 export 'context_menu_entry.dart';
+export 'context_menu_host.dart';
 export 'context_menu_panel.dart';
 export 'context_menu_position.dart';
 

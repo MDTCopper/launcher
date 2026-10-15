@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_host.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_panel.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_position.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +52,9 @@ class GlobalContextMenuController extends ChangeNotifier {
     bool relocateOnReopen = false,
     ContextMenuStyle style = const ContextMenuStyle(),
   }) {
-    final overlay = Overlay.of(context, rootOverlay: true);
+    final overlay =
+        ContextMenuHost.overlayResolver?.call(context) ??
+        Overlay.of(context, rootOverlay: true);
     final anchor = ContextMenuAnchor.point(
       _toOverlayPosition(overlay, position),
     );

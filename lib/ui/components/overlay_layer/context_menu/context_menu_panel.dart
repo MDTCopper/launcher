@@ -1,5 +1,6 @@
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_host.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_position.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
@@ -268,12 +269,16 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
   ContextMenuPlacement _resolvePlacement(Size panelSize) {
     final media = MediaQuery.of(context);
     final margin = widget.style.screenMargin;
-    // 键盘也算安全区：输入法弹出时菜单不该被压在下面
+    // 键盘与「底部被别的东西占住的高度」都算安全区：输入法弹出时菜单不该被压在
+    // 下面，安卓那条辅助输入条占的带子也要算进去，不然弹出来正好被它盖住
     final safeArea = EdgeInsets.fromLTRB(
       media.padding.left + margin,
       media.padding.top + margin,
       media.padding.right + margin,
-      media.padding.bottom + margin + media.viewInsets.bottom,
+      media.padding.bottom +
+          margin +
+          media.viewInsets.bottom +
+          ContextMenuHost.bottomObstruction.value,
     );
     return widget.delegate.place(
       anchor: widget.anchor,
@@ -514,6 +519,8 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
     }
     return Column(
       mainAxisSize: MainAxisSize.min,
+      // 必须 stretch：条目要铺满面板宽度，否则高亮只有文字那么宽、
+      // 行尾那个箭头也会跟着文字跑（不是贴面板右边）
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
     );
