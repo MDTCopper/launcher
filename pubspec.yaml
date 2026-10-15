@@ -27,6 +27,8 @@ dependencies:
   url_launcher: ^6.3.2
   open_filex: ^4.7.0
   desktop_drop: ^0.7.0
+  # 只有「分享出去」用它：share_plus 只能发不能收，安卓收分享走自己的宿主通道
+  share_plus: ^13.3.1
   flutter_markdown_plus: ^1.0.7
   markdown: ^7.3.1
   html2md: ^1.3.2
