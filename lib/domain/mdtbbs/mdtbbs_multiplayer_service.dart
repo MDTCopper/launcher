@@ -1192,6 +1192,7 @@ class MdtbbsMultiplayerService {
   }
 
   Future<void> stopProxy({bool announce = true}) async {
+    final epoch = _accountEpoch;
     final wasRunning = _tunnel != null;
     final guest = _guest;
     final host = _host;
@@ -1201,10 +1202,9 @@ class MdtbbsMultiplayerService {
     _host = null;
     _tunnel = null;
     _signalSubscription = null;
-    await guest?.dispose();
-    await host?.dispose();
-    await subscription?.cancel();
-    await tunnel?.dispose();
+
+    // 先从状态机摘掉旧 proxy；后面的 socket / subscription teardown 可能耗时，
+    // 不能等它结束后再去覆盖已经切到新账号或新 proxy 的状态。
     if (_current.proxyRunning) {
       _set(
         _current.copyWith(
@@ -1214,7 +1214,14 @@ class MdtbbsMultiplayerService {
         ),
       );
     }
-    if (wasRunning && announce) _notify('联机通道已停止');
+
+    await guest?.dispose();
+    await host?.dispose();
+    await subscription?.cancel();
+    await tunnel?.dispose();
+    if (wasRunning && announce && _isAccountEpochCurrent(epoch)) {
+      _notify('联机通道已停止');
+    }
   }
 
   String _describeProxyError(Object error) {
