@@ -63,6 +63,39 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- 系统分享进来（在 QQ 里对某个 .jar 选「分享」）：宿主把 content:// 复制成本机文件后交给 Dart，
+             导入仍走桌面拖入那条路（showResourceImporter 按类型分流）。
+
+             用 activity-alias 是为了让分享面板上那一行文案按文件类型分开 —— 面板显示的是 alias 的 label，
+             两个 alias 的 MIME 互不重叠，所以同一个文件只会出现一条。
+             只声明常见的 MIME：`*/*` 会让 Copper 出现在所有分享里（连图片、文字都算） -->
+        <activity-alias
+            android:name=".ShareJar"
+            android:exported="true"
+            android:label="导入 JAR"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <action android:name="android.intent.action.SEND_MULTIPLE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/java-archive"/>
+                <data android:mimeType="application/x-java-archive"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".ShareFile"
+            android:exported="true"
+            android:label="导入到 Copper"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <action android:name="android.intent.action.SEND_MULTIPLE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/zip"/>
+                <data android:mimeType="application/x-zip-compressed"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
+        </activity-alias>
         <!-- The placeholder both ways of running the game are asked for; CopperComponentFactory
              returns the game's own activity in its place.
 

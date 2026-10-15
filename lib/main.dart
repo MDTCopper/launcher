@@ -5,11 +5,13 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
+import 'package:copper_launcher/ui/dialog/resource_importer.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
+import 'package:copper_launcher/util/share_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +60,22 @@ Future<void> _initialize() async {
   await LauncherTray.instance.applyMode();
   //后台初始化任务，不阻塞，进任务抽屉自跑
   addTask(StartupBackgroundTask());
+
+  //系统分享进来的文件（安卓）：宿主已经把它们复制到缓存目录，
+  //接线后与桌面拖入走同一条导入路；冷启动那次分享也在这里被取回来
+  ShareIn.onFiles((files) => unawaited(_importSharedFiles(files)));
+  await ShareIn.start();
+}
+
+///导入一份系统分享进来的文件
+///
+///冷启动时界面还没建好，先等一帧——导入弹窗要挂在 shell 上
+Future<void> _importSharedFiles(List<String> files) async {
+  await WidgetsBinding.instance.endOfFrame;
+  await showResourceImporter(
+    files,
+    mindustry: config.versionOptions.selectedVersion,
+  );
 }
 
 void _checkPlatform() {
