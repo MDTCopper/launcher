@@ -105,11 +105,11 @@ class MdtbbsRelayException implements Exception {
 /// 官方中继隧道（MLR1 over WSS）
 ///
 /// 生命周期：[start] 申请凭证 → 建连 → auth → 等 `auth_ok` → 之后由 [signals]
-/// 驱动上层桥接；凭证到期前 [renewBefore] 秒用 [allocateRelay] 拿新凭证发 reauth。
+/// 驱动上层桥接；凭证到期前 [renewBefore] 秒用 [allocateRelay] 拿续签凭证发 reauth。
 ///
-/// **一个对端同时只允许 1 条中继分配**（实测 2026-10-13：同一会话第二次
-/// `POST /relay` 立刻 429 `RELAY_LIMIT_REACHED`）⇒ 认证失败后**绝不重新分配**，
-/// 只用同一份凭证退避重试；重新分配会把入口自己堵死。
+/// 尚未连上的 active allocation 不能重复申请；已经 connected 的 allocation
+/// 则由控制面复用原 allocation / connection_id 签发续签凭证。
+/// 因此首次 auth 的 `AUTH_INVALID` 重试只复用原凭证，不重新占一条 allocation。
 class MdtbbsRelayTunnel {
   MdtbbsRelayTunnel({
     required this.allocateRelay,
@@ -146,8 +146,8 @@ class MdtbbsRelayTunnel {
 
   /// 建连并认证
   ///
-  /// 认证被拒（`AUTH_INVALID`）只用**同一份凭证**退避重试 ——
-  /// 重新分配会立刻撞上「一个对端一条分配」的额度（429），把入口堵死
+  /// 认证被拒（`AUTH_INVALID`）只用**同一份凭证**退避重试，
+  /// 避免尚未 connected 时重复申请撞上 allocation 限制。
   Future<MdtbbsRelayAuthOk> start() async {
     _allocation = await allocateRelay();
     final alloc = _allocation!;
@@ -426,12 +426,10 @@ class MdtbbsRelayTunnel {
           );
         }
         final completer = _authCompleter;
-        if (completer != null &&
-            !completer.isCompleted &&
-            code.startsWith('AUTH_')) {
+        if (completer != null && !completer.isCompleted) {
           completer.completeError(
             MdtbbsRelayException(
-              '中继认证被拒（$code）',
+              code.isEmpty ? '中继认证失败' : '中继认证被拒（$code）',
               authRejected: code == 'AUTH_INVALID',
             ),
           );
