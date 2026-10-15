@@ -26,7 +26,6 @@ class MdtbbsMultiplayerService {
     final snapshot = _accounts.snapshot.value;
     _accountLoggedIn = snapshot.loggedIn;
     _lastAccountSubject = snapshot.subject;
-    _boundAccountSubject = snapshot.loggedIn ? snapshot.subject : null;
     _accounts.snapshot.addListener(_onAccountSnapshotChanged);
   }
 
@@ -55,7 +54,6 @@ class MdtbbsMultiplayerService {
   int? _heartbeatInFlightGeneration;
   bool _heartbeatRecoveryInFlight = false;
 
-  String? _boundAccountSubject;
   String? _lastAccountSubject;
   bool _accountLoggedIn = false;
   bool _accountResetInFlight = false;
@@ -109,7 +107,6 @@ class MdtbbsMultiplayerService {
       if (_accountLoggedIn) _accountEpoch++;
       _accountLoggedIn = false;
       _lastAccountSubject = null;
-      _boundAccountSubject = null;
       if (_hasLiveMultiplayerState) unawaited(_resetForAccountChange());
       return;
     }
@@ -126,7 +123,6 @@ class MdtbbsMultiplayerService {
 
     if (subject != null && subject.isNotEmpty) {
       _lastAccountSubject = subject;
-      _boundAccountSubject = subject;
     }
     if (identityChanged && _hasLiveMultiplayerState) {
       unawaited(_resetForAccountChange());
@@ -185,7 +181,6 @@ class MdtbbsMultiplayerService {
     if (!_accounts.isConfigured) return;
     if (_current.session != null) return;
     await _accounts.restore();
-    _boundAccountSubject = _accounts.subject;
     final stored = _accounts.multiplayerSession;
     if (stored == null || !stored.isFresh(DateTime.now())) {
       if (stored != null) {
