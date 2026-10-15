@@ -133,6 +133,10 @@ class MdtbbsRelayTunnel {
   final _signals = StreamController<MdtbbsRelaySignal>.broadcast();
   Completer<MdtbbsRelayAuthOk>? _authCompleter;
 
+  /// tcp_open_pending 没有请求 ID，多个 open 并发时无法把响应归属到调用方。
+  /// 所以握手必须串行，等一条 opened / failed 收口后再发下一条。
+  Future<void> _tcpOpenTail = Future<void>.value();
+
   /// 信令与数据都从这里出（广播流，允许多个订阅者各取所需）
   Stream<MdtbbsRelaySignal> get signals => _signals.stream;
 
@@ -177,10 +181,11 @@ class MdtbbsRelayTunnel {
     throw lastError ?? const MdtbbsRelayException('中继认证失败');
   }
 
-  Future<MdtbbsRelayAuthOk> _connectAndAuth() {
+  Future<MdtbbsRelayAuthOk> _connectAndAuth() async {
     final completer = Completer<MdtbbsRelayAuthOk>();
     _authCompleter = completer;
-    return _connect().then((_) {
+    try {
+      await _connect();
       addLogAndPrint(
         .info,
         '已发送中继认证（op=auth，agent=${_allocation!.agentId}，凭证不落日志）',
@@ -191,14 +196,18 @@ class MdtbbsRelayTunnel {
         'version': MdtbbsRelayFrame.version,
         'credential': _allocation!.credential,
       });
-      return completer.future.timeout(
+      return await completer.future.timeout(
         authTimeout,
         onTimeout: () {
           unawaited(_teardownSocket());
           throw const MdtbbsRelayException('中继 auth_ok 超时');
         },
       );
-    });
+    } finally {
+      if (identical(_authCompleter, completer)) {
+        _authCompleter = null;
+      }
+    }
   }
 
   Future<void> _connect() async {
@@ -233,21 +242,86 @@ class MdtbbsRelayTunnel {
     }
   }
 
-  /// 申请一条到目标对端的 TCP 流；返回中继分配的 streamId
+  /// 申请一条到目标对端的 TCP 流。
   ///
-  /// 上层在拿到 streamId 前不要往这条流写数据；`tcp_opened / tcp_open_failed`
-  /// 会作为信号继续送达
-  Future<int> openTcpStream(String targetPeerId) async {
-    _sendJson({'op': 'tcp_open', 'target_peer_id': targetPeerId});
-    final pending = await signals
-        .firstWhere((s) => s is MdtbbsRelayTcpOpenPending)
-        .timeout(const Duration(seconds: 15));
-    return (pending as MdtbbsRelayTcpOpenPending).streamId;
+  /// 中继的 `tcp_open_pending` 没有客户端请求 ID，所以 open 握手串行执行；
+  /// `tcp_opened` 到达后才把 streamId 交给上层，避免在流尚未就绪时发送游戏数据。
+  Future<int> openTcpStream(String targetPeerId) {
+    final result = Completer<int>();
+    _tcpOpenTail = _tcpOpenTail.then((_) async {
+      try {
+        result.complete(await _openTcpStreamOnce(targetPeerId));
+      } on Object catch (error, stackTrace) {
+        result.completeError(error, stackTrace);
+      }
+    });
+    return result.future;
+  }
+
+  Future<int> _openTcpStreamOnce(String targetPeerId) async {
+    if (_closing || _socket == null) {
+      throw const MdtbbsRelayException('中继尚未连接');
+    }
+
+    final result = Completer<int>();
+    int? pendingStreamId;
+    late final StreamSubscription<MdtbbsRelaySignal> subscription;
+    subscription = signals.listen((signal) {
+      if (result.isCompleted) return;
+
+      if (signal is MdtbbsRelayTcpOpenPending && pendingStreamId == null) {
+        pendingStreamId = signal.streamId;
+        return;
+      }
+
+      if (signal is MdtbbsRelayTcpOpened &&
+          pendingStreamId != null &&
+          signal.streamId == pendingStreamId) {
+        result.complete(signal.streamId);
+        return;
+      }
+
+      if (signal is MdtbbsRelayTcpOpenFailed &&
+          (pendingStreamId == null || signal.streamId == pendingStreamId)) {
+        result.completeError(
+          MdtbbsRelayException('中继 TCP stream ${signal.streamId} 打开失败'),
+        );
+        return;
+      }
+
+      if (signal is MdtbbsRelayClosed) {
+        result.completeError(MdtbbsRelayException(signal.reason));
+      }
+    });
+
+    try {
+      _sendJson({'op': 'tcp_open', 'target_peer_id': targetPeerId});
+      return await result.future.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw const MdtbbsRelayException('中继 TCP stream 打开超时'),
+      );
+    } finally {
+      await subscription.cancel();
+    }
   }
 
   void sendTcpData(int streamId, List<int> payload) {
-    final frame = MdtbbsRelayFrame.tcpData(streamId, payload);
-    if (frame != null) _socket?.add(frame);
+    final socket = _socket;
+    if (socket == null || _closing || payload.isEmpty) return;
+
+    for (var offset = 0; offset < payload.length;) {
+      final remaining = payload.length - offset;
+      final chunkLength = remaining > MdtbbsRelayFrame.maxTcpPayload
+          ? MdtbbsRelayFrame.maxTcpPayload
+          : remaining;
+      final end = offset + chunkLength;
+      final frame = MdtbbsRelayFrame.tcpData(
+        streamId,
+        payload.sublist(offset, end),
+      );
+      if (frame != null) socket.add(frame);
+      offset = end;
+    }
   }
 
   void closeTcpStream(int streamId) {
@@ -306,7 +380,10 @@ class MdtbbsRelayTunnel {
           '中继已认证：role=${signal.peerRole}，凭证到 ${signal.expiresAt}',
           tag: 'Multiplayer',
         );
-        _authCompleter?.complete(signal);
+        final completer = _authCompleter;
+        if (completer != null && !completer.isCompleted) {
+          completer.complete(signal);
+        }
         _emit(signal);
       case 'reauth_ok':
         addLogAndPrint(.info, '中继凭证已续签', tag: 'Multiplayer');
@@ -348,9 +425,17 @@ class MdtbbsRelayTunnel {
             tag: 'Multiplayer',
           );
         }
-        _authCompleter?.completeError(
-          MdtbbsRelayException('中继认证被拒（$code）', authRejected: true),
-        );
+        final completer = _authCompleter;
+        if (completer != null &&
+            !completer.isCompleted &&
+            code.startsWith('AUTH_')) {
+          completer.completeError(
+            MdtbbsRelayException(
+              '中继认证被拒（$code）',
+              authRejected: code == 'AUTH_INVALID',
+            ),
+          );
+        }
         _emit(MdtbbsRelayError(code: code));
       default:
         addLogAndPrint(.info, '未处理的中继 op：${json['op']}', tag: 'Multiplayer');
