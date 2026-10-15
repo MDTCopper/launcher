@@ -947,11 +947,13 @@ class CopperIO {
     int? maxRetries,
   }) async {
     _ensureInit();
-    if (maxRetries != null) _maxRetries = maxRetries;
+    //每次调用的重试上限只作用于这次下载：早先是直接写单例字段，
+    //一次传了 maxRetries 会把之后所有下载与请求的上限一起改掉
+    final retryLimit = maxRetries ?? _maxRetries;
     addLog(
       .debug,
       '开始下载：$url → $savePath'
-      '（镜像策略 ${_mirrorStrategy.name}，重试上限 $_maxRetries）',
+      '（镜像策略 ${_mirrorStrategy.name}，重试上限 $retryLimit）',
       tag: 'Download',
     );
     await _githubFallback(
@@ -962,6 +964,7 @@ class CopperIO {
         speedLimit: speedLimit,
         chunkCount: chunkCount,
         tempPath: tempPath,
+        retryLimit: retryLimit,
         cancelToken: cancelToken,
         deleteOnError: deleteOnError,
         onStatus: onStatus,
@@ -978,6 +981,7 @@ class CopperIO {
     int? speedLimit,
     int? chunkCount,
     String? tempPath,
+    int retryLimit = 5,
     CancelToken? cancelToken,
     bool deleteOnError = true,
     HttpStatusCallback? onStatus,
@@ -1014,6 +1018,7 @@ class CopperIO {
         savePath: savePath,
         totalSize: totalSize,
         speedLimit: effectiveSpeedLimit,
+        retryLimit: retryLimit,
         cancelToken: cancelToken,
         deleteOnError: deleteOnError,
         onStatus: onStatus,
@@ -1030,6 +1035,7 @@ class CopperIO {
       speedLimit: effectiveSpeedLimit,
       tempPath: tempPath,
       etag: etag,
+      retryLimit: retryLimit,
       cancelToken: cancelToken,
       deleteOnError: deleteOnError,
       onStatus: onStatus,
@@ -1049,6 +1055,7 @@ class CopperIO {
     int? speedLimit,
     String? tempPath,
     String? etag,
+    int retryLimit = 5,
     CancelToken? cancelToken,
     bool deleteOnError = true,
     HttpStatusCallback? onStatus,
@@ -1063,6 +1070,7 @@ class CopperIO {
         speedLimit: speedLimit,
         tempPath: tempPath,
         etag: etag,
+        retryLimit: retryLimit,
         cancelToken: cancelToken,
         deleteOnError: deleteOnError,
         onStatus: onStatus,
@@ -1079,6 +1087,7 @@ class CopperIO {
         savePath: savePath,
         totalSize: totalSize,
         speedLimit: speedLimit,
+        retryLimit: retryLimit,
         cancelToken: cancelToken,
         deleteOnError: deleteOnError,
         onStatus: onStatus,
@@ -1087,11 +1096,16 @@ class CopperIO {
     }
   }
 
+  ///单流下载：整份顺序写，中途断流就带 `Range` 试着接着下
+  ///
+  ///无 Range 的站点（只认 GET 的接口、把 Range 裁掉的网关）也要扛得住弱网：
+  ///不能一断就整单失败。服务器不认 Range（回 200 而不是 206）时整份重来
   Future<void> _downloadSingleStream({
     required String url,
     required String savePath,
     required int totalSize,
     int? speedLimit,
+    int retryLimit = 5,
     CancelToken? cancelToken,
     bool deleteOnError = true,
     HttpStatusCallback? onStatus,
@@ -1119,98 +1133,147 @@ class CopperIO {
     );
 
     Timer? periodicTimer;
-    IOSink? sink;
     try {
       onStatus?.call(state);
 
-      final response = await _dio!.get(
-        url,
-        options: Options(
-          responseType: ResponseType.stream,
-          //停滞看门狗：两次数据之间超过它没字节，dio 就断掉这条连接
-          receiveTimeout: _downloadIdleTimeout,
-          headers: headers,
-        ),
-        cancelToken: cancelToken,
-      );
+      //重试之间 state 一直留着：不来回切 failed / connecting，界面不闪
+      for (var attempt = 0; ; attempt++) {
+        IOSink? sink;
+        try {
+          final resumeFrom = state.downloaded;
+          final response = await _dio!.get(
+            url,
+            options: Options(
+              responseType: ResponseType.stream,
+              //停滞看门狗：两次数据之间超过它没字节，dio 就断掉这条连接
+              receiveTimeout: _downloadIdleTimeout,
+              headers: {
+                ...?headers,
+                //已经下过一段就按续传问一次；服务器不认（回 200）下面会整份重写
+                if (resumeFrom > 0) 'Range': 'bytes=$resumeFrom-',
+              },
+            ),
+            cancelToken: cancelToken,
+          );
 
-      if (state.total <= 0) {
-        state.total =
-            int.tryParse(response.headers.value('content-length') ?? '0') ?? 0;
-      }
+          if (state.total <= 0) {
+            state.total =
+                int.tryParse(
+                  response.headers.value('content-length') ?? '0',
+                ) ??
+                0;
+          }
 
-      state.status = HttpDownloadStatus.downloading;
-      periodicTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-        onStatus?.call(state);
-      });
+          //续传请求只有真回了 206 才能接着写；回 200 说明整包重发过来了
+          final isPartial = response.statusCode == 206;
+          if (resumeFrom > 0 && !isPartial) {
+            state.downloaded = 0;
+            notifier.value = 0;
+          }
 
-      // 单流不续传（没带 Range 偏移），所以是整份重写：truncate 而不是 append ——
-      // append 会把上一轮的残文件接在新内容前面，长度对不上还会被当成「合并损坏」
-      sink = file.openWrite();
-      await for (final chunk in (response.data as ResponseBody).stream) {
-        if (cancelToken?.isCancelled == true) break;
+          state.status = HttpDownloadStatus.downloading;
+          periodicTimer ??= Timer.periodic(const Duration(milliseconds: 100), (
+            _,
+          ) {
+            onStatus?.call(state);
+          });
 
-        if (rateLimiter != null) {
-          await rateLimiter.throttle(chunk.length);
+          //续上了就 append（保住已下那段），否则 truncate 整份重写
+          sink = file.openWrite(
+            mode: resumeFrom > 0 && isPartial
+                ? FileMode.append
+                : FileMode.write,
+          );
+          await for (final chunk in (response.data as ResponseBody).stream) {
+            if (cancelToken?.isCancelled == true) break;
+
+            if (rateLimiter != null) {
+              await rateLimiter.throttle(chunk.length);
+            }
+
+            sink.add(chunk);
+            state.downloaded += chunk.length;
+            if (state.total > 0) {
+              state.progress = state.downloaded / state.total;
+            }
+            notifier.value = state.downloaded;
+          }
+
+          await sink.flush();
+          await sink.close();
+          sink = null;
+
+          if (cancelToken?.isCancelled == true) {
+            state.status = HttpDownloadStatus.cancelled;
+            if (deleteOnError) await file.delete();
+            onStatus?.call(state);
+            return;
+          }
+
+          //知道总长就必须下满：短了说明对端提前收了连接，放任成功就是静默缺数据
+          if (state.total > 0 && state.downloaded < state.total) {
+            throw HttpException(
+              '单流下载提前结束（${state.downloaded}/${state.total} 字节）',
+            );
+          }
+
+          state.progress = 1.0;
+          state.speed = 0;
+          state.status = HttpDownloadStatus.completed;
+          onStatus?.call(state);
+          addLog(
+            .debug,
+            '单流下载完成：$savePath（${state.downloaded} 字节）',
+            tag: 'Download',
+          );
+          return;
+        } catch (e) {
+          await sink?.close();
+          sink = null;
+
+          if (cancelToken?.isCancelled == true ||
+              (e is DioException && CancelToken.isCancel(e))) {
+            state.status = HttpDownloadStatus.cancelled;
+            if (deleteOnError && await file.exists()) await file.delete();
+            onStatus?.call(state);
+            return;
+          }
+
+          //读到一半被掐断时 dio 把原始错误直接抛给流，不是 DioException
+          final isTransport = e is! DioException || isTransportFailure(e);
+          // 断网时不再空转多轮：连接类失败只再试一次；其它错误（服务端抖动等）按上限重试
+          final limit = isTransport ? 1 : retryLimit;
+          if (attempt < limit) {
+            final reason = e is DioException
+                ? e.type.name
+                : e.runtimeType.toString();
+            final delay = _retryDelay(attempt);
+            addLog(
+              .debug,
+              '单流下载中断（$reason），${delay.inMilliseconds}ms 后接着下'
+              '（已收 ${state.downloaded} 字节）',
+              tag: 'Download',
+            );
+            await Future.delayed(delay);
+            continue;
+          }
+
+          state.status = HttpDownloadStatus.failed;
+          if (deleteOnError && await file.exists()) await file.delete();
+          onStatus?.call(state);
+          addLog(
+            .error,
+            '单流下载失败：${e is DioException ? e.type.name : e}'
+            '${e is DioException && isNetworkFailure(e) ? '（网络不通或代理不可用）' : ''}'
+            '（$url）',
+            tag: 'Download',
+          );
+          rethrow;
         }
-
-        sink.add(chunk);
-        state.downloaded += chunk.length;
-        if (state.total > 0) state.progress = state.downloaded / state.total;
-        notifier.value = state.downloaded;
       }
-
-      periodicTimer.cancel();
-      speedCalc.cancel();
-      await sink.flush();
-      await sink.close();
-      sink = null;
-
-      if (cancelToken?.isCancelled == true) {
-        state.status = HttpDownloadStatus.cancelled;
-        if (deleteOnError) await file.delete();
-        onStatus?.call(state);
-        return;
-      }
-
-      state.progress = 1.0;
-      state.speed = 0;
-      state.status = HttpDownloadStatus.completed;
-      onStatus?.call(state);
-      addLog(
-        .debug,
-        '单流下载完成：$savePath（${state.downloaded} 字节）',
-        tag: 'Download',
-      );
-    } on DioException catch (e) {
+    } finally {
       periodicTimer?.cancel();
       speedCalc.cancel();
-      await sink?.close();
-      sink = null;
-      if (cancelToken?.isCancelled == true || CancelToken.isCancel(e)) {
-        state.status = HttpDownloadStatus.cancelled;
-      } else {
-        state.status = HttpDownloadStatus.failed;
-        if (deleteOnError && await file.exists()) await file.delete();
-        addLog(
-          .error,
-          '单流下载失败：${e.type.name}'
-          '${isNetworkFailure(e) ? '（网络不通或代理不可用）' : ''}（$url）',
-          tag: 'Download',
-        );
-      }
-      onStatus?.call(state);
-      rethrow;
-    } catch (e) {
-      periodicTimer?.cancel();
-      speedCalc.cancel();
-      await sink?.close();
-      sink = null;
-      state.status = HttpDownloadStatus.failed;
-      if (deleteOnError && await file.exists()) await file.delete();
-      onStatus?.call(state);
-      addLog(.error, '单流下载失败：$e（$url）', tag: 'Download');
-      rethrow;
     }
   }
 
@@ -1227,6 +1290,7 @@ class CopperIO {
     int? speedLimit,
     String? tempPath,
     String? etag,
+    int retryLimit = 5,
     CancelToken? cancelToken,
     bool deleteOnError = true,
     HttpStatusCallback? onStatus,
@@ -1479,8 +1543,8 @@ class CopperIO {
         //不是 DioException —— 那同样是弱网断连，要按一样的退避重试接着下
         final isTransport = e is! DioException || isTransportFailure(e);
         // 断网时不再空转多轮：连接类失败只再试一次；其它错误（服务端抖动等）按上限重试
-        final retryLimit = isTransport ? 1 : _maxRetries;
-        if (tryTime < retryLimit) {
+        final limit = isTransport ? 1 : retryLimit;
+        if (tryTime < limit) {
           await Future.delayed(_retryDelay(tryTime));
           await downloadPiece(chunk, tryTime: tryTime + 1);
         } else {
