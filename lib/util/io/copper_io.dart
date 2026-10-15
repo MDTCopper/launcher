@@ -222,12 +222,20 @@ class CopperIO {
   ///扩容的最小增益：低于它说明带宽池已饱和，多加连接只是多开销
   static const double _scaleMinGain = 0.10;
 
-  ///慢块判定：窗口速率低于「链路跑得到多快」这个经验基准的比例，且连续这么多窗口
+  ///慢块判定：平均速率低于「其它块的中位数」这个比例，且连续这么多个采样窗口
+  ///
+  ///比的是**长跑平均速率**而不是窗口速率，所以不需要多攒几个窗口压抖，2 个（约 1 秒）就够
   static const double _slowChunkRatio = 0.15;
-  static const int _slowChunkStreak = 4;
+  static const int _slowChunkStreak = 2;
 
   ///慢块拆出来的每半至少这么多字节，太短不值得拆
   static const int _minSplitBytes = 512 * KB;
+
+  ///慢块拆分还要求「正常连接」至少这么快
+  ///
+  ///低于它说明是**全链路拥塞**而不是某条链路差：把尾巴递给同样慢的连接不会更快，
+  ///只会多几个请求（真实链路实测：拥塞时段拆到 22 个分块，吞吐反而更低）
+  static const int _minBaselineForSplit = 256 * KB;
 
   final Random _random = Random();
 
@@ -1624,7 +1632,13 @@ class CopperIO {
       }
     }
 
-    var healthyRate = 0.0;
+    ///已下完的块的平均速率：尾部阶段（只剩一块在跑）拿它的中位数当基准
+    final completedRates = <double>[];
+
+    double? medianOf(Iterable<double> values) {
+      final sorted = values.toList()..sort();
+      return sorted.isEmpty ? null : sorted[sorted.length ~/ 2];
+    }
     ///没有活干的 worker 在这里等新块（拆分出来的尾部）或整单收尾
     var waitingWorkers = <Completer<void>>[];
 
@@ -1644,7 +1658,11 @@ class CopperIO {
         if (chunk.claimed || chunk.remaining <= 0) continue;
         if (best == null || chunk.remaining > best.remaining) best = chunk;
       }
-      best?.claimed = true;
+      if (best != null) {
+        best.claimed = true;
+        best.claimedAt = DateTime.now();
+        best.startReceived = best.received;
+      }
       return best;
     }
 
@@ -1667,15 +1685,15 @@ class CopperIO {
           final bytesBefore = chunk.received;
           await downloadPiece(chunk);
 
-          //块下完时的整体速率也是「链路能有多快」的样本（窗口采样可能整段错过）
+          //块下完时的平均速率是「正常连接有多快」的样本：几块先下完、只剩慢块自己时，
+          //慢块判据就靠它的中位数当基准（那时已经没有别的在跑的块可比了）
           final seconds =
               DateTime.now().difference(startedAt).inMilliseconds / 1000;
           final downloaded = chunk.received - bytesBefore;
           if (chunk.status == HttpChunkStatus.complete &&
-              seconds > 0 &&
+              seconds >= 0.2 &&
               downloaded >= 256 * KB) {
-            final rate = downloaded / seconds;
-            if (rate > healthyRate) healthyRate = rate;
+            completedRates.add(downloaded / seconds);
           }
 
           //只有每块都真的下满才算完成：判定「忽略 Range」时兄弟块是提前收手的
@@ -1718,28 +1736,44 @@ class CopperIO {
 
     ///每个采样窗口看一遍：在跑的块里谁明显慢
     ///
-    ///基准取「链路跑得到多快」的经验值（窗口最高速率 + 已完成块的整体速率），
-    ///不取「其它块的中位数」——后者在尾部阶段只有慢块自己，反而永远拆不了，
+    ///基准取「其它在跑的块**自领块以来的平均速率**的中位数」：长跑均值稳，
+    ///不会像窗口速率那样被某一秒的抖动带偏（高方差链路上原来会误拆一堆）；
+    ///只剩一块在跑时（尾部阶段）用最近一次算出来的基准兜底 —— 否则永远拆不了，
     ///而尾部正是最该拆的时候
-    void splitSlowChunks(double elapsedSeconds) {
+    void splitSlowChunks() {
       final inFlight = chunks
           .where((c) => c.status == HttpChunkStatus.downloading)
           .toList();
       if (inFlight.isEmpty) return;
 
-      final rates = <_Chunk, double>{};
+      final now = DateTime.now();
+      final averages = <_Chunk, double>{};
       for (final chunk in inFlight) {
-        rates[chunk] = (chunk.received - chunk.sampledBytes) / elapsedSeconds;
-        chunk.sampledBytes = chunk.received;
+        final claimedAt = chunk.claimedAt;
+        if (claimedAt == null) continue;
+        final seconds = now.difference(claimedAt).inMilliseconds / 1000;
+        //刚领上来的块还没有「平均速率」可言（采样窗口 500ms，攒到 0.4s 就够比）
+        if (seconds < 0.4) continue;
+        averages[chunk] = (chunk.received - chunk.startReceived) / seconds;
       }
-      for (final rate in rates.values) {
-        if (rate > healthyRate) healthyRate = rate;
-      }
-      if (healthyRate <= 0) return;
+      if (averages.isEmpty) return;
 
-      for (final entry in rates.entries) {
+      for (final entry in averages.entries) {
         final chunk = entry.key;
-        if (entry.value < healthyRate * _slowChunkRatio) {
+        double? baseline;
+        if (averages.length >= 2) {
+          baseline = medianOf([
+            for (final other in averages.entries)
+              if (other.key != chunk) other.value,
+          ]);
+        }
+        //只剩自己一块在跑：用先下完那些块的平均速率当中位数基准
+        baseline ??= medianOf(completedRates);
+        if (baseline == null || baseline <= 0) continue;
+        //全链路都慢就是拥塞，拆了也白拆（多几个请求、尾巴还是那么慢）
+        if (baseline < _minBaselineForSplit) continue;
+
+        if (entry.value < baseline * _slowChunkRatio) {
           chunk.slowStreak++;
         } else {
           chunk.slowStreak = 0;
@@ -1799,7 +1833,7 @@ class CopperIO {
       final smoothed =
           recentRates.reduce((a, b) => a + b) / recentRates.length;
 
-      if (state.downloaded < totalSize) splitSlowChunks(elapsed);
+      if (state.downloaded < totalSize) splitSlowChunks();
       scaleIfNeeded(smoothed);
     });
 
@@ -2019,8 +2053,11 @@ class _Chunk {
   ///下一个要写的绝对偏移：续传与重试都从这里接，已收的字节不重下
   int nextOffset;
 
-  ///上一次速率采样时的 [received]（算窗口速率用）
-  int sampledBytes = 0;
+  ///这个块是什么时候被领走的（算「自领块以来的平均速率」用；没领走时为 null）
+  DateTime? claimedAt;
+
+  ///被领走时的 [received]：平均速率只算这一趟下的字节
+  int startReceived = 0;
 
   ///连续多少个采样窗口明显慢于其它块
   int slowStreak = 0;
@@ -2037,7 +2074,6 @@ class _Chunk {
     : nextOffset = start + received,
       //续传带过来的那段是上一轮记进元数据的，按定义已经落盘
       durableReceived = received,
-      sampledBytes = received,
       status = HttpChunkStatus.pending;
 
   ///还没下完的字节数
