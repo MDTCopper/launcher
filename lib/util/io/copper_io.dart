@@ -204,6 +204,11 @@ class CopperIO {
   ///进度批量上报的门槛：累计这么多字节才做一次分块汇总与速率通知
   static const int _progressReportBytes = 256 * KB;
 
+  ///每个分块攒够这么多字节就 fsync 一次并推进「已落盘水位」
+  ///
+  ///这是续传精度的上限（元数据只记水位）：越大越省 fsync、掉电后要重下的越多
+  static const int _flushIntervalBytes = 4 * MB;
+
   ///动态并发的启用门槛：小文件爬坡的预热成本大于收益，走固定并发
   static const int _dynamicScaleMinSize = 32 * MB;
 
@@ -1245,8 +1250,11 @@ class CopperIO {
 
           //读到一半被掐断时 dio 把原始错误直接抛给流，不是 DioException
           final isTransport = e is! DioException || isTransportFailure(e);
-          // 断网时不再空转多轮：连接类失败只再试一次；其它错误（服务端抖动等）按上限重试
-          final limit = isTransport ? 1 : retryLimit;
+          // 断网时不再空转多轮：连接类失败只再试一次；其它错误（服务端抖动等）按上限重试；
+          // 写盘失败（磁盘满 / 路径不可写）一次都别重试 —— 退避几轮也一样满
+          final limit = e is FileSystemException
+              ? 0
+              : (isTransport ? 1 : retryLimit);
           if (attempt < limit) {
             final reason = e is DioException
                 ? e.type.name
@@ -1267,7 +1275,8 @@ class CopperIO {
           onStatus?.call(state);
           addLog(
             .error,
-            '单流下载失败：${e is DioException ? e.type.name : e}'
+            '单流下载失败：'
+            '${e is FileSystemException ? '写盘失败（${e.osError?.message ?? e.message}）' : (e is DioException ? e.type.name : e)}'
             '${e is DioException && isNetworkFailure(e) ? '（网络不通或代理不可用）' : ''}'
             '（$url）',
             tag: 'Download',
@@ -1311,14 +1320,23 @@ class CopperIO {
     final metaPath = '$partialPath.json';
     final partialFile = File(partialPath);
 
-    final chunks = await _planChunks(
-      partialFile: partialFile,
-      metaPath: metaPath,
-      url: url,
-      totalSize: totalSize,
-      chunkCount: chunkCount,
-      etag: etag,
-    );
+    List<_Chunk> chunks;
+    try {
+      chunks = await _planChunks(
+        partialFile: partialFile,
+        metaPath: metaPath,
+        url: url,
+        totalSize: totalSize,
+        chunkCount: chunkCount,
+        etag: etag,
+      );
+    } on FileSystemException catch (e) {
+      //建不出 `.part`（磁盘满 / 目录不可写 / 路径被占）就在这里说清楚，
+      //别等分块都跑起来才炸；这类错误重试也没用
+      throw Exception(
+        '无法创建下载临时文件（${e.osError?.message ?? e.message}）：$partialPath',
+      );
+    }
 
     // 续传信息对排查很有用：现场还在就有多少接着下
     final resumedChunks = chunks.where((c) => c.received > 0).length;
@@ -1364,6 +1382,10 @@ class CopperIO {
     var metaWriting = false;
 
     ///把续传现场写进元数据：块完成时、以及下载中每 2 秒一次
+    ///
+    ///只记 [durableReceived]（写循环 fsync 过的水位）：元数据绝不能记下还没落盘的
+    ///字节 —— 掉电后那就是文件里的一个洞（长度对、内容是 0）。这里**不碰句柄**，
+    ///免得跟正在写的块抢同一个 [RandomAccessFile]（并发操作会直接抛异常）
     Future<void> saveMeta() async {
       if (metaWriting) return;
       metaWriting = true;
@@ -1375,7 +1397,11 @@ class CopperIO {
             'etag': etag,
             'chunks': [
               for (final c in chunks)
-                {'start': c.start, 'end': c.end, 'received': c.received},
+                {
+                  'start': c.start,
+                  'end': c.end,
+                  'received': c.durableReceived,
+                },
             ],
           }),
           flush: true,
@@ -1490,6 +1516,7 @@ class CopperIO {
         //会把预分配的 `.part` 清成 0；append 模式只是把位置摆到末尾，
         //setPosition 照常生效（本机实测：两个句柄各写各的区间互不干扰）
         raf = await partialFile.open(mode: FileMode.writeOnlyAppend);
+        chunk.file = raf;
         await raf.setPosition(chunk.nextOffset);
         var writeOffset = chunk.nextOffset;
         var pendingReport = 0;
@@ -1521,6 +1548,12 @@ class CopperIO {
             refreshChunkStats();
             notifier.value = state.downloaded;
           }
+          //每攒够一批 fsync 一次并推进落盘水位：元数据只认这个水位，
+          //掉电后不会出现「说下过了、其实是 0」的洞
+          if (chunk.received - chunk.durableReceived >= _flushIntervalBytes) {
+            await raf.flush();
+            chunk.durableReceived = chunk.received;
+          }
 
           //下满即成功：服务器可能发完还拖着连接（黑洞 / keep-alive），
           //等流自然结束会白等一个看门狗周期
@@ -1535,6 +1568,9 @@ class CopperIO {
         chunk.status = HttpChunkStatus.complete;
         refreshChunkStats();
         notifier.value = state.downloaded;
+        //先把这块落盘（fsync）再写元数据：元数据活着 ⇒ 它记的水位确实在盘上
+        await raf.flush();
+        chunk.durableReceived = chunk.received;
         await saveMeta();
       } on _RangeIgnored {
         rethrow;
@@ -1547,15 +1583,21 @@ class CopperIO {
         //读到一半被对端掐断时，dio 把原始错误（HttpException）直接抛给响应体流，
         //不是 DioException —— 那同样是弱网断连，要按一样的退避重试接着下
         final isTransport = e is! DioException || isTransportFailure(e);
-        // 断网时不再空转多轮：连接类失败只再试一次；其它错误（服务端抖动等）按上限重试
-        final limit = isTransport ? 1 : retryLimit;
+        // 断网时不再空转多轮：连接类失败只再试一次；其它错误（服务端抖动等）按上限重试；
+        // 写盘失败（磁盘满 / 路径不可写）一次都别重试 —— 退避几轮也一样满
+        final limit = e is FileSystemException
+            ? 0
+            : (isTransport ? 1 : retryLimit);
         if (tryTime < limit) {
           await Future.delayed(_retryDelay(tryTime));
           await downloadPiece(chunk, tryTime: tryTime + 1);
         } else {
-          final reason = e is DioException
-              ? e.type.name
-              : e.runtimeType.toString();
+          //写盘失败的说明要能直接看懂：磁盘满 / 路径不可写，跟网络无关
+          final reason = e is FileSystemException
+              ? '写盘失败（${e.osError?.message ?? e.message}）'
+              : (e is DioException
+                    ? e.type.name
+                    : e.runtimeType.toString());
           chunk.status = HttpChunkStatus.failed;
           refreshChunkStats();
           addLog(
@@ -1564,10 +1606,21 @@ class CopperIO {
             '（已收 ${chunk.received}/${chunk.size} 字节）',
             tag: 'Download',
           );
-          throw Exception('分块 [${chunk.index}] 下载失败');
+          throw Exception('分块 [${chunk.index}] 下载失败：$reason');
         }
       } finally {
-        await raf?.close();
+        chunk.file = null;
+        if (raf != null) {
+          try {
+            //收手前 fsync 一次：取消 / 失败那条路靠它把「已收」变成「已落盘」，
+            //元数据才敢照实记 —— 否则续传现场会退到上一次周期 fsync 的水位
+            await raf.flush();
+            chunk.durableReceived = chunk.received;
+          } catch (_) {
+            //句柄已经废了（正是写盘失败的现场）：水位就停在真实落盘的位置
+          }
+          await raf.close();
+        }
       }
     }
 
@@ -1958,6 +2011,11 @@ class _Chunk {
   ///已收字节数（含续传带过来的部分）
   int received;
 
+  ///**已确认落盘**的字节数：写循环每攒够一批就 fsync 一次并推进它；
+  ///元数据只记这个值 —— 记 [received] 会把还在页缓存里的字节也写进去，
+  ///掉电后那就是文件里的一个洞
+  int durableReceived;
+
   ///下一个要写的绝对偏移：续传与重试都从这里接，已收的字节不重下
   int nextOffset;
 
@@ -1970,10 +2028,15 @@ class _Chunk {
   ///已被某个 worker 领走（避免重复下载同一区间）
   bool claimed = false;
 
+  ///正在写这个块的句柄（没有在写时为 null）：写元数据前要拿它 flush
+  RandomAccessFile? file;
+
   HttpChunkStatus status;
 
   _Chunk(this.index, this.start, this.end, this.size, this.received)
     : nextOffset = start + received,
+      //续传带过来的那段是上一轮记进元数据的，按定义已经落盘
+      durableReceived = received,
       sampledBytes = received,
       status = HttpChunkStatus.pending;
 
