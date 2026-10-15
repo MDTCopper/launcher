@@ -23,6 +23,7 @@ npm run build    # 产物在 website/dist
 | `index.html` | 页面结构与全部中文文案 |
 | `src/main.js` | 渲染下载区、标记访问者平台、顶栏滚动阴影 |
 | `src/release.js` | 读 GitHub Releases 并按通道与平台归类产物 |
+| `src/motion.js` | 滚动特效：阅读进度条、首屏轻微视差、进入视口的淡入上移 |
 | `src/styles/tokens.css` | 设计令牌，颜色对着启动器的暗色主题 |
 | `src/styles/base.css` | 重置、排版与通用件（容器 / 卡片 / 按钮 / 标签） |
 | `src/styles/sections.css` | 各分节样式 |
@@ -45,3 +46,21 @@ node scripts/check-release.mjs
 ```
 
 它会打印两个通道各自配到的文件，缺哪个平台一眼能看出来。
+
+## 滚动特效
+
+三样，都在 `src/motion.js`：
+
+| 效果 | 做法 |
+|---|---|
+| 阅读进度条 | 顶栏底部 2px 铜色条，跟着 `--scroll-progress` 走 `transform: scaleX()` |
+| 首屏轻微视差 | 首屏截图最多下移 28px（`translate3d`），滚动用 rAF 节流、监听是 passive |
+| 进入视口淡入上移 | IntersectionObserver 加 `is-visible`，同一组兄弟错峰 70ms |
+
+只动 `opacity` 与 `transform` 两个合成器属性，不碰 width / height / top 那类会触发 layout 的。
+
+**没有 JS 时内容照常可见**：`reveal-pending` 这个类是 JS 自己加的，CSS 里没有「默认隐藏」的规则 —— 脚本被拦或报错，页面也不会缺内容。
+
+**`prefers-reduced-motion: reduce` 时进场与视差都不接管**（进度条仍在）。调研里业界的通行做法是「保留淡入、去掉位移」，这里选了更严的一档：页面以文字卡为主，不做动效也不损失什么。
+
+**为什么不用原生 `animation-timeline: view()`**：Chrome / Edge 115+ 与 Safari 26 支持，但 Firefox 是否落地查到的资料自相矛盾（MDN 标 preview，caniuse 记 161 起支持），全球覆盖约 88%。要用就得再写一套 JS 回退，等于同一效果两套实现；这里只有三处轻量效果，IntersectionObserver 已经够。

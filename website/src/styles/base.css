@@ -178,6 +178,19 @@ code {
   color: var(--warning);
 }
 
+/* 滚动进场：类由 motion.js 加；没 JS 或系统要求减少动效时，元素保持原本可见 */
+.reveal-pending {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal-pending.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

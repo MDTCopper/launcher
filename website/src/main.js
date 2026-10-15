@@ -1,4 +1,5 @@
 import { loadChannels, detectPlatform } from './release.js';
+import { bindReveal, bindScrollEffects } from './motion.js';
 
 const PLATFORM_NAMES = { windows: 'Windows', linux: 'Linux', android: 'Android' };
 
@@ -17,6 +18,10 @@ start();
 
 async function start() {
   bindHeaderShadow();
+  bindScrollEffects();
+
+  // 先接管静态内容的进场，不等接口；视觉不该被网络卡住
+  bindReveal();
 
   try {
     const channels = await loadChannels();
@@ -28,6 +33,9 @@ async function start() {
     fallbackNode.hidden = false;
     console.warn('[website] 读取版本信息失败', error);
   }
+
+  // 接口补上的卡片渲染完，再接管一次
+  bindReveal();
 }
 
 function renderChannels(channels) {
