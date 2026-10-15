@@ -11,9 +11,11 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
+import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_notes.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
+import 'package:copper_launcher/domain/cloud/game_version_fill.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill_runner.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -320,6 +322,8 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   }
 
   /// 恢复完本机还缺东西时问一句：缺哪些模组 / 缺哪个游戏版本，能补的一键补
+  ///
+  /// 两件都缺就**逐件问**（办完一件把那件藏掉再问下一件）—— 一次只让用户做一个决定
   Future<void> _offerRestoreGaps({
     required Mindustry version,
     required CloudImportReport report,
@@ -331,13 +335,34 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     );
     if (!mounted || gap.isEmpty) return;
 
-    final choice = await showRestoreGapPrompt(
-      gap: gap,
-      version: version,
-      versionTag: version.tag,
-    );
-    if (choice != CloudRestoreGapChoice.fillMods || !mounted) return;
+    var offerMods = gap.downloadableMods.isNotEmpty;
+    var offerGame = gap.missingGame != null;
+    while (mounted && (offerMods || offerGame)) {
+      final choice = await showRestoreGapPrompt(
+        gap: gap,
+        version: version,
+        versionTag: version.tag,
+        offerModFill: offerMods,
+        offerGameInstall: offerGame,
+      );
+      switch (choice) {
+        case CloudRestoreGapChoice.fillMods:
+          offerMods = false;
+          await _fillMissingMods(gap: gap, version: version);
+        case CloudRestoreGapChoice.installGame:
+          offerGame = false;
+          await _installMissingGame(gap.missingGame!);
+        case CloudRestoreGapChoice.later:
+          return;
+      }
+    }
+  }
 
+  /// 把能补的模组排进下载队列，结果报一句
+  Future<void> _fillMissingMods({
+    required CloudRestoreGap gap,
+    required Mindustry version,
+  }) async {
     setState(() => _busy = '正在补全模组…');
     try {
       final outcomes = await fillMissingMods(
@@ -358,6 +383,34 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       addNotice(
         icon: Icons.error_outline,
         title: '模组补全失败',
+        content: removeNewlines('$error'),
+      );
+    }
+  }
+
+  /// 把云包里那个游戏版本装回来
+  Future<void> _installMissingGame(CloudGameInfo game) async {
+    setState(() => _busy = '正在查找游戏版本…');
+    try {
+      final failure = await installGameVersion(
+        game: game,
+        onStatus: (status) {
+          if (mounted) setState(() => _busy = status);
+        },
+      );
+      if (!mounted) return;
+      addNotice(
+        icon: failure == null
+            ? Icons.download_for_offline_outlined
+            : Icons.error_outline,
+        title: failure == null ? '游戏版本已排入下载' : '装游戏版本失败',
+        content: failure ?? '${game.tag}（装完在版本列表里选它）',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      addNotice(
+        icon: Icons.error_outline,
+        title: '装游戏版本失败',
         content: removeNewlines('$error'),
       );
     }

@@ -11,6 +11,9 @@ enum CloudRestoreGapChoice {
   /// 现在把能补的模组补上（排进下载队列）
   fillMods,
 
+  /// 把云包里那个游戏版本装回来（排进下载队列）
+  installGame,
+
   /// 先不管
   later,
 }
@@ -18,17 +21,26 @@ enum CloudRestoreGapChoice {
 /// 恢复完弹一次：**本机还缺什么**，能补的一键补
 ///
 /// 只负责说清与收选择 —— 拉列表 / 排队下载由调用方去做（那条链要联网、会起任务，
-/// 不适合塞在弹窗里）。没得补时调用方**别弹**这个（用 [CloudRestoreGap.isEmpty] 判）
+/// 不适合塞在弹窗里）。没得补时调用方**别弹**这个（用 [CloudRestoreGap.isEmpty] 判）。
+/// [offerModFill] / [offerGameInstall] 控制这一次露哪几个按钮：
+/// 两件都缺时调用方**逐件问**，办完一件再把另一个藏掉
 Future<CloudRestoreGapChoice> showRestoreGapPrompt({
   required CloudRestoreGap gap,
   required Mindustry version,
   String? versionTag,
+  bool offerModFill = true,
+  bool offerGameInstall = true,
   BuildContext? context,
 }) async {
   final choice = await showAnimatedDialog<CloudRestoreGapChoice>(
     context: context,
-    pageBuilder: (_, _, _) =>
-        _CloudRestoreGapDialog(gap: gap, version: version, versionTag: versionTag),
+    pageBuilder: (_, _, _) => _CloudRestoreGapDialog(
+      gap: gap,
+      version: version,
+      versionTag: versionTag,
+      offerModFill: offerModFill,
+      offerGameInstall: offerGameInstall,
+    ),
   );
   return choice ?? CloudRestoreGapChoice.later;
 }
@@ -37,11 +49,15 @@ class _CloudRestoreGapDialog extends StatelessWidget {
   const _CloudRestoreGapDialog({
     required this.gap,
     required this.version,
+    required this.offerModFill,
+    required this.offerGameInstall,
     this.versionTag,
   });
 
   final CloudRestoreGap gap;
   final Mindustry version;
+  final bool offerModFill;
+  final bool offerGameInstall;
   final String? versionTag;
 
   @override
@@ -49,7 +65,8 @@ class _CloudRestoreGapDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     final screen = MediaQuery.of(context).size;
-    final canFill = gap.downloadableMods.isNotEmpty;
+    final canFill = offerModFill && gap.downloadableMods.isNotEmpty;
+    final canInstallGame = offerGameInstall && gap.missingGame != null;
 
     return Center(
       child: Material(
@@ -96,9 +113,17 @@ class _CloudRestoreGapDialog extends StatelessWidget {
                         context,
                       ).pop(CloudRestoreGapChoice.fillMods),
                     ),
+                  if (canInstallGame)
+                    IconTextButton(
+                      icon: Icons.download_for_offline_outlined,
+                      content: '装游戏版本',
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(CloudRestoreGapChoice.installGame),
+                    ),
                   IconTextButton(
                     icon: Icons.close,
-                    content: canFill ? '以后再说' : '知道了',
+                    content: canFill || canInstallGame ? '以后再说' : '知道了',
                     onTap: () =>
                         Navigator.of(context).pop(CloudRestoreGapChoice.later),
                   ),
@@ -182,7 +207,7 @@ class _CloudRestoreGapDialog extends StatelessWidget {
           _line(
             context,
             '${game.tag}（${game.release}${game.build == null ? '' : ' · build ${game.build}'}）',
-            '去「下载游戏本体」页装一个，装完这份存档就能开',
+            '点「装游戏版本」直接下回来，或去「下载游戏本体」页自己挑；装完这份存档就能开',
           ),
         ],
       ),
