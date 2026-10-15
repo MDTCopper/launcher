@@ -23,47 +23,38 @@ class MdtbbsRelayAuthOk extends MdtbbsRelaySignal {
   final String sessionId;
   final String peerId;
   final String peerRole;
-
-  /// 凭证到期时间（续签按它排，比 ttl 倒数准）
   final String? expiresAt;
 }
 
 class MdtbbsRelayTcpOpenPending extends MdtbbsRelaySignal {
   const MdtbbsRelayTcpOpenPending({required this.streamId});
-
   final int streamId;
 }
 
 class MdtbbsRelayTcpOpened extends MdtbbsRelaySignal {
   const MdtbbsRelayTcpOpened({required this.streamId});
-
   final int streamId;
 }
 
 class MdtbbsRelayTcpOpenFailed extends MdtbbsRelaySignal {
   const MdtbbsRelayTcpOpenFailed({required this.streamId});
-
   final int streamId;
 }
 
-/// 房主侧：本机游戏连接的结果（服务端回给房主）
 class MdtbbsRelayTcpOpenResult extends MdtbbsRelaySignal {
   const MdtbbsRelayTcpOpenResult({required this.streamId, required this.ok});
-
   final int streamId;
   final bool ok;
 }
 
 class MdtbbsRelayTcpData extends MdtbbsRelaySignal {
   const MdtbbsRelayTcpData({required this.streamId, required this.payload});
-
   final int streamId;
   final Uint8List payload;
 }
 
 class MdtbbsRelayTcpClosed extends MdtbbsRelaySignal {
   const MdtbbsRelayTcpClosed({required this.streamId});
-
   final int streamId;
 }
 
@@ -72,30 +63,23 @@ class MdtbbsRelayUdpDatagram extends MdtbbsRelaySignal {
     required this.targetPeerId,
     required this.payload,
   });
-
   final String targetPeerId;
   final Uint8List payload;
 }
 
 class MdtbbsRelayError extends MdtbbsRelaySignal {
   const MdtbbsRelayError({required this.code});
-
   final String code;
 }
 
 class MdtbbsRelayClosed extends MdtbbsRelaySignal {
   const MdtbbsRelayClosed({required this.reason});
-
   final String reason;
 }
 
 class MdtbbsRelayException implements Exception {
   const MdtbbsRelayException(this.message, {this.authRejected = false});
-
   final String message;
-
-  /// 认证被拒（AUTH_INVALID）：分配凭证后代理节点要异步同步几秒，
-  /// 立即连会撞上；这类失败等几秒重试即可
   final bool authRejected;
 
   @override
@@ -108,8 +92,7 @@ class MdtbbsRelayException implements Exception {
 /// 驱动上层桥接；凭证到期前 [renewBefore] 秒用 [allocateRelay] 拿续签凭证发 reauth。
 ///
 /// 尚未连上的 active allocation 不能重复申请；已经 connected 的 allocation
-/// 则由控制面复用原 allocation / connection_id 签发续签凭证。
-/// 因此首次 auth 的 `AUTH_INVALID` 重试只复用原凭证，不重新占一条 allocation。
+/// 由控制面复用原 allocation / connection_id 签发续签凭证。
 class MdtbbsRelayTunnel {
   MdtbbsRelayTunnel({
     required this.allocateRelay,
@@ -117,10 +100,7 @@ class MdtbbsRelayTunnel {
     this.authTimeout = const Duration(seconds: 15),
   });
 
-  /// 重新申请中继凭证（续签时调用；首次建连也会先调一次）
   final Future<MdtbbsRelayAllocation> Function() allocateRelay;
-
-  /// 距到期还剩这么多秒就该续签
   final int renewBefore;
   final Duration authTimeout;
 
@@ -132,22 +112,16 @@ class MdtbbsRelayTunnel {
 
   final _signals = StreamController<MdtbbsRelaySignal>.broadcast();
   Completer<MdtbbsRelayAuthOk>? _authCompleter;
+  Completer<void>? _reauthCompleter;
 
   /// tcp_open_pending 没有请求 ID，多个 open 并发时无法把响应归属到调用方。
-  /// 所以握手必须串行，等一条 opened / failed 收口后再发下一条。
   Future<void> _tcpOpenTail = Future<void>.value();
 
-  /// 信令与数据都从这里出（广播流，允许多个订阅者各取所需）
   Stream<MdtbbsRelaySignal> get signals => _signals.stream;
 
-  /// 当前凭证到期时间；续签后更新
   DateTime? _credentialExpiresAt;
   DateTime? get credentialExpiresAt => _credentialExpiresAt;
 
-  /// 建连并认证
-  ///
-  /// 认证被拒（`AUTH_INVALID`）只用**同一份凭证**退避重试，
-  /// 避免尚未 connected 时重复申请撞上 allocation 限制。
   Future<MdtbbsRelayAuthOk> start() async {
     _allocation = await allocateRelay();
     final alloc = _allocation!;
@@ -204,16 +178,13 @@ class MdtbbsRelayTunnel {
         },
       );
     } finally {
-      if (identical(_authCompleter, completer)) {
-        _authCompleter = null;
-      }
+      if (identical(_authCompleter, completer)) _authCompleter = null;
     }
   }
 
   Future<void> _connect() async {
     final endpoint = _allocation!.endpoint;
     addLogAndPrint(.info, '连接官方中继：$endpoint', tag: 'Multiplayer');
-    // 中继端口可能整个不可达：不设超时会永远挂住，把上层卡死
     final socket = await WebSocket.connect(endpoint).timeout(
       authTimeout,
       onTimeout: () {
@@ -242,10 +213,6 @@ class MdtbbsRelayTunnel {
     }
   }
 
-  /// 申请一条到目标对端的 TCP 流。
-  ///
-  /// 中继的 `tcp_open_pending` 没有客户端请求 ID，所以 open 握手串行执行；
-  /// `tcp_opened` 到达后才把 streamId 交给上层，避免在流尚未就绪时发送游戏数据。
   Future<int> openTcpStream(String targetPeerId) {
     final result = Completer<int>();
     _tcpOpenTail = _tcpOpenTail.then((_) async {
@@ -268,19 +235,20 @@ class MdtbbsRelayTunnel {
     late final StreamSubscription<MdtbbsRelaySignal> subscription;
     subscription = signals.listen((signal) {
       if (result.isCompleted) return;
-
       if (signal is MdtbbsRelayTcpOpenPending && pendingStreamId == null) {
+        if (signal.streamId <= 0) {
+          result.completeError(const MdtbbsRelayException('中继返回了无效 stream_id'));
+          return;
+        }
         pendingStreamId = signal.streamId;
         return;
       }
-
       if (signal is MdtbbsRelayTcpOpened &&
           pendingStreamId != null &&
           signal.streamId == pendingStreamId) {
         result.complete(signal.streamId);
         return;
       }
-
       if (signal is MdtbbsRelayTcpOpenFailed &&
           (pendingStreamId == null || signal.streamId == pendingStreamId)) {
         result.completeError(
@@ -288,7 +256,6 @@ class MdtbbsRelayTunnel {
         );
         return;
       }
-
       if (signal is MdtbbsRelayClosed) {
         result.completeError(MdtbbsRelayException(signal.reason));
       }
@@ -308,7 +275,6 @@ class MdtbbsRelayTunnel {
   void sendTcpData(int streamId, List<int> payload) {
     final socket = _socket;
     if (socket == null || _closing || payload.isEmpty) return;
-
     for (var offset = 0; offset < payload.length;) {
       final remaining = payload.length - offset;
       final chunkLength = remaining > MdtbbsRelayFrame.maxTcpPayload
@@ -325,25 +291,24 @@ class MdtbbsRelayTunnel {
   }
 
   void closeTcpStream(int streamId) {
+    if (streamId <= 0 || _closing) return;
     _socket?.add(MdtbbsRelayFrame.tcpClose(streamId));
   }
 
-  /// 发 UDP 数据报；[targetPeerId] 按方向语义填对端
   void sendUdpDatagram(String targetPeerId, List<int> payload) {
     final frame = MdtbbsRelayFrame.udpDatagram(targetPeerId, payload);
     if (frame != null) _socket?.add(frame);
   }
 
   Future<void> dispose() async {
+    if (_closing) return;
     _closing = true;
     _renewTimer?.cancel();
     _renewTimer = null;
+    _completePendingWaiters('已关闭');
     await _teardownSocket();
-    _finish('已关闭');
     await _signals.close();
   }
-
-  // ── 内部 ────────────────────────────────────────────────────
 
   void _onMessage(dynamic message) {
     if (message is String) {
@@ -381,38 +346,29 @@ class MdtbbsRelayTunnel {
           tag: 'Multiplayer',
         );
         final completer = _authCompleter;
-        if (completer != null && !completer.isCompleted) {
-          completer.complete(signal);
-        }
+        if (completer != null && !completer.isCompleted) completer.complete(signal);
         _emit(signal);
       case 'reauth_ok':
+        final completer = _reauthCompleter;
+        if (completer != null && !completer.isCompleted) completer.complete();
         addLogAndPrint(.info, '中继凭证已续签', tag: 'Multiplayer');
       case 'tcp_open_pending':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
-        addLogAndPrint(.info, '中继分配 stream $streamId', tag: 'Multiplayer');
         _emit(MdtbbsRelayTcpOpenPending(streamId: streamId));
       case 'tcp_opened':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
-        addLogAndPrint(.info, 'stream $streamId 已就绪', tag: 'Multiplayer');
         _emit(MdtbbsRelayTcpOpened(streamId: streamId));
       case 'tcp_open_failed':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
-        addLogAndPrint(.warning, 'stream $streamId 打开失败', tag: 'Multiplayer');
         _emit(MdtbbsRelayTcpOpenFailed(streamId: streamId));
       case 'tcp_open_result':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
         final ok = json['ok'] == true || json['success'] == true;
-        addLogAndPrint(
-          .info,
-          'stream $streamId 本机连接结果：$ok',
-          tag: 'Multiplayer',
-        );
         _emit(MdtbbsRelayTcpOpenResult(streamId: streamId, ok: ok));
       case 'error':
         final code = '${json['code'] ?? ''}';
         addLogAndPrint(.warning, '中继报错：code=$code', tag: 'Multiplayer');
         if (code == 'AUTH_INVALID') {
-          // 诊断行：不含凭证本体，管理员可凭这些 id 去中继侧查
           final allocation = _allocation;
           final expiresAt = _credentialExpiresAt?.toIso8601String() ?? '—';
           addLogAndPrint(
@@ -425,12 +381,20 @@ class MdtbbsRelayTunnel {
             tag: 'Multiplayer',
           );
         }
-        final completer = _authCompleter;
-        if (completer != null && !completer.isCompleted) {
-          completer.completeError(
+        final auth = _authCompleter;
+        if (auth != null && !auth.isCompleted) {
+          auth.completeError(
             MdtbbsRelayException(
               code.isEmpty ? '中继认证失败' : '中继认证被拒（$code）',
               authRejected: code == 'AUTH_INVALID',
+            ),
+          );
+        }
+        final reauth = _reauthCompleter;
+        if (reauth != null && !reauth.isCompleted) {
+          reauth.completeError(
+            MdtbbsRelayException(
+              code.isEmpty ? '中继续签失败' : '中继续签被拒（$code）',
             ),
           );
         }
@@ -452,12 +416,7 @@ class MdtbbsRelayTunnel {
     }
     switch (parsed.type) {
       case MdtbbsRelayFrame.typeTcpData:
-        _emit(
-          MdtbbsRelayTcpData(
-            streamId: parsed.streamId,
-            payload: parsed.payload,
-          ),
-        );
+        _emit(MdtbbsRelayTcpData(streamId: parsed.streamId, payload: parsed.payload));
       case MdtbbsRelayFrame.typeTcpClose:
         _emit(MdtbbsRelayTcpClosed(streamId: parsed.streamId));
       case MdtbbsRelayFrame.typeUdpDatagram:
@@ -470,7 +429,6 @@ class MdtbbsRelayTunnel {
     }
   }
 
-  /// 到期前 [renewBefore] 秒续签；auth_ok 带的 `expires_at` 比 ttl 倒数准
   void _scheduleRenewal({String? expiresAt}) {
     final allocation = _allocation;
     if (allocation == null || _closing) return;
@@ -483,9 +441,7 @@ class MdtbbsRelayTunnel {
     );
     final parsed = expiresAt == null ? null : DateTime.tryParse(expiresAt);
     _credentialExpiresAt = parsed ?? fallback;
-    final secondsLeft = _credentialExpiresAt!
-        .difference(DateTime.now())
-        .inSeconds;
+    final secondsLeft = _credentialExpiresAt!.difference(DateTime.now()).inSeconds;
     final delaySeconds = secondsLeft - renewBefore;
     _renewTimer?.cancel();
     _renewTimer = Timer(
@@ -495,7 +451,7 @@ class MdtbbsRelayTunnel {
   }
 
   Future<void> _renew() async {
-    if (_closing) return;
+    if (_closing || _reauthCompleter != null) return;
     try {
       final next = await allocateRelay();
       if (_allocation != null &&
@@ -506,11 +462,21 @@ class MdtbbsRelayTunnel {
         );
       }
       _allocation = next;
-      _sendJson({
-        'op': 'reauth',
-        'version': MdtbbsRelayFrame.version,
-        'credential': next.credential,
-      });
+      final completer = Completer<void>();
+      _reauthCompleter = completer;
+      try {
+        _sendJson({
+          'op': 'reauth',
+          'version': MdtbbsRelayFrame.version,
+          'credential': next.credential,
+        });
+        await completer.future.timeout(
+          authTimeout,
+          onTimeout: () => throw const MdtbbsRelayException('中继 reauth_ok 超时'),
+        );
+      } finally {
+        if (identical(_reauthCompleter, completer)) _reauthCompleter = null;
+      }
       _scheduleRenewal();
     } on Object catch (error) {
       final expiresAt = _credentialExpiresAt;
@@ -553,22 +519,25 @@ class MdtbbsRelayTunnel {
     if (!_signals.isClosed) _signals.add(signal);
   }
 
+  void _completePendingWaiters(String reason) {
+    final error = MdtbbsRelayException(reason);
+    final auth = _authCompleter;
+    if (auth != null && !auth.isCompleted) auth.completeError(error);
+    final reauth = _reauthCompleter;
+    if (reauth != null && !reauth.isCompleted) reauth.completeError(error);
+  }
+
   void _finish(String reason) {
     if (_closing) return;
     _closing = true;
     _renewTimer?.cancel();
-    final completer = _authCompleter;
-    if (completer != null && !completer.isCompleted) {
-      completer.completeError(MdtbbsRelayException(reason));
-    }
+    _completePendingWaiters(reason);
     addLogAndPrint(.warning, '中继连接结束：$reason', tag: 'Multiplayer');
     _emit(MdtbbsRelayClosed(reason: reason));
   }
 }
 
-/// 续签间隔的兜底值（服务端没给 ttl 时按 120 秒）
 class MdtbbsRelayFrameMaxTtl {
   MdtbbsRelayFrameMaxTtl._();
-
   static const int capabilitiesFallback = 120;
 }
