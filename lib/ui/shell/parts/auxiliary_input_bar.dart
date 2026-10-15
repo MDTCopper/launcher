@@ -31,6 +31,9 @@ class _AuxiliaryInputBarState extends State<AuxiliaryInputBar> {
 
   final barState = ValueNotifier<_BarState>((visible: false, keyboardInset: 0));
 
+  /// 收起 / 弹出的动画时长
+  static const barAnimationDuration = Duration(milliseconds: 180);
+
   /// 当前接管的输入框
   EditableTextState? holder;
 
@@ -39,6 +42,9 @@ class _AuxiliaryInputBarState extends State<AuxiliaryInputBar> {
 
   /// 焦点可能在 build / dispose 途中变化，刷新统一挪到帧后
   bool refreshScheduled = false;
+
+  /// 上一帧条是不是可见：用来抓「键盘被系统收起」那一瞬
+  bool wasVisible = false;
 
   /// 条要浮在 navigator 之上（弹窗里的输入框也得接管），
   /// 而 EditableText 的选区把手 / 菜单要一个 Overlay 祖先，
@@ -123,10 +129,28 @@ class _AuxiliaryInputBarState extends State<AuxiliaryInputBar> {
 
   // ── 交互 ──
 
-  /// 收起输入：连原输入框的焦点一起放掉，不然键盘关了条还挂着
-  void _finish() {
-    inputFocusNode.unfocus();
-    FocusManager.instance.primaryFocus?.unfocus();
+  /// 收起输入：两边焦点一起放掉
+  ///
+  /// 只放条自己的不够 —— 原输入框还握着焦点时会自己把输入法再请求回来
+  void _finish() => _releaseFocus();
+
+  /// 放掉条与原输入框的焦点
+  ///
+  /// 键盘被系统收起（输入法自己的退出键 / 返回）时不放焦点的话，
+  /// 条被摘掉那一刻焦点会甩回原输入框，输入法又被拉起来
+  void _releaseFocus() {
+    if (inputFocusNode.hasFocus) inputFocusNode.unfocus();
+    final primary = FocusManager.instance.primaryFocus;
+    if (primary != null && primary != inputFocusNode) primary.unfocus();
+  }
+
+  /// 键盘自己收起了：等这一帧走完再放焦点
+  ///
+  /// 现在放的话条还在树上、动画也还没播，放到帧后正好赶在条被摘掉之前
+  void _scheduleFocusRelease() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _releaseFocus();
+    });
   }
 
   void _scheduleRefresh() {
@@ -144,10 +168,11 @@ class _AuxiliaryInputBarState extends State<AuxiliaryInputBar> {
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     // 条只借键盘上方那块地方，启动器自己的布局一动不动
-    barState.value = (
-      visible: holder != null && keyboardInset > 0,
-      keyboardInset: keyboardInset,
-    );
+    final visible = holder != null && keyboardInset > 0;
+    // 键盘被系统收起（输入法自己的退出键 / 返回）时，趁条还在树上先把焦点放掉
+    if (wasVisible && !visible) _scheduleFocusRelease();
+    wasVisible = visible;
+    barState.value = (visible: visible, keyboardInset: keyboardInset);
 
     return Stack(
       fit: StackFit.expand,
@@ -162,14 +187,32 @@ class _AuxiliaryInputBarState extends State<AuxiliaryInputBar> {
     return ValueListenableBuilder<_BarState>(
       valueListenable: barState,
       builder: (context, state, _) {
-        if (!state.visible) return const SizedBox.shrink();
-
-        return Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: EdgeInsets.only(bottom: state.keyboardInset),
-            child: _buildInputBar(),
+        // 用 AnimatedSwitcher 而不是直接换成 SizedBox：收起要滑下去、淡出去，
+        // 而且退场那几帧条还挂在树上（焦点正好在这段时间里被放掉）
+        return AnimatedSwitcher(
+          duration: barAnimationDuration,
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween(
+                begin: const Offset(0, 0.25),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
           ),
+          child: state.visible
+              ? Align(
+                  key: const ValueKey('bar'),
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: state.keyboardInset),
+                    child: _buildInputBar(),
+                  ),
+                )
+              : const SizedBox.shrink(key: ValueKey('bar-hidden')),
         );
       },
     );
