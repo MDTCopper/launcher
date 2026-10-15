@@ -194,8 +194,11 @@ class CopperIO {
   static const Duration _probeConnectTimeout = Duration(seconds: 8);
   static const Duration _probeReceiveTimeout = Duration(seconds: 12);
 
-  ///下载连接的建立时间：比普通请求宽（要传几十上百 MB，值得多等一会儿）
-  static const Duration _downloadConnectTimeout = Duration(seconds: 30);
+  ///下载连接的建立时间
+  ///
+  ///**不随文件大小放宽**：能连就是能连（建连慢本身是坏信号），被掐就是被掐；
+  ///慢传输由停滞看门狗（[_downloadIdleTimeout]）管。实测放到 30s 只会让死链路多等 15 秒
+  static const Duration _downloadConnectTimeout = Duration(seconds: 15);
 
   Duration _connectTimeout = const Duration(seconds: 10);
   Duration _receiveTimeout = const Duration(seconds: 60);
