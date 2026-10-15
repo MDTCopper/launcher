@@ -207,10 +207,11 @@ class CopperIO {
   ///动态并发的启用门槛：小文件爬坡的预热成本大于收益，走固定并发
   static const int _dynamicScaleMinSize = 32 * MB;
 
-  ///扩容决策的采样窗口；窗口速率取最近 3 个的均值，抹掉块切换 / 慢启动的抖
+  ///扩容决策的采样窗口；窗口速率取最近 2 个的均值，抹掉块切换 / 慢启动的抖
   ///
   ///取 500ms 是为了「多块同时在跑」的那一段能采到样：块下得快时 1 秒的窗口
-  ///会整段错过，慢块也就永远没得比
+  ///会整段错过，慢块也就永远没得比；平滑只用 2 个窗口是为了跟扩容冷却期对齐
+  ///（冷却期一过，窗口里就全是扩容之后的速率了）
   static const Duration _scaleSampleWindow = Duration(milliseconds: 500);
 
   ///单连接已到这个速率就认为带宽池充足，不再加连接
@@ -1433,6 +1434,7 @@ class CopperIO {
     var activeWorkers = 0;
     var scaleSaturated = !dynamicScale;
     var lastScaleRate = 0.0;
+    var scaleCooldownUntil = DateTime.fromMillisecondsSinceEpoch(0);
     final recentRates = <double>[];
     var lastSampleBytes = 0;
     var lastSampleAt = DateTime.now();
@@ -1696,6 +1698,9 @@ class CopperIO {
     ///扩容决策：单连接够快就停；上一轮扩容没换来 ≥10% 增益也停
     void scaleIfNeeded(double smoothedRate) {
       if (scaleSaturated || activeWorkers >= maxWorkers) return;
+      //刚扩过就先等平滑窗口换过一批：否则「上一轮的增益」里还混着扩容前的
+      //低速率（启动期尤其明显），会被假增益一路推着把连接开满
+      if (DateTime.now().isBefore(scaleCooldownUntil)) return;
 
       //「带宽充足」只看**探带宽那一条连接**的速率，不能拿聚合速率比：
       //每条连接都慢的弱网里，聚合会先越过阈值 ⇒ 档位提前停住，正好少开连接；
@@ -1711,6 +1716,7 @@ class CopperIO {
       }
       if (lastScaleRate == 0 || smoothedRate >= lastScaleRate * (1 + _scaleMinGain)) {
         lastScaleRate = smoothedRate;
+        scaleCooldownUntil = DateTime.now().add(_scaleSampleWindow * 2);
         spawnWorker();
         addLog(
           .debug,
@@ -1739,7 +1745,7 @@ class CopperIO {
       lastSampleAt = now;
 
       recentRates.add(rate);
-      if (recentRates.length > 3) recentRates.removeAt(0);
+      if (recentRates.length > 2) recentRates.removeAt(0);
       final smoothed =
           recentRates.reduce((a, b) => a + b) / recentRates.length;
 
