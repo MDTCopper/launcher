@@ -1168,7 +1168,8 @@ class MdtbbsMultiplayerService {
     _signalSubscription = tunnel.signals.listen((signal) {
       if (signal is MdtbbsRelayClosed) {
         addLogAndPrint(.info, '官方中继已断开：${signal.reason}', tag: 'Multiplayer');
-        unawaited(stopProxy());
+        // 旧 tunnel 的 closed 事件如果在 teardown 期间晚到，不能去停掉新 tunnel。
+        if (identical(_tunnel, tunnel)) unawaited(stopProxy());
       }
     });
     _set(
@@ -1203,8 +1204,6 @@ class MdtbbsMultiplayerService {
     _tunnel = null;
     _signalSubscription = null;
 
-    // 先从状态机摘掉旧 proxy；后面的 socket / subscription teardown 可能耗时，
-    // 不能等它结束后再去覆盖已经切到新账号或新 proxy 的状态。
     if (_current.proxyRunning) {
       _set(
         _current.copyWith(
@@ -1215,9 +1214,11 @@ class MdtbbsMultiplayerService {
       );
     }
 
+    // 先摘掉 service 层 closed 回调，再拆 guest/host，避免旧 tunnel teardown
+    // 期间的晚到事件重新进入 stopProxy 并碰到后续的新 tunnel。
+    await subscription?.cancel();
     await guest?.dispose();
     await host?.dispose();
-    await subscription?.cancel();
     await tunnel?.dispose();
     if (wasRunning && announce && _isAccountEpochCurrent(epoch)) {
       _notify('联机通道已停止');
