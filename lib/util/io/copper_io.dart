@@ -214,9 +214,6 @@ class CopperIO {
   ///（冷却期一过，窗口里就全是扩容之后的速率了）
   static const Duration _scaleSampleWindow = Duration(milliseconds: 500);
 
-  ///单连接已到这个速率就认为带宽池充足，不再加连接
-  static const double _sufficientBytesPerSecond = 1.5 * MB;
-
   ///扩容的最小增益：低于它说明带宽池已饱和，多加连接只是多开销
   static const double _scaleMinGain = 0.10;
 
@@ -1208,7 +1205,9 @@ class CopperIO {
             state.status = HttpDownloadStatus.cancelled;
             if (deleteOnError) await file.delete();
             onStatus?.call(state);
-            return;
+            //取消要抛出去：调用方靠 `CancelToken.isCancel` 认它，
+            //静默返回会被当成「这个来源没下成」，于是自动换下一个源接着下
+            throw _cancelError(cancelToken, url);
           }
 
           //知道总长就必须下满：短了说明对端提前收了连接，放任成功就是静默缺数据
@@ -1232,12 +1231,16 @@ class CopperIO {
           await sink?.close();
           sink = null;
 
-          if (cancelToken?.isCancelled == true ||
-              (e is DioException && CancelToken.isCancel(e))) {
+          //读到一半被掐断时 dio 把原始错误直接抛给流，不是 DioException
+          final cancelled = _isCancelled(cancelToken, e);
+          if (cancelled) {
             state.status = HttpDownloadStatus.cancelled;
             if (deleteOnError && await file.exists()) await file.delete();
             onStatus?.call(state);
-            return;
+            //已经是取消异常就原样抛；否则按取消现场造一个（同样要抛，别静默返回）
+            throw e is DioException && CancelToken.isCancel(e)
+                ? e
+                : _cancelError(cancelToken, url);
           }
 
           //读到一半被掐断时 dio 把原始错误直接抛给流，不是 DioException
@@ -1695,26 +1698,20 @@ class CopperIO {
       }
     }
 
-    ///扩容决策：单连接够快就停；上一轮扩容没换来 ≥10% 增益也停
+    ///扩容决策：多一条连接没换来 ≥10% 增益就判定带宽池饱和
+    ///
+    ///**不设「单连接够快就停」的绝对阈值**：实验那台机器单连接就能跑 25MB/s，
+    ///1.5MB/s 的阈值永远碰不到；本项目真实链路上单连接就有 ~2MB/s（实测），
+    ///同一个阈值会直接停在 1 条连接 —— 而那条链路 3 条连接能给 5.9MB/s。
+    ///「一条够不够」本来就取决于链路，只能靠增益试出来
     void scaleIfNeeded(double smoothedRate) {
       if (scaleSaturated || activeWorkers >= maxWorkers) return;
       //刚扩过就先等平滑窗口换过一批：否则「上一轮的增益」里还混着扩容前的
       //低速率（启动期尤其明显），会被假增益一路推着把连接开满
       if (DateTime.now().isBefore(scaleCooldownUntil)) return;
 
-      //「带宽充足」只看**探带宽那一条连接**的速率，不能拿聚合速率比：
-      //每条连接都慢的弱网里，聚合会先越过阈值 ⇒ 档位提前停住，正好少开连接；
-      //爬坡阶段交给下面的增益判据（多一条连接没换来 10% 才算饱和）
-      if (activeWorkers <= 1 && smoothedRate >= _sufficientBytesPerSecond) {
-        scaleSaturated = true;
-        addLog(
-          .debug,
-          '单连接已 ${(smoothedRate / MB).toStringAsFixed(1)}MB/s，带宽充足不再扩容',
-          tag: 'Download',
-        );
-        return;
-      }
-      if (lastScaleRate == 0 || smoothedRate >= lastScaleRate * (1 + _scaleMinGain)) {
+      if (lastScaleRate == 0 ||
+          smoothedRate >= lastScaleRate * (1 + _scaleMinGain)) {
         lastScaleRate = smoothedRate;
         scaleCooldownUntil = DateTime.now().add(_scaleSampleWindow * 2);
         spawnWorker();
@@ -1753,14 +1750,18 @@ class CopperIO {
       scaleIfNeeded(smoothed);
     });
 
-    ///失败收尾：按 [deleteOnError] 决定清掉续传现场还是保住进度
-    Future<void> finishFailed() async {
+    ///收尾：按 [deleteOnError] 决定清掉续传现场还是保住进度
+    ///
+    ///用户取消也走这里 —— 状态要如实报成 `cancelled`
+    Future<void> finishFailed({bool cancelled = false}) async {
       if (deleteOnError) {
         await _cleanupPartial(partialFile, metaPath);
       } else {
         await saveMeta();
       }
-      state.status = HttpDownloadStatus.failed;
+      state.status = cancelled
+          ? HttpDownloadStatus.cancelled
+          : HttpDownloadStatus.failed;
       onStatus?.call(state);
     }
 
@@ -1808,19 +1809,19 @@ class CopperIO {
       await Future.wait(workerFutures);
       await _cleanupPartial(partialFile, metaPath);
       rethrow;
-    } on DioException {
+    } on DioException catch (e) {
       periodicTimer.cancel();
       speedCalc.cancel();
       sampleTimer.cancel();
       await Future.wait(workerFutures);
-      await finishFailed();
+      await finishFailed(cancelled: _isCancelled(cancelToken, e));
       rethrow;
-    } catch (_) {
+    } catch (e) {
       periodicTimer.cancel();
       speedCalc.cancel();
       sampleTimer.cancel();
       await Future.wait(workerFutures);
-      await finishFailed();
+      await finishFailed(cancelled: _isCancelled(cancelToken, e));
       rethrow;
     }
   }
@@ -1985,6 +1986,23 @@ class _Chunk {
 ///**故意不是 [DioException]**：调用方（[_downloadChunkedWithFallback]）据此
 ///换成单流整包重下
 class _RangeIgnored implements Exception {}
+
+///这次失败是不是「用户取消」
+///
+///两条下载路都要按它决定状态码：取消报 `cancelled`、真失败报 `failed`，
+///调用方（任务卡片 / 换源逻辑）靠这个区分「自己停的」和「这个源不行」
+bool _isCancelled(CancelToken? cancelToken, Object error) =>
+    cancelToken?.isCancelled == true ||
+    (error is DioException && CancelToken.isCancel(error));
+
+///取消现场要抛的异常：优先用 [CancelToken] 自己那个，保证调用方
+///`CancelToken.isCancel` 认得出；没有 token 时现造一个同类型的
+DioException _cancelError(CancelToken? cancelToken, String url) =>
+    cancelToken?.cancelError ??
+    DioException(
+      requestOptions: RequestOptions(path: url),
+      type: DioExceptionType.cancel,
+    );
 
 /// 是否连接类失败（网络不通 / 代理不可用，属于「可重试」的网络问题）
 ///
