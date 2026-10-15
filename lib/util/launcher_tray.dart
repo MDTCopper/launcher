@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
@@ -5,6 +6,7 @@ import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -32,6 +34,11 @@ class LauncherTray extends TrayListener with WindowListener {
 
   ///停止当前游戏是否已点过一次
   bool _confirmStopArmed = false;
+
+  /// 云存档在传时用的菜单刷新节拍：托盘菜单是**静态**的（原生菜单），
+  /// 不主动重建就看不到进度变化
+  Timer? _cloudSyncMenuTimer;
+  StreamSubscription<List<Task>>? _taskSubscription;
 
   bool get trayMode => _trayMode;
 
@@ -169,9 +176,50 @@ class LauncherTray extends TrayListener with WindowListener {
         await trayManager.setToolTip('Copper Launcher');
       }
       await _refreshMenu();
+      _watchCloudSyncTasks();
     } else {
+      _cloudSyncMenuTimer?.cancel();
+      _cloudSyncMenuTimer = null;
+      await _taskSubscription?.cancel();
+      _taskSubscription = null;
       await trayManager.destroy();
     }
+  }
+
+  /// 盯着任务：有云存档在传时每秒重建一次托盘菜单
+  ///
+  /// 抽屉那边是实时刷新的，托盘只能这样（菜单一旦设好就不会再变）
+  void _watchCloudSyncTasks() {
+    _taskSubscription ??= taskManager.stream.listen((tasks) {
+      final running = tasks.any(
+        (task) => task is CloudSyncTask && task.status == TaskStatus.process,
+      );
+      if (!running) return;
+      _cloudSyncMenuTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        final stillRunning = taskManager.currentTasks.any(
+          (task) => task is CloudSyncTask && task.status == TaskStatus.process,
+        );
+        if (!stillRunning) {
+          _cloudSyncMenuTimer?.cancel();
+          _cloudSyncMenuTimer = null;
+        }
+        unawaited(_refreshMenu());
+      });
+    });
+  }
+
+  /// 正在跑的云存档同步压成一行（没有就 null）
+  String? _cloudSyncLabel() {
+    for (final task in taskManager.currentTasks) {
+      if (task is! CloudSyncTask || task.status != TaskStatus.process) continue;
+      final percent = task.progress == null
+          ? ''
+          : ' ${(task.progress! * 100).toStringAsFixed(0)}%';
+      return task.direction == CloudSyncDirection.upload
+          ? '云存档上传中$percent'
+          : '云存档恢复中$percent';
+    }
+    return null;
   }
 
   ///重建托盘菜单
@@ -206,6 +254,11 @@ class LauncherTray extends TrayListener with WindowListener {
               config.setting.personalizationOptions.restoreWindowOnGameExit,
         ),
         MenuItem.separator(),
+        // 云存档在传时给一行进度（只读）—— 托盘里以前什么都看不到
+        if (_cloudSyncLabel() case final cloudSync?) ...[
+          MenuItem(key: 'cloudSync', label: cloudSync, disabled: true),
+          MenuItem.separator(),
+        ],
         MenuItem(key: 'quit', label: '退出'),
       ],
     );
