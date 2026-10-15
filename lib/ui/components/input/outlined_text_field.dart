@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/text_context_menu.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -86,6 +87,7 @@ class OutlinedTextField extends StatefulWidget {
     this.decoration,
     this.onEditingComplete,
     this.obscureText = false,
+    this.contextMenuBuilder,
   });
 
   final String? label;
@@ -105,6 +107,12 @@ class OutlinedTextField extends StatefulWidget {
 
   /// 口令类输入用它遮住内容；默认按普通文本显示
   final bool obscureText;
+
+  /// 右键 / 长按菜单；默认走铜样式 [copperTextContextMenu]
+  ///
+  /// 要退回框架默认那份就传
+  /// `(context, state) => AdaptiveTextSelectionToolbar.editableText(editableTextState: state)`
+  final EditableTextContextMenuBuilder? contextMenuBuilder;
 
   @override
   State<StatefulWidget> createState() => _OutlinedTextFieldState();
@@ -358,6 +366,8 @@ class _OutlinedTextFieldState extends State<OutlinedTextField>
                   style: theme.textTheme.bodyMedium,
                   decoration: inputDecoration,
                   onEditingComplete: widget.onEditingComplete,
+                  contextMenuBuilder:
+                      widget.contextMenuBuilder ?? copperTextContextMenu,
                 );
               },
             ),

@@ -113,15 +113,20 @@ class GlobalContextMenuController extends ChangeNotifier {
     return box.globalToLocal(globalPosition);
   }
 
-  /// 右键 / 中键落在关闭层上：等这一次事件派发走完再决定收不收
+  /// 第几次 [show]；配合 [dismissUnlessReplaced] 判断「现在这份还是不是我开的那份」
+  int get showGeneration => _showGeneration;
+
+  /// 等这一次事件派发 / 布局走完再决定收不收，期间被新的 [show] 顶掉就不收
   ///
-  /// 下层可能正是新的触发区，它在同一次派发里紧接着调 [show]，
-  /// 那时就不该收，交给新菜单接管
-  void dismissUnlessReplaced() {
+  /// 两种用法：① 右键 / 中键落在关闭层上，下层同一次派发里可能紧接着弹新菜单
+  /// ② 别人（如输入框的桥接组件）在 dispose 里收自己开的那份 —— dispose 时整棵树
+  /// 是锁住的，直接 [dismiss] 会撞「widget tree was locked」，而且这时可能已经有
+  /// 另一份菜单顶上来了，得靠 [generation] 认回来
+  void dismissUnlessReplaced([int? generation]) {
     if (_active == null) return;
-    final generation = _showGeneration;
+    final expected = generation ?? _showGeneration;
     scheduleMicrotask(() {
-      if (_showGeneration == generation) dismiss();
+      if (_showGeneration == expected) dismiss();
     });
   }
 
