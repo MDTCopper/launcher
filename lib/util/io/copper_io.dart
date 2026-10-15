@@ -1697,7 +1697,10 @@ class CopperIO {
     void scaleIfNeeded(double smoothedRate) {
       if (scaleSaturated || activeWorkers >= maxWorkers) return;
 
-      if (smoothedRate >= _sufficientBytesPerSecond) {
+      //「带宽充足」只看**探带宽那一条连接**的速率，不能拿聚合速率比：
+      //每条连接都慢的弱网里，聚合会先越过阈值 ⇒ 档位提前停住，正好少开连接；
+      //爬坡阶段交给下面的增益判据（多一条连接没换来 10% 才算饱和）
+      if (activeWorkers <= 1 && smoothedRate >= _sufficientBytesPerSecond) {
         scaleSaturated = true;
         addLog(
           .debug,
