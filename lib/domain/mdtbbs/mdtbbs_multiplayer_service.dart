@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_api.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
@@ -23,7 +24,9 @@ import 'package:flutter/services.dart';
 /// —— 状态散在页面里会切页就丢（加入码只从创建响应里给一次，丢了找不回），
 /// 也会让每次进页面都得重新拉一遍
 class MdtbbsMultiplayerService {
-  MdtbbsMultiplayerService._();
+  MdtbbsMultiplayerService._() {
+    _accounts.snapshot.addListener(_onAccountSnapshotChanged);
+  }
 
   static final MdtbbsMultiplayerService instance = MdtbbsMultiplayerService._();
 
@@ -47,6 +50,11 @@ class MdtbbsMultiplayerService {
   String? _heartbeatPeerId;
   String? _heartbeatSessionId;
   int _heartbeatFailures = 0;
+  bool _heartbeatInFlight = false;
+  bool _heartbeatRecoveryInFlight = false;
+
+  String? _boundAccountSubject;
+  bool _accountResetInFlight = false;
 
   /// 拿 BBS 的 Bearer 令牌；未登录返回 null
   Future<String?> _token() async => tokenOverride != null
@@ -93,6 +101,44 @@ class MdtbbsMultiplayerService {
 
   void clearMessage() => _set(_current.copyWith(clearMessage: true));
 
+  void _onAccountSnapshotChanged() {
+    final snapshot = _accounts.snapshot.value;
+    if (!snapshot.loggedIn) {
+      _boundAccountSubject = null;
+      if (_hasLiveMultiplayerState) unawaited(_resetForAccountChange());
+      return;
+    }
+
+    final subject = snapshot.subject;
+    if (subject == null || subject.isEmpty) return;
+    final previous = _boundAccountSubject;
+    _boundAccountSubject = subject;
+    if (previous != null && previous != subject) {
+      unawaited(_resetForAccountChange());
+    }
+  }
+
+  bool get _hasLiveMultiplayerState =>
+      _current.session != null ||
+      _tunnel != null ||
+      _heartbeatSessionId != null ||
+      _current.invites.isNotEmpty ||
+      _current.sentInvites.isNotEmpty;
+
+  Future<void> _resetForAccountChange() async {
+    if (_accountResetInFlight) return;
+    _accountResetInFlight = true;
+    try {
+      stopInvitePolling();
+      forgetSession();
+      _finishSessionTask();
+      await stopProxy(announce: false);
+      _set(const MultiplayerState());
+    } finally {
+      _accountResetInFlight = false;
+    }
+  }
+
   // ── 能力 ────────────────────────────────────────────────────
 
   /// 拉一次能力并缓存（[force] 才重新拉）
@@ -118,14 +164,13 @@ class MdtbbsMultiplayerService {
 
   // ── 恢复（进页面 / 重启后） ──────────────────────────────────
 
-  /// 先用落盘状态点亮界面，再向服务端核验一次
-  ///
-  /// 加入码只存在盘上这一份里，所以**必须**先读回来
+  /// 先读落盘的加入码和恢复令牌，再按服务端恢复协议恢复同一个 peer。
   Future<void> restore() async {
     if (!_accounts.isConfigured) return;
     // 服务里已经有活着的会话（同一进程内切页回来）就不必重读重拉
     if (_current.session != null) return;
     await _accounts.restore();
+    _boundAccountSubject = _accounts.subject;
     final stored = _accounts.multiplayerSession;
     if (stored == null || !stored.isFresh(DateTime.now())) {
       if (stored != null) {
@@ -134,11 +179,164 @@ class MdtbbsMultiplayerService {
       }
       return;
     }
-    // 落盘里记着的会话：先把码与身份摆上，界面立刻有东西看
+
     _set(_current.copyWith(joinCode: stored.joinCode, resuming: true));
-    _heartbeatPeerId = stored.peerId;
-    _heartbeatSessionId = stored.sessionId;
-    await verifySession();
+    await _restoreStoredSession(stored);
+  }
+
+  Future<void> _restoreStoredSession(StoredMultiplayerSession stored) async {
+    final token = await _token();
+    if (token == null) {
+      _set(_current.copyWith(resuming: false));
+      return;
+    }
+
+    final resumeToken = stored.resumeToken;
+    if (resumeToken != null && resumeToken.isNotEmpty) {
+      try {
+        final joined = await MdtbbsMultiplayerApi.join(
+          accessToken: token,
+          sessionId: stored.sessionId,
+          resumeToken: resumeToken,
+        );
+        if (!joined.resumed) {
+          throw const MdtbbsException(
+            code: 'PEER_RESUME_INVALID',
+            message: '服务端没有确认恢复原对端',
+          );
+        }
+        final session = await MdtbbsMultiplayerApi.session(
+          accessToken: token,
+          sessionId: stored.sessionId,
+        );
+        _rememberSession(
+          sessionId: session.id,
+          peerId: joined.peer.peerId,
+          resumeToken: joined.resumeToken,
+          joinCode: stored.joinCode,
+          activityName: session.activityName ?? stored.activityName,
+        );
+        _set(
+          _current.copyWith(
+            session: session,
+            self: joined.peer,
+            joinCode: stored.joinCode,
+            resuming: false,
+            heartbeatFailures: 0,
+          ),
+        );
+        _beginSessionTask();
+        _armHeartbeat();
+        await refreshPeers();
+        addLogAndPrint(.info, '已用恢复令牌恢复联机会话 ${session.id}', tag: 'Multiplayer');
+        return;
+      } on MdtbbsException catch (error) {
+        if (!_isTerminalResumeError(error.code)) {
+          _set(_current.copyWith(resuming: false));
+          _notify('恢复联机会话失败：${describeMdtbbsError(error)}', isError: true);
+          return;
+        }
+        // PEER_RESUME_INVALID 也可能是上一次恢复请求已成功、但响应在客户端落盘前丢失。
+        // 先检查旧 peer 是否仍处于 active，再决定是否清掉本地会话。
+        if (error.code == 'PEER_RESUME_INVALID' &&
+            await _adoptStillActiveStoredPeer(stored, token)) {
+          return;
+        }
+        await _clearStoredSessionAfterServerRejection();
+        return;
+      } on Object catch (error) {
+        _set(_current.copyWith(resuming: false));
+        _notify('恢复联机会话失败：$error', isError: true);
+        return;
+      }
+    }
+
+    // 兼容旧落盘：没有 resume token 时只能确认旧 peer 仍然活跃，不能伪造一次恢复。
+    if (await _adoptStillActiveStoredPeer(stored, token)) return;
+    await _clearStoredSessionAfterServerRejection();
+  }
+
+  bool _isTerminalResumeError(String? code) =>
+      code == 'PEER_RESUME_INVALID' ||
+      code == 'SESSION_NOT_FOUND' ||
+      code == 'SESSION_CLOSED' ||
+      code == 'PEER_EXPIRED';
+
+  Future<bool> _adoptStillActiveStoredPeer(
+    StoredMultiplayerSession stored,
+    String token,
+  ) async {
+    final peerId = stored.peerId;
+    if (peerId == null || peerId.isEmpty) return false;
+    try {
+      final session = await MdtbbsMultiplayerApi.currentSession(
+        accessToken: token,
+      );
+      if (session == null || session.id != stored.sessionId) return false;
+      final peers = await MdtbbsMultiplayerApi.peers(
+        accessToken: token,
+        sessionId: session.id,
+      );
+      MdtbbsPeer? self;
+      for (final peer in peers) {
+        if (peer.peerId == peerId && peer.status == 'active') {
+          self = peer;
+          break;
+        }
+      }
+      if (self == null) return false;
+
+      _heartbeatPeerId = self.peerId;
+      _heartbeatSessionId = session.id;
+      _heartbeatFailures = 0;
+      _accounts.saveMultiplayerSession(
+        StoredMultiplayerSession(
+          sessionId: session.id,
+          peerId: self.peerId,
+          // 旧 token 已被服务端判无效，不能继续假装它还能恢复下一次重启。
+          resumeToken: null,
+          joinCode: stored.joinCode,
+          activityName: session.activityName ?? stored.activityName,
+        ),
+      );
+      _set(
+        _current.copyWith(
+          session: session,
+          self: self,
+          joinCode: stored.joinCode,
+          peers: peers,
+          resuming: false,
+          heartbeatFailures: 0,
+        ),
+      );
+      _beginSessionTask();
+      _armHeartbeat();
+      addLogAndPrint(
+        .warning,
+        '恢复令牌不可用，但服务端仍确认旧 peer 活跃；本次进程继续使用该 peer',
+        tag: 'Multiplayer',
+      );
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<void> _clearStoredSessionAfterServerRejection() async {
+    forgetSession();
+    _finishSessionTask();
+    await stopProxy(announce: false);
+    _accounts.clearMultiplayerSession();
+    _set(
+      _current.copyWith(
+        clearSession: true,
+        clearJoinCode: true,
+        clearSelf: true,
+        peers: const [],
+        resuming: false,
+        clearSentInvites: true,
+      ),
+    );
   }
 
   /// 向服务端核验当前会话；不在会话里就清掉落盘
@@ -153,24 +351,33 @@ class MdtbbsMultiplayerService {
         accessToken: token,
       );
       if (session == null) {
-        _accounts.clearMultiplayerSession();
-        _finishSessionTask();
-        _set(
-          _current.copyWith(
-            clearSession: true,
-            clearJoinCode: true,
-            clearSelf: true,
-            resuming: false,
-            // 房间没了，我发给别人的邀请也就没意义了
-            clearSentInvites: true,
-          ),
-        );
+        await _clearStoredSessionAfterServerRejection();
         return;
       }
-      _set(_current.copyWith(session: session, resuming: false));
+      final peers = await MdtbbsMultiplayerApi.peers(
+        accessToken: token,
+        sessionId: session.id,
+      );
+      final peerId = _heartbeatPeerId ?? _accounts.multiplayerSession?.peerId;
+      MdtbbsPeer? self;
+      if (peerId != null) {
+        for (final peer in peers) {
+          if (peer.peerId == peerId) {
+            self = peer;
+            break;
+          }
+        }
+      }
+      _set(
+        _current.copyWith(
+          session: session,
+          self: self,
+          peers: peers,
+          resuming: false,
+        ),
+      );
       _beginSessionTask();
       _armHeartbeat();
-      await refreshPeers();
     } on Object catch (error) {
       _set(_current.copyWith(resuming: false));
       _notify('读取房间状态失败：$error', isError: true);
@@ -579,11 +786,14 @@ class MdtbbsMultiplayerService {
     final peerId = _heartbeatPeerId;
     if (sessionId == null || peerId == null) return;
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_heartbeatInFlight) return;
       unawaited(_beat(sessionId, peerId));
     });
   }
 
   Future<void> _beat(String sessionId, String peerId) async {
+    if (_heartbeatInFlight) return;
+    _heartbeatInFlight = true;
     try {
       final token = await _token();
       if (token == null) {
@@ -615,9 +825,88 @@ class MdtbbsMultiplayerService {
         '心跳失败（第 $_heartbeatFailures 次）：$error',
         tag: 'Multiplayer',
       );
-      if (_heartbeatFailures >= 3) {
-        addLogAndPrint(.error, '心跳连续失败，会话多半已被判过期', tag: 'Multiplayer');
+      if (_heartbeatFailures >= 3 && !_heartbeatRecoveryInFlight) {
+        unawaited(_recoverHeartbeatSession(sessionId, peerId));
       }
+    } finally {
+      _heartbeatInFlight = false;
+    }
+  }
+
+  Future<void> _recoverHeartbeatSession(String sessionId, String peerId) async {
+    if (_heartbeatRecoveryInFlight ||
+        _heartbeatSessionId != sessionId ||
+        _heartbeatPeerId != peerId) {
+      return;
+    }
+    _heartbeatRecoveryInFlight = true;
+    try {
+      final stored = _accounts.multiplayerSession;
+      final token = await _token();
+      if (stored == null ||
+          stored.sessionId != sessionId ||
+          token == null) {
+        return;
+      }
+
+      final resumeToken = stored.resumeToken;
+      if (resumeToken != null && resumeToken.isNotEmpty) {
+        try {
+          final joined = await MdtbbsMultiplayerApi.join(
+            accessToken: token,
+            sessionId: sessionId,
+            resumeToken: resumeToken,
+          );
+          if (joined.resumed) {
+            final session = await MdtbbsMultiplayerApi.session(
+              accessToken: token,
+              sessionId: sessionId,
+            );
+            _rememberSession(
+              sessionId: session.id,
+              peerId: joined.peer.peerId,
+              resumeToken: joined.resumeToken,
+              joinCode: stored.joinCode,
+              activityName: session.activityName ?? stored.activityName,
+            );
+            _heartbeatFailures = 0;
+            _set(
+              _current.copyWith(
+                session: session,
+                self: joined.peer,
+                heartbeatFailures: 0,
+              ),
+            );
+            _armHeartbeat();
+            unawaited(refreshPeers());
+            addLogAndPrint(.info, '心跳异常后已恢复原联机 peer', tag: 'Multiplayer');
+            return;
+          }
+        } on MdtbbsException catch (error) {
+          if (!_isTerminalResumeError(error.code)) {
+            addLogAndPrint(
+              .warning,
+              '心跳恢复请求失败，保留会话等待下一轮：${describeMdtbbsError(error)}',
+              tag: 'Multiplayer',
+            );
+            return;
+          }
+        } on Object catch (error) {
+          addLogAndPrint(
+            .warning,
+            '心跳恢复请求失败，保留会话等待下一轮：$error',
+            tag: 'Multiplayer',
+          );
+          return;
+        }
+      }
+
+      if (await _adoptStillActiveStoredPeer(stored, token)) return;
+
+      addLogAndPrint(.error, '心跳连续失败且服务端无法恢复原 peer，清理本地会话', tag: 'Multiplayer');
+      await _clearStoredSessionAfterServerRejection();
+    } finally {
+      _heartbeatRecoveryInFlight = false;
     }
   }
 
@@ -628,6 +917,7 @@ class MdtbbsMultiplayerService {
     _heartbeatPeerId = null;
     _heartbeatSessionId = null;
     _heartbeatFailures = 0;
+    _heartbeatInFlight = false;
   }
 
   // ── 联机通道（中继隧道 + 本机桥） ───────────────────────────
@@ -649,10 +939,16 @@ class MdtbbsMultiplayerService {
     }
     _set(_current.copyWith(startingProxy: true));
     final tunnel = MdtbbsRelayTunnel(
-      allocateRelay: () => MdtbbsMultiplayerApi.allocateRelay(
-        accessToken: token,
-        sessionId: session.id,
-      ),
+      allocateRelay: () async {
+        final freshToken = await _token();
+        if (freshToken == null) {
+          throw const MdtbbsRelayException('登录状态已失效，无法续签中继凭证');
+        }
+        return MdtbbsMultiplayerApi.allocateRelay(
+          accessToken: freshToken,
+          sessionId: session.id,
+        );
+      },
     );
     String? address;
     try {
@@ -679,12 +975,20 @@ class MdtbbsMultiplayerService {
         if (ports == null) {
           throw const MdtbbsRelayException('本机端口 6567 起不来（游戏或别的程序占着？）');
         }
+        final peersToken = await _token();
+        if (peersToken == null) {
+          ports.tcpServer.close();
+          ports.udpSocket.close();
+          throw const MdtbbsRelayException('登录状态已失效，无法读取房间成员');
+        }
         final peers = await MdtbbsMultiplayerApi.peers(
-          accessToken: token,
+          accessToken: peersToken,
           sessionId: session.id,
         ).timeout(const Duration(seconds: 15));
         final owner = peers.where((p) => p.role == 'owner').toList();
         if (owner.isEmpty) {
+          ports.tcpServer.close();
+          ports.udpSocket.close();
           throw const MdtbbsRelayException('会话里没有房主对端');
         }
         final proxy = MdtbbsRelayGuestProxy(
@@ -719,7 +1023,7 @@ class MdtbbsMultiplayerService {
     _notify('联机通道已启动，请在游戏中连接 $address');
   }
 
-  Future<void> stopProxy() async {
+  Future<void> stopProxy({bool announce = true}) async {
     final wasRunning = _tunnel != null;
     final guest = _guest;
     final host = _host;
@@ -742,7 +1046,7 @@ class MdtbbsMultiplayerService {
         ),
       );
     }
-    if (wasRunning) _notify('联机通道已停止');
+    if (wasRunning && announce) _notify('联机通道已停止');
   }
 
   /// 把中继的两种典型失败翻成人话
