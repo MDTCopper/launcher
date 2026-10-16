@@ -215,6 +215,12 @@ class CopperIO {
   ///下载沿用会让「连接活着却不发数据」白挂十分钟
   static const Duration _downloadIdleTimeout = Duration(seconds: 30);
 
+  ///「中途被掐」的重试上限
+  ///
+  ///跟「连都连不上」分开：已经收到过数据说明链路是通的，只是这一段被掐了，
+  ///退避重试能接着下（Range 从断点续）；实测 86MB 那次在 213 秒处因同一块连掐两次整单失败
+  static const int _abortedRetryLimit = 3;
+
   ///失败重试的退避区间：第 n 次等 random(0, min(cap, base * 2^n))，全抖动
   static const int _retryBackoffBaseMs = 500;
   static const int _retryBackoffCapMs = 5000;
@@ -1519,6 +1525,8 @@ class CopperIO {
 
     Future<void> downloadPiece(_Chunk chunk, {int tryTime = 0}) async {
       if (rangeIgnored) return;
+      //这一趟开始时的已收字节：判断「这趟到底收到过数据没有」
+      final attemptStart = chunk.received;
 
       //请求区间从 nextOffset 起：续传与重试都接着已落盘的位置，已收的部分不重下
       final rangeHeader = {
@@ -1633,10 +1641,15 @@ class CopperIO {
         //不是 DioException —— 那同样是弱网断连，要按一样的退避重试接着下
         final isTransport = e is! DioException || isTransportFailure(e);
         // 断网时不再空转多轮：连接类失败只再试一次；其它错误（服务端抖动等）按上限重试；
-        // 写盘失败（磁盘满 / 路径不可写）一次都别重试 —— 退避几轮也一样满
+        // 写盘失败（磁盘满 / 路径不可写）一次都别重试 —— 退避几轮也一样满。
+        // 但「这趟收到过数据」是另一回事：链路是通的、只是中途被掐，
+        // 多给几次机会（Range 从断点续，代价只是几次退避）
+        final delivered = chunk.received - attemptStart;
         final limit = e is FileSystemException
             ? 0
-            : (isTransport ? 1 : retryLimit);
+            : (delivered > 0
+                  ? _abortedRetryLimit
+                  : (isTransport ? 1 : retryLimit));
         if (tryTime < limit) {
           await Future.delayed(_retryDelay(tryTime));
           await downloadPiece(chunk, tryTime: tryTime + 1);
