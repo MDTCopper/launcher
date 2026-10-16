@@ -34,10 +34,8 @@ import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/pages/cloud/version_cloud_save_page.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/selection/drag_select_list.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
@@ -1275,7 +1273,8 @@ class _SettingState extends State<_Setting> {
 /// 模组文件夹按钮：走加载器的版本有两个模组目录（Copper 原生 / 原版），
 /// **点击**弹菜单选一个；只有一个目录时直接执行 [onPick]
 ///
-/// 用 [MenuLayer] 而不是自己拼弹窗：位置策略、点外部关闭、Esc 关闭都由它负责
+/// 用铜菜单（[ContextMenu.showBelow]）而不是自己拼弹窗：位置策略、点外部关闭、
+/// Esc 关闭都由它负责
 class _ModsFolderButton extends StatefulWidget {
   const _ModsFolderButton({
     required this.mindustry,
@@ -1299,8 +1298,6 @@ class _ModsFolderButton extends StatefulWidget {
 }
 
 class _ModsFolderButtonState extends State<_ModsFolderButton> {
-  final PopupOverlayController _menuController = PopupOverlayController();
-
   @override
   Widget build(BuildContext context) {
     final modsPaths = widget.mindustry.modsPaths;
@@ -1311,35 +1308,23 @@ class _ModsFolderButtonState extends State<_ModsFolderButton> {
       content: widget.label,
       onTap: modsPaths.length <= 1
           ? () => widget.onPick(modsPaths.first, 'mods')
-          : _menuController.open,
+          : () => ContextMenu.showBelow(
+              context: context,
+              entries: [
+                ContextMenuAction(
+                  icon: Icons.extension_outlined,
+                  label: 'Copper',
+                  onSelected: () => widget.onPick(modsPaths[0], 'copper-mods'),
+                ),
+                ContextMenuAction(
+                  icon: Icons.widgets_outlined,
+                  label: '原版',
+                  onSelected: () => widget.onPick(modsPaths[1], 'mods'),
+                ),
+              ],
+            ),
     );
-    if (modsPaths.length <= 1) return button;
-
-    return MenuLayer(
-      controller: _menuController,
-      //点击才开：右键 / 长按保持默认行为（别在这里抢）
-      rightClickTrigger: false,
-      longPressTrigger: false,
-      menuBuilder: (_, controller) => [
-        MenuButton(
-          icon: const Icon(Icons.extension_outlined),
-          label: 'Copper',
-          onTap: () {
-            controller.dismiss();
-            widget.onPick(modsPaths[0], 'copper-mods');
-          },
-        ),
-        MenuButton(
-          icon: const Icon(Icons.widgets_outlined),
-          label: '原版',
-          onTap: () {
-            controller.dismiss();
-            widget.onPick(modsPaths[1], 'mods');
-          },
-        ),
-      ],
-      child: button,
-    );
+    return button;
   }
 }
 
@@ -1369,36 +1354,25 @@ class _LauncherVariantButton extends StatefulWidget {
 }
 
 class _LauncherVariantButtonState extends State<_LauncherVariantButton> {
-  final PopupOverlayController _menuController = PopupOverlayController();
-
   @override
   Widget build(BuildContext context) {
-    return MenuLayer(
-      controller: _menuController,
-      rightClickTrigger: false,
-      longPressTrigger: false,
-      menuBuilder: (_, controller) => [
-        MenuButton(
-          icon: const Icon(Icons.rocket_launch_outlined),
-          label: '原版',
-          onTap: () {
-            controller.dismiss();
-            widget.onPick(LauncherType.mindustry, null, null);
-          },
-        ),
-        MenuButton(
-          icon: const Icon(Icons.extension_outlined),
-          label: 'Copper',
-          onTap: () async {
-            await controller.dismiss();
-            await _chooseLoaderAndPick();
-          },
-        ),
-      ],
-      child: IconTextButton(
-        icon: Icons.extension_outlined,
-        content: '换启动器新建',
-        onTap: _menuController.open,
+    return IconTextButton(
+      icon: Icons.extension_outlined,
+      content: '换启动器新建',
+      onTap: () => ContextMenu.showBelow(
+        context: context,
+        entries: [
+          ContextMenuAction(
+            icon: Icons.rocket_launch_outlined,
+            label: '原版',
+            onSelected: () => widget.onPick(LauncherType.mindustry, null, null),
+          ),
+          ContextMenuAction(
+            icon: Icons.extension_outlined,
+            label: 'Copper',
+            onSelected: () => _chooseLoaderAndPick(),
+          ),
+        ],
       ),
     );
   }
@@ -1878,25 +1852,19 @@ class _ModsState extends State<_Mods> {
     );
 
     // 右键 / 长按 / 左滑菜单：禁用⇄启用 / 删除
-    return ActionMenu(
+    return ContextMenuActionField(
       enableSwipe: isMobile || kDebugMode,
-      menuBuilder: (_, controller) => [
-        MenuButton(
-          icon: Icon(entry.enabled ? Icons.block : Icons.check),
+      menuBuilder: (context) => [
+        ContextMenuAction(
+          icon: entry.enabled ? Icons.block : Icons.check,
           label: entry.enabled ? '禁用' : '启用',
-          onTap: () {
-            controller.dismiss();
-            _toggleMod(entry, !entry.enabled);
-          },
+          onSelected: () => _toggleMod(entry, !entry.enabled),
         ),
-        MenuButton(
-          icon: Icon(Icons.delete_outline),
+        ContextMenuAction(
+          icon: Icons.delete_outline,
           label: '删除',
           danger: true,
-          onTap: () {
-            controller.dismiss();
-            _deleteMod(entry);
-          },
+          onSelected: () => _deleteMod(entry),
         ),
       ],
       actions: [
