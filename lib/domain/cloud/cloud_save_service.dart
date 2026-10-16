@@ -569,20 +569,31 @@ class CloudSaveService {
       }
 
       onStatus?.call('上传云包');
-      await MdtbbsCloudSaveApi.putUploadBytes(
-        accessToken: accessToken,
-        session: session,
-        bytes: bytes,
-        onSendProgress: onSendProgress,
-        cancelToken: cancelToken,
-      );
+      // 会话一建好，服务端就替我们占着配额 ⇒ 取消 / 失败都必须把它交回去。
+      // 不交的话那笔额度要等它自己过期，用户看到的是「刚传失败了，怎么又传不了」
+      final CloudSaveSnapshot? snapshot;
+      try {
+        await MdtbbsCloudSaveApi.putUploadBytes(
+          accessToken: accessToken,
+          session: session,
+          bytes: bytes,
+          onSendProgress: onSendProgress,
+          cancelToken: cancelToken,
+        );
 
-      onStatus?.call('等云端确认');
-      final snapshot = await MdtbbsCloudSaveApi.commitUpload(
-        accessToken: accessToken,
-        uploadId: session.uploadId,
-        cancelToken: cancelToken,
-      );
+        onStatus?.call('等云端确认');
+        snapshot = await MdtbbsCloudSaveApi.commitUpload(
+          accessToken: accessToken,
+          uploadId: session.uploadId,
+          cancelToken: cancelToken,
+        );
+      } on Object {
+        await _releaseUploadQuietly(
+          accessToken: accessToken,
+          uploadId: session.uploadId,
+        );
+        rethrow;
+      }
 
       // 记下「同步到哪个快照」：commit 的响应解不出快照时问一次槽位拿 head id，
       // 否则下一次状态判断会把「刚传上去的」误报成「云端有新的」
@@ -609,6 +620,25 @@ class CloudSaveService {
       );
     } finally {
       _deleteQuietly(archivePath);
+    }
+  }
+
+  /// 把没用完的上传会话交回去（服务端据此释放它占的配额）
+  ///
+  /// 收尾动作，尽力而为：**不带原来那个 cancelToken** —— 用户取消时它已经取消了，
+  /// 拿它发请求会立刻再被取消；失败也只记日志，别盖住真正的错
+  static Future<void> _releaseUploadQuietly({
+    required String accessToken,
+    required String uploadId,
+  }) async {
+    try {
+      await MdtbbsCloudSaveApi.cancelUpload(
+        accessToken: accessToken,
+        uploadId: uploadId,
+      );
+      addLog(.info, '已交回未完成的上传会话：$uploadId', tag: 'Cloud');
+    } on Object catch (error) {
+      addLog(.warning, '交回上传会话失败（$uploadId）：$error', tag: 'Cloud');
     }
   }
 
