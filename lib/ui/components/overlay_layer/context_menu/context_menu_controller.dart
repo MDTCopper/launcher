@@ -12,14 +12,14 @@ import 'package:flutter/material.dart';
 /// 同级菜单再来一个时，旧的那份不是就地丢掉，而是先播完自己的退场动画 ——
 /// 这就是「同一时刻可以有多个菜单实例」的唯一用途
 ///
-/// 名字带 Global 前缀是为了避开 Flutter 自带的 `ContextMenuController`
+/// 名字带 Copper 前缀是为了避开 Flutter 自带的 `ContextMenuController`
 ///
 /// 本身是 [ChangeNotifier]：isShowing / depth 变了就通知，页面可以直接监听它
-class GlobalContextMenuController extends ChangeNotifier {
-  GlobalContextMenuController._();
+class CopperContextMenuController extends ChangeNotifier {
+  CopperContextMenuController._();
 
-  static final GlobalContextMenuController instance =
-      GlobalContextMenuController._();
+  static final CopperContextMenuController instance =
+      CopperContextMenuController._();
 
   /// 当前活跃的菜单链
   _ContextMenuSession? _active;

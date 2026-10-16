@@ -15,12 +15,12 @@ export 'context_menu_position.dart';
 
 /// 右键菜单门面：全局单控制器 + 包裹式触发组件
 ///
-/// 一个应用只该有一个 [GlobalContextMenuController.instance]，所有菜单都从它出去；
+/// 一个应用只该有一个 [CopperContextMenuController.instance]，所有菜单都从它出去；
 /// 页面里包一层 [ContextMenuField] 就能接上右键 / 长按
 abstract final class ContextMenu {
   /// 全局单控制器；要手动开菜单 / 判断状态时用它
-  static GlobalContextMenuController get controller =>
-      GlobalContextMenuController.instance;
+  static CopperContextMenuController get controller =>
+      CopperContextMenuController.instance;
 
   static bool get isShowing => controller.isShowing;
 
