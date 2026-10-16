@@ -16,7 +16,7 @@ class ContextMenuActionField extends StatelessWidget {
     this.enableSwipe,
     this.rightClickTrigger = true,
     this.longPressTrigger = true,
-    this.relocateOnReopen = false,
+    this.relocateOnReopen,
     this.positionDelegate,
     this.style = const ContextMenuStyle(),
   });
@@ -33,7 +33,9 @@ class ContextMenuActionField extends StatelessWidget {
   final bool? enableSwipe;
   final bool rightClickTrigger;
   final bool longPressTrigger;
-  final bool relocateOnReopen;
+
+  /// 同级菜单再次出现时，是否让同一个面板移动过去换内容；为空时按宿主设置
+  final bool? relocateOnReopen;
   final ContextMenuPositionDelegate? positionDelegate;
   final ContextMenuStyle style;
 
