@@ -30,18 +30,6 @@ abstract class AppPaths {
   /// Android 的外部应用专属目录；桌面端、或拿不到外部目录时是 null
   static String? get androidExternalRoot => _androidExternalRoot;
 
-  /// 数据根已经改到外部、但内部目录里还留着老数据时的那个旧根；没有就 null
-  ///
-  /// 迁移入口还没做（要用户定「自动搬 / 只提示」），先让启动日志能说清
-  /// 「我的版本和存档去哪了」——它们没丢，只是还在内部目录
-  static String? get legacyRootWithData {
-    if (!Platform.isAndroid) return null;
-    final internal = applicationSupportPath;
-    if (internal == copperLauncher) return null;
-    if (!File(p.join(internal, 'config.json')).existsSync()) return null;
-    return internal;
-  }
-
   static Future<void> init() async {
     final appSupportDir = await getApplicationSupportDirectory();
     applicationSupportPath = appSupportDir.path;

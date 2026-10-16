@@ -9,6 +9,7 @@ import 'package:copper_launcher/ui/dialog/resource_importer.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/util/data_root_migration.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
@@ -43,19 +44,25 @@ Future<void> _initialize() async {
   }
   //数据目录是排查「东西写到哪去了」的第一现场，每次启动都记下来
   addLog(.info, '数据根目录：${AppPaths.copperLauncher}', tag: 'Startup');
-  final legacyRoot = AppPaths.legacyRootWithData;
-  if (legacyRoot != null) {
-    addLogAndPrint(
-      .warning,
-      '旧数据还在应用内部目录（$legacyRoot），迁移入口未做；'
-      '当前数据根是 ${AppPaths.copperLauncher}',
-      tag: 'Startup',
-    );
-  }
   addLog(.info, '游戏默认数据目录：${AppPaths.defaultGameData}', tag: 'Startup');
 
   final multipleStartup = !await _initSingleInctance();
   if (multipleStartup) return;
+
+  // 数据根从应用内部搬进外部专属目录（Android）：搬完才读配置，否则会读到空根上的默认值
+  final migration = await DataRootMigration.runIfNeeded();
+  final migrationSummary = migration?.describe();
+  if (migrationSummary != null) {
+    addLogAndPrint(.info, '数据根迁移：$migrationSummary', tag: 'Startup');
+    if (migration!.failed.isNotEmpty) {
+      addNotice(
+        icon: Icons.warning_amber_outlined,
+        title: '旧数据没搬完',
+        content: '有 ${migration.failed.length} 项没搬过去，日志里记了原因；'
+            '它们还在应用内部目录，没丢',
+      );
+    }
+  }
 
   await TokenEncryptor.init();
   await initAppConfig();
