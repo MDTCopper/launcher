@@ -6,10 +6,8 @@ import 'package:copper_launcher/domain/tasks/mod_download_task.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
@@ -322,38 +320,29 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       ),
     );
 
-    // 组合菜单：右键 / 长按（MenuLayer）+ 左滑（ActionSlideLayer）
-    return ActionMenu(
-      menuBuilder: (_, controller) => _buildMenuItems(mod, controller),
+    // 组合菜单：右键 / 长按（铜菜单）+ 左滑（ActionSlideLayer）
+    return ContextMenuActionField(
+      menuBuilder: (context) => _buildMenuItems(mod),
       actions: _buildSwipeActions(mod),
       child: tile,
     );
   }
 
   /// 右键 / 长按菜单内容
-  List<Widget> _buildMenuItems(
-    ModRelease mod,
-    PopupOverlayController controller,
-  ) {
+  List<ContextMenuEntry> _buildMenuItems(ModRelease mod) {
     return [
-      MenuButton(
-        icon: Icon(Icons.folder_outlined),
+      ContextMenuAction(
+        icon: Icons.folder_outlined,
         label: '下载源码',
-        onTap: () {
-          _buildDownloadPopup(mod, downloadSource: true);
-          controller.dismiss();
-        },
+        onSelected: () => _buildDownloadPopup(mod, downloadSource: true),
       ),
-      MenuButton(
-        icon: Icon(Icons.outbond_outlined),
+      ContextMenuAction(
+        icon: Icons.outbond_outlined,
         label: '版本详情',
-        onTap: () {
-          // 版本详情 = 跳转到 GitHub 该 tag 的详情页
-          _goToUrl(
-            'https://github.com/${modListMeta.repo}/releases/tag/${mod.tag}',
-          );
-          controller.dismiss();
-        },
+        // 版本详情 = 跳转到 GitHub 该 tag 的详情页
+        onSelected: () => _goToUrl(
+          'https://github.com/${modListMeta.repo}/releases/tag/${mod.tag}',
+        ),
       ),
     ];
   }
