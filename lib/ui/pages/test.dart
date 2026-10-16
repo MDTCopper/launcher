@@ -520,37 +520,3 @@ class TestState extends State<Test> {
     );
   }
 }
-
-/// 简易菜单项按钮（本测试页专用）。
-///
-/// 注意：不要用 `Container(alignment: Alignment.center)`——
-/// 内部会包 Align，松约束下会撑满父宽度。用 Row(mainAxisSize: min)
-/// 保持自适应宽度，四角测试才能正确显示。
-class ReboundMenuButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onTap;
-
-  const ReboundMenuButton({super.key, required this.label, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        height: 34,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: colors.interactive.withAlpha(30),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: colors.interactive.withAlpha(120)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [Text(label, style: TextStyle(color: colors.itemPrimary))],
-        ),
-      ),
-    );
-  }
-}

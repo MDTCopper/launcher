@@ -254,10 +254,10 @@ class PopupOverlay extends StatefulWidget {
 
   /// 是否吞掉外部“点击”（左键），而非透传到下层
   ///
-  /// 默认 false（translucent Listener）：外部点击透传，可右击另一 MenuLayer 自动切换、
+  /// 默认 false（translucent Listener）：外部点击透传，可右击另一处菜单区域自动切换、
   /// 下拉头部点击切换；true（如右击菜单）：左键点击被 tap 识别器抢先获胜吞掉
   /// （不触发下层组件，避免关闭时误触），而右键 / 滚动无对应识别器、自然透传——
-  /// 仍可右击另一 MenuLayer 切换、滚动列表
+  /// 仍可右击另一处菜单区域切换、滚动列表
   final bool consumeTapOutside;
 
   const PopupOverlay({
@@ -392,7 +392,7 @@ class _PopupOverlayState extends State<PopupOverlay> {
             child: widget.consumeTapOutside
                 // 吞外部点击（右击菜单）：左键被 tap 识别器抢先获胜吞掉（不触发下层、
                 // 避免关闭时误触）；右键 / 中键用 onPointerDown 关闭但**不吞**（透传，
-                // 可右击另一 MenuLayer 打开）；滚动透传
+                // 可右击另一处菜单区域打开）；滚动透传
                 ? GestureDetector(
                     behavior: HitTestBehavior.translucent,
                     // 左键点击：tap 识别器抢先获胜吞掉 + 关闭
@@ -414,11 +414,11 @@ class _PopupOverlayState extends State<PopupOverlay> {
                       // 右键 / 中键：立即关闭但**不吞**（onPointerDown 非识别器，
                       // 透传下层，可右击另一 MenuLayer 打开）
                       onPointerDown: (event) {
-                        final isPrimary =
-                            (event.buttons & kPrimaryButton) != 0;
+                        final isPrimary = (event.buttons & kPrimaryButton) != 0;
                         if (isPrimary) return;
-                        final insideAnchor =
-                            anchorRect.contains(event.localPosition);
+                        final insideAnchor = anchorRect.contains(
+                          event.localPosition,
+                        );
                         if (widget.dismissOnAnchorTap || !insideAnchor) {
                           _dismiss();
                         }
@@ -438,8 +438,9 @@ class _PopupOverlayState extends State<PopupOverlay> {
                     onPointerDown: (event) {
                       // 锚点区域内的按下：默认也关闭；dismissOnAnchorTap=false 时
                       // 留给锚点自己处理
-                      final insideAnchor =
-                          anchorRect.contains(event.localPosition);
+                      final insideAnchor = anchorRect.contains(
+                        event.localPosition,
+                      );
                       if (widget.dismissOnAnchorTap || !insideAnchor) {
                         _dismiss();
                       }
