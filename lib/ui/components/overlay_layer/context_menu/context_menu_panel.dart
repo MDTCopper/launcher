@@ -23,7 +23,7 @@ class ContextMenuStyle {
   const ContextMenuStyle({
     this.layout = ContextMenuLayout.vertical,
     this.itemHeight,
-    this.minWidth = 168,
+    this.minWidth = 0,
     this.maxWidth = 248,
     this.screenMargin = 8,
     this.enterDuration = const Duration(milliseconds: 140),
@@ -567,6 +567,7 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
     return _EntryTile(
       label: entry.label,
       icon: entry.icon,
+      color: entry.color,
       danger: entry.danger,
       enabled: entry.isEnabled,
       trailing: entry.checked ? Icons.check : null,
@@ -584,6 +585,7 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
     return _EntryTile(
       label: entry.label,
       icon: entry.icon,
+      color: entry.color,
       enabled: entry.enabled,
       trailing: Icons.chevron_right,
       active: widget.activeIndex == index,
@@ -608,6 +610,7 @@ class _EntryTile extends StatelessWidget {
     this.horizontal = false,
     this.icon,
     this.trailing,
+    this.color,
     this.danger = false,
     this.enabled = true,
     this.active = false,
@@ -622,6 +625,9 @@ class _EntryTile extends StatelessWidget {
   /// 横向排布（文本菜单那排）：高度只兜下限、内衬换个方向
   final bool horizontal;
   final IconData? icon;
+
+  /// 图标与文字的颜色；不给就按普通项 / [danger] 取
+  final Color? color;
   final IconData? trailing;
   final bool danger;
   final bool enabled;
@@ -653,9 +659,14 @@ class _EntryTile extends StatelessWidget {
     final colors = AppColors.of(context);
     final foreground = !enabled
         ? colors.itemHint
-        : danger
-        ? colors.error
-        : colors.itemSecondary;
+        : color ?? (danger ? colors.error : colors.itemSecondary);
+    final labelText = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      softWrap: false,
+      style: theme.textTheme.bodyMedium?.copyWith(color: foreground),
+    );
     return ReboundButton(
       onTap: enabled ? () => onTap?.call(context) : null,
       pressedScale: 0.98,
@@ -668,43 +679,41 @@ class _EntryTile extends StatelessWidget {
         horizontal: horizontal ? AppSpacing.group : AppSpacing.related,
         vertical: horizontal ? AppSpacing.tight : 0,
       ),
-      child: Stack(
-        alignment: Alignment.center,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
+          SizedBox(
+            width: AppIconSize.inline,
+            child: icon == null
+                ? null
                 // 尺寸由面板那层的 IconTheme 给，这里只改颜色
-                IconTheme(
-                  data: IconTheme.of(context).copyWith(color: foreground),
-                  child: Icon(icon),
-                ),
-                const SizedBox(width: AppSpacing.related),
-              ],
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: foreground,
+                : IconTheme(
+                    data: IconTheme.of(context).copyWith(color: foreground),
+                    child: Icon(icon),
                   ),
-                ),
-              ),
-              if (trailing != null)
-                const SizedBox(width: AppIconSize.inline + AppSpacing.tight),
-            ],
           ),
-          if (trailing != null)
-            Positioned(
-              right: 0,
-              child: Icon(
-                trailing,
-                color: accentTrailing ? colors.interactive : colors.itemHint,
-              ),
-            ),
+          const SizedBox(width: AppSpacing.related),
+          // 竖排用 Expanded：多余空间要被标签吃掉，否则它会落在最后一个子节点之后，
+          // 行尾箭头就跟着文字跑、贴不到右边
+          //
+          // 横排那一条是在横向滚动里排的（宽度无界），只能 Flexible
+          if (horizontal)
+            Flexible(child: labelText)
+          else
+            Expanded(child: labelText),
+          // 行尾槽也固定宽：箭头 / 打勾都钉在这一列，不跟着文字跑
+          const SizedBox(width: AppSpacing.related),
+          SizedBox(
+            width: AppIconSize.inline,
+            child: trailing == null
+                ? null
+                : Icon(
+                    trailing,
+                    color: accentTrailing
+                        ? colors.interactive
+                        : colors.itemHint,
+                  ),
+          ),
         ],
       ),
     );

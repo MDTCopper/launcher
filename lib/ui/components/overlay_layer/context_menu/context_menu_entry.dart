@@ -13,6 +13,7 @@ class ContextMenuAction extends ContextMenuEntry {
     required this.label,
     this.onSelected,
     this.icon,
+    this.color,
     this.danger = false,
     this.enabled = true,
     this.checked = false,
@@ -24,7 +25,10 @@ class ContextMenuAction extends ContextMenuEntry {
   final VoidCallback? onSelected;
   final IconData? icon;
 
-  /// 破坏性动作，用 error 色
+  /// 图标与文字的颜色；不给就按普通项 / [danger] 取
+  final Color? color;
+
+  /// 破坏性动作，用 error 色；与 [color] 同时给时以 [color] 为准
   final bool danger;
 
   /// 显式禁用；[onSelected] 为空时同样不可点
@@ -42,12 +46,16 @@ class ContextMenuSubmenu extends ContextMenuEntry {
     required this.label,
     required this.entries,
     this.icon,
+    this.color,
     this.enabled = true,
   });
 
   final String label;
   final List<ContextMenuEntry> entries;
   final IconData? icon;
+
+  /// 图标与文字的颜色；不给就按普通项取
+  final Color? color;
   final bool enabled;
 }
 
