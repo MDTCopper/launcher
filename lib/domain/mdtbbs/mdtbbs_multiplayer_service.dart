@@ -1254,7 +1254,8 @@ class MdtbbsMultiplayerService {
     }
     if (text.contains('AUTH_INVALID')) {
       return '中继认证被拒（AUTH_INVALID）：官方中继没认下这份凭证。'
-          '日志里有一行「中继拒绝认证（诊断用）」，把它发给管理员即可定位';
+          '日志里有一行「中继拒绝认证（诊断用）」，把它发给管理员即可定位；'
+          '服务端那笔分配要等它自己过期，约 2 分钟内重试还是会被拒';
     }
     return text;
   }
