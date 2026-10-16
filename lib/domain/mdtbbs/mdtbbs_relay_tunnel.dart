@@ -98,11 +98,20 @@ class MdtbbsRelayTunnel {
     required this.allocateRelay,
     this.renewBefore = 20,
     this.authTimeout = const Duration(seconds: 15),
-  });
+    Duration Function(int attempt)? authRetryDelay,
+  }) : authRetryDelay = authRetryDelay ?? defaultAuthRetryDelay;
 
   final Future<MdtbbsRelayAllocation> Function() allocateRelay;
   final int renewBefore;
   final Duration authTimeout;
+
+  /// 认证被拒之后、用同一份凭证再试之前等多久（**默认 5s、10s**）
+  ///
+  /// 留成可注入只为让用例把整条「试三次」跑在毫秒级；**默认行为一字不变**
+  final Duration Function(int attempt) authRetryDelay;
+
+  static Duration defaultAuthRetryDelay(int attempt) =>
+      Duration(seconds: 5 * attempt);
 
   WebSocket? _socket;
   Timer? _renewTimer;
@@ -149,7 +158,7 @@ class MdtbbsRelayTunnel {
           '中继认证被拒（第 $attempt 次），${5 * attempt} 秒后用同一份凭证重试…',
           tag: 'Multiplayer',
         );
-        await Future<void>.delayed(Duration(seconds: 5 * attempt));
+        await Future<void>.delayed(authRetryDelay(attempt));
       }
     }
     throw lastError ?? const MdtbbsRelayException('中继认证失败');
