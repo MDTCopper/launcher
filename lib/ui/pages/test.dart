@@ -260,6 +260,13 @@ class TestState extends State<Test> {
         ),
       ],
       const ContextMenuDivider(),
+      // 条目可以自带颜色，不必只有普通 / 错误两档
+      ContextMenuAction(
+        icon: Icons.star_border,
+        label: '标记为收藏',
+        color: Colors.amber,
+        onSelected: () => _noteMenuAction('标记为收藏'),
+      ),
       ContextMenuSubmenu(
         icon: Icons.more_horiz,
         label: '更多操作',
