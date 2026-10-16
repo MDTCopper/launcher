@@ -5,6 +5,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context
 import 'package:flutter/gestures.dart' show kSecondaryButton;
 import 'package:flutter/material.dart';
 
+export 'context_menu_action_field.dart';
 export 'context_menu_controller.dart';
 export 'context_menu_entry.dart';
 export 'context_menu_host.dart';
@@ -45,6 +46,30 @@ abstract final class ContextMenu {
 
   static void dismiss({bool immediate = false}) =>
       controller.dismiss(immediate: immediate);
+
+  /// 在 [context] 所属组件的正下方弹菜单（锚点 = 该组件的左下角）
+  ///
+  /// 给「点按钮弹菜单」那类用：这种场景拿不到指针位置，只能按组件自己的位置来
+  static Future<void> showBelow({
+    required BuildContext context,
+    required List<ContextMenuEntry> entries,
+    ContextMenuPositionDelegate? positionDelegate,
+    bool relocateOnReopen = false,
+    ContextMenuStyle style = const ContextMenuStyle(),
+  }) {
+    final box = context.findRenderObject();
+    final anchor = box is RenderBox
+        ? box.localToGlobal(box.size.bottomLeft(Offset.zero))
+        : Offset.zero;
+    return show(
+      context: context,
+      position: anchor,
+      entries: entries,
+      positionDelegate: positionDelegate,
+      relocateOnReopen: relocateOnReopen,
+      style: style,
+    );
+  }
 }
 
 /// 菜单触发区：包住目标组件，右键（桌面）或长按（触屏）在这里弹出菜单
