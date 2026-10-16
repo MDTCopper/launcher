@@ -9,9 +9,8 @@ import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/action_menu.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
@@ -220,7 +219,11 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     );
     setState(() {
       _versionFolds.add(
-        VersionFold(tag: tag, path: AppPaths.toStoredPath(path), versions: scanned),
+        VersionFold(
+          tag: tag,
+          path: AppPaths.toStoredPath(path),
+          versions: scanned,
+        ),
       );
       _index = _versionFolds.length - 1;
     });
@@ -253,7 +256,11 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     try {
       await Directory(folderPath).create(recursive: true);
     } catch (e) {
-      addLog(.error, '创建分类文件夹失败：$folderPath，${removeNewlines('$e')}', tag: 'Version');
+      addLog(
+        .error,
+        '创建分类文件夹失败：$folderPath，${removeNewlines('$e')}',
+        tag: 'Version',
+      );
       if (mounted) {
         addNotice(icon: Icons.close, title: '新建失败', content: '无法在应用目录下创建分类文件夹');
       }
@@ -429,7 +436,9 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     if (!mounted) return;
 
     setState(() {
-      final index = _versionFolds.indexWhere((fold) => fold.tag == SteamVersion.foldTag);
+      final index = _versionFolds.indexWhere(
+        (fold) => fold.tag == SteamVersion.foldTag,
+      );
       if (index != -1) _index = index;
     });
     _updateView();
@@ -462,33 +471,24 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     );
 
     // 右键 / 长按 + 左滑 组合菜单：删除 / 收藏 / 设置
-    return ActionMenu(
-      menuBuilder: (_, controller) => [
-        MenuButton(
-          icon: Icon(Icons.delete_outline),
+    return ContextMenuActionField(
+      menuBuilder: (context) => [
+        ContextMenuAction(
+          icon: Icons.delete_outline,
           label: '删除',
           danger: true,
-          onTap: () {
-            controller.dismiss();
-            _delete(version);
-          },
+          onSelected: () => _delete(version),
         ),
-        MenuButton(
-          icon: Icon(
-            version.like ? Icons.star : Icons.star_outline,
-            color: version.like ? Colors.amber : null,
-          ),
+        ContextMenuAction(
+          icon: version.like ? Icons.star : Icons.star_outline,
+          color: version.like ? Colors.amber : null,
           label: version.like ? '已收藏' : '收藏',
-          onTap: () {
-            controller.dismiss();
-            _collect(version);
-          },
+          onSelected: () => _collect(version),
         ),
-        MenuButton(
-          icon: Icon(Icons.copy_all),
+        ContextMenuAction(
+          icon: Icons.copy_all,
           label: '新建变体',
-          onTap: () async {
-            controller.dismiss();
+          onSelected: () async {
             final created = await createVersionVariant(
               source: version,
               context: context,
@@ -497,13 +497,10 @@ class _VersionSelectPageState extends State<VersionSelectPage>
             _updateView();
           },
         ),
-        MenuButton(
-          icon: Icon(Icons.settings),
+        ContextMenuAction(
+          icon: Icons.settings,
           label: '设置',
-          onTap: () {
-            controller.dismiss();
-            _popToSettingOf(version);
-          },
+          onSelected: () => _popToSettingOf(version),
         ),
       ],
       actions: [
@@ -682,27 +679,21 @@ class _VersionSelectPageState extends State<VersionSelectPage>
               },
             );
 
-            // 侧边栏项：右键 / 长按 + 左滑 → 可删除该目录
-            return MenuLayer(
-              menuBuilder: (_, controller) => [
-                MenuButton(
-                  icon: Icon(Icons.edit_outlined),
+            // 侧边栏项：右键 / 长按 → 重命名 / 删除该目录
+            return ContextMenuField(
+              menuBuilder: (context) => [
+                ContextMenuAction(
+                  icon: Icons.edit_outlined,
                   label: '重命名',
-                  onTap: () {
-                    controller.dismiss();
-                    _renameFold(index);
-                  },
+                  onSelected: () => _renameFold(index),
                 ),
                 //默认文件夹不能删除
                 if (index != 0)
-                  MenuButton(
-                    icon: Icon(Icons.delete),
+                  ContextMenuAction(
+                    icon: Icons.delete,
                     label: '删除',
                     danger: true,
-                    onTap: () {
-                      controller.dismiss();
-                      _deleteFold(index);
-                    },
+                    onSelected: () => _deleteFold(index),
                   ),
               ],
               child: tile,
