@@ -104,6 +104,18 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
                   )
                 : const SizedBox.shrink(),
           ),
+          const SizedBox(),
+          SwitchSettingBar(
+            title: '菜单跟随移动',
+            wide: 200,
+            value: personalizationOptions.menuRelocate,
+            onChanged: (value) {
+              setState(() {
+                personalizationOptions.menuRelocate = value;
+              });
+              config.save();
+            },
+          ),
         ],
       ),
     );

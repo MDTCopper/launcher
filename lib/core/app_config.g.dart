@@ -202,6 +202,7 @@ PersonalizationOptions _$PersonalizationOptionsFromJson(
       LauncherPostLaunchBehavior.none,
   restoreWindowOnGameExit: json['restoreWindowOnGameExit'] as bool? ?? true,
   colorfulBackground: json['colorfulBackground'] as bool? ?? true,
+  menuRelocate: json['menuRelocate'] as bool? ?? true,
 );
 
 Map<String, dynamic> _$PersonalizationOptionsToJson(
@@ -215,6 +216,7 @@ Map<String, dynamic> _$PersonalizationOptionsToJson(
       _$LauncherPostLaunchBehaviorEnumMap[instance.launcherPostLaunchBehavior]!,
   'restoreWindowOnGameExit': instance.restoreWindowOnGameExit,
   'colorfulBackground': instance.colorfulBackground,
+  'menuRelocate': instance.menuRelocate,
   'windowCloseAction': _$WindowCloseActionEnumMap[instance.windowCloseAction]!,
 };
 
@@ -247,7 +249,10 @@ DownloadOptions _$DownloadOptionsFromJson(Map<String, dynamic> json) =>
       speedLimitBytes: (json['speedLimitBytes'] as num?)?.toInt() ?? 0,
       maxTread: (json['maxTread'] as num?)?.toInt() ?? 8,
       bodySource:
-          $enumDecodeNullable(_$BodySourceStrategyEnumMap, json['bodySource']) ??
+          $enumDecodeNullable(
+            _$BodySourceStrategyEnumMap,
+            json['bodySource'],
+          ) ??
           BodySourceStrategy.domesticFirst,
     );
 

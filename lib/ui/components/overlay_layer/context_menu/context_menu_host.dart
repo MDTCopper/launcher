@@ -16,4 +16,10 @@ abstract final class ContextMenuHost {
   /// 宿主可以把菜单提到更高的层：辅助输入条自带一个浮在应用内容之上的 Overlay，
   /// 不换层的话菜单会被它盖住
   static OverlayState? Function(BuildContext context)? overlayResolver;
+
+  /// 同级菜单再次出现时，是否让同一个面板移动过去换内容；默认开
+  ///
+  /// 由宿主接到自己的设置项上，调用方没点名时按这条走；
+  /// 用回调而不是固定值，设置改了立刻生效，不用在改动处再通知一遍
+  static bool Function() relocateOnReopenOf = () => true;
 }

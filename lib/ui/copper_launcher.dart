@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/bridge_installer.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_host.dart';
 import 'package:copper_launcher/ui/pages/bridge_install_page.dart';
 import 'package:copper_launcher/ui/shell/app_shell.dart';
 import 'package:copper_launcher/ui/shell/parts/auxiliary_input_bar.dart';
@@ -26,6 +27,14 @@ class CopperLauncherState extends State<CopperLauncher> {
   /// **这里就要同步判一次**：交给安装页判的话，它必然先建一帧、再在 post-frame
   /// 回调里发现「其实早装好了」⇒ 每次启动都闪过那一页
   bool isRuntimeReady = !Platform.isAndroid || BridgeInstaller.isRuntimeReady();
+
+  @override
+  void initState() {
+    super.initState();
+    // 菜单的默认行为接到设置项上；设置页改了立刻生效，这里不用再监听
+    ContextMenuHost.relocateOnReopenOf = () =>
+        config.setting.personalizationOptions.menuRelocate;
+  }
 
   void updateTheme() => setState(() {
     final setting = config.setting.personalizationOptions;

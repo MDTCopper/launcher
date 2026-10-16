@@ -573,6 +573,10 @@ class PersonalizationOptions {
   @JsonKey(defaultValue: true)
   bool colorfulBackground;
 
+  ///同级菜单出现时，原菜单是否平移到新位置并换内容（关闭则改为关掉重开）
+  @JsonKey(defaultValue: true)
+  bool menuRelocate;
+
   ///主窗口关闭按钮的行为：直接退出 / 收进托盘
   @JsonKey(defaultValue: WindowCloseAction.exit)
   WindowCloseAction windowCloseAction;
@@ -586,6 +590,7 @@ class PersonalizationOptions {
     required this.launcherPostLaunchBehavior,
     required this.restoreWindowOnGameExit,
     this.colorfulBackground = true,
+    this.menuRelocate = true,
   });
 
   factory PersonalizationOptions.fromJson(Map<String, dynamic> json) =>

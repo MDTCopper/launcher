@@ -1,5 +1,6 @@
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_controller.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_host.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_panel.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_position.dart';
 import 'package:flutter/gestures.dart' show kSecondaryButton;
@@ -31,7 +32,7 @@ abstract final class ContextMenu {
     required Offset position,
     required List<ContextMenuEntry> entries,
     ContextMenuPositionDelegate? positionDelegate,
-    bool relocateOnReopen = false,
+    bool? relocateOnReopen,
     ContextMenuStyle style = const ContextMenuStyle(),
   }) {
     return controller.show(
@@ -39,7 +40,8 @@ abstract final class ContextMenu {
       position: position,
       entries: entries,
       positionDelegate: positionDelegate,
-      relocateOnReopen: relocateOnReopen,
+      relocateOnReopen:
+          relocateOnReopen ?? ContextMenuHost.relocateOnReopenOf(),
       style: style,
     );
   }
@@ -54,7 +56,7 @@ abstract final class ContextMenu {
     required BuildContext context,
     required List<ContextMenuEntry> entries,
     ContextMenuPositionDelegate? positionDelegate,
-    bool relocateOnReopen = false,
+    bool? relocateOnReopen,
     ContextMenuStyle style = const ContextMenuStyle(),
   }) {
     final box = context.findRenderObject();
@@ -82,7 +84,7 @@ class ContextMenuField extends StatelessWidget {
     required this.menuBuilder,
     this.rightClickTrigger = true,
     this.longPressTrigger = true,
-    this.relocateOnReopen = false,
+    this.relocateOnReopen,
     this.positionDelegate,
     this.style = const ContextMenuStyle(),
   });
@@ -98,8 +100,8 @@ class ContextMenuField extends StatelessWidget {
   /// 是否长按触发（触屏）
   final bool longPressTrigger;
 
-  /// 同级菜单再次出现时，是否让同一个面板移动过去换内容
-  final bool relocateOnReopen;
+  /// 同级菜单再次出现时，是否让同一个面板移动过去换内容；为空时按宿主设置
+  final bool? relocateOnReopen;
 
   /// 位置策略；为空时按平台取
   final ContextMenuPositionDelegate? positionDelegate;
