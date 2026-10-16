@@ -27,17 +27,16 @@ Future<MdtbbsRelayProxyPorts?> bindRelayProxyPorts({
   for (var offset = 0; offset <= fallbackCount; offset++) {
     final candidate = preferred + offset;
     if (candidate > 65535) break;
+    ServerSocket? tcp;
     try {
-      final tcp = await ServerSocket.bind(
-        InternetAddress.loopbackIPv4,
-        candidate,
-      );
+      tcp = await ServerSocket.bind(InternetAddress.loopbackIPv4, candidate);
       final udp = await RawDatagramSocket.bind(
         InternetAddress.loopbackIPv4,
         candidate,
       );
       return MdtbbsRelayProxyPorts._(tcp, udp, tcp.port);
     } on Object {
+      await tcp?.close();
       continue;
     }
   }
@@ -177,6 +176,10 @@ class MdtbbsRelayHostBridge {
   final int gamePort;
 
   final _bridges = <int, Socket>{};
+  final _pendingTcpBridges = <int, Future<void>>{};
+  final _bufferedTcp = <int, List<Uint8List>>{};
+  final _closedTcpStreams = <int>{};
+
   final _udpBridges = <String, RawDatagramSocket>{};
   final _pendingUdpBridges = <String, Future<void>>{};
 
@@ -203,6 +206,9 @@ class MdtbbsRelayHostBridge {
       socket.destroy();
     }
     _bridges.clear();
+    _pendingTcpBridges.clear();
+    _bufferedTcp.clear();
+    _closedTcpStreams.clear();
     for (final socket in _udpBridges.values) {
       socket.close();
     }
@@ -228,45 +234,77 @@ class MdtbbsRelayHostBridge {
     }
   }
 
-  /// 每条流一条到本机游戏的 TCP 连接；游戏先回话也没关系，连接建好后补发
+  /// 每条流只建立一条到本机游戏的 TCP 连接；连接建立期间的帧先缓存。
   void _bridgeFor(int streamId, Uint8List payload) {
+    if (_closedTcpStreams.contains(streamId)) return;
+
     final existing = _bridges[streamId];
     if (existing != null) {
       existing.add(payload);
       return;
     }
-    unawaited(
-      Socket.connect(InternetAddress.loopbackIPv4, gamePort)
-          .then((socket) {
-            if (_disposed) {
-              socket.destroy();
-              return;
-            }
-            socket.setOption(SocketOption.tcpNoDelay, true);
-            _bridges[streamId] = socket;
-            socket.add(payload);
-            socket.listen(
-              (Uint8List data) => tunnel.sendTcpData(streamId, data),
-              onDone: () => _dropBridge(streamId),
-              onError: (_) => _dropBridge(streamId),
-              cancelOnError: true,
-            );
-            addLogAndPrint(
-              .info,
-              '房主侧已为 stream $streamId 接上本机游戏',
-              tag: 'Multiplayer',
-            );
-          })
-          .catchError((Object error) {
-            addLogAndPrint(.warning, '连本机游戏失败：$error', tag: 'Multiplayer');
-            _dropBridge(streamId);
-          }),
-    );
+
+    _bufferedTcp.putIfAbsent(streamId, () => <Uint8List>[]).add(payload);
+    if (_pendingTcpBridges.containsKey(streamId)) return;
+
+    late final Future<void> task;
+    task = _bindTcpBridge(streamId).whenComplete(() {
+      if (identical(_pendingTcpBridges[streamId], task)) {
+        _pendingTcpBridges.remove(streamId);
+      }
+    });
+    _pendingTcpBridges[streamId] = task;
+    unawaited(task);
+  }
+
+  Future<void> _bindTcpBridge(int streamId) async {
+    try {
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        gamePort,
+      );
+      if (_disposed || _closedTcpStreams.contains(streamId)) {
+        socket.destroy();
+        return;
+      }
+
+      socket.setOption(SocketOption.tcpNoDelay, true);
+      _bridges[streamId] = socket;
+      socket.listen(
+        (Uint8List data) => tunnel.sendTcpData(streamId, data),
+        onDone: () => _dropBridge(streamId),
+        onError: (_) => _dropBridge(streamId),
+        cancelOnError: true,
+      );
+
+      final buffered = _bufferedTcp.remove(streamId);
+      if (buffered != null) {
+        for (final payload in buffered) {
+          socket.add(payload);
+        }
+      }
+
+      addLogAndPrint(
+        .info,
+        '房主侧已为 stream $streamId 接上本机游戏',
+        tag: 'Multiplayer',
+      );
+    } on Object catch (error) {
+      _bufferedTcp.remove(streamId);
+      if (!_disposed && !_closedTcpStreams.contains(streamId)) {
+        addLogAndPrint(.warning, '连本机游戏失败：$error', tag: 'Multiplayer');
+        _dropBridge(streamId);
+      }
+    }
   }
 
   void _dropBridge(int streamId) {
+    final firstClose = _closedTcpStreams.add(streamId);
+    _bufferedTcp.remove(streamId);
     _bridges.remove(streamId)?.destroy();
-    tunnel.closeTcpStream(streamId);
+    if (firstClose) {
+      tunnel.closeTcpStream(streamId);
+    }
   }
 
   /// UDP 按对端分套接字：游戏按源地址路由，混用会串包；

@@ -49,7 +49,7 @@ class MdtbbsRelayFrame {
     final target = Uint8List.fromList(targetPeerId.codeUnits);
     if (target.isEmpty || target.length > maxPeerIdLength) return null;
     if (payload.isEmpty || payload.length > maxUdpPayload) return null;
-    final out = Uint8List(8 + target.length + payload.length);
+    final out = Uint8List(7 + target.length + payload.length);
     out.setRange(0, 4, _magic);
     out[4] = version;
     out[5] = typeUdpDatagram;
