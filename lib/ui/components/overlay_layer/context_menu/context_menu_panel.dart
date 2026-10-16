@@ -73,6 +73,15 @@ class ContextMenuStyle {
   double get resolvedItemHeight =>
       itemHeight ??
       (isMobile ? AppControlHeight.item : AppControlHeight.compact);
+
+  /// 条目行的实际高度
+  ///
+  /// 图标槽比文字高时（如放 32 的品牌图）把行撑开，图标上下才留得出边距 ——
+  /// 否则图标会顶满整行，看着发挤
+  double get resolvedRowHeight =>
+      iconSize + AppSpacing.related > resolvedItemHeight
+      ? iconSize + AppSpacing.related
+      : resolvedItemHeight;
 }
 
 /// 面板的可变状态
@@ -582,7 +591,7 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
       trailing: entry.checked ? Icons.check : null,
       accentTrailing: entry.checked,
       horizontal: widget.style.layout == ContextMenuLayout.horizontal,
-      height: widget.style.resolvedItemHeight,
+      height: widget.style.resolvedRowHeight,
       onTap: (itemContext) =>
           widget.callbacks.onEntryActivated(index, _itemRectOf(itemContext)),
       onHover: (itemContext, inside) =>
@@ -601,7 +610,7 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
       trailing: Icons.chevron_right,
       active: widget.activeIndex == index,
       horizontal: widget.style.layout == ContextMenuLayout.horizontal,
-      height: widget.style.resolvedItemHeight,
+      height: widget.style.resolvedRowHeight,
       onTap: (itemContext) =>
           widget.callbacks.onEntryActivated(index, _itemRectOf(itemContext)),
       onHover: (itemContext, inside) =>
@@ -696,7 +705,8 @@ class _EntryTile extends StatelessWidget {
           : Colors.transparent,
       padding: EdgeInsets.symmetric(
         horizontal: horizontal ? AppSpacing.group : AppSpacing.related,
-        vertical: horizontal ? AppSpacing.tight : 0,
+        // 竖向留一点：图标槽放大时行也放大了，靠这点内衬把图标托起来
+        vertical: AppSpacing.tight,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
