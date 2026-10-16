@@ -13,6 +13,7 @@ class ContextMenuAction extends ContextMenuEntry {
     required this.label,
     this.onSelected,
     this.icon,
+    this.leading,
     this.color,
     this.danger = false,
     this.enabled = true,
@@ -24,6 +25,10 @@ class ContextMenuAction extends ContextMenuEntry {
   /// 点击后的回调；为空即禁用
   final VoidCallback? onSelected;
   final IconData? icon;
+
+  /// 图标槽里的任意组件（品牌图 / 自定义图标…）；给了就优先用它。
+  /// 尺寸由 [ContextMenuStyle.iconSize] 定，整条菜单统一，文字才对得齐
+  final Widget? leading;
 
   /// 图标与文字的颜色；不给就按普通项 / [danger] 取
   final Color? color;
@@ -46,6 +51,7 @@ class ContextMenuSubmenu extends ContextMenuEntry {
     required this.label,
     required this.entries,
     this.icon,
+    this.leading,
     this.color,
     this.enabled = true,
   });
@@ -53,6 +59,9 @@ class ContextMenuSubmenu extends ContextMenuEntry {
   final String label;
   final List<ContextMenuEntry> entries;
   final IconData? icon;
+
+  /// 图标槽里的任意组件；给了就优先用它（同 [ContextMenuAction.leading]）
+  final Widget? leading;
 
   /// 图标与文字的颜色；不给就按普通项取
   final Color? color;

@@ -23,6 +23,7 @@ class ContextMenuStyle {
   const ContextMenuStyle({
     this.layout = ContextMenuLayout.vertical,
     this.itemHeight,
+    this.iconSize = AppIconSize.inline,
     this.minWidth = 0,
     this.maxWidth = 248,
     this.screenMargin = 8,
@@ -38,6 +39,12 @@ class ContextMenuStyle {
   final ContextMenuLayout layout;
 
   final double? itemHeight;
+
+  /// 条目图标槽的边长；整条菜单统一（文字才对得齐）
+  ///
+  /// 要放品牌图这类大前导就把它调大（如 32）
+  final double iconSize;
+
   final double minWidth;
   final double maxWidth;
 
@@ -567,6 +574,8 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
     return _EntryTile(
       label: entry.label,
       icon: entry.icon,
+      leading: entry.leading,
+      iconSize: widget.style.iconSize,
       color: entry.color,
       danger: entry.danger,
       enabled: entry.isEnabled,
@@ -585,6 +594,8 @@ class _ContextMenuPanelState extends State<ContextMenuPanel>
     return _EntryTile(
       label: entry.label,
       icon: entry.icon,
+      leading: entry.leading,
+      iconSize: widget.style.iconSize,
       color: entry.color,
       enabled: entry.enabled,
       trailing: Icons.chevron_right,
@@ -609,6 +620,8 @@ class _EntryTile extends StatelessWidget {
     required this.height,
     this.horizontal = false,
     this.icon,
+    this.leading,
+    this.iconSize = AppIconSize.inline,
     this.trailing,
     this.color,
     this.danger = false,
@@ -625,6 +638,12 @@ class _EntryTile extends StatelessWidget {
   /// 横向排布（文本菜单那排）：高度只兜下限、内衬换个方向
   final bool horizontal;
   final IconData? icon;
+
+  /// 图标槽里的任意组件；给了就优先于 [icon]
+  final Widget? leading;
+
+  /// 图标槽边长
+  final double iconSize;
 
   /// 图标与文字的颜色；不给就按普通项 / [danger] 取
   final Color? color;
@@ -683,14 +702,17 @@ class _EntryTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: AppIconSize.inline,
-            child: icon == null
-                ? null
-                // 尺寸由面板那层的 IconTheme 给，这里只改颜色
-                : IconTheme(
-                    data: IconTheme.of(context).copyWith(color: foreground),
-                    child: Icon(icon),
-                  ),
+            width: iconSize,
+            height: iconSize,
+            child:
+                leading ??
+                (icon == null
+                    ? null
+                    // 尺寸由面板那层的 IconTheme 给，这里只改颜色
+                    : IconTheme(
+                        data: IconTheme.of(context).copyWith(color: foreground),
+                        child: Icon(icon),
+                      )),
           ),
           const SizedBox(width: AppSpacing.related),
           // 竖排用 Expanded：多余空间要被标签吃掉，否则它会落在最后一个子节点之后，
