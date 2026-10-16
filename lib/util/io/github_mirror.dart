@@ -101,6 +101,12 @@ class GithubMirror {
   ///排名表缓存有效期
   static const _rankingTtl = Duration(minutes: 10);
 
+  ///「整族一个都没探通」的短期记忆
+  ///
+  ///这种失败**不进排名表**（沿用上一次的表或空表），于是下一次回退会再探两轮
+  ///（优先候选 + 爬取池，并行各约 5s）—— 死链路上每个下载重试都要白等这 10s
+  static const _emptyRankingTtl = Duration(seconds: 60);
+
   bool get enabled => _enabled;
 
   ///该族的排名表；不是要加速的域名 / 还没测过返回空表
@@ -436,6 +442,14 @@ class GithubMirror {
     final family = mirrorFamilyOf(url);
     if (family == null) return const [];
     final probe = probeUrlFor(url);
+
+    //刚探过且一个都没通、表里也没有旧排名：这一分钟内别再探一轮
+    final lastRankedAt = _rankingAt[family];
+    if (lastRankedAt != null &&
+        (_rankings[family] ?? const <String>[]).isEmpty &&
+        DateTime.now().difference(lastRankedAt) <= _emptyRankingTtl) {
+      return const [];
+    }
 
     // 下载优先支持 Range 的节点：哪怕稍慢，分块并发也比单流快
     final preferFirst = preferRange
