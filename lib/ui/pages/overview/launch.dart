@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/util/io/os.dart';
@@ -9,8 +7,7 @@ import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/menu_layer.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/popup_overlay.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import '../../../core/app_config.dart';
 import '../../feature/images.dart';
@@ -180,33 +177,12 @@ class _LaunchPageState extends State<LaunchPage> {
     );
 
     // 右键 / 长按：快捷选择最近游玩过的其他版本（最多 5 个）
-    child = MenuLayer(
+    child = ContextMenuField(
       positionDelegate: const _AboveMousePositionDelegate(gap: 4),
-      animation: _recentMenuAnimation,
-      menuBuilder: (_, controller) => _buildRecentVersionMenu(controller),
+      menuBuilder: (context) => _buildRecentVersionMenu(),
       child: child,
     );
     return child;
-  }
-
-  Widget _recentMenuAnimation(
-    BuildContext context,
-    Animation<double> animation,
-    Widget child,
-    PopupOverlayPlacement? placement,
-  ) {
-    return FadeTransition(
-      opacity: animation,
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (context, child) => Transform.scale(
-          scaleY: animation.value,
-          alignment: Alignment.bottomCenter,
-          child: child,
-        ),
-        child: child,
-      ),
-    );
   }
 
   /// 最近游玩过的其他版本（不含当前选中），按最近启动时间倒序，最多 5 个
@@ -223,59 +199,25 @@ class _LaunchPageState extends State<LaunchPage> {
     return versions.take(5).toList();
   }
 
-  List<Widget> _buildRecentVersionMenu(PopupOverlayController controller) {
-    final theme = Theme.of(context);
+  List<ContextMenuEntry> _buildRecentVersionMenu() {
     final recent = _recentVersions();
     return [
-      Padding(
-        padding: EdgeInsets.only(left: 8, bottom: 4),
-        child: SizedBox(
-          width: 180,
-          child: Text('选择版本', style: theme.textTheme.bodyMedium),
-        ),
-      ),
+      const ContextMenuHeader('选择版本'),
       if (recent.isEmpty)
-        Padding(
-          padding: EdgeInsets.all(8),
-          child: Text('暂无最近游玩的其他版本', style: theme.textTheme.bodySmall),
-        )
+        const ContextMenuAction(label: '暂无最近游玩的其他版本', enabled: false)
       else
         for (final version in recent)
-          SizedBox(
-            width: 200,
-            child: ReboundButton(
-              pressedScale: 0.9,
-              borderRadius: BorderRadius.circular(6),
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              onTap: () {
-                controller.dismiss();
-                config.versionOptions.selectedVersion = version;
-                config.save();
-                // 不手动 setState：notifier 驱动的 ValueListenableBuilder 会重建 tile
-              },
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    version.launcher == .copper
-                        ? Images.copper
-                        : Images.mindustry,
-                    width: 32,
-                    height: 32,
-                    fit: BoxFit.fill,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      version.tag,
-                      style: theme.textTheme.bodyMedium,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          ContextMenuAction(
+            // 图标与版本设置页那两处保持一致
+            icon: version.launcher == LauncherType.copper
+                ? Icons.extension_outlined
+                : Icons.rocket_launch_outlined,
+            label: version.tag,
+            onSelected: () {
+              config.versionOptions.selectedVersion = version;
+              config.save();
+              // 不手动 setState：notifier 驱动的 ValueListenableBuilder 会重建 tile
+            },
           ),
     ];
   }
@@ -350,62 +292,38 @@ class _LaunchPageState extends State<LaunchPage> {
   }
 }
 
-/// 位置策略：菜单永远显示在鼠标上方
-class _AboveMousePositionDelegate extends PopupOverlayPositionDelegate {
+/// 位置策略：菜单显示在鼠标上方（上方放不下才翻到下方）
+class _AboveMousePositionDelegate extends ContextMenuPositionDelegate {
+  const _AboveMousePositionDelegate({this.gap = 4});
+
   final double gap;
 
-  const _AboveMousePositionDelegate({required this.gap});
-
   @override
-  Offset getPosition({
-    required Rect anchorRect,
-    required Offset? position,
+  ContextMenuPlacement place({
+    required ContextMenuAnchor anchor,
+    required Size panelSize,
     required Size overlaySize,
-    required Size childSize,
-    required EdgeInsets padding,
+    required EdgeInsets safeArea,
+    required bool isSubmenu,
   }) {
-    // 鼠标在 overlay 中的位置：锚点内偏移 + 锚点原点
-    final mouse = Offset(
-      (position?.dx ?? anchorRect.width / 2) + anchorRect.left,
-      (position?.dy ?? anchorRect.height / 2) + anchorRect.top,
+    final mouse = anchor.bounds.topLeft;
+    // 水平：菜单中点对齐鼠标 x，再由安全区收一次
+    final left = mouse.dx - panelSize.width / 2;
+    var top = mouse.dy - panelSize.height - gap;
+    if (top < safeArea.top) top = mouse.dy + gap;
+    final offset = ContextMenuPositionDelegate.clampToSafeArea(
+      offset: Offset(left, top),
+      panelSize: panelSize,
+      overlaySize: overlaySize,
+      safeArea: safeArea,
     );
-
-    // 水平：菜单中点对齐鼠标 x（超界收回安全边距）
-    var left = mouse.dx - childSize.width / 2;
-    left = left
-        .clamp(
-          padding.left,
-          math.max(
-            padding.left,
-            overlaySize.width - padding.right - childSize.width,
-          ),
-        )
-        .toDouble();
-
-    // 垂直：底边贴鼠标上方（留 gap）
-    var top = mouse.dy - childSize.height - gap;
-    // 上方放不下 → 翻到鼠标下方
-    if (top < padding.top) {
-      top = mouse.dy + gap;
-      // 下方也放不下（比屏幕高）→ 沉底
-      if (top + childSize.height > overlaySize.height - padding.bottom) {
-        top = overlaySize.height - padding.bottom - childSize.height;
-      }
-    }
-    top = top
-        .clamp(
-          padding.top,
-          math.max(
-            padding.top,
-            overlaySize.height - padding.bottom - childSize.height,
-          ),
-        )
-        .toDouble();
-
-    return Offset(left, top);
+    return ContextMenuPlacement(
+      offset: offset,
+      growFrom: ContextMenuPositionDelegate.growAlignment(
+        offset: offset,
+        panelSize: panelSize,
+        anchorPoint: mouse,
+      ),
+    );
   }
-
-  @override
-  bool shouldReposition(PopupOverlayPositionDelegate oldDelegate) =>
-      oldDelegate is! _AboveMousePositionDelegate;
 }
