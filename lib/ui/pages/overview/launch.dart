@@ -179,6 +179,8 @@ class _LaunchPageState extends State<LaunchPage> {
     // 右键 / 长按：快捷选择最近游玩过的其他版本（最多 5 个）
     child = ContextMenuField(
       positionDelegate: const _AboveMousePositionDelegate(gap: 4),
+      // 条目里放的是启动器品牌图，图标槽要留够
+      style: const ContextMenuStyle(iconSize: 32),
       menuBuilder: (context) => _buildRecentVersionMenu(),
       child: child,
     );
@@ -208,10 +210,13 @@ class _LaunchPageState extends State<LaunchPage> {
       else
         for (final version in recent)
           ContextMenuAction(
-            // 图标与版本设置页那两处保持一致
-            icon: version.launcher == LauncherType.copper
-                ? Icons.extension_outlined
-                : Icons.rocket_launch_outlined,
+            // 品牌图直接进图标槽（尺寸由这条菜单的 iconSize 定）
+            leading: Image.asset(
+              version.launcher == LauncherType.copper
+                  ? Images.copper
+                  : Images.mindustry,
+              fit: BoxFit.fill,
+            ),
             label: version.tag,
             onSelected: () {
               config.versionOptions.selectedVersion = version;
