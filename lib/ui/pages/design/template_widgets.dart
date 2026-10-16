@@ -384,6 +384,7 @@ class TemplateSegment extends StatelessWidget {
         border: Border.all(color: skin.controlBorder),
       ),
       child: Row(
+        spacing: TemplateSpace.xs,
         children: [
           for (var i = 0; i < options.length; i++)
             Expanded(
@@ -454,12 +455,15 @@ class _SegmentPillState extends State<_SegmentPill> {
         hoverColor: Colors.transparent,
         highlightColor: Colors.transparent,
         splashColor: Colors.transparent,
-        padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
         // 一律用渐变（未选中＝两端同色的透明/薄底）：同类型之间才插值得平滑，
         // 底色与渐变互换时会硬切
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 130),
           curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(
+            vertical: TemplateSpace.sm,
+            horizontal: TemplateSpace.md,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(TemplateRadius.control),
             gradient: LinearGradient(

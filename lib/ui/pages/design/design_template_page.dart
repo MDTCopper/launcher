@@ -154,21 +154,18 @@ class _DesignTemplatePageState extends State<DesignTemplatePage> {
         spacing: TemplateSpace.md,
         children: [
           Text(
-            '主题色相（色温）',
+            '主题色相',
             style: TemplateType.caption.copyWith(color: skin.textTertiary),
           ),
           SizedBox(
             width: 320,
+            height: 64,
             child: TemplateSegment(
               skin: skin,
               options: [for (final item in _hues) item.name],
               value: _hues.indexWhere((item) => item.hue == _hue),
               onTap: (index) => setState(() => _hue = _hues[index].hue),
             ),
-          ),
-          Text(
-            '换一个色相，整套中性色与强调色都会跟着重算',
-            style: TemplateType.micro.copyWith(color: skin.textTertiary),
           ),
         ],
       ),
