@@ -10,8 +10,13 @@ abstract class AppPaths {
 
   /// 数据根目录：桌面端优先用 exe 所在目录（绿色版，配置跟着 exe 走），
   /// debug 产物回项目根、系统目录或 exe 目录不可写时退回 [applicationSupportPath]；
+  /// **Android 上优先用外部应用专属目录**（见 [_resolveAndroidExternalRoot]），
   /// 未 [init] 时为 null（测试环境按工作目录算）
   static String? _copperLauncher;
+
+  /// Android 的外部应用专属目录（`/sdcard/Android/data/<包名>/files`）；
+  /// 拿不到时为 null，数据根退回 [applicationSupportPath]
+  static String? _androidExternalRoot;
 
   static String? _defaultGameDataPath;
 
@@ -19,9 +24,28 @@ abstract class AppPaths {
   static bool get isUsingFallbackDataPath =>
       _copperLauncher != null && _copperLauncher == applicationSupportPath;
 
+  /// 应用内部目录：Android 上桥载荷住这儿，将来做旧数据迁移也靠它找
+  static String get internalRoot => applicationSupportPath;
+
+  /// Android 的外部应用专属目录；桌面端、或拿不到外部目录时是 null
+  static String? get androidExternalRoot => _androidExternalRoot;
+
+  /// 数据根已经改到外部、但内部目录里还留着老数据时的那个旧根；没有就 null
+  ///
+  /// 迁移入口还没做（要用户定「自动搬 / 只提示」），先让启动日志能说清
+  /// 「我的版本和存档去哪了」——它们没丢，只是还在内部目录
+  static String? get legacyRootWithData {
+    if (!Platform.isAndroid) return null;
+    final internal = applicationSupportPath;
+    if (internal == copperLauncher) return null;
+    if (!File(p.join(internal, 'config.json')).existsSync()) return null;
+    return internal;
+  }
+
   static Future<void> init() async {
     final appSupportDir = await getApplicationSupportDirectory();
     applicationSupportPath = appSupportDir.path;
+    _androidExternalRoot = await _resolveAndroidExternalRoot();
     _copperLauncher = await _resolveCopperLauncherPath();
     await initDefaultDataPath();
   }
@@ -45,7 +69,8 @@ abstract class AppPaths {
   /// - 其余（绿色版装在普通目录）→ 跟着 exe 走；目录不可写（只读盘等）时
   ///   仍退回 [applicationSupportPath]，避免双击后进程秒退
   static Future<String> _resolveCopperLauncherPath() async {
-    if (Platform.isAndroid || !isDesktop) return applicationSupportPath;
+    if (Platform.isAndroid) return _androidExternalRoot ?? applicationSupportPath;
+    if (!isDesktop) return applicationSupportPath;
 
     final exeDir = File(Platform.resolvedExecutable).parent.path;
     if (isProtectedDir(exeDir)) return applicationSupportPath;
@@ -57,6 +82,20 @@ abstract class AppPaths {
 
     debugPrint('数据目录不可写[$exeDir]，改用[$applicationSupportPath]');
     return applicationSupportPath;
+  }
+
+  /// Android 的外部应用专属目录 `/sdcard/Android/data/<包名>/files`
+  ///
+  /// 只放**要交给用户的东西**（配置 / 版本 / 存档 / 日志）—— 插上数据线或用文件管理器
+  /// 就能取，且这个位置不需要任何存储权限；桥载荷不放这儿，见 [bridge]
+  static Future<String?> _resolveAndroidExternalRoot() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      return (await getExternalStorageDirectory())?.path;
+    } on Object catch (error) {
+      debugPrint('拿不到 Android 外部应用目录，数据根留在应用内部：$error');
+      return null;
+    }
   }
 
   /// 判断 [dir] 是否在系统受保护目录（Program Files / Windows）之下
@@ -113,7 +152,7 @@ abstract class AppPaths {
         _defaultGameDataPath = p.join(roaming, 'Mindustry');
       }
     } else if (Platform.isAndroid) {
-      _defaultGameDataPath = p.join(applicationSupportPath, '.mindustry');
+      _defaultGameDataPath = p.join(copperLauncher, '.mindustry');
     } else if (Platform.isLinux) {
       final home = Platform.environment['HOME'];
       if (home != null) {
@@ -130,9 +169,11 @@ abstract class AppPaths {
 
   /// 桌面端为 exe 所在目录（可写时）或应用支持目录，见 [_resolveCopperLauncherPath]
   ///
-  /// android为工作目录
+  /// android 优先外部应用专属目录，拿不到才回应用内部
   static String get copperLauncher {
-    if (Platform.isAndroid) return applicationSupportPath;
+    if (Platform.isAndroid) {
+      return _copperLauncher ?? _androidExternalRoot ?? applicationSupportPath;
+    }
     return _copperLauncher ?? p.current;
   }
 
@@ -152,9 +193,16 @@ abstract class AppPaths {
   /// 模组加载器库 [*\copper_loader\]：loader jar 集中放这里，多版本复用同一份
   static String get copperLoader => p.join(copperLauncher, 'copper_loader');
 
-  /// Android 桥的共享库 [*\bridge\]：JRE / arc 原生库 / bridge.jar，都是不可变二进制，
+  /// 桥载荷的根：**Android 上固定在应用内部目录**，桌面端仍跟着数据根
+  ///
+  /// 两条理由缺一不可：① **exec / dlopen 只允许应用内部目录** —— 外部存储上的
+  /// JRE 与 arc 原生库起不来 ② 它们是不可变二进制，不该被文件管理器或别的应用改到
+  static String get bridgeRoot =>
+      Platform.isAndroid ? internalRoot : copperLauncher;
+
+  /// Android 桥的共享库 [<桥载荷根>/bridge]：JRE / arc 原生库 / bridge.jar，都是不可变二进制，
   /// 多版本共用（每版本只单独存一份运行期目录，见 `BridgeLauncher.cacheDirFor`）
-  static String get bridge => p.join(copperLauncher, 'bridge');
+  static String get bridge => p.join(bridgeRoot, 'bridge');
 
   /// 桥用的 Android JRE 根 [*\bridge\jre\]：`universal` 与 `bin-<abi>` 两个包叠加解压到这里，
   /// `--java` 传它下面的 `bin/java`

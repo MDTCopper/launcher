@@ -155,16 +155,21 @@ class PathSelector {
 
   /// 申请安卓存储权限
   ///
-  /// 应用私有目录（[AppPaths.applicationSupportPath]）内的路径经 OpenFilex /
-  /// FileProvider 即可打开，无需任何存储权限，直接放行；
+  /// 应用内部目录与**外部应用专属目录**（`/sdcard/Android/data/<包名>/files`，数据根
+  /// 现在就在它下面）经 OpenFilex / FileProvider 即可打开，无需任何存储权限，直接放行；
   /// 公共存储路径按版本申请：Android 11+ 用 所有文件访问
   /// （MANAGE_EXTERNAL_STORAGE，跳系统设置），更旧的版本降级用传统
   /// 存储权限（READ / WRITE_EXTERNAL_STORAGE，maxSdk 32）
   static Future<bool> _requestAndroidFilePermission(String path) async {
-    // 私有目录无需权限（避免 Android 13+ 传统存储权限已失效却仍弹申请）
-    final prefix = AppPaths.applicationSupportPath;
-    if (path == prefix || path.startsWith('$prefix${Platform.pathSeparator}')) {
-      return true;
+    // 免权限的两个根：避免 Android 13+ 传统存储权限已失效却仍弹申请
+    for (final root in <String?>[
+      AppPaths.applicationSupportPath,
+      AppPaths.androidExternalRoot,
+    ].whereType<String>()) {
+      if (path == root ||
+          path.startsWith('$root${Platform.pathSeparator}')) {
+        return true;
+      }
     }
 
     var granted = await Permission.manageExternalStorage.isGranted;

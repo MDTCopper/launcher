@@ -35,12 +35,23 @@ Future<void> _initialize() async {
   if (AppPaths.isUsingFallbackDataPath) {
     addLogAndPrint(
       .warning,
-      'exe 目录不能放数据（系统目录或不可写），数据目录改用 ${AppPaths.copperLauncher}',
+      Platform.isAndroid
+          ? '拿不到外部应用目录，数据根留在应用内部：${AppPaths.copperLauncher}'
+          : 'exe 目录不能放数据（系统目录或不可写），数据目录改用 ${AppPaths.copperLauncher}',
       tag: 'Startup',
     );
   }
   //数据目录是排查「东西写到哪去了」的第一现场，每次启动都记下来
   addLog(.info, '数据根目录：${AppPaths.copperLauncher}', tag: 'Startup');
+  final legacyRoot = AppPaths.legacyRootWithData;
+  if (legacyRoot != null) {
+    addLogAndPrint(
+      .warning,
+      '旧数据还在应用内部目录（$legacyRoot），迁移入口未做；'
+      '当前数据根是 ${AppPaths.copperLauncher}',
+      tag: 'Startup',
+    );
+  }
   addLog(.info, '游戏默认数据目录：${AppPaths.defaultGameData}', tag: 'Startup');
 
   final multipleStartup = !await _initSingleInctance();
