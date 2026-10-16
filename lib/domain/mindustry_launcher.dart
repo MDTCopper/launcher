@@ -550,7 +550,9 @@ class MindustryLauncher {
 ///
 /// 桥在自己的进程里跑游戏，Dart 侧没有进程句柄；可用的只有 Activity 生命周期 ——
 /// 游戏 Activity 与启动器同在一个 task，它起来后启动器退到后台，它结束（正常退出或
-/// 崩掉）后启动器回到前台 ⇒ 只认「离开过前台、又回到前台」这一条
+/// 崩掉）后启动器回到前台 ⇒ 只认「离开过前台、又回到前台」这一条。
+///
+/// **一次桥运行只报一次**：重复报会让任务侧把退出收尾（含退出后云存档上传）做两遍
 class BridgeGameExitWatcher {
   BridgeGameExitWatcher({required void Function() onGameExit})
     : _onGameExit = onGameExit;
@@ -561,9 +563,13 @@ class BridgeGameExitWatcher {
 
   bool _leftForeground = false;
 
+  /// 报过就收手（`start()` 会重置；一次桥运行一份 watcher）
+  bool _reported = false;
+
   /// 把参数交给桥之后调用：游戏 Activity 这时才刚要起来
   void start() {
     stop();
+    _reported = false;
     _listener = AppLifecycleListener(onStateChange: handleLifecycleState);
   }
 
@@ -577,11 +583,13 @@ class BridgeGameExitWatcher {
   /// 判据本体，用例直接喂状态
   @visibleForTesting
   void handleLifecycleState(AppLifecycleState state) {
+    if (_reported) return;
     if (state != AppLifecycleState.resumed) {
       _leftForeground = true;
       return;
     }
     if (!_leftForeground) return;
+    _reported = true;
     stop();
     _onGameExit();
   }
