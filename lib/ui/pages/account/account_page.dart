@@ -18,7 +18,9 @@ import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 const accountPageRouteKey = '/account';
 
@@ -150,12 +152,15 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> _login() async {
     setState(() => _busy = true);
     try {
-      await _accounts.login();
+      await _accounts.login(onAuthorizeUrl: _copyAuthorizeUrl);
       if (!mounted) return;
+      // 登录在系统浏览器里完成，回来时把启动器拉回前台
+      await LauncherTray.instance.showMainWindow();
       addNotice(icon: Icons.check, title: '已登录 BBS');
       await _loadAccount();
     } catch (error) {
       if (!mounted) return;
+      addLog(.warning, 'BBS 登录失败：${removeNewlines('$error')}', tag: 'Account');
       addNotice(
         icon: Icons.close,
         title: '登录没成功',
@@ -164,6 +169,18 @@ class _AccountPageState extends State<AccountPage> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// 授权链接先放剪贴板：系统浏览器起不来时，粘贴到浏览器里也能完成登录
+  Future<void> _copyAuthorizeUrl(String url) async {
+    addLog(.info, '授权链接：$url', tag: 'Account');
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    addNotice(
+      icon: Icons.link,
+      title: '授权链接已复制',
+      content: '浏览器没弹出来的话，把它粘贴到浏览器地址栏',
+    );
   }
 
   void _logout() {
