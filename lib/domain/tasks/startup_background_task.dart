@@ -126,6 +126,25 @@ class StartupBackgroundTask extends Task {
     }
   }
 
+  ///默认版本文件夹不存在就建回来
+  ///
+  ///下载 / 导入只写版本记录、不建这个目录，全新数据根上它必然不存在；
+  ///不补的话下次启动会被当成「目录缺失」，连下好的本体一起进删除清单
+  Future<void> _ensureDefaultVersionsFolder() async {
+    final folder = Directory(AppPaths.versions);
+    if (await folder.exists()) return;
+    try {
+      await folder.create(recursive: true);
+      addLog(.info, '默认版本文件夹不存在，已自动创建：${folder.path}', tag: 'Startup');
+    } on Object catch (e) {
+      addLog(
+        .warning,
+        '默认版本文件夹创建失败：${folder.path}，${removeNewlines('$e')}',
+        tag: 'Startup',
+      );
+    }
+  }
+
   ///检查缺失目录/版本，引用检测出孤儿本体，一并询问是否删除
   Future<void> _checkAndPromptGameIssues() async {
     final folds = config.versionOptions.versionFolds;
@@ -134,15 +153,19 @@ class StartupBackgroundTask extends Task {
     final missingVersions = <Mindustry>[];
     for (final fold in folds) {
       if (!await Directory(fold.resolvedPath).exists()) {
-        //空 fold 目录未创建不算丢失
-        if (fold.versions.isEmpty) continue;
-        missingFolds.add(fold);
-        addLog(
-          .warning,
-          '游戏目录 [${fold.tag}] 不存在：${fold.resolvedPath}',
-          tag: 'Startup',
-        );
-        continue;
+        //默认版本文件夹归启动器自己管：下载 / 导入只写记录、不建这个目录，
+        //所以「记录在、目录不在」是常态，建回来即可，不能当成目录缺失
+        if (p.equals(fold.resolvedPath, AppPaths.versions)) {
+          await _ensureDefaultVersionsFolder();
+        } else if (fold.versions.isNotEmpty) {
+          missingFolds.add(fold);
+          addLog(
+            .warning,
+            '游戏目录 [${fold.tag}] 不存在：${fold.resolvedPath}',
+            tag: 'Startup',
+          );
+          continue;
+        }
       }
       for (final version in fold.versions) {
         if (!await File(version.resolvedJarPath).exists()) {
