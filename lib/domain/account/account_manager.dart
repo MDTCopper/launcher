@@ -185,14 +185,22 @@ class AccountManager {
       codeChallenge: challenge,
     );
     onAuthorizeUrl?.call(authorizeUrl);
+    addLogAndPrint(.info, '开始登录 BBS，回调端口 ${server.port}', tag: 'Account');
 
     try {
       if (!await openBrowser(Uri.parse(authorizeUrl))) {
+        addLogAndPrint(.warning, '打开系统浏览器失败', tag: 'Account');
         throw const MdtbbsException(message: '没能打开系统浏览器');
       }
+      addLogAndPrint(.info, '已在系统浏览器打开授权页，等待回调', tag: 'Account');
 
       final result = await server.waitForCallback();
       if (!result.isSuccess) {
+        addLogAndPrint(
+          .warning,
+          '授权回调未成功：${result.error ?? 'unknown'}',
+          tag: 'Account',
+        );
         throw MdtbbsException(
           code: result.error ?? 'authorize_failed',
           message: result.errorDescription ?? '授权未完成',
