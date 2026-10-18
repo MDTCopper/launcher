@@ -99,7 +99,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     });
 
     try {
-      await _accounts.restore();
+      await _accounts.ensureRestored();
       if (!_accounts.isLoggedIn) {
         if (!mounted) return;
         setState(() {

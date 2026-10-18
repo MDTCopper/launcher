@@ -143,12 +143,19 @@ class AccountManager {
     AccountStore.save(_stored!);
   }
 
+  /// 这一次运行有没有读过盘
+  ///
+  /// 页面进来时该用 [ensureRestored]：`restore()` 会清内存（连 access token 一起），
+  /// 每次都读一遍就会逼着下一次 `ensureAccessToken()` 重新刷新 —— 反复进页面每次都要等
+  bool _restored = false;
+
   /// 启动时读一次盘：client_id 换过就当作未登录（那份 token 属于别的应用）
   ///
   /// 先清内存再读：否则「盘上没有账号态」或「client_id 不符」时，
   /// 上一轮留在内存里的登录态会继续被当成有效
   Future<void> restore() async {
     _clearMemory();
+    _restored = true;
 
     final stored = AccountStore.load();
     if (stored == null) return;
@@ -159,6 +166,12 @@ class AccountManager {
       return;
     }
     _stored = stored;
+  }
+
+  /// 页面进来时用这个：这次运行已经读过盘就直接返回，不再清内存、不再丢 access token
+  Future<void> ensureRestored() async {
+    if (_restored) return;
+    await restore();
   }
 
   /// 走完一整条登录：起本地回调 → 开系统浏览器 → 换 token → 读账号
@@ -219,6 +232,7 @@ class AccountManager {
         refreshToken: tokens.refreshToken,
       );
       AccountStore.save(_stored!);
+      _restored = true;
 
       return await loadAccount(cancelToken: cancelToken);
     } finally {
@@ -227,7 +241,15 @@ class AccountManager {
   }
 
   /// 读当前账号资料（顺带把 subject / username 补进账号态）
-  Future<MdtbbsAccount> loadAccount({CancelToken? cancelToken}) async {
+  ///
+  /// 内存里已经有一份就直接返回，不再打 `/me` —— 进页面不该每次等一次网络；
+  /// 要强制刷新资料传 [force]（登录后那一趟本来就会走网络）
+  Future<MdtbbsAccount> loadAccount({
+    CancelToken? cancelToken,
+    bool force = false,
+  }) async {
+    final cached = _account;
+    if (cached != null && !force) return cached;
     final token = await ensureAccessToken(cancelToken: cancelToken);
     if (token == null) {
       throw const MdtbbsException(message: '未登录');

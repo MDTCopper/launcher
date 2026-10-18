@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/mindustry/player_colors.dart';
 import 'package:copper_launcher/data/models.dart';
@@ -125,18 +127,11 @@ class _AccountPageState extends State<AccountPage> {
     final accounts = _accounts;
     if (!accounts.isConfigured) return;
     try {
-      await accounts.restore();
+      await accounts.ensureRestored();
       if (!accounts.isLoggedIn) return;
       final account = await accounts.loadAccount();
-      final token = await accounts.ensureAccessToken();
-      final quota = token == null
-          ? null
-          : await CloudSaveService.quota(accessToken: token);
       if (!mounted) return;
-      setState(() {
-        _account = account;
-        _quota = quota;
-      });
+      setState(() => _account = account);
       // 名字还空着就拿 BBS 用户名当默认（用户自己改过就听用户的）
       if (_nameController.text.trim().isEmpty) {
         final username = account.username;
@@ -144,8 +139,22 @@ class _AccountPageState extends State<AccountPage> {
           setState(() => _nameController.text = username);
         }
       }
+      // 云端用量要打网络，别挡页面：资料先显示，用量回来再补
+      unawaited(_loadQuota());
     } catch (error) {
       addLog(.warning, '账户页读账号失败：${removeNewlines('$error')}', tag: 'Account');
+    }
+  }
+
+  Future<void> _loadQuota() async {
+    try {
+      final token = await _accounts.ensureAccessToken();
+      if (token == null) return;
+      final quota = await CloudSaveService.quota(accessToken: token);
+      if (!mounted) return;
+      setState(() => _quota = quota);
+    } catch (error) {
+      addLog(.warning, '账户页读云端用量失败：${removeNewlines('$error')}', tag: 'Account');
     }
   }
 
