@@ -8,6 +8,7 @@ import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/mod_download_task.dart';
+import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 
@@ -101,8 +102,16 @@ Future<List<ModFillOutcome>> planModFills({
   final releasesByRepo = <String, List<ModRelease>>{};
   final failureByRepo = <String, String>{};
 
+  addLogAndPrint(.info, '补全模组：待定 ${missingMods.length} 个', tag: 'Cloud');
+
   for (final mod in missingMods) {
+    final label = CloudRestoreGap.displayNameOf(mod);
     if (mod.includeBytes) {
+      addLogAndPrint(
+        .info,
+        '补全模组：$label 随包带了字节却没落地，跳过（该重下云端快照）',
+        tag: 'Cloud',
+      );
       outcomes.add(
         ModFillOutcome(mod: mod, status: ModFillStatus.carriedInPackage),
       );
@@ -110,13 +119,18 @@ Future<List<ModFillOutcome>> planModFills({
     }
     final source = resolveModRepo(mod, internalNameToRepo);
     if (source.isEmpty) {
+      addLogAndPrint(
+        .warning,
+        '补全模组：$label 既没记仓库也没有内部名，只能自己装',
+        tag: 'Cloud',
+      );
       outcomes.add(ModFillOutcome(mod: mod, status: ModFillStatus.noSource));
       continue;
     }
     if ((mod.source ?? '').trim().isEmpty) {
       addLogAndPrint(
         .info,
-        '补全模组：${CloudRestoreGap.displayNameOf(mod)} 没记仓库，'
+        '补全模组：$label 没记仓库，'
         '按内部名 ${mod.internalName} 对上 $source',
         tag: 'Cloud',
       );
@@ -127,6 +141,11 @@ Future<List<ModFillOutcome>> planModFills({
     if (releases == null) {
       final cachedFailure = failureByRepo[cacheKey];
       if (cachedFailure != null) {
+        addLogAndPrint(
+          .warning,
+          '补全模组：$label 的仓库 $source 上次拉取已失败，不再重试',
+          tag: 'Cloud',
+        );
         outcomes.add(
           ModFillOutcome(
             mod: mod,
@@ -139,8 +158,18 @@ Future<List<ModFillOutcome>> planModFills({
       try {
         releases = await fetchReleases(source);
         releasesByRepo[cacheKey] = releases;
+        addLogAndPrint(
+          .info,
+          '补全模组：$source 拉到 ${releases.length} 条 release',
+          tag: 'Cloud',
+        );
       } on Object catch (error) {
         failureByRepo[cacheKey] = '$error';
+        addLogAndPrint(
+          .warning,
+          '补全模组：拉 $source 的 release 失败：$error',
+          tag: 'Cloud',
+        );
         outcomes.add(
           ModFillOutcome(
             mod: mod,
@@ -159,6 +188,12 @@ Future<List<ModFillOutcome>> planModFills({
       internalNameToRepo: internalNameToRepo,
     );
     if (!decision.isPlan) {
+      addLogAndPrint(
+        .warning,
+        '补全模组：$label 跳过 —— '
+        '${decision.skip == ModFillSkip.noSource ? '没有来源' : '仓库 $source 不在官方列表里'}',
+        tag: 'Cloud',
+      );
       outcomes.add(
         ModFillOutcome(
           mod: mod,
@@ -172,6 +207,12 @@ Future<List<ModFillOutcome>> planModFills({
 
     final plan = decision.plan!;
     if (_compatible(plan.entry, version) == false) {
+      addLogAndPrint(
+        .warning,
+        '补全模组：$label 要求游戏 ${plan.entry.minGameVersion}+，'
+        '本机是 ${version.release}，跳过',
+        tag: 'Cloud',
+      );
       outcomes.add(
         ModFillOutcome(
           mod: mod,
@@ -186,7 +227,26 @@ Future<List<ModFillOutcome>> planModFills({
       ModFillOutcome(mod: mod, status: ModFillStatus.queued, plan: plan),
     );
   }
+
+  _logFillSummary(outcomes);
   return outcomes;
+}
+
+/// 收尾一句：每个结局各几个，日志里能直接看出补全为什么没全成
+void _logFillSummary(List<ModFillOutcome> outcomes) {
+  int count(ModFillStatus status) =>
+      outcomes.where((outcome) => outcome.status == status).length;
+  addLogAndPrint(
+    .info,
+    '补全模组：共 ${outcomes.length} 个 —— '
+    '排入下载 ${count(ModFillStatus.queued)}，'
+    '无来源 ${count(ModFillStatus.noSource)}，'
+    '不在官方列表 ${count(ModFillStatus.notInOfficialList)}，'
+    '版本不兼容 ${count(ModFillStatus.incompatible)}，'
+    '随包未落地 ${count(ModFillStatus.carriedInPackage)}，'
+    '拉取失败 ${count(ModFillStatus.failed)}',
+    tag: 'Cloud',
+  );
 }
 
 /// 完整流程：拉一次官方列表 → 逐个定计划 → 排进下载队列
@@ -221,6 +281,12 @@ Future<List<ModFillOutcome>> fillMissingMods({
         internalNameToRepo[internal] = repo;
       }
     }
+    addLogAndPrint(
+      .info,
+      '补全模组：官方列表 ${officialList.length} 条'
+      '（${internalNameToRepo.length} 条带内部名）',
+      tag: 'Cloud',
+    );
   } on Object catch (error) {
     addLogAndPrint(.warning, '读官方模组列表失败：$error', tag: 'Cloud');
     return [
@@ -281,10 +347,17 @@ void _queue(ModFillPlan plan, Mindustry version) {
         ),
       );
   }
+  final release = plan.release;
+  final asset = release == null || plan.mainAssetIndex >= release.assets.length
+      ? null
+      : release.assets[plan.mainAssetIndex];
   addLogAndPrint(
     .info,
     '补全模组：${CloudRestoreGap.displayNameOf(plan.mod)} ← ${entry.repo}'
-    '（${plan.release?.tag ?? '源码'}${plan.versionMatched ? '，与清单版本一致' : ''}）',
+    '（${plan.kind.name}，${release?.tag ?? '源码'}'
+    '${asset == null ? '' : ' / ${asset.name}（${formatBytes(asset.size)}）'}'
+    '${plan.versionMatched ? '，与清单版本一致' : '，用最新版本'}）'
+    ' → ${plan.fileName}',
     tag: 'Cloud',
   );
 }
