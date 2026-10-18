@@ -39,7 +39,7 @@ class ModNetworkIcon extends StatefulWidget {
   /// 载入中占位（默认转圈）
   final Widget? onWaiting;
 
-  /// 该模组确实没有图标（候选地址全不存在）时的占位
+  /// 该模组确实没有图标（官方列表标记无图标 / 图标文件不存在）时的占位
   final Widget? onMissing;
 
   /// 网络失败（断网 / 代理不通）时的占位，可与「没有图标」区分显示
