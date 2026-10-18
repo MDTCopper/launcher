@@ -199,15 +199,35 @@ class CloudSyncTask extends Task {
     updateDisplay();
   }
 
-  String get _title => direction == CloudSyncDirection.upload ? '云端上传' : '云端恢复';
+  @override
+  String get displayTitle =>
+      direction == CloudSyncDirection.upload ? '云端上传' : '云端恢复';
 
-  IconData get _icon => direction == CloudSyncDirection.upload
+  @override
+  IconData get displayIcon => direction == CloudSyncDirection.upload
       ? Icons.cloud_upload_outlined
       : Icons.cloud_download_outlined;
 
-  /// 队列明细：最多列 5 条，每条各自的进度
+  /// 卡片上列哪些行：未完成 / 失败的全列，已完成的不占位置；不足两条时用最近完成的补位
+  List<CloudTaskItem> visibleQueueItems() {
+    final unfinished = [
+      for (final item in items)
+        if (!item.done) item,
+    ];
+    if (unfinished.length >= 2) return unfinished;
+    final finished = [
+      for (final item in items)
+        if (item.done) item,
+    ];
+    return [
+      ...unfinished,
+      ...finished.reversed.take(2 - unfinished.length),
+    ];
+  }
+
+  /// 队列明细：每条各自的进度
   List<Widget> _buildQueue(BuildContext context, ThemeData theme) {
-    final shown = items.take(5).toList();
+    final shown = visibleQueueItems();
     return [
       for (final item in shown)
         Column(
@@ -247,11 +267,6 @@ class CloudSyncTask extends Task {
             ),
           ],
         ),
-      if (items.length > shown.length)
-        Text(
-          '还有 ${items.length - shown.length} 项…',
-          style: theme.textTheme.bodySmall,
-        ),
     ];
   }
 
@@ -267,10 +282,10 @@ class CloudSyncTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(_icon, size: 32),
+            Icon(displayIcon, size: 32),
             const SizedBox(width: 4),
             Text(
-              _title,
+              displayTitle,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,

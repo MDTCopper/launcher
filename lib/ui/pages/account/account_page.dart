@@ -5,13 +5,11 @@ import 'package:copper_launcher/data/mindustry/player_colors.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
-import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
-import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
-import 'package:copper_launcher/domain/cloud/game_version_fill.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
-import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
+import 'package:copper_launcher/domain/tasks/cloud_pull_task.dart';
+import 'package:copper_launcher/ui/dialog/missing_mods_dialog.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -508,7 +506,7 @@ class _AccountPageState extends State<AccountPage> {
 
   /// 从云拉取：把账号下所有槽位的 head 快照同步到本机
   ///
-  /// 本机没有对应版本时静默装一个；既问用户也不补模组，只在完成时报一句
+  /// 缺的游戏版本、缺的模组都静默补；补不回来的模组在完成后列成一张表
   Future<void> _pullFromCloud() async {
     final token = await _accounts.ensureAccessToken();
     if (token == null) {
@@ -520,82 +518,7 @@ class _AccountPageState extends State<AccountPage> {
       return;
     }
 
-    final task = CloudSyncTask(
-      direction: .download,
-      versionTag: '全部云存档',
-      idOverride: 'cloud_pull_all',
-      onRun: (task) async {
-        task.setPhase('读取云端槽位');
-        final slots = await CloudSaveService.allSlots(
-          accessToken: token,
-          cancelToken: task.cancelToken,
-        );
-        if (slots.isEmpty) return '账号下没有云端存档';
-
-        var synced = 0;
-        var installed = 0;
-        final failed = <String>[];
-        for (final slot in slots) {
-          if (task.cancelToken.isCancelled) break;
-          final item = CloudTaskItem(title: slot.name);
-          task.addQueueItem(item);
-          task.setPhase('同步 ${slot.name}');
-
-          final release = CloudSaveService.releaseFromSlotName(slot.name);
-          var version = CloudSaveService.findInstalledVersion(release);
-          if (version == null) {
-            final prep = await prepareGameVersion(
-              game: CloudGameInfo(tag: release, release: release),
-            );
-            final install = prep.task;
-            if (install == null) {
-              failed.add('${slot.name}：${prep.failure}');
-              task.updateQueueItem(item, failed: true);
-              continue;
-            }
-            task.bindQueueSubTask(item, install);
-            await install.startAsync();
-            version = CloudSaveService.findInstalledVersion(release);
-            if (version == null) {
-              failed.add('${slot.name}：版本装完没找到');
-              task.updateQueueItem(item, failed: true);
-              continue;
-            }
-            installed++;
-          }
-
-          CloudSaveService.bindSlot(version, slot.id);
-          final head = slot.currentSnapshotId;
-          if (head == null) {
-            task.updateQueueItem(item, done: true);
-            continue;
-          }
-          final report = await CloudSaveService.download(
-            accessToken: token,
-            version: version,
-            slotId: slot.id,
-            snapshotId: head,
-            onStatus: (state) =>
-                task.updateQueueItem(item, progress: state.progress),
-            cancelToken: task.cancelToken,
-          );
-          await applyModEnabledStates(
-            dataPath: version.dataPath,
-            manifest: report.manifest,
-          );
-          task.updateQueueItem(item, done: true);
-          synced++;
-        }
-
-        final parts = ['同步 $synced 个存档'];
-        if (installed > 0) parts.add('新装 $installed 个版本');
-        if (failed.isNotEmpty) {
-          parts.add('${failed.length} 个失败：${failed.first}');
-        }
-        return parts.join('，');
-      },
-    );
-
+    final task = CloudPullTask(accessToken: token);
     addTask(task);
     await task.done;
     if (!mounted) return;
@@ -616,6 +539,9 @@ class _AccountPageState extends State<AccountPage> {
       title: '从云拉取完成',
       content: task.result ?? '',
     );
+    if (task.missingMods.isNotEmpty) {
+      await showMissingModsDialog(context, task.missingMods);
+    }
   }
 
   void _setCloudEnabled(Mindustry version, bool value) {
