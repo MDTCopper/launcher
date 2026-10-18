@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/net/mindustry/mindustry_release.dart';
+import 'package:copper_launcher/data/net/mindustry/mindustry_release_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/mindustry_download_task.dart';
@@ -48,7 +50,65 @@ Future<GameVersionPrep> prepareGameVersion({
   void Function(String status)? onStatus,
 }) async {
   onStatus?.call('读取游戏本体版本列表');
-  final List<MindustryRelease> releases;
+  final releases = await _loadReleases(headers);
+  if (releases == null) {
+    return const GameVersionPrep(failure: '版本列表拿不到：国内清单和官方 API 都失败了');
+  }
+
+  final release = pickGameRelease(releases, game);
+  if (release == null) {
+    return const GameVersionPrep(failure: '版本列表里没有这个版本（可能太旧）');
+  }
+  return GameVersionPrep(
+    task: MindustryDownloadTask(mindustryMeta: release, tag: release.tag),
+  );
+}
+
+/// 按下载设置里的来源策略取版本清单：国内 manifest 优先，失败退官方 API
+///
+/// 与下载页同一套顺序 —— 国内清单的下载地址直接指向 file.mdtbbs.cn
+Future<List<MindustryRelease>?> _loadReleases(
+  Map<String, String> headers,
+) async {
+  final strategy = config.setting.downloadOptions.bodySource;
+  final tryDomestic = strategy != BodySourceStrategy.githubOnly;
+  final tryGithub = strategy != BodySourceStrategy.domesticOnly;
+  final domesticFirst = strategy != BodySourceStrategy.githubFirst;
+
+  if (tryDomestic && domesticFirst) {
+    final releases = await _fetchManifest(headers);
+    if (releases != null) return releases;
+  }
+  if (tryGithub) {
+    final releases = await _fetchGithub(headers);
+    if (releases != null) return releases;
+  }
+  if (tryDomestic && !domesticFirst) {
+    final releases = await _fetchManifest(headers);
+    if (releases != null) return releases;
+  }
+  return null;
+}
+
+Future<List<MindustryRelease>?> _fetchManifest(
+  Map<String, String> headers,
+) async {
+  try {
+    final response = await cio.get<String>(
+      mindustryManifestUrl,
+      headers: headers,
+      responseType: ResponseType.plain,
+    );
+    return parseMindustryManifest(response.data ?? '');
+  } on Object catch (error) {
+    addLogAndPrint(.warning, '读国内版本清单失败：$error', tag: 'Cloud');
+    return null;
+  }
+}
+
+Future<List<MindustryRelease>?> _fetchGithub(
+  Map<String, String> headers,
+) async {
   try {
     // 不能直接 `cio.get<List>`：dio 只在 content-type 是 JSON 时才解，镜像节点
     // 有时回 HTML 错误页 ⇒ 拿原始串自己解（与下载页同一套防御）
@@ -60,25 +120,15 @@ Future<GameVersionPrep> prepareGameVersion({
     if (decoded is! List) {
       throw const FormatException('本体 release 列表不是数组');
     }
-    releases = [
+    return [
       for (final item in decoded)
         if (item is Map)
           MindustryRelease.fromGithubJson(item.cast<String, dynamic>()),
     ];
   } on Object catch (error) {
-    addLogAndPrint(.warning, '读本体版本列表失败：$error', tag: 'Cloud');
-    return GameVersionPrep(failure: '读本体版本列表失败：$error');
+    addLogAndPrint(.warning, '读官方版本列表失败：$error', tag: 'Cloud');
+    return null;
   }
-
-  final release = pickGameRelease(releases, game);
-  if (release == null) {
-    return const GameVersionPrep(
-      failure: '官方 release 列表里没有这个版本（可能太旧，已不在第一页）',
-    );
-  }
-  return GameVersionPrep(
-    task: MindustryDownloadTask(mindustryMeta: release, tag: release.tag),
-  );
 }
 
 /// 把云包里那个游戏版本装回来：拉一页官方 release → 按发布号找 → 起下载任务
