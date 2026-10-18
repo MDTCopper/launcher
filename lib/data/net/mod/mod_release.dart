@@ -25,11 +25,7 @@ class ModOfficialListEntry {
   String get officialIconUrl =>
       '$githubModIconBase/${repo.replaceAll('/', '_')}';
 
-  /// 缓存解析好的图标地址
-  @JsonKey(includeFromJson: false)
-  String? iconUrlCache;
-
-  /// 已经确认没有图标（与 [iconUrlCache] 互斥），避免重建时重复请求
+  /// 已经确认没有图标，避免重建时重复请求
   @JsonKey(includeFromJson: false, includeToJson: false)
   bool iconMissingCache = false;
 

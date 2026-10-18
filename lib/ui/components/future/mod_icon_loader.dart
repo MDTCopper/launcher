@@ -16,16 +16,13 @@ enum ModIconResultType { found, missing, networkError }
 class ModIconResult {
   final ModIconResultType type;
 
-  /// [ModIconResultType.found] 时有效：图标地址
-  final String? url;
-
   /// [ModIconResultType.found] 时有效：已经由 cio 拉到的图片字节
   final Uint8List? bytes;
 
-  const ModIconResult._(this.type, [this.url, this.bytes]);
+  const ModIconResult._(this.type, [this.bytes]);
 
-  const ModIconResult.found(String url, [Uint8List? bytes])
-    : this._(ModIconResultType.found, url, bytes);
+  const ModIconResult.found(Uint8List bytes)
+    : this._(ModIconResultType.found, bytes);
 
   const ModIconResult.missing() : this._(ModIconResultType.missing);
 
@@ -92,7 +89,7 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
       return const ModIconResult.missing();
     }
 
-    final url = meta.iconUrlCache ?? meta.officialIconUrl;
+    final url = meta.officialIconUrl;
     try {
       final res = await cio.get<Uint8List>(
         url,
@@ -101,8 +98,7 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
       );
       final data = res.data;
       if (res.statusCode == 200 && data != null && data.isNotEmpty) {
-        meta.iconUrlCache = url;
-        return ModIconResult.found(url, data);
+        return ModIconResult.found(data);
       }
       addLog(
         .warning,
