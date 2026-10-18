@@ -375,20 +375,27 @@ class _NotificationWidgetState extends State<NotificationWidget> {
   @override
   void initState() {
     super.initState();
-    _itemList.addAll(NotificationManager.takePending());
+    //首帧前攒下的通知也要过一遍上限，不能直接 addAll
+    for (final data in NotificationManager.takePending()) {
+      _append(data);
+    }
   }
 
   void addItem(_NoticeData data) {
     if (!mounted || data.removalRequested) return;
+    setState(() => _append(data));
+  }
+
+  /// 入队并执行上限：超出时先收掉最早的非常驻通知
+  void _append(_NoticeData data) {
+    if (data.removalRequested) return;
     if (_itemList.length >= _maxVisible) {
       final index = _itemList.indexWhere(
         (item) => !item.persistent && !item.removalRequested,
       );
       if (index >= 0) _itemList[index].requestDismiss();
     }
-    setState(() {
-      _itemList.add(data);
-    });
+    _itemList.add(data);
   }
 
   /// 移除指定 id 的通知（定时器 / 滑动 / 点击共同入口）
