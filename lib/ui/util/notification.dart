@@ -60,6 +60,18 @@ class NotificationManager {
 
   static OverlayEntry? _overlayEntry;
 
+  static int _silenced = 0;
+
+  /// 这段时间里产生的通知只落日志、不弹出来（云存档任务把子下载并进自己的卡时用）
+  static Future<T> silently<T>(Future<T> Function() body) async {
+    _silenced++;
+    try {
+      return await body();
+    } finally {
+      _silenced--;
+    }
+  }
+
   static void addNotice({
     BuildContext? context,
     IconData? icon,
@@ -69,12 +81,19 @@ class NotificationManager {
     Duration duration = const Duration(seconds: 5),
   }) async {
     // 失败类通知同时落盘（消息先压成一行，异常原文常带换行）
-    if (icon != null && _failureNoticeIcons.contains(icon)) {
-      final message = [
-        ?title,
-        ?content,
-      ].where((text) => text.isNotEmpty).join('：');
+    final failure = icon != null && _failureNoticeIcons.contains(icon);
+    final message = [?title, ?content]
+        .where((text) => text.isNotEmpty)
+        .join('：');
+    if (failure) {
       addLog(.error, removeNewlines(message), tag: 'Notice');
+    }
+    // 被云任务静音：已经并进那张卡的队列里，只留日志
+    if (_silenced > 0) {
+      if (!failure && message.isNotEmpty) {
+        addLog(.info, removeNewlines(message), tag: 'Notice');
+      }
+      return;
     }
     context ??= PageKeyProvider.shellKey.currentContext;
     //shell 还没挂上（启动早期 / 退出阶段 / 单测）时静默跳过：这是 fire-and-forget

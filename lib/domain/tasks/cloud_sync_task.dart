@@ -80,6 +80,13 @@ class CloudSyncTask extends Task {
     updateDisplay();
   }
 
+  /// 拿掉一项（用户放弃补全时把占位项撤掉，总体进度回到已完成的比例）
+  void removeQueueItem(CloudTaskItem item) {
+    items.remove(item);
+    _recomputeOverall();
+    updateDisplay();
+  }
+
   /// 更新一项的进度 / 状态；总体进度跟着重算
   void updateQueueItem(
     CloudTaskItem item, {

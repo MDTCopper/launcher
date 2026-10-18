@@ -428,6 +428,26 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     );
     if (gap.isEmpty || !mounted) return '';
 
+    // 先把「要补的东西」占进队列（按已知数量给权重）：不然恢复刚跑满 100%，
+    // 等官方列表那几秒里卡片会停在 100%，列表回来再掉下去 —— 看起来像 0→100→50
+    CloudTaskItem? modPlaceholder;
+    CloudTaskItem? gamePlaceholder;
+    if (gap.downloadableMods.isNotEmpty) {
+      modPlaceholder = CloudTaskItem(
+        title: '补全模组（读取列表…）',
+        weight: gap.downloadableMods.length.toDouble(),
+      );
+      task.addQueueItem(modPlaceholder);
+    }
+    final missingGame = gap.missingGame;
+    if (missingGame != null) {
+      gamePlaceholder = CloudTaskItem(
+        title: '游戏本体 ${missingGame.release}',
+        weight: 5,
+      );
+      task.addQueueItem(gamePlaceholder);
+    }
+
     final notes = <String>[];
     var offerMods = gap.downloadableMods.isNotEmpty;
     var offerGame = gap.missingGame != null;
@@ -454,6 +474,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             for (final outcome in outcomes)
               if (outcome.isQueued) outcome,
           ];
+          // 占位项换成真正的模组条目（总权重一样，进度不会往下跳）
+          final placeholder = modPlaceholder;
+          if (placeholder != null) task.removeQueueItem(placeholder);
           final modItems = [
             for (final outcome in queued)
               CloudTaskItem(title: outcome.displayName),
@@ -467,13 +490,16 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             task.setPhase('补全模组 ${i + 1}/${queued.length}：${queued[i].displayName}');
             task.updateQueueItem(item, running: true);
             try {
-              await runFillPlanInline(
-                queued[i].plan!,
-                version,
-                onPhase: task.setPhase,
-                onProgress: (value) => task.updateQueueItem(item, progress: value),
-                isCancelled: () => task.cancelToken.isCancelled,
-                cancelToken: task.cancelToken,
+              await NotificationManager.silently(
+                () => runFillPlanInline(
+                  queued[i].plan!,
+                  version,
+                  onPhase: task.setPhase,
+                  onProgress: (value) =>
+                      task.updateQueueItem(item, progress: value),
+                  isCancelled: () => task.cancelToken.isCancelled,
+                  cancelToken: task.cancelToken,
+                ),
               );
               task.updateQueueItem(item, done: true);
             } on Object {
@@ -488,18 +514,24 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           final prep = await prepareGameVersion(game: gap.missingGame!);
           final installTask = prep.task;
           if (installTask == null) {
+            final placeholder = gamePlaceholder;
+            if (placeholder != null) task.removeQueueItem(placeholder);
             notes.add(prep.failure ?? '装游戏版本失败');
           } else {
-            // 本体比单个模组重：权重 5 对 1，总体进度不会被一堆小模组稀释
-            final item = CloudTaskItem(
-              title: '游戏本体 ${gap.missingGame!.release}',
-              weight: 5,
-            );
-            task.addQueueItem(item);
+            // 占位项已经在队列里（权重 5）：直接复用它，进度不会先掉再加
+            final item =
+                gamePlaceholder ??
+                CloudTaskItem(
+                  title: '游戏本体 ${gap.missingGame!.release}',
+                  weight: 5,
+                );
+            if (gamePlaceholder == null) task.addQueueItem(item);
             task.setPhase('下载游戏版本 ${gap.missingGame!.release}');
             task.updateQueueItem(item, running: true);
             try {
-              await _runSubtaskInline(installTask, task, item: item);
+              await NotificationManager.silently(
+                () => _runSubtaskInline(installTask, task, item: item),
+              );
               task.updateQueueItem(item, done: true);
               notes.add('已装游戏版本 ${gap.missingGame!.release}');
             } on Object {
@@ -508,6 +540,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             }
           }
         case CloudRestoreGapChoice.later:
+          for (final placeholder in [modPlaceholder, gamePlaceholder]) {
+            if (placeholder != null) task.removeQueueItem(placeholder);
+          }
           return notes.join('；');
       }
     }
