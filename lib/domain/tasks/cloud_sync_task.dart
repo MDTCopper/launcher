@@ -23,12 +23,16 @@ class CloudSyncTask extends Task {
     required this.direction,
     required this.versionTag,
     required this.onRun,
+    this.idOverride,
   }) {
     type = TaskType.download;
   }
 
   final CloudSyncDirection direction;
   final String versionTag;
+
+  /// 手动触发时给一个不同的 id：自动同步与手动上传可能同时存在，别互相顶掉卡片
+  final String? idOverride;
 
   /// 真正跑那件事；返回一句给人看的结果（如「已上传 2.3 MB」）
   final Future<String> Function(CloudSyncTask task) onRun;
@@ -55,7 +59,7 @@ class CloudSyncTask extends Task {
 
   /// 同一个版本同一个方向只留一张卡（重复触发时复用，不叠一堆）
   @override
-  String get id => 'cloud_sync_${direction.name}_$versionTag';
+  String get id => idOverride ?? 'cloud_sync_${direction.name}_$versionTag';
 
   /// 阶段文字：服务端那份 `onStatus` 直接接到这里
   void setPhase(String text) {

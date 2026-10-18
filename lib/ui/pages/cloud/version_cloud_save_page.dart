@@ -17,6 +17,9 @@ import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
 import 'package:copper_launcher/domain/cloud/game_version_fill.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill_runner.dart';
+import 'package:copper_launcher/domain/task.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -208,23 +211,50 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         throw const MdtbbsException(message: '登录已失效，请重新登录');
       }
 
-      final result = await CloudSaveService.upload(
-        accessToken: token,
-        version: version,
-        conflictPolicy: confirmCurrentSnapshotId == null
-            ? CloudSaveConflictPolicy.normal
-            : CloudSaveConflictPolicy.forceReplaceHead,
-        confirmCurrentSnapshotId: confirmCurrentSnapshotId,
-        onStatus: (status) {
-          if (mounted) setState(() => _busy = status);
-        },
-        onSendProgress: (sent, total) {
-          if (!mounted || total <= 0) return;
-          setState(() => _busyProgress = sent / total);
+      CloudSaveUploadResult? uploaded;
+      final task = CloudSyncTask(
+        direction: CloudSyncDirection.upload,
+        versionTag: version.tag,
+        idOverride: 'cloud_sync_manual_upload_${version.tag}',
+        onRun: (task) async {
+          uploaded = await CloudSaveService.upload(
+            accessToken: token,
+            version: version,
+            conflictPolicy: confirmCurrentSnapshotId == null
+                ? CloudSaveConflictPolicy.normal
+                : CloudSaveConflictPolicy.forceReplaceHead,
+            confirmCurrentSnapshotId: confirmCurrentSnapshotId,
+            onStatus: task.setPhase,
+            onSendProgress: task.acceptBytes,
+            cancelToken: task.cancelToken,
+          );
+          return '云包 ${formatBytes(uploaded!.archiveBytes)}';
         },
       );
+      addTask(task);
+      if (mounted) setState(() => _busy = '上传中（任务列表可取消）');
+      await task.done;
 
       if (!mounted) return;
+      if (task.status == TaskStatus.cancel) {
+        addNotice(icon: Icons.close, title: '已取消上传');
+        return;
+      }
+      if (task.error != null) {
+        final error = task.error;
+        if (error is MdtbbsException && error.isConflict) {
+          _askForceReplace(error.conflictCurrentSnapshotId);
+        } else {
+          addNotice(
+            icon: Icons.error_outline,
+            title: '上传失败',
+            content: removeNewlines('$error'),
+          );
+        }
+        return;
+      }
+
+      final result = uploaded!;
       final dropped = result.dropped;
       final guard = result.quotaGuard;
       final parts = <String>[
@@ -314,18 +344,43 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         throw const MdtbbsException(message: '登录已失效，请重新登录');
       }
 
-      final report = await CloudSaveService.download(
-        accessToken: token,
-        version: version,
-        slotId: snapshot.slotId ?? _slot!.id,
-        snapshotId: snapshot.id,
-        onStatus: (state) {
-          if (!mounted) return;
-          setState(() => _busy = '下载中 ${formatBytes(state.downloaded)}');
+      CloudImportReport? restored;
+      final task = CloudSyncTask(
+        direction: CloudSyncDirection.download,
+        versionTag: version.tag,
+        idOverride: 'cloud_sync_manual_download_${version.tag}',
+        onRun: (task) async {
+          task.setPhase('下载云端快照');
+          restored = await CloudSaveService.download(
+            accessToken: token,
+            version: version,
+            slotId: snapshot.slotId ?? _slot!.id,
+            snapshotId: snapshot.id,
+            onStatus: task.acceptProgress,
+            cancelToken: task.cancelToken,
+          );
+          return '写入 ${restored!.written.length} 份';
         },
       );
+      addTask(task);
+      if (mounted) setState(() => _busy = '恢复中（任务列表可取消）');
+      await task.done;
 
       if (!mounted) return;
+      if (task.status == TaskStatus.cancel) {
+        addNotice(icon: Icons.close, title: '已取消恢复');
+        return;
+      }
+      if (task.error != null) {
+        addNotice(
+          icon: Icons.error_outline,
+          title: '恢复失败',
+          content: removeNewlines('${task.error}'),
+        );
+        return;
+      }
+
+      final report = restored!;
       addNotice(
         icon: Icons.cloud_download_outlined,
         title: '已从云端恢复',
