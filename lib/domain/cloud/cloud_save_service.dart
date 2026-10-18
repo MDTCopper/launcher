@@ -529,6 +529,7 @@ class CloudSaveService {
     String? confirmCurrentSnapshotId,
     bool includePreviews = false,
     bool includeModBytes = false,
+    bool Function(CloudModEntry mod)? includeBytesWhen,
     void Function(String status)? onStatus,
     ProgressCallback? onSendProgress,
     CancelToken? cancelToken,
@@ -557,6 +558,7 @@ class CloudSaveService {
         deviceName: name,
         includePreviews: includePreviews,
         includeModBytes: includeModBytes,
+        includeBytesWhen: includeBytesWhen,
         onStatus: onStatus,
       );
 
@@ -1128,6 +1130,7 @@ class CloudSaveService {
     required String deviceName,
     bool includePreviews = false,
     bool includeModBytes = false,
+    bool Function(CloudModEntry mod)? includeBytesWhen,
     void Function(String status)? onStatus,
   }) async {
     final cache = CloudHashCache.load(hashCachePath);
@@ -1138,6 +1141,7 @@ class CloudSaveService {
         deviceName: deviceName,
         includePreviews: includePreviews,
         includeModBytes: includeModBytes,
+        includeBytesWhen: includeBytesWhen,
         onStatus: onStatus,
         cache: cache,
       );

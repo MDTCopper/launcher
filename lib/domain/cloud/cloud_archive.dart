@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:path/path.dart' as p;
 
 /// 云包（zip 容器）：`copper-save.json` 清单 + 勾选的资源（+ 可选的模组字节）
@@ -52,6 +53,7 @@ class CloudArchive {
     String? account,
     bool includePreviews = false,
     bool includeModBytes = false,
+    bool Function(CloudModEntry mod)? includeBytesWhen,
     void Function(String status)? onStatus,
     CloudHashCache? cache,
   }) async {
@@ -61,6 +63,7 @@ class CloudArchive {
       account: account,
       includePreviews: includePreviews,
       includeModBytes: includeModBytes,
+      includeBytesWhen: includeBytesWhen,
       cache: cache,
     );
     final dataPath = version.dataPath;
@@ -97,6 +100,14 @@ class CloudArchive {
           CloudCategory.entryNameOf(entry.category, entry.name),
           bytes,
         )..compression = CompressionType.none,
+      );
+    }
+
+    if (includeBytesWhen != null) {
+      addLog(
+        .info,
+        '云包带上 ${manifest.includedModBytes.length} 个模组的字节（官方列表里没有的）',
+        tag: 'Cloud',
       );
     }
 

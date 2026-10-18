@@ -12,6 +12,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
+import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
 import 'package:copper_launcher/domain/cloud/cloud_notes.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
@@ -215,6 +216,18 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         versionTag: version.tag,
         idOverride: 'cloud_sync_manual_upload_${version.tag}',
         onRun: (task) async {
+          // 官方列表里没有的模组（私有 / 已下架）恢复时装不回来，直接把字节带上
+          var officialKeys = const <String>{};
+          try {
+            task.setPhase('检查官方列表');
+            officialKeys = await officialModKeys();
+          } on Object catch (error) {
+            addLog(
+              .warning,
+              '读官方列表失败，私有模组这次不带字节：${removeNewlines('$error')}',
+              tag: 'Cloud',
+            );
+          }
           uploaded = await CloudSaveService.upload(
             accessToken: token,
             version: version,
@@ -222,6 +235,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
                 ? CloudSaveConflictPolicy.normal
                 : CloudSaveConflictPolicy.forceReplaceHead,
             confirmCurrentSnapshotId: confirmCurrentSnapshotId,
+            includeBytesWhen: officialKeys.isEmpty
+                ? null
+                : (mod) => !_isOfficialMod(mod, officialKeys),
             onStatus: task.setPhase,
             onSendProgress: task.acceptBytes,
             cancelToken: task.cancelToken,
@@ -407,6 +423,14 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     } finally {
       if (mounted) setState(() => _busy = null);
     }
+  }
+
+  /// 官方列表里有它（按仓库或内部名）
+  bool _isOfficialMod(CloudModEntry mod, Set<String> keys) {
+    final internal = (mod.internalName ?? '').trim().toLowerCase();
+    final source = (mod.source ?? '').trim().toLowerCase();
+    return (internal.isNotEmpty && keys.contains(internal)) ||
+        (source.isNotEmpty && keys.contains(source));
   }
 
   /// 恢复完在**同一张任务卡**里处理缺口：逐件问「补模组 / 装游戏版本」

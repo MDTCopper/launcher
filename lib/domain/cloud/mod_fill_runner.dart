@@ -527,3 +527,22 @@ bool? _compatible(ModOfficialListEntry entry, Mindustry version) {
       : ModVersionGate.instance.mod.resultOf(version.releaseDouble);
   return modMin >= threshold && modMin <= version.releaseDouble;
 }
+/// 官方列表里的仓库与内部名（小写）：上传时判断哪些模组恢复时装不回来
+Future<Set<String>> officialModKeys({
+  Map<String, String> headers = _defaultHeaders,
+}) async {
+  final response = await cio.get(githubModMetaUrl, headers: headers);
+  if (response.statusCode != 200) {
+    throw Exception('HTTP ${response.statusCode}');
+  }
+  final raw = jsonDecode('${response.data}') as List;
+  final keys = <String>{};
+  for (final item in raw) {
+    final map = (item as Map).cast<String, dynamic>();
+    for (final field in ['repo', 'internalName']) {
+      final key = '${map[field] ?? ''}'.trim().toLowerCase();
+      if (key.isNotEmpty) keys.add(key);
+    }
+  }
+  return keys;
+}

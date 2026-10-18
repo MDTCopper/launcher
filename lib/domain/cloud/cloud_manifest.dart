@@ -330,6 +330,7 @@ class CloudManifest {
     bool includeModBytes = false,
     bool includePreviews = false,
     CloudHashCache? cache,
+    bool Function(CloudModEntry mod)? includeBytesWhen,
   }) async {
     final dataPath = version.dataPath;
     final settings = _readModStates(dataPath);
@@ -371,6 +372,7 @@ class CloudManifest {
           isCopper: isCopper,
           states: settings,
           includeBytes: includeModBytes,
+          includeBytesWhen: includeBytesWhen,
           cache: cache,
         ),
       );
@@ -432,6 +434,7 @@ class CloudManifest {
     required Map<String, bool> states,
     required bool includeBytes,
     CloudHashCache? cache,
+    bool Function(CloudModEntry mod)? includeBytesWhen,
   }) async {
     final folder = Directory(directory);
     if (!folder.existsSync()) return const [];
@@ -461,22 +464,24 @@ class CloudManifest {
         mod = null;
       }
 
-      entries.add(
-        CloudModEntry(
-          fileName: name,
-          size: entity.lengthSync(),
-          sha256: cache?.hashOf(entity.path) ?? sha256OfFile(entity.path),
-          isCopper: isCopper,
-          internalName: mod?.internalName,
-          displayName: mod?.name,
-          version: mod?.version,
-          enabled: mod == null
-              ? null
-              : (disabledBySuffix ? false : (states[mod.internalName] ?? true)),
-          source: source.isEmpty ? null : source,
-          includeBytes: includeBytes,
-        ),
+      final entry = CloudModEntry(
+        fileName: name,
+        size: entity.lengthSync(),
+        sha256: cache?.hashOf(entity.path) ?? sha256OfFile(entity.path),
+        isCopper: isCopper,
+        internalName: mod?.internalName,
+        displayName: mod?.name,
+        version: mod?.version,
+        enabled: mod == null
+            ? null
+            : (disabledBySuffix ? false : (states[mod.internalName] ?? true)),
+        source: source.isEmpty ? null : source,
+        includeBytes: includeBytes,
       );
+      if (!entry.includeBytes && (includeBytesWhen?.call(entry) ?? false)) {
+        entry.includeBytes = true;
+      }
+      entries.add(entry);
     }
     return entries;
   }
