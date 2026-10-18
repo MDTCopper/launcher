@@ -28,6 +28,10 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "moveTaskToBack" -> result.success(moveTaskToBack(true))
                     "killGameProcess" -> killGameProcess(result)
+                    "isGameProcessRunning" ->
+                        result.success(
+                            io.github.copper.GameProcess.isRunning(applicationContext),
+                        )
                     else -> result.notImplemented()
                 }
             }

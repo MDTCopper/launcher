@@ -38,4 +38,17 @@ class AndroidHost {
       addLog(.warning, '结束游戏进程失败：${removeNewlines('$error')}', tag: 'Host');
     }
   }
+
+  /// 游戏进程还在不在；**判不了时返回 null**
+  ///
+  /// 调用方拿 null 要按「已退出」处理 —— 宁可多报一次退出，也不要永远不报
+  static Future<bool?> isGameProcessRunning() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      return await _channel.invokeMethod<bool>('isGameProcessRunning');
+    } on Object catch (error) {
+      addLog(.warning, '查询游戏进程失败：${removeNewlines('$error')}', tag: 'Host');
+      return null;
+    }
+  }
 }

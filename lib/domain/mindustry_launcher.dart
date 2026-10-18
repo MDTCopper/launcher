@@ -385,6 +385,9 @@ class MindustryLauncher {
     _bridgeExitWatcher?.stop();
     _bridgeExitWatcher = BridgeGameExitWatcher(
       onGameExit: _reportBridgeGameExit,
+      isGameProcessRunning: Platform.isAndroid
+          ? AndroidHost.isGameProcessRunning
+          : null,
     )..start();
   }
 
@@ -552,12 +555,20 @@ class MindustryLauncher {
 /// 游戏 Activity 与启动器同在一个 task，它起来后启动器退到后台，它结束（正常退出或
 /// 崩掉）后启动器回到前台 ⇒ 只认「离开过前台、又回到前台」这一条。
 ///
+/// 回到前台不一定就是游戏结束了（用户从最近任务切回来、游戏还在跑），所以有
+/// [isGameProcessRunning] 时先问一句；它返回 null 表示判不了，按已退出处理，保持旧行为。
+///
 /// **一次桥运行只报一次**：重复报会让任务侧把退出收尾（含退出后云存档上传）做两遍
 class BridgeGameExitWatcher {
-  BridgeGameExitWatcher({required void Function() onGameExit})
-    : _onGameExit = onGameExit;
+  BridgeGameExitWatcher({
+    required void Function() onGameExit,
+    this.isGameProcessRunning,
+  }) : _onGameExit = onGameExit;
 
   final void Function() _onGameExit;
+
+  /// 问宿主游戏进程还在不在；null = 这个平台上判不了
+  final Future<bool?> Function()? isGameProcessRunning;
 
   AppLifecycleListener? _listener;
 
@@ -589,6 +600,30 @@ class BridgeGameExitWatcher {
       return;
     }
     if (!_leftForeground) return;
+    _leftForeground = false;
+
+    final check = isGameProcessRunning;
+    if (check == null) {
+      _report();
+      return;
+    }
+    unawaited(_reportAfterCheck(check));
+  }
+
+  /// 回到前台先问宿主：游戏进程还在就只是切了应用，继续等下一次
+  Future<void> _reportAfterCheck(Future<bool?> Function() check) async {
+    bool? running;
+    try {
+      running = await check();
+    } on Object catch (error) {
+      addLog(.warning, '查询游戏进程失败：${removeNewlines('$error')}', tag: 'Launch');
+    }
+    if (running == true) return;
+    _report();
+  }
+
+  void _report() {
+    if (_reported || _listener == null) return;
     _reported = true;
     stop();
     _onGameExit();

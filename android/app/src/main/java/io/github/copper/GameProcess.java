@@ -4,6 +4,8 @@ import android.app.*;
 import android.content.*;
 import android.util.*;
 
+import java.util.List;
+
 /**
  * This app's placeholder process, where the game screen - the loader's or the bridge's - runs.
  *
@@ -57,6 +59,28 @@ public class GameProcess {
             if (name.equals(process.processName))
                 return process.pid;
         return -1;
+    }
+
+    /**
+     * Whether that process is still there, or null when the system will not say.
+     *
+     * <p>The launcher asks this when it returns to the foreground: coming back does not mean the game
+     * ended, the player may just have switched apps. A null answer is "unknown" and the caller falls
+     * back to treating it as ended, so a device that hides the process list cannot make the launcher
+     * wait for an exit that never gets reported.</p>
+     */
+    public static Boolean isRunning(Context context) {
+        ActivityManager manager = context.getSystemService(ActivityManager.class);
+        if (manager == null)
+            return null;
+        List<ActivityManager.RunningAppProcessInfo> processes = manager.getRunningAppProcesses();
+        if (processes == null)
+            return null;
+        String name = context.getPackageName() + SUFFIX;
+        for (ActivityManager.RunningAppProcessInfo process : processes)
+            if (name.equals(process.processName))
+                return true;
+        return false;
     }
 
     private GameProcess() {
