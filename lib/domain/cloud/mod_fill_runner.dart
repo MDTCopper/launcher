@@ -101,6 +101,10 @@ Future<List<ModFillOutcome>> planModFills({
   final outcomes = <ModFillOutcome>[];
   final releasesByRepo = <String, List<ModRelease>>{};
   final failureByRepo = <String, String>{};
+  final officialRepos = {
+    for (final entry in officialList)
+      if (entry.repo.trim().isNotEmpty) entry.repo.trim().toLowerCase(),
+  };
 
   addLogAndPrint(.info, '补全模组：待定 ${missingMods.length} 个', tag: 'Cloud');
 
@@ -117,7 +121,12 @@ Future<List<ModFillOutcome>> planModFills({
       );
       continue;
     }
-    final source = resolveModRepo(mod, internalNameToRepo);
+    final recorded = (mod.source ?? '').trim();
+    final source = resolveModRepo(
+      mod,
+      internalNameToRepo,
+      officialRepos: officialRepos,
+    );
     if (source.isEmpty) {
       addLogAndPrint(
         .warning,
@@ -127,13 +136,32 @@ Future<List<ModFillOutcome>> planModFills({
       outcomes.add(ModFillOutcome(mod: mod, status: ModFillStatus.noSource));
       continue;
     }
-    if ((mod.source ?? '').trim().isEmpty) {
+    if (recorded.isEmpty) {
       addLogAndPrint(
         .info,
         '补全模组：$label 没记仓库，'
         '按内部名 ${mod.internalName} 对上 $source',
         tag: 'Cloud',
       );
+    } else if (recorded.toLowerCase() != source.toLowerCase()) {
+      addLogAndPrint(
+        .warning,
+        '补全模组：$label 记的仓库 $recorded 不在官方列表里，'
+        '改用内部名 ${mod.internalName} 对应的 $source',
+        tag: 'Cloud',
+      );
+    }
+    if (officialRepos.isNotEmpty &&
+        !officialRepos.contains(source.toLowerCase())) {
+      addLogAndPrint(
+        .warning,
+        '补全模组：$label 的仓库 $source 不在官方列表里，跳过（不去白拉 release）',
+        tag: 'Cloud',
+      );
+      outcomes.add(
+        ModFillOutcome(mod: mod, status: ModFillStatus.notInOfficialList),
+      );
+      continue;
     }
 
     final cacheKey = source.toLowerCase();
@@ -186,6 +214,7 @@ Future<List<ModFillOutcome>> planModFills({
       officialList: officialList,
       releases: releases,
       internalNameToRepo: internalNameToRepo,
+      officialRepos: officialRepos,
     );
     if (!decision.isPlan) {
       addLogAndPrint(

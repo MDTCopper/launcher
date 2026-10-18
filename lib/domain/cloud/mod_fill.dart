@@ -69,16 +69,27 @@ class ModFillDecision {
 /// 解析云清单里这个模组的仓库
 ///
 /// 优先用模组自己写的 `repo`；没有就按内部名去官方列表里查（列表现在带 `internalName`）。
+/// 两边都有时以**官方列表里真有的那个为准**：模组自己记的 `repo` 可能是开发期的临时仓库
+/// （Aquarion 记的 `Twcash/Tantros-test` 就属于这种），按它去下会白跑一趟。
 /// 内部名仍对不上就返回空串 —— 官方列表里有好几对同名不同仓库的模组，不按显示名猜
 String resolveModRepo(
   CloudModEntry mod,
-  Map<String, String> internalNameToRepo,
-) {
+  Map<String, String> internalNameToRepo, {
+  Set<String> officialRepos = const {},
+}) {
   final recorded = (mod.source ?? '').trim();
-  if (recorded.isNotEmpty) return recorded;
   final internal = (mod.internalName ?? '').trim().toLowerCase();
-  if (internal.isEmpty) return '';
-  return internalNameToRepo[internal]?.trim() ?? '';
+  final byInternal = (internal.isEmpty
+          ? ''
+          : (internalNameToRepo[internal] ?? ''))
+      .trim();
+
+  bool known(String repo) =>
+      officialRepos.isEmpty || officialRepos.contains(repo.toLowerCase());
+
+  if (recorded.isNotEmpty && known(recorded)) return recorded;
+  if (byInternal.isNotEmpty && known(byInternal)) return byInternal;
+  return recorded.isNotEmpty ? recorded : byInternal;
 }
 
 /// 决定一个缺的模组怎么补回来
@@ -98,8 +109,13 @@ ModFillDecision decideModFill({
   required Iterable<ModOfficialListEntry> officialList,
   required Iterable<ModRelease> releases,
   Map<String, String> internalNameToRepo = const {},
+  Set<String> officialRepos = const {},
 }) {
-  final source = resolveModRepo(mod, internalNameToRepo).toLowerCase();
+  final source = resolveModRepo(
+    mod,
+    internalNameToRepo,
+    officialRepos: officialRepos,
+  ).toLowerCase();
   if (source.isEmpty) return const ModFillDecision.skip(ModFillSkip.noSource);
 
   ModOfficialListEntry? entry;
