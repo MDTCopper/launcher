@@ -1,3 +1,4 @@
+import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
@@ -8,6 +9,7 @@ import 'package:copper_launcher/domain/cloud/game_version_fill.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill_runner.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
 
 /// 从云拉取：把账号下所有槽位的 head 快照同步到本机
@@ -55,6 +57,7 @@ class CloudPullTask extends CloudSyncTask {
 
       final release = CloudSaveService.releaseFromSlotName(slot.name);
       var version = CloudSaveService.findInstalledVersion(release);
+      var installedNow = false;
       if (version == null) {
         final install = await _prepareVersion(release);
         if (install == null) {
@@ -71,6 +74,7 @@ class CloudPullTask extends CloudSyncTask {
           continue;
         }
         installed++;
+        installedNow = true;
       }
 
       CloudSaveService.bindSlot(version, slot.id);
@@ -87,6 +91,9 @@ class CloudPullTask extends CloudSyncTask {
         onStatus: (state) => updateQueueItem(item, progress: state.progress),
         cancelToken: cancelToken,
       );
+      if (installedNow) {
+        await _syncVersionTag(version, report.manifest.game.tag);
+      }
       await applyModEnabledStates(
         dataPath: version.dataPath,
         manifest: report.manifest,
@@ -150,6 +157,27 @@ class CloudPullTask extends CloudSyncTask {
         missingMods.add((name: outcome.displayName, reason: '下载失败'));
       }
     }
+  }
+
+  /// 装出来的版本按发布号起名，云端清单记的却是原设备的 tag（`v8 Build 160.5`）；
+  /// 拉下来的新版本对齐云端那份，免得两边名字对不上
+  Future<void> _syncVersionTag(Mindustry version, String cloudTag) async {
+    final wanted = cloudTag.trim();
+    if (wanted.isEmpty || wanted == version.tag) return;
+    final others = config.versionOptions.versionFolds.expand(
+      (fold) => fold.versions,
+    );
+    if (others.any((other) => other != version && other.tag == wanted)) {
+      addLog(
+        .warning,
+        '云端 tag [$wanted] 与已有版本重名，保留 ${version.tag}',
+        tag: 'Cloud',
+      );
+      return;
+    }
+    version.tag = wanted;
+    await config.saveAsJson();
+    addLog(.info, '版本 tag 同步为云端的 [$wanted]', tag: 'Cloud');
   }
 
   String _reasonOf(ModFillStatus status) => switch (status) {
