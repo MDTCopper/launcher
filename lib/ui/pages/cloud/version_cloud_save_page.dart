@@ -427,6 +427,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     var offerMods = gap.downloadableMods.isNotEmpty;
     var offerGame = gap.missingGame != null;
     while (mounted && (offerMods || offerGame)) {
+      task.setPhase('等待选择要补什么');
       final choice = await showRestoreGapPrompt(
         gap: gap,
         version: version,
