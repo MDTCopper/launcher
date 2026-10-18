@@ -1,10 +1,15 @@
+import 'dart:io';
+
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
+import 'package:copper_launcher/ui/dialog/game_log_dialog.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/app_theme.dart';
@@ -13,9 +18,12 @@ import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart'
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/vars.dart';
+import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -229,6 +237,82 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
     );
   }
 
+  /// 最近一份启动器日志，按修改时间取最新
+  File? _latestLogFile() {
+    final logDir = Directory(AppPaths.logs);
+    if (!logDir.existsSync()) return null;
+
+    final logFiles = logDir
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.log'))
+        .toList();
+    if (logFiles.isEmpty) return null;
+
+    logFiles.sort(
+      (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
+    );
+    return logFiles.first;
+  }
+
+  /// 查看最近一次启动的启动器日志
+  void _viewLog() {
+    final logFile = _latestLogFile();
+    if (logFile == null) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '暂无日志',
+        content: '启动器还没有写过日志',
+      );
+      return;
+    }
+    showLogFileDialog(
+      context,
+      path: logFile.path,
+      text: logFile.readAsStringSync(),
+    );
+  }
+
+  /// 导出全部启动器日志：复制到所选目录下的 logs 子目录
+  Future<void> _exportLogs() async {
+    final logDir = Directory(AppPaths.logs);
+    if (!logDir.existsSync()) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '暂无日志',
+        content: '启动器还没有写过日志',
+      );
+      return;
+    }
+
+    final target = await PathSelector.selectDirectory(
+      confirmButtonText: '导出到此',
+    );
+    if (target == null || !mounted) return;
+
+    try {
+      final targetLogDir = Directory(p.join(target, 'logs'));
+      if (!await targetLogDir.exists()) {
+        await targetLogDir.create(recursive: true);
+      }
+
+      var count = 0;
+      await for (final entity in logDir.list()) {
+        if (entity is! File) continue;
+        await entity.copy(p.join(targetLogDir.path, p.basename(entity.path)));
+        count++;
+      }
+      addNotice(
+        icon: Icons.check_circle_outline,
+        title: '日志已导出',
+        content: '$count 份日志 → ${targetLogDir.path}',
+      );
+    } catch (e) {
+      addNotice(icon: Icons.close, title: '导出失败', content: '复制日志时出错');
+      debugPrint('导出日志失败：$e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
@@ -264,6 +348,7 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
             ],
           ),
         ),
+        _buildLogModule(),
         if (kDebugMode)
           ContentPanelModule(
             title: '背景',
@@ -275,6 +360,37 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
             child: Column(children: [Text('todo 软件UI显示'), Text('主页小工具布局设置')]),
           ),
       ],
+    );
+  }
+
+  Widget _buildLogModule() {
+    return ContentPanelModule(
+      title: '日志',
+      child: Column(
+        crossAxisAlignment: .start,
+        spacing: 8,
+        children: [
+          Text(
+            '启动器运行日志，最多保留最近 7 天；反馈问题时请附上导出的日志',
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+          Row(
+            spacing: 8,
+            children: [
+              IconTextButton(
+                icon: Icons.description_outlined,
+                content: '查看日志',
+                onTap: _viewLog,
+              ),
+              IconTextButton(
+                icon: Icons.download_outlined,
+                content: '导出日志',
+                onTap: _exportLogs,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
