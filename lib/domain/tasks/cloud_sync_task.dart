@@ -106,6 +106,24 @@ class CloudSyncTask extends Task {
     updateDisplay();
   }
 
+  /// 把下载任务挂成子任务，并把它的进度 / 结果写到队列项上
+  ///
+  /// 挂上之后：它不进任务抽屉、不发用户通知（`Task.notice` 只落日志）、主卡 ✕ 会级联取消它
+  void bindQueueSubTask(CloudTaskItem item, Task subtask) {
+    attachSubTask(subtask);
+    void sync() {
+      if (subtask.status == TaskStatus.completed) {
+        updateQueueItem(item, progress: 1, done: true);
+      } else if (subtask.status == TaskStatus.failed) {
+        updateQueueItem(item, failed: true);
+      } else if (subtask.progress != null) {
+        updateQueueItem(item, progress: subtask.progress);
+      }
+    }
+
+    subtask.addListener(sync);
+  }
+
   void _recomputeOverall() {
     if (items.isEmpty) return;
     final totalWeight = items.fold<double>(0, (sum, item) => sum + item.weight);

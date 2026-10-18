@@ -1,6 +1,10 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/io/log.dart';
+import 'package:flutter/material.dart';
 
 ///任务抽象类，需要长时间或异步运行的程序在task类中进行
 ///
@@ -19,9 +23,46 @@ abstract class Task implements Listenable {
 
   final Set<VoidCallback> listeners = {};
 
+  /// 所属主任务：非空说明这是**子任务** —— 不进 `TaskManager`、不单独占卡片、不发用户通知
+  Task? parent;
+
+  /// 挂在主任务下面的子任务（按 [weight] 折算总体进度由主任务自己算）
+  final List<Task> subTasks = [];
+
+  /// 在总体进度里的权重（主任务自己解释；本体通常远大于单个模组）
+  double weight = 1;
+
+  bool get isSubTask => parent != null;
+
   Task({DateTime? createTime, String? id}) {
     this.createTime = createTime ?? DateTime.now();
     this.id = id ?? this.createTime.hashCode.toString();
+  }
+
+  /// 把一个任务挂到自己下面：它之后就是子任务（取消会级联）
+  void attachSubTask(Task child) {
+    child.parent = this;
+    subTasks.add(child);
+  }
+
+  /// 子任务不发通知，只留一行日志；主任务照常弹
+  void notice({
+    IconData? icon,
+    String? title,
+    String? content,
+    Duration duration = const Duration(seconds: 5),
+  }) {
+    if (isSubTask) {
+      final text = [title, content]
+          .whereType<String>()
+          .where((value) => value.isNotEmpty)
+          .join('：');
+      if (text.isNotEmpty) {
+        addLog(.info, removeNewlines(text), tag: 'Task');
+      }
+      return;
+    }
+    addNotice(icon: icon, title: title, content: content, duration: duration);
   }
 
   @override
@@ -87,6 +128,10 @@ abstract class Task implements Listenable {
       return;
     }
     status = TaskStatus.cancel;
+    // 子任务跟着一起停：主卡上的 ✕ 要能让正在下的那一份也停
+    for (final child in subTasks) {
+      child.cancel();
+    }
     updateDisplay();
   }
 
@@ -100,13 +145,22 @@ abstract class Task implements Listenable {
   }
 
   void start() {
+    unawaited(startAsync());
+  }
+
+  /// 可等待的启动：`await` 它就知道这一轮真的跑完了（子任务 / 需要串联的流程用）
+  Future<void> startAsync() async {
     if (status == TaskStatus.process) {
       debugPrint('重复开始');
       return;
     }
     status = TaskStatus.process;
-    runTask();
     updateDisplay();
+    try {
+      await runTask();
+    } finally {
+      updateDisplay();
+    }
   }
 
   ///呈现在信息栏位的组件

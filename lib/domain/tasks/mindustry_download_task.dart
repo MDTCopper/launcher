@@ -8,7 +8,6 @@ import '../../core/app_config.dart';
 import '../../data/models.dart';
 import '../mindustry_body.dart';
 import '../../ui/shell/drawer/log_list.dart';
-import '../../ui/util/notification.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import '../../util/app_paths.dart';
 import '../../util/format/byte_unit.dart';
@@ -121,7 +120,7 @@ class MindustryDownloadTask extends Task {
   }
 
   Future<void> _download() async {
-    NotificationManager.addNotice(
+    notice(
       icon: Icons.download,
       title: '下载',
       content: '正在下载游戏[$tag]',
@@ -145,7 +144,7 @@ class MindustryDownloadTask extends Task {
         progress = 1.0;
         status = TaskStatus.completed;
 
-        NotificationManager.addNotice(
+        notice(
           icon: Icons.check_box_outlined,
           title: '复用已有游戏本体',
           content: '本体库中已有 [$tag] 的游戏本体，未重复下载',
@@ -242,7 +241,7 @@ class MindustryDownloadTask extends Task {
       await _addIntoConfig();
       status = TaskStatus.completed;
 
-      NotificationManager.addNotice(
+      notice(
         icon: Icons.check_box_outlined,
         title: '下载完成',
         content: '[$tag] 下载完成：游戏本体 ${file.path}',
@@ -261,7 +260,7 @@ class MindustryDownloadTask extends Task {
       status = TaskStatus.failed;
       debugPrint('加载器没配好：$e');
       addTaskLog(LogEntry(LogType.error, '$e'));
-      addNotice(icon: Icons.close, title: '加载器没配好', content: '$e');
+      notice(icon: Icons.close, title: '加载器没配好', content: '$e');
       addLog(.error, '加载器没配好：${removeNewlines('$e')}', tag: 'Loader');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
@@ -275,14 +274,14 @@ class MindustryDownloadTask extends Task {
           debugPrint('取消下载：$e');
 
           addTaskLog(LogEntry(LogType.info, '已取消下载'));
-          addNotice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
+          notice(icon: Icons.info_outline, title: '取消', content: '已取消下载');
           addLog(.info, '已取消下载 [$tag]', tag: 'GameDownload');
         }
       } else {
         status = TaskStatus.failed;
         debugPrint('网络错误：$e');
         addTaskLog(LogEntry(LogType.error, '网络错误：$e'));
-        addNotice(icon: Icons.error_outline, title: '错误', content: '网络错误：$e');
+        notice(icon: Icons.error_outline, title: '错误', content: '网络错误：$e');
         addLog(.warning, '网络错误：${removeNewlines('$e')}', tag: 'GameDownload');
         if (isFreshDownload) await file.delete();
       }
@@ -290,7 +289,7 @@ class MindustryDownloadTask extends Task {
       status = TaskStatus.failed;
       debugPrint('未知错误$e');
       addTaskLog(LogEntry(LogType.error, '未知错误：$e'));
-      addNotice(icon: Icons.error_outline, title: '致命错误', content: '$e');
+      notice(icon: Icons.error_outline, title: '致命错误', content: '$e');
       addLog(.error, '未知错误：${removeNewlines('$e')}', tag: 'GameDownload');
       if (isFreshDownload) await file.delete();
     } finally {

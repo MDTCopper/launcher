@@ -485,27 +485,21 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             task.addQueueItem(item);
           }
           for (var i = 0; i < queued.length; i++) {
-            if (task.cancelToken.isCancelled) throw const ModFillCancelled();
+            if (task.cancelToken.isCancelled) {
+              throw StateError('补全已取消');
+            }
             final item = modItems[i];
             task.setPhase('补全模组 ${i + 1}/${queued.length}：${queued[i].displayName}');
+            final subtask = buildFillTask(queued[i].plan!, version);
+            task.bindQueueSubTask(item, subtask);
             task.updateQueueItem(item, running: true);
-            try {
-              await NotificationManager.silently(
-                () => runFillPlanInline(
-                  queued[i].plan!,
-                  version,
-                  onPhase: task.setPhase,
-                  onProgress: (value) =>
-                      task.updateQueueItem(item, progress: value),
-                  isCancelled: () => task.cancelToken.isCancelled,
-                  cancelToken: task.cancelToken,
-                ),
+            await subtask.startAsync();
+            if (subtask.status != TaskStatus.completed) {
+              throw StateError(
+                '补全没完成：${subtask.statusLabel ?? subtask.status.name}',
               );
-              task.updateQueueItem(item, done: true);
-            } on Object {
-              task.updateQueueItem(item, failed: true);
-              rethrow;
             }
+            task.updateQueueItem(item, done: true);
           }
           notes.add(describeFillOutcomes(outcomes));
         case CloudRestoreGapChoice.installGame:
@@ -528,16 +522,15 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             if (gamePlaceholder == null) task.addQueueItem(item);
             task.setPhase('下载游戏版本 ${gap.missingGame!.release}');
             task.updateQueueItem(item, running: true);
-            try {
-              await NotificationManager.silently(
-                () => _runSubtaskInline(installTask, task, item: item),
+            task.bindQueueSubTask(item, installTask);
+            await installTask.startAsync();
+            if (installTask.status != TaskStatus.completed) {
+              throw StateError(
+                '本体没下完：${installTask.statusLabel ?? installTask.status.name}',
               );
-              task.updateQueueItem(item, done: true);
-              notes.add('已装游戏版本 ${gap.missingGame!.release}');
-            } on Object {
-              task.updateQueueItem(item, failed: true);
-              rethrow;
             }
+            task.updateQueueItem(item, done: true);
+            notes.add('已装游戏版本 ${gap.missingGame!.release}');
           }
         case CloudRestoreGapChoice.later:
           for (final placeholder in [modPlaceholder, gamePlaceholder]) {
@@ -548,38 +541,6 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     }
     return notes.join('；');
   }
-
-  /// 把子任务跑在云任务卡下面（进度转到队列项、取消联动），不往抽屉里再塞一张卡
-  Future<void> _runSubtaskInline(
-    Task subtask,
-    CloudSyncTask parent, {
-    CloudTaskItem? item,
-  }) async {
-    final done = Completer<void>();
-    void changed() {
-      final value = subtask.progress;
-      if (value != null && item != null) {
-        parent.updateQueueItem(item, progress: value);
-      }
-      if (subtask.status == TaskStatus.completed ||
-          subtask.status == TaskStatus.failed ||
-          subtask.status == TaskStatus.cancel) {
-        subtask.removeListener(changed);
-        if (!done.isCompleted) done.complete();
-      }
-    }
-
-    subtask.addListener(changed);
-    parent.cancelToken.whenCancel.then((_) => subtask.cancel());
-    if (parent.cancelToken.isCancelled) subtask.cancel();
-    subtask.start();
-    changed();
-    await done.future;
-    if (subtask.status != TaskStatus.completed) {
-      throw StateError('子任务没完成：${subtask.statusLabel ?? subtask.status.name}');
-    }
-  }
-
   /// 恢复报告压成一句话：落地几份、留了几份、拒了几份
   String _restoreSummary(CloudImportReport report) {
     final parts = <String>['写入 ${report.written.length} 份'];
