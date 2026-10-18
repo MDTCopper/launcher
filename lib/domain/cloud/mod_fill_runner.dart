@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:copper_launcher/core/app_constant.dart';
@@ -6,6 +7,7 @@ import 'package:copper_launcher/data/mod_version_gate.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill.dart';
+import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/mod_download_task.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
@@ -327,6 +329,7 @@ Future<List<ModFillOutcome>> fillMissingMods({
   required Mindustry version,
   Map<String, String> headers = _defaultHeaders,
   void Function(String status)? onStatus,
+  bool queueTasks = true,
 }) async {
   onStatus?.call('读取官方模组列表');
   final List<ModOfficialListEntry> officialList;
@@ -377,12 +380,88 @@ Future<List<ModFillOutcome>> fillMissingMods({
     resolveRepo: (repo) => _resolveRepoFullName(repo, headers),
   );
 
-  for (final outcome in outcomes) {
-    if (outcome.isQueued) {
-      _queue(outcome.plan!, version);
+  if (queueTasks) {
+    for (final outcome in outcomes) {
+      if (outcome.isQueued) {
+        _queue(outcome.plan!, version);
+      }
     }
   }
   return outcomes;
+}
+
+/// 在调用方的任务里**就地**下载一个补全计划：不往任务抽屉里另起卡片
+///
+/// 云存档的「一张卡包住恢复 + 补全」靠它 —— 进度由调用方转发到自己的卡片上
+Future<void> runFillPlanInline(
+  ModFillPlan plan,
+  Mindustry version, {
+  required void Function(String phase) onPhase,
+  void Function(double? progress)? onProgress,
+  bool Function()? isCancelled,
+  CancelToken? cancelToken,
+}) async {
+  final savePath = version.modsPath;
+  final Task subtask;
+  switch (plan.kind) {
+    case ModFillKind.java:
+      subtask = JavaModDownloadTask(
+        modListMeta: plan.entry,
+        modMeta: plan.release!,
+        savePath: savePath,
+        mainAssetIndex: plan.mainAssetIndex,
+      );
+    case ModFillKind.zip:
+      subtask = ZipModDownloadTask(
+        plan.entry,
+        plan.release!,
+        savePath,
+        mainAssetIndex: plan.mainAssetIndex,
+      );
+    case ModFillKind.source:
+      subtask = SourceModDownloadTask(
+        modListMeta: plan.entry,
+        modMeta: plan.release,
+        savePath: savePath,
+      );
+  }
+
+  void forwardProgress() => onProgress?.call(subtask.progress);
+  subtask.addListener(forwardProgress);
+  final done = _waitForTerminal(subtask);
+  // 外层任务卡上的 ✕ 也要能把正在下的这一份停掉
+  cancelToken?.whenCancel.then((_) => subtask.cancel());
+  subtask.start();
+  if (isCancelled?.call() ?? false) subtask.cancel();
+  await done;
+  subtask.removeListener(forwardProgress);
+  if (isCancelled?.call() ?? false) {
+    throw const ModFillCancelled();
+  }
+}
+
+/// 补全被取消（与用户按了任务卡上的 ✕ 同一语义）
+class ModFillCancelled implements Exception {
+  const ModFillCancelled();
+
+  @override
+  String toString() => '补全已取消';
+}
+
+Future<void> _waitForTerminal(Task task) {
+  final completer = Completer<void>();
+  void changed() {
+    if (task.status == TaskStatus.completed ||
+        task.status == TaskStatus.failed ||
+        task.status == TaskStatus.cancel) {
+      task.removeListener(changed);
+      if (!completer.isCompleted) completer.complete();
+    }
+  }
+
+  task.addListener(changed);
+  changed();
+  return completer.future;
 }
 
 /// 查仓库现在的全名：GitHub 会把改名前的旧仓库名重定向到新名字。

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -11,7 +12,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
-import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
+import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
 import 'package:copper_launcher/domain/cloud/cloud_notes.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
@@ -337,7 +338,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     required Mindustry version,
     required CloudSaveSnapshot snapshot,
   }) async {
-    setState(() => _busy = '正在下载并解包…');
+    setState(() => _busy = '准备恢复…');
     try {
       final token = await _accounts.ensureAccessToken();
       if (token == null) {
@@ -359,7 +360,18 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             onStatus: task.acceptProgress,
             cancelToken: task.cancelToken,
           );
-          return '写入 ${restored!.written.length} 份';
+          final report = restored!;
+          final extra = await _handleRestoreGapInsideTask(
+            report: report,
+            version: version,
+            task: task,
+          );
+          await applyModEnabledStates(
+            dataPath: version.dataPath,
+            manifest: report.manifest,
+          );
+          final summary = _restoreSummary(report);
+          return extra.isEmpty ? summary : '$summary；$extra';
         },
       );
       addTask(task);
@@ -379,14 +391,11 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         );
         return;
       }
-
-      final report = restored!;
       addNotice(
         icon: Icons.cloud_download_outlined,
         title: '已从云端恢复',
-        content: _restoreSummary(report),
+        content: task.result ?? '',
       );
-      await _offerRestoreGaps(version: version, report: report);
     } catch (error) {
       if (!mounted) return;
       addNotice(
@@ -399,20 +408,22 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     }
   }
 
-  /// 恢复完本机还缺东西时问一句：缺哪些模组 / 缺哪个游戏版本，能补的一键补
+  /// 恢复完在**同一张任务卡**里处理缺口：逐件问「补模组 / 装游戏版本」
   ///
-  /// 两件都缺就**逐件问**（办完一件把那件藏掉再问下一件）—— 一次只让用户做一个决定
-  Future<void> _offerRestoreGaps({
-    required Mindustry version,
+  /// 补全的下载不另起任务卡（用户 2026-10-18 定的口径），进度直接反馈到这张卡上
+  Future<String> _handleRestoreGapInsideTask({
     required CloudImportReport report,
+    required Mindustry version,
+    required CloudSyncTask task,
   }) async {
     final gap = computeRestoreGap(
       dataPath: version.dataPath,
       manifest: report.manifest,
       installedGameTags: installedGameIdentifiers(),
     );
-    if (!mounted || gap.isEmpty) return;
+    if (gap.isEmpty || !mounted) return '';
 
+    final notes = <String>[];
     var offerMods = gap.downloadableMods.isNotEmpty;
     var offerGame = gap.missingGame != null;
     while (mounted && (offerMods || offerGame)) {
@@ -426,74 +437,77 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       switch (choice) {
         case CloudRestoreGapChoice.fillMods:
           offerMods = false;
-          await _fillMissingMods(gap: gap, version: version);
+          task.setPhase('补全模组…');
+          final outcomes = await fillMissingMods(
+            gap: gap,
+            version: version,
+            queueTasks: false,
+            onStatus: task.setPhase,
+          );
+          final queued = [
+            for (final outcome in outcomes)
+              if (outcome.isQueued) outcome,
+          ];
+          for (var i = 0; i < queued.length; i++) {
+            if (task.cancelToken.isCancelled) throw const ModFillCancelled();
+            task.setPhase(
+              '补全模组 ${i + 1}/${queued.length}：${queued[i].displayName}',
+            );
+            await runFillPlanInline(
+              queued[i].plan!,
+              version,
+              onPhase: task.setPhase,
+              onProgress: (value) {
+                if (value != null) task.progress = value;
+              },
+              isCancelled: () => task.cancelToken.isCancelled,
+              cancelToken: task.cancelToken,
+            );
+          }
+          notes.add(describeFillOutcomes(outcomes));
         case CloudRestoreGapChoice.installGame:
           offerGame = false;
-          await _installMissingGame(gap.missingGame!);
+          task.setPhase('查找游戏版本');
+          final prep = await prepareGameVersion(game: gap.missingGame!);
+          final installTask = prep.task;
+          if (installTask == null) {
+            notes.add(prep.failure ?? '装游戏版本失败');
+          } else {
+            task.setPhase('下载游戏版本 ${gap.missingGame!.release}');
+            await _runSubtaskInline(installTask, task);
+            notes.add('已装游戏版本 ${gap.missingGame!.release}');
+          }
         case CloudRestoreGapChoice.later:
-          return;
+          return notes.join('；');
       }
     }
+    return notes.join('；');
   }
 
-  /// 把能补的模组排进下载队列，结果报一句
-  Future<void> _fillMissingMods({
-    required CloudRestoreGap gap,
-    required Mindustry version,
-  }) async {
-    setState(() => _busy = '正在补全模组…');
-    try {
-      final outcomes = await fillMissingMods(
-        gap: gap,
-        version: version,
-        onStatus: (status) {
-          if (mounted) setState(() => _busy = status);
-        },
-      );
-      if (!mounted) return;
-      addNotice(
-        icon: Icons.extension_outlined,
-        title: '模组补全',
-        content: describeFillOutcomes(outcomes),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      addNotice(
-        icon: Icons.error_outline,
-        title: '模组补全失败',
-        content: removeNewlines('$error'),
-      );
+  /// 把子任务跑在云任务卡下面（进度转发、取消联动），不往抽屉里再塞一张卡
+  Future<void> _runSubtaskInline(Task subtask, CloudSyncTask parent) async {
+    final done = Completer<void>();
+    void changed() {
+      final value = subtask.progress;
+      if (value != null) parent.progress = value;
+      if (subtask.status == TaskStatus.completed ||
+          subtask.status == TaskStatus.failed ||
+          subtask.status == TaskStatus.cancel) {
+        subtask.removeListener(changed);
+        if (!done.isCompleted) done.complete();
+      }
+    }
+
+    subtask.addListener(changed);
+    parent.cancelToken.whenCancel.then((_) => subtask.cancel());
+    if (parent.cancelToken.isCancelled) subtask.cancel();
+    subtask.start();
+    changed();
+    await done.future;
+    if (subtask.status != TaskStatus.completed) {
+      throw StateError('子任务没完成：${subtask.statusLabel ?? subtask.status.name}');
     }
   }
-
-  /// 把云包里那个游戏版本装回来
-  Future<void> _installMissingGame(CloudGameInfo game) async {
-    setState(() => _busy = '正在查找游戏版本…');
-    try {
-      final failure = await installGameVersion(
-        game: game,
-        onStatus: (status) {
-          if (mounted) setState(() => _busy = status);
-        },
-      );
-      if (!mounted) return;
-      addNotice(
-        icon: failure == null
-            ? Icons.download_for_offline_outlined
-            : Icons.error_outline,
-        title: failure == null ? '游戏版本已排入下载' : '装游戏版本失败',
-        content: failure ?? '${game.tag}（装完在版本列表里选它）',
-      );
-    } catch (error) {
-      if (!mounted) return;
-      addNotice(
-        icon: Icons.error_outline,
-        title: '装游戏版本失败',
-        content: removeNewlines('$error'),
-      );
-    }
-  }
-
   /// 恢复报告压成一句话：落地几份、留了几份、拒了几份
   String _restoreSummary(CloudImportReport report) {
     final parts = <String>['写入 ${report.written.length} 份'];
