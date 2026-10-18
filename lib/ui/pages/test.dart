@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
@@ -7,7 +5,6 @@ import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
-import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:flutter/gestures.dart' show kSecondaryButton;
 
 import 'package:flutter/material.dart';
@@ -31,17 +28,6 @@ class TestState extends State<Test> {
   bool _menuPinned = true; // 菜单里那条「固定」的勾选态
   int _menuHits = 0; // 菜单动作被点的次数
   String _menuLastAction = '（还没点过菜单条目）';
-
-  // ── 第 21 区演示状态（Notification 通知）──
-  CopperNoticeHandle? _progressNotice;
-  Timer? _progressNoticeTimer;
-  String _noticeStatus = '（还没发过通知）';
-
-  @override
-  void dispose() {
-    _progressNoticeTimer?.cancel();
-    super.dispose();
-  }
 
   /// 当前状态在做什么，配合演示说清三种状态的差别
   String get _drillStateHint => switch (_drillState) {
@@ -96,7 +82,6 @@ class TestState extends State<Test> {
         children: [
           _drillLoadingSection(),
           _contextMenuSection(),
-          _notificationSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -529,239 +514,6 @@ class TestState extends State<Test> {
                   child: _buildMenuListTile(name),
                 ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ════════ 21. 通知（Notification） ════════
-
-  void _showNoticeResult(String status) {
-    setState(() => _noticeStatus = status);
-  }
-
-  /// 只有一行标题的短确认，应该收成药丸
-  void _showSuccessPill() {
-    addNotice(icon: Icons.check, title: '已保存个人设置');
-    _showNoticeResult('成功 · 药丸（标题只有一行）');
-  }
-
-  void _showSuccessCard() {
-    addNotice(
-      icon: Icons.cloud_done_outlined,
-      title: '云存档已上传',
-      content: '「阿尔法版本」共 12 个文件，3.4 MB',
-    );
-    _showNoticeResult('成功 · 卡片（带正文）');
-  }
-
-  void _showWarning() {
-    addNotice(
-      icon: Icons.warning_amber_outlined,
-      title: '云端快照偏多',
-      content: '最早的一版将在 7 天后自动清理，重要的版本请先固定',
-    );
-    _showNoticeResult('警告 · 卡片 + 关闭按钮');
-  }
-
-  void _showErrorWithAction() {
-    addNotice(
-      icon: Icons.error_outline,
-      title: '上传失败',
-      content: '网络错误：连接超时（30 秒）',
-      action: CopperNoticeAction(
-        label: '重试',
-        onPressed: () => addNotice(icon: Icons.check, title: '已重新上传'),
-      ),
-    );
-    _showNoticeResult('失败 · 卡片 + 重试；至少停留 6 秒');
-  }
-
-  void _showNeutralWithAction() {
-    addNotice(
-      icon: Icons.info_outline,
-      title: '已切换到离线模式',
-      content: '网络恢复后会自动继续云端同步',
-      action: CopperNoticeAction(
-        label: '查看设置',
-        onPressed: () => addNotice(icon: Icons.check, title: '设置页还没接'),
-      ),
-    );
-    _showNoticeResult('中性 · 卡片 + 动作');
-  }
-
-  void _showCustomWidget() {
-    final colors = AppColors.of(context);
-    addNoticeWidget(
-      duration: const Duration(seconds: 8),
-      widget: Container(
-        width: 260,
-        padding: const EdgeInsets.all(AppSpacing.group),
-        decoration: BoxDecoration(
-          color: colors.elevatedBackground,
-          borderRadius: BorderRadius.circular(AppRadius.item),
-          border: Border.all(color: colors.border),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.extension_outlined, color: colors.interactive),
-            const SizedBox(width: AppSpacing.related),
-            Expanded(
-              child: Text(
-                '这条内容完全由调用方自己画，通知层只负责入场、退场与计时',
-                style: TextStyle(color: colors.itemSecondary, fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    _showNoticeResult('自定义内容');
-  }
-
-  void _startNoticeProgress() {
-    _progressNoticeTimer?.cancel();
-    var value = 0.0;
-    final handle = addNotice(
-      icon: Icons.cloud_upload_outlined,
-      title: '正在上传存档',
-      content: '已上传 0%',
-      progress: const CopperNoticeProgress(0),
-      action: CopperNoticeAction(
-        label: '取消',
-        onPressed: () {
-          _progressNoticeTimer?.cancel();
-          _progressNoticeTimer = null;
-          _progressNotice?.dismiss();
-          _showNoticeResult('上传已取消');
-        },
-      ),
-    );
-    _progressNotice = handle;
-    _showNoticeResult('进度 · 常驻，原地更新');
-    _progressNoticeTimer = Timer.periodic(const Duration(milliseconds: 320), (
-      timer,
-    ) {
-      value += 0.08;
-      if (value >= 1) {
-        timer.cancel();
-        _progressNoticeTimer = null;
-        handle?.finish(title: '上传完成', content: '已同步到云端');
-        _showNoticeResult('进度收尾 · 换成成功并在 4 秒后消失');
-        return;
-      }
-      handle?.update(
-        progress: CopperNoticeProgress(value),
-        content: '已上传 ${(value * 100).round()}%',
-      );
-    });
-  }
-
-  void _showNoticeStack() {
-    for (var i = 1; i <= 6; i++) {
-      addNotice(
-        icon: i.isEven ? Icons.check : Icons.info_outline,
-        title: '第 $i 条通知',
-        content: '超过 4 条时，先收掉最早的那条非常驻通知',
-      );
-    }
-    _showNoticeResult('堆叠 · 连发 6 条');
-  }
-
-  Widget _notificationSection() {
-    final colors = AppColors.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('21. Notification（通知）'),
-        _card(
-          title: '同一套通知，按场景换形态与语义',
-          desc:
-              '只有一行标题的短确认收成药丸；要解释、要动作、要进度的走卡片。'
-              '语义色由图标自动推断（check → 绿、warning → 黄、close / error → 红），'
-              '所以旧调用不用改也能对上颜色；也可以显式传 tone 覆盖。'
-              '失败与警告默认多停一会儿并带关闭按钮，点动作会先执行再退场。',
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              IconTextButton(
-                icon: Icons.check,
-                content: '成功（药丸）',
-                onTap: _showSuccessPill,
-              ),
-              IconTextButton(
-                icon: Icons.cloud_done_outlined,
-                content: '成功（卡片）',
-                onTap: _showSuccessCard,
-              ),
-              IconTextButton(
-                icon: Icons.warning_amber_outlined,
-                content: '警告',
-                onTap: _showWarning,
-              ),
-              IconTextButton(
-                icon: Icons.error_outline,
-                content: '失败 + 重试',
-                onTap: _showErrorWithAction,
-              ),
-              IconTextButton(
-                icon: Icons.info_outline,
-                content: '中性 + 动作',
-                onTap: _showNeutralWithAction,
-              ),
-              IconTextButton(
-                icon: Icons.extension_outlined,
-                content: '自定义内容',
-                onTap: _showCustomWidget,
-              ),
-            ],
-          ),
-        ),
-        _card(
-          title: '进度通知：同一张卡原地更新，不重新弹一条',
-          desc:
-              '开始上传后每 320ms 更新一次进度与文案；传完走 finish，'
-              '收起进度条、换成成功语义，4 秒后自动消失。'
-              '「取消」走句柄的 dismiss，退场动画与手点关闭一致。'
-              '这条通知默认常驻 —— 长任务没结束时不该自己消失。',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  IconTextButton(
-                    icon: Icons.cloud_upload_outlined,
-                    content: '开始上传（模拟）',
-                    onTap: _startNoticeProgress,
-                  ),
-                  IconTextButton(
-                    icon: Icons.layers,
-                    content: '连发 6 条看堆叠上限',
-                    onTap: _showNoticeStack,
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.group),
-              Text(
-                '状态：$_noticeStatus',
-                style: TextStyle(color: colors.itemSecondary),
-              ),
-            ],
-          ),
-        ),
-        _card(
-          title: '位置随平台走',
-          desc:
-              '桌面端贴右上角、让开 40 高的顶栏；触摸平台贴屏幕底部，'
-              '让开系统手势区，入场方向也从右侧改成从下方。'
-              '这部分只能在 Android 真机上看效果，本页不做切换。',
-          child: Text(
-            '鼠标移到通知上会暂停自动消失，移开后接着计时。',
-            style: TextStyle(color: colors.itemSecondary),
           ),
         ),
       ],
