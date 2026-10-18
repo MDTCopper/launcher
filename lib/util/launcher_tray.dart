@@ -266,7 +266,8 @@ class LauncherTray extends TrayListener with WindowListener {
 
   ///是否有游戏正在运行
   bool _isGameRunning() => taskManager.currentTasks.any(
-    (task) => task.type == TaskType.launch && task.status == TaskStatus.process,
+    (task) =>
+        task is LaunchMindustryTask && task.status == TaskStatus.process,
   );
 
   ///最近游玩版本：取 lastLaunchTime 最新者；没有则回落当前选中版本

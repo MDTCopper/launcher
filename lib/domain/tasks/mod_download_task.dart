@@ -39,9 +39,7 @@ class JavaModDownloadTask extends Task {
     required this.modMeta,
     required this.savePath,
     this.mainAssetIndex = 0,
-  }) {
-    type = TaskType.download;
-  }
+  });
 
   @override
   void cancel() {
@@ -230,10 +228,10 @@ class JavaModDownloadTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             SizedBox(width: 4),
             Text(
-              getTitle(type),
+              displayTitle,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
@@ -293,9 +291,7 @@ class ZipModDownloadTask extends Task {
     this.modMeta,
     this.savePath, {
     this.mainAssetIndex = 0,
-  }) : assert(!modListMeta.hasJava, '下载模组只能为非Java') {
-    type = TaskType.download;
-  }
+  }) : assert(!modListMeta.hasJava, '下载模组只能为非Java');
 
   void _updateProgress(int size, int total) {
     if (total != -1) {
@@ -474,10 +470,10 @@ class ZipModDownloadTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             SizedBox(width: 4),
             Text(
-              getTitle(type),
+              displayTitle,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
@@ -533,9 +529,7 @@ class SourceModDownloadTask extends Task {
     required this.modListMeta,
     required this.modMeta,
     required this.savePath,
-  }) {
-    type = TaskType.download;
-  }
+  });
 
   /// 找一个能下的源码归档分支：先探 `main` / `master`，再问仓库的默认分支
   ///
@@ -775,10 +769,10 @@ class SourceModDownloadTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             SizedBox(width: 4),
             Text(
-              getTitle(type),
+              displayTitle,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,

@@ -42,9 +42,7 @@ class BridgeRuntimeTask extends Task {
   /// 当前阶段文案（下载中 / 解压中 / 已就绪…）
   String? statusText;
 
-  BridgeRuntimeTask({required this.target, this.force = false}) {
-    type = TaskType.download;
-  }
+  BridgeRuntimeTask({required this.target, this.force = false});
 
   @override
   void cancel() {
@@ -158,7 +156,7 @@ class BridgeRuntimeTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             const SizedBox(width: 4),
             Text(
               '安装${target.label}',

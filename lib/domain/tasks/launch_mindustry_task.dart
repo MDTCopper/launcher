@@ -29,6 +29,12 @@ import '../../ui/shell/drawer/log_list.dart';
 import '../../ui/util/notification.dart';
 
 class LaunchMindustryTask extends Task {
+  @override
+  IconData get displayIcon => Icons.rocket_launch;
+
+  @override
+  String get displayTitle => '启动';
+
   final Mindustry mindustry;
 
   final launcher = MindustryLauncher();
@@ -36,9 +42,7 @@ class LaunchMindustryTask extends Task {
   /// 本次启动时刻；游戏退出成功时用于计算本次游玩时长
   DateTime? _launchStartTime;
 
-  LaunchMindustryTask(this.mindustry) {
-    type = TaskType.launch;
-  }
+  LaunchMindustryTask(this.mindustry);
 
   @override
   Widget buildDisplayWidget(BuildContext context) {

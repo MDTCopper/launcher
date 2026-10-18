@@ -25,7 +25,6 @@ class LoaderDownloadTask extends Task {
     this.afterDownload,
     @visibleForTesting this.downloader,
   }) {
-    type = TaskType.download;
     // 没人 await done 时（比如用户把变体弹窗取消了），别让失败冒成未捕获异常
     _done.future.ignore();
   }
@@ -161,10 +160,10 @@ class LoaderDownloadTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             const SizedBox(width: 4),
             Text(
-              getTitle(type),
+              displayTitle,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,

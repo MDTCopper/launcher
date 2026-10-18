@@ -24,6 +24,12 @@ import 'package:copper_launcher/util/format/string_cleaner.dart';
 ///启动后台初始化任务：刷新 remote 数据、加载镜像节点、检查 Java 环境、
 ///检查游戏文件完整性。由 main 在进入 app 前添加，进任务抽屉自跑，不阻塞首帧。
 class StartupBackgroundTask extends Task {
+  @override
+  IconData get displayIcon => Icons.search;
+
+  @override
+  String get displayTitle => '校验';
+
   ///当前步骤描述
   String? describe;
 
@@ -37,7 +43,6 @@ class StartupBackgroundTask extends Task {
   int get _totalSteps => _includeJavaCheck ? 6 : 5;
 
   StartupBackgroundTask() {
-    type = TaskType.check;
     progress = 0.0;
   }
 
@@ -288,10 +293,10 @@ class StartupBackgroundTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             SizedBox(width: 4),
             Text(
-              getTitle(type),
+              displayTitle,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,

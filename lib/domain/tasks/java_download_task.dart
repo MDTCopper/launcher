@@ -19,9 +19,7 @@ class JavaDownloadTask extends Task {
   ///当前状态文案（下载中 / 解压中 / 已完成...）
   String? statusText;
 
-  JavaDownloadTask({required this.version}) {
-    type = TaskType.download;
-  }
+  JavaDownloadTask({required this.version});
 
   @override
   void cancel() {
@@ -99,7 +97,7 @@ class JavaDownloadTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             SizedBox(width: 4),
             Text(
               '下载Java $version',

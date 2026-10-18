@@ -18,9 +18,7 @@ class MapDownloadTask extends Task {
     required this.map,
     required this.version,
     required this.savePath,
-  }) {
-    type = TaskType.download;
-  }
+  });
 
   final MindustryTopMapMeta map;
 
@@ -135,7 +133,7 @@ class MapDownloadTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             SizedBox(width: 4),
             Expanded(
               child: Text(

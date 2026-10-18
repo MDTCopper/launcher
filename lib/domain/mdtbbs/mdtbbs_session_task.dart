@@ -23,7 +23,10 @@ class MultiplayerSessionTask extends Task {
   String get id => 'multiplayer_session';
 
   @override
-  TaskType get type => TaskType.multiplayer;
+  IconData get displayIcon => Icons.lan_outlined;
+
+  @override
+  String get displayTitle => '联机';
 
   /// 开一轮新的会话：重置完成信号与进度，由 [Task.start] 拉起
   void reset() {
@@ -86,7 +89,7 @@ class MultiplayerSessionTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             const SizedBox(width: 4),
             Text(
               '联机会话',

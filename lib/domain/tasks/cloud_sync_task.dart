@@ -31,17 +31,14 @@ class CloudTaskItem {
 /// 可能已经在收尾、托盘与任务抽屉里什么都看不到，玩家只能猜「传完了没有」。
 /// 挂成任务之后：抽屉里看得见进度、托盘与任务栏有进度、还能当场取消。
 ///
-/// 类型借用 [TaskType.download]（**新增 TaskType 要动 `domain/task.dart`，那是用户的文件**）——
-/// 它只影响图标 / 标题的兜底，而本卡片自己画标题与图标
+/// 图标与标题由本卡自己画（覆写 [displayIcon] / [displayTitle]）
 class CloudSyncTask extends Task {
   CloudSyncTask({
     required this.direction,
     required this.versionTag,
     required this.onRun,
     this.idOverride,
-  }) {
-    type = TaskType.download;
-  }
+  });
 
   final CloudSyncDirection direction;
   final String versionTag;

@@ -18,9 +18,7 @@ import 'package:window_manager/window_manager.dart';
 /// Windows 的安装版直接拉起 Setup 并退出启动器（安装器负责替换文件）；
 /// 解压版与其它平台只下载，然后打开下载目录，由用户退出后自己覆盖
 class LauncherUpdateTask extends Task {
-  LauncherUpdateTask({required this.release, required this.asset}) {
-    type = TaskType.download;
-  }
+  LauncherUpdateTask({required this.release, required this.asset});
 
   final LauncherRelease release;
 
@@ -162,7 +160,7 @@ class LauncherUpdateTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             const SizedBox(width: 4),
             Text(
               '更新启动器',

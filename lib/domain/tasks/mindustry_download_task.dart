@@ -98,7 +98,6 @@ class MindustryDownloadTask extends Task {
     String? path,
     // CancelToken? cancelToken//外部取消token
   }) {
-    super.type = TaskType.download;
     this.path = path ?? AppPaths.versions;
   }
 
@@ -506,10 +505,10 @@ class MindustryDownloadTask extends Task {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(getIcon(type), size: 32),
+            Icon(displayIcon, size: 32),
             SizedBox(width: 4),
             Text(
-              getTitle(type),
+              displayTitle,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
