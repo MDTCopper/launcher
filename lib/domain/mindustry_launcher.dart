@@ -407,16 +407,16 @@ class MindustryLauncher {
     // 监听标准输出（游戏正常日志）
     _jarProcess!.stdout.transform(systemEncoding.decoder).listen((log) {
       if (log.isNotEmpty) {
-        _logController?.add('[游戏日志] ${log.trim()}');
-        addLogAndPrint(.info, '[游戏日志] ${log.trim()}', tag: 'Launch');
+        _logController?.add(' ${log.trim()}');
+        addCustomLog(' ${log.trim()}');
       }
     });
 
     // 监听错误输出（异常/报错日志）
     _jarProcess!.stderr.transform(systemEncoding.decoder).listen((error) {
       if (error.isNotEmpty) {
-        _logController?.add('[错误] ${error.trim()}');
-        addLogAndPrint(.warning, '[错误] ${error.trim()}', tag: 'Launch');
+        _logController?.add(' ${error.trim()}');
+        addCustomLog(' ${error.trim()}');
       }
     });
   }
