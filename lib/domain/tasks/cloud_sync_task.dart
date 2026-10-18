@@ -10,6 +10,21 @@ import 'package:flutter/material.dart';
 /// 同步方向（决定卡片标题与图标）
 enum CloudSyncDirection { upload, download }
 
+/// 云任务里的一项（恢复本身 / 装游戏本体 / 补一个模组）
+///
+/// [weight] 决定它在**总体进度**里占多重：游戏本体远大于单个模组
+class CloudTaskItem {
+  CloudTaskItem({required this.title, this.weight = 1});
+
+  final String title;
+  final double weight;
+
+  double progress = 0;
+  bool done = false;
+  bool failed = false;
+  bool running = false;
+}
+
 /// 一次云存档自动同步（退出后上传 / 启动前恢复）的任务卡片
 ///
 /// **为什么要有它**：这两条路以前只有日志与最后那一条通知 —— 退出后上传时启动器
@@ -47,6 +62,54 @@ class CloudSyncTask extends Task {
   int _totalBytes = 0;
   String? _result;
 
+  /// 这张卡里的队列（恢复 / 装本体 / 补模组），卡片上最多列 5 条
+  final List<CloudTaskItem> items = [];
+
+  /// 换一批队列项；总体进度按 [CloudTaskItem.weight] 加权
+  void setQueue(List<CloudTaskItem> queue) {
+    items
+      ..clear()
+      ..addAll(queue);
+    _recomputeOverall();
+    updateDisplay();
+  }
+
+  void addQueueItem(CloudTaskItem item) {
+    items.add(item);
+    _recomputeOverall();
+    updateDisplay();
+  }
+
+  /// 更新一项的进度 / 状态；总体进度跟着重算
+  void updateQueueItem(
+    CloudTaskItem item, {
+    double? progress,
+    bool? done,
+    bool? failed,
+    bool? running,
+  }) {
+    if (progress != null) item.progress = progress.clamp(0.0, 1.0);
+    if (done != null) {
+      item.done = done;
+      if (done) item.progress = 1;
+    }
+    if (failed != null) item.failed = failed;
+    if (running != null) item.running = running;
+    _recomputeOverall();
+    updateDisplay();
+  }
+
+  void _recomputeOverall() {
+    if (items.isEmpty) return;
+    final totalWeight = items.fold<double>(0, (sum, item) => sum + item.weight);
+    if (totalWeight <= 0) return;
+    final weighted = items.fold<double>(
+      0,
+      (sum, item) => sum + item.weight * item.progress,
+    );
+    progress = (weighted / totalWeight).clamp(0.0, 1.0);
+  }
+
   /// 失败时的原始异常：调用方据此**保留原来的分类处理**（比如冲突要单独弹一条）
   Object? error;
 
@@ -69,6 +132,8 @@ class CloudSyncTask extends Task {
 
   /// 传输进度：下载那条路把 `onProgress` 直接接到这里
   void acceptProgress(HttpDownloadState state) {
+    // 队列模式下进度由每一项加权算，别让整体进度被单条覆盖
+    if (items.isNotEmpty) return;
     if (state.progress > 0) {
       _doneBytes = state.downloaded;
       _totalBytes = state.total;
@@ -81,6 +146,7 @@ class CloudSyncTask extends Task {
 
   /// 传输字节：上传那条路用的是 dio 的 `onSendProgress`
   void acceptBytes(int done, int total) {
+    if (items.isNotEmpty) return;
     _doneBytes = done;
     _totalBytes = total;
     if (total > 0) progress = (done / total).clamp(0.0, 1.0);
@@ -120,6 +186,56 @@ class CloudSyncTask extends Task {
       ? Icons.cloud_upload_outlined
       : Icons.cloud_download_outlined;
 
+  /// 队列明细：最多列 5 条，每条各自的进度
+  List<Widget> _buildQueue(BuildContext context, ThemeData theme) {
+    final shown = items.take(5).toList();
+    return [
+      for (final item in shown)
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 2,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  item.failed
+                      ? Icons.close
+                      : item.done
+                      ? Icons.check
+                      : Icons.downloading,
+                  size: 14,
+                  color: item.failed ? theme.colorScheme.error : null,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                Text(
+                  '${(item.progress * 100).round()}%',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+            LinearProgressIndicator(
+              value: item.progress,
+              minHeight: 3,
+              color: item.failed ? theme.colorScheme.error : null,
+            ),
+          ],
+        ),
+      if (items.length > shown.length)
+        Text(
+          '还有 ${items.length - shown.length} 项…',
+          style: theme.textTheme.bodySmall,
+        ),
+    ];
+  }
+
   @override
   Widget buildDisplayWidget(BuildContext context) {
     final theme = Theme.of(context);
@@ -157,6 +273,7 @@ class CloudSyncTask extends Task {
         ),
         LinearProgressIndicator(value: progress),
         Text(_phase, style: theme.textTheme.bodyMedium),
+        if (items.isNotEmpty) ..._buildQueue(context, theme),
         if (hasBytes)
           Text(
             _totalBytes > 0

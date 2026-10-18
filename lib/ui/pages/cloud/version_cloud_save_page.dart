@@ -351,15 +351,20 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         versionTag: version.tag,
         idOverride: 'cloud_sync_manual_download_${version.tag}',
         onRun: (task) async {
+          // 队列里的第一项就是恢复本身；补全 / 装本体会往后加，总体进度按权重算
+          final restoreItem = CloudTaskItem(title: '恢复云端存档');
+          task.setQueue([restoreItem]);
           task.setPhase('下载云端快照');
           restored = await CloudSaveService.download(
             accessToken: token,
             version: version,
             slotId: snapshot.slotId ?? _slot!.id,
             snapshotId: snapshot.id,
-            onStatus: task.acceptProgress,
+            onStatus: (state) =>
+                task.updateQueueItem(restoreItem, progress: state.progress),
             cancelToken: task.cancelToken,
           );
+          task.updateQueueItem(restoreItem, done: true);
           final report = restored!;
           final extra = await _handleRestoreGapInsideTask(
             report: report,
@@ -449,21 +454,32 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             for (final outcome in outcomes)
               if (outcome.isQueued) outcome,
           ];
+          final modItems = [
+            for (final outcome in queued)
+              CloudTaskItem(title: outcome.displayName),
+          ];
+          for (final item in modItems) {
+            task.addQueueItem(item);
+          }
           for (var i = 0; i < queued.length; i++) {
             if (task.cancelToken.isCancelled) throw const ModFillCancelled();
-            task.setPhase(
-              '补全模组 ${i + 1}/${queued.length}：${queued[i].displayName}',
-            );
-            await runFillPlanInline(
-              queued[i].plan!,
-              version,
-              onPhase: task.setPhase,
-              onProgress: (value) {
-                if (value != null) task.progress = value;
-              },
-              isCancelled: () => task.cancelToken.isCancelled,
-              cancelToken: task.cancelToken,
-            );
+            final item = modItems[i];
+            task.setPhase('补全模组 ${i + 1}/${queued.length}：${queued[i].displayName}');
+            task.updateQueueItem(item, running: true);
+            try {
+              await runFillPlanInline(
+                queued[i].plan!,
+                version,
+                onPhase: task.setPhase,
+                onProgress: (value) => task.updateQueueItem(item, progress: value),
+                isCancelled: () => task.cancelToken.isCancelled,
+                cancelToken: task.cancelToken,
+              );
+              task.updateQueueItem(item, done: true);
+            } on Object {
+              task.updateQueueItem(item, failed: true);
+              rethrow;
+            }
           }
           notes.add(describeFillOutcomes(outcomes));
         case CloudRestoreGapChoice.installGame:
@@ -474,9 +490,22 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           if (installTask == null) {
             notes.add(prep.failure ?? '装游戏版本失败');
           } else {
+            // 本体比单个模组重：权重 5 对 1，总体进度不会被一堆小模组稀释
+            final item = CloudTaskItem(
+              title: '游戏本体 ${gap.missingGame!.release}',
+              weight: 5,
+            );
+            task.addQueueItem(item);
             task.setPhase('下载游戏版本 ${gap.missingGame!.release}');
-            await _runSubtaskInline(installTask, task);
-            notes.add('已装游戏版本 ${gap.missingGame!.release}');
+            task.updateQueueItem(item, running: true);
+            try {
+              await _runSubtaskInline(installTask, task, item: item);
+              task.updateQueueItem(item, done: true);
+              notes.add('已装游戏版本 ${gap.missingGame!.release}');
+            } on Object {
+              task.updateQueueItem(item, failed: true);
+              rethrow;
+            }
           }
         case CloudRestoreGapChoice.later:
           return notes.join('；');
@@ -485,12 +514,18 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     return notes.join('；');
   }
 
-  /// 把子任务跑在云任务卡下面（进度转发、取消联动），不往抽屉里再塞一张卡
-  Future<void> _runSubtaskInline(Task subtask, CloudSyncTask parent) async {
+  /// 把子任务跑在云任务卡下面（进度转到队列项、取消联动），不往抽屉里再塞一张卡
+  Future<void> _runSubtaskInline(
+    Task subtask,
+    CloudSyncTask parent, {
+    CloudTaskItem? item,
+  }) async {
     final done = Completer<void>();
     void changed() {
       final value = subtask.progress;
-      if (value != null) parent.progress = value;
+      if (value != null && item != null) {
+        parent.updateQueueItem(item, progress: value);
+      }
       if (subtask.status == TaskStatus.completed ||
           subtask.status == TaskStatus.failed ||
           subtask.status == TaskStatus.cancel) {
@@ -509,6 +544,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       throw StateError('子任务没完成：${subtask.statusLabel ?? subtask.status.name}');
     }
   }
+
   /// 恢复报告压成一句话：落地几份、留了几份、拒了几份
   String _restoreSummary(CloudImportReport report) {
     final parts = <String>['写入 ${report.written.length} 份'];
