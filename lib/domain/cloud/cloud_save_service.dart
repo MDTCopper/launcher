@@ -7,6 +7,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
+import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -766,6 +767,7 @@ class CloudSaveService {
     );
     try {
       final extracted = await _extract(tempPath, version: version, mode: mode);
+      await _applyModStatesQuietly(version, extracted.manifest);
       return extracted.report;
     } finally {
       _deleteQuietly(tempPath);
@@ -806,6 +808,7 @@ class CloudSaveService {
         version: version,
         mode: CloudImportMode.overwrite,
       );
+      await _applyModStatesQuietly(version, extracted.manifest);
       _pruneBackups();
       // 落干净了才记「同步到这个快照」；有拒收说明本机与云上并不一致，别谎报
       if (extracted.report.rejected.isEmpty) {
@@ -1000,6 +1003,22 @@ class CloudSaveService {
       return tempPath;
     } finally {
       if (!verified) _deleteQuietly(tempPath);
+    }
+  }
+
+  /// 按云清单把模组的启用态落回本机；失败只记日志（别把整个恢复搞挂）
+  static Future<void> _applyModStatesQuietly(
+    Mindustry version,
+    CloudManifest manifest,
+  ) async {
+    try {
+      await applyModEnabledStates(dataPath: version.dataPath, manifest: manifest);
+    } on Object catch (error) {
+      addLog(
+        .warning,
+        '调整模组启用态失败：${removeNewlines('$error')}',
+        tag: 'Cloud',
+      );
     }
   }
 

@@ -417,6 +417,8 @@ Future<String?> _resolveRepoFullName(
 void _queue(ModFillPlan plan, Mindustry version) {
   final entry = plan.entry;
   final savePath = version.modsPath;
+  // 清单里的禁用态要跟着落地：下载任务按资产名存，装完再按 enabled 加 / 去 .disable
+  final enabled = plan.mod.enabled;
   switch (plan.kind) {
     case ModFillKind.java:
       addTask(
@@ -425,6 +427,7 @@ void _queue(ModFillPlan plan, Mindustry version) {
           modMeta: plan.release!,
           savePath: savePath,
           mainAssetIndex: plan.mainAssetIndex,
+          enabled: enabled,
         ),
       );
     case ModFillKind.zip:
@@ -434,6 +437,7 @@ void _queue(ModFillPlan plan, Mindustry version) {
           plan.release!,
           savePath,
           mainAssetIndex: plan.mainAssetIndex,
+          enabled: enabled,
         ),
       );
     case ModFillKind.source:
@@ -442,6 +446,7 @@ void _queue(ModFillPlan plan, Mindustry version) {
           modListMeta: entry,
           modMeta: plan.release,
           savePath: savePath,
+          enabled: enabled,
         ),
       );
   }

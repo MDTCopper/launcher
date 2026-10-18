@@ -19,6 +19,37 @@ import '../../util/format/byte_unit.dart';
 import '../task.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
+/// 按云清单的启用态给下载下来的模组文件加 / 去 `.disable` 后缀
+///
+/// 补全下载按**资产名**落盘（`Aquarion.jar`），而清单里禁用态记的是
+/// `Aquarion.jar.disable`；不还原后缀的话，装回来就变成启用态
+Future<File> applyModEnabledSuffix(File file, bool? enabled) async {
+  if (enabled == null) return file;
+  final name = p.basename(file.path);
+  final lower = name.toLowerCase();
+  final disabled = lower.endsWith('.disable') || lower.endsWith('.disabled');
+  if (enabled == !disabled) return file;
+
+  final targetName = enabled
+      ? _stripModDisabledSuffix(name)
+      : '$name.disable';
+  final target = File(p.join(p.dirname(file.path), targetName));
+  if (await target.exists() && target.path != file.path) return file;
+  await file.rename(target.path);
+  return target;
+}
+
+String _stripModDisabledSuffix(String name) {
+  final lower = name.toLowerCase();
+  for (final suffix in const ['.disabled', '.disable']) {
+    if (lower.endsWith(suffix)) {
+      return name.substring(0, name.length - suffix.length);
+    }
+  }
+  return name;
+}
+
+
 class JavaModDownloadTask extends Task {
   final ModOfficialListEntry modListMeta;
   final ModRelease modMeta;
@@ -40,9 +71,13 @@ class JavaModDownloadTask extends Task {
     required this.modMeta,
     required this.savePath,
     this.mainAssetIndex = 0,
+    this.enabled,
   }) {
     type = TaskType.download;
   }
+
+  /// 云清单记的启用态：给了就按它加 / 去 `.disable`（手动下载时为 null）
+  final bool? enabled;
 
   @override
   void cancel() {
@@ -104,15 +139,18 @@ class JavaModDownloadTask extends Task {
       final reader = await FileReader.fromPath(path);
       if (reader.mod == null) throw Exception('mod.json 解析失败');
 
+      file = await applyModEnabledSuffix(file, enabled);
+      final savedPath = file.path;
+
       status = TaskStatus.completed;
 
       NotificationManager.addNotice(
         icon: Icons.check_box_outlined,
         title: '下载完成',
-        content: '[$modTag] 下载完成，存储路径 [$path]',
+        content: '[$modTag] 下载完成，存储路径 [$savedPath]',
       );
       TaskLogManager.addLog(
-        LogEntry(LogType.info, '[$modTag] 下载完成，存储路径 [$path]'),
+        LogEntry(LogType.info, '[$modTag] 下载完成，存储路径 [$savedPath]'),
       );
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
@@ -294,9 +332,13 @@ class ZipModDownloadTask extends Task {
     this.modMeta,
     this.savePath, {
     this.mainAssetIndex = 0,
+    this.enabled,
   }) : assert(!modListMeta.hasJava, '下载模组只能为非Java') {
     type = TaskType.download;
   }
+
+  /// 云清单记的启用态：给了就按它加 / 去 `.disable`（手动下载时为 null）
+  final bool? enabled;
 
   void _updateProgress(int size, int total) {
     if (total != -1) {
@@ -377,6 +419,8 @@ class ZipModDownloadTask extends Task {
 
       final reader = await FileReader.fromPath(path);
       if (reader.mod == null) throw Exception('mod.json 解析失败');
+
+      file = await applyModEnabledSuffix(file, enabled);
 
       await _progressMoveTo100();
 
@@ -534,9 +578,13 @@ class SourceModDownloadTask extends Task {
     required this.modListMeta,
     required this.modMeta,
     required this.savePath,
+    this.enabled,
   }) {
     type = TaskType.download;
   }
+
+  /// 云清单记的启用态：给了就按它加 / 去 `.disable`（手动下载时为 null）
+  final bool? enabled;
 
   /// 找一个能下的源码归档分支：先探 `main` / `master`，再问仓库的默认分支
   ///
@@ -681,6 +729,8 @@ class SourceModDownloadTask extends Task {
           file = File(newPath);
         }
       }
+
+      file = await applyModEnabledSuffix(file, enabled);
 
       await _progressMoveTo100();
 
