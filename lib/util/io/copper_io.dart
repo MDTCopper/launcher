@@ -419,7 +419,6 @@ class CopperIO {
         //窗口很短、只在内存里，直连成功或改设置即清（见 GithubMirror.shouldSkipDirect）
         final mirror = GithubMirror.instance;
         if (mirror.enabled && mirror.shouldSkipDirect(url)) {
-          addLog(.debug, '直连最近失败过，这次先走镜像：$url', tag: 'Mirror');
           try {
             return await _sendViaMirror(url, send, preferRange: preferRange);
           } catch (e) {
@@ -567,7 +566,6 @@ class CopperIO {
     if (!mirror.enabled) throw StateError('镜像未启用');
 
     var ranked = mirror.freshRankedFor(url);
-    final isFromCache = ranked.isNotEmpty;
     if (ranked.isEmpty) {
       ranked = await mirror.rankFamilyFor(url, preferRange: preferRange);
     }
@@ -575,11 +573,6 @@ class CopperIO {
 
     Object? lastError;
     for (final prefix in ranked.take(_maxMirrorAttempts)) {
-      addLog(
-        .debug,
-        '镜像${isFromCache ? '用缓存' : '新测速'}：$prefix（目标 $url）',
-        tag: 'Mirror',
-      );
       try {
         final result = await send('$prefix$url');
         mirror.promoteMirror(url, prefix);
