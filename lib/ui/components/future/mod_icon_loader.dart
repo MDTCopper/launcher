@@ -7,7 +7,7 @@ import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
 
-/// 图标探测结果：把「确认没有图标」和「网络失败」分开
+/// 图标加载结果：把「确认没有图标」和「网络失败」分开
 ///
 /// 两者在 UI 上要给不同的占位，且**网络失败不能写入缺失缓存**——
 /// 否则一次网络抖动会把图标永久判定为缺失（直到重启）
@@ -36,7 +36,7 @@ class ModNetworkIcon extends StatefulWidget {
   final ModOfficialListEntry modMeta;
   final double size;
 
-  /// 探测中占位（默认转圈）
+  /// 载入中占位（默认转圈）
   final Widget? onWaiting;
 
   /// 该模组确实没有图标（候选地址全不存在）时的占位
@@ -59,12 +59,7 @@ class ModNetworkIcon extends StatefulWidget {
 }
 
 class _ModNetworkIconState extends State<ModNetworkIcon> {
-  /// 探测候选：分支 × 路径 × 后缀，命中第一个就停
-  static const _branchCandidates = ['main', 'master'];
-  static const _pathCandidates = ['icon', 'assets/icon'];
-  static const _formatCandidates = ['png', 'jpg', 'jpeg'];
-
-  /// 探测并加载图标的 Future，只建一次
+  /// 图标加载的 Future，只建一次
   late Future<ModIconResult> _iconFuture;
 
   @override
@@ -76,38 +71,28 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
   @override
   void didUpdateWidget(covariant ModNetworkIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 翻页 / 改筛选时同一位置的 element 会换到另一个 mod，得重新探测
+    // 翻页 / 改筛选时同一位置的 element 会换到另一个 mod，得重新加载
     if (oldWidget.modMeta != widget.modMeta) {
       _iconFuture = _loadIcon();
     }
   }
 
-  /// 候选图标地址（分支 × 路径 × 后缀）
-  Iterable<({String url, String branch})> _candidateUrls(String repoUrl) sync* {
-    for (final format in _formatCandidates) {
-      for (final branch in _branchCandidates) {
-        for (final path in _pathCandidates) {
-          yield (url: '$repoUrl/$branch/$path.$format', branch: branch);
-        }
-      }
-    }
-  }
-
-  /// 先探测地址（HEAD），再走 cio 拉字节——两步都成，才算 found
-  Future<ModIconResult> _loadIcon() async {
-    final probe = await _probeIcon();
-    if (probe.type != ModIconResultType.found) return probe;
-
-    final bytes = await _fetchBytes(probe.url!);
-    if (bytes == null) return const ModIconResult.networkError();
-    return ModIconResult.found(probe.url!, bytes);
-  }
-
-  /// 拉图标字节：**必须走 cio**（代理 / 镜像可达）
+  /// 取官方列表托管好的图标字节，给出三态结果
   ///
-  /// raw.githubusercontent.com 在部分网络（如广电）下直连不通，`Image.network`
-  /// 会直接失败——所以这里拿字节交给 `Image.memory`，与 README 图片同一套做法
-  Future<Uint8List?> _fetchBytes(String url) async {
+  /// 官方列表已经标好有没有图标、图标地址也固定，不必再逐分支逐路径 HEAD；
+  /// 字节仍**必须走 cio**（代理 / 镜像可达），raw 在部分网络下直连不通
+  Future<ModIconResult> _loadIcon() async {
+    final meta = widget.modMeta;
+
+    if (meta.iconMissingCache) return const ModIconResult.missing();
+    // 官方列表说没有图标就不发请求
+    if (meta.hasIcon == false) {
+      meta.iconMissingCache = true;
+      addLog(.debug, '图标缺失：${meta.repo}（官方列表无图标）', tag: 'ModIcon');
+      return const ModIconResult.missing();
+    }
+
+    final url = meta.iconUrlCache ?? meta.officialIconUrl;
     try {
       final res = await cio.get<Uint8List>(
         url,
@@ -115,64 +100,39 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
         responseType: ResponseType.bytes,
       );
       final data = res.data;
-      if (res.statusCode != 200 || data == null || data.isEmpty) {
-        addLog(.warning, '贴图响应异常（HTTP ${res.statusCode}）：$url', tag: 'ModIcon');
-        return null;
+      if (res.statusCode == 200 && data != null && data.isNotEmpty) {
+        meta.iconUrlCache = url;
+        addLog(.debug, '图标：${meta.repo}（官方列表）', tag: 'ModIcon');
+        return ModIconResult.found(url, data);
       }
-      return data;
-    } on DioException catch (e) {
       addLog(
         .warning,
-        '贴图加载失败：$url（${e.type.name}：${removeNewlines(e.message ?? '')}）',
+        '图标响应异常（HTTP ${res.statusCode}）：${meta.repo}',
         tag: 'ModIcon',
       );
-      return null;
-    } catch (e) {
-      addLog(.warning, '贴图加载失败：$url（${removeNewlines('$e')}）', tag: 'ModIcon');
-      return null;
-    }
-  }
-
-  Future<ModIconResult> _probeIcon() async {
-    final meta = widget.modMeta;
-
-    if (meta.iconUrlCache != null) {
-      return ModIconResult.found(meta.iconUrlCache!);
-    }
-    // 探过且确认没有图标：直接返回，别再跑一轮
-    if (meta.iconMissingCache) return const ModIconResult.missing();
-
-    final repoUrl = 'https://raw.githubusercontent.com/${meta.repo}';
-    addLog(.debug, '探测图标：${meta.repo}', tag: 'ModIcon');
-    for (final candidate in _candidateUrls(repoUrl)) {
-      try {
-        final res = await cio.head(candidate.url, headers: modDownloadHeaders);
-        if (res.statusCode == 200 || res.data != null) {
-          meta.iconUrlCache = candidate.url;
-          meta.mainBranchCache = candidate.branch;
-          addLog(.debug, '命中：${meta.repo} → ${candidate.url}', tag: 'ModIcon');
-          return ModIconResult.found(candidate.url);
-        }
-      } on DioException catch (e) {
-        // 网络类失败：不是「没有图标」，立即中止探测且**不写缺失缓存**
-        if (isNetworkFailure(e)) {
-          addLog(
-            .warning,
-            '探测网络失败：${meta.repo} @ ${candidate.url}'
-            '（${e.type.name}：${removeNewlines(e.message ?? '')}）',
-            tag: 'ModIcon',
-          );
-          return const ModIconResult.networkError();
-        }
-        // 404 等：该候选不存在，换下一个
-      } catch (_) {
-        // 其它异常同样按候选不存在处理
+      return const ModIconResult.networkError();
+    } on DioException catch (e) {
+      // 列表与图标文件不同步时按缺失处理；网络问题不写缺失缓存
+      if (e.response?.statusCode == 404) {
+        meta.iconMissingCache = true;
+        addLog(.debug, '图标缺失：${meta.repo}（官方图标文件不存在）', tag: 'ModIcon');
+        return const ModIconResult.missing();
       }
+      addLog(
+        .warning,
+        '图标加载失败：${meta.repo}'
+        '（${e.type.name}：${removeNewlines(e.message ?? '')}）',
+        tag: 'ModIcon',
+      );
+      return const ModIconResult.networkError();
+    } catch (e) {
+      addLog(
+        .warning,
+        '图标加载失败：${meta.repo}（${removeNewlines('$e')}）',
+        tag: 'ModIcon',
+      );
+      return const ModIconResult.networkError();
     }
-
-    meta.iconMissingCache = true;
-    addLog(.debug, '图标缺失：${meta.repo}（候选地址全部不存在）', tag: 'ModIcon');
-    return const ModIconResult.missing();
   }
 
   Widget _defaultPlaceholder(IconData icon, {Color? color}) => Icon(

@@ -57,6 +57,9 @@ const mindustryManifestBase = 'https://file.mdtbbs.cn';
 ///$githubRAW/Anuken/MindustryMods/master/mods.json
 const githubModMetaUrl = '$githubRAW/Anuken/MindustryMods/master/mods.json';
 
+///官方模组图标目录：文件名为 `<owner>_<repo名>`，没有扩展名
+const githubModIconBase = '$githubRAW/Anuken/MindustryMods/master/icons';
+
 ///$githubRAW/Anuken/MindustryMods/@{3months}/mods.json
 ///
 /// ref 用 GitHub 的相对时间写法 `@{3months}`，但在 raw 上**必须百分号编码**；

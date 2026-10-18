@@ -18,6 +18,7 @@ ModOfficialListEntry _$ModOfficialListEntryFromJson(
   hasScripts: json['hasScripts'] as bool,
   hasJava: json['hasJava'] as bool,
   description: json['description'] as String,
+  hasIcon: json['hasIcon'] as bool?,
 );
 
 Map<String, dynamic> _$ModOfficialListEntryToJson(
@@ -32,6 +33,7 @@ Map<String, dynamic> _$ModOfficialListEntryToJson(
   'hasScripts': instance.hasScripts,
   'hasJava': instance.hasJava,
   'description': instance.description,
+  'hasIcon': instance.hasIcon,
 };
 
 ModRelease _$ModReleaseFromJson(Map<String, dynamic> json) => ModRelease(
