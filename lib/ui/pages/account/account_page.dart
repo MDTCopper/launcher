@@ -51,6 +51,8 @@ class _AccountPageState extends State<AccountPage> {
   bool _busy = false;
   MdtbbsAccount? _account;
   CloudSaveQuota? _quota;
+  List<CloudSaveSlot> _slots = const [];
+  bool _loadingSlots = false;
 
   AccountManager get _accounts => AccountManager.instance;
 
@@ -58,7 +60,10 @@ class _AccountPageState extends State<AccountPage> {
   void initState() {
     super.initState();
     _loadIdentity();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAccount());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAccount();
+      _loadSlots();
+    });
   }
 
   @override
@@ -175,6 +180,7 @@ class _AccountPageState extends State<AccountPage> {
       await LauncherTray.instance.showMainWindow();
       addNotice(icon: Icons.check, title: '已登录 BBS');
       await _loadAccount();
+      await _loadSlots();
     } catch (error) {
       if (!mounted) return;
       addLog(.warning, 'BBS 登录失败：${removeNewlines('$error')}', tag: 'Account');
@@ -456,14 +462,10 @@ class _AccountPageState extends State<AccountPage> {
           children: [
             Text(
               '先在主页选一个游戏版本——云存档是按版本的数据目录来的；'
-              '新设备可以直接从云拉取（会顺带装好需要的版本）',
+              '也可以直接从下面账号下的槽位拉取（会顺带装好需要的版本）',
               style: theme.textTheme.bodyMedium,
             ),
-            IconTextButton(
-              icon: Icons.cloud_download_outlined,
-              content: '从云拉取',
-              onTap: _pullFromCloud,
-            ),
+            ..._buildSlotList(theme),
           ],
         ),
       );
@@ -497,20 +499,79 @@ class _AccountPageState extends State<AccountPage> {
               ),
             ),
           Text('上传 / 恢复在「版本设置 → 云存档」里', style: theme.textTheme.labelMedium),
-          IconTextButton(
-            icon: Icons.cloud_download_outlined,
-            content: '从云拉取',
-            onTap: _pullFromCloud,
-          ),
+          ..._buildSlotList(theme),
         ],
       ),
     );
   }
 
-  /// 从云拉取：把账号下所有槽位的 head 快照同步到本机
-  ///
-  /// 缺的游戏版本、缺的模组都静默补；补不回来的模组在完成后列成一张表
-  Future<void> _pullFromCloud() async {
+  /// 账号下的云端槽位：点哪个拉哪个
+  List<Widget> _buildSlotList(ThemeData theme) {
+    if (!_accounts.isLoggedIn) return const [];
+    if (_loadingSlots) return [const LinearProgressIndicator()];
+    if (_slots.isEmpty) {
+      return [
+        Text('账号下还没有云端存档', style: theme.textTheme.labelMedium),
+      ];
+    }
+    return [
+      Text('账号下的云端槽位', style: theme.textTheme.labelLarge),
+      for (final slot in _slots)
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    slot.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    slot.updatedAt == null
+                        ? '还没有快照'
+                        : '更新于 ${slot.updatedAt!.toLocal().toString().split('.').first}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            IconTextButton(
+              icon: Icons.cloud_download_outlined,
+              content: '拉取',
+              onTap: () => _pullSlot(slot),
+            ),
+          ],
+        ),
+    ];
+  }
+
+  Future<void> _loadSlots() async {
+    if (!_accounts.isLoggedIn) {
+      if (mounted) setState(() => _slots = const []);
+      return;
+    }
+    setState(() => _loadingSlots = true);
+    try {
+      final token = await _accounts.ensureAccessToken();
+      if (token == null) return;
+      final slots = await CloudSaveService.allSlots(accessToken: token);
+      if (!mounted) return;
+      setState(() => _slots = slots);
+    } on Object catch (error) {
+      addLog(
+        .warning,
+        '读取云端槽位失败：${removeNewlines('$error')}',
+        tag: 'Cloud',
+      );
+    } finally {
+      if (mounted) setState(() => _loadingSlots = false);
+    }
+  }
+
+  /// 拉取一个槽位：缺的版本与模组都静默补，补不回来的模组在完成后列成一张表
+  Future<void> _pullSlot(CloudSaveSlot slot) async {
     final token = await _accounts.ensureAccessToken();
     if (token == null) {
       addNotice(
@@ -521,7 +582,7 @@ class _AccountPageState extends State<AccountPage> {
       return;
     }
 
-    final task = CloudPullTask(accessToken: token);
+    final task = CloudPullTask(accessToken: token, slot: slot);
     addTask(task);
     await task.done;
     if (!mounted) return;
@@ -545,7 +606,9 @@ class _AccountPageState extends State<AccountPage> {
     if (task.missingMods.isNotEmpty) {
       await showMissingModsDialog(context, task.missingMods);
     }
+    await _loadSlots();
   }
+
 
   void _setCloudEnabled(Mindustry version, bool value) {
     if (value) {

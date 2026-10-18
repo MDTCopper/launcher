@@ -1,5 +1,6 @@
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
@@ -12,19 +13,20 @@ import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
 
-/// 从云拉取：把账号下所有槽位的 head 快照同步到本机
+/// 从云拉取**一个槽位**到本机
 ///
-/// 缺游戏版本时静默装；缺的模组也静默补，补不回来的记进 [missingMods]
+/// 缺游戏版本时静默装（默认隔离）；缺的模组也静默补，补不回来的记进 [missingMods]
 class CloudPullTask extends CloudSyncTask {
-  CloudPullTask({required this.accessToken})
+  CloudPullTask({required this.accessToken, required this.slot})
     : super(
         direction: CloudSyncDirection.download,
-        versionTag: '账号下所有存档',
-        idOverride: 'cloud_pull_all',
+        versionTag: slot.name,
+        idOverride: 'cloud_pull_${slot.id}',
         onRun: _run,
       );
 
   final String accessToken;
+  final CloudSaveSlot slot;
 
   /// 补不回来的模组：名字 + 原因，调用方在完成后列成一张表
   final List<({String name, String reason})> missingMods = [];
@@ -39,74 +41,56 @@ class CloudPullTask extends CloudSyncTask {
       (task as CloudPullTask).run();
 
   Future<String> run() async {
-    setPhase('读取云端槽位');
-    final slots = await CloudSaveService.allSlots(
-      accessToken: accessToken,
-      cancelToken: cancelToken,
-    );
-    if (slots.isEmpty) return '账号下没有云端存档';
+    final item = CloudTaskItem(title: slot.name);
+    addQueueItem(item);
+    setPhase('同步 ${slot.name}');
 
-    var synced = 0;
-    var installed = 0;
-    final failedSlots = <String>[];
-    for (final slot in slots) {
-      if (cancelToken.isCancelled) break;
-      final item = CloudTaskItem(title: slot.name);
-      addQueueItem(item);
-      setPhase('同步 ${slot.name}');
-
-      final release = CloudSaveService.releaseFromSlotName(slot.name);
-      var version = CloudSaveService.findInstalledVersion(release);
-      var installedNow = false;
+    final release = CloudSaveService.releaseFromSlotName(slot.name);
+    var version = CloudSaveService.findInstalledVersion(release);
+    var installedNow = false;
+    if (version == null) {
+      final install = await _prepareVersion(release);
+      if (install == null) {
+        updateQueueItem(item, failed: true);
+        return '版本装不上：$release';
+      }
+      bindQueueSubTask(item, install);
+      await install.startAsync();
+      version = CloudSaveService.findInstalledVersion(release);
       if (version == null) {
-        final install = await _prepareVersion(release);
-        if (install == null) {
-          failedSlots.add('${slot.name}：版本装不上');
-          updateQueueItem(item, failed: true);
-          continue;
-        }
-        bindQueueSubTask(item, install);
-        await install.startAsync();
-        version = CloudSaveService.findInstalledVersion(release);
-        if (version == null) {
-          failedSlots.add('${slot.name}：版本装完没找到');
-          updateQueueItem(item, failed: true);
-          continue;
-        }
-        installed++;
-        installedNow = true;
+        updateQueueItem(item, failed: true);
+        return '版本装完没找到：$release';
       }
-
-      CloudSaveService.bindSlot(version, slot.id);
-      final head = slot.currentSnapshotId;
-      if (head == null) {
-        updateQueueItem(item, done: true);
-        continue;
-      }
-      final report = await CloudSaveService.download(
-        accessToken: accessToken,
-        version: version,
-        slotId: slot.id,
-        snapshotId: head,
-        onStatus: (state) => updateQueueItem(item, progress: state.progress),
-        cancelToken: cancelToken,
-      );
-      if (installedNow) {
-        await _syncVersionTag(version, report.manifest.game.tag);
-      }
-      await applyModEnabledStates(
-        dataPath: version.dataPath,
-        manifest: report.manifest,
-      );
-      await _fillMods(version: version, report: report);
-      updateQueueItem(item, done: true);
-      synced++;
+      installedNow = true;
     }
 
-    final parts = ['同步 $synced 个存档'];
-    if (installed > 0) parts.add('新装 $installed 个版本');
+    CloudSaveService.bindSlot(version, slot.id);
+    final head = slot.currentSnapshotId;
+    if (head == null) {
+      updateQueueItem(item, done: true);
+      return '${slot.name} 还没有快照';
+    }
+    final report = await CloudSaveService.download(
+      accessToken: accessToken,
+      version: version,
+      slotId: slot.id,
+      snapshotId: head,
+      onStatus: (state) => updateQueueItem(item, progress: state.progress),
+      cancelToken: cancelToken,
+    );
+    if (installedNow) {
+      await _syncVersionTag(version, report.manifest.game.tag);
+    }
+    await applyModEnabledStates(
+      dataPath: version.dataPath,
+      manifest: report.manifest,
+    );
+    await _fillMods(version: version, report: report);
+    updateQueueItem(item, done: true);
+
+    final parts = ['已拉取 ${slot.name}'];
+    if (installedNow) parts.add('新装版本 ${version.tag}');
     if (missingMods.isNotEmpty) parts.add('${missingMods.length} 个模组没补回来');
-    if (failedSlots.isNotEmpty) parts.add('${failedSlots.length} 个槽位失败');
     return parts.join('，');
   }
 
@@ -160,7 +144,7 @@ class CloudPullTask extends CloudSyncTask {
   }
 
   /// 装出来的版本按发布号起名，云端清单记的却是原设备的 tag（`v8 Build 160.5`）；
-  /// 拉下来的新版本对齐云端那份，免得两边名字对不上
+  /// 本次新装的版本对齐云端那份，免得两边名字对不上
   Future<void> _syncVersionTag(Mindustry version, String cloudTag) async {
     final wanted = cloudTag.trim();
     if (wanted.isEmpty || wanted == version.tag) return;
