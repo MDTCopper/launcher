@@ -74,6 +74,9 @@ class MindustryDownloadTask extends Task {
   /// 选了就建 Copper 版本，省得下完再「换启动器新建」
   final LoaderChoice? loader;
 
+  /// 覆盖「游戏默认隔离设置」；云存档新建版本时强制隔离，避免共用数据目录
+  final bool? isolation;
+
   final CancelToken cancelToken = CancelToken();
   late File file;
 
@@ -95,6 +98,7 @@ class MindustryDownloadTask extends Task {
     required this.mindustryMeta,
     required this.tag,
     this.loader,
+    this.isolation,
     String? path,
     // CancelToken? cancelToken//外部取消token
   }) {
@@ -331,11 +335,13 @@ class MindustryDownloadTask extends Task {
       isBe: mindustryMeta.isBe,
       release: mindustryMeta.tag,
       loaderPath: loaderPath,
-      // 隔离与否取设置页的「游戏默认隔离设置」，不再写死
-      isolation: config.setting.launchOptions.isIsolatedByDefault(
-        isBe: mindustryMeta.isBe,
-        launcher: launcher,
-      ),
+      // 隔离与否取设置页的「游戏默认隔离设置」；云存档这类调用方能强制覆盖
+      isolation:
+          isolation ??
+          config.setting.launchOptions.isIsolatedByDefault(
+            isBe: mindustryMeta.isBe,
+            launcher: launcher,
+          ),
       versionNumber: versionNumber,
     );
 

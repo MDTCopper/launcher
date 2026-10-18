@@ -107,6 +107,8 @@ class CloudPullTask extends CloudSyncTask {
     setPhase('查找游戏版本 $release');
     final prep = await prepareGameVersion(
       game: CloudGameInfo(tag: release, release: release),
+      // 云拉下来的版本默认隔离：否则会落进官方默认数据目录，和别的版本共用
+      isolation: true,
     );
     return prep.task;
   }

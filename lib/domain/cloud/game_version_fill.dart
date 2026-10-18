@@ -48,6 +48,7 @@ Future<GameVersionPrep> prepareGameVersion({
   required CloudGameInfo game,
   Map<String, String> headers = _defaultHeaders,
   void Function(String status)? onStatus,
+  bool? isolation,
 }) async {
   onStatus?.call('读取游戏本体版本列表');
   final releases = await _loadReleases(headers);
@@ -60,7 +61,11 @@ Future<GameVersionPrep> prepareGameVersion({
     return const GameVersionPrep(failure: '版本列表里没有这个版本（可能太旧）');
   }
   return GameVersionPrep(
-    task: MindustryDownloadTask(mindustryMeta: release, tag: release.tag),
+    task: MindustryDownloadTask(
+      mindustryMeta: release,
+      tag: release.tag,
+      isolation: isolation,
+    ),
   );
 }
 
@@ -139,11 +144,13 @@ Future<String?> installGameVersion({
   required CloudGameInfo game,
   Map<String, String> headers = _defaultHeaders,
   void Function(String status)? onStatus,
+  bool? isolation,
 }) async {
   final prep = await prepareGameVersion(
     game: game,
     headers: headers,
     onStatus: onStatus,
+    isolation: isolation,
   );
   final task = prep.task;
   if (task == null) return prep.failure;
