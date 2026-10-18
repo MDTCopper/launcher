@@ -1,4 +1,3 @@
-import 'package:copper_launcher/data/net/github_release.dart';
 import 'package:copper_launcher/data/net/mod/mod_release.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 
@@ -142,16 +141,20 @@ ModFillDecision decideModFill({
 
   final wanted = _meaningfulVersion(mod.version);
   if (wanted.isNotEmpty) {
-    for (final release in ordered) {
-      if (!_mentionsVersion(release, wanted)) continue;
-      final matched = _planFor(
-        mod: mod,
-        entry: entry,
-        release: release,
-        extension: extension,
-        versionMatched: true,
-      );
-      if (matched != null) return ModFillDecision.plan(matched);
+    // 先找完全对得上的 tag / 名字，再放宽到「数字版本前缀一致」；
+    // 两级都找不到才退回最新版（见下面的循环）
+    for (final rank in const [2, 1]) {
+      for (final release in ordered) {
+        if (_versionMatchRank(release, wanted) != rank) continue;
+        final matched = _planFor(
+          mod: mod,
+          entry: entry,
+          release: release,
+          extension: extension,
+          versionMatched: true,
+        );
+        if (matched != null) return ModFillDecision.plan(matched);
+      }
     }
   }
 
@@ -211,8 +214,43 @@ ModFillPlan? _planFor({
 }
 
 /// release 的 tag 或名字里有没有提到这个版本号（`1.2.3` / `v1.2.3` / `Release 1.2.3` 都算）
-bool _mentionsVersion(GithubApiRelease release, String version) {
-  final tag = release.tag.trim().toLowerCase();
-  final name = release.name.trim().toLowerCase();
-  return tag.contains(version) || name.contains(version);
+/// 这个 release 的 tag / 名字与清单版本对到几成：2 = 完全一致，1 = 数字版本前缀一致，0 = 对不上
+///
+/// mod.hjson 里的 `version` 和 GitHub 的 tag 经常不是同一个写法（`3.0` vs `v3.0`、
+/// `3.0.1`、`Aquarion-3.0-beta`），所以不直接比字符串：
+/// 先看「去不区分大小写的完全相同（允许前面多个 `v`）」，再比数字版本核的前缀。
+/// 数字核比较能避开 `3.0` 命中 `13.0.2` 这种字面包含误判
+int _versionMatchRank(ModRelease release, String wanted) {
+  final target = wanted.trim().toLowerCase();
+  if (target.isEmpty) return 0;
+  final wantedCore = _numericCore(target);
+
+  for (final raw in [release.tag, release.name]) {
+    final text = raw.trim().toLowerCase();
+    if (text.isEmpty) continue;
+    if (text == target || text == 'v$target') return 2;
+    if (wantedCore == null) continue;
+    final core = _numericCore(text);
+    if (core == null) continue;
+    if (_coreIsPrefix(core, wantedCore) || _coreIsPrefix(wantedCore, core)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/// 版本号里的数字核：`v3.0.1-beta` → `[3, 0, 1]`
+List<int>? _numericCore(String text) {
+  final match = RegExp(r'\d+(?:\.\d+)*').firstMatch(text);
+  if (match == null) return null;
+  return [for (final part in match.group(0)!.split('.')) int.parse(part)];
+}
+
+/// 一个数字核是不是另一个的前缀（`[3,0]` 与 `[3,0,1]` 视为同一版的不同写法）
+bool _coreIsPrefix(List<int> base, List<int> longer) {
+  if (base.length > longer.length) return false;
+  for (var i = 0; i < base.length; i++) {
+    if (base[i] != longer[i]) return false;
+  }
+  return true;
 }
