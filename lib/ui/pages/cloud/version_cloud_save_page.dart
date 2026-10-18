@@ -56,6 +56,23 @@ class VersionCloudSavePage extends StatefulWidget {
   State<VersionCloudSavePage> createState() => _VersionCloudSavePageState();
 }
 
+/// 这份数据目录上次拉到的状态：再进页面先用它渲染，再后台刷新
+class _CloudPageCacheEntry {
+  _CloudPageCacheEntry({
+    required this.slot,
+    required this.snapshots,
+    required this.estimate,
+    required this.quota,
+  });
+
+  final CloudSaveSlot? slot;
+  final List<CloudSaveSnapshot> snapshots;
+  final CloudUploadEstimate? estimate;
+  final CloudSaveQuota? quota;
+}
+
+final Map<String, _CloudPageCacheEntry> _cloudPageCache = {};
+
 class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   CloudSaveSlot? _slot;
   List<CloudSaveSnapshot> _snapshots = const [];
@@ -96,10 +113,24 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       return;
     }
 
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final version = _selectedVersion;
+    final cacheKey = version?.dataPath;
+    final cached = cacheKey == null ? null : _cloudPageCache[cacheKey];
+    if (cached != null) {
+      setState(() {
+        _slot = cached.slot;
+        _snapshots = cached.snapshots;
+        _estimate = cached.estimate;
+        _quota = cached.quota;
+        _loading = false;
+        _error = null;
+      });
+    } else {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
 
     try {
       await _accounts.ensureRestored();
@@ -150,6 +181,14 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       }
 
       if (!mounted) return;
+      if (cacheKey != null) {
+        _cloudPageCache[cacheKey] = _CloudPageCacheEntry(
+          slot: slot,
+          snapshots: snapshots,
+          estimate: estimate,
+          quota: quota,
+        );
+      }
       setState(() {
         _loading = false;
         _slot = slot;
@@ -159,12 +198,22 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       });
     } on MdtbbsException catch (error) {
       if (!mounted) return;
+      if (cached != null) {
+        addLog(.warning, '刷新云存档状态失败：$error', tag: 'Cloud');
+        setState(() => _loading = false);
+        return;
+      }
       setState(() {
         _loading = false;
         _error = error.toString();
       });
     } catch (error) {
       if (!mounted) return;
+      if (cached != null) {
+        addLog(.warning, '刷新云存档状态失败：$error', tag: 'Cloud');
+        setState(() => _loading = false);
+        return;
+      }
       setState(() {
         _loading = false;
         _error = removeNewlines('$error');

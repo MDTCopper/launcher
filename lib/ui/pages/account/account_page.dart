@@ -44,6 +44,9 @@ class AccountPage extends StatefulWidget {
 }
 
 class _AccountPageState extends State<AccountPage> {
+  /// 账号下的槽位列表：再进页面先用上次的，再后台刷新
+  static List<CloudSaveSlot>? _cachedSlots;
+
   final _nameController = TextEditingController();
 
   int _color = defaultPlayerColor;
@@ -552,12 +555,17 @@ class _AccountPageState extends State<AccountPage> {
       if (mounted) setState(() => _slots = const []);
       return;
     }
+    final cached = _cachedSlots;
+    if (cached != null && mounted) {
+      setState(() => _slots = cached);
+    }
     setState(() => _loadingSlots = true);
     try {
       final token = await _accounts.ensureAccessToken();
       if (token == null) return;
       final slots = await CloudSaveService.allSlots(accessToken: token);
       if (!mounted) return;
+      _cachedSlots = slots;
       setState(() => _slots = slots);
     } on Object catch (error) {
       addLog(
