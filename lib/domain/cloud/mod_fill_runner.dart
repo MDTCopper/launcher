@@ -438,13 +438,18 @@ void _queue(ModFillPlan plan, Mindustry version) {
   final asset = release == null || plan.mainAssetIndex >= release.assets.length
       ? null
       : release.assets[plan.mainAssetIndex];
+  final manifestVersion = (plan.mod.version ?? '').trim();
+  final sourceNote = plan.kind == ModFillKind.source
+      ? '源码按默认分支取最新${manifestVersion.isEmpty ? '' : '（清单版本 $manifestVersion）'}'
+      : plan.versionMatched
+      ? '与清单版本一致'
+      : '用最新版本${manifestVersion.isEmpty ? '' : '（清单版本 $manifestVersion 对不上）'}';
   addLogAndPrint(
     .info,
     '补全模组：${CloudRestoreGap.displayNameOf(plan.mod)} ← ${entry.repo}'
     '（${plan.kind.name}，${release?.tag ?? '源码'}'
     '${asset == null ? '' : ' / ${asset.name}（${formatBytes(asset.size)}）'}'
-    '${plan.versionMatched ? '，与清单版本一致' : '，用最新版本'}）'
-    ' → ${plan.fileName}',
+    '，$sourceNote）→ ${plan.fileName}',
     tag: 'Cloud',
   );
 }

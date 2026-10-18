@@ -140,7 +140,7 @@ ModFillDecision decideModFill({
   final extension = entry.hasJava ? '.jar' : '.zip';
   final ordered = releases.toList();
 
-  final wanted = (mod.version ?? '').trim().toLowerCase();
+  final wanted = _meaningfulVersion(mod.version);
   if (wanted.isNotEmpty) {
     for (final release in ordered) {
       if (!_mentionsVersion(release, wanted)) continue;
@@ -174,6 +174,19 @@ ModFillDecision decideModFill({
   return ModFillDecision.plan(
     ModFillPlan(mod: mod, entry: entry, kind: ModFillKind.source),
   );
+}
+
+/// 清单里记的版本号能不能拿来对 release
+///
+/// 很多模组在 `mod.hjson` 里写 `version: "0"`（作者没填），这种当成没记 ——
+/// 不然 `tag.contains("0")` 会误中 `4.0.2` 这种版本
+String _meaningfulVersion(String? version) {
+  final raw = (version ?? '').trim().toLowerCase();
+  if (raw.isEmpty) return '';
+  final normalized = raw.replaceAll(RegExp(r'[^0-9a-z.]'), '');
+  if (normalized.isEmpty) return '';
+  if (RegExp(r'^0+(\.0+)*$').hasMatch(normalized)) return '';
+  return raw;
 }
 
 ModFillPlan? _planFor({
