@@ -5,7 +5,6 @@ import 'package:copper_launcher/domain/mdtbbs/mdtbbs_error_text.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_friends_state.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/io/log.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// 好友、待处理请求与在线状态的**唯一状态源**

@@ -4,6 +4,8 @@
 /// 只能原样传回**；除好友用户 ID 外不要自行解析，也不要提交由服务端决定的字段
 /// （`user_id` / `client_id` / 对端 `role` 等）。
 
+library;
+
 /// `GET /multiplayer/capabilities`
 ///
 /// 展示任何联机入口前**必须**先核对这四个布尔与顶层 `multiplayer` 能力标志

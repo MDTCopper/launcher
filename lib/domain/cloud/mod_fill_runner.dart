@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/mod_version_gate.dart';
-import 'package:copper_launcher/data/net/mod/mod_release.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill.dart';

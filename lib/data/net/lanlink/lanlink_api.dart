@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:copper_launcher/data/net/lanlink/lanlink_models.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
-import 'package:dio/dio.dart';
 
 /// LanLink 控制面调用的失败
 ///

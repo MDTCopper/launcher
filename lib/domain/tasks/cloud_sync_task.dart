@@ -5,7 +5,6 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 /// 同步方向（决定卡片标题与图标）

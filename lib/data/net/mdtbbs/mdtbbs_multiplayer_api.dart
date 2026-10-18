@@ -192,7 +192,7 @@ class MdtbbsMultiplayerApi {
         if (joinCode != null && joinCode.isNotEmpty) 'join_code': joinCode,
         if (resumeToken != null && resumeToken.isNotEmpty)
           'resume_token': resumeToken,
-        if (capabilities != null) 'capabilities': capabilities,
+        'capabilities': ?capabilities,
       },
       accessToken: accessToken,
       cancelToken: cancelToken,
