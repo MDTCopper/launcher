@@ -264,21 +264,32 @@ Future<List<ModFillOutcome>> planModFills({
 
     final plan = decision.plan!;
     if (_compatible(plan.entry, version) == false) {
+      // 官方列表的 minGameVersion 是**最新那版**的要求；清单记的是当时装的那一版。
+      // 版本对得上时按当时的版本装（那版本来就在这个游戏版本上跑过），只提示一句；
+      // 只有「拿不准是不是同一版」才拦下
+      if (!plan.versionMatched) {
+        addLogAndPrint(
+          .warning,
+          '补全模组：$label 要求游戏 ${plan.entry.minGameVersion}+，'
+          '本机是 ${version.release}，跳过',
+          tag: 'Cloud',
+        );
+        outcomes.add(
+          ModFillOutcome(
+            mod: mod,
+            status: ModFillStatus.incompatible,
+            plan: plan,
+            detail: '它要求游戏 ${plan.entry.minGameVersion}+，本机是 ${version.release}',
+          ),
+        );
+        continue;
+      }
       addLogAndPrint(
         .warning,
-        '补全模组：$label 要求游戏 ${plan.entry.minGameVersion}+，'
-        '本机是 ${version.release}，跳过',
+        '补全模组：$label 的最新版要求 ${plan.entry.minGameVersion}+（本机 ${version.release}），'
+        '但清单记的就是 ${plan.release?.tag ?? '这一版'}，按当时那版装',
         tag: 'Cloud',
       );
-      outcomes.add(
-        ModFillOutcome(
-          mod: mod,
-          status: ModFillStatus.incompatible,
-          plan: plan,
-          detail: '它要求游戏 ${plan.entry.minGameVersion}+，本机是 ${version.release}',
-        ),
-      );
-      continue;
     }
     outcomes.add(
       ModFillOutcome(mod: mod, status: ModFillStatus.queued, plan: plan),
