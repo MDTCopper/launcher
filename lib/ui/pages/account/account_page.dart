@@ -490,8 +490,11 @@ class _AccountPageState extends State<AccountPage> {
           Text('当前版本：${version.tag}', style: theme.textTheme.labelMedium),
           if (shared > 0)
             Text(
-              '这个版本与其他 $shared 个版本共用数据目录，开关是这份目录的',
-              style: theme.textTheme.labelMedium,
+              '这个版本与其他 $shared 个版本共用数据目录，云存档已禁用（会互相覆盖）；'
+              '要同步先给版本开隔离数据目录',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
             ),
           Text('上传 / 恢复在「版本设置 → 云存档」里', style: theme.textTheme.labelMedium),
           IconTextButton(
@@ -545,6 +548,17 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   void _setCloudEnabled(Mindustry version, bool value) {
+    if (value) {
+      final reason = CloudSaveService.sharedDataPathReason(version);
+      if (reason != null) {
+        addNotice(
+          icon: Icons.warning_amber_outlined,
+          title: '不能开云存档',
+          content: reason,
+        );
+        return;
+      }
+    }
     CloudSaveService.setEnabled(version, value);
     setState(() {});
     addLog(

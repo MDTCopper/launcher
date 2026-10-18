@@ -534,6 +534,8 @@ class CloudSaveService {
     ProgressCallback? onSendProgress,
     CancelToken? cancelToken,
   }) async {
+    final shared = sharedDataPathReason(version);
+    if (shared != null) throw StateError(shared);
     final name = deviceName ?? CloudSaveService.deviceName;
     onStatus?.call('查云端槽位');
     final slot = await resolveSlot(
@@ -821,6 +823,8 @@ class CloudSaveService {
     HttpStatusCallback? onStatus,
     CancelToken? cancelToken,
   }) async {
+    final shared = sharedDataPathReason(version);
+    if (shared != null) throw StateError(shared);
     final tempPath = await _fetchSnapshot(
       accessToken: accessToken,
       slotId: slotId,
@@ -852,6 +856,8 @@ class CloudSaveService {
     HttpStatusCallback? onProgress,
     CancelToken? cancelToken,
   }) async {
+    final shared = sharedDataPathReason(version);
+    if (shared != null) throw StateError(shared);
     onStatus?.call('备份本机存档');
     final backup = await _backupForRestore(version);
 
@@ -1214,6 +1220,7 @@ class CloudSaveService {
   ///
   /// 没记过就是没开；上传过一次会由 [_bind] 顺手把它标成开（用户既然传了，就是在用它）
   static bool isEnabled(Mindustry version) =>
+      sharedDataPathReason(version) == null &&
       _loadEnabled().contains(_normalize(version.dataPath));
 
   /// 开关：只动这份清单，槽位绑定与「上次同步到哪儿」一个不碰
@@ -1237,6 +1244,19 @@ class CloudSaveService {
       if (_normalize(other.dataPath) == path) count++;
     }
     return count;
+  }
+
+  /// 这份数据目录被多个版本共用时，云存档分不清是谁的、会互相覆盖
+  ///
+  /// 返回给人看的原因；没共用返回 null
+  static String? sharedDataPathReason(Mindustry version) {
+    final versions = config.versionOptions.versionFolds.expand(
+      (fold) => fold.versions,
+    );
+    final count = versionsSharingDataPath(version, versions);
+    if (count <= 1) return null;
+    return '这份数据目录被 $count 个版本共用，云存档会互相覆盖；'
+        '先给这个版本开隔离数据目录';
   }
 
   /// 这个数据目录上次同步到哪儿；没记过给 null
