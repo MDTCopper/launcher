@@ -86,7 +86,6 @@ class _ActionButtonState extends State<ActionButton>
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final backgroundColor =
         widget.backgroundColor ?? colors.highBackgroundOnCard;
     final enabled = widget.enable;

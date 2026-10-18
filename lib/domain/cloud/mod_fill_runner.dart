@@ -344,7 +344,7 @@ Future<List<ModFillOutcome>> fillMissingMods({
       for (final item in raw)
         ModOfficialListEntry.fromJson((item as Map).cast<String, dynamic>()),
     ];
-    // 官方列表带 `internalName`（2026-10 起），没写 `repo` 的模组靠它对回仓库
+    // 官方列表带 `internalName`，没写 `repo` 的模组靠它对回仓库
     for (final item in raw) {
       final map = (item as Map).cast<String, dynamic>();
       final internal = '${map['internalName'] ?? ''}'.trim().toLowerCase();

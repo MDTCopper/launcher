@@ -24,7 +24,6 @@ import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
-import 'package:copper_launcher/ui/components/percent_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/tips/warning_bar.dart';
@@ -67,7 +66,6 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   String? _busy;
 
   /// 上传进度 0–1
-  double _busyProgress = 0;
 
   /// 这次操作哪个版本：路由参数（版本设置里带过来的那份）优先
   Mindustry? get _selectedVersion =>
@@ -203,7 +201,6 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   }) async {
     setState(() {
       _busy = '准备上传…';
-      _busyProgress = 0;
     });
 
     try {
@@ -295,8 +292,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       if (mounted) {
         setState(() {
           _busy = null;
-          _busyProgress = 0;
-        });
+            });
       }
     }
   }
@@ -415,7 +411,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
 
   /// 恢复完在**同一张任务卡**里处理缺口：逐件问「补模组 / 装游戏版本」
   ///
-  /// 补全的下载不另起任务卡（用户 2026-10-18 定的口径），进度直接反馈到这张卡上
+  /// 补全的下载不另起任务卡，进度直接反馈到这张卡上
   Future<String> _handleRestoreGapInsideTask({
     required CloudImportReport report,
     required Mindustry version,
@@ -492,7 +488,6 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             task.setPhase('补全模组 ${i + 1}/${queued.length}：${queued[i].displayName}');
             final subtask = buildFillTask(queued[i].plan!, version);
             task.bindQueueSubTask(item, subtask);
-            task.updateQueueItem(item, running: true);
             await subtask.startAsync();
             if (subtask.status != TaskStatus.completed) {
               throw StateError(
@@ -521,7 +516,6 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
                 );
             if (gamePlaceholder == null) task.addQueueItem(item);
             task.setPhase('下载游戏版本 ${gap.missingGame!.release}');
-            task.updateQueueItem(item, running: true);
             task.bindQueueSubTask(item, installTask);
             await installTask.startAsync();
             if (installTask.status != TaskStatus.completed) {
@@ -886,13 +880,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
                 color: colors.itemSecondary,
               ),
             ),
-          if (_buildBudgetLine(context) case final budget?) budget,
-          if (_busy != null && _busyProgress > 0) ...[
-            PercentBar(
-              total: 1,
-              dataList: [PercentBarData(value: _busyProgress)],
-            ),
-          ],
+          ?_buildBudgetLine(context),
           Row(
             spacing: 8,
             children: [

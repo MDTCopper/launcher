@@ -22,7 +22,6 @@ class CloudTaskItem {
   double progress = 0;
   bool done = false;
   bool failed = false;
-  bool running = false;
 }
 
 /// 一次云存档自动同步（退出后上传 / 启动前恢复）的任务卡片
@@ -90,7 +89,6 @@ class CloudSyncTask extends Task {
     double? progress,
     bool? done,
     bool? failed,
-    bool? running,
   }) {
     if (progress != null) item.progress = progress.clamp(0.0, 1.0);
     if (done != null) {
@@ -98,7 +96,6 @@ class CloudSyncTask extends Task {
       if (done) item.progress = 1;
     }
     if (failed != null) item.failed = failed;
-    if (running != null) item.running = running;
     _recomputeOverall();
     updateDisplay();
   }
