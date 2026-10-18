@@ -5,7 +5,13 @@ import 'package:copper_launcher/data/mindustry/player_colors.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
+import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
+import 'package:copper_launcher/domain/cloud/game_version_fill.dart';
+import 'package:copper_launcher/domain/task.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -442,9 +448,21 @@ class _AccountPageState extends State<AccountPage> {
     if (version == null) {
       return ContentPanelModule(
         title: '云存档',
-        child: Text(
-          '先在主页选一个游戏版本——云存档是按版本的数据目录来的',
-          style: theme.textTheme.bodyMedium,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 8,
+          children: [
+            Text(
+              '先在主页选一个游戏版本——云存档是按版本的数据目录来的；'
+              '新设备可以直接从云拉取（会顺带装好需要的版本）',
+              style: theme.textTheme.bodyMedium,
+            ),
+            IconTextButton(
+              icon: Icons.cloud_download_outlined,
+              content: '从云拉取',
+              onTap: _pullFromCloud,
+            ),
+          ],
         ),
       );
     }
@@ -474,8 +492,125 @@ class _AccountPageState extends State<AccountPage> {
               style: theme.textTheme.labelMedium,
             ),
           Text('上传 / 恢复在「版本设置 → 云存档」里', style: theme.textTheme.labelMedium),
+          IconTextButton(
+            icon: Icons.cloud_download_outlined,
+            content: '从云拉取',
+            onTap: _pullFromCloud,
+          ),
         ],
       ),
+    );
+  }
+
+  /// 从云拉取：把账号下所有槽位的 head 快照同步到本机
+  ///
+  /// 本机没有对应版本时静默装一个；既问用户也不补模组，只在完成时报一句
+  Future<void> _pullFromCloud() async {
+    final token = await _accounts.ensureAccessToken();
+    if (token == null) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '先登录 BBS',
+        content: '从云拉取需要登录',
+      );
+      return;
+    }
+
+    final task = CloudSyncTask(
+      direction: CloudSyncDirection.download,
+      versionTag: '全部云存档',
+      idOverride: 'cloud_pull_all',
+      onRun: (task) async {
+        task.setPhase('读取云端槽位');
+        final slots = await CloudSaveService.allSlots(
+          accessToken: token,
+          cancelToken: task.cancelToken,
+        );
+        if (slots.isEmpty) return '账号下没有云端存档';
+
+        var synced = 0;
+        var installed = 0;
+        final failed = <String>[];
+        for (final slot in slots) {
+          if (task.cancelToken.isCancelled) break;
+          final item = CloudTaskItem(title: slot.name);
+          task.addQueueItem(item);
+          task.setPhase('同步 ${slot.name}');
+
+          final release = CloudSaveService.releaseFromSlotName(slot.name);
+          var version = CloudSaveService.findInstalledVersion(release);
+          if (version == null) {
+            final prep = await prepareGameVersion(
+              game: CloudGameInfo(tag: release, release: release),
+            );
+            final install = prep.task;
+            if (install == null) {
+              failed.add('${slot.name}：${prep.failure}');
+              task.updateQueueItem(item, failed: true);
+              continue;
+            }
+            task.bindQueueSubTask(item, install);
+            await install.startAsync();
+            version = CloudSaveService.findInstalledVersion(release);
+            if (version == null) {
+              failed.add('${slot.name}：版本装完没找到');
+              task.updateQueueItem(item, failed: true);
+              continue;
+            }
+            installed++;
+          }
+
+          CloudSaveService.bindSlot(version, slot.id);
+          final head = slot.currentSnapshotId;
+          if (head == null) {
+            task.updateQueueItem(item, done: true);
+            continue;
+          }
+          final report = await CloudSaveService.download(
+            accessToken: token,
+            version: version,
+            slotId: slot.id,
+            snapshotId: head,
+            onStatus: (state) =>
+                task.updateQueueItem(item, progress: state.progress),
+            cancelToken: task.cancelToken,
+          );
+          await applyModEnabledStates(
+            dataPath: version.dataPath,
+            manifest: report.manifest,
+          );
+          task.updateQueueItem(item, done: true);
+          synced++;
+        }
+
+        final parts = ['同步 $synced 个存档'];
+        if (installed > 0) parts.add('新装 $installed 个版本');
+        if (failed.isNotEmpty) {
+          parts.add('${failed.length} 个失败：${failed.first}');
+        }
+        return parts.join('，');
+      },
+    );
+
+    addTask(task);
+    await task.done;
+    if (!mounted) return;
+    if (task.status == TaskStatus.cancel) {
+      addNotice(icon: Icons.close, title: '已取消从云拉取');
+      return;
+    }
+    if (task.error != null) {
+      addNotice(
+        icon: Icons.error_outline,
+        title: '从云拉取失败',
+        content: removeNewlines('${task.error}'),
+      );
+      return;
+    }
+    addNotice(
+      icon: Icons.cloud_download_outlined,
+      title: '从云拉取完成',
+      content: task.result ?? '',
     );
   }
 

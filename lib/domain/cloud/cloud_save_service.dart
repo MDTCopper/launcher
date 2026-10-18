@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_cloud_save_api.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
@@ -404,6 +405,49 @@ class CloudSaveService {
       }
     }
     return null;
+  }
+
+  /// 账号下所有槽位（把分页拉全）
+  static Future<List<CloudSaveSlot>> allSlots({
+    required String accessToken,
+    CancelToken? cancelToken,
+  }) async {
+    final slots = <CloudSaveSlot>[];
+    String? cursor;
+    do {
+      final page = await MdtbbsCloudSaveApi.listSlots(
+        accessToken: accessToken,
+        cursor: cursor,
+        cancelToken: cancelToken,
+      );
+      slots.addAll(page.slots);
+      cursor = page.nextCursor;
+    } while (cursor != null && cursor.isNotEmpty);
+    return slots;
+  }
+
+  /// 把版本的数据目录绑到指定槽位
+  static void bindSlot(Mindustry version, String slotId) =>
+      _bind(_normalize(version.dataPath), slotId);
+
+  /// 按发布号或 tag 找本机已有的版本
+  static Mindustry? findInstalledVersion(String releaseOrTag) {
+    final wanted = releaseOrTag.trim();
+    if (wanted.isEmpty) return null;
+    for (final fold in config.versionOptions.versionFolds) {
+      for (final version in fold.versions) {
+        if (version.release.trim() == wanted || version.tag.trim() == wanted) {
+          return version;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// 槽位名里的发布号：`设备名 · v160.5`，设备名自带分隔时取最后一段
+  static String releaseFromSlotName(String name) {
+    final index = name.lastIndexOf(' · ');
+    return (index < 0 ? name : name.substring(index + 3)).trim();
   }
 
   /// 找（或建）这个版本的数据目录对应的云端槽位

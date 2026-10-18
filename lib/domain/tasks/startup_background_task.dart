@@ -5,7 +5,6 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/mindustry_body.dart';
 import 'package:copper_launcher/data/mod_version_gate.dart';
-import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/animation/eased_progress_bar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -40,7 +39,7 @@ class StartupBackgroundTask extends Task {
   final bool _includeJavaCheck = isDesktop;
 
   ///总步骤数，每完成一步进度前进一步
-  int get _totalSteps => _includeJavaCheck ? 6 : 5;
+  int get _totalSteps => _includeJavaCheck ? 4 : 3;
 
   StartupBackgroundTask() {
     progress = 0.0;
@@ -63,20 +62,11 @@ class StartupBackgroundTask extends Task {
     }
     await _runStep('正在检查游戏文件', _checkAndPromptGameIssues);
     if (_shouldStop) return;
-    await _runStep('正在检查云存档', _checkCloudSave);
-    if (_shouldStop) return;
 
     describe = '后台校验完成';
     progress = 1.0;
     status = TaskStatus.completed;
     updateDisplay();
-  }
-
-  /// 启动后检查一次**当前选中版本**的云存档（只查不改：需要处理的给一条通知）
-  Future<void> _checkCloudSave() async {
-    final version = config.versionOptions.selectedVersion;
-    if (version == null) return;
-    await CloudAutoSync.check(version);
   }
 
   ///执行单个步骤：先更新描述，完成后折算进度
