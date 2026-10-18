@@ -410,8 +410,12 @@ class CopperIO {
           //镜像拿到真实 HTTP 响应（404 等）就原样抛出，别再回退直连：
           //否则「资源不存在」会被伪装成连接错误，且直连 raw 在部分网络注定失败
           if (e is DioException && !isTransportFailure(e)) rethrow;
-          //镜像不可用 / 无可用节点 → 回退官方源兜底
-          return send(url);
+          //镜像不可用 / 无可用节点 → 回退官方源兜底；直连也没成时把镜像那半带进消息
+          try {
+            return await send(url);
+          } catch (directError) {
+            throw combineRouteFailure(directError, e);
+          }
         }
 
       case MirrorStrategy.githubFirst:
@@ -452,7 +456,15 @@ class CopperIO {
             '改走镜像：$url',
             tag: 'Mirror',
           );
-          return _sendViaMirror(url, send, preferRange: preferRange);
+          try {
+            return await _sendViaMirror(url, send, preferRange: preferRange);
+          } catch (mirrorError) {
+            //镜像拿到真实答复（404 等）照旧原样抛；两边都不通时合成一条，别只留镜像那半
+            if (mirrorError is DioException && !isTransportFailure(mirrorError)) {
+              rethrow;
+            }
+            throw combineRouteFailure(e, mirrorError);
+          }
         }
     }
   }
@@ -569,9 +581,18 @@ class CopperIO {
     if (ranked.isEmpty) {
       ranked = await mirror.rankFamilyFor(url, preferRange: preferRange);
     }
-    if (ranked.isEmpty) throw StateError('无可用镜像节点');
+    if (ranked.isEmpty) {
+      final nodeCount = mirror.allNodes.length;
+      throw MirrorUnavailable(
+        null,
+        reason: nodeCount == 0
+            ? '没有可用的镜像节点（一个都没配置）'
+            : '没有测通的镜像节点（$nodeCount 个候选全部探测失败）',
+      );
+    }
 
     Object? lastError;
+    final failures = <({String node, String reason})>[];
     for (final prefix in ranked.take(_maxMirrorAttempts)) {
       try {
         final result = await send('$prefix$url');
@@ -581,14 +602,16 @@ class CopperIO {
         if (error is DioException && !isMirrorNodeFailure(error)) rethrow;
         lastError = error;
         mirror.demoteMirror(url, prefix);
+        final reason = mirrorFailureReason(error);
+        failures.add((node: prefix, reason: reason));
         addLog(
           .debug,
-          '镜像节点失败：$prefix（${mirrorFailureReason(error)}），换下一个',
+          '镜像节点失败：$prefix（$reason），换下一个',
           tag: 'Mirror',
         );
       }
     }
-    throw MirrorUnavailable(lastError);
+    throw MirrorUnavailable(lastError, attempts: failures);
   }
 
   ///是否值得回退镜像：网络类错误一律回退；GitHub 的 401/403（空/失效 token、
@@ -1322,7 +1345,7 @@ class CopperIO {
           addLog(
             .error,
             '单流下载失败：'
-            '${e is FileSystemException ? '写盘失败（${e.osError?.message ?? e.message}）' : (e is DioException ? e.type.name : e)}'
+            '${e is FileSystemException ? '写盘失败（${e.osError?.message ?? e.message}）' : (e is DioException ? dioFailureText(e) : e)}'
             '${e is DioException && isNetworkFailure(e) ? '（网络不通或代理不可用）' : ''}'
             '（$url）',
             tag: 'Download',
@@ -2190,17 +2213,58 @@ String mirrorFailureReason(Object error) {
   return error.runtimeType.toString();
 }
 
+/// 单条日志里的 dio 失败描述：类型 + 消息
+///
+/// 消息里可能带着直连 / 镜像两半的原因（见 [combineRouteFailure]），只打类型会丢
+String dioFailureText(DioException error) {
+  final message = error.message;
+  return message == null || message.isEmpty
+      ? error.type.name
+      : '${error.type.name}（$message）';
+}
+
 /// 该族的镜像节点全部失败
 ///
 /// **故意不是 [DioException]**：调用方（[CopperIO._githubFallback]）据此回退直连
 class MirrorUnavailable implements Exception {
-  MirrorUnavailable(this.lastError);
+  const MirrorUnavailable(this.lastError, {this.reason, this.attempts = const []});
 
   /// 最后一个节点的失败原因
   final Object? lastError;
 
+  /// 没有具体节点失败时的一句说明（没配置节点 / 候选全都没探通）
+  final String? reason;
+
+  /// 这次试过的节点与各自的失败原因（按尝试顺序）
+  ///
+  /// 用户看到的是「镜像都挂了」，得能看出是连不上、被限流还是回 5xx
+  final List<({String node, String reason})> attempts;
+
   @override
-  String toString() => '镜像节点全部失败（最后一个错误：$lastError）';
+  String toString() {
+    if (reason != null) return reason!;
+    if (attempts.isEmpty) return '镜像节点全部失败（最后一个错误：$lastError）';
+    final detail = attempts.map((a) => '${a.node} ${a.reason}').join('、');
+    return '镜像节点全部失败（$detail）';
+  }
+}
+
+/// 把「直连失败」与「镜像失败」合成一条能给用户看的错误
+///
+/// 类型跟着 [directError] 走：网络类仍是 [DioException]，上层照旧按「网络错误」提示；
+/// 只是消息里补上镜像那半 —— 原来镜像失败会整条盖掉直连的真因，用户只看到
+/// 「无可用镜像节点」，分不清是网线断了还是镜像都挂了
+Object combineRouteFailure(Object directError, Object mirrorError) {
+  if (directError is! DioException) return directError;
+  final directReason = mirrorFailureReason(directError);
+  return DioException(
+    requestOptions: directError.requestOptions,
+    response: directError.response,
+    type: directError.type,
+    error: directError.error,
+    stackTrace: directError.stackTrace,
+    message: '直连 $directReason；$mirrorError',
+  );
 }
 
 /// 把响应体解成对象：已经是对象（dio 帮着解过）就原样返回
