@@ -322,6 +322,9 @@ class CloudSaveService {
 
   static String get _bindingPath => p.join(_root, bindingFileName);
 
+  /// 这次运行里已经提示过「有同版本槽位但没绑定」的 tag，别每次进页面都刷一条
+  static final Set<String> _unboundLogged = {};
+
   /// 云包与临时文件都放这里
   ///
   /// **不能放进游戏数据目录**：Steam 云对 `saves/`、`maps/`、`mods` 等的规则是 `*`，
@@ -403,6 +406,20 @@ class CloudSaveService {
         _bind(dataPath, slot.id);
         return slot;
       }
+    }
+
+    // 名字没认到、但账号下有同发布号的槽位：多半是设备名变过，记一句（不改行为）
+    final release = CloudGameInfo.fromVersion(version).release;
+    final hasSameRelease = page.slots.any(
+      (slot) => releaseFromSlotName(slot.name) == release,
+    );
+    if (hasSameRelease && _unboundLogged.add(version.tag)) {
+      addLog(
+        .warning,
+        '云存档 [${version.tag}]：账号下有同发布号的槽位但没绑定到本机（设备名可能变过），'
+        '可用「从云拉取」认领',
+        tag: 'Cloud',
+      );
     }
     return null;
   }
