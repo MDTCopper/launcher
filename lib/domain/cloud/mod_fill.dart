@@ -21,6 +21,9 @@ enum ModFillSkip {
 
   /// 官方模组列表里没有这个仓库：已下架 / 手装的 / 非官方来源
   notInOfficialList,
+
+  /// 仓库里没有编译好的产物（Java 模组只放源码时，装了也载入不了）
+  noCompiledAsset,
 }
 
 /// 一个模组的补全计划：拿它就能起对应的下载任务
@@ -163,7 +166,11 @@ ModFillDecision decideModFill({
     if (planned != null) return ModFillDecision.plan(planned);
   }
 
-  // 一条 release 都没带可用产物：回落到下源码
+  // 一条 release 都没带可用产物：Java 模组只放了源码，下下来也载入不了，
+  // 与下载页的 javaDownloadBan 同一口径；非 Java 的 zip 模组回落源码
+  if (entry.hasJava) {
+    return const ModFillDecision.skip(ModFillSkip.noCompiledAsset);
+  }
   return ModFillDecision.plan(
     ModFillPlan(mod: mod, entry: entry, kind: ModFillKind.source),
   );

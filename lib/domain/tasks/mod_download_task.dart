@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -537,6 +538,47 @@ class SourceModDownloadTask extends Task {
     type = TaskType.download;
   }
 
+  /// 找一个能下的源码归档分支：先探 `main` / `master`，再问仓库的默认分支
+  ///
+  /// GitHub 的归档地址先回 302、跟着重定向才 200，所以判据是「2xx / 3xx 都算能下」——
+  /// 只认 206 会把 main 分支的仓库误判成「找不到模组仓库」
+  Future<String?> _detectBranch(String base) async {
+    for (final branch in const ['main', 'master']) {
+      if (await _canDownloadArchive('$base$branch.zip')) return branch;
+    }
+    try {
+      final response = await cio.get('$githubAPI/repos/${modListMeta.repo}');
+      final data = response.data;
+      final map = data is Map ? data : jsonDecode('$data') as Map;
+      final branch = '${map['default_branch'] ?? ''}'.trim();
+      if (branch.isEmpty) return null;
+      if (await _canDownloadArchive('$base$branch.zip')) return branch;
+      addLog(
+        .warning,
+        '${modListMeta.repo} 的默认分支 $branch 也下不了归档',
+        tag: 'ModDownload',
+      );
+    } on Object catch (error) {
+      addLog(
+        .warning,
+        '查 ${modListMeta.repo} 的默认分支失败：$error',
+        tag: 'ModDownload',
+      );
+    }
+    return null;
+  }
+
+  Future<bool> _canDownloadArchive(String url) async {
+    try {
+      final response = await cio.head(url);
+      final status = response.statusCode;
+      return status != null && status >= 200 && status < 400;
+    } on Object catch (error) {
+      addLog(.warning, '探测源码归档失败：$url（$error）', tag: 'ModDownload');
+      return false;
+    }
+  }
+
   void _updateProgress(int size, int total) {
     if (total != -1) {
       progress = size / (total + size);
@@ -587,31 +629,23 @@ class SourceModDownloadTask extends Task {
       url += 'tags/${modMeta!.tag}.zip';
     } else {
       url += 'heads/';
-      if (modListMeta.mainBranchCache != null) {
-        url += modListMeta.mainBranchCache!;
-      } else {
-        var res = await cio.head('${url}main.zip');
-        if (res.statusCode == 206) {
-          url += 'main';
-        } else {
-          res = await cio.head('${url}master.zip');
-          if (res.statusCode != 206) {
-            NotificationManager.addNotice(
-              icon: Icons.error,
-              title: '错误',
-              content: '找不到模组仓库',
-            );
-            TaskLogManager.addLog(LogEntry(LogType.error, '找不到模组仓库'));
-            addLog(.warning, '找不到模组仓库', tag: 'ModDownload');
-            status = .failed;
-            updateDisplay();
-            return;
-          }
-          url += 'master';
-        }
+      var branch = modListMeta.mainBranchCache;
+      branch ??= await _detectBranch(url);
+      if (branch == null) {
+        NotificationManager.addNotice(
+          icon: Icons.error,
+          title: '错误',
+          content: '找不到模组仓库',
+        );
+        TaskLogManager.addLog(LogEntry(LogType.error, '找不到模组仓库'));
+        addLog(.warning, '找不到模组仓库', tag: 'ModDownload');
+        status = .failed;
+        updateDisplay();
+        return;
       }
-      url += '.zip';
+      url += branch;
     }
+    url += '.zip';
 
     try {
       final path = p.join(savePath, fileName);

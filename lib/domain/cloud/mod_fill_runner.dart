@@ -26,6 +26,9 @@ enum ModFillStatus {
   /// 本机这个游戏版本跑不了它（声明的最低版本与门禁对不上）
   incompatible,
 
+  /// 仓库里没有编译好的产物（Java 模组只放源码，装了也载入不了）
+  noCompiledAsset,
+
   /// 本来随包带了字节却没落地 —— 该重下云端快照，不是去下模组
   carriedInPackage,
 
@@ -66,12 +69,15 @@ String describeFillOutcomes(List<ModFillOutcome> outcomes) {
   final queued = of(ModFillStatus.queued);
   final manual = [...of(ModFillStatus.noSource), ...of(ModFillStatus.notInOfficialList)];
   final incompatible = of(ModFillStatus.incompatible);
+  final noCompiledAsset = of(ModFillStatus.noCompiledAsset);
   final failed = of(ModFillStatus.failed);
   final stale = of(ModFillStatus.carriedInPackage);
 
   final parts = <String>[
     if (queued.isNotEmpty) '已排入下载 ${queued.length} 个（${_namesOf(queued)}）',
     if (manual.isNotEmpty) '要你自己装 ${manual.length} 个（${_namesOf(manual)}）',
+    if (noCompiledAsset.isNotEmpty)
+      '没有编译产物、只能自己装 ${noCompiledAsset.length} 个（${_namesOf(noCompiledAsset)}）',
     if (incompatible.isNotEmpty) '版本对不上 ${incompatible.length} 个（${_namesOf(incompatible)}）',
     if (stale.isNotEmpty) '有 ${stale.length} 个该重新下载云端快照（包里带了字节却没落地）',
     if (failed.isNotEmpty) '补不了 ${failed.length} 个（${_namesOf(failed)}）',
@@ -234,19 +240,24 @@ Future<List<ModFillOutcome>> planModFills({
       repoOverride: source,
     );
     if (!decision.isPlan) {
+      final (status, reason) = switch (decision.skip!) {
+        ModFillSkip.noSource => (ModFillStatus.noSource, '没有来源'),
+        ModFillSkip.notInOfficialList => (
+          ModFillStatus.notInOfficialList,
+          '仓库 $source 不在官方列表里',
+        ),
+        ModFillSkip.noCompiledAsset => (
+          ModFillStatus.noCompiledAsset,
+          '仓库里没有编译好的产物（Java 模组只放源码，装了也载入不了）',
+        ),
+      };
       addLogAndPrint(
         .warning,
-        '补全模组：$label 跳过 —— '
-        '${decision.skip == ModFillSkip.noSource ? '没有来源' : '仓库 $source 不在官方列表里'}',
+        '补全模组：$label 跳过 —— $reason',
         tag: 'Cloud',
       );
       outcomes.add(
-        ModFillOutcome(
-          mod: mod,
-          status: decision.skip == ModFillSkip.noSource
-              ? ModFillStatus.noSource
-              : ModFillStatus.notInOfficialList,
-        ),
+        ModFillOutcome(mod: mod, status: status, detail: reason),
       );
       continue;
     }
@@ -288,6 +299,7 @@ void _logFillSummary(List<ModFillOutcome> outcomes) {
     '排入下载 ${count(ModFillStatus.queued)}，'
     '无来源 ${count(ModFillStatus.noSource)}，'
     '不在官方列表 ${count(ModFillStatus.notInOfficialList)}，'
+    '没有编译产物 ${count(ModFillStatus.noCompiledAsset)}，'
     '版本不兼容 ${count(ModFillStatus.incompatible)}，'
     '随包未落地 ${count(ModFillStatus.carriedInPackage)}，'
     '拉取失败 ${count(ModFillStatus.failed)}',
