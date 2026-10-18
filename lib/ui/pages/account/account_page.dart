@@ -160,7 +160,11 @@ class _AccountPageState extends State<AccountPage> {
       if (!mounted) return;
       setState(() => _quota = quota);
     } catch (error) {
-      addLog(.warning, '账户页读云端用量失败：${removeNewlines('$error')}', tag: 'Account');
+      addLog(
+        .warning,
+        '账户页读云端用量失败：${removeNewlines('$error')}',
+        tag: 'Account',
+      );
     }
   }
 
@@ -517,7 +521,7 @@ class _AccountPageState extends State<AccountPage> {
     }
 
     final task = CloudSyncTask(
-      direction: CloudSyncDirection.download,
+      direction: .download,
       versionTag: '全部云存档',
       idOverride: 'cloud_pull_all',
       onRun: (task) async {

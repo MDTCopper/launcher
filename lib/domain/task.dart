@@ -25,7 +25,7 @@ abstract class Task implements Listenable {
   /// 挂在主任务下面的子任务（按 [weight] 折算总体进度由主任务自己算）
   final List<Task> subTasks = [];
 
-  /// 在总体进度里的权重（主任务自己解释；本体通常远大于单个模组）
+  /// 在总体进度里的权重（主任务自己解释）
   double weight = 1;
 
   bool get isSubTask => parent != null;
@@ -49,10 +49,10 @@ abstract class Task implements Listenable {
     Duration duration = const Duration(seconds: 5),
   }) {
     if (isSubTask) {
-      final text = [title, content]
-          .whereType<String>()
-          .where((value) => value.isNotEmpty)
-          .join('：');
+      final text = [
+        title,
+        content,
+      ].whereType<String>().where((value) => value.isNotEmpty).join('：');
       if (text.isNotEmpty) {
         addLog(.info, removeNewlines(text), tag: 'Task');
       }
@@ -68,9 +68,9 @@ abstract class Task implements Listenable {
   void removeListener(VoidCallback listener) => listeners.remove(listener);
 
   /// 卡片头部的图标与标题：默认按下发处理，特殊任务（校验 / 启动 / 联机）自己覆写
-  IconData get displayIcon => Icons.download;
+  IconData get displayIcon => Icons.task;
 
-  String get displayTitle => '下载';
+  String get displayTitle => '任务';
 
   String formatProgress() {
     if (progress == null) return '0.0%';
