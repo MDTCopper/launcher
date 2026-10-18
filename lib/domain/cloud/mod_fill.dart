@@ -69,9 +69,10 @@ class ModFillDecision {
 /// 解析云清单里这个模组的仓库
 ///
 /// 优先用模组自己写的 `repo`；没有就按内部名去官方列表里查（列表现在带 `internalName`）。
-/// 两边都有时以**官方列表里真有的那个为准**：模组自己记的 `repo` 可能是开发期的临时仓库
-/// （Aquarion 记的 `Twcash/Tantros-test` 就属于这种），按它去下会白跑一趟。
-/// 内部名仍对不上就返回空串 —— 官方列表里有好几对同名不同仓库的模组，不按显示名猜
+/// 两边都有时以**官方列表里真有的那个为准** —— 模组里记的仓库可能是改名前的旧名字
+/// （Aquarion 记的 `Twcash/Tantros-test` 会被 GitHub 重定向到 `Twcash/Aquarion`），
+/// 按官方列表的写法走最稳。内部名仍对不上就返回空串 —— 官方列表里有好几对同名不同仓库的
+/// 模组，不按显示名猜
 String resolveModRepo(
   CloudModEntry mod,
   Map<String, String> internalNameToRepo, {
@@ -100,6 +101,7 @@ String resolveModRepo(
 /// 都没有就回落源码）。
 ///
 /// [internalNameToRepo] 给「没写 `repo` 的模组」留一条按内部名查仓库的路。
+/// [repoOverride] 是调用方已经解析好的仓库（比如查过 GitHub 的重定向之后），给了就不再自己解析。
 ///
 /// [releases] 由调用方给（该仓库的 release，**按新到旧**）。云清单只记了模组的
 /// 版本号、没记 release tag，所以这里先找 tag / 名字里带这个版本号的那条，
@@ -110,12 +112,15 @@ ModFillDecision decideModFill({
   required Iterable<ModRelease> releases,
   Map<String, String> internalNameToRepo = const {},
   Set<String> officialRepos = const {},
+  String? repoOverride,
 }) {
-  final source = resolveModRepo(
-    mod,
-    internalNameToRepo,
-    officialRepos: officialRepos,
-  ).toLowerCase();
+  final source = (repoOverride ?? '').trim().isNotEmpty
+      ? repoOverride!.trim().toLowerCase()
+      : resolveModRepo(
+          mod,
+          internalNameToRepo,
+          officialRepos: officialRepos,
+        ).toLowerCase();
   if (source.isEmpty) return const ModFillDecision.skip(ModFillSkip.noSource);
 
   ModOfficialListEntry? entry;

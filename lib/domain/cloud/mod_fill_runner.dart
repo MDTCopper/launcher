@@ -97,6 +97,7 @@ Future<List<ModFillOutcome>> planModFills({
   required Mindustry version,
   required Future<List<ModRelease>> Function(String repo) fetchReleases,
   Map<String, String> internalNameToRepo = const {},
+  Future<String?> Function(String repo)? resolveRepo,
 }) async {
   final outcomes = <ModFillOutcome>[];
   final releasesByRepo = <String, List<ModRelease>>{};
@@ -122,7 +123,7 @@ Future<List<ModFillOutcome>> planModFills({
       continue;
     }
     final recorded = (mod.source ?? '').trim();
-    final source = resolveModRepo(
+    var source = resolveModRepo(
       mod,
       internalNameToRepo,
       officialRepos: officialRepos,
@@ -150,6 +151,21 @@ Future<List<ModFillOutcome>> planModFills({
         '改用内部名 ${mod.internalName} 对应的 $source',
         tag: 'Cloud',
       );
+    }
+    if (officialRepos.isNotEmpty &&
+        !officialRepos.contains(source.toLowerCase()) &&
+        resolveRepo != null) {
+      // 仓库可能只是改了名：GitHub 会把旧名重定向到新名，按新名再核一次官方列表
+      final canonical = ((await resolveRepo(source)) ?? '').trim();
+      if (canonical.isNotEmpty &&
+          officialRepos.contains(canonical.toLowerCase())) {
+        addLogAndPrint(
+          .info,
+          '补全模组：$label 记的仓库 $source 已改名 / 重定向到 $canonical，按它补',
+          tag: 'Cloud',
+        );
+        source = canonical;
+      }
     }
     if (officialRepos.isNotEmpty &&
         !officialRepos.contains(source.toLowerCase())) {
@@ -215,6 +231,7 @@ Future<List<ModFillOutcome>> planModFills({
       releases: releases,
       internalNameToRepo: internalNameToRepo,
       officialRepos: officialRepos,
+      repoOverride: source,
     );
     if (!decision.isPlan) {
       addLogAndPrint(
@@ -334,6 +351,7 @@ Future<List<ModFillOutcome>> fillMissingMods({
     version: version,
     fetchReleases: (repo) => _fetchReleases(repo, headers, onStatus),
     internalNameToRepo: internalNameToRepo,
+    resolveRepo: (repo) => _resolveRepoFullName(repo, headers),
   );
 
   for (final outcome in outcomes) {
@@ -342,6 +360,34 @@ Future<List<ModFillOutcome>> fillMissingMods({
     }
   }
   return outcomes;
+}
+
+/// 查仓库现在的全名：GitHub 会把改名前的旧仓库名重定向到新名字。
+///
+/// 云清单里记的可能是旧名（模组自己的 `mod.hjson` 写的），而官方列表用新名；
+/// 这条查询把两者对上。查不到就返回 null，调用方按「不在官方列表」处理
+Future<String?> _resolveRepoFullName(
+  String repo,
+  Map<String, String> headers,
+) async {
+  try {
+    final response = await cio.get(
+      'https://api.github.com/repos/$repo',
+      headers: headers,
+    );
+    if (response.statusCode != 200) return null;
+    final data = response.data;
+    final map = data is Map ? data : jsonDecode('$data') as Map;
+    final fullName = '${map['full_name'] ?? ''}'.trim();
+    return fullName.isEmpty ? null : fullName;
+  } on Object catch (error) {
+    addLogAndPrint(
+      .warning,
+      '补全模组：查 $repo 现在的仓库名失败：$error',
+      tag: 'Cloud',
+    );
+    return null;
+  }
 }
 
 /// 按计划起对应的下载任务；落点用版本自己的 `mods/`
