@@ -95,6 +95,7 @@ Future<List<ModFillOutcome>> planModFills({
   required Iterable<ModOfficialListEntry> officialList,
   required Mindustry version,
   required Future<List<ModRelease>> Function(String repo) fetchReleases,
+  Map<String, String> internalNameToRepo = const {},
 }) async {
   final outcomes = <ModFillOutcome>[];
   final releasesByRepo = <String, List<ModRelease>>{};
@@ -107,10 +108,18 @@ Future<List<ModFillOutcome>> planModFills({
       );
       continue;
     }
-    final source = (mod.source ?? '').trim();
+    final source = resolveModRepo(mod, internalNameToRepo);
     if (source.isEmpty) {
       outcomes.add(ModFillOutcome(mod: mod, status: ModFillStatus.noSource));
       continue;
+    }
+    if ((mod.source ?? '').trim().isEmpty) {
+      addLogAndPrint(
+        .info,
+        '补全模组：${CloudRestoreGap.displayNameOf(mod)} 没记仓库，'
+        '按内部名 ${mod.internalName} 对上 $source',
+        tag: 'Cloud',
+      );
     }
 
     final cacheKey = source.toLowerCase();
@@ -147,6 +156,7 @@ Future<List<ModFillOutcome>> planModFills({
       mod: mod,
       officialList: officialList,
       releases: releases,
+      internalNameToRepo: internalNameToRepo,
     );
     if (!decision.isPlan) {
       outcomes.add(
@@ -191,15 +201,26 @@ Future<List<ModFillOutcome>> fillMissingMods({
 }) async {
   onStatus?.call('读取官方模组列表');
   final List<ModOfficialListEntry> officialList;
+  final internalNameToRepo = <String, String>{};
   try {
     final response = await cio.get(githubModMetaUrl, headers: headers);
     if (response.statusCode != 200) {
       throw Exception('HTTP ${response.statusCode}');
     }
+    final raw = jsonDecode('${response.data}') as List;
     officialList = [
-      for (final item in jsonDecode('${response.data}') as List)
+      for (final item in raw)
         ModOfficialListEntry.fromJson((item as Map).cast<String, dynamic>()),
     ];
+    // 官方列表带 `internalName`（2026-10 起），没写 `repo` 的模组靠它对回仓库
+    for (final item in raw) {
+      final map = (item as Map).cast<String, dynamic>();
+      final internal = '${map['internalName'] ?? ''}'.trim().toLowerCase();
+      final repo = '${map['repo'] ?? ''}'.trim();
+      if (internal.isNotEmpty && repo.isNotEmpty) {
+        internalNameToRepo[internal] = repo;
+      }
+    }
   } on Object catch (error) {
     addLogAndPrint(.warning, '读官方模组列表失败：$error', tag: 'Cloud');
     return [
@@ -217,6 +238,7 @@ Future<List<ModFillOutcome>> fillMissingMods({
     officialList: officialList,
     version: version,
     fetchReleases: (repo) => _fetchReleases(repo, headers, onStatus),
+    internalNameToRepo: internalNameToRepo,
   );
 
   for (final outcome in outcomes) {

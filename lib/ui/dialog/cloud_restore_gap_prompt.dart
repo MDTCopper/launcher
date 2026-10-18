@@ -169,13 +169,13 @@ class _CloudRestoreGapDialog extends StatelessWidget {
             _line(
               context,
               '能补：${_names(downloadable)}',
-              '（按云包里记的来源从官方仓库下回来）',
+              '（按云包里记的来源，或按模组内部名从官方仓库下回来）',
             ),
           if (noSource.isNotEmpty)
             _line(
               context,
               '要你自己装：${_names(noSource)}',
-              '（云包没记来源，也没法靠显示名猜 —— 官方列表里同名不同仓库的有好几对）',
+              '（云包没记来源，官方列表里也按内部名对不上 —— 不按显示名猜，同名不同仓库的有好几对）',
             ),
           if (missingButCarried.isNotEmpty)
             _line(

@@ -28,19 +28,25 @@ class CloudRestoreGap {
 
   bool get isEmpty => missingMods.isEmpty && missingGame == null;
 
-  /// 缺的模组里**能一键下回来**的：包里记了来源（`repo`）、且字节本来就不在包里
+  /// 缺的模组里**能一键下回来**的：字节本来就不在包里，且要么记了来源（`repo`），
+  /// 要么有内部名（官方列表现在带 `internalName`，能据此查到仓库）
   List<CloudModEntry> get downloadableMods => [
     for (final mod in missingMods)
-      if (!mod.includeBytes && (mod.source?.isNotEmpty ?? false)) mod,
+      if (_canLookUp(mod)) mod,
   ];
 
   /// 只能提示、代不了的：
-  /// - 没记来源（模组自己没写 `repo`，官方列表里同名不同仓库的还有 6 对，按名字猜会下错）
+  /// - 既没记来源（模组自己没写 `repo`）也没有内部名
   /// - 本来随包带了字节却没落地（那种该重新下载云端快照，而不是去下模组）
   List<CloudModEntry> get undownloadableMods => [
     for (final mod in missingMods)
-      if (mod.includeBytes || (mod.source?.isEmpty ?? true)) mod,
+      if (!_canLookUp(mod)) mod,
   ];
+
+  static bool _canLookUp(CloudModEntry mod) =>
+      !mod.includeBytes &&
+      ((mod.source?.trim().isNotEmpty ?? false) ||
+          (mod.internalName?.trim().isNotEmpty ?? false));
 
   /// 提示里显示的名字：优先显示名，其次内部名，最后文件名
   static String displayNameOf(CloudModEntry mod) {
@@ -74,7 +80,7 @@ CloudRestoreGap computeRestoreGap({
   final localModFiles = _localModFileNames(dataPath);
   final missingMods = [
     for (final mod in manifest.mods)
-      if (!localModFiles.contains(mod.fileName.trim().toLowerCase())) mod,
+      if (!localModFiles.contains(normalizedModFileName(mod.fileName))) mod,
   ];
 
   final installed = {
@@ -104,7 +110,21 @@ Iterable<String> installedGameIdentifiers() sync* {
   }
 }
 
-/// 本机数据目录里现有的模组文件名（小写）
+/// 比较用的模组文件名：小写、去掉禁用后缀
+///
+/// 云端清单记的是**当时的真实文件名**，禁用态可能带 `.disable`，本机也可能反过来，
+/// 所以两边都要归一过再比，否则「装了但禁用着」会被当成没装
+String normalizedModFileName(String name) {
+  var normalized = name.trim().toLowerCase();
+  for (final suffix in const ['.disabled', '.disable']) {
+    if (normalized.endsWith(suffix)) {
+      normalized = normalized.substring(0, normalized.length - suffix.length);
+    }
+  }
+  return normalized;
+}
+
+/// 本机数据目录里现有的模组文件名（归一后的小写名）
 ///
 /// 两个地方都要看：原版模组在 `mods/`、Copper 原生模组在 `copper/mods/`。
 /// Mindustry 禁用模组会把文件后缀改掉（`<名字>.jar.disable`），那也算装了
@@ -115,13 +135,7 @@ Set<String> _localModFileNames(String dataPath) {
     if (!directory.existsSync()) continue;
     for (final entity in directory.listSync()) {
       if (entity is! File) continue;
-      var name = p.basename(entity.path).toLowerCase();
-      for (final suffix in const ['.disabled', '.disable']) {
-        if (name.endsWith(suffix)) {
-          name = name.substring(0, name.length - suffix.length);
-        }
-      }
-      names.add(name);
+      names.add(normalizedModFileName(p.basename(entity.path)));
     }
   }
   return names;

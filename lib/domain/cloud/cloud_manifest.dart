@@ -442,6 +442,9 @@ class CloudManifest {
       final name = p.basename(entity.path);
       // loader 的核心模组是运行时的一部分，不进云
       if (name.startsWith('copper-core')) continue;
+      final lowerName = name.toLowerCase();
+      final disabledBySuffix =
+          lowerName.endsWith('.disable') || lowerName.endsWith('.disabled');
 
       Mod? mod;
       // 模组自己的仓库：`mod.hjson` 里那个 `repo`（形如 `作者/仓库`）。
@@ -467,7 +470,9 @@ class CloudManifest {
           internalName: mod?.internalName,
           displayName: mod?.name,
           version: mod?.version,
-          enabled: mod == null ? null : (states[mod.internalName] ?? true),
+          enabled: mod == null
+              ? null
+              : (disabledBySuffix ? false : (states[mod.internalName] ?? true)),
           source: source.isEmpty ? null : source,
           includeBytes: includeBytes,
         ),

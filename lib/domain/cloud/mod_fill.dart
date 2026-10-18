@@ -66,12 +66,29 @@ class ModFillDecision {
   bool get isPlan => plan != null;
 }
 
+/// 解析云清单里这个模组的仓库
+///
+/// 优先用模组自己写的 `repo`；没有就按内部名去官方列表里查（列表现在带 `internalName`）。
+/// 内部名仍对不上就返回空串 —— 官方列表里有好几对同名不同仓库的模组，不按显示名猜
+String resolveModRepo(
+  CloudModEntry mod,
+  Map<String, String> internalNameToRepo,
+) {
+  final recorded = (mod.source ?? '').trim();
+  if (recorded.isNotEmpty) return recorded;
+  final internal = (mod.internalName ?? '').trim().toLowerCase();
+  if (internal.isEmpty) return '';
+  return internalNameToRepo[internal]?.trim() ?? '';
+}
+
 /// 决定一个缺的模组怎么补回来
 ///
 /// **纯决策**：不联网、不起任务、不看门禁 —— 只按「云清单记的来源」去官方列表里
-/// 按 `repo` 精确匹配（**不按名字猜**：官方列表里有 6 对同名不同仓库的模组），
+/// 按 `repo` 精确匹配（**不按显示名猜**：官方列表里有 6 对同名不同仓库的模组），
 /// 再用与模组页同一套规则挑产物（`hasJava` → `.jar`，否则 `.zip`，按体积取最大的那个；
 /// 都没有就回落源码）。
+///
+/// [internalNameToRepo] 给「没写 `repo` 的模组」留一条按内部名查仓库的路。
 ///
 /// [releases] 由调用方给（该仓库的 release，**按新到旧**）。云清单只记了模组的
 /// 版本号、没记 release tag，所以这里先找 tag / 名字里带这个版本号的那条，
@@ -80,8 +97,9 @@ ModFillDecision decideModFill({
   required CloudModEntry mod,
   required Iterable<ModOfficialListEntry> officialList,
   required Iterable<ModRelease> releases,
+  Map<String, String> internalNameToRepo = const {},
 }) {
-  final source = (mod.source ?? '').trim().toLowerCase();
+  final source = resolveModRepo(mod, internalNameToRepo).toLowerCase();
   if (source.isEmpty) return const ModFillDecision.skip(ModFillSkip.noSource);
 
   ModOfficialListEntry? entry;
