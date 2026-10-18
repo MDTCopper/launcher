@@ -80,7 +80,8 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
   /// 取官方列表托管好的图标字节，给出三态结果
   ///
   /// 官方列表已经标好有没有图标、图标地址也固定，不必再逐分支逐路径 HEAD；
-  /// 字节仍**必须走 cio**（代理 / 镜像可达），raw 在部分网络下直连不通
+  /// 字节仍**必须走 cio**（代理 / 镜像可达），raw 在部分网络下直连不通。
+  /// 正常命中与「本来没有图标」都不记日志，只有网络 / 响应异常才 warning
   Future<ModIconResult> _loadIcon() async {
     final meta = widget.modMeta;
 
@@ -88,7 +89,6 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
     // 官方列表说没有图标就不发请求
     if (meta.hasIcon == false) {
       meta.iconMissingCache = true;
-      addLog(.debug, '图标缺失：${meta.repo}（官方列表无图标）', tag: 'ModIcon');
       return const ModIconResult.missing();
     }
 
@@ -102,7 +102,6 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
       final data = res.data;
       if (res.statusCode == 200 && data != null && data.isNotEmpty) {
         meta.iconUrlCache = url;
-        addLog(.debug, '图标：${meta.repo}（官方列表）', tag: 'ModIcon');
         return ModIconResult.found(url, data);
       }
       addLog(
@@ -115,7 +114,6 @@ class _ModNetworkIconState extends State<ModNetworkIcon> {
       // 列表与图标文件不同步时按缺失处理；网络问题不写缺失缓存
       if (e.response?.statusCode == 404) {
         meta.iconMissingCache = true;
-        addLog(.debug, '图标缺失：${meta.repo}（官方图标文件不存在）', tag: 'ModIcon');
         return const ModIconResult.missing();
       }
       addLog(
