@@ -304,37 +304,36 @@ class _OnlinePageState extends State<OnlinePage> {
         ),
       );
     }
-    if (!_accounts.snapshot.value.phoneVerified) {
-      return ContentPanelModule(
-        title: '会话（官方）',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 6,
-          children: [
-            Text(
-              '手机号未验证：创建 / 加入房间会被服务端拒绝，请先到论坛完成手机号验证',
-              style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
-            ),
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: Icons.refresh,
-              content: '我已验证，重新检查',
-              onTap: () => _accounts.loadAccount().then((_) {
-                if (mounted) setState(() {});
-              }),
-            ),
-          ],
-        ),
-      );
-    }
-
     final session = state.session;
+    final phoneVerified = _accounts.snapshot.value.phoneVerified;
     return ContentPanelModule(
       title: '会话（官方）',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 10,
         children: [
+          if (!phoneVerified)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 6,
+              children: [
+                Text(
+                  '手机号未验证：加入房间已对 Copper Launcher 免验证；'
+                  '创建房间仍会被服务端拒绝',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.error,
+                  ),
+                ),
+                IconTextButton(
+                  pressedScale: 0.96,
+                  icon: Icons.refresh,
+                  content: '我已验证，重新检查',
+                  onTap: () => _accounts.loadAccount().then((_) {
+                    if (mounted) setState(() {});
+                  }),
+                ),
+              ],
+            ),
           Text(
             '创建房间后把加入码发给好友，或使用好友的加入码加入房间。'
             '（官方中继尚未完成，目前仅支持房间管理）',

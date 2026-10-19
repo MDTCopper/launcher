@@ -75,7 +75,8 @@ class MdtbbsMultiplayerApi {
   /// [visibility] 取 `capabilities.visibility`；[joinPolicy] 取 `joinPolicies`
   /// （合法组合 = 除 `private + open` 外全部）；[maxPlayers] 2–64，缺省 8。
   /// 不公开会话的返回里带 joinCode（API 只回这一次，房间存续期间可复用）。
-  /// **联机写操作要求手机号验证**（站长确认），未验证会被拒
+  /// **创建会话要求手机号验证**（站长确认）；加入会话自 2026-10-20 起对 Copper Launcher
+  /// 免验证（服务端按 OAuth client_id 识别启动器）
   static Future<MdtbbsCreatedSession> createSession({
     required String accessToken,
     required String gameId,
@@ -301,7 +302,7 @@ class MdtbbsMultiplayerApi {
 
   /// 邀请好友进自己的会话；[targetUserId] 是论坛**整数**用户 ID
   /// （文档与 OpenAPI 都写 `target_user_id` 是 number，**不能传字符串**）。
-  /// 联机写操作要求手机号验证（站长确认），未验证会被拒
+  /// 邀请属于写操作，仍要求手机号验证（站长确认），未验证会被拒
   static Future<MdtbbsInvite> createInvite({
     required String accessToken,
     required String sessionId,
