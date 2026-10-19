@@ -140,6 +140,23 @@ class CloudAutoSync {
           content: '云包 ${result.archiveBytes} 字节',
         );
         return true;
+      case CloudConflictChoice.keepBoth:
+        if (slotId == null || snapshotId == null) return true;
+        addLog(.info, '云存档冲突：玩家选择两份都留 [${version.tag}]', tag: 'Cloud');
+        final report = await CloudSaveService.download(
+          accessToken: token,
+          version: version,
+          slotId: slotId,
+          snapshotId: snapshotId,
+          mode: CloudImportMode.keepBoth,
+        );
+        addNotice(
+          icon: Icons.copy_all_outlined,
+          title: '云存档已合并到本机',
+          content: '写入 ${report.written.length} 份（同名不同内容的带 -cloud- 后缀）',
+        );
+        _notifyRestoreGap(version, report);
+        return true;
       case CloudConflictChoice.cancel:
         addLog(.info, '云存档冲突：玩家没选，按不启动处理 [${version.tag}]', tag: 'Cloud');
         return false;
