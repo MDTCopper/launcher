@@ -902,13 +902,17 @@ class CloudSaveService {
   ///
   /// 给页面显示「这次约 X MB」用。走哈希缓存（真数据热扫约 0.67 s）；
   /// 真上传时还会再扫一次 —— 那次要的就是哈希，这里只为显示
-  static Future<CloudUploadEstimate> estimateUpload(Mindustry version) async {
+  static Future<CloudUploadEstimate> estimateUpload(
+    Mindustry version, {
+    bool Function(CloudModEntry mod)? includeBytesWhen,
+  }) async {
     final cache = CloudHashCache.load(hashCachePath);
     try {
       final manifest = await CloudManifest.scan(
         version: version,
         deviceName: deviceName,
         cache: cache,
+        includeBytesWhen: includeBytesWhen,
       );
       var bytes = 0;
       for (final entry in manifest.includedFiles) {

@@ -527,22 +527,53 @@ bool? _compatible(ModOfficialListEntry entry, Mindustry version) {
       : ModVersionGate.instance.mod.resultOf(version.releaseDouble);
   return modMin >= threshold && modMin <= version.releaseDouble;
 }
-/// 官方列表里的仓库与内部名（小写）：上传时判断哪些模组恢复时装不回来
+Set<String>? _officialKeysCache;
+DateTime? _officialKeysFetchedAt;
+
+/// 官方列表里的仓库与内部名（小写）：上传 / 预算时判断哪些模组恢复时装不回来
+///
+/// 10 分钟内复用上一次结果：同一轮里预算与上传只拉一次列表
 Future<Set<String>> officialModKeys({
   Map<String, String> headers = _defaultHeaders,
+  bool force = false,
 }) async {
-  final response = await cio.get(githubModMetaUrl, headers: headers);
-  if (response.statusCode != 200) {
-    throw Exception('HTTP ${response.statusCode}');
+  final cached = _officialKeysCache;
+  final fetchedAt = _officialKeysFetchedAt;
+  if (!force &&
+      cached != null &&
+      fetchedAt != null &&
+      DateTime.now().difference(fetchedAt) < const Duration(minutes: 10)) {
+    return cached;
   }
-  final raw = jsonDecode('${response.data}') as List;
-  final keys = <String>{};
-  for (final item in raw) {
-    final map = (item as Map).cast<String, dynamic>();
-    for (final field in ['repo', 'internalName']) {
-      final key = '${map[field] ?? ''}'.trim().toLowerCase();
-      if (key.isNotEmpty) keys.add(key);
+  try {
+    final response = await cio.get(githubModMetaUrl, headers: headers);
+    if (response.statusCode != 200) {
+      throw Exception('HTTP ${response.statusCode}');
     }
+    final raw = jsonDecode('${response.data}') as List;
+    final keys = <String>{};
+    for (final item in raw) {
+      final map = (item as Map).cast<String, dynamic>();
+      for (final field in ['repo', 'internalName']) {
+        final key = '${map[field] ?? ''}'.trim().toLowerCase();
+        if (key.isNotEmpty) keys.add(key);
+      }
+    }
+    _officialKeysCache = keys;
+    _officialKeysFetchedAt = DateTime.now();
+    return keys;
+  } on Object {
+    // 列表拉不到就沿用上次的；一次都没成功过再抛给调用方
+    if (cached != null) return cached;
+    rethrow;
   }
-  return keys;
 }
+/// 补全结局里「为什么没补上」的一句话说明
+String modFillReason(ModFillStatus status) => switch (status) {
+  ModFillStatus.notInOfficialList => '官方列表里没有',
+  ModFillStatus.noSource => '找不到仓库',
+  ModFillStatus.noCompiledAsset => '没有编译产物',
+  ModFillStatus.incompatible => '版本不兼容',
+  ModFillStatus.failed => '拉取失败',
+  _ => '没补上',
+};

@@ -31,6 +31,7 @@ import 'package:copper_launcher/ui/components/tips/warning_bar.dart';
 import 'package:copper_launcher/ui/dialog/cloud_backup_prompt.dart';
 import 'package:copper_launcher/ui/dialog/cloud_restore_gap_prompt.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/dialog/missing_mods_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
@@ -94,6 +95,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   /// 上传前的预算：这次大概多大（清单合计、未压缩）与云端还剩多少
   CloudUploadEstimate? _estimate;
   CloudSaveQuota? _quota;
+
+  /// 本次恢复里没补回来的模组：完成后列成一张表
+  List<({String name, String reason})> _restoreMissingMods = [];
 
   AccountManager get _accounts => AccountManager.instance;
 
@@ -167,8 +171,24 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       // 预算：两个都失败也不影响这页（只记日志）
       CloudUploadEstimate? estimate;
       if (version != null) {
+        // 官方列表里没有的模组会随包带字节，预算要按同一口径算
+        Set<String> officialKeys = const {};
         try {
-          estimate = await CloudSaveService.estimateUpload(version);
+          officialKeys = await officialModKeys();
+        } on Object catch (error) {
+          addLog(
+            .warning,
+            '读官方列表失败，预算按不带模组字节算：${removeNewlines('$error')}',
+            tag: 'Cloud',
+          );
+        }
+        try {
+          estimate = await CloudSaveService.estimateUpload(
+            version,
+            includeBytesWhen: officialKeys.isEmpty
+                ? null
+                : (mod) => !_isOfficialMod(mod, officialKeys),
+          );
         } catch (error) {
           addLog(.warning, '算本机清单体积失败：${removeNewlines('$error')}', tag: 'Cloud');
         }
@@ -400,6 +420,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     required CloudSaveSnapshot snapshot,
   }) async {
     setState(() => _busy = '准备恢复…');
+    _restoreMissingMods = [];
     try {
       final token = await _accounts.ensureAccessToken();
       if (token == null) {
@@ -462,6 +483,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         title: '已从云端恢复',
         content: task.result ?? '',
       );
+      if (_restoreMissingMods.isNotEmpty) {
+        await showMissingModsDialog(context, _restoreMissingMods);
+      }
     } catch (error) {
       if (!mounted) return;
       addNotice(
@@ -482,7 +506,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         (source.isNotEmpty && keys.contains(source));
   }
 
-  /// 恢复完在**同一张任务卡**里处理缺口：逐件问「补模组 / 装游戏版本」
+  /// 恢复完在**同一张任务卡**里处理缺口：模组静默补，只问要不要装游戏版本
   ///
   /// 补全的下载不另起任务卡，进度直接反馈到这张卡上
   Future<String> _handleRestoreGapInsideTask({
@@ -497,117 +521,94 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     );
     if (gap.isEmpty || !mounted) return '';
 
-    // 先把「要补的东西」占进队列（按已知数量给权重）：不然恢复刚跑满 100%，
-    // 等官方列表那几秒里卡片会停在 100%，列表回来再掉下去 —— 看起来像 0→100→50
-    CloudTaskItem? modPlaceholder;
-    CloudTaskItem? gamePlaceholder;
-    if (gap.downloadableMods.isNotEmpty) {
-      modPlaceholder = CloudTaskItem(
-        title: '补全模组（读取列表…）',
-        weight: gap.downloadableMods.length.toDouble(),
-      );
-      task.addQueueItem(modPlaceholder);
-    }
+    final notes = <String>[];
+    await _fillModsSilently(gap: gap, version: version, task: task);
+
     final missingGame = gap.missingGame;
-    if (missingGame != null) {
-      gamePlaceholder = CloudTaskItem(
+    if (missingGame != null && mounted) {
+      // 本体比模组重得多：先占位，再问要不要装
+      final placeholder = CloudTaskItem(
         title: '游戏本体 ${missingGame.release}',
         weight: 5,
       );
-      task.addQueueItem(gamePlaceholder);
-    }
-
-    final notes = <String>[];
-    var offerMods = gap.downloadableMods.isNotEmpty;
-    var offerGame = gap.missingGame != null;
-    while (mounted && (offerMods || offerGame)) {
-      task.setPhase('等待选择要补什么');
+      task.addQueueItem(placeholder);
+      task.setPhase('等待选择要不要装游戏版本');
       final choice = await showRestoreGapPrompt(
         gap: gap,
         version: version,
         versionTag: version.tag,
-        offerModFill: offerMods,
-        offerGameInstall: offerGame,
+        offerModFill: false,
+        offerGameInstall: true,
       );
-      switch (choice) {
-        case CloudRestoreGapChoice.fillMods:
-          offerMods = false;
-          task.setPhase('补全模组…');
-          final outcomes = await fillMissingMods(
-            gap: gap,
-            version: version,
-            queueTasks: false,
-            onStatus: task.setPhase,
-          );
-          final queued = [
-            for (final outcome in outcomes)
-              if (outcome.isQueued) outcome,
-          ];
-          // 占位项换成真正的模组条目（总权重一样，进度不会往下跳）
-          final placeholder = modPlaceholder;
-          if (placeholder != null) task.removeQueueItem(placeholder);
-          final modItems = [
-            for (final outcome in queued)
-              CloudTaskItem(title: outcome.displayName),
-          ];
-          for (final item in modItems) {
-            task.addQueueItem(item);
+      if (choice == CloudRestoreGapChoice.installGame) {
+        task.setPhase('查找游戏版本');
+        final prep = await prepareGameVersion(game: missingGame);
+        final installTask = prep.task;
+        if (installTask == null) {
+          task.removeQueueItem(placeholder);
+          notes.add(prep.failure ?? '装游戏版本失败');
+        } else {
+          task.setPhase('下载游戏版本 ${missingGame.release}');
+          task.bindQueueSubTask(placeholder, installTask);
+          await installTask.startAsync();
+          if (installTask.status != TaskStatus.completed) {
+            throw StateError(
+              '本体没下完：${installTask.statusLabel ?? installTask.status.name}',
+            );
           }
-          for (var i = 0; i < queued.length; i++) {
-            if (task.cancelToken.isCancelled) {
-              throw StateError('补全已取消');
-            }
-            final item = modItems[i];
-            task.setPhase('补全模组 ${i + 1}/${queued.length}：${queued[i].displayName}');
-            final subtask = buildFillTask(queued[i].plan!, version);
-            task.bindQueueSubTask(item, subtask);
-            await subtask.startAsync();
-            if (subtask.status != TaskStatus.completed) {
-              throw StateError(
-                '补全没完成：${subtask.statusLabel ?? subtask.status.name}',
-              );
-            }
-            task.updateQueueItem(item, done: true);
-          }
-          notes.add(describeFillOutcomes(outcomes));
-        case CloudRestoreGapChoice.installGame:
-          offerGame = false;
-          task.setPhase('查找游戏版本');
-          final prep = await prepareGameVersion(game: gap.missingGame!);
-          final installTask = prep.task;
-          if (installTask == null) {
-            final placeholder = gamePlaceholder;
-            if (placeholder != null) task.removeQueueItem(placeholder);
-            notes.add(prep.failure ?? '装游戏版本失败');
-          } else {
-            // 占位项已经在队列里（权重 5）：直接复用它，进度不会先掉再加
-            final item =
-                gamePlaceholder ??
-                CloudTaskItem(
-                  title: '游戏本体 ${gap.missingGame!.release}',
-                  weight: 5,
-                );
-            if (gamePlaceholder == null) task.addQueueItem(item);
-            task.setPhase('下载游戏版本 ${gap.missingGame!.release}');
-            task.bindQueueSubTask(item, installTask);
-            await installTask.startAsync();
-            if (installTask.status != TaskStatus.completed) {
-              throw StateError(
-                '本体没下完：${installTask.statusLabel ?? installTask.status.name}',
-              );
-            }
-            task.updateQueueItem(item, done: true);
-            notes.add('已装游戏版本 ${gap.missingGame!.release}');
-          }
-        case CloudRestoreGapChoice.later:
-          for (final placeholder in [modPlaceholder, gamePlaceholder]) {
-            if (placeholder != null) task.removeQueueItem(placeholder);
-          }
-          return notes.join('；');
+          task.updateQueueItem(placeholder, done: true);
+          notes.add('已装游戏版本 ${missingGame.release}');
+        }
+      } else {
+        task.removeQueueItem(placeholder);
       }
     }
     return notes.join('；');
   }
+
+  /// 静默补一份存档缺的模组；补不回来的记进 [_restoreMissingMods]
+  Future<void> _fillModsSilently({
+    required CloudRestoreGap gap,
+    required Mindustry version,
+    required CloudSyncTask task,
+  }) async {
+    if (gap.downloadableMods.isEmpty) return;
+
+    // 先占位，避免恢复跑满 100% 后等列表那几秒停在 100%
+    final placeholder = CloudTaskItem(
+      title: '补全模组（读取列表…）',
+      weight: gap.downloadableMods.length.toDouble(),
+    );
+    task.addQueueItem(placeholder);
+    task.setPhase('补全模组…');
+    final outcomes = await fillMissingMods(
+      gap: gap,
+      version: version,
+      queueTasks: false,
+      onStatus: task.setPhase,
+    );
+    task.removeQueueItem(placeholder);
+
+    for (final outcome in outcomes) {
+      if (task.cancelToken.isCancelled) return;
+      if (!outcome.isQueued) {
+        _restoreMissingMods.add((
+          name: outcome.displayName,
+          reason: outcome.detail ?? modFillReason(outcome.status),
+        ));
+        continue;
+      }
+      final item = CloudTaskItem(title: outcome.displayName);
+      task.addQueueItem(item);
+      final subtask = buildFillTask(outcome.plan!, version);
+      task.bindQueueSubTask(item, subtask);
+      await subtask.startAsync();
+      if (subtask.status != TaskStatus.completed) {
+        _restoreMissingMods.add((name: outcome.displayName, reason: '下载失败'));
+      }
+    }
+  }
+
   /// 恢复报告压成一句话：落地几份、留了几份、拒了几份
   String _restoreSummary(CloudImportReport report) {
     final parts = <String>['写入 ${report.written.length} 份'];

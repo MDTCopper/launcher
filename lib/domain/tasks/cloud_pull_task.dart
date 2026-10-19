@@ -128,7 +128,7 @@ class CloudPullTask extends CloudSyncTask {
       if (!outcome.isQueued) {
         missingMods.add((
           name: outcome.displayName,
-          reason: outcome.detail ?? _reasonOf(outcome.status),
+          reason: outcome.detail ?? modFillReason(outcome.status),
         ));
         continue;
       }
@@ -164,12 +164,5 @@ class CloudPullTask extends CloudSyncTask {
     addLog(.info, '版本 tag 同步为云端的 [$wanted]', tag: 'Cloud');
   }
 
-  String _reasonOf(ModFillStatus status) => switch (status) {
-    ModFillStatus.notInOfficialList => '官方列表里没有',
-    ModFillStatus.noSource => '找不到仓库',
-    ModFillStatus.noCompiledAsset => '没有编译产物',
-    ModFillStatus.incompatible => '版本不兼容',
-    ModFillStatus.failed => '拉取失败',
-    _ => '没补上',
-  };
+
 }
