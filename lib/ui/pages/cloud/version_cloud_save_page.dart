@@ -693,6 +693,37 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     );
   }
 
+  /// 固定 / 取消固定一份快照：固定过的不会被「腾空间」删掉
+  Future<void> _togglePin(CloudSaveSnapshot snapshot) async {
+    final slot = _slot;
+    if (slot == null) return;
+    final token = await _accounts.ensureAccessToken();
+    if (token == null) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '先登录 BBS',
+        content: '固定快照需要登录',
+      );
+      return;
+    }
+    try {
+      await CloudSaveService.setSnapshotPinned(
+        accessToken: token,
+        slotId: slot.id,
+        snapshotId: snapshot.id,
+        pinned: !snapshot.pinned,
+      );
+      await _reload();
+    } on Object catch (error) {
+      if (!mounted) return;
+      addNotice(
+        icon: Icons.error_outline,
+        title: '固定状态没改成功',
+        content: removeNewlines('$error'),
+      );
+    }
+  }
+
   void _deleteSlot() {
     final slot = _slot;
     if (slot == null) return;
@@ -1063,6 +1094,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
                     onDelete: _busy == null
                         ? () => _deleteSnapshot(snapshot)
                         : null,
+                    onTogglePin: _busy == null
+                        ? () => _togglePin(snapshot)
+                        : null,
                   ),
               ],
             ),
@@ -1127,6 +1161,7 @@ class _SnapshotTile extends StatelessWidget {
     required this.isHead,
     this.onRestore,
     this.onDelete,
+    this.onTogglePin,
   });
 
   final CloudSaveSnapshot snapshot;
@@ -1136,6 +1171,7 @@ class _SnapshotTile extends StatelessWidget {
 
   final VoidCallback? onRestore;
   final VoidCallback? onDelete;
+  final VoidCallback? onTogglePin;
 
   @override
   Widget build(BuildContext context) {
@@ -1162,6 +1198,11 @@ class _SnapshotTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: 4,
         children: [
+          IconTextButton(
+            icon: snapshot.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+            content: snapshot.pinned ? '已固定' : '固定',
+            onTap: onTogglePin,
+          ),
           IconTextButton(
             icon: Icons.settings_backup_restore,
             content: '恢复',
