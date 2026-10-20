@@ -546,6 +546,14 @@ class _OnlinePageState extends State<OnlinePage> {
                   onTap: () => _copy(_shareText(session), '房间信息'),
                 ),
               ],
+            )
+          else
+            Text(
+              '当前可见范围 / 加入方式不给加入码（服务端没回）；'
+              '要分享房间请换「公开」再建，或等邀请功能',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colors.itemHint,
+              ),
             ),
           Text(
             '${_visibilityLabel(session.visibility)} · '
