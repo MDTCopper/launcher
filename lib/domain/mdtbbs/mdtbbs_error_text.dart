@@ -56,8 +56,8 @@ const Map<String, String> _byCode = {
   'PEER_RESUME_INVALID': '恢复联机对端失败，请重新加入',
 
   // ── 中继与候选地址 ──
-  'RELAY_UNAVAILABLE': '官方中继暂时不可用',
-  'RELAY_LIMIT_REACHED': '官方中继并发额度已满，等 1~2 分钟再试',
+  'RELAY_UNAVAILABLE': '联机服务器暂时不可用',
+  'RELAY_LIMIT_REACHED': '联机服务器还有你的一条旧连接，等 1~2 分钟再试',
   'CANDIDATE_INVALID': '网络候选地址无效',
   'CANDIDATE_LIMIT_REACHED': '网络候选地址数量已达上限',
 
