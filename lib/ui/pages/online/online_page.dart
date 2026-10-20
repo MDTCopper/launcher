@@ -506,7 +506,9 @@ class _OnlinePageState extends State<OnlinePage> {
   Widget _buildSessionCard(MultiplayerState state, MdtbbsSession session) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
+    final isOwner = state.self?.role == 'owner';
     final peers = state.peers;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -518,37 +520,50 @@ class _OnlinePageState extends State<OnlinePage> {
         spacing: 6,
         children: [
           Text(
-            state.self?.role == 'owner' ? '我创建的房间' : '已加入',
+            isOwner ? '你创建的房间（房主）' : '已加入房间（成员）',
             style: theme.textTheme.titleSmall,
           ),
-          if (state.joinCode != null)
-            Row(
-              spacing: 8,
-              children: [
-                Expanded(
-                  child: Text(
-                    '加入码 ${state.joinCode}',
-                    style: theme.textTheme.bodyMedium,
+          if (isOwner) ...[
+            if (state.joinCode != null)
+              Row(
+                spacing: 8,
+                children: [
+                  Expanded(
+                    child: Text(
+                      '加入码 ${state.joinCode}',
+                      style: theme.textTheme.bodyMedium,
+                    ),
                   ),
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.copy,
+                    content: '复制码',
+                    onTap: () => _copy(state.joinCode!, '加入码'),
+                  ),
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.ios_share,
+                    content: '分享房间',
+                    onTap: () => _copy(_shareText(session), '房间信息'),
+                  ),
+                ],
+              )
+            else
+              Text(
+                '服务端没给加入码：换「公开」可见范围再建，或等邀请功能',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.itemHint,
                 ),
-                IconTextButton(
-                  pressedScale: 0.96,
-                  icon: Icons.copy,
-                  content: '复制码',
-                  onTap: () => _copy(state.joinCode!, '加入码'),
-                ),
-                IconTextButton(
-                  pressedScale: 0.96,
-                  icon: Icons.ios_share,
-                  content: '分享房间',
-                  onTap: () => _copy(_shareText(session), '房间信息'),
-                ),
-              ],
-            )
-          else
+              ),
             Text(
-              '当前可见范围 / 加入方式不给加入码（服务端没回）；'
-              '要分享房间请换「公开」再建，或等邀请功能',
+              '把加入码发给好友；他们进来后，由你在游戏里开「主机」房间',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colors.itemHint,
+              ),
+            ),
+          ] else
+            Text(
+              '等房主开好房间并启动通道；你这边启动通道后，在游戏里连自己的本机地址',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colors.itemHint,
               ),
@@ -577,14 +592,14 @@ class _OnlinePageState extends State<OnlinePage> {
                 IconTextButton(
                   pressedScale: 0.96,
                   icon: Icons.lan_outlined,
-                  content: '启动联机通道',
+                  content: isOwner ? '启动房间通道' : '连接房间通道',
                   onTap: state.startingProxy ? null : _mp.startProxy,
                 )
               else
                 IconTextButton(
                   pressedScale: 0.96,
                   icon: Icons.lan_outlined,
-                  content: '停止联机通道',
+                  content: '停止通道',
                   onTap: state.stoppingProxy ? null : _mp.stopProxy,
                 ),
               IconTextButton(
@@ -597,27 +612,26 @@ class _OnlinePageState extends State<OnlinePage> {
               ),
               IconTextButton(
                 pressedScale: 0.96,
-                icon: Icons.logout,
-                content: '离开房间',
+                icon: isOwner ? Icons.stop_circle_outlined : Icons.logout,
+                content: isOwner ? '关闭房间' : '离开房间',
                 onTap: state.leaving ? null : _mp.leave,
               ),
             ],
           ),
           if (state.proxyRunning)
             Text(
-              '联机通道已启动：请在游戏中连接 ${state.localAddress}',
+              isOwner
+                  ? '房间通道已启动：在游戏里开「主机」房间，好友连他们自己的本机地址'
+                  : '通道已启动：在游戏里连接 ${state.localAddress}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.itemSecondary,
               ),
             ),
-          Text(
-            '官方中继尚未完成：目前可创建 / 加入房间、查看成员，暂不支持直接进入游戏。',
-            style: theme.textTheme.labelSmall?.copyWith(color: colors.itemHint),
-          ),
         ],
       ),
     );
   }
+
 
   /// MDT 兼容：LanLink 房间码加入。**匿名可用**（房间信息是公开接口）
   Widget _buildMdtCompatPanel() {
