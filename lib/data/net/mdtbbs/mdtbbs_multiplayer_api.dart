@@ -84,6 +84,7 @@ class MdtbbsMultiplayerApi {
     String? activityName,
     String visibility = 'private',
     String joinPolicy = 'friends',
+    bool requireApproval = false,
     int maxPlayers = 8,
     CancelToken? cancelToken,
   }) async {
@@ -97,6 +98,7 @@ class MdtbbsMultiplayerApi {
           'activity_name': activityName,
         'visibility': visibility,
         'join_policy': joinPolicy,
+        'require_approval': requireApproval,
         'max_players': maxPlayers,
       },
       accessToken: accessToken,

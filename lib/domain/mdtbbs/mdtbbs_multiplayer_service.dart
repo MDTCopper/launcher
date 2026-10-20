@@ -475,6 +475,7 @@ class MdtbbsMultiplayerService {
     required String activityName,
     required String visibility,
     required String joinPolicy,
+    bool requireApproval = false,
     required int maxPlayers,
   }) async {
     if (_current.creating) return;
@@ -496,6 +497,7 @@ class MdtbbsMultiplayerService {
         activityName: activityName,
         visibility: visibility,
         joinPolicy: joinPolicy,
+        requireApproval: requireApproval,
         maxPlayers: maxPlayers,
       );
       if (!_isAccountEpochCurrent(epoch)) return;

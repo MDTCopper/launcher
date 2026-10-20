@@ -49,7 +49,7 @@ class _OnlinePageState extends State<OnlinePage> {
   // 默认「凭加入码」：实测**只有 unlisted 会返回加入码**，
   // private / friends 都不给（那两种得靠邀请，邀请还没做）
   String _visibility = 'private';
-  String _joinPolicy = 'invite_only';
+  String _joinPolicy = 'public';
   bool _advancedOpen = false;
 
   /// 「进房需我同意」：对应服务端的 `join_policy = request`。
@@ -381,7 +381,7 @@ class _OnlinePageState extends State<OnlinePage> {
             ),
             ActionButton(
               content: const Text('进房需我同意'),
-              hint: '开着的话，别人拿到加入码也得等我批准才能进来',
+              hint: '开着的话，符合加入条件的人也要等我批准才能进来',
               selected: _requireApproval,
               enable: !state.creating,
               onTap: () => setState(() => _requireApproval = !_requireApproval),
@@ -389,8 +389,8 @@ class _OnlinePageState extends State<OnlinePage> {
             ),
             Text(
               _requireApproval
-                  ? '创建后会给出加入码；别人用码申请，我同意后才进得来'
-                  : '创建后会给出加入码，谁拿到码谁能进',
+                  ? '符合加入条件的人也要申请，我同意后才进得来'
+                  : '符合加入条件的人拿到入口就能直接进',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colors.itemHint,
               ),
@@ -483,22 +483,20 @@ class _OnlinePageState extends State<OnlinePage> {
     );
   }
 
-  /// 创建房间：值先按服务端 `capabilities` 兜一遍，避免旧默认值被新校验拒成 400
+  /// 创建房间：值先按服务端 `capabilities` 兜一遍，再带上 `require_approval`
   Future<void> _createRoom() {
     final caps = _mp.state.value.capabilities;
     final visibility = (caps == null || caps.visibility.contains(_visibility))
         ? _visibility
         : (caps.visibility.isNotEmpty ? caps.visibility.first : 'private');
-    var joinPolicy = (caps == null || caps.joinPolicies.contains(_joinPolicy))
+    final joinPolicy = (caps == null || caps.joinPolicies.contains(_joinPolicy))
         ? _joinPolicy
-        : (caps.joinPolicies.isNotEmpty ? caps.joinPolicies.first : 'invite_only');
-    if (_requireApproval && (caps?.joinPolicies.contains('request') ?? false)) {
-      joinPolicy = 'request';
-    }
+        : (caps.joinPolicies.isNotEmpty ? caps.joinPolicies.first : 'public');
     return _mp.create(
       activityName: _activityNameController.text.trim(),
       visibility: visibility,
       joinPolicy: joinPolicy,
+      requireApproval: _requireApproval,
       maxPlayers: _maxPlayers.value,
     );
   }
@@ -821,19 +819,19 @@ class _OnlinePageState extends State<OnlinePage> {
     _ => value,
   };
 
-  /// 可见范围对「能不能拿到加入码」的影响
+  /// 可见范围只决定「谁能在列表里发现」，不决定能不能加入
   String _visibilityHint(String value) => switch (value) {
-    'private' => '别人看不到这个房间；只有我放行的人能进',
-    'friends' => '⚠ 好友在他们自己的列表里能看到并直接进（好友列表还没做）',
-    'public' => '所有人都能在公开列表里看到并加入',
+    'private' => '列表里看不到这个房间；知道房间码 / 被邀请的人仍可能加入',
+    'friends' => '⚠ 好友能在联机列表里看到（好友列表还没做）',
+    'public' => '所有人都能在联机大厅看到这个房间',
     'unlisted' => '任何列表里都看不到；拿到加入码的人都能进',
     _ => '',
   };
 
   String _joinPolicyLabel(String value) => switch (value) {
-    'invite_only' => '仅邀请 / 凭码',
+    'invite_only' => '⚠ 仅受邀者（邀请还没做）',
     'friends' => '⚠ 仅好友（好友列表未做）',
-    'public' => '任何人可进',
+    'public' => '拿到入口就能进',
     'open' => '有码即可进',
     'request' => '需我同意',
     _ => value,

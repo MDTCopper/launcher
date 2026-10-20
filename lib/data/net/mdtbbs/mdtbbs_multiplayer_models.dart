@@ -19,6 +19,9 @@ class MdtbbsMultiplayerCapabilities {
     required this.joinPolicies,
     required this.transports,
     required this.relayCredentialTtlSeconds,
+    this.requireApprovalSupported = false,
+    this.visibilityDeprecated = const [],
+    this.joinPoliciesDeprecated = const [],
   });
 
   final bool sessionsEnabled;
@@ -26,10 +29,10 @@ class MdtbbsMultiplayerCapabilities {
   final bool relayEnabled;
   final bool thirdPartyEnabled;
 
-  /// `private` / `friends` / `unlisted` —— **V1 没有 public**，也没有公共大厅
+  /// `private` / `friends` / `public`（契约 1.7.0 起；旧值见 [visibilityDeprecated]）
   final List<String> visibility;
 
-  /// `open` / `friends` / `request` / `invite_only`；`private + open` 不允许
+  /// `invite_only` / `friends` / `public`（契约 1.7.0 起）
   final List<String> joinPolicies;
 
   /// `udp` / `tcp` / `quic` / `custom`
@@ -37,6 +40,15 @@ class MdtbbsMultiplayerCapabilities {
 
   /// 中继凭证有效期（实测 120 秒）
   final int relayCredentialTtlSeconds;
+
+  /// 服务端是否支持创建会话时带 `require_approval`
+  final bool requireApprovalSupported;
+
+  /// 旧客户端仍可提交的可见范围取值（`unlisted` 等），创建前不要主动选它们
+  final List<String> visibilityDeprecated;
+
+  /// 旧客户端仍可提交的加入方式取值（`open` / `request` 等）
+  final List<String> joinPoliciesDeprecated;
 
   bool get usable => sessionsEnabled && thirdPartyEnabled; // 至少要有会话与第三方能力
 
@@ -54,6 +66,9 @@ class MdtbbsMultiplayerCapabilities {
       // 文档示例 120；取不到就按 120 兜底（续签节奏的保守值）
       relayCredentialTtlSeconds:
           (json['relay_credential_ttl_seconds'] as num?)?.toInt() ?? 120,
+      requireApprovalSupported: json['require_approval_supported'] == true,
+      visibilityDeprecated: list('visibility_deprecated'),
+      joinPoliciesDeprecated: list('join_policies_deprecated'),
     );
   }
 }
