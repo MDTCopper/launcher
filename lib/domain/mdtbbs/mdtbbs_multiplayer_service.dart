@@ -161,6 +161,11 @@ class MdtbbsMultiplayerService {
     try {
       final caps = await MdtbbsMultiplayerApi.capabilities(accessToken: token);
       if (!_isAccountEpochCurrent(epoch)) return;
+      addLog(
+        .info,
+        '联机能力：visibility=${caps.visibility} joinPolicies=${caps.joinPolicies}',
+        tag: 'Multiplayer',
+      );
       _set(
         _current.copyWith(
           capabilities: caps,
