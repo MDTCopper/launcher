@@ -4,6 +4,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:archive/archive.dart';
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/art_binding.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
@@ -26,8 +27,15 @@ class BridgeLauncher {
   BridgeLauncher._();
 
   /// 这次版本自己的桥运行期目录（参数 `-C`）：每版本一份，桥在里面摆原生库与 `tmp`
-  static String cacheDirFor(Mindustry version) =>
-      p.join(version.foldPath, 'bridge', 'cache');
+  ///
+  /// Android 上必须放**应用内部目录**：外部存储（`/storage/emulated/0/...`）里的 `.so`
+  /// 会被 `classloader-namespace` 拒绝 dlopen
+  static String cacheDirFor(Mindustry version) {
+    if (Platform.isAndroid) {
+      return p.join(AppPaths.bridgeRoot, 'bridge-cache', version.id);
+    }
+    return p.join(version.foldPath, 'bridge', 'cache');
+  }
 
   /// 组装桥的命令行（纯函数，方便用例覆盖「带 / 不带 loader」两种）
   ///
