@@ -48,8 +48,8 @@ class _OnlinePageState extends State<OnlinePage> {
   //
   // 默认「凭加入码」：实测**只有 unlisted 会返回加入码**，
   // private / friends 都不给（那两种得靠邀请，邀请还没做）
-  String _visibility = 'unlisted';
-  String _joinPolicy = 'open';
+  String _visibility = 'private';
+  String _joinPolicy = 'invite_only';
   bool _advancedOpen = false;
 
   /// 「进房需我同意」：对应服务端的 `join_policy = request`。
@@ -420,13 +420,7 @@ class _OnlinePageState extends State<OnlinePage> {
                       hint: _visibilityHint(value),
                       selected: _visibility == value,
                       enable: !state.creating,
-                      onTap: () => setState(() {
-                        _visibility = value;
-                        // private 不能配 open，自动换成合法组合
-                        if (value == 'private' && _joinPolicy == 'open') {
-                          _joinPolicy = 'friends';
-                        }
-                      }),
+                      onTap: () => setState(() => _visibility = value),
                       padding: kChipPadding,
                     ),
                 ],
@@ -446,13 +440,7 @@ class _OnlinePageState extends State<OnlinePage> {
                       content: Text(_joinPolicyLabel(value)),
                       selected: _joinPolicy == value,
                       enable: !state.creating,
-                      onTap: () => setState(() {
-                        _joinPolicy = value;
-                        // 反过来：open 与 private 不合，自动改成凭加入码
-                        if (value == 'open' && _visibility == 'private') {
-                          _visibility = 'unlisted';
-                        }
-                      }),
+                      onTap: () => setState(() => _joinPolicy = value),
                       padding: kChipPadding,
                     ),
                 ],
@@ -495,12 +483,25 @@ class _OnlinePageState extends State<OnlinePage> {
     );
   }
 
-  Future<void> _createRoom() => _mp.create(
-    activityName: _activityNameController.text.trim(),
-    visibility: _visibility,
-    joinPolicy: _requireApproval ? 'request' : _joinPolicy,
-    maxPlayers: _maxPlayers.value,
-  );
+  /// 创建房间：值先按服务端 `capabilities` 兜一遍，避免旧默认值被新校验拒成 400
+  Future<void> _createRoom() {
+    final caps = _mp.state.value.capabilities;
+    final visibility = (caps == null || caps.visibility.contains(_visibility))
+        ? _visibility
+        : (caps.visibility.isNotEmpty ? caps.visibility.first : 'private');
+    var joinPolicy = (caps == null || caps.joinPolicies.contains(_joinPolicy))
+        ? _joinPolicy
+        : (caps.joinPolicies.isNotEmpty ? caps.joinPolicies.first : 'invite_only');
+    if (_requireApproval && (caps?.joinPolicies.contains('request') ?? false)) {
+      joinPolicy = 'request';
+    }
+    return _mp.create(
+      activityName: _activityNameController.text.trim(),
+      visibility: visibility,
+      joinPolicy: joinPolicy,
+      maxPlayers: _maxPlayers.value,
+    );
+  }
 
   Future<void> _joinRoom() => _mp.joinByCode(_joinCodeController.text);
 
@@ -807,26 +808,26 @@ class _OnlinePageState extends State<OnlinePage> {
   String _visibilityLabel(String value) => switch (value) {
     'private' => '仅我可见',
     'friends' => '仅好友可见',
+    'public' => '公开',
     'unlisted' => '凭加入码',
     _ => value,
   };
 
-  /// 可见范围对「能不能拿到加入码」的影响（只有 unlisted 会给码）
-  ///
-  /// 好友与邀请这两档依赖我们还没做的功能（好友列表 / 邀请流程），
-  /// 提示里直接写明，别让用户选了才发现用不了
+  /// 可见范围对「能不能拿到加入码」的影响
   String _visibilityHint(String value) => switch (value) {
-    'private' => '别人看不到这个房间；只有我放行的人能进，不给加入码（放行靠邀请，还没做）',
-    'friends' => '⚠ 好友在他们自己的列表里能看到并直接进；不给加入码（好友列表还没做）',
-    'unlisted' => '任何列表里都看不到；拿到加入码的人都能进（会给码）',
+    'private' => '别人看不到这个房间；只有我放行的人能进',
+    'friends' => '⚠ 好友在他们自己的列表里能看到并直接进（好友列表还没做）',
+    'public' => '所有人都能在公开列表里看到并加入',
+    'unlisted' => '任何列表里都看不到；拿到加入码的人都能进',
     _ => '',
   };
 
   String _joinPolicyLabel(String value) => switch (value) {
-    'open' => '有码即可进',
+    'invite_only' => '仅邀请 / 凭码',
     'friends' => '⚠ 仅好友（好友列表未做）',
+    'public' => '任何人可进',
+    'open' => '有码即可进',
     'request' => '需我同意',
-    'invite_only' => '⚠ 仅邀请（邀请未做）',
     _ => value,
   };
 

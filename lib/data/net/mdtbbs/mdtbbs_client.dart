@@ -538,6 +538,7 @@ class MdtbbsClient {
       .warning,
       '请求失败 ${error.requestOptions.method} ${error.requestOptions.path}'
       '：${failure.message}'
+      '${failure.details.isEmpty ? '' : '；details: ${failure.details.join('; ')}'}'
       '${requestId == null ? '' : '（request_id: $requestId）'}',
       tag: 'Mdtbbs',
     );
