@@ -96,22 +96,13 @@ class MdtbbsRelayException implements Exception {
 class MdtbbsRelayTunnel {
   MdtbbsRelayTunnel({
     required this.allocateRelay,
-    this.renewBefore = 20,
+    this.renewBefore = 40,
     this.authTimeout = const Duration(seconds: 15),
-    Duration Function(int attempt)? authRetryDelay,
-  }) : authRetryDelay = authRetryDelay ?? defaultAuthRetryDelay;
+  });
 
   final Future<MdtbbsRelayAllocation> Function() allocateRelay;
   final int renewBefore;
   final Duration authTimeout;
-
-  /// 认证被拒之后、用同一份凭证再试之前等多久（**默认 5s、10s**）
-  ///
-  /// 留成可注入只为让用例把整条「试三次」跑在毫秒级；**默认行为一字不变**
-  final Duration Function(int attempt) authRetryDelay;
-
-  static Duration defaultAuthRetryDelay(int attempt) =>
-      Duration(seconds: 5 * attempt);
 
   WebSocket? _socket;
   Timer? _renewTimer;
@@ -143,25 +134,16 @@ class MdtbbsRelayTunnel {
       'ttl=${alloc.expiresIn}s 分配请求=${alloc.requestId ?? '—'}',
       tag: 'Multiplayer',
     );
-    Object? lastError;
-    for (var attempt = 1; attempt <= 3; attempt++) {
-      try {
-        final auth = await _connectAndAuth();
-        _scheduleRenewal(expiresAt: auth.expiresAt);
-        return auth;
-      } on MdtbbsRelayException catch (error) {
-        lastError = error;
-        await _teardownSocket();
-        if (!error.authRejected || attempt == 3) rethrow;
-        addLogAndPrint(
-          .info,
-          '中继认证被拒（第 $attempt 次），${5 * attempt} 秒后用同一份凭证重试…',
-          tag: 'Multiplayer',
-        );
-        await Future<void>.delayed(authRetryDelay(attempt));
-      }
+    try {
+      final auth = await _connectAndAuth();
+      _scheduleRenewal(expiresAt: auth.expiresAt);
+      return auth;
+    } on Object {
+      // 同一份凭证重试没有意义：认证被拒多半是分配侧的问题
+      // 交给上层换一份新分配
+      await _teardownSocket();
+      rethrow;
     }
-    throw lastError ?? const MdtbbsRelayException('中继认证失败');
   }
 
   /// 诊断用：只解不验，把凭证 JWT 的声明打出来（不含签名，用于和服务端分配对账）

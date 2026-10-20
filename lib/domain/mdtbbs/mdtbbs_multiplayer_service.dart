@@ -53,6 +53,15 @@ class MdtbbsMultiplayerService {
   int? _heartbeatInFlightGeneration;
   bool _heartbeatRecoveryInFlight = false;
 
+  /// 断线重连：2s / 5s / 10s 三次，成功后清零
+  static const _reconnectDelays = [
+    Duration(seconds: 2),
+    Duration(seconds: 5),
+    Duration(seconds: 10),
+  ];
+  Timer? _reconnectTimer;
+  int _reconnectAttempt = 0;
+
   String? _lastAccountSubject;
   bool _accountLoggedIn = false;
   bool _accountResetInFlight = false;
@@ -141,10 +150,11 @@ class MdtbbsMultiplayerService {
       stopInvitePolling();
       forgetSession();
       _finishSessionTask();
+      _cancelReconnect(reset: true);
       // 先同步清掉旧账号的可见状态，再异步释放旧网络资源。
       // 这样新账号即使在 teardown 期间登录并建好状态，也不会被旧 reset 的尾声覆盖。
       _set(const MultiplayerState());
-      await stopProxy(announce: false);
+      await stopProxy();
     } finally {
       _accountResetInFlight = false;
     }
@@ -176,7 +186,7 @@ class MdtbbsMultiplayerService {
     } on Object catch (error) {
       if (!_isAccountEpochCurrent(epoch)) return;
       _set(_current.copyWith(loadingCapabilities: false));
-      _notify('读取联机功能状态失败：$error', isError: true);
+      _notify('读取联机功能状态失败：${describeMdtbbsError(error)}', isError: true);
     }
   }
 
@@ -247,6 +257,7 @@ class MdtbbsMultiplayerService {
         _beginSessionTask();
         _armHeartbeat();
         await refreshPeers();
+        unawaited(_autoPrepareProxy());
         addLogAndPrint(.info, '已用恢复令牌恢复联机会话 ${session.id}', tag: 'Multiplayer');
         return;
       } on MdtbbsException catch (error) {
@@ -367,6 +378,7 @@ class MdtbbsMultiplayerService {
       );
       if (beginSessionTask) _beginSessionTask();
       _armHeartbeat();
+      unawaited(_autoPrepareProxy());
       addLogAndPrint(
         .warning,
         '恢复令牌不可用，但服务端仍确认旧 peer 活跃；本次进程继续使用该 peer',
@@ -399,9 +411,11 @@ class MdtbbsMultiplayerService {
     required int expectedAccountEpoch,
   }) async {
     if (!_isAccountEpochCurrent(expectedAccountEpoch)) return;
+    if (!_isAccountEpochCurrent(expectedAccountEpoch)) return;
     forgetSession();
     _finishSessionTask();
-    await stopProxy(announce: false);
+    _cancelReconnect(reset: true);
+    await stopProxy();
     if (!_isAccountEpochCurrent(expectedAccountEpoch)) return;
     _accounts.clearMultiplayerSession();
     _set(
@@ -411,6 +425,11 @@ class MdtbbsMultiplayerService {
         clearSelf: true,
         peers: const [],
         resuming: false,
+        startingProxy: false,
+        stoppingProxy: false,
+        reconnecting: false,
+        reconnectAttempt: 0,
+        clearProxyError: true,
         clearSentInvites: true,
       ),
     );
@@ -462,10 +481,11 @@ class MdtbbsMultiplayerService {
       );
       _beginSessionTask();
       _armHeartbeat();
+      unawaited(_autoPrepareProxy());
     } on Object catch (error) {
       if (!_isAccountEpochCurrent(epoch)) return;
       _set(_current.copyWith(resuming: false));
-      _notify('读取房间状态失败：$error', isError: true);
+      _notify('读取房间状态失败：${describeMdtbbsError(error)}', isError: true);
     }
   }
 
@@ -529,15 +549,16 @@ class MdtbbsMultiplayerService {
       if (!_isAccountEpochCurrent(epoch)) return;
       _notify(
         joinCode == null
-            ? '房间已创建（${created.session.id}）；这个可见范围不给加入码，只能靠邀请'
-            : '房间已创建，加入码 $joinCode（已复制到剪贴板）',
+            ? '房间已创建（${created.session.id}）；这个可见范围不给房间码，只能靠邀请'
+            : '房间已创建，房间码 $joinCode（已复制到剪贴板）',
       );
       _armHeartbeat();
       unawaited(refreshPeers());
+      unawaited(_autoPrepareProxy());
     } on Object catch (error) {
       if (!_isAccountEpochCurrent(epoch)) return;
       _set(_current.copyWith(creating: false));
-      _notify('创建房间失败：$error', isError: true);
+      _notify('创建房间失败：${describeMdtbbsError(error)}', isError: true);
     }
   }
 
@@ -545,7 +566,7 @@ class MdtbbsMultiplayerService {
     if (_current.joining) return;
     final trimmed = code.trim();
     if (trimmed.isEmpty) {
-      _notify('请输入加入码', isError: true);
+      _notify('请输入房间码', isError: true);
       return;
     }
     final epoch = _accountEpoch;
@@ -586,10 +607,11 @@ class MdtbbsMultiplayerService {
       _notify('已加入房间（${session.id}）');
       _armHeartbeat();
       unawaited(refreshPeers());
+      unawaited(_autoPrepareProxy());
     } on Object catch (error) {
       if (!_isAccountEpochCurrent(epoch)) return;
       _set(_current.copyWith(joining: false));
-      _notify('加入房间失败：$error', isError: true);
+      _notify('加入房间失败：${describeMdtbbsError(error)}', isError: true);
     }
   }
 
@@ -616,6 +638,7 @@ class MdtbbsMultiplayerService {
       if (!_isAccountEpochCurrent(epoch)) return;
       forgetSession();
       _finishSessionTask();
+      _cancelReconnect(reset: true);
       await stopProxy();
       if (!_isAccountEpochCurrent(epoch)) return;
       _accounts.clearMultiplayerSession();
@@ -626,6 +649,11 @@ class MdtbbsMultiplayerService {
           clearSelf: true,
           peers: const [],
           leaving: false,
+          startingProxy: false,
+          stoppingProxy: false,
+          reconnecting: false,
+          reconnectAttempt: 0,
+          clearProxyError: true,
           clearSentInvites: true,
         ),
       );
@@ -637,7 +665,7 @@ class MdtbbsMultiplayerService {
     } on Object catch (error) {
       if (!_isAccountEpochCurrent(epoch)) return;
       _set(_current.copyWith(leaving: false));
-      _notify('离开房间失败：$error', isError: true);
+      _notify('离开房间失败：${describeMdtbbsError(error)}', isError: true);
     }
   }
 
@@ -672,7 +700,7 @@ class MdtbbsMultiplayerService {
         return;
       }
       _set(_current.copyWith(refreshingPeers: false));
-      if (announce) _notify('刷新成员失败：$error', isError: true);
+      if (announce) _notify('刷新成员失败：${describeMdtbbsError(error)}', isError: true);
     }
   }
 
@@ -856,6 +884,7 @@ class MdtbbsMultiplayerService {
       _notify('已接受邀请，进入房间（${session.id}）');
       _armHeartbeat();
       unawaited(refreshPeers());
+      unawaited(_autoPrepareProxy());
     } on Object catch (error) {
       if (!_isAccountEpochCurrent(epoch)) return;
       _set(_current.copyWith(clearBusyInvite: true));
@@ -1079,135 +1108,286 @@ class MdtbbsMultiplayerService {
 
   // ── 联机通道 ────────────────────────────────────────────────
 
-  Future<void> startProxy() async {
+  /// 建房 / 加房 / 恢复后自动准备，玩家不再自己点「启动通道」
+  Future<void> _autoPrepareProxy() async {
+    if (_current.session == null ||
+        _tunnel != null ||
+        _current.startingProxy) {
+      return;
+    }
+    final caps = _current.capabilities;
+    if (caps != null && !caps.relayEnabled) return;
+    await _startProxy(auto: true);
+  }
+
+  /// 自动重连都失败后，界面上的「重试」
+  Future<void> retryProxy() async {
+    _cancelReconnect(reset: true);
+    _set(
+      _current.copyWith(
+        reconnecting: false,
+        reconnectAttempt: 0,
+        clearProxyError: true,
+      ),
+    );
+    await _startProxy(auto: false);
+  }
+
+  Future<void> _startProxy({required bool auto}) async {
     final session = _current.session;
     if (session == null) {
-      _notify('当前不在任何房间中', isError: true);
+      if (!auto) _notify('当前不在任何房间中', isError: true);
       return;
     }
-    if (_tunnel != null) return;
+    if (_tunnel != null || _current.startingProxy) return;
 
     final epoch = _accountEpoch;
-    String? firstRelayToken = await _token();
-    if (firstRelayToken == null || !_isAccountEpochCurrent(epoch)) {
-      if (_isAccountEpochCurrent(epoch)) _notify('请先登录社区账号', isError: true);
+    String? cachedToken = await _token();
+    if (cachedToken == null || !_isAccountEpochCurrent(epoch)) {
+      if (!auto && _isAccountEpochCurrent(epoch)) {
+        _notify('请先登录社区账号', isError: true);
+      }
       return;
     }
 
-    _set(_current.copyWith(startingProxy: true));
-    final tunnel = MdtbbsRelayTunnel(
-      allocateRelay: () async {
-        if (!_isAccountEpochCurrent(epoch)) {
-          throw const MdtbbsRelayException('账号已切换，中止旧会话的中继续签');
-        }
-        final accessToken = firstRelayToken ?? await _token();
-        firstRelayToken = null;
-        if (accessToken == null || !_isAccountEpochCurrent(epoch)) {
-          throw const MdtbbsRelayException('登录状态已失效，无法续签中继凭证');
-        }
-        return MdtbbsMultiplayerApi.allocateRelay(
-          accessToken: accessToken,
-          sessionId: session.id,
-        );
-      },
-    );
+    _set(_current.copyWith(startingProxy: true, clearProxyError: true));
 
-    String? address;
-    MdtbbsRelayProxyPorts? unownedPorts;
+    MdtbbsRelayTunnel? tunnel;
+    MdtbbsRelayAuthOk? auth;
     try {
-      final auth = await tunnel.start().timeout(const Duration(seconds: 30));
+      var attempts = 0;
+      while (true) {
+        attempts++;
+        final created = MdtbbsRelayTunnel(
+          allocateRelay: () async {
+            if (!_isAccountEpochCurrent(epoch)) {
+              throw const MdtbbsRelayException('账号已切换，中止旧会话的中继续签');
+            }
+            final accessToken = cachedToken ?? await _token();
+            cachedToken = null;
+            if (accessToken == null || !_isAccountEpochCurrent(epoch)) {
+              throw const MdtbbsRelayException('登录状态已失效，无法续签中继凭证');
+            }
+            return MdtbbsMultiplayerApi.allocateRelay(
+              accessToken: accessToken,
+              sessionId: session.id,
+            );
+          },
+        );
+        tunnel = created;
+        try {
+          auth = await created.start().timeout(const Duration(seconds: 30));
+          break;
+        } on MdtbbsRelayException catch (error) {
+          await created.dispose();
+          tunnel = null;
+          // 同一份凭证重试没有意义；换一份新分配再试一次
+          if (attempts < 2 && error.authRejected) {
+            addLogAndPrint(
+              .warning,
+              '中继认证被拒，换一份新分配重试：${error.message}',
+              tag: 'Multiplayer',
+            );
+            await Future<void>.delayed(const Duration(seconds: 2));
+            if (!_isAccountEpochCurrent(epoch) ||
+                _current.session?.id != session.id) {
+              _set(_current.copyWith(startingProxy: false));
+              return;
+            }
+            continue;
+          }
+          rethrow;
+        } on Object {
+          await created.dispose();
+          tunnel = null;
+          rethrow;
+        }
+      }
+
+      final openedTunnel = tunnel;
+      final openedAuth = auth;
       if (!_isAccountEpochCurrent(epoch) ||
           _current.session?.id != session.id) {
-        await tunnel.dispose();
+        _set(_current.copyWith(startingProxy: false));
+        await openedTunnel.dispose();
         return;
       }
-      _heartbeatPeerId = auth.peerId;
+      _heartbeatPeerId = openedAuth.peerId;
       _heartbeatSessionId = session.id;
       _accounts.saveMultiplayerSession(
         StoredMultiplayerSession(
           sessionId: session.id,
-          peerId: auth.peerId,
+          peerId: openedAuth.peerId,
           resumeToken: _accounts.multiplayerSession?.resumeToken,
           joinCode: _current.joinCode,
           activityName: session.activityName,
         ),
       );
-      if (auth.peerRole == 'owner') {
-        final bridge = MdtbbsRelayHostBridge(tunnel: tunnel);
-        await bridge.start().timeout(const Duration(seconds: 10));
-        if (!_isAccountEpochCurrent(epoch) ||
-            _current.session?.id != session.id) {
-          await bridge.dispose();
-          await tunnel.dispose();
-          return;
+
+      String? address;
+      MdtbbsRelayProxyPorts? unownedPorts;
+      try {
+        if (openedAuth.peerRole == 'owner') {
+          final bridge = MdtbbsRelayHostBridge(tunnel: openedTunnel);
+          await bridge.start().timeout(const Duration(seconds: 10));
+          if (!_isAccountEpochCurrent(epoch) ||
+              _current.session?.id != session.id) {
+            await bridge.dispose();
+            await openedTunnel.dispose();
+            return;
+          }
+          _host = bridge;
+          address = '127.0.0.1:6567';
+        } else {
+          final ports = await bindRelayProxyPorts();
+          if (ports == null) {
+            throw const MdtbbsRelayException('本机端口 6567 起不来（游戏或别的程序占着？）');
+          }
+          unownedPorts = ports;
+          final peersToken = await _token();
+          if (peersToken == null || !_isAccountEpochCurrent(epoch)) {
+            throw const MdtbbsRelayException('登录状态已失效，无法读取房间成员');
+          }
+          final peers = await MdtbbsMultiplayerApi.peers(
+            accessToken: peersToken,
+            sessionId: session.id,
+          ).timeout(const Duration(seconds: 15));
+          if (!_isAccountEpochCurrent(epoch) ||
+              _current.session?.id != session.id) {
+            throw const MdtbbsRelayException('会话或账号已经切换');
+          }
+          final owner = peers.where((p) => p.role == 'owner').toList();
+          if (owner.isEmpty) {
+            throw const MdtbbsRelayException('会话里没有房主对端');
+          }
+          final proxy = MdtbbsRelayGuestProxy(
+            tunnel: openedTunnel,
+            ownerPeerId: owner.first.peerId,
+            ports: ports,
+          );
+          await proxy.start();
+          _guest = proxy;
+          unownedPorts = null;
+          address = '127.0.0.1:${ports.port}';
         }
-        _host = bridge;
-        address = '127.0.0.1:6567';
-      } else {
-        final ports = await bindRelayProxyPorts();
-        if (ports == null) {
-          throw const MdtbbsRelayException('本机端口 6567 起不来（游戏或别的程序占着？）');
-        }
-        unownedPorts = ports;
-        final peersToken = await _token();
-        if (peersToken == null || !_isAccountEpochCurrent(epoch)) {
-          throw const MdtbbsRelayException('登录状态已失效，无法读取房间成员');
-        }
-        final peers = await MdtbbsMultiplayerApi.peers(
-          accessToken: peersToken,
-          sessionId: session.id,
-        ).timeout(const Duration(seconds: 15));
-        if (!_isAccountEpochCurrent(epoch) ||
-            _current.session?.id != session.id) {
-          throw const MdtbbsRelayException('会话或账号已经切换');
-        }
-        final owner = peers.where((p) => p.role == 'owner').toList();
-        if (owner.isEmpty) {
-          throw const MdtbbsRelayException('会话里没有房主对端');
-        }
-        final proxy = MdtbbsRelayGuestProxy(
-          tunnel: tunnel,
-          ownerPeerId: owner.first.peerId,
-          ports: ports,
-        );
-        await proxy.start();
-        _guest = proxy;
-        unownedPorts = null;
-        address = '127.0.0.1:${ports.port}';
+      } on Object {
+        await _closeProxyPorts(unownedPorts);
+        await openedTunnel.dispose();
+        rethrow;
       }
-    } on Object catch (error) {
-      await _closeProxyPorts(unownedPorts);
-      await tunnel.dispose();
+
       if (!_isAccountEpochCurrent(epoch) ||
           _current.session?.id != session.id) {
+        _set(_current.copyWith(startingProxy: false));
+        await _closeGuestAndHost();
+        await openedTunnel.dispose();
         return;
       }
-      _set(_current.copyWith(startingProxy: false));
-      _notify('启动联机通道失败：${_describeProxyError(error)}', isError: true);
-      return;
-    }
-
-    if (!_isAccountEpochCurrent(epoch) || _current.session?.id != session.id) {
-      await _closeProxyPorts(unownedPorts);
-      await tunnel.dispose();
-      return;
-    }
-    _tunnel = tunnel;
-    _signalSubscription = tunnel.signals.listen((signal) {
-      if (signal is MdtbbsRelayClosed) {
-        addLogAndPrint(.info, '官方中继已断开：${signal.reason}', tag: 'Multiplayer');
-        // 旧 tunnel 的 closed 事件如果在 teardown 期间晚到，不能去停掉新 tunnel。
-        if (identical(_tunnel, tunnel)) unawaited(stopProxy());
+      _tunnel = openedTunnel;
+      _signalSubscription = openedTunnel.signals.listen((signal) {
+        if (signal is MdtbbsRelayClosed) {
+          addLogAndPrint(
+            .warning,
+            '联机服务器连接断开：${signal.reason}',
+            tag: 'Multiplayer',
+          );
+          // 旧 tunnel 的 closed 事件如果在 teardown 期间晚到，不能去停掉新 tunnel
+          if (identical(_tunnel, openedTunnel)) {
+            unawaited(_onRelayLost(openedTunnel));
+          }
+        }
+      });
+      _cancelReconnect();
+      _reconnectAttempt = 0;
+      _set(
+        _current.copyWith(
+          proxyRunning: true,
+          localAddress: address,
+          startingProxy: false,
+          reconnecting: false,
+          reconnectAttempt: 0,
+          clearProxyError: true,
+        ),
+      );
+      if (!auto) _notify('已连上联机服务器');
+      unawaited(refreshPeers());
+    } on Object catch (error) {
+      await tunnel?.dispose();
+      if (!_isAccountEpochCurrent(epoch) ||
+          _current.session?.id != session.id) {
+        _set(_current.copyWith(startingProxy: false));
+        return;
       }
-    });
+      await _onProxyStartFailed(error, auto: auto);
+    }
+  }
+
+  Future<void> _onRelayLost(MdtbbsRelayTunnel tunnel) async {
+    if (!identical(_tunnel, tunnel)) return;
+    await stopProxy();
+    if (_current.session == null || _current.leaving) return;
+    _scheduleReconnect();
+  }
+
+  Future<void> _onProxyStartFailed(Object error, {required bool auto}) async {
+    addLogAndPrint(.warning, '联机准备失败：$error', tag: 'Multiplayer');
+    final message = _describeProxyError(error);
+    final retryExhausted =
+        !auto || _reconnectAttempt >= _reconnectDelays.length;
+    if (retryExhausted) {
+      _set(
+        _current.copyWith(
+          startingProxy: false,
+          reconnecting: false,
+          proxyError: message,
+        ),
+      );
+      _notify(
+        auto ? '$message（已自动重试 ${_reconnectDelays.length} 次）' : message,
+        isError: true,
+      );
+      return;
+    }
+    _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    final session = _current.session;
+    if (session == null || _current.leaving) return;
+    _reconnectAttempt++;
+    final delay = _reconnectDelays[_reconnectAttempt - 1];
+    _reconnectTimer?.cancel();
     _set(
       _current.copyWith(
-        proxyRunning: true,
-        localAddress: address,
         startingProxy: false,
+        reconnecting: true,
+        reconnectAttempt: _reconnectAttempt,
       ),
     );
-    _notify('联机通道已启动，请在游戏中连接 $address');
+    addLogAndPrint(
+      .info,
+      '${delay.inSeconds} 秒后重连联机服务器（第 $_reconnectAttempt 次）',
+      tag: 'Multiplayer',
+    );
+    _reconnectTimer = Timer(delay, () {
+      if (_current.session?.id != session.id) return;
+      unawaited(_startProxy(auto: true));
+    });
+  }
+
+  void _cancelReconnect({bool reset = false}) {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    if (reset) _reconnectAttempt = 0;
+  }
+
+  Future<void> _closeGuestAndHost() async {
+    final guest = _guest;
+    final host = _host;
+    _guest = null;
+    _host = null;
+    await guest?.dispose();
+    await host?.dispose();
   }
 
   Future<void> _closeProxyPorts(MdtbbsRelayProxyPorts? ports) async {
@@ -1220,9 +1400,9 @@ class MdtbbsMultiplayerService {
     ports.udpSocket.close();
   }
 
-  Future<void> stopProxy({bool announce = true}) async {
-    final epoch = _accountEpoch;
-    final wasRunning = _tunnel != null;
+  Future<void> stopProxy() async {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     final guest = _guest;
     final host = _host;
     final tunnel = _tunnel;
@@ -1248,23 +1428,23 @@ class MdtbbsMultiplayerService {
     await guest?.dispose();
     await host?.dispose();
     await tunnel?.dispose();
-    if (wasRunning && announce && _isAccountEpochCurrent(epoch)) {
-      _notify('联机通道已停止');
-    }
   }
 
   String _describeProxyError(Object error) {
     final text = '$error';
-    if (text.contains('RELAY_LIMIT_REACHED') || text.contains('额度已满')) {
-      return '官方中继并发额度已满：同一个房间的这个身份同时只能占 1 条中继连接。'
-          '请等 1~2 分钟再试（或先离开房间重新进入）';
-    }
     if (text.contains('AUTH_INVALID')) {
-      return '中继认证被拒（AUTH_INVALID）：官方中继没认下这份凭证。'
-          '日志里有一行「中继拒绝认证（诊断用）」，把它发给管理员即可定位；'
-          '服务端那笔分配要等它自己过期，约 2 分钟内重试还是会被拒';
+      return '连不上联机服务器，请稍后再试';
     }
-    return text;
+    if (text.contains('RELAY_LIMIT_REACHED') || text.contains('额度已满')) {
+      return '联机服务器还有一份你的旧连接，等 1 分钟再试';
+    }
+    if (text.contains('端口 6567')) {
+      return '本机联机端口被占用，关掉游戏后再试';
+    }
+    if (text.contains('没有房主')) {
+      return '房间信息还没同步好，稍后重试';
+    }
+    return '联机准备失败，请稍后再试';
   }
 
   // ── 落盘 ────────────────────────────────────────────────────

@@ -15,6 +15,9 @@ class MultiplayerState {
     this.resuming = false,
     this.proxyRunning = false,
     this.localAddress,
+    this.reconnecting = false,
+    this.reconnectAttempt = 0,
+    this.proxyError,
     this.lastHeartbeatAt,
     this.heartbeatFailures = 0,
     this.lastMessage,
@@ -56,6 +59,15 @@ class MultiplayerState {
   final bool proxyRunning;
   final String? localAddress;
 
+  /// 通道断开后正在自动重连
+  final bool reconnecting;
+
+  /// 已重连次数（1 起；界面显示「正在重连（n/3）」）
+  final int reconnectAttempt;
+
+  /// 最终失败给用户看的一句话（原始错误只进日志）
+  final String? proxyError;
+
   // ── 心跳 ──
   final DateTime? lastHeartbeatAt;
   final int heartbeatFailures;
@@ -73,6 +85,10 @@ class MultiplayerState {
   final bool stoppingProxy;
 
   bool get inSession => session != null;
+
+  /// 在线成员数：**人数显示用它，不读建 / 加房那一刻的 `currentPlayers`**
+  int get onlinePeerCount =>
+      peers.where((peer) => peer.status == 'active').length;
 
   // ── 邀请 ──
   /// 收到的邀请；只有 5 分钟有效期，靠页面可见时定时刷
@@ -129,6 +145,9 @@ class MultiplayerState {
     bool? resuming,
     bool? proxyRunning,
     String? localAddress,
+    bool? reconnecting,
+    int? reconnectAttempt,
+    String? proxyError,
     DateTime? lastHeartbeatAt,
     int? heartbeatFailures,
     String? lastMessage,
@@ -148,6 +167,7 @@ class MultiplayerState {
     bool clearJoinCode = false,
     bool clearSelf = false,
     bool clearLocalAddress = false,
+    bool clearProxyError = false,
     bool clearMessage = false,
     bool clearInvites = false,
     bool clearSentInvites = false,
@@ -165,6 +185,9 @@ class MultiplayerState {
     localAddress: clearLocalAddress
         ? null
         : (localAddress ?? this.localAddress),
+    reconnecting: reconnecting ?? this.reconnecting,
+    reconnectAttempt: reconnectAttempt ?? this.reconnectAttempt,
+    proxyError: clearProxyError ? null : (proxyError ?? this.proxyError),
     lastHeartbeatAt: lastHeartbeatAt ?? this.lastHeartbeatAt,
     heartbeatFailures: heartbeatFailures ?? this.heartbeatFailures,
     lastMessage: clearMessage ? null : (lastMessage ?? this.lastMessage),
