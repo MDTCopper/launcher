@@ -1037,6 +1037,7 @@ class MdtbbsMultiplayerService {
             );
             _armHeartbeat();
             unawaited(refreshPeers());
+            unawaited(_autoPrepareProxy());
             addLogAndPrint(.info, '心跳异常后已恢复原联机 peer', tag: 'Multiplayer');
             return;
           }
