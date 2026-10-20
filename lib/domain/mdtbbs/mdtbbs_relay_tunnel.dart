@@ -164,6 +164,19 @@ class MdtbbsRelayTunnel {
     throw lastError ?? const MdtbbsRelayException('中继认证失败');
   }
 
+  /// 诊断用：只解不验，把凭证 JWT 的声明打出来（不含签名，用于和服务端分配对账）
+  Map<String, dynamic>? _credentialClaims(String? credential) {
+    if (credential == null || credential.isEmpty) return null;
+    final parts = credential.split('.');
+    if (parts.length < 2) return null;
+    try {
+      final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final decoded = jsonDecode(payload);
+      return decoded is Map ? decoded.cast<String, dynamic>() : null;
+    } on Object {
+      return null;
+    }
+  }
   Future<MdtbbsRelayAuthOk> _connectAndAuth() async {
     final completer = Completer<MdtbbsRelayAuthOk>();
     _authCompleter = completer;
@@ -382,13 +395,15 @@ class MdtbbsRelayTunnel {
         if (code == 'AUTH_INVALID') {
           final allocation = _allocation;
           final expiresAt = _credentialExpiresAt?.toIso8601String() ?? '—';
+          final claims = _credentialClaims(allocation?.credential);
           addLogAndPrint(
             .warning,
             '中继拒绝认证（诊断用）：'
             'alloc=${allocation?.allocationId ?? '—'} '
             'agent=${allocation?.agentId ?? '—'} '
             '分配请求=${allocation?.requestId ?? '—'} '
-            '凭证到期=$expiresAt',
+            '凭证到期=$expiresAt '
+            '凭证声明=${claims == null ? '解不开' : jsonEncode(claims)}',
             tag: 'Multiplayer',
           );
         }
