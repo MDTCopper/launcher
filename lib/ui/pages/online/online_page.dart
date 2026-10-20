@@ -58,18 +58,27 @@ class _OnlinePageState extends State<OnlinePage> {
 
   // MDT 块自己的状态：与官方那半互不影响
   bool _mdtBusy = false;
+  bool _mdtOpen = false;
   LanLinkRoom? _mdtRoom;
   List<LanLinkRoom> _publicRooms = const [];
   bool _publicRoomsLoading = false;
+
+  Timer? _peerRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
+    // 成员与人数每 10 秒静默刷新一次，页面不可见时跳过
+    _peerRefreshTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _refreshPeersIfVisible(),
+    );
   }
 
   @override
   void dispose() {
+    _peerRefreshTimer?.cancel();
     _joinCodeController.dispose();
     _activityNameController.dispose();
     _maxPlayers.dispose();
@@ -101,6 +110,17 @@ class _OnlinePageState extends State<OnlinePage> {
     unawaited(_loadPublicRooms());
   }
 
+  /// 成员与人数自动刷新；只在页面可见、真在房间里时发请求
+  void _refreshPeersIfVisible() {
+    if (!mounted) return;
+    if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
+    final state = _mp.state.value;
+    if (state.session == null || state.refreshingPeers || state.leaving) {
+      return;
+    }
+    unawaited(_mp.refreshPeers());
+  }
+
   /// 公开房间列表：LanLink 那边开房时勾了「公开」的房间会出现在这里，
   /// **任何人不用房间码就能看到直接加入**（官方 API 没有这个大厅）
   Future<void> _loadPublicRooms() async {
@@ -122,7 +142,7 @@ class _OnlinePageState extends State<OnlinePage> {
   Future<void> _resolveMdtRoom() async {
     final code = LanLinkRoomCode.tryParse(_mdtCodeController.text);
     if (code == null) {
-      _showMdt('MDT 房间码格式：MDT-XXXXXX', isError: true);
+      _showMdt('房间码格式：MDT-XXXXXX', isError: true);
       return;
     }
     setState(() => _mdtBusy = true);
@@ -181,7 +201,7 @@ class _OnlinePageState extends State<OnlinePage> {
     final name = session.activityName?.trim();
     return '【Copper 联机】'
         '${name == null || name.isEmpty ? '联机房间' : name}\n'
-        '加入码 ${_mp.state.value.joinCode}\n'
+        '房间码 ${_mp.state.value.joinCode}\n'
         '用 Copper 启动器 → 联机 → 加入房间，填这个码即可';
   }
 
@@ -201,43 +221,13 @@ class _OnlinePageState extends State<OnlinePage> {
         final state = _mp.state.value;
         return ListContentPanel(
           items: [
-            _buildAccountStrip(),
-            if (state.lastMessage != null) _buildMessagePanel(state),
+            if (state.lastMessage != null && state.session == null)
+              _buildMessagePanel(state),
             _buildOfficialPanel(state),
             _buildMdtCompatPanel(),
           ],
         );
       },
-    );
-  }
-
-  Widget _buildAccountStrip() {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final loggedIn = _accounts.snapshot.value.loggedIn;
-    return ContentPanelModule(
-      title: '账号状态',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 4,
-        children: [
-          Text(
-            loggedIn
-                ? '✓ 社区账号：已登录（创建 / 加入房间需要；MDT 房间无需登录）'
-                : '× 社区账号：未登录（创建 / 加入房间需要；MDT 房间无需登录）',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: loggedIn ? colors.itemSecondary : colors.error,
-            ),
-          ),
-          if (!loggedIn)
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: Icons.account_circle_outlined,
-              content: '去账户页登录',
-              onTap: () => Navigator.pushNamed(context, accountPageRouteKey),
-            ),
-        ],
-      ),
     );
   }
 
@@ -277,18 +267,36 @@ class _OnlinePageState extends State<OnlinePage> {
 
     if (!_accounts.snapshot.value.loggedIn) {
       return ContentPanelModule(
-        title: '会话（官方）',
-        child: Text(
-          '登录社区账号后可用（MindAuth 授权，无需输入密码）。',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: colors.itemSecondary,
-          ),
+        title: '联机',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 6,
+          children: [
+            Text(
+              '联机需要一个社区账号：登录后可以创建或加入房间',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            ),
+            IconTextButton(
+              pressedScale: 0.96,
+              icon: Icons.account_circle_outlined,
+              content: '去账户页登录',
+              onTap: () => Navigator.pushNamed(context, accountPageRouteKey),
+            ),
+            Text(
+              '其他启动器（LanLink）的房间不用登录，在页面底部',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colors.itemHint,
+              ),
+            ),
+          ],
         ),
       );
     }
     if (caps == null) {
       return ContentPanelModule(
-        title: '会话（官方）',
+        title: '房间',
         child: Text(
           state.loadingCapabilities ? '正在读取联机功能…' : '正在准备…',
           style: theme.textTheme.bodyMedium?.copyWith(color: colors.itemHint),
@@ -297,7 +305,7 @@ class _OnlinePageState extends State<OnlinePage> {
     }
     if (!caps.usable) {
       return ContentPanelModule(
-        title: '会话（官方）',
+        title: '房间',
         child: Text(
           '服务端当前未开放此功能',
           style: theme.textTheme.bodyMedium?.copyWith(color: colors.error),
@@ -305,107 +313,75 @@ class _OnlinePageState extends State<OnlinePage> {
       );
     }
     final session = state.session;
-    final phoneVerified = _accounts.snapshot.value.phoneVerified;
-    return ContentPanelModule(
-      title: '会话（官方）',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 10,
-        children: [
-          if (!phoneVerified)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 6,
-              children: [
-                Text(
-                  '手机号未验证：加入房间已对 Copper Launcher 免验证；'
-                  '创建房间仍会被服务端拒绝',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.error,
-                  ),
-                ),
-                IconTextButton(
-                  pressedScale: 0.96,
-                  icon: Icons.refresh,
-                  content: '我已验证，重新检查',
-                  onTap: () => _accounts.loadAccount().then((_) {
-                    if (mounted) setState(() {});
-                  }),
-                ),
-              ],
-            ),
-          Text(
-            '创建房间后把加入码发给好友，或使用好友的加入码加入房间。'
-            '（官方中继尚未完成，目前仅支持房间管理）',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.itemSecondary,
-            ),
+    if (state.waitingForSession) {
+      return ContentPanelModule(
+        title: '房间',
+        child: Text(
+          '正在恢复上次的房间…',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colors.itemSecondary,
           ),
-          if (state.anyBusy)
-            Text(state.workloadLabel, style: theme.textTheme.bodySmall),
-          if (session != null)
-            _buildSessionCard(state, session)
-          else if (state.waitingForSession)
-            Text(
-              '正在恢复房间…（加入码 ${state.joinCode ?? '—'}）',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.itemSecondary,
+        ),
+      );
+    }
+    if (session != null) {
+      return ContentPanelModule(
+        title: '房间',
+        child: _buildSessionCard(state, session),
+      );
+    }
+    return _buildCreateJoinPanel(state, caps);
+  }
+
+  /// 未进房：创建 / 加入两张卡，高级选项默认折叠
+  Widget _buildCreateJoinPanel(
+    MultiplayerState state,
+    MdtbbsMultiplayerCapabilities caps,
+  ) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final phoneVerified = _accounts.snapshot.value.phoneVerified;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 12,
+      children: [
+        if (state.anyBusy)
+          Text(state.workloadLabel, style: theme.textTheme.bodySmall),
+        ContentPanelModule(
+          title: '创建房间',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 8,
+            children: [
+              if (!phoneVerified)
+                Row(
+                  spacing: 8,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '手机号未验证：创建房间会被服务端拒绝',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.error,
+                        ),
+                      ),
+                    ),
+                    IconTextButton(
+                      pressedScale: 0.96,
+                      icon: Icons.refresh,
+                      content: '重新检查',
+                      onTap: () => _accounts.loadAccount().then((_) {
+                        if (mounted) setState(() {});
+                      }),
+                    ),
+                  ],
+                ),
+              OutlinedTextField(
+                controller: _activityNameController,
+                label: '房间名（好友看到的）',
+                enable: !state.creating,
               ),
-            )
-          else ...[
-            Text('创建房间', style: theme.textTheme.titleSmall),
-            OutlinedTextField(
-              controller: _activityNameController,
-              label: '房间名（好友看到的）',
-              enable: !state.creating,
-            ),
-            Text(
-              '人数上限',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.itemSecondary,
-              ),
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final count in kMaxPlayerChoices)
-                  ActionButton(
-                    content: Text('$count 人'),
-                    selected: _maxPlayers.value == count,
-                    enable: !state.creating,
-                    onTap: () => setState(() => _maxPlayers.value = count),
-                    padding: kChipPadding,
-                  ),
-              ],
-            ),
-            ActionButton(
-              content: const Text('进房需我同意'),
-              hint: '开着的话，符合加入条件的人也要等我批准才能进来',
-              selected: _requireApproval,
-              enable: !state.creating,
-              onTap: () => setState(() => _requireApproval = !_requireApproval),
-              padding: kChipPadding,
-            ),
-            Text(
-              _requireApproval
-                  ? '符合加入条件的人也要申请，我同意后才进得来'
-                  : '符合加入条件的人拿到入口就能直接进',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: colors.itemHint,
-              ),
-            ),
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: _advancedOpen
-                  ? Icons.keyboard_arrow_up
-                  : Icons.keyboard_arrow_down,
-              content: _advancedOpen ? '收起更多设置' : '更多设置',
-              onTap: () => setState(() => _advancedOpen = !_advancedOpen),
-            ),
-            if (_advancedOpen) ...[
               Text(
-                '可见范围',
+                '人数',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.itemSecondary,
                 ),
@@ -414,72 +390,133 @@ class _OnlinePageState extends State<OnlinePage> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final value in caps.visibility)
+                  for (final count in kMaxPlayerChoices)
                     ActionButton(
-                      content: Text(_visibilityLabel(value)),
-                      hint: _visibilityHint(value),
-                      selected: _visibility == value,
+                      content: Text('$count 人'),
+                      selected: _maxPlayers.value == count,
                       enable: !state.creating,
-                      onTap: () => setState(() => _visibility = value),
+                      onTap: () => setState(() => _maxPlayers.value = count),
                       padding: kChipPadding,
                     ),
                 ],
               ),
+              ActionButton(
+                content: const Text('进房需我同意'),
+                hint: '开着的话，符合加入条件的人也要等我批准才能进来',
+                selected: _requireApproval,
+                enable: !state.creating,
+                onTap: () =>
+                    setState(() => _requireApproval = !_requireApproval),
+                padding: kChipPadding,
+              ),
               Text(
-                '加入方式',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.itemSecondary,
+                _requireApproval
+                    ? '符合条件的人也要我同意后才进得来'
+                    : '符合条件的人拿到房间码就能直接进',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.itemHint,
                 ),
               ),
-              Wrap(
+              IconTextButton(
+                pressedScale: 0.96,
+                icon: _advancedOpen
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
+                content: _advancedOpen ? '收起更多设置' : '更多设置',
+                onTap: () => setState(() => _advancedOpen = !_advancedOpen),
+              ),
+              if (_advancedOpen) ...[
+                Text(
+                  '谁能看到房间',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.itemSecondary,
+                  ),
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final value in caps.visibility)
+                      ActionButton(
+                        content: Text(_visibilityLabel(value)),
+                        hint: _visibilityHint(value),
+                        selected: _visibility == value,
+                        enable: !state.creating,
+                        onTap: () => setState(() => _visibility = value),
+                        padding: kChipPadding,
+                      ),
+                  ],
+                ),
+                Text(
+                  '谁能加入',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.itemSecondary,
+                  ),
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final value in caps.joinPolicies)
+                      ActionButton(
+                        content: Text(_joinPolicyLabel(value)),
+                        selected: _joinPolicy == value,
+                        enable: !state.creating,
+                        onTap: () => setState(() => _joinPolicy = value),
+                        padding: kChipPadding,
+                      ),
+                  ],
+                ),
+              ],
+              Row(
                 spacing: 8,
-                runSpacing: 8,
                 children: [
-                  for (final value in caps.joinPolicies)
-                    ActionButton(
-                      content: Text(_joinPolicyLabel(value)),
-                      selected: _joinPolicy == value,
-                      enable: !state.creating,
-                      onTap: () => setState(() => _joinPolicy = value),
-                      padding: kChipPadding,
-                    ),
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.add_circle_outline,
+                    content: '创建房间',
+                    onTap: state.creating ? null : _createRoom,
+                  ),
                 ],
               ),
             ],
-            Row(
-              spacing: 8,
-              children: [
-                IconTextButton(
-                  pressedScale: 0.96,
-                  icon: Icons.add_circle_outline,
-                  content: '创建房间',
-                  onTap: state.creating ? null : _createRoom,
-                ),
-              ],
-            ),
-            Text('加入房间', style: theme.textTheme.titleSmall),
-            Row(
-              spacing: 8,
-              children: [
-                Expanded(
-                  child: OutlinedTextField(
-                    controller: _joinCodeController,
-                    label: '加入码',
-                    enable: !state.joining,
-                    onEditingComplete: _joinRoom,
+          ),
+        ),
+        ContentPanelModule(
+          title: '加入房间',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 6,
+            children: [
+              Row(
+                spacing: 8,
+                children: [
+                  Expanded(
+                    child: OutlinedTextField(
+                      controller: _joinCodeController,
+                      label: '房间码',
+                      enable: !state.joining,
+                      onEditingComplete: _joinRoom,
+                    ),
                   ),
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.login,
+                    content: '加入',
+                    onTap: state.joining ? null : _joinRoom,
+                  ),
+                ],
+              ),
+              Text(
+                '向房主要 6 位房间码',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.itemHint,
                 ),
-                IconTextButton(
-                  pressedScale: 0.96,
-                  icon: Icons.login,
-                  content: '加入房间',
-                  onTap: state.joining ? null : _joinRoom,
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -507,7 +544,8 @@ class _OnlinePageState extends State<OnlinePage> {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     final isOwner = state.self?.role == 'owner';
-    final peers = state.peers;
+    final roomName = session.activityName?.trim();
+    final online = state.onlinePeerCount;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -517,12 +555,48 @@ class _OnlinePageState extends State<OnlinePage> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 6,
+        spacing: 8,
         children: [
-          Text(
-            isOwner ? '你创建的房间（房主）' : '已加入房间（成员）',
-            style: theme.textTheme.titleSmall,
+          Row(
+            spacing: 8,
+            children: [
+              Expanded(
+                child: Text(
+                  roomName == null || roomName.isEmpty ? '联机房间' : roomName,
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
+              Text(
+                _roomStateLabel(state),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: state.proxyError != null
+                      ? colors.error
+                      : colors.itemSecondary,
+                ),
+              ),
+            ],
           ),
+          Text(
+            '${online > 0 ? online : '—'} / ${session.maxPlayers} 人'
+            '${state.heartbeatFailures == 0 ? '' : '   网络不稳定'}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.itemSecondary,
+            ),
+          ),
+          if (state.peers.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: [
+                for (final peer in state.peers)
+                  Text(
+                    _memberLine(state, peer),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.itemSecondary,
+                    ),
+                  ),
+              ],
+            ),
           if (isOwner) ...[
             if (state.joinCode != null)
               Row(
@@ -530,86 +604,55 @@ class _OnlinePageState extends State<OnlinePage> {
                 children: [
                   Expanded(
                     child: Text(
-                      '加入码 ${state.joinCode}',
+                      '房间码 ${state.joinCode}',
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
                   IconTextButton(
                     pressedScale: 0.96,
                     icon: Icons.copy,
-                    content: '复制码',
-                    onTap: () => _copy(state.joinCode!, '加入码'),
+                    content: '复制',
+                    onTap: () => _copy(state.joinCode!, '房间码'),
                   ),
                   IconTextButton(
                     pressedScale: 0.96,
                     icon: Icons.ios_share,
-                    content: '分享房间',
+                    content: '分享',
                     onTap: () => _copy(_shareText(session), '房间信息'),
                   ),
                 ],
               )
             else
               Text(
-                '服务端没给加入码：换「公开」可见范围再建，或等邀请功能',
+                '这个房间没有房间码，只能靠邀请',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: colors.itemHint,
                 ),
               ),
             Text(
-              '把加入码发给好友；他们进来后，由你在游戏里开「主机」房间',
+              '把房间码发给好友，你先在游戏里开「主机」房间',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colors.itemHint,
               ),
             ),
           ] else
             Text(
-              '等房主开好房间并启动通道；你这边启动通道后，在游戏里连自己的本机地址',
+              '等房主准备好，你再进游戏 → 加入游戏',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colors.itemHint,
               ),
             ),
-          Text(
-            '${_visibilityLabel(session.visibility)} · '
-            '${_joinPolicyLabel(session.joinPolicy)}    '
-            '${session.currentPlayers}/${session.maxPlayers} 人    '
-            '${_statusLabel(session.status)}'
-            '${state.heartbeatFailures == 0 ? '' : '    心跳异常 ${state.heartbeatFailures} 次'}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.itemSecondary,
-            ),
-          ),
-          if (peers.isNotEmpty)
-            Text(
-              '成员：${peers.map((p) => '${_roleLabel(p.role)}·${_peerStatusLabel(p.status)}').join('、')}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.itemSecondary,
-              ),
-            ),
+          _buildRoomStateLine(state, isOwner, colors),
           Row(
             spacing: 8,
             children: [
-              if (!state.proxyRunning)
+              if (state.proxyError != null && !state.reconnecting)
                 IconTextButton(
                   pressedScale: 0.96,
-                  icon: Icons.lan_outlined,
-                  content: isOwner ? '启动房间通道' : '连接房间通道',
-                  onTap: state.startingProxy ? null : _mp.startProxy,
-                )
-              else
-                IconTextButton(
-                  pressedScale: 0.96,
-                  icon: Icons.lan_outlined,
-                  content: '停止通道',
-                  onTap: state.stoppingProxy ? null : _mp.stopProxy,
+                  icon: Icons.refresh,
+                  content: '重试',
+                  onTap: state.startingProxy ? null : _mp.retryProxy,
                 ),
-              IconTextButton(
-                pressedScale: 0.96,
-                icon: Icons.refresh,
-                content: '刷新成员',
-                onTap: state.refreshingPeers
-                    ? null
-                    : () => _mp.refreshPeers(announce: true),
-              ),
               IconTextButton(
                 pressedScale: 0.96,
                 icon: isOwner ? Icons.stop_circle_outlined : Icons.logout,
@@ -618,22 +661,58 @@ class _OnlinePageState extends State<OnlinePage> {
               ),
             ],
           ),
-          if (state.proxyRunning)
-            Text(
-              isOwner
-                  ? '房间通道已启动：在游戏里开「主机」房间，好友连他们自己的本机地址'
-                  : '通道已启动：在游戏里连接 ${state.localAddress}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.itemSecondary,
-              ),
-            ),
         ],
       ),
     );
   }
 
+  String _memberLine(MultiplayerState state, MdtbbsPeer peer) {
+    final isSelf = state.self?.peerId == peer.peerId;
+    return '${isSelf ? '我' : '成员'}（${_roleLabel(peer.role)}）'
+        '· ${_peerStatusLabel(peer.status)}';
+  }
 
-  /// MDT 兼容：LanLink 房间码加入。**匿名可用**（房间信息是公开接口）
+  String _roomStateLabel(MultiplayerState state) {
+    if (state.reconnecting) {
+      return '● 正在重连（${state.reconnectAttempt}/3）…';
+    }
+    if (state.startingProxy) return '● 正在准备联机…';
+    if (state.proxyRunning) return '● 可以进游戏了';
+    if (state.proxyError != null) return '● 连不上联机服务器';
+    return '● 准备中…';
+  }
+
+  Widget _buildRoomStateLine(
+    MultiplayerState state,
+    bool isOwner,
+    AppColors colors,
+  ) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodySmall?.copyWith(
+      color: colors.itemSecondary,
+    );
+    if (state.proxyError != null) {
+      return Text(state.proxyError!, style: style);
+    }
+    if (state.reconnecting) {
+      return Text('联机断开了，正在自动重连…', style: style);
+    }
+    if (state.startingProxy) {
+      return Text('正在准备联机，稍等…', style: style);
+    }
+    if (state.proxyRunning) {
+      return Text(
+        isOwner
+            ? '准备好了：进游戏开「主机」房间，好友就能进来'
+            : '准备好了：进游戏 → 加入游戏 → 在「局域网游戏」里选这个房间',
+        style: style,
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+
+  /// 其他启动器（LanLink）房间；默认折叠，匿名可用
   Widget _buildMdtCompatPanel() {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
@@ -641,18 +720,37 @@ class _OnlinePageState extends State<OnlinePage> {
     final joined = _lanlink.isJoined && room != null;
 
     return ContentPanelModule(
-      title: 'MDT 兼容',
+      title: '其他启动器房间',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 10,
         children: [
-          Text(
-            '输入 LanLink 模组创建的房间码即可加入，无需登录。',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colors.itemSecondary,
-            ),
+          Row(
+            spacing: 8,
+            children: [
+              Expanded(
+                child: Text(
+                  _mdtOpen
+                      ? 'LanLink 模组开的房间，不用登录'
+                      : 'LanLink 房间码 / 公开房间（不用登录）',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colors.itemSecondary,
+                  ),
+                ),
+              ),
+              IconTextButton(
+                pressedScale: 0.96,
+                icon: _mdtOpen
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
+                content: _mdtOpen ? '收起' : '展开',
+                onTap: () => setState(() => _mdtOpen = !_mdtOpen),
+              ),
+            ],
           ),
-          if (!joined) ...[
+          if (joined)
+            _buildMdtJoinedCard(room)
+          else if (_mdtOpen) ...[
             Row(
               spacing: 8,
               children: [
@@ -676,31 +774,29 @@ class _OnlinePageState extends State<OnlinePage> {
               )
             else
               for (final room in _publicRooms) _buildPublicRoomRow(room),
-          ],
-          if (joined)
-            _buildMdtJoinedCard(room)
-          else if (_mdtRoom != null)
-            _buildMdtRoomCard(_mdtRoom!)
-          else
-            Row(
-              spacing: 8,
-              children: [
-                Expanded(
-                  child: OutlinedTextField(
-                    controller: _mdtCodeController,
-                    label: 'MDT 房间码',
-                    enable: !_mdtBusy,
-                    onEditingComplete: _resolveMdtRoom,
+            if (_mdtRoom != null)
+              _buildMdtRoomCard(_mdtRoom!)
+            else
+              Row(
+                spacing: 8,
+                children: [
+                  Expanded(
+                    child: OutlinedTextField(
+                      controller: _mdtCodeController,
+                      label: 'LanLink 房间码',
+                      enable: !_mdtBusy,
+                      onEditingComplete: _resolveMdtRoom,
+                    ),
                   ),
-                ),
-                IconTextButton(
-                  pressedScale: 0.96,
-                  icon: Icons.search,
-                  content: '查询',
-                  onTap: _mdtBusy ? null : _resolveMdtRoom,
-                ),
-              ],
-            ),
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.search,
+                    content: '查询',
+                    onTap: _mdtBusy ? null : _resolveMdtRoom,
+                  ),
+                ],
+              ),
+          ],
         ],
       ),
     );
@@ -731,7 +827,7 @@ class _OnlinePageState extends State<OnlinePage> {
                   style: theme.textTheme.bodyLarge,
                 ),
                 Text(
-                  '房主 ${room.ownerUsername} · 节点 ${room.nodeName}'
+                  '房主 ${room.ownerUsername} · 服务器 ${room.nodeName}'
                   '${canDirect ? ' · 可直连' : ''}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colors.itemSecondary,
@@ -769,7 +865,7 @@ class _OnlinePageState extends State<OnlinePage> {
             style: theme.textTheme.titleSmall,
           ),
           Text(
-            '房主 ${room.ownerUsername}    节点 ${room.nodeName}    '
+            '房主 ${room.ownerUsername}    服务器 ${room.nodeName}    '
             '地址 ${room.relayAddress}',
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.itemSecondary,
@@ -801,7 +897,7 @@ class _OnlinePageState extends State<OnlinePage> {
         children: [
           Text(
             '已连接：${room.name.isEmpty ? room.code : room.name}'
-            '（${_lanlink.isDirectJoined ? '直连' : '经节点中继'}）',
+            '（${_lanlink.isDirectJoined ? '直连' : '经服务器中转'}）',
             style: theme.textTheme.titleSmall,
           ),
           Text(
@@ -829,7 +925,7 @@ class _OnlinePageState extends State<OnlinePage> {
     'private' => '仅我可见',
     'friends' => '仅好友可见',
     'public' => '公开',
-    'unlisted' => '凭加入码',
+    'unlisted' => '凭房间码',
     _ => value,
   };
 
@@ -838,7 +934,7 @@ class _OnlinePageState extends State<OnlinePage> {
     'private' => '列表里看不到这个房间；知道房间码 / 被邀请的人仍可能加入',
     'friends' => '⚠ 好友能在联机列表里看到（好友列表还没做）',
     'public' => '所有人都能在联机大厅看到这个房间',
-    'unlisted' => '任何列表里都看不到；拿到加入码的人都能进',
+    'unlisted' => '任何列表里都看不到；拿到房间码的人都能进',
     _ => '',
   };
 
@@ -848,13 +944,6 @@ class _OnlinePageState extends State<OnlinePage> {
     'public' => '拿到入口就能进',
     'open' => '有码即可进',
     'request' => '需我同意',
-    _ => value,
-  };
-
-  String _statusLabel(String value) => switch (value) {
-    'active' => '进行中',
-    'closing' => '关闭中',
-    'expired' => '已过期',
     _ => value,
   };
 
