@@ -72,9 +72,14 @@ class MdtbbsMultiplayerApi {
 
   /// 创建会话
   ///
-  /// [visibility] 取 `capabilities.visibility`；[joinPolicy] 取 `joinPolicies`
-  /// （合法组合 = 除 `private + open` 外全部）；[maxPlayers] 2–64，缺省 8。
-  /// 不公开会话的返回里带 joinCode（API 只回这一次，房间存续期间可复用）。
+  /// 契约 1.7.0 把三件事拆开：
+  /// - [visibility]（`private` / `friends` / `public`）**只决定发现**：能不能在列表里被看到
+  /// - [joinPolicy]（`invite_only` / `friends` / `public`）**只决定资格**：谁有资格加入
+  /// - [requireApproval] 是独立的布尔，不要塞进 `join_policy`
+  ///
+  /// 三者是正交的；房间码 / 邀请链接 / 大厅点击都只是**入口**，不是权限
+  /// （有码不等于有资格）。[maxPlayers] 2–64，缺省 8。
+  /// 房主会在创建响应里拿到 joinCode（API 只回这一次，房间存续期间可复用）。
   /// **创建会话要求手机号验证**（站长确认）；加入会话自 2026-10-20 起对 Copper Launcher
   /// 免验证（服务端按 OAuth client_id 识别启动器）
   static Future<MdtbbsCreatedSession> createSession({

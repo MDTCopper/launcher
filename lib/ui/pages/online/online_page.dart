@@ -230,7 +230,8 @@ class _OnlinePageState extends State<OnlinePage> {
     return '【Copper 联机】'
         '${name == null || name.isEmpty ? '联机房间' : name}\n'
         '房间码 ${state.joinCode ?? '—'}\n'
-        '用 Copper 启动器 → 联机 → 我是客人，填这个码即可';
+        '房间码只是入口；能不能进看房间的加入方式\n'
+        '用 Copper 启动器 → 联机 → 我是客人，输入这个码';
   }
 
   @override
@@ -422,6 +423,11 @@ class _OnlinePageState extends State<OnlinePage> {
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colors.itemSecondary,
             ),
+          ),
+          Text(
+            '可见范围只决定谁能发现房间，加入方式只决定谁有资格；'
+            '房间码、邀请链接、大厅点击都只是入口，不是权限。',
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.itemHint),
           ),
           Text(
             '房间数据由社区中继转发，服务器忙的时候可能要等一会儿才能连上；'
@@ -984,7 +990,8 @@ class _OnlinePageState extends State<OnlinePage> {
             ],
           ),
           Text(
-            '向房主要 6 位房间码；加入后进游戏，在「局域网游戏」里找房间',
+            '向房主要 6 位房间码。房间码只是入口，能不能进看房主设的加入方式；'
+            '加入后进游戏，在「局域网游戏」里找房间',
             style: theme.textTheme.labelSmall?.copyWith(
               color: colors.itemHint,
             ),
@@ -1363,17 +1370,17 @@ class _OnlinePageState extends State<OnlinePage> {
   }
 
   String _visibilityLabel(String value) => switch (value) {
-    'private' => '仅我可见',
-    'friends' => '仅好友可见',
-    'public' => '公开',
-    'unlisted' => '凭房间码',
+    'private' => '不在列表里出现',
+    'friends' => '仅好友列表可见',
+    'public' => '所有人可见',
+    'unlisted' => '不在列表里出现',
     _ => value,
   };
 
   String _joinPolicyLabel(String value) => switch (value) {
     'invite_only' => '仅受邀者',
     'friends' => '仅好友',
-    'public' => '拿到房间码就能进',
+    'public' => '任何入口都可进',
     'open' => '拿到房间码就能进',
     'request' => '需我同意',
     _ => value,
