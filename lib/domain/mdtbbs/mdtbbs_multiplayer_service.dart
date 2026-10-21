@@ -462,6 +462,7 @@ class MdtbbsMultiplayerService {
         reconnecting: false,
         reconnectAttempt: 0,
         clearProxyError: true,
+        clearProxyRetryAt: true,
         clearSentInvites: true,
       ),
     );
@@ -687,6 +688,7 @@ class MdtbbsMultiplayerService {
           reconnecting: false,
           reconnectAttempt: 0,
           clearProxyError: true,
+          clearProxyRetryAt: true,
           clearSentInvites: true,
         ),
       );
@@ -1169,6 +1171,7 @@ class MdtbbsMultiplayerService {
         reconnecting: false,
         reconnectAttempt: 0,
         clearProxyError: true,
+        clearProxyRetryAt: true,
       ),
     );
     await _startProxy(auto: false);
@@ -1191,7 +1194,13 @@ class MdtbbsMultiplayerService {
       return;
     }
 
-    _set(_current.copyWith(startingProxy: true, clearProxyError: true));
+    _set(
+      _current.copyWith(
+        startingProxy: true,
+        clearProxyError: true,
+        clearProxyRetryAt: true,
+      ),
+    );
 
     MdtbbsRelayTunnel? tunnel;
     MdtbbsRelayAuthOk? auth;
@@ -1324,6 +1333,7 @@ class MdtbbsMultiplayerService {
           reconnecting: false,
           reconnectAttempt: 0,
           clearProxyError: true,
+          clearProxyRetryAt: true,
         ),
       );
       if (!auto) _notify('已连上联机服务器');
@@ -1367,6 +1377,7 @@ class MdtbbsMultiplayerService {
           startingProxy: false,
           reconnecting: false,
           proxyError: message,
+          clearProxyRetryAt: true,
         ),
       );
       _notify(
@@ -1391,16 +1402,17 @@ class MdtbbsMultiplayerService {
     _authBlockedUntil = DateTime.now().add(wait);
     final owner = _current.self?.role == 'owner';
     final hint = owner
-        ? '，或关闭房间后重新创建（换新房间码）'
-        : '，或退出房间重新加入';
+        ? '；也可以关闭房间后重新创建（换新房间码）'
+        : '；也可以退出房间重新加入';
     final message = authRejected
-        ? '联机服务器没通过这次连接（服务端问题），约 2 分钟后自动重试$hint'
-        : '联机服务器上还有这个房间的旧连接，约 2 分钟后自动重试$hint';
+        ? '联机服务器没通过这次连接（服务端问题）$hint'
+        : '联机服务器上还有这个房间的旧连接$hint';
     _set(
       _current.copyWith(
         startingProxy: false,
         reconnecting: false,
         proxyError: message,
+        proxyRetryAt: _authBlockedUntil,
       ),
     );
     addLogAndPrint(.warning, '等这次中继分配过期后再试：$message', tag: 'Multiplayer');
@@ -1408,6 +1420,7 @@ class MdtbbsMultiplayerService {
       _authBlockedTimer = null;
       _authBlockedUntil = null;
       if (_current.session == null) return;
+      _set(_current.copyWith(clearProxyRetryAt: true));
       unawaited(_startProxy(auto: true));
     });
   }
@@ -1429,6 +1442,7 @@ class MdtbbsMultiplayerService {
         startingProxy: false,
         reconnecting: true,
         reconnectAttempt: _reconnectAttempt,
+        proxyRetryAt: DateTime.now().add(delay),
       ),
     );
     addLogAndPrint(

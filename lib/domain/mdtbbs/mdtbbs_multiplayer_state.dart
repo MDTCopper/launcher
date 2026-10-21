@@ -1,5 +1,18 @@
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
 
+/// 联机在界面上的阶段：从这批标志位收口出来的状态
+enum MultiplayerPhase {
+  idle,
+  restoring,
+  creating,
+  joining,
+  preparing,
+  ready,
+  reconnecting,
+  failed,
+  leaving,
+}
+
 /// 联机（官方 multiplayer）在界面上的唯一状态源
 ///
 /// 这些数据曾经散在页面 State 里 ⇒ 切页就丢、每次进页面都要重新拉四个接口。
@@ -18,6 +31,7 @@ class MultiplayerState {
     this.reconnecting = false,
     this.reconnectAttempt = 0,
     this.proxyError,
+    this.proxyRetryAt,
     this.lastHeartbeatAt,
     this.heartbeatFailures = 0,
     this.lastMessage,
@@ -68,6 +82,9 @@ class MultiplayerState {
   /// 最终失败给用户看的一句话（原始错误只进日志）
   final String? proxyError;
 
+  /// 自动重试的时间点（分配过期等待 / 断线重连倒计时）
+  final DateTime? proxyRetryAt;
+
   // ── 心跳 ──
   final DateTime? lastHeartbeatAt;
   final int heartbeatFailures;
@@ -85,6 +102,19 @@ class MultiplayerState {
   final bool stoppingProxy;
 
   bool get inSession => session != null;
+
+  /// 把正交标志收口成阶段；界面只读这个
+  MultiplayerPhase get phase {
+    if (leaving) return MultiplayerPhase.leaving;
+    if (resuming || waitingForSession) return MultiplayerPhase.restoring;
+    if (creating) return MultiplayerPhase.creating;
+    if (joining) return MultiplayerPhase.joining;
+    if (reconnecting) return MultiplayerPhase.reconnecting;
+    if (proxyRunning) return MultiplayerPhase.ready;
+    if (session == null) return MultiplayerPhase.idle;
+    if (proxyError != null && !startingProxy) return MultiplayerPhase.failed;
+    return MultiplayerPhase.preparing;
+  }
 
   /// 在线成员数：**人数显示用它，不读建 / 加房那一刻的 `currentPlayers`**
   int get onlinePeerCount =>
@@ -148,6 +178,7 @@ class MultiplayerState {
     bool? reconnecting,
     int? reconnectAttempt,
     String? proxyError,
+    DateTime? proxyRetryAt,
     DateTime? lastHeartbeatAt,
     int? heartbeatFailures,
     String? lastMessage,
@@ -168,6 +199,7 @@ class MultiplayerState {
     bool clearSelf = false,
     bool clearLocalAddress = false,
     bool clearProxyError = false,
+    bool clearProxyRetryAt = false,
     bool clearMessage = false,
     bool clearInvites = false,
     bool clearSentInvites = false,
@@ -188,6 +220,9 @@ class MultiplayerState {
     reconnecting: reconnecting ?? this.reconnecting,
     reconnectAttempt: reconnectAttempt ?? this.reconnectAttempt,
     proxyError: clearProxyError ? null : (proxyError ?? this.proxyError),
+    proxyRetryAt: clearProxyRetryAt
+        ? null
+        : (proxyRetryAt ?? this.proxyRetryAt),
     lastHeartbeatAt: lastHeartbeatAt ?? this.lastHeartbeatAt,
     heartbeatFailures: heartbeatFailures ?? this.heartbeatFailures,
     lastMessage: clearMessage ? null : (lastMessage ?? this.lastMessage),

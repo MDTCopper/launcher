@@ -52,6 +52,7 @@ class _OnlinePageState extends State<OnlinePage> {
   String _visibility = 'private';
   String _joinPolicy = 'invite_only';
   bool _requireApproval = false;
+  Timer? _retryTicker;
 
   MdtbbsMultiplayerService get _mp => MdtbbsMultiplayerService.instance;
   AccountManager get _accounts => AccountManager.instance;
@@ -60,10 +61,16 @@ class _OnlinePageState extends State<OnlinePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
+    _retryTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (_mp.state.value.proxyRetryAt == null) return;
+      setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _retryTicker?.cancel();
     _mp.stopInvitePolling();
     _roomNameController.dispose();
     _joinCodeController.dispose();
@@ -162,6 +169,35 @@ class _OnlinePageState extends State<OnlinePage> {
       return;
     }
     await _mp.joinByCode(code);
+  }
+
+  /// 房主重建房间：换一个 Peer，绕开失败分配的 120 秒额度
+  Future<void> _rebuildRoom() async {
+    final state = _mp.state.value;
+    if (state.self?.role != 'owner') {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '只有房主能重建',
+        content: '成员先退出房间，再让房主重新开房',
+      );
+      return;
+    }
+    if (state.inSession) {
+      await _mp.leave();
+      for (var attempt = 0; attempt < 40; attempt++) {
+        if (_mp.state.value.session == null) break;
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      if (_mp.state.value.session != null) {
+        addNotice(
+          icon: Icons.error_outline,
+          title: '房间没关掉',
+          content: '稍等一下再试',
+        );
+        return;
+      }
+    }
+    await _createRoom();
   }
 
   Future<void> _joinInvite(MdtbbsInvite invite) =>
@@ -1078,6 +1114,13 @@ class _OnlinePageState extends State<OnlinePage> {
                 ),
               ],
             ),
+            if (session.status == 'closing' || session.status == 'expired')
+              Text(
+                session.status == 'closing' ? '房间正在关闭' : '房间已过期',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.error,
+                ),
+              ),
             Text(
               _roomPhaseLabel(state),
               style: theme.textTheme.bodySmall?.copyWith(
@@ -1111,15 +1154,37 @@ class _OnlinePageState extends State<OnlinePage> {
                   color: colors.error,
                 ),
               ),
-              Row(
+              if (state.proxyRetryAt != null)
+                Text(
+                  _retrySuffix(state).replaceAll(RegExp(r'[（）]'), ''),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.itemHint,
+                  ),
+                ),
+              Wrap(
                 spacing: AppSpacing.related,
+                runSpacing: AppSpacing.related,
                 children: [
                   IconTextButton(
                     pressedScale: 0.96,
                     icon: Icons.refresh,
-                    content: '重试',
-                    onTap: state.startingProxy ? null : _mp.retryProxy,
+                    content: (() {
+                      final seconds = _retrySeconds(state);
+                      return seconds != null && seconds > 0
+                          ? '$seconds 秒后可重试'
+                          : '重试';
+                    })(),
+                    onTap: state.startingProxy || (_retrySeconds(state) ?? 0) > 0
+                        ? null
+                        : _mp.retryProxy,
                   ),
+                  if (state.self?.role == 'owner')
+                    IconTextButton(
+                      pressedScale: 0.96,
+                      icon: Icons.restart_alt,
+                      content: '重建房间',
+                      onTap: state.leaving ? null : _rebuildRoom,
+                    ),
                   IconTextButton(
                     pressedScale: 0.96,
                     icon: Icons.copy_all_outlined,
@@ -1241,16 +1306,32 @@ class _OnlinePageState extends State<OnlinePage> {
   }
 
   String _roomPhaseLabel(MultiplayerState state) {
-    if (state.resuming) return '正在恢复房间…';
-    if (state.creating) return '正在开启房间…';
-    if (state.joining) return '正在加入房间…';
-    if (state.reconnecting) {
-      return '联机断开了，正在重连（${state.reconnectAttempt}/3）…';
-    }
-    if (state.startingProxy) return '正在准备联机…';
-    if (state.proxyRunning) return '可以进游戏了';
-    if (state.proxyError != null) return '连不上联机服务器';
-    return '房间已开启，等待准备联机';
+    final retry = _retrySuffix(state);
+    return switch (state.phase) {
+      MultiplayerPhase.restoring => '正在恢复房间…',
+      MultiplayerPhase.creating => '正在开启房间…',
+      MultiplayerPhase.joining => '正在加入房间…',
+      MultiplayerPhase.reconnecting =>
+        '联机断开了，正在重连（${state.reconnectAttempt}/3）…$retry',
+      MultiplayerPhase.preparing => '正在准备联机…',
+      MultiplayerPhase.ready => '可以进游戏了',
+      MultiplayerPhase.failed => '连不上联机服务器$retry',
+      MultiplayerPhase.leaving => '正在离开房间…',
+      MultiplayerPhase.idle => '房间已开启，等待准备联机',
+    };
+  }
+
+  int? _retrySeconds(MultiplayerState state) {
+    final at = state.proxyRetryAt;
+    if (at == null) return null;
+    final seconds = at.difference(DateTime.now()).inSeconds;
+    return seconds < 0 ? 0 : seconds;
+  }
+
+  String _retrySuffix(MultiplayerState state) {
+    final seconds = _retrySeconds(state);
+    if (seconds == null) return '';
+    return seconds <= 0 ? '（正在重试…）' : '（$seconds 秒后自动重试）';
   }
 
   String _diagnostics(MultiplayerState state) {
