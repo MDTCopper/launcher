@@ -66,6 +66,7 @@ class MdtbbsMultiplayerService {
   bool _accountLoggedIn = false;
   bool _accountResetInFlight = false;
   int _accountEpoch = 0;
+  Timer? _accountResetTimer;
 
   Future<String?> _token() async =>
       tokenOverride != null ? tokenOverride!() : _accounts.ensureAccessToken();
@@ -114,10 +115,12 @@ class MdtbbsMultiplayerService {
       if (_accountLoggedIn) _accountEpoch++;
       _accountLoggedIn = false;
       _lastAccountSubject = null;
-      if (_hasLiveMultiplayerState) unawaited(_resetForAccountChange());
+      if (_hasLiveMultiplayerState) _scheduleAccountReset();
       return;
     }
 
+    _accountResetTimer?.cancel();
+    _accountResetTimer = null;
     final subject = snapshot.subject;
     final identityChanged =
         _accountLoggedIn &&
@@ -132,8 +135,31 @@ class MdtbbsMultiplayerService {
       _lastAccountSubject = subject;
     }
     if (identityChanged && _hasLiveMultiplayerState) {
+      addLogAndPrint(
+        .warning,
+        '账号已切换，结束旧账号的联机会话并停止通道',
+        tag: 'Multiplayer',
+      );
       unawaited(_resetForAccountChange());
     }
+  }
+
+  /// 「未登录」可能只是 `AccountManager.restore()` 清内存后广播的一次中间态
+  /// （2026-10-21：云存档在启动游戏前调它，把正在用的房间拆了）
+  /// ⇒ 等一下再看一次，确认真的退了才拆
+  void _scheduleAccountReset() {
+    _accountResetTimer?.cancel();
+    _accountResetTimer = Timer(const Duration(milliseconds: 600), () {
+      _accountResetTimer = null;
+      if (_accounts.snapshot.value.loggedIn) return;
+      if (!_hasLiveMultiplayerState) return;
+      addLogAndPrint(
+        .warning,
+        '账号已退出，结束联机会话并停止通道',
+        tag: 'Multiplayer',
+      );
+      unawaited(_resetForAccountChange());
+    });
   }
 
   bool get _hasLiveMultiplayerState =>
@@ -195,7 +221,8 @@ class MdtbbsMultiplayerService {
   Future<void> restore() async {
     if (!_accounts.isConfigured) return;
     if (_current.session != null) return;
-    await _accounts.restore();
+    // restore() 会先清内存、广播一次「未登录」；这里只要读一次盘
+    await _accounts.ensureRestored();
     final stored = _accounts.multiplayerSession;
     if (stored == null || !stored.isFresh(DateTime.now())) {
       if (stored != null) {

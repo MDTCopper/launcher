@@ -306,7 +306,9 @@ class CloudAutoSync {
   static Future<String?> _token() async {
     final accounts = AccountManager.instance;
     if (!accounts.isConfigured) return null;
-    await accounts.restore();
+    // restore() 会先清内存，广播一次「未登录」；联机服务正连着房间时
+    // 会把这当成退出登录，直接把通道停掉（2026-10-21 实测）
+    await accounts.ensureRestored();
     if (!accounts.isLoggedIn) return null;
     return accounts.ensureAccessToken();
   }
