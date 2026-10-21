@@ -4,6 +4,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_state.dart';
+import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -28,9 +29,9 @@ enum _OnlineView { entry, host, guest }
 const _maxPlayerChoices = [2, 4, 8, 16, 32];
 
 const _roomPresets = [
-  (label: '默认', players: 8, approval: false),
-  (label: '双人', players: 2, approval: true),
-  (label: '大房间', players: 16, approval: false),
+  (label: '仅邀请可进', visibility: 'private', joinPolicy: 'invite_only'),
+  (label: '仅好友可进', visibility: 'friends', joinPolicy: 'friends'),
+  (label: '公开', visibility: 'public', joinPolicy: 'public'),
 ];
 
 class OnlinePage extends StatefulWidget {
@@ -49,9 +50,8 @@ class _OnlinePageState extends State<OnlinePage> {
 
   int _maxPlayers = 8;
   String _visibility = 'private';
-  String _joinPolicy = 'public';
+  String _joinPolicy = 'invite_only';
   bool _requireApproval = false;
-  bool _advancedOpen = false;
 
   MdtbbsMultiplayerService get _mp => MdtbbsMultiplayerService.instance;
   AccountManager get _accounts => AccountManager.instance;
@@ -204,11 +204,37 @@ class _OnlinePageState extends State<OnlinePage> {
       builder: (context, _) {
         final state = _mp.state.value;
         final loggedIn = _accounts.snapshot.value.loggedIn;
-        return switch (_view) {
+        final view = switch (_view) {
           _OnlineView.entry => _buildEntry(state, loggedIn),
           _OnlineView.host => _buildHost(state, loggedIn),
           _OnlineView.guest => _buildGuest(state, loggedIn),
         };
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 240),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          layoutBuilder: (current, previous) => Stack(
+            fit: StackFit.expand,
+            children: [...previous, ?current],
+          ),
+          transitionBuilder: (child, animation) {
+            final curved = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            );
+            return FadeTransition(
+              opacity: curved,
+              child: SlideTransition(
+                position: Tween(
+                  begin: const Offset(0.03, 0),
+                  end: Offset.zero,
+                ).animate(curved),
+                child: child,
+              ),
+            );
+          },
+          child: KeyedSubtree(key: ValueKey(_view), child: view),
+        );
       },
     );
   }
@@ -501,6 +527,34 @@ class _OnlinePageState extends State<OnlinePage> {
               onTap: () => _copy(_shareText(state), '房间信息'),
             ),
           ],
+          const SizedBox(width: AppSpacing.group),
+          if (state.self?.role == 'owner')
+            IconTextButton(
+              pressedScale: 0.96,
+              icon: state.inSession
+                  ? Icons.stop_circle_outlined
+                  : Icons.play_circle_outline,
+              content: state.inSession
+                  ? (state.leaving ? '正在关闭…' : '关闭房间')
+                  : (state.creating ? '正在开启…' : '开启房间'),
+              onTap: state.inSession
+                  ? (state.leaving ? null : _mp.leave)
+                  : (state.creating ? null : _createRoom),
+            )
+          else if (state.inSession)
+            IconTextButton(
+              pressedScale: 0.96,
+              icon: Icons.logout,
+              content: state.leaving ? '正在离开…' : '离开房间',
+              onTap: state.leaving ? null : _mp.leave,
+            )
+          else
+            IconTextButton(
+              pressedScale: 0.96,
+              icon: Icons.play_circle_outline,
+              content: state.creating ? '正在开启…' : '开启房间',
+              onTap: state.creating ? null : _createRoom,
+            ),
         ],
       ),
     );
@@ -509,9 +563,15 @@ class _OnlinePageState extends State<OnlinePage> {
   Widget _buildHostBody(MultiplayerState state, bool loggedIn) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 820;
+        final wide = constraints.maxWidth >= 600;
         final status = _buildRoomStatusPanel(state);
-        final config = _buildConfigPanel(state, loggedIn);
+        final config = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: KeyedSubtree(
+            key: ValueKey(state.inSession),
+            child: _buildConfigPanel(state, loggedIn),
+          ),
+        );
         if (!wide) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -523,8 +583,8 @@ class _OnlinePageState extends State<OnlinePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: AppSpacing.group,
           children: [
-            Expanded(flex: 3, child: status),
-            Expanded(flex: 2, child: config),
+            Expanded(child: status),
+            SizedBox(width: 320, child: config),
           ],
         );
       },
@@ -539,6 +599,8 @@ class _OnlinePageState extends State<OnlinePage> {
     final visibility = _effectiveVisibility(caps);
     final joinPolicy = _effectiveJoinPolicy(caps);
     final approvalSupported = caps?.requireApprovalSupported ?? true;
+
+    if (state.inSession) return _buildConfigTable(state);
 
     return ContentPanelModule(
       title: '房间配置',
@@ -634,108 +696,141 @@ class _OnlinePageState extends State<OnlinePage> {
             children: [
               for (final preset in _roomPresets)
                 ActionButton(
-                  content: Text('${preset.label} · ${preset.players} 人'),
+                  content: Text(preset.label),
+                  hint:
+                      '${_visibilityLabel(preset.visibility)} + '
+                      '${_joinPolicyLabel(preset.joinPolicy)}',
+                  selected:
+                      _visibility == preset.visibility &&
+                      _joinPolicy == preset.joinPolicy,
                   enable: !locked,
                   onTap: () => setState(() {
-                    _maxPlayers = preset.players;
-                    _requireApproval = preset.approval;
-                    _visibility = 'private';
-                    _joinPolicy = 'public';
+                    _visibility = preset.visibility;
+                    _joinPolicy = preset.joinPolicy;
                   }),
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.group,
                     vertical: AppSpacing.tight,
                   ),
                 ),
-              ActionButton(
-                content: const Text('恢复默认'),
-                enable: !locked,
-                onTap: () => setState(() {
-                  _maxPlayers = 8;
-                  _requireApproval = false;
-                  _visibility = 'private';
-                  _joinPolicy = 'public';
-                }),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.group,
-                  vertical: AppSpacing.tight,
-                ),
-              ),
             ],
           ),
-          IconTextButton(
-            pressedScale: 0.96,
-            icon: _advancedOpen
-                ? Icons.keyboard_arrow_up
-                : Icons.keyboard_arrow_down,
-            content: _advancedOpen ? '收起高级选项' : '高级选项',
-            onTap: () => setState(() => _advancedOpen = !_advancedOpen),
+          AnimatedExpansion(
+            title: const Text('高级选项'),
+            color: colors.cardBackground,
+            children: [
+              if (caps == null)
+                Text(
+                  '正在读取服务端能力…',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.itemHint,
+                  ),
+                )
+              else ...[
+                Text('谁能看到房间', style: theme.textTheme.labelMedium),
+                IgnorePointer(
+                  ignoring: locked,
+                  child: DropdownLayer<String>(
+                    initialValue: visibility,
+                    options: [
+                      for (final value in caps.visibility)
+                        DropdownOption(
+                          value: value,
+                          label: _visibilityLabel(value),
+                        ),
+                    ],
+                    onSelect: (value) {
+                      if (!locked) setState(() => _visibility = value);
+                    },
+                  ),
+                ),
+                Text('谁能加入', style: theme.textTheme.labelMedium),
+                IgnorePointer(
+                  ignoring: locked,
+                  child: DropdownLayer<String>(
+                    initialValue: joinPolicy,
+                    options: [
+                      for (final value in caps.joinPolicies)
+                        DropdownOption(
+                          value: value,
+                          label: _joinPolicyLabel(value),
+                        ),
+                    ],
+                    onSelect: (value) {
+                      if (!locked) setState(() => _joinPolicy = value);
+                    },
+                  ),
+                ),
+                Text(
+                  '官方 1.7.0：可见范围与加入方式是两个正交单选，'
+                  '「需我同意」是独立的 require_approval 布尔。',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.itemHint,
+                  ),
+                ),
+              ],
+            ],
           ),
-          if (_advancedOpen && caps != null) ...[
-            Text('谁能看到房间', style: theme.textTheme.labelMedium),
-            IgnorePointer(
-              ignoring: locked,
-              child: DropdownLayer<String>(
-                initialValue: visibility,
-                options: [
-                  for (final value in caps.visibility)
-                    DropdownOption(
-                      value: value,
-                      label: _visibilityLabel(value),
-                    ),
-                ],
-                onSelect: (value) {
-                  if (!locked) setState(() => _visibility = value);
-                },
-              ),
-            ),
-            Text('谁能加入', style: theme.textTheme.labelMedium),
-            IgnorePointer(
-              ignoring: locked,
-              child: DropdownLayer<String>(
-                initialValue: joinPolicy,
-                options: [
-                  for (final value in caps.joinPolicies)
-                    DropdownOption(
-                      value: value,
-                      label: _joinPolicyLabel(value),
-                    ),
-                ],
-                onSelect: (value) {
-                  if (!locked) setState(() => _joinPolicy = value);
-                },
-              ),
-            ),
-            Text(
-              '官方 1.7.0 把这三项拆开了：可见范围、加入方式、是否需我同意；'
-              '「是否需要同意」是独立布尔，不再塞进加入方式。',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: colors.itemHint,
-              ),
-            ),
-          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfigTable(MultiplayerState state) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final session = state.session;
+    final visibility = session?.visibility ?? _visibility;
+    final joinPolicy = session?.joinPolicy ?? _joinPolicy;
+    final approval = _requireApproval;
+    return ContentPanelModule(
+      title: '房间配置',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: AppSpacing.related,
+        children: [
+          _buildInfoRow('房间名', session?.activityName ?? '—'),
+          _buildInfoRow('人数', '${session?.maxPlayers ?? _maxPlayers} 人'),
+          _buildInfoRow('可见范围', _visibilityLabel(visibility)),
+          _buildInfoRow('加入方式', _joinPolicyLabel(joinPolicy)),
+          _buildInfoRow('需我同意', approval ? '是' : '否'),
           const SizedBox(height: AppSpacing.tight),
-          if (!state.inSession)
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: Icons.play_circle_outline,
-              content: state.creating ? '正在开启房间…' : '开启房间',
-              onTap: state.creating ? null : _createRoom,
-            )
-          else
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: Icons.logout,
-              content: state.self?.role == 'owner' ? '关闭房间' : '离开房间',
-              onTap: state.leaving ? null : _mp.leave,
+          Text(
+            '房间已开启，改配置要先关闭房间',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colors.itemHint,
             ),
-          if (state.inSession)
-            Text(
-              '房间已开启，改配置要先关闭房间',
-              style: theme.textTheme.labelSmall?.copyWith(
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        spacing: AppSpacing.related,
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.itemHint,
               ),
             ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -744,7 +839,6 @@ class _OnlinePageState extends State<OnlinePage> {
   // ── 客人 ────────────────────────────────────────────────────
 
   Widget _buildGuest(MultiplayerState state, bool loggedIn) {
-    final height = MediaQuery.sizeOf(context).height;
     final inRoom = state.inSession;
     return Column(
       children: [
@@ -769,29 +863,45 @@ class _OnlinePageState extends State<OnlinePage> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const Spacer(),
-              const SizedBox(width: 56),
+              if (inRoom)
+                IconTextButton(
+                  pressedScale: 0.96,
+                  icon: Icons.logout,
+                  content: state.leaving ? '正在离开…' : '离开房间',
+                  onTap: state.leaving ? null : _mp.leave,
+                )
+              else
+                const SizedBox(width: 72),
             ],
           ),
         ),
         Expanded(
-          child: ListContentPanel(
-            items: [
-              if (inRoom)
-                _buildRoomStatusPanel(state)
-              else ...[
-                SizedBox(height: height * 0.34),
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: _buildJoinCodePanel(state, loggedIn),
-                  ),
+          child: inRoom
+              ? ListContentPanel(
+                  items: [_buildRoomStatusPanel(state)],
+                  showBackToTop: false,
+                )
+              : Column(
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: Align(
+                        alignment: const Alignment(0, 0.25),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 420),
+                          child: _buildJoinCodePanel(state, loggedIn),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 4,
+                      child: ListContentPanel(
+                        items: [_buildFriendsPanel(state, loggedIn)],
+                        showBackToTop: false,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-              SizedBox(height: height * 0.06),
-              _buildFriendsPanel(state, loggedIn),
-            ],
-            showBackToTop: false,
-          ),
         ),
       ],
     );
@@ -935,7 +1045,7 @@ class _OnlinePageState extends State<OnlinePage> {
     final session = state.session;
     final peers = state.peers;
     return ContentPanelModule(
-      title: '房间状态',
+      title: '房间玩家',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: AppSpacing.related,
@@ -1027,12 +1137,6 @@ class _OnlinePageState extends State<OnlinePage> {
           if (state.inSession) ...[
             const SizedBox(height: AppSpacing.tight),
             if (state.self?.role == 'owner') _buildInviteTile(state),
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: Icons.logout,
-              content: state.self?.role == 'owner' ? '关闭房间' : '离开房间',
-              onTap: state.leaving ? null : _mp.leave,
-            ),
           ],
         ],
       ),
