@@ -105,7 +105,7 @@ class MdtbbsRelayGuestProxy {
     _subscription = null;
     await _advertiser?.dispose();
     _advertiser = null;
-    for (final socket in _streams.values) {
+    for (final socket in _streams.values.toList()) {
       socket.destroy();
     }
     _streams.clear();
@@ -222,14 +222,14 @@ class MdtbbsRelayHostBridge {
     _disposed = true;
     await _subscription?.cancel();
     _subscription = null;
-    for (final socket in _bridges.values) {
+    for (final socket in _bridges.values.toList()) {
       socket.destroy();
     }
     _bridges.clear();
     _pendingTcpBridges.clear();
     _bufferedTcp.clear();
     _closedTcpStreams.clear();
-    for (final socket in _udpBridges.values) {
+    for (final socket in _udpBridges.values.toList()) {
       socket.close();
     }
     _udpBridges.clear();
@@ -241,6 +241,8 @@ class MdtbbsRelayHostBridge {
   void _onSignal(MdtbbsRelaySignal signal) {
     if (_disposed) return;
     switch (signal) {
+      case MdtbbsRelayTcpOpenRequest(:final streamId):
+        unawaited(_onTcpOpenRequest(streamId));
       case MdtbbsRelayTcpData(:final streamId, :final payload):
         _bridgeFor(streamId, payload);
       case MdtbbsRelayTcpClosed(:final streamId):
@@ -252,6 +254,28 @@ class MdtbbsRelayHostBridge {
       default:
         break;
     }
+  }
+
+  /// 服务端要求房主为一条流连本机游戏：连上再回 `tcp_open_result`
+  Future<void> _onTcpOpenRequest(int streamId) async {
+    if (_disposed || streamId <= 0) return;
+    if (!_bridges.containsKey(streamId) &&
+        !_closedTcpStreams.contains(streamId)) {
+      final pending = _pendingTcpBridges[streamId];
+      if (pending != null) {
+        await pending;
+      } else {
+        late final Future<void> task;
+        task = _bindTcpBridge(streamId).whenComplete(() {
+          if (identical(_pendingTcpBridges[streamId], task)) {
+            _pendingTcpBridges.remove(streamId);
+          }
+        });
+        _pendingTcpBridges[streamId] = task;
+        await task;
+      }
+    }
+    tunnel.sendTcpOpenResult(streamId, _bridges.containsKey(streamId));
   }
 
   /// 每条流只建立一条到本机游戏的 TCP 连接；连接建立期间的帧先缓存。
@@ -312,8 +336,8 @@ class MdtbbsRelayHostBridge {
     } on Object catch (error) {
       _bufferedTcp.remove(streamId);
       if (!_disposed && !_closedTcpStreams.contains(streamId)) {
+        _closedTcpStreams.add(streamId);
         addLogAndPrint(.warning, '连本机游戏失败：$error', tag: 'Multiplayer');
-        _dropBridge(streamId);
       }
     }
   }

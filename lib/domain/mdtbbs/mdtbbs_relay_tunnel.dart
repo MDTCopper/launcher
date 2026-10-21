@@ -31,6 +31,12 @@ class MdtbbsRelayTcpOpenPending extends MdtbbsRelaySignal {
   final int streamId;
 }
 
+/// 服务端发给房主：请把这条流桥到本机游戏（房主需回 `tcp_open_result`）
+class MdtbbsRelayTcpOpenRequest extends MdtbbsRelaySignal {
+  const MdtbbsRelayTcpOpenRequest({required this.streamId});
+  final int streamId;
+}
+
 class MdtbbsRelayTcpOpened extends MdtbbsRelaySignal {
   const MdtbbsRelayTcpOpened({required this.streamId});
   final int streamId;
@@ -299,6 +305,12 @@ class MdtbbsRelayTunnel {
     _socket?.add(MdtbbsRelayFrame.tcpClose(streamId));
   }
 
+  /// 房主侧：回应服务端的 `tcp_open`（连本机游戏成功 / 失败）
+  void sendTcpOpenResult(int streamId, bool ok) {
+    if (streamId <= 0 || _closing) return;
+    _sendJson({'op': 'tcp_open_result', 'stream_id': streamId, 'ok': ok});
+  }
+
   void sendUdpDatagram(String targetPeerId, List<int> payload) {
     final frame = MdtbbsRelayFrame.udpDatagram(targetPeerId, payload);
     if (frame != null) _socket?.add(frame);
@@ -358,6 +370,9 @@ class MdtbbsRelayTunnel {
         final completer = _reauthCompleter;
         if (completer != null && !completer.isCompleted) completer.complete();
         addLogAndPrint(.info, '中继凭证已续签', tag: 'Multiplayer');
+      case 'tcp_open':
+        final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
+        _emit(MdtbbsRelayTcpOpenRequest(streamId: streamId));
       case 'tcp_open_pending':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
         _emit(MdtbbsRelayTcpOpenPending(streamId: streamId));
