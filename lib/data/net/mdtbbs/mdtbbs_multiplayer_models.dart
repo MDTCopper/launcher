@@ -87,6 +87,7 @@ class MdtbbsSession {
     required this.maxPlayers,
     required this.status,
     this.expiresAt,
+    this.requireApproval,
   });
 
   final String id;
@@ -109,6 +110,9 @@ class MdtbbsSession {
   final String status;
   final String? expiresAt;
 
+  /// 服务端若回传就带上；没回传时界面用本机创建时的值兜底
+  final bool? requireApproval;
+
   factory MdtbbsSession.fromJson(Map<String, dynamic> json) {
     final game = (json['game'] as Map?)?.cast<String, dynamic>() ?? const {};
     return MdtbbsSession(
@@ -123,6 +127,7 @@ class MdtbbsSession {
       maxPlayers: (json['max_players'] as num?)?.toInt() ?? 0,
       status: '${json['status'] ?? ''}',
       expiresAt: json['expires_at']?.toString(),
+      requireApproval: json['require_approval'] as bool?,
     );
   }
 }

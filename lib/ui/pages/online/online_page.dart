@@ -136,8 +136,16 @@ class _OnlinePageState extends State<OnlinePage> {
   }
 
   Future<void> _createRoom() async {
-    if (!_ensureLoggedIn()) return;
     final caps = _mp.state.value.capabilities;
+    if (caps != null && (!caps.usable || !caps.relayEnabled)) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '服务端暂未开放',
+        content: caps.usable ? '联机中继当前不可用' : '联机功能当前未开放',
+      );
+      return;
+    }
+    if (!_ensureLoggedIn()) return;
     final visibility = (caps == null || caps.visibility.contains(_visibility))
         ? _visibility
         : (caps.visibility.isNotEmpty ? caps.visibility.first : 'private');
@@ -159,7 +167,7 @@ class _OnlinePageState extends State<OnlinePage> {
 
   Future<void> _joinByCode() async {
     if (!_ensureLoggedIn()) return;
-    final code = _joinCodeController.text.trim();
+    final code = _normalizeJoinCode(_joinCodeController.text);
     if (code.isEmpty) {
       addNotice(
         icon: Icons.error_outline,
@@ -168,7 +176,35 @@ class _OnlinePageState extends State<OnlinePage> {
       );
       return;
     }
+    _joinCodeController.text = code;
     await _mp.joinByCode(code);
+  }
+
+  /// 从整段分享文本里抠出房间码；没有就按原样大写
+  String _normalizeJoinCode(String input) {
+    final match = RegExp(r'[0-9a-fA-F]{6,12}').firstMatch(input);
+    return (match?.group(0) ?? input).trim().toUpperCase();
+  }
+
+  Future<void> _pasteJoinCode() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text ?? '';
+    if (text.isEmpty) return;
+    final code = _normalizeJoinCode(text);
+    if (code.isEmpty) return;
+    _joinCodeController.text = code;
+  }
+
+  Future<void> _confirmCloseRoom() async {
+    final confirmed = await showAnimatedDialog<bool>(
+      context: context,
+      pageBuilder: (context, _, _) => const _ConfirmDialog(
+        title: '关闭房间？',
+        message: '关闭后房间码会失效，成员会被断开；重新开房会生成新的房间码。',
+        confirmLabel: '关闭房间',
+      ),
+    );
+    if (confirmed == true) await _mp.leave();
   }
 
   /// 房主重建房间：换一个 Peer，绕开失败分配的 120 秒额度
@@ -508,17 +544,10 @@ class _OnlinePageState extends State<OnlinePage> {
         AppSpacing.block,
         AppSpacing.related,
       ),
-      child: Row(
-        spacing: AppSpacing.related,
-        children: [
-          IconTextButton(
-            pressedScale: 0.96,
-            icon: Icons.arrow_back,
-            content: '返回',
-            onTap: () => _setView(_OnlineView.entry),
-          ),
-          const SizedBox(width: AppSpacing.related),
-          Expanded(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 600;
+          final codeBlock = Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: 2,
@@ -545,60 +574,111 @@ class _OnlinePageState extends State<OnlinePage> {
                     onTap: () => _copy(code, '房间码'),
                     child: Text(
                       code,
-                      style: theme.textTheme.displaySmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2,
-                      ),
+                      style:
+                          (compact
+                                  ? theme.textTheme.headlineMedium
+                                  : theme.textTheme.displaySmall)
+                              ?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2,
+                              ),
                     ),
                   ),
               ],
             ),
-          ),
-          if (code != null) ...[
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: Icons.copy,
-              content: '复制',
-              onTap: () => _copy(code, '房间码'),
-            ),
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: Icons.ios_share,
-              content: '分享',
-              onTap: () => _copy(_shareText(state), '房间信息'),
-            ),
-          ],
-          const SizedBox(width: AppSpacing.group),
-          if (state.self?.role == 'owner')
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: state.inSession
-                  ? Icons.stop_circle_outlined
-                  : Icons.play_circle_outline,
-              content: state.inSession
-                  ? (state.leaving ? '正在关闭…' : '关闭房间')
-                  : (state.creating ? '正在开启…' : '开启房间'),
-              onTap: state.inSession
-                  ? (state.leaving ? null : _mp.leave)
-                  : (state.creating ? null : _createRoom),
-            )
-          else if (state.inSession)
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: Icons.logout,
-              content: state.leaving ? '正在离开…' : '离开房间',
-              onTap: state.leaving ? null : _mp.leave,
-            )
-          else
-            IconTextButton(
-              pressedScale: 0.96,
-              icon: Icons.play_circle_outline,
-              content: state.creating ? '正在开启…' : '开启房间',
-              onTap: state.creating ? null : _createRoom,
-            ),
-        ],
+          );
+          final action = _buildHeaderAction(state);
+          final copyShare = <Widget>[
+            if (code != null) ...[
+              IconTextButton(
+                pressedScale: 0.96,
+                icon: Icons.copy,
+                content: '复制',
+                onTap: () => _copy(code, '房间码'),
+              ),
+              IconTextButton(
+                pressedScale: 0.96,
+                icon: Icons.ios_share,
+                content: '分享',
+                onTap: () => _copy(_shareText(state), '房间信息'),
+              ),
+            ],
+          ];
+          if (!compact) {
+            return Row(
+              spacing: AppSpacing.related,
+              children: [
+                IconTextButton(
+                  pressedScale: 0.96,
+                  icon: Icons.arrow_back,
+                  content: '返回',
+                  onTap: () => _setView(_OnlineView.entry),
+                ),
+                const SizedBox(width: AppSpacing.related),
+                codeBlock,
+                ...copyShare,
+                const SizedBox(width: AppSpacing.group),
+                action,
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: AppSpacing.related,
+            children: [
+              Row(
+                spacing: AppSpacing.related,
+                children: [
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.arrow_back,
+                    content: '返回',
+                    onTap: () => _setView(_OnlineView.entry),
+                  ),
+                  codeBlock,
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                spacing: AppSpacing.related,
+                children: [...copyShare, action],
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildHeaderAction(MultiplayerState state) {
+    if (state.self?.role == 'owner') {
+      return IconTextButton(
+        pressedScale: 0.96,
+        icon: state.inSession
+            ? Icons.stop_circle_outlined
+            : Icons.play_circle_outline,
+        content: state.inSession
+            ? (state.leaving ? '正在关闭…' : '关闭房间')
+            : (state.creating ? '正在开启…' : '开启房间'),
+        onTap: state.inSession
+            ? (state.leaving ? null : _confirmCloseRoom)
+            : (state.creating ? null : _createRoom),
+      );
+    }
+    if (state.inSession) {
+      return IconTextButton(
+        pressedScale: 0.96,
+        icon: Icons.logout,
+        content: state.leaving ? '正在离开…' : '离开房间',
+        onTap: state.leaving ? null : _mp.leave,
+      );
+    }
+    return IconTextButton(
+      pressedScale: 0.96,
+      icon: Icons.play_circle_outline,
+      content: state.creating ? '正在开启…' : '开启房间',
+      onTap: state.creating ? null : _createRoom,
     );
   }
 
@@ -824,7 +904,7 @@ class _OnlinePageState extends State<OnlinePage> {
     final session = state.session;
     final visibility = session?.visibility ?? _visibility;
     final joinPolicy = session?.joinPolicy ?? _joinPolicy;
-    final approval = _requireApproval;
+    final approval = session?.requireApproval ?? _requireApproval;
     return ContentPanelModule(
       title: '房间配置',
       child: Column(
@@ -977,6 +1057,12 @@ class _OnlinePageState extends State<OnlinePage> {
                 icon: Icons.login,
                 content: state.joining ? '正在加入…' : '加入房间',
                 onTap: state.joining ? null : _joinByCode,
+              ),
+              IconTextButton(
+                pressedScale: 0.96,
+                icon: Icons.content_paste,
+                content: '粘贴',
+                onTap: state.joining ? null : _pasteJoinCode,
               ),
               const Spacer(),
               if (!loggedIn)
@@ -1393,6 +1479,71 @@ class _OnlinePageState extends State<OnlinePage> {
     'expired' => '已过期',
     _ => status,
   };
+}
+
+/// 通用确认框：返回 true 表示用户确认
+class _ConfirmDialog extends StatelessWidget {
+  const _ConfirmDialog({
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+  });
+
+  final String title;
+  final String message;
+  final String confirmLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        elevation: 6,
+        child: Container(
+          width: (MediaQuery.sizeOf(context).width - 32).clamp(0, 420),
+          padding: const EdgeInsets.all(AppSpacing.block),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(AppRadius.panel),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: AppSpacing.related,
+            children: [
+              Text(title, style: theme.textTheme.titleMedium),
+              Text(
+                message,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.itemSecondary,
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                spacing: AppSpacing.related,
+                children: [
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.close,
+                    content: '取消',
+                    onTap: () => Navigator.of(context).pop(false),
+                  ),
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.check,
+                    content: confirmLabel,
+                    onTap: () => Navigator.of(context).pop(true),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// 邀请好友：目前只有「知道对方用户 ID」这一条路（好友列表还没接）
