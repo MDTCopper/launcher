@@ -62,6 +62,10 @@ class MdtbbsMultiplayerService {
   Timer? _reconnectTimer;
   int _reconnectAttempt = 0;
 
+  /// 认证失败 / 额度满之后，等这次分配过期再自动重试
+  DateTime? _authBlockedUntil;
+  Timer? _authBlockedTimer;
+
   String? _lastAccountSubject;
   bool _accountLoggedIn = false;
   bool _accountResetInFlight = false;
@@ -177,6 +181,7 @@ class MdtbbsMultiplayerService {
       forgetSession();
       _finishSessionTask();
       _cancelReconnect(reset: true);
+      _cancelAuthBlock();
       // 先同步清掉旧账号的可见状态，再异步释放旧网络资源。
       // 这样新账号即使在 teardown 期间登录并建好状态，也不会被旧 reset 的尾声覆盖。
       _set(const MultiplayerState());
@@ -438,10 +443,10 @@ class MdtbbsMultiplayerService {
     required int expectedAccountEpoch,
   }) async {
     if (!_isAccountEpochCurrent(expectedAccountEpoch)) return;
-    if (!_isAccountEpochCurrent(expectedAccountEpoch)) return;
     forgetSession();
     _finishSessionTask();
     _cancelReconnect(reset: true);
+    _cancelAuthBlock();
     await stopProxy();
     if (!_isAccountEpochCurrent(expectedAccountEpoch)) return;
     _accounts.clearMultiplayerSession();
@@ -666,6 +671,7 @@ class MdtbbsMultiplayerService {
       forgetSession();
       _finishSessionTask();
       _cancelReconnect(reset: true);
+      _cancelAuthBlock();
       await stopProxy();
       if (!_isAccountEpochCurrent(epoch)) return;
       _accounts.clearMultiplayerSession();
@@ -1150,6 +1156,13 @@ class MdtbbsMultiplayerService {
 
   /// 自动重连都失败后，界面上的「重试」
   Future<void> retryProxy() async {
+    final blocked = _authBlockedUntil;
+    if (blocked != null && blocked.isAfter(DateTime.now())) {
+      final seconds = blocked.difference(DateTime.now()).inSeconds;
+      _notify('联机服务器刚拒绝过，等约 $seconds 秒再试', isError: true);
+      return;
+    }
+    _cancelAuthBlock();
     _cancelReconnect(reset: true);
     _set(
       _current.copyWith(
@@ -1183,54 +1196,24 @@ class MdtbbsMultiplayerService {
     MdtbbsRelayTunnel? tunnel;
     MdtbbsRelayAuthOk? auth;
     try {
-      var attempts = 0;
-      while (true) {
-        attempts++;
-        final created = MdtbbsRelayTunnel(
-          allocateRelay: () async {
-            if (!_isAccountEpochCurrent(epoch)) {
-              throw const MdtbbsRelayException('账号已切换，中止旧会话的中继续签');
-            }
-            final accessToken = cachedToken ?? await _token();
-            cachedToken = null;
-            if (accessToken == null || !_isAccountEpochCurrent(epoch)) {
-              throw const MdtbbsRelayException('登录状态已失效，无法续签中继凭证');
-            }
-            return MdtbbsMultiplayerApi.allocateRelay(
-              accessToken: accessToken,
-              sessionId: session.id,
-            );
-          },
-        );
-        tunnel = created;
-        try {
-          auth = await created.start().timeout(const Duration(seconds: 30));
-          break;
-        } on MdtbbsRelayException catch (error) {
-          await created.dispose();
-          tunnel = null;
-          // 同一份凭证重试没有意义；换一份新分配再试一次
-          if (attempts < 2 && error.authRejected) {
-            addLogAndPrint(
-              .warning,
-              '中继认证被拒，换一份新分配重试：${error.message}',
-              tag: 'Multiplayer',
-            );
-            await Future<void>.delayed(const Duration(seconds: 2));
-            if (!_isAccountEpochCurrent(epoch) ||
-                _current.session?.id != session.id) {
-              _set(_current.copyWith(startingProxy: false));
-              return;
-            }
-            continue;
+      final created = MdtbbsRelayTunnel(
+        allocateRelay: () async {
+          if (!_isAccountEpochCurrent(epoch)) {
+            throw const MdtbbsRelayException('账号已切换，中止旧会话的中继续签');
           }
-          rethrow;
-        } on Object {
-          await created.dispose();
-          tunnel = null;
-          rethrow;
-        }
-      }
+          final accessToken = cachedToken ?? await _token();
+          cachedToken = null;
+          if (accessToken == null || !_isAccountEpochCurrent(epoch)) {
+            throw const MdtbbsRelayException('登录状态已失效，无法续签中继凭证');
+          }
+          return MdtbbsMultiplayerApi.allocateRelay(
+            accessToken: accessToken,
+            sessionId: session.id,
+          );
+        },
+      );
+      tunnel = created;
+      auth = await created.start().timeout(const Duration(seconds: 30));
 
       final openedTunnel = tunnel;
       final openedAuth = auth;
@@ -1327,6 +1310,7 @@ class MdtbbsMultiplayerService {
       });
       _cancelReconnect();
       _reconnectAttempt = 0;
+      _cancelAuthBlock();
       _set(
         _current.copyWith(
           proxyRunning: true,
@@ -1359,6 +1343,16 @@ class MdtbbsMultiplayerService {
 
   Future<void> _onProxyStartFailed(Object error, {required bool auto}) async {
     addLogAndPrint(.warning, '联机准备失败：$error', tag: 'Multiplayer');
+
+    // 认证失败 / 额度满：服务端会把这次分配挂 120 秒，立刻再申请只会 429
+    // ⇒ 等它过期再自动试一次，别把客户端自己锁死
+    if (_isRelayAuthRejected(error) || _isRelayLimitReached(error)) {
+      _blockUntilAllocationExpires(
+        authRejected: _isRelayAuthRejected(error),
+      );
+      return;
+    }
+
     final message = _describeProxyError(error);
     final retryExhausted =
         !auto || _reconnectAttempt >= _reconnectDelays.length;
@@ -1377,6 +1371,46 @@ class MdtbbsMultiplayerService {
       return;
     }
     _scheduleReconnect();
+  }
+
+  bool _isRelayAuthRejected(Object error) =>
+      error is MdtbbsRelayException && error.authRejected;
+
+  bool _isRelayLimitReached(Object error) =>
+      '$error'.contains('RELAY_LIMIT_REACHED');
+
+  void _blockUntilAllocationExpires({required bool authRejected}) {
+    const wait = Duration(seconds: 125);
+    _cancelReconnect(reset: true);
+    _authBlockedTimer?.cancel();
+    _authBlockedUntil = DateTime.now().add(wait);
+    final owner = _current.self?.role == 'owner';
+    final hint = owner
+        ? '，或关闭房间后重新创建（换新房间码）'
+        : '，或退出房间重新加入';
+    final message = authRejected
+        ? '联机服务器没通过这次连接（服务端问题），约 2 分钟后自动重试$hint'
+        : '联机服务器上还有这个房间的旧连接，约 2 分钟后自动重试$hint';
+    _set(
+      _current.copyWith(
+        startingProxy: false,
+        reconnecting: false,
+        proxyError: message,
+      ),
+    );
+    addLogAndPrint(.warning, '等这次中继分配过期后再试：$message', tag: 'Multiplayer');
+    _authBlockedTimer = Timer(wait, () {
+      _authBlockedTimer = null;
+      _authBlockedUntil = null;
+      if (_current.session == null) return;
+      unawaited(_startProxy(auto: true));
+    });
+  }
+
+  void _cancelAuthBlock() {
+    _authBlockedTimer?.cancel();
+    _authBlockedTimer = null;
+    _authBlockedUntil = null;
   }
 
   void _scheduleReconnect() {
