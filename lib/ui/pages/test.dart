@@ -1,11 +1,14 @@
 import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
+import 'package:copper_launcher/util/net/p2p_probe.dart';
 import 'package:flutter/gestures.dart' show kSecondaryButton;
+import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
 
@@ -28,6 +31,20 @@ class TestState extends State<Test> {
   bool _menuPinned = true; // 菜单里那条「固定」的勾选态
   int _menuHits = 0; // 菜单动作被点的次数
   String _menuLastAction = '（还没点过菜单条目）';
+
+  // ── 第 21 区演示状态（P2P 打洞诊断）──
+  final _peerController = TextEditingController();
+  P2pProbe? _p2pProbe;
+  String _p2pMine = '（还没查询）';
+  String _p2pLog = '';
+  bool _p2pBusy = false;
+
+  @override
+  void dispose() {
+    _peerController.dispose();
+    _p2pProbe?.close();
+    super.dispose();
+  }
 
   /// 当前状态在做什么，配合演示说清三种状态的差别
   String get _drillStateHint => switch (_drillState) {
@@ -82,6 +99,7 @@ class TestState extends State<Test> {
         children: [
           _drillLoadingSection(),
           _contextMenuSection(),
+          _p2pSection(),
           const SizedBox(height: 120),
         ],
       ),
@@ -512,6 +530,150 @@ class TestState extends State<Test> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.related),
                   child: _buildMenuListTile(name),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════ 21. P2P 打洞诊断 ════════
+
+  void _p2pAppend(String line) {
+    if (!mounted) return;
+    final time = DateTime.now().toString().substring(11, 19);
+    setState(() => _p2pLog = '$time  $line\n$_p2pLog');
+  }
+
+  Future<void> _p2pDiscover() async {
+    setState(() {
+      _p2pBusy = true;
+      _p2pLog = '';
+    });
+    try {
+      _p2pProbe ??= P2pProbe();
+      final discovery = await _p2pProbe!.discover();
+      if (!mounted) return;
+      setState(() {
+        _p2pMine = discovery.ok
+            ? discovery.endpoints
+                  .map((endpoint) => '${endpoint.server} → ${endpoint.text}')
+                  .join('\n')
+            : '一个 STUN 都没返回';
+      });
+      if (!discovery.ok) {
+        _p2pAppend('STUN 全部失败：检查 UDP 出网 / 防火墙');
+      } else {
+        if (discovery.multipleAddresses) {
+          _p2pAppend('⚠ 不同 STUN 看到的公网 IP 不同：多出口 / 负载均衡');
+        }
+        if (discovery.symmetric) {
+          _p2pAppend('⚠ 不同 STUN 看到的端口不同：大概率是对称 NAT');
+        } else if (discovery.undetermined) {
+          _p2pAppend('只拿到一个结果，判断不了 NAT 类型');
+        } else {
+          _p2pAppend('✓ 多个 STUN 端点一致：锥形 NAT，打洞有希望');
+        }
+      }
+    } on Object catch (error) {
+      _p2pAppend('查询失败：$error');
+    } finally {
+      if (mounted) setState(() => _p2pBusy = false);
+    }
+  }
+
+  Future<void> _p2pPunch() async {
+    final peer = _peerController.text.trim();
+    final parts = peer.split(':');
+    if (parts.length != 2 || int.tryParse(parts[1]) == null) {
+      _p2pAppend('对方端点要填 ip:port');
+      return;
+    }
+    setState(() => _p2pBusy = true);
+    try {
+      _p2pProbe ??= P2pProbe();
+      final result = await _p2pProbe!.punch(
+        peerHost: parts[0],
+        peerPort: int.parse(parts[1]),
+        log: _p2pAppend,
+      );
+      _p2pAppend(
+        result.ok
+            ? '✅ 双向打通：${result.peer}，RTT ${result.rtt?.inMilliseconds} ms'
+            : '❌ 失败：${result.message}',
+      );
+    } on Object catch (error) {
+      _p2pAppend('打洞失败：$error');
+    } finally {
+      if (mounted) setState(() => _p2pBusy = false);
+    }
+  }
+
+  Widget _p2pSection() {
+    final colors = AppColors.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _sectionTitle('21. P2P 打洞诊断'),
+        _card(
+          title: 'STUN + UDP 打洞',
+          desc:
+              '不碰联机代码：先查本机公网端点，再和另一台机器互发探测。'
+              '两边都拿到对方端点后，同时点「开始打洞」。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: AppSpacing.related,
+            children: [
+              Wrap(
+                spacing: AppSpacing.related,
+                runSpacing: AppSpacing.related,
+                children: [
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.public,
+                    content: '1. 查我的公网端点',
+                    onTap: _p2pBusy ? null : _p2pDiscover,
+                  ),
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.copy,
+                    content: '复制',
+                    onTap: () async {
+                      await Clipboard.setData(ClipboardData(text: _p2pMine));
+                    },
+                  ),
+                ],
+              ),
+              Text(
+                _p2pMine,
+                style: TextStyle(color: colors.itemSecondary, fontSize: 12),
+              ),
+              OutlinedTextField(
+                controller: _peerController,
+                label: '对方公网端点（ip:port）',
+              ),
+              IconTextButton(
+                pressedScale: 0.96,
+                icon: Icons.wifi_tethering,
+                content: '2. 开始打洞（20 秒）',
+                onTap: _p2pBusy ? null : _p2pPunch,
+              ),
+              if (_p2pLog.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.related),
+                  decoration: BoxDecoration(
+                    color: colors.cardBackground,
+                    borderRadius: BorderRadius.circular(AppRadius.item),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Text(
+                    _p2pLog,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ),
             ],
           ),
