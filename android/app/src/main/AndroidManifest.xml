@@ -3,6 +3,8 @@
     <!-- Access network -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 伪局域网房间：接收 Mindustry 的组播探测（227.2.7.7:20151） -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <!-- 文件定位（locatedPath）：公开存储路径需存储权限；Android 13+ 旧权限无效，用所有文件访问 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>

@@ -1,6 +1,9 @@
 package io.github.copper.launcher
 
+import android.content.Context
 import android.content.Intent
+import android.net.wifi.WifiManager
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -19,6 +22,35 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val shareIntentHandler by lazy { ShareIntentHandler(applicationContext) }
     private var shareChannel: MethodChannel? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
+
+    /**
+     * 伪局域网房间要靠组播收游戏发出的探测；Android 上不拿 MulticastLock
+     * 时 Wi-Fi 芯片会把组播包过滤掉。锁跟随 Activity 生命周期
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        try {
+            val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            multicastLock = wifi?.createMulticastLock("copper-lan-discovery")?.apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+            if (multicastLock?.isHeld == true) {
+                Log.i(TAG, "已获取组播锁（伪局域网房间）")
+            }
+        } catch (error: Exception) {
+            Log.w(TAG, "获取组播锁失败：${error.message}")
+        }
+    }
+
+    override fun onDestroy() {
+        multicastLock?.let { lock ->
+            if (lock.isHeld) lock.release()
+        }
+        multicastLock = null
+        super.onDestroy()
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
