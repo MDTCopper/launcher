@@ -704,8 +704,8 @@ class _OnlinePageState extends State<OnlinePage> {
       return Text(
         isOwner
             ? '准备好了：进游戏开「主机」房间，好友就能进来'
-            : '准备好了：进游戏 → 加入游戏 → 选「直连」，填 '
-                  '${state.localAddress ?? '127.0.0.1:6567'}',
+            : '准备好了：进游戏 → 加入游戏 → 在「局域网游戏」里选这个房间'
+                  '（没出现就直连 ${state.localAddress ?? '127.0.0.1:6567'}）',
         style: style,
       );
     }

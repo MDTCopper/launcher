@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_relay_lan_advertiser.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_relay_tunnel.dart';
 import 'package:copper_launcher/util/io/log.dart';
 
@@ -55,11 +56,21 @@ class MdtbbsRelayGuestProxy {
     required this.tunnel,
     required this.ownerPeerId,
     required this.ports,
+    this.roomName = 'Copper 联机房间',
+    this.maxPlayers = 8,
+    this.players = 1,
   });
 
   final MdtbbsRelayTunnel tunnel;
   final String ownerPeerId;
   final MdtbbsRelayProxyPorts ports;
+
+  /// 伪局域网列表里显示的房间名与人数
+  final String roomName;
+  final int maxPlayers;
+  final int players;
+
+  MdtbbsRelayLanAdvertiser? _advertiser;
 
   final _streams = <int, Socket>{};
   StreamSubscription<MdtbbsRelaySignal>? _subscription;
@@ -74,6 +85,13 @@ class MdtbbsRelayGuestProxy {
     _subscription = tunnel.signals.listen(_onSignal);
     ports.tcpServer.listen(_onGameTcpConnected, onError: (_) {});
     ports.udpSocket.listen(_onUdpEvent);
+    _advertiser = MdtbbsRelayLanAdvertiser(
+      roomName: roomName,
+      port: ports.port,
+      maxPlayers: maxPlayers,
+      players: players,
+    );
+    await _advertiser!.start();
     addLogAndPrint(
       .info,
       '房客代理已就绪：$localAddress → 房主 $ownerPeerId',
@@ -85,6 +103,8 @@ class MdtbbsRelayGuestProxy {
     _disposed = true;
     await _subscription?.cancel();
     _subscription = null;
+    await _advertiser?.dispose();
+    _advertiser = null;
     for (final socket in _streams.values) {
       socket.destroy();
     }
