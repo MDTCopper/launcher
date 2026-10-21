@@ -60,10 +60,7 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "moveTaskToBack" -> result.success(moveTaskToBack(true))
                     "killGameProcess" -> killGameProcess(result)
-                    "isGameProcessRunning" ->
-                        result.success(
-                            io.github.copper.GameProcess.isRunning(applicationContext),
-                        )
+                    "isGameProcessRunning" -> isGameProcessRunning(result)
                     else -> result.notImplemented()
                 }
             }
@@ -113,6 +110,20 @@ class MainActivity : FlutterActivity() {
         Thread {
             io.github.copper.GameProcess.kill(applicationContext)
             Handler(Looper.getMainLooper()).post { result.success(null) }
+        }.start()
+    }
+
+    /**
+     * 游戏还在不在。
+     *
+     * 游戏正常退出后桥会把 `:mdt_process` 留着，所以这里要等游戏进程写的退出标记，
+     * 最长约 1 秒。[io.github.copper.GameProcess.isRunning] 会阻塞，放到工作线程上跑，
+     * 完了再回主线程答复。
+     */
+    private fun isGameProcessRunning(result: MethodChannel.Result) {
+        Thread {
+            val running = io.github.copper.GameProcess.isRunning(applicationContext)
+            Handler(Looper.getMainLooper()).post { result.success(running) }
         }.start()
     }
 

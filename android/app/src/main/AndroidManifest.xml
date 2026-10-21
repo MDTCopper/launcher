@@ -25,7 +25,7 @@
          (BridgeActivity.onKeyDown), and Flutter keeps handling it through onBackPressed. -->
     <application
         android:label="Copper Launcher"
-        android:name="${applicationName}"
+        android:name="io.github.copper.CopperApplication"
         android:icon="@mipmap/ic_launcher"
         android:largeHeap="true"
         android:isGame="true"
