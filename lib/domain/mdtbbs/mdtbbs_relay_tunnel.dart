@@ -116,6 +116,9 @@ class MdtbbsRelayTunnel {
   StreamSubscription<dynamic>? _subscription;
   bool _closing = false;
 
+  /// 诊断用：中继报 FRAME_INVALID 时能知道最后发的是哪种帧
+  String _lastSentFrame = '—';
+
   final _signals = StreamController<MdtbbsRelaySignal>.broadcast();
   Completer<MdtbbsRelayAuthOk>? _authCompleter;
   Completer<void>? _reauthCompleter;
@@ -295,25 +298,33 @@ class MdtbbsRelayTunnel {
         streamId,
         payload.sublist(offset, end),
       );
-      if (frame != null) socket.add(frame);
+      if (frame != null) {
+        _lastSentFrame = 'tcp-data stream=$streamId bytes=$chunkLength';
+        socket.add(frame);
+      }
       offset = end;
     }
   }
 
   void closeTcpStream(int streamId) {
     if (streamId <= 0 || _closing) return;
+    _lastSentFrame = 'tcp-close stream=$streamId';
     _socket?.add(MdtbbsRelayFrame.tcpClose(streamId));
   }
 
   /// 房主侧：回应服务端的 `tcp_open`（连本机游戏成功 / 失败）
   void sendTcpOpenResult(int streamId, bool ok) {
     if (streamId <= 0 || _closing) return;
+    _lastSentFrame = 'tcp-open-result stream=$streamId ok=$ok';
     _sendJson({'op': 'tcp_open_result', 'stream_id': streamId, 'ok': ok});
   }
 
   void sendUdpDatagram(String targetPeerId, List<int> payload) {
     final frame = MdtbbsRelayFrame.udpDatagram(targetPeerId, payload);
-    if (frame != null) _socket?.add(frame);
+    if (frame != null) {
+      _lastSentFrame = 'udp target=$targetPeerId bytes=${payload.length}';
+      _socket?.add(frame);
+    }
   }
 
   Future<void> dispose() async {
@@ -388,7 +399,11 @@ class MdtbbsRelayTunnel {
         _emit(MdtbbsRelayTcpOpenResult(streamId: streamId, ok: ok));
       case 'error':
         final code = '${json['code'] ?? ''}';
-        addLogAndPrint(.warning, '中继报错：code=$code', tag: 'Multiplayer');
+        addLogAndPrint(
+          .warning,
+          '中继报错：code=$code（最后一帧：$_lastSentFrame）',
+          tag: 'Multiplayer',
+        );
         if (code == 'AUTH_INVALID') {
           final allocation = _allocation;
           final expiresAt = _credentialExpiresAt?.toIso8601String() ?? '—';
@@ -536,6 +551,7 @@ class MdtbbsRelayTunnel {
   void _sendJson(Map<String, Object?> payload) {
     final socket = _socket;
     if (socket == null || _closing) return;
+    _lastSentFrame = 'json op=${payload['op']}';
     try {
       socket.add(jsonEncode(payload));
     } on Object catch (error) {

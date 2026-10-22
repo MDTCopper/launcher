@@ -77,6 +77,7 @@ class MdtbbsRelayGuestProxy {
   InternetAddress? _gameAddress;
   int? _gamePort;
   bool _disposed = false;
+  int _udpSent = 0;
 
   /// 实际监听的本机地址
   String get localAddress => '127.0.0.1:${ports.port}';
@@ -120,6 +121,14 @@ class MdtbbsRelayGuestProxy {
     if (datagram == null || datagram.data.isEmpty) return;
     _gameAddress = datagram.address;
     _gamePort = datagram.port;
+    if (_udpSent < 5) {
+      _udpSent++;
+      addLogAndPrint(
+        .info,
+        '房客 UDP → 中继：${datagram.data.length} 字节',
+        tag: 'Multiplayer',
+      );
+    }
     tunnel.sendUdpDatagram(ownerPeerId, datagram.data);
   }
 
@@ -177,6 +186,7 @@ class MdtbbsRelayGuestProxy {
     if (socket == null) return;
     socket.destroy();
     tunnel.closeTcpStream(streamId);
+    addLogAndPrint(.info, '房客 stream $streamId 已关闭', tag: 'Multiplayer');
   }
 }
 
@@ -205,6 +215,7 @@ class MdtbbsRelayHostBridge {
 
   /// 绑定是异步的，先到的数据报按对端缓冲，套接字就绪后补发
   final _bufferedUdp = <String, List<Uint8List>>{};
+  int _udpReceived = 0;
 
   StreamSubscription<MdtbbsRelaySignal>? _subscription;
   bool _disposed = false;
@@ -275,7 +286,13 @@ class MdtbbsRelayHostBridge {
         await task;
       }
     }
-    tunnel.sendTcpOpenResult(streamId, _bridges.containsKey(streamId));
+    final ok = _bridges.containsKey(streamId);
+    tunnel.sendTcpOpenResult(streamId, ok);
+    addLogAndPrint(
+      .info,
+      '房主 tcp_open stream=$streamId → ${ok ? '已接上游戏' : '游戏没接上'}',
+      tag: 'Multiplayer',
+    );
   }
 
   /// 每条流只建立一条到本机游戏的 TCP 连接；连接建立期间的帧先缓存。
@@ -348,12 +365,21 @@ class MdtbbsRelayHostBridge {
     _bridges.remove(streamId)?.destroy();
     if (firstClose) {
       tunnel.closeTcpStream(streamId);
+      addLogAndPrint(.info, '房主 stream $streamId 已关闭', tag: 'Multiplayer');
     }
   }
 
   /// UDP 按对端分套接字：游戏按源地址路由，混用会串包；
   /// 绑定是异步的，先到的数据报按对端缓冲，套接字就绪后补发
   Future<void> _forwardUdpToGame(String peerId, Uint8List payload) async {
+    if (_udpReceived < 5) {
+      _udpReceived++;
+      addLogAndPrint(
+        .info,
+        '房主 UDP：$peerId → 本机游戏 ${payload.length} 字节',
+        tag: 'Multiplayer',
+      );
+    }
     final ready = _udpBridges[peerId];
     if (ready != null) {
       ready.send(payload, InternetAddress.loopbackIPv4, gamePort);

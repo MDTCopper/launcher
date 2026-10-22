@@ -668,30 +668,8 @@ class MdtbbsMultiplayerService {
         accessToken: token,
         sessionId: session.id,
       );
+      await _finishLeaveLocally(epoch);
       if (!_isAccountEpochCurrent(epoch)) return;
-      forgetSession();
-      _finishSessionTask();
-      _cancelReconnect(reset: true);
-      _cancelAuthBlock();
-      await stopProxy();
-      if (!_isAccountEpochCurrent(epoch)) return;
-      _accounts.clearMultiplayerSession();
-      _set(
-        _current.copyWith(
-          clearSession: true,
-          clearJoinCode: true,
-          clearSelf: true,
-          peers: const [],
-          leaving: false,
-          startingProxy: false,
-          stoppingProxy: false,
-          reconnecting: false,
-          reconnectAttempt: 0,
-          clearProxyError: true,
-          clearProxyRetryAt: true,
-          clearSentInvites: true,
-        ),
-      );
       _notify(
         outcome.isOwnerLeaving
             ? '已离开房间；你是房主，房间将在 ${outcome.graceSeconds} 秒后关闭'
@@ -699,9 +677,52 @@ class MdtbbsMultiplayerService {
       );
     } on Object catch (error) {
       if (!_isAccountEpochCurrent(epoch)) return;
+      // 房主先走了 / 会话已过期：服务端已经没这个房间了，本地照常收尾
+      if (_isSessionAlreadyGone(error)) {
+        await _finishLeaveLocally(epoch);
+        if (!_isAccountEpochCurrent(epoch)) return;
+        _notify('房间已经关闭，已退出');
+        return;
+      }
       _set(_current.copyWith(leaving: false));
       _notify('离开房间失败：${describeMdtbbsError(error)}', isError: true);
     }
+  }
+
+  bool _isSessionAlreadyGone(Object error) {
+    if (error is! MdtbbsException) return false;
+    return const {
+      'SESSION_CLOSED',
+      'SESSION_NOT_FOUND',
+      'SESSION_EXPIRED',
+    }.contains(error.code);
+  }
+
+  /// 离开 / 房间已不存在后的本地收尾；调用方负责提示
+  Future<void> _finishLeaveLocally(int epoch) async {
+    forgetSession();
+    _finishSessionTask();
+    _cancelReconnect(reset: true);
+    _cancelAuthBlock();
+    await stopProxy();
+    if (!_isAccountEpochCurrent(epoch)) return;
+    _accounts.clearMultiplayerSession();
+    _set(
+      _current.copyWith(
+        clearSession: true,
+        clearJoinCode: true,
+        clearSelf: true,
+        peers: const [],
+        leaving: false,
+        startingProxy: false,
+        stoppingProxy: false,
+        reconnecting: false,
+        reconnectAttempt: 0,
+        clearProxyError: true,
+        clearProxyRetryAt: true,
+        clearSentInvites: true,
+      ),
+    );
   }
 
   Future<void> refreshPeers({bool announce = false}) async {
