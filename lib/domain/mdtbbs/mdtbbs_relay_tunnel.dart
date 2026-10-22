@@ -33,8 +33,11 @@ class MdtbbsRelayTcpOpenPending extends MdtbbsRelaySignal {
 
 /// 服务端发给房主：请把这条流桥到本机游戏（房主需回 `tcp_open_result`）
 class MdtbbsRelayTcpOpenRequest extends MdtbbsRelaySignal {
-  const MdtbbsRelayTcpOpenRequest({required this.streamId});
+  const MdtbbsRelayTcpOpenRequest({required this.streamId, this.peerId});
   final int streamId;
+
+  /// 服务端可能带来源 peer（10-22 实测有），房主用它给 UDP 回包定目标
+  final String? peerId;
 }
 
 class MdtbbsRelayTcpOpened extends MdtbbsRelaySignal {
@@ -384,12 +387,15 @@ class MdtbbsRelayTunnel {
         addLogAndPrint(.info, '中继凭证已续签', tag: 'Multiplayer');
       case 'tcp_open':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
+        final peerId = json['peer_id']?.toString();
         addLogAndPrint(
           .info,
           '收到 tcp_open：${jsonEncode(json)}',
           tag: 'Multiplayer',
         );
-        _emit(MdtbbsRelayTcpOpenRequest(streamId: streamId));
+        _emit(
+          MdtbbsRelayTcpOpenRequest(streamId: streamId, peerId: peerId),
+        );
       case 'tcp_open_pending':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
         _emit(MdtbbsRelayTcpOpenPending(streamId: streamId));

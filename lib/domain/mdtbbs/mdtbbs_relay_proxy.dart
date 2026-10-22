@@ -210,6 +210,11 @@ class MdtbbsRelayHostBridge {
   final _bufferedTcp = <int, List<Uint8List>>{};
   final _closedTcpStreams = <int>{};
 
+  /// 哪些 peer 的 TCP 已经接到游戏；UDP 必须等它，否则 game 还没建连接就丢包
+  final _streamPeers = <int, String>{};
+  final _readyPeers = <String>{};
+  final _pendingUdpUntilReady = <String, List<Uint8List>>{};
+
   final _udpBridges = <String, RawDatagramSocket>{};
   final _pendingUdpBridges = <String, Future<void>>{};
 
@@ -246,14 +251,17 @@ class MdtbbsRelayHostBridge {
     _udpBridges.clear();
     _pendingUdpBridges.clear();
     _bufferedUdp.clear();
+    _streamPeers.clear();
+    _readyPeers.clear();
+    _pendingUdpUntilReady.clear();
     addLogAndPrint(.info, '房主桥已关闭', tag: 'Multiplayer');
   }
 
   void _onSignal(MdtbbsRelaySignal signal) {
     if (_disposed) return;
     switch (signal) {
-      case MdtbbsRelayTcpOpenRequest(:final streamId):
-        unawaited(_onTcpOpenRequest(streamId));
+      case MdtbbsRelayTcpOpenRequest(:final streamId, :final peerId):
+        unawaited(_onTcpOpenRequest(streamId, peerId));
       case MdtbbsRelayTcpData(:final streamId, :final payload):
         _bridgeFor(streamId, payload);
       case MdtbbsRelayTcpClosed(:final streamId):
@@ -268,7 +276,7 @@ class MdtbbsRelayHostBridge {
   }
 
   /// 服务端要求房主为一条流连本机游戏：连上再回 `tcp_open_result`
-  Future<void> _onTcpOpenRequest(int streamId) async {
+  Future<void> _onTcpOpenRequest(int streamId, String? peerId) async {
     if (_disposed || streamId <= 0) return;
     if (!_bridges.containsKey(streamId) &&
         !_closedTcpStreams.contains(streamId)) {
@@ -288,6 +296,11 @@ class MdtbbsRelayHostBridge {
     }
     final ok = _bridges.containsKey(streamId);
     tunnel.sendTcpOpenResult(streamId, ok);
+    if (ok && peerId != null && peerId.isNotEmpty) {
+      _streamPeers[streamId] = peerId;
+      _readyPeers.add(peerId);
+      unawaited(_flushPendingUdp(peerId));
+    }
     addLogAndPrint(
       .info,
       '房主 tcp_open stream=$streamId → ${ok ? '已接上游戏' : '游戏没接上'}',
@@ -363,6 +376,11 @@ class MdtbbsRelayHostBridge {
     final firstClose = _closedTcpStreams.add(streamId);
     _bufferedTcp.remove(streamId);
     _bridges.remove(streamId)?.destroy();
+    final peerId = _streamPeers.remove(streamId);
+    if (peerId != null && !_streamPeers.containsValue(peerId)) {
+      _readyPeers.remove(peerId);
+      _pendingUdpUntilReady.remove(peerId);
+    }
     if (firstClose) {
       tunnel.closeTcpStream(streamId);
       addLogAndPrint(.info, '房主 stream $streamId 已关闭', tag: 'Multiplayer');
@@ -372,13 +390,20 @@ class MdtbbsRelayHostBridge {
   /// UDP 按对端分套接字：游戏按源地址路由，混用会串包；
   /// 绑定是异步的，先到的数据报按对端缓冲，套接字就绪后补发
   Future<void> _forwardUdpToGame(String peerId, Uint8List payload) async {
+    final tcpReady = _readyPeers.contains(peerId);
     if (_udpReceived < 5) {
       _udpReceived++;
       addLogAndPrint(
         .info,
-        '房主 UDP：$peerId → 本机游戏 ${payload.length} 字节',
+        '房主 UDP：$peerId → ${tcpReady ? '本机游戏' : '先缓冲，等 TCP 接上'} '
+        '${payload.length} 字节',
         tag: 'Multiplayer',
       );
+    }
+    if (!tcpReady) {
+      final pending = _pendingUdpUntilReady.putIfAbsent(peerId, () => []);
+      if (pending.length < 256) pending.add(payload);
+      return;
     }
     final ready = _udpBridges[peerId];
     if (ready != null) {
@@ -396,6 +421,19 @@ class MdtbbsRelayHostBridge {
     _pendingUdpBridges[peerId] = task;
     await task;
     _flushUdpBuffer(peerId);
+  }
+
+  Future<void> _flushPendingUdp(String peerId) async {
+    final pending = _pendingUdpUntilReady.remove(peerId);
+    if (pending == null || pending.isEmpty) return;
+    addLogAndPrint(
+      .info,
+      '房主 UDP：TCP 已接上，补发 ${pending.length} 个缓冲包',
+      tag: 'Multiplayer',
+    );
+    for (final payload in pending) {
+      await _forwardUdpToGame(peerId, payload);
+    }
   }
 
   Future<void> _bindUdpBridge(String peerId) async {
