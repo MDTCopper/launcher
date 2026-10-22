@@ -973,6 +973,9 @@ class MdtbbsMultiplayerService {
     final peerId = _heartbeatPeerId;
     if (sessionId == null || peerId == null) return;
     final generation = ++_heartbeatGeneration;
+    // 先立刻打一次：服务端把「没心跳过的 Peer」当中继上不可达，
+    // 房主第一次往房客发 UDP 会拿到 PEER_UNAVAILABLE（10-22 实测）
+    unawaited(_beat(sessionId, peerId, generation));
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (_heartbeatInFlightGeneration == generation) return;
       unawaited(_beat(sessionId, peerId, generation));
