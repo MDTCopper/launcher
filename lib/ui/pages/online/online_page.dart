@@ -167,12 +167,15 @@ class _OnlinePageState extends State<OnlinePage> {
 
   Future<void> _joinByCode() async {
     if (!_ensureLoggedIn()) return;
-    final code = _normalizeJoinCode(_joinCodeController.text);
+    final raw = _joinCodeController.text.trim();
+    final code = _normalizeJoinCode(raw);
     if (code.isEmpty) {
       addNotice(
         icon: Icons.error_outline,
-        title: '还没有房间码',
-        content: '先向房主要 6 位房间码',
+        title: raw.isEmpty ? '还没有房间码' : '房间码格式不对',
+        content: raw.isEmpty
+            ? '先向房主要 6 位房间码'
+            : '房间码是 6~12 位十六进制；也可以直接粘贴分享文本',
       );
       return;
     }
@@ -182,8 +185,11 @@ class _OnlinePageState extends State<OnlinePage> {
 
   /// 从整段分享文本里抠出房间码；没有就按原样大写
   String _normalizeJoinCode(String input) {
-    final match = RegExp(r'[0-9a-fA-F]{6,12}').firstMatch(input);
-    return (match?.group(0) ?? input).trim().toUpperCase();
+    final text = input.trim();
+    final match = RegExp(r'[0-9a-fA-F]{6,12}').firstMatch(text);
+    final code = (match?.group(0) ?? text).toUpperCase();
+    // 服务端限制 code <= 32 字符，别把整段日志/链接直接发过去
+    return code.length <= 32 ? code : '';
   }
 
   Future<void> _pasteJoinCode() async {
