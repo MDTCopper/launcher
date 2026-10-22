@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
@@ -21,6 +22,7 @@ import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
+import 'package:copper_launcher/util/share_out.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -275,6 +277,10 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
 
   /// 导出全部启动器日志：复制到所选目录下的 logs 子目录
   Future<void> _exportLogs() async {
+    if (Platform.isAndroid) {
+      await _exportLogsOnAndroid();
+      return;
+    }
     final logDir = Directory(AppPaths.logs);
     if (!logDir.existsSync()) {
       addNotice(
@@ -310,6 +316,112 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
     } catch (e) {
       addNotice(icon: Icons.close, title: '导出失败', content: '复制日志时出错');
       debugPrint('导出日志失败：$e');
+    }
+  }
+
+  /// 安卓没有可靠的「选目录」：打包到应用外部目录，并让用户可直接分享
+  Future<void> _exportLogsOnAndroid() async {
+    try {
+      final zip = await _zipLogs();
+      if (zip == null) {
+        addNotice(
+          icon: Icons.info_outline,
+          title: '暂无日志',
+          content: '启动器还没有写过日志',
+        );
+        return;
+      }
+      addNotice(
+        icon: Icons.check_circle_outline,
+        title: '日志已导出',
+        content: '${p.basename(zip.path)}\n${zip.parent.path}',
+      );
+    } on Object catch (error) {
+      addNotice(icon: Icons.close, title: '导出失败', content: '打包日志时出错');
+      debugPrint('导出日志失败：$error');
+    }
+  }
+
+  /// 把 logs 目录打成 zip；返回 null 表示没有日志
+  Future<File?> _zipLogs() async {
+    final logDir = Directory(AppPaths.logs);
+    if (!await logDir.exists()) return null;
+    final files = logDir
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.log'))
+        .toList();
+    if (files.isEmpty) return null;
+
+    final archive = Archive();
+    for (final file in files) {
+      archive.add(ArchiveFile.bytes(p.basename(file.path), file.readAsBytesSync()));
+    }
+    final bytes = ZipEncoder().encodeBytes(archive);
+
+    final targetDir = Directory(
+      p.join(
+        AppPaths.androidExternalRoot ?? AppPaths.applicationSupportPath,
+        'exports',
+      ),
+    );
+    if (!await targetDir.exists()) {
+      await targetDir.create(recursive: true);
+    }
+    final stamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(RegExp(r'[:.]'), '-');
+    final zip = File(p.join(targetDir.path, 'copper-logs-$stamp.zip'));
+    await zip.writeAsBytes(bytes, flush: true);
+
+    // 只留最近 5 份，别把用户空间堆满
+    final old = targetDir
+        .listSync()
+        .whereType<File>()
+        .where((file) => p.basename(file.path).startsWith('copper-logs-'))
+        .toList()
+      ..sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    for (final file in old.skip(5)) {
+      try {
+        file.deleteSync();
+      } on Object {
+        // 删不掉就算了
+      }
+    }
+    return zip;
+  }
+
+  /// 分享当前这次启动的日志（手机端最省事：直接发聊天工具）
+  Future<void> _shareLatestLog() async {
+    final latest = _latestLogFile();
+    if (latest == null) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '暂无日志',
+        content: '启动器还没有写过日志',
+      );
+      return;
+    }
+    try {
+      // 复制到缓存再分享：部分系统只给缓存 / 内部目录配了 FileProvider
+      final copy = File(
+        p.join(Directory.systemTemp.path, p.basename(latest.path)),
+      );
+      await latest.copy(copy.path);
+      final ok = await ShareOut.shareFiles(
+        [copy.path],
+        title: 'Copper Launcher 日志',
+        text: '联机问题日志',
+      );
+      if (!mounted || ok) return;
+      addNotice(
+        icon: Icons.info_outline,
+        title: '没有分享出去',
+        content: '日志仍在 ${latest.path}',
+      );
+    } on Object catch (error) {
+      addNotice(icon: Icons.close, title: '分享失败', content: '复制日志时出错');
+      debugPrint('分享日志失败：$error');
     }
   }
 
@@ -371,11 +483,14 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
         spacing: 8,
         children: [
           Text(
-            '启动器运行日志，最多保留最近 7 天；反馈问题时请附上导出的日志',
+            Platform.isAndroid
+                ? '启动器运行日志，最多保留最近 7 天；反馈问题时点「分享日志」，直接发当前这次运行的日志'
+                : '启动器运行日志，最多保留最近 7 天；反馈问题时请附上导出的日志',
             style: Theme.of(context).textTheme.labelMedium,
           ),
-          Row(
+          Wrap(
             spacing: 8,
+            runSpacing: 8,
             children: [
               IconTextButton(
                 icon: Icons.description_outlined,
@@ -387,6 +502,12 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
                 content: '导出日志',
                 onTap: _exportLogs,
               ),
+              if (Platform.isAndroid)
+                IconTextButton(
+                  icon: Icons.share,
+                  content: '分享日志',
+                  onTap: _shareLatestLog,
+                ),
             ],
           ),
         ],

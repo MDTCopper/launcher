@@ -369,7 +369,8 @@ class MdtbbsRelayTunnel {
         );
         addLogAndPrint(
           .info,
-          '中继已认证：role=${signal.peerRole}，凭证到 ${signal.expiresAt}',
+          '中继已认证：role=${signal.peerRole}，peer=${signal.peerId}，'
+          '凭证到 ${signal.expiresAt}',
           tag: 'Multiplayer',
         );
         final completer = _authCompleter;
@@ -383,6 +384,11 @@ class MdtbbsRelayTunnel {
         addLogAndPrint(.info, '中继凭证已续签', tag: 'Multiplayer');
       case 'tcp_open':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
+        addLogAndPrint(
+          .info,
+          '收到 tcp_open：${jsonEncode(json)}',
+          tag: 'Multiplayer',
+        );
         _emit(MdtbbsRelayTcpOpenRequest(streamId: streamId));
       case 'tcp_open_pending':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
