@@ -308,6 +308,35 @@ class MdtbbsRelayHostBridge {
     );
   }
 
+  /// 房主可能刚启动游戏、还没点「开房」：等最多 8 秒再判失败
+  Future<Socket> _connectGameWithRetry(int streamId) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 8));
+    Object? lastError;
+    var logged = false;
+    while (!_disposed && !_closedTcpStreams.contains(streamId)) {
+      try {
+        return await Socket.connect(
+          InternetAddress.loopbackIPv4,
+          gamePort,
+          timeout: const Duration(seconds: 1),
+        );
+      } on Object catch (error) {
+        lastError = error;
+        if (!logged) {
+          logged = true;
+          addLogAndPrint(
+            .info,
+            '本机游戏还没监听 $gamePort，等它开房（最多 8 秒）…',
+            tag: 'Multiplayer',
+          );
+        }
+        if (DateTime.now().isAfter(deadline)) break;
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+      }
+    }
+    throw lastError ?? StateError('本机游戏端口未监听');
+  }
+
   /// 每条流只建立一条到本机游戏的 TCP 连接；连接建立期间的帧先缓存。
   void _bridgeFor(int streamId, Uint8List payload) {
     if (_closedTcpStreams.contains(streamId)) return;
@@ -333,10 +362,7 @@ class MdtbbsRelayHostBridge {
 
   Future<void> _bindTcpBridge(int streamId) async {
     try {
-      final socket = await Socket.connect(
-        InternetAddress.loopbackIPv4,
-        gamePort,
-      );
+      final socket = await _connectGameWithRetry(streamId);
       if (_disposed || _closedTcpStreams.contains(streamId)) {
         socket.destroy();
         return;

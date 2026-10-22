@@ -53,6 +53,7 @@ class _OnlinePageState extends State<OnlinePage> {
   String _joinPolicy = 'invite_only';
   bool _requireApproval = false;
   Timer? _retryTicker;
+  Timer? _peerTicker;
 
   MdtbbsMultiplayerService get _mp => MdtbbsMultiplayerService.instance;
   AccountManager get _accounts => AccountManager.instance;
@@ -66,11 +67,19 @@ class _OnlinePageState extends State<OnlinePage> {
       if (_mp.state.value.proxyRetryAt == null) return;
       setState(() {});
     });
+    // 房主会切到游戏再切回来：不主动拉，玩家列表会一直停在离开前的样子
+    _peerTicker = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      final state = _mp.state.value;
+      if (!state.inSession || state.refreshingPeers) return;
+      unawaited(_mp.refreshPeers());
+    });
   }
 
   @override
   void dispose() {
     _retryTicker?.cancel();
+    _peerTicker?.cancel();
     _mp.stopInvitePolling();
     _roomNameController.dispose();
     _joinCodeController.dispose();
@@ -80,6 +89,7 @@ class _OnlinePageState extends State<OnlinePage> {
 
   Future<void> _initialize() async {
     await _mp.restore();
+    unawaited(_mp.refreshPeers());
     if (_accounts.isLoggedIn && _accounts.account == null) {
       try {
         await _accounts.loadAccount();
