@@ -226,6 +226,7 @@ class MdtbbsRelayHostBridge {
   final _pendingUdpUntilReady = <String, List<Uint8List>>{};
 
   final _udpBridges = <String, RawDatagramSocket>{};
+  final _udpLocalPorts = <String, int>{};
   final _pendingUdpBridges = <String, Future<void>>{};
 
   /// 绑定是异步的，先到的数据报按对端缓冲，套接字就绪后补发
@@ -260,6 +261,7 @@ class MdtbbsRelayHostBridge {
       socket.close();
     }
     _udpBridges.clear();
+    _udpLocalPorts.clear();
     _pendingUdpBridges.clear();
     _bufferedUdp.clear();
     _streamPeers.clear();
@@ -312,6 +314,17 @@ class MdtbbsRelayHostBridge {
     tunnel.sendTcpOpenResult(streamId, ok);
     if (ok && peerId != null && peerId.isNotEmpty) {
       _streamPeers[streamId] = peerId;
+      // 让游戏看到的 UDP 源端口与 TCP 源端口一致；否则 ArcNet 会把 UDP 当成另一个连接
+      final localPort = _bridges[streamId]?.port;
+      if (localPort != null && localPort > 0) {
+        _udpBridges.remove(peerId)?.close();
+        _udpLocalPorts[peerId] = localPort;
+        addLogAndPrint(
+          .info,
+          '房主 UDP 源端口对齐 TCP：$localPort',
+          tag: 'Multiplayer',
+        );
+      }
       _readyPeers.add(peerId);
       unawaited(_flushPendingUdp(peerId));
     }
@@ -468,6 +481,8 @@ class MdtbbsRelayHostBridge {
     if (peerId != null && !_streamPeers.containsValue(peerId)) {
       _readyPeers.remove(peerId);
       _pendingUdpUntilReady.remove(peerId);
+      _udpBridges.remove(peerId)?.close();
+      _udpLocalPorts.remove(peerId);
     }
     if (firstClose) {
       // 对端先关时不要再回 close，否则 Agent 已删流后会判 FRAME_INVALID
@@ -527,10 +542,27 @@ class MdtbbsRelayHostBridge {
 
   Future<void> _bindUdpBridge(String peerId) async {
     try {
-      final socket = await RawDatagramSocket.bind(
-        InternetAddress.loopbackIPv4,
-        0,
-      );
+      final desiredPort = _udpLocalPorts[peerId] ?? 0;
+      RawDatagramSocket socket;
+      try {
+        socket = await RawDatagramSocket.bind(
+          InternetAddress.loopbackIPv4,
+          desiredPort,
+          reuseAddress: true,
+        );
+      } on Object catch (error) {
+        if (desiredPort == 0) rethrow;
+        addLogAndPrint(
+          .warning,
+          '房主 UDP 绑定 TCP 端口 $desiredPort 失败（$error），回退随机端口',
+          tag: 'Multiplayer',
+        );
+        socket = await RawDatagramSocket.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+          reuseAddress: true,
+        );
+      }
       _udpBridges[peerId] = socket;
       socket.listen((event) {
         if (event != RawSocketEvent.read) return;
