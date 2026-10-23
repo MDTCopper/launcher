@@ -217,6 +217,16 @@ class MdtbbsRelayGuestProxy {
       case MdtbbsRelayTcpClosed(:final streamId):
         _dropStream(streamId, reason: '中继通知 tcp_closed', notifyRelay: false);
       case MdtbbsRelayTcpOpenFailed(:final streamId):
+        // 中继会在流已经打开、数据已经在走之后补一帧 open_failed（20:55 实测：开流 6 秒后），
+        // 这时拆掉本地 socket 只会让游戏白白掉线，记一笔继续跑
+        if (_streams.containsKey(streamId)) {
+          addLogAndPrint(
+            .warning,
+            '房客：中继补发 stream $streamId 打开失败，但流已在跑，忽略',
+            tag: 'Multiplayer',
+          );
+          return;
+        }
         _dropStream(
           streamId,
           reason: '中继通知 tcp_open_failed',

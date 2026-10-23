@@ -316,10 +316,17 @@ class MdtbbsRelayTunnel {
   }
 
   /// 房主侧：回应服务端的 `tcp_open`（连本机游戏成功 / 失败）
+  ///
+  /// `ok` 与 `success` 一起发：中继两种字段名都见过，少发一个可能让开流确认不过来
   void sendTcpOpenResult(int streamId, bool ok) {
     if (streamId <= 0 || _closing) return;
     _lastSentFrame = 'tcp-open-result stream=$streamId ok=$ok';
-    _sendJson({'op': 'tcp_open_result', 'stream_id': streamId, 'ok': ok});
+    _sendJson({
+      'op': 'tcp_open_result',
+      'stream_id': streamId,
+      'ok': ok,
+      'success': ok,
+    });
   }
 
   void sendUdpDatagram(String targetPeerId, List<int> payload) {
