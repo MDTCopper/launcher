@@ -5,6 +5,7 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
@@ -347,6 +348,20 @@ class LaunchMindustryTask extends Task {
       // 禁止：UUID 是联机身份，不随用户覆写
       // setting.uuid = user.uuid;
       setting.color0 = user.color;
+    }
+
+    // 官方联机房主：失焦暂停会让房客约 6 秒断线（房主切到启动器看日志就会触发）
+    final multiplayer = MdtbbsMultiplayerService.instance.state.value;
+    if (supportsSettingsOverride &&
+        settingsReadable &&
+        multiplayer.inSession &&
+        multiplayer.self?.role == 'owner') {
+      setting.backgroundPause = false;
+      addLog(
+        .info,
+        '联机房主：关闭游戏失焦暂停（backgroundpause=false）',
+        tag: 'Multiplayer',
+      );
     }
 
     if (supportsSettingsOverride &&
