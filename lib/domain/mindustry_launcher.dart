@@ -39,6 +39,9 @@ class MindustryLauncher {
   /// 桥那条路的游戏退出监听（桌面那条路靠 [Process.exitCode]，Android 没有句柄）
   BridgeGameExitWatcher? _bridgeExitWatcher;
 
+  /// 同一局只提示一次模组不一致
+  bool _reportedModMismatch = false;
+
   // 校验 Java 环境是否可用
   Future<bool> _checkJavaEnv({String? javaExecutable}) async {
     try {
@@ -201,6 +204,7 @@ class MindustryLauncher {
         }
       }
 
+      _reportedModMismatch = false;
       _jarProcess = await Process.start(
         javaCmd,
         args,
@@ -409,6 +413,7 @@ class MindustryLauncher {
       if (log.isNotEmpty) {
         _logController?.add(' ${log.trim()}');
         addCustomLog(' ${log.trim()}');
+        _maybeReportModMismatch(log);
       }
     });
 
@@ -417,8 +422,19 @@ class MindustryLauncher {
       if (error.isNotEmpty) {
         _logController?.add(' ${error.trim()}');
         addCustomLog(' ${error.trim()}');
+        _maybeReportModMismatch(error);
       }
     });
+  }
+
+  void _maybeReportModMismatch(String line) {
+    if (_reportedModMismatch || !line.contains('Incompatible mods')) return;
+    _reportedModMismatch = true;
+    addNotice(
+      icon: Icons.extension_off,
+      title: '模组不一致，房客被踢',
+      content: '双方启用的模组必须一致；先把多余模组关掉再联机',
+    );
   }
 
   /// 结束游戏。
