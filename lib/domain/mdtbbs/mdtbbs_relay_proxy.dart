@@ -79,6 +79,7 @@ class MdtbbsRelayGuestProxy {
 
   /// `tcp-data` 可能先于本地 stream 注册到达，丢了会让游戏侧字节流错位
   final _pendingTcpData = <int, List<Uint8List>>{};
+  final _firstDownChunk = <int>{};
   Timer? _statsTimer;
   StreamSubscription<MdtbbsRelaySignal>? _subscription;
   InternetAddress? _gameAddress;
@@ -212,6 +213,15 @@ class MdtbbsRelayGuestProxy {
           _bufferEarlyTcpData(streamId, payload);
           return;
         }
+        if (_firstDownChunk.add(streamId)) {
+          // 房主游戏的 RegisterTCP 带连接 id，房客要靠它做 UDP 注册；
+          // 「同一房间第二次进不去」时先看这段有没有按时到、内容对不对
+          addLogAndPrint(
+            .debug,
+            '房客：stream $streamId 首段下行 ${_hexPreview(payload)}',
+            tag: 'Multiplayer',
+          );
+        }
         _streamStats[streamId]?.downloaded += payload.length;
         socket.add(payload);
       case MdtbbsRelayTcpClosed(:final streamId):
@@ -337,7 +347,7 @@ class MdtbbsRelayHostBridge {
 
   /// 绑定是异步的，先到的数据报按对端缓冲，套接字就绪后补发
   final _bufferedUdp = <String, List<Uint8List>>{};
-  int _udpReceived = 0;
+  final _udpForwardLogged = <String, int>{};
   int _gameUdpSent = 0;
   int _udpPacketsUp = 0;
   int _udpPacketsDown = 0;
@@ -433,7 +443,7 @@ class MdtbbsRelayHostBridge {
       }
     }
     final ok = _bridges.containsKey(streamId);
-    tunnel.sendTcpOpenResult(streamId, ok);
+    tunnel.sendTcpOpenResult(streamId, ok, peerId: peerId);
     if (ok && peerId != null && peerId.isNotEmpty) {
       _streamPeers[streamId] = peerId;
       // 让游戏看到的 UDP 源端口与 TCP 源端口一致；否则 ArcNet 会把 UDP 当成另一个连接
@@ -571,9 +581,20 @@ class MdtbbsRelayHostBridge {
       socket.setOption(SocketOption.tcpNoDelay, true);
       _bridges[streamId] = socket;
       _streamStats[streamId] = _RelayStreamStats(DateTime.now());
+      var loggedFirstChunk = false;
       socket.listen(
         (Uint8List data) {
           _streamStats[streamId]?.uploaded += data.length;
+          if (!loggedFirstChunk) {
+            loggedFirstChunk = true;
+            // 房主游戏连上就发 RegisterTCP（带连接 id），房客要靠它做 UDP 注册；
+            // 「同一房间第二次进不去」需要拿这个 id 与房客的 RegisterUDP 对照
+            addLogAndPrint(
+              .debug,
+              '房主：stream $streamId 首段游戏数据 ${_hexPreview(data)}',
+              tag: 'Multiplayer',
+            );
+          }
           tunnel.sendTcpData(streamId, data);
         },
         onDone: () => _dropBridge(streamId, reason: '游戏关闭了 TCP'),
@@ -648,12 +669,15 @@ class MdtbbsRelayHostBridge {
   Future<void> _forwardUdpToGame(String peerId, Uint8List payload) async {
     _udpPacketsDown++;
     final tcpReady = _readyPeers.contains(peerId);
-    if (_udpReceived < 5) {
-      _udpReceived++;
+    // 前 5 个按对端各记一次：房客的 RegisterUDP 只有几字节，带的是它拿到的连接 id，
+    // 与房主游戏发来的 RegisterTCP id 对不上就完不成 UDP 注册
+    final logged = _udpForwardLogged[peerId] ?? 0;
+    if (logged < 5) {
+      _udpForwardLogged[peerId] = logged + 1;
       addLogAndPrint(
         .info,
         '房主 UDP：$peerId → ${tcpReady ? '本机游戏' : '先缓冲，等 TCP 接上'} '
-        '${payload.length} 字节',
+        '${payload.length} 字节 ${_hexPreview(payload)}',
         tag: 'Multiplayer',
       );
     }
@@ -766,4 +790,16 @@ class _RelayStreamStats {
     final seconds = DateTime.now().difference(openedAt).inSeconds;
     return '上行 $uploaded 字节 / 下行 $downloaded 字节 / 已持续 ${seconds}s';
   }
+}
+
+/// 小载荷的前若干字节十六进制，用于对照 ArcNet 的连接 id
+String _hexPreview(Uint8List data, [int limit = 8]) {
+  final shown = data.length < limit ? data.length : limit;
+  final buffer = StringBuffer();
+  for (var i = 0; i < shown; i++) {
+    if (i > 0) buffer.write(' ');
+    buffer.write(data[i].toRadixString(16).padLeft(2, '0'));
+  }
+  if (data.length > shown) buffer.write(' …');
+  return buffer.toString();
 }

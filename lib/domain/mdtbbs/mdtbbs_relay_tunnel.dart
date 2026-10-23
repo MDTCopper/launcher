@@ -317,8 +317,9 @@ class MdtbbsRelayTunnel {
 
   /// 房主侧：回应服务端的 `tcp_open`（连本机游戏成功 / 失败）
   ///
-  /// `ok` 与 `success` 一起发：中继两种字段名都见过，少发一个可能让开流确认不过来
-  void sendTcpOpenResult(int streamId, bool ok) {
+  /// `ok` 与 `success` 一起发，并带上来源 peer：中继的字段名与路由口径都没公开，
+  /// 少一个就可能让开流确认不过来（20:55 / 21:09 两次实测：开流 6 秒后又被判失败）
+  void sendTcpOpenResult(int streamId, bool ok, {String? peerId}) {
     if (streamId <= 0 || _closing) return;
     _lastSentFrame = 'tcp-open-result stream=$streamId ok=$ok';
     _sendJson({
@@ -326,6 +327,7 @@ class MdtbbsRelayTunnel {
       'stream_id': streamId,
       'ok': ok,
       'success': ok,
+      if (peerId != null && peerId.isNotEmpty) 'peer_id': peerId,
     });
   }
 
