@@ -27,7 +27,7 @@ class MdtbbsRelayFrame {
     out.setRange(0, 4, _magic);
     out[4] = version;
     out[5] = typeTcpData;
-    final id = ByteData(4)..setInt32(0, streamId, Endian.big);
+    final id = ByteData(4)..setUint32(0, streamId & 0xFFFFFFFF, Endian.big);
     out.setRange(6, 10, id.buffer.asUint8List());
     out.setRange(10, out.length, payload);
     return out;
@@ -39,7 +39,7 @@ class MdtbbsRelayFrame {
     out.setRange(0, 4, _magic);
     out[4] = version;
     out[5] = typeTcpClose;
-    final id = ByteData(4)..setInt32(0, streamId, Endian.big);
+    final id = ByteData(4)..setUint32(0, streamId & 0xFFFFFFFF, Endian.big);
     out.setRange(6, 10, id.buffer.asUint8List());
     return out;
   }
@@ -70,7 +70,7 @@ class MdtbbsRelayFrame {
 
     if (type == typeTcpData || type == typeTcpClose) {
       if (frame.length < 10) return null;
-      final id = ByteData.sublistView(frame, 6, 10).getInt32(0, Endian.big);
+      final id = ByteData.sublistView(frame, 6, 10).getUint32(0, Endian.big);
       final payload = Uint8List.sublistView(frame, 10);
       if (type == typeTcpData &&
           (payload.isEmpty || payload.length > maxTcpPayload)) {
