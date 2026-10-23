@@ -78,6 +78,7 @@ class MdtbbsRelayGuestProxy {
   int? _gamePort;
   bool _disposed = false;
   int _udpSent = 0;
+  int _udpReceived = 0;
 
   /// 实际监听的本机地址
   String get localAddress => '127.0.0.1:${ports.port}';
@@ -175,6 +176,14 @@ class MdtbbsRelayGuestProxy {
         final address = _gameAddress;
         final port = _gamePort;
         if (address == null || port == null) return;
+        if (_udpReceived < 5) {
+          _udpReceived++;
+          addLogAndPrint(
+            .info,
+            '房客 UDP ← 中继：${payload.length} 字节',
+            tag: 'Multiplayer',
+          );
+        }
         ports.udpSocket.send(payload, address, port);
       default:
         break;
@@ -221,6 +230,7 @@ class MdtbbsRelayHostBridge {
   /// 绑定是异步的，先到的数据报按对端缓冲，套接字就绪后补发
   final _bufferedUdp = <String, List<Uint8List>>{};
   int _udpReceived = 0;
+  int _gameUdpSent = 0;
 
   StreamSubscription<MdtbbsRelaySignal>? _subscription;
   bool _disposed = false;
@@ -524,6 +534,14 @@ class MdtbbsRelayHostBridge {
         if (event != RawSocketEvent.read) return;
         final datagram = socket.receive();
         if (datagram == null || datagram.data.isEmpty) return;
+        if (_gameUdpSent < 5) {
+          _gameUdpSent++;
+          addLogAndPrint(
+            .info,
+            '房主游戏 UDP → 中继：${datagram.data.length} 字节',
+            tag: 'Multiplayer',
+          );
+        }
         tunnel.sendUdpDatagram(peerId, datagram.data);
       });
     } on Object catch (error) {
