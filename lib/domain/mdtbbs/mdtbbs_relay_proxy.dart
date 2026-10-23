@@ -73,12 +73,22 @@ class MdtbbsRelayGuestProxy {
   MdtbbsRelayLanAdvertiser? _advertiser;
 
   final _streams = <int, Socket>{};
+
+  /// 按流统计上下行字节与开启时刻，定时打一行，断线时能看出哪一侧先停
+  final _streamStats = <int, _RelayStreamStats>{};
+
+  /// `tcp-data` 可能先于本地 stream 注册到达，丢了会让游戏侧字节流错位
+  final _pendingTcpData = <int, List<Uint8List>>{};
+  Timer? _statsTimer;
   StreamSubscription<MdtbbsRelaySignal>? _subscription;
   InternetAddress? _gameAddress;
   int? _gamePort;
   bool _disposed = false;
   int _udpSent = 0;
   int _udpReceived = 0;
+  int _udpPacketsUp = 0;
+  int _udpPacketsDown = 0;
+  static const _pendingTcpDataLimit = 512 * 1024;
 
   /// 实际监听的本机地址
   String get localAddress => '127.0.0.1:${ports.port}';
@@ -87,6 +97,9 @@ class MdtbbsRelayGuestProxy {
     _subscription = tunnel.signals.listen(_onSignal);
     ports.tcpServer.listen(_onGameTcpConnected, onError: (_) {});
     ports.udpSocket.listen(_onUdpEvent);
+    _statsTimer = Timer.periodic(_RelayStreamStats.interval, (_) {
+      _logStreamStats();
+    });
     _advertiser = MdtbbsRelayLanAdvertiser(
       roomName: roomName,
       port: ports.port,
@@ -103,6 +116,8 @@ class MdtbbsRelayGuestProxy {
 
   Future<void> dispose() async {
     _disposed = true;
+    _statsTimer?.cancel();
+    _statsTimer = null;
     await _subscription?.cancel();
     _subscription = null;
     await _advertiser?.dispose();
@@ -111,6 +126,8 @@ class MdtbbsRelayGuestProxy {
       socket.destroy();
     }
     _streams.clear();
+    _streamStats.clear();
+    _pendingTcpData.clear();
     ports.tcpServer.close();
     ports.udpSocket.close();
     addLogAndPrint(.info, '房客代理已关闭', tag: 'Multiplayer');
@@ -122,6 +139,7 @@ class MdtbbsRelayGuestProxy {
     if (datagram == null || datagram.data.isEmpty) return;
     _gameAddress = datagram.address;
     _gamePort = datagram.port;
+    _udpPacketsUp++;
     if (_udpSent < 5) {
       _udpSent++;
       addLogAndPrint(
@@ -139,6 +157,7 @@ class MdtbbsRelayGuestProxy {
       return;
     }
     socket.setOption(SocketOption.tcpNoDelay, true);
+    final gameSide = '${socket.remoteAddress.address}:${socket.remotePort}';
     unawaited(
       tunnel
           .openTcpStream(ownerPeerId)
@@ -148,11 +167,32 @@ class MdtbbsRelayGuestProxy {
               return;
             }
             _streams[streamId] = socket;
-            addLogAndPrint(.info, '中继分配 stream $streamId', tag: 'Multiplayer');
+            _streamStats[streamId] = _RelayStreamStats(DateTime.now());
+            addLogAndPrint(
+              .info,
+              '中继分配 stream $streamId（游戏侧 $gameSide）',
+              tag: 'Multiplayer',
+            );
+            final pending = _pendingTcpData.remove(streamId);
+            if (pending != null && pending.isNotEmpty) {
+              for (final payload in pending) {
+                _streamStats[streamId]?.downloaded += payload.length;
+                socket.add(payload);
+              }
+              addLogAndPrint(
+                .info,
+                '房客：补发先到的 ${pending.length} 段游戏数据',
+                tag: 'Multiplayer',
+              );
+            }
             socket.listen(
-              (Uint8List data) => tunnel.sendTcpData(streamId, data),
-              onDone: () => _dropStream(streamId),
-              onError: (_) => _dropStream(streamId),
+              (Uint8List data) {
+                _streamStats[streamId]?.uploaded += data.length;
+                tunnel.sendTcpData(streamId, data);
+              },
+              onDone: () => _dropStream(streamId, reason: '游戏关闭了 TCP'),
+              onError: (Object error) =>
+                  _dropStream(streamId, reason: '游戏 TCP 出错：$error'),
               cancelOnError: true,
             );
           })
@@ -167,15 +207,26 @@ class MdtbbsRelayGuestProxy {
     if (_disposed) return;
     switch (signal) {
       case MdtbbsRelayTcpData(:final streamId, :final payload):
-        _streams[streamId]?.add(payload);
+        final socket = _streams[streamId];
+        if (socket == null) {
+          _bufferEarlyTcpData(streamId, payload);
+          return;
+        }
+        _streamStats[streamId]?.downloaded += payload.length;
+        socket.add(payload);
       case MdtbbsRelayTcpClosed(:final streamId):
-        _dropStream(streamId, notifyRelay: false);
+        _dropStream(streamId, reason: '中继通知 tcp_closed', notifyRelay: false);
       case MdtbbsRelayTcpOpenFailed(:final streamId):
-        _dropStream(streamId, notifyRelay: false);
+        _dropStream(
+          streamId,
+          reason: '中继通知 tcp_open_failed',
+          notifyRelay: false,
+        );
       case MdtbbsRelayUdpDatagram(:final payload):
         final address = _gameAddress;
         final port = _gamePort;
         if (address == null || port == null) return;
+        _udpPacketsDown++;
         if (_udpReceived < 5) {
           _udpReceived++;
           addLogAndPrint(
@@ -190,13 +241,54 @@ class MdtbbsRelayGuestProxy {
     }
   }
 
-  void _dropStream(int streamId, {bool notifyRelay = true}) {
+  /// 隧道事件与本地 stream 注册之间隔着手续链，先到的数据必须留着
+  void _bufferEarlyTcpData(int streamId, Uint8List payload) {
+    final pending = _pendingTcpData.putIfAbsent(streamId, () => <Uint8List>[]);
+    final buffered = pending.fold<int>(0, (sum, item) => sum + item.length);
+    if (buffered + payload.length > _pendingTcpDataLimit) {
+      addLogAndPrint(
+        .warning,
+        '房客：stream $streamId 尚未注册且缓存已满（$buffered 字节），丢弃本段',
+        tag: 'Multiplayer',
+      );
+      return;
+    }
+    pending.add(payload);
+    if (pending.length == 1) {
+      addLogAndPrint(
+        .info,
+        '房客：stream $streamId 尚未注册，先缓存数据',
+        tag: 'Multiplayer',
+      );
+    }
+  }
+
+  void _logStreamStats() {
+    if (_disposed || _streamStats.isEmpty) return;
+    final udp = 'UDP 上行 $_udpPacketsUp 包 / 下行 $_udpPacketsDown 包';
+    for (final entry in _streamStats.entries) {
+      addLogAndPrint(
+        .info,
+        '房客 stream ${entry.key} 仍在：${entry.value.summary}；$udp',
+        tag: 'Multiplayer',
+      );
+    }
+  }
+
+  void _dropStream(int streamId, {String reason = '', bool notifyRelay = true}) {
     final socket = _streams.remove(streamId);
+    final stats = _streamStats.remove(streamId);
+    _pendingTcpData.remove(streamId);
     if (socket == null) return;
     socket.destroy();
     // 对端先关时不要再回一帧 close：Agent 已经把流从路由表删掉，再发会 FRAME_INVALID
     if (notifyRelay) tunnel.closeTcpStream(streamId);
-    addLogAndPrint(.info, '房客 stream $streamId 已关闭', tag: 'Multiplayer');
+    addLogAndPrint(
+      .info,
+      '房客 stream $streamId 已关闭（$reason）：${stats?.summary ?? '无统计'}；'
+      'UDP 上行 $_udpPacketsUp 包 / 下行 $_udpPacketsDown 包',
+      tag: 'Multiplayer',
+    );
   }
 }
 
@@ -229,16 +321,25 @@ class MdtbbsRelayHostBridge {
   final _udpLocalPorts = <String, int>{};
   final _pendingUdpBridges = <String, Future<void>>{};
 
+  /// 按流统计上下行字节与开启时刻，定时打一行，断线时能看出哪一侧先停
+  final _streamStats = <int, _RelayStreamStats>{};
+  Timer? _statsTimer;
+
   /// 绑定是异步的，先到的数据报按对端缓冲，套接字就绪后补发
   final _bufferedUdp = <String, List<Uint8List>>{};
   int _udpReceived = 0;
   int _gameUdpSent = 0;
+  int _udpPacketsUp = 0;
+  int _udpPacketsDown = 0;
 
   StreamSubscription<MdtbbsRelaySignal>? _subscription;
   bool _disposed = false;
 
   Future<void> start() async {
     _subscription = tunnel.signals.listen(_onSignal);
+    _statsTimer = Timer.periodic(_RelayStreamStats.interval, (_) {
+      _logStreamStats();
+    });
     addLogAndPrint(
       .info,
       '房主桥已就绪：中继 → 127.0.0.1:$gamePort',
@@ -248,8 +349,11 @@ class MdtbbsRelayHostBridge {
 
   Future<void> dispose() async {
     _disposed = true;
+    _statsTimer?.cancel();
+    _statsTimer = null;
     await _subscription?.cancel();
     _subscription = null;
+    _streamStats.clear();
     for (final socket in _bridges.values.toList()) {
       socket.destroy();
     }
@@ -278,9 +382,17 @@ class MdtbbsRelayHostBridge {
       case MdtbbsRelayTcpData(:final streamId, :final payload):
         _bridgeFor(streamId, payload);
       case MdtbbsRelayTcpClosed(:final streamId):
-        _dropBridge(streamId, notifyRelay: false);
+        _dropBridge(
+          streamId,
+          reason: '中继通知 tcp_closed',
+          notifyRelay: false,
+        );
       case MdtbbsRelayTcpOpenFailed(:final streamId):
-        _dropBridge(streamId, notifyRelay: false);
+        _dropBridge(
+          streamId,
+          reason: '中继通知 tcp_open_failed',
+          notifyRelay: false,
+        );
       case MdtbbsRelayUdpDatagram(:final targetPeerId, :final payload):
         unawaited(_forwardUdpToGame(targetPeerId, payload));
       default:
@@ -346,6 +458,7 @@ class MdtbbsRelayHostBridge {
       _streamPeers.remove(streamId);
       _closedTcpStreams.add(streamId);
       _bridges.remove(streamId)?.destroy();
+      _streamStats.remove(streamId);
       tunnel.closeTcpStream(streamId);
       addLogAndPrint(
         .info,
@@ -371,6 +484,7 @@ class MdtbbsRelayHostBridge {
         _streamPeers.remove(streamId);
         _closedTcpStreams.add(streamId);
         _bridges.remove(streamId)?.destroy();
+        _streamStats.remove(streamId);
         tunnel.closeTcpStream(streamId);
         addLogAndPrint(
           .info,
@@ -415,6 +529,7 @@ class MdtbbsRelayHostBridge {
   /// 每条流只建立一条到本机游戏的 TCP 连接；连接建立期间的帧先缓存。
   void _bridgeFor(int streamId, Uint8List payload) {
     if (_closedTcpStreams.contains(streamId)) return;
+    _streamStats[streamId]?.downloaded += payload.length;
 
     final existing = _bridges[streamId];
     if (existing != null) {
@@ -445,10 +560,15 @@ class MdtbbsRelayHostBridge {
 
       socket.setOption(SocketOption.tcpNoDelay, true);
       _bridges[streamId] = socket;
+      _streamStats[streamId] = _RelayStreamStats(DateTime.now());
       socket.listen(
-        (Uint8List data) => tunnel.sendTcpData(streamId, data),
-        onDone: () => _dropBridge(streamId),
-        onError: (_) => _dropBridge(streamId),
+        (Uint8List data) {
+          _streamStats[streamId]?.uploaded += data.length;
+          tunnel.sendTcpData(streamId, data);
+        },
+        onDone: () => _dropBridge(streamId, reason: '游戏关闭了 TCP'),
+        onError: (Object error) =>
+            _dropBridge(streamId, reason: '游戏 TCP 出错：$error'),
         cancelOnError: true,
       );
 
@@ -473,10 +593,15 @@ class MdtbbsRelayHostBridge {
     }
   }
 
-  void _dropBridge(int streamId, {bool notifyRelay = true}) {
+  void _dropBridge(
+    int streamId, {
+    String reason = '',
+    bool notifyRelay = true,
+  }) {
     final firstClose = _closedTcpStreams.add(streamId);
     _bufferedTcp.remove(streamId);
     _bridges.remove(streamId)?.destroy();
+    final stats = _streamStats.remove(streamId);
     final peerId = _streamPeers.remove(streamId);
     if (peerId != null && !_streamPeers.containsValue(peerId)) {
       _readyPeers.remove(peerId);
@@ -487,13 +612,31 @@ class MdtbbsRelayHostBridge {
     if (firstClose) {
       // 对端先关时不要再回 close，否则 Agent 已删流后会判 FRAME_INVALID
       if (notifyRelay) tunnel.closeTcpStream(streamId);
-      addLogAndPrint(.info, '房主 stream $streamId 已关闭', tag: 'Multiplayer');
+      addLogAndPrint(
+        .info,
+        '房主 stream $streamId 已关闭（$reason）：${stats?.summary ?? '无统计'}；'
+        'UDP 上行 $_udpPacketsUp 包 / 下行 $_udpPacketsDown 包',
+        tag: 'Multiplayer',
+      );
+    }
+  }
+
+  void _logStreamStats() {
+    if (_disposed || _streamStats.isEmpty) return;
+    final udp = 'UDP 上行 $_udpPacketsUp 包 / 下行 $_udpPacketsDown 包';
+    for (final entry in _streamStats.entries) {
+      addLogAndPrint(
+        .info,
+        '房主 stream ${entry.key} 仍在：${entry.value.summary}；$udp',
+        tag: 'Multiplayer',
+      );
     }
   }
 
   /// UDP 按对端分套接字：游戏按源地址路由，混用会串包；
   /// 绑定是异步的，先到的数据报按对端缓冲，套接字就绪后补发
   Future<void> _forwardUdpToGame(String peerId, Uint8List payload) async {
+    _udpPacketsDown++;
     final tcpReady = _readyPeers.contains(peerId);
     if (_udpReceived < 5) {
       _udpReceived++;
@@ -568,6 +711,7 @@ class MdtbbsRelayHostBridge {
         if (event != RawSocketEvent.read) return;
         final datagram = socket.receive();
         if (datagram == null || datagram.data.isEmpty) return;
+        _udpPacketsUp++;
         if (_gameUdpSent < 5) {
           _gameUdpSent++;
           addLogAndPrint(
@@ -591,5 +735,25 @@ class MdtbbsRelayHostBridge {
     for (final payload in buffered) {
       socket.send(payload, InternetAddress.loopbackIPv4, gamePort);
     }
+  }
+}
+
+/// 一条中继流的字节计数：断线时一眼看出是哪一侧先停
+class _RelayStreamStats {
+  _RelayStreamStats(this.openedAt);
+
+  static const interval = Duration(seconds: 10);
+
+  final DateTime openedAt;
+
+  /// 游戏 → 中继
+  int uploaded = 0;
+
+  /// 中继 → 游戏
+  int downloaded = 0;
+
+  String get summary {
+    final seconds = DateTime.now().difference(openedAt).inSeconds;
+    return '上行 $uploaded 字节 / 下行 $downloaded 字节 / 已持续 ${seconds}s';
   }
 }

@@ -398,12 +398,27 @@ class MdtbbsRelayTunnel {
         );
       case 'tcp_open_pending':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
+        addLogAndPrint(
+          .debug,
+          '中继 stream $streamId 待确认',
+          tag: 'Multiplayer',
+        );
         _emit(MdtbbsRelayTcpOpenPending(streamId: streamId));
       case 'tcp_opened':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
+        addLogAndPrint(
+          .debug,
+          '中继 stream $streamId 已打开',
+          tag: 'Multiplayer',
+        );
         _emit(MdtbbsRelayTcpOpened(streamId: streamId));
       case 'tcp_open_failed':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
+        addLogAndPrint(
+          .warning,
+          '中继 stream $streamId 打开失败',
+          tag: 'Multiplayer',
+        );
         _emit(MdtbbsRelayTcpOpenFailed(streamId: streamId));
       case 'tcp_open_result':
         final streamId = (json['stream_id'] as num?)?.toInt() ?? 0;
