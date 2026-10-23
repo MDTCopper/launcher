@@ -335,6 +335,30 @@ class MdtbbsRelayHostBridge {
     }
   }
 
+  /// 房客从启动器房间离开后，房主侧别等游戏 17 秒超时
+  void closePeersNotIn(Set<String> livePeerIds) {
+    for (final peerId in _streamPeers.values.toSet()) {
+      if (livePeerIds.contains(peerId)) continue;
+      final stale = _streamPeers.entries
+          .where((e) => e.value == peerId)
+          .map((e) => e.key)
+          .toList();
+      for (final streamId in stale) {
+        _streamPeers.remove(streamId);
+        _closedTcpStreams.add(streamId);
+        _bridges.remove(streamId)?.destroy();
+        tunnel.closeTcpStream(streamId);
+        addLogAndPrint(
+          .info,
+          '房主：peer $peerId 已不在房间，断 stream $streamId',
+          tag: 'Multiplayer',
+        );
+      }
+      _readyPeers.remove(peerId);
+      _pendingUdpUntilReady.remove(peerId);
+    }
+  }
+
   /// 房主可能刚启动游戏、还没点「开房」：等最多 8 秒再判失败
   Future<Socket> _connectGameWithRetry(int streamId) async {
     final deadline = DateTime.now().add(const Duration(seconds: 8));

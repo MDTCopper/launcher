@@ -748,6 +748,9 @@ class MdtbbsMultiplayerService {
         return;
       }
       _set(_current.copyWith(peers: peers, refreshingPeers: false));
+      if (_current.self?.role == 'owner') {
+        _host?.closePeersNotIn(peers.map((peer) => peer.peerId).toSet());
+      }
       if (announce) {
         _notify(peers.isEmpty ? '成员：暂无' : '成员：${peers.length} 人');
       }
