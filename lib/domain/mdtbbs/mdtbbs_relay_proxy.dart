@@ -458,6 +458,7 @@ class MdtbbsRelayHostBridge {
         );
       }
       _readyPeers.add(peerId);
+      _udpForwardLogged.remove(peerId);
       unawaited(_flushPendingUdp(peerId));
     }
     addLogAndPrint(
@@ -698,7 +699,14 @@ class MdtbbsRelayHostBridge {
       _flushUdpBuffer(peerId);
       return;
     }
-    final task = _bindUdpBridge(peerId);
+    // 绑定完成后必须把任务摘掉：旧 socket 在换流时被关掉，
+    // 留着完成态的任务会让后续每个包都走「等已完成的绑定」这条路，再也绑不出新 socket
+    late final Future<void> task;
+    task = _bindUdpBridge(peerId).whenComplete(() {
+      if (identical(_pendingUdpBridges[peerId], task)) {
+        _pendingUdpBridges.remove(peerId);
+      }
+    });
     _pendingUdpBridges[peerId] = task;
     await task;
     _flushUdpBuffer(peerId);
