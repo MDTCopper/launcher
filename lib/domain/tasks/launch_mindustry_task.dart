@@ -350,16 +350,13 @@ class LaunchMindustryTask extends Task {
       setting.color0 = user.color;
     }
 
-    // 官方联机房主：失焦暂停会让房客约 6 秒断线（房主切到启动器看日志就会触发）
+    // 官方联机（房主/房客都一样）：失焦/切后台暂停会让另一端约 6 秒断线
     final multiplayer = MdtbbsMultiplayerService.instance.state.value;
-    if (supportsSettingsOverride &&
-        settingsReadable &&
-        multiplayer.inSession &&
-        multiplayer.self?.role == 'owner') {
+    if (supportsSettingsOverride && settingsReadable && multiplayer.inSession) {
       setting.backgroundPause = false;
       addLog(
         .info,
-        '联机房主：关闭游戏失焦暂停（backgroundpause=false）',
+        '联机：关闭游戏失焦暂停（backgroundpause=false）',
         tag: 'Multiplayer',
       );
     }
