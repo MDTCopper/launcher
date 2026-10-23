@@ -278,6 +278,9 @@ class MdtbbsRelayHostBridge {
   /// 服务端要求房主为一条流连本机游戏：连上再回 `tcp_open_result`
   Future<void> _onTcpOpenRequest(int streamId, String? peerId) async {
     if (_disposed || streamId <= 0) return;
+    if (peerId != null && peerId.isNotEmpty) {
+      _closeStalePeerStreams(peerId, keepStreamId: streamId);
+    }
     if (!_bridges.containsKey(streamId) &&
         !_closedTcpStreams.contains(streamId)) {
       final pending = _pendingTcpBridges[streamId];
@@ -306,6 +309,30 @@ class MdtbbsRelayHostBridge {
       '房主 tcp_open stream=$streamId → ${ok ? '已接上游戏' : '游戏没接上'}',
       tag: 'Multiplayer',
     );
+  }
+
+  /// 同一个 peer 重新进游戏时，先把旧的游戏 TCP 连接断掉；
+  /// 否则游戏服务器要等 17 秒超时，期间会同时看到两个同名玩家
+  void _closeStalePeerStreams(String peerId, {required int keepStreamId}) {
+    final stale = _streamPeers.entries
+        .where((e) => e.value == peerId && e.key != keepStreamId)
+        .map((e) => e.key)
+        .toList();
+    for (final streamId in stale) {
+      _streamPeers.remove(streamId);
+      _closedTcpStreams.add(streamId);
+      _bridges.remove(streamId)?.destroy();
+      tunnel.closeTcpStream(streamId);
+      addLogAndPrint(
+        .info,
+        '房主：同一 peer 新 stream $keepStreamId，先断旧 stream $streamId',
+        tag: 'Multiplayer',
+      );
+    }
+    if (stale.isNotEmpty) {
+      _readyPeers.remove(peerId);
+      _pendingUdpUntilReady.remove(peerId);
+    }
   }
 
   /// 房主可能刚启动游戏、还没点「开房」：等最多 8 秒再判失败

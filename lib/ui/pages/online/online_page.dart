@@ -73,6 +73,7 @@ class _OnlinePageState extends State<OnlinePage> {
       final state = _mp.state.value;
       if (!state.inSession || state.refreshingPeers) return;
       unawaited(_mp.refreshPeers());
+      unawaited(_mp.refreshSessionStatus());
     });
   }
 
@@ -90,6 +91,7 @@ class _OnlinePageState extends State<OnlinePage> {
   Future<void> _initialize() async {
     await _mp.restore();
     unawaited(_mp.refreshPeers());
+    unawaited(_mp.refreshSessionStatus());
     if (_accounts.isLoggedIn && _accounts.account == null) {
       try {
         await _accounts.loadAccount();

@@ -52,6 +52,7 @@ class MdtbbsMultiplayerService {
   int _heartbeatGeneration = 0;
   int? _heartbeatInFlightGeneration;
   bool _heartbeatRecoveryInFlight = false;
+  bool _checkingSessionStatus = false;
 
   /// 断线重连：2s / 5s / 10s 三次，成功后清零
   static const _reconnectDelays = [
@@ -760,10 +761,50 @@ class MdtbbsMultiplayerService {
     }
   }
 
+  /// 房客侧：房主关闭房间后服务端会先标 `closing`（60 秒宽限），
+  /// 不能等心跳 90 秒兜底，否则房客会一直挂在房间里
+  Future<void> refreshSessionStatus() async {
+    final session = _current.session;
+    if (session == null ||
+        _current.leaving ||
+        _checkingSessionStatus ||
+        _current.self?.role == 'owner') {
+      return;
+    }
+    _checkingSessionStatus = true;
+    final epoch = _accountEpoch;
+    try {
+      final token = await _token();
+      if (token == null || !_isAccountEpochCurrent(epoch)) return;
+      final latest = await MdtbbsMultiplayerApi.session(
+        accessToken: token,
+        sessionId: session.id,
+      );
+      if (!_isAccountEpochCurrent(epoch) ||
+          _current.session?.id != session.id) {
+        return;
+      }
+      if (latest.status == 'closing' ||
+          latest.status == 'closed' ||
+          latest.status == 'expired') {
+        _notify('房主已关闭房间');
+        await leave();
+        return;
+      }
+      if (latest.status != session.status ||
+          latest.currentPlayers != session.currentPlayers) {
+        _set(_current.copyWith(session: latest));
+      }
+    } on Object {
+      // 状态查询失败不打扰用户；真正的关闭会由心跳 / leave 兜底
+    } finally {
+      _checkingSessionStatus = false;
+    }
+  }
+
   // ── 邀请 ────────────────────────────────────────────────────
 
   Timer? _inviteTimer;
-
   void startInvitePolling({Duration interval = const Duration(seconds: 20)}) {
     stopInvitePolling();
     _inviteTimer = Timer.periodic(interval, (_) {
