@@ -169,9 +169,9 @@ class MdtbbsRelayGuestProxy {
       case MdtbbsRelayTcpData(:final streamId, :final payload):
         _streams[streamId]?.add(payload);
       case MdtbbsRelayTcpClosed(:final streamId):
-        _dropStream(streamId);
+        _dropStream(streamId, notifyRelay: false);
       case MdtbbsRelayTcpOpenFailed(:final streamId):
-        _dropStream(streamId);
+        _dropStream(streamId, notifyRelay: false);
       case MdtbbsRelayUdpDatagram(:final payload):
         final address = _gameAddress;
         final port = _gamePort;
@@ -190,11 +190,12 @@ class MdtbbsRelayGuestProxy {
     }
   }
 
-  void _dropStream(int streamId) {
+  void _dropStream(int streamId, {bool notifyRelay = true}) {
     final socket = _streams.remove(streamId);
     if (socket == null) return;
     socket.destroy();
-    tunnel.closeTcpStream(streamId);
+    // 对端先关时不要再回一帧 close：Agent 已经把流从路由表删掉，再发会 FRAME_INVALID
+    if (notifyRelay) tunnel.closeTcpStream(streamId);
     addLogAndPrint(.info, '房客 stream $streamId 已关闭', tag: 'Multiplayer');
   }
 }
@@ -275,9 +276,9 @@ class MdtbbsRelayHostBridge {
       case MdtbbsRelayTcpData(:final streamId, :final payload):
         _bridgeFor(streamId, payload);
       case MdtbbsRelayTcpClosed(:final streamId):
-        _dropBridge(streamId);
+        _dropBridge(streamId, notifyRelay: false);
       case MdtbbsRelayTcpOpenFailed(:final streamId):
-        _dropBridge(streamId);
+        _dropBridge(streamId, notifyRelay: false);
       case MdtbbsRelayUdpDatagram(:final targetPeerId, :final payload):
         unawaited(_forwardUdpToGame(targetPeerId, payload));
       default:
@@ -459,7 +460,7 @@ class MdtbbsRelayHostBridge {
     }
   }
 
-  void _dropBridge(int streamId) {
+  void _dropBridge(int streamId, {bool notifyRelay = true}) {
     final firstClose = _closedTcpStreams.add(streamId);
     _bufferedTcp.remove(streamId);
     _bridges.remove(streamId)?.destroy();
@@ -469,7 +470,8 @@ class MdtbbsRelayHostBridge {
       _pendingUdpUntilReady.remove(peerId);
     }
     if (firstClose) {
-      tunnel.closeTcpStream(streamId);
+      // 对端先关时不要再回 close，否则 Agent 已删流后会判 FRAME_INVALID
+      if (notifyRelay) tunnel.closeTcpStream(streamId);
       addLogAndPrint(.info, '房主 stream $streamId 已关闭', tag: 'Multiplayer');
     }
   }
