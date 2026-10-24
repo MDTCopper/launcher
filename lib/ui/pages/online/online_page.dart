@@ -59,6 +59,9 @@ class _OnlinePageState extends State<OnlinePage> {
   Timer? _peerTicker;
   Timer? _friendTicker;
 
+  /// 上一帧是否在房间里：用来判断「刚退出房间」，退出后回到入口页
+  bool _wasInSession = false;
+
   MdtbbsMultiplayerService get _mp => MdtbbsMultiplayerService.instance;
   MdtbbsFriendsService get _friends => MdtbbsFriendsService.instance;
   AccountManager get _accounts => AccountManager.instance;
@@ -67,6 +70,8 @@ class _OnlinePageState extends State<OnlinePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
+    _wasInSession = _mp.state.value.inSession;
+    _mp.state.addListener(_onMultiplayerStateChanged);
     _retryTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       if (_mp.state.value.proxyRetryAt == null) return;
@@ -89,6 +94,7 @@ class _OnlinePageState extends State<OnlinePage> {
 
   @override
   void dispose() {
+    _mp.state.removeListener(_onMultiplayerStateChanged);
     _retryTicker?.cancel();
     _peerTicker?.cancel();
     _friendTicker?.cancel();
@@ -98,6 +104,16 @@ class _OnlinePageState extends State<OnlinePage> {
     _inviteUserIdController.dispose();
     _friendIdController.dispose();
     super.dispose();
+  }
+
+  /// 退出 / 被关闭房间后回到入口页，不在房间视图里空着
+  void _onMultiplayerStateChanged() {
+    final inSession = _mp.state.value.inSession;
+    final was = _wasInSession;
+    _wasInSession = inSession;
+    if (!was || inSession || _view == _OnlineView.entry) return;
+    if (!mounted) return;
+    setState(() => _view = _OnlineView.entry);
   }
 
   Future<void> _initialize() async {
