@@ -348,12 +348,17 @@ class AppShellState extends State<AppShell> {
   }
 
   /// 顶栏的账户入口：点开左侧账户抽屉，有未读通知时右上角带红点
+  /// 顶栏的账户入口：显示账号头像，点开左侧账户抽屉；有未读通知时右上角带红点
   Widget _buildAccountButton() {
     final colors = AppColors.of(context);
-    return ValueListenableBuilder<List<MdtbbsNoticeItem>>(
-      valueListenable: MdtbbsNotificationService.instance.items,
-      builder: (context, _, _) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        AccountManager.instance.snapshot,
+        MdtbbsNotificationService.instance.items,
+      ]),
+      builder: (context, _) {
         final unread = MdtbbsNotificationService.instance.unreadCount;
+        final avatarUrl = AccountManager.instance.snapshot.value.avatarUrl;
         return HintLayer(
           hint: '账户',
           preferPosition: .bottom,
@@ -371,14 +376,19 @@ class AppShellState extends State<AppShell> {
               width: 24,
               height: 24,
               child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  const Positioned.fill(
-                    child: Icon(Icons.account_circle_outlined, size: 22),
+                  Center(
+                    child: UserAvatar(
+                      url: avatarUrl,
+                      size: 22,
+                      fallbackIcon: Icons.account_circle_outlined,
+                    ),
                   ),
                   if (unread > 0)
                     Positioned(
-                      right: 0,
-                      top: 0,
+                      right: -2,
+                      top: -2,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 3,
@@ -389,7 +399,7 @@ class AppShellState extends State<AppShell> {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          '$unread',
+                          '',
                           style: const TextStyle(
                             fontSize: 9,
                             color: Colors.white,
@@ -406,6 +416,7 @@ class AppShellState extends State<AppShell> {
       },
     );
   }
+
 
   /// 左侧账户抽屉：顶部是抽屉内的导航，四个页签的内容直接渲染在抽屉里
   Widget _buildAccountDrawer() {

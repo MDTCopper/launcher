@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_presence_service.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
@@ -86,11 +87,28 @@ Future<void> _initialize() async {
   MdtbbsPresenceService.instance;
   //账户通知：轮询好友请求与联机邀请（实时事件流排后续）
   MdtbbsNotificationService.instance;
+  //启动即登录：读盘 → 拉一次资料（头像 / 用户名给顶栏与好友用），失败不打扰
+  unawaited(_warmUpAccount());
 
   //系统分享进来的文件（安卓）：宿主已经把它们复制到缓存目录，
   //接线后与桌面拖入走同一条导入路；冷启动那次分享也在这里被取回来
   ShareIn.onFiles((files) => unawaited(_importSharedFiles(files)));
   await ShareIn.start();
+}
+
+/// 启动即登录：有落盘的账号就把它恢复出来，再拉一次资料
+///
+/// 之前只在进账户 / 联机页时才拉 `/me`，于是顶栏没头像、好友页要等一会儿才有名字；
+/// 失败只记日志 —— 离线启动也该能用启动器
+Future<void> _warmUpAccount() async {
+  final accounts = AccountManager.instance;
+  try {
+    await accounts.ensureRestored();
+    if (!accounts.isLoggedIn) return;
+    await accounts.loadAccount();
+  } on Object catch (error) {
+    addLog(.warning, '启动时恢复账号失败：${removeNewlines('$error')}', tag: 'Account');
+  }
 }
 
 ///导入一份系统分享进来的文件
