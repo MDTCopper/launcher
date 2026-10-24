@@ -78,7 +78,8 @@ class GameProcessWatch {
   /// PowerShell 的 CIM 查询：java 进程 + 命令行里含本体文件名
   static Future<int?> _windowsFind(String marker) async {
     const template =
-        "Get-CimInstance Win32_Process -Filter \"Name='java.exe'\" | "
+        "Get-CimInstance Win32_Process -Filter "
+        "\"Name='java.exe' OR Name='javaw.exe'\" | "
         "Where-Object { \$_.CommandLine -and "
         "\$_.CommandLine.ToLower().Contains('__MARKER__') } | "
         r'ForEach-Object { $_.ProcessId }';
