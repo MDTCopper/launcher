@@ -13,7 +13,6 @@ import 'package:copper_launcher/ui/pages/cloud/cloud_overview_page.dart';
 import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
 import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/online/online_page.dart';
-import 'package:copper_launcher/ui/pages/design/design_system_page.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
@@ -99,12 +98,6 @@ class AppShellState extends State<AppShell> {
         ),
         if (kDebugMode)
           RailItem(label: '神秘小工具', icon: Icons.auto_fix_high, route: '/tools'),
-        if (kDebugMode)
-          RailItem(
-            label: '设计规范',
-            icon: Icons.design_services_outlined,
-            route: designSystemPageRouteKey,
-          ),
       ],
     ),
   ];

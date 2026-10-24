@@ -1,7 +1,7 @@
 /// UI 几何令牌：间距 / 圆角 / 描边 / 图标 / 控件高度
 ///
-/// 规范正文与组件选型表见 `.project_status/components.md` 的「UI 设计规范」，
-/// 可视对照见设计规范页 `ui/pages/design/design_system_page.dart`（导航栏「设计规范」）
+/// 规范正文与组件选型表见 `.project_status/components.md` 的「UI 设计规范」；
+/// 可视对照走渲染样张：`test/design_render_test.dart` 出 PNG 到 `tmp/design_shots/`
 ///
 /// 职责边界：本文件只管几何；颜色一律取 `AppColors`，文字一律取 `textTheme` 的语义名
 library;

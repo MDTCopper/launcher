@@ -31,8 +31,7 @@ abstract final class TemplateHues {
 ///
 /// 色值本身全部由 [TemplateTones]（A 路线：HCT tone 档 + 按目标对比度二分反解）算出来，
 /// 这里只做三件事：① 包成 Flutter 的 [Color] ② 给出叠层（hover / pressed / 选中 / 阴影
-/// ——这几样业界也都是手写）③ 提供按底色算状态色的 [hoverOn] / [pressedOn]。
-/// 与 `design_template_page.dart` 的组件与规则部分共用
+/// ——这几样业界也都是手写）③ 提供按底色算状态色的 [hoverOn] / [pressedOn]
 class TemplateSkin {
   const TemplateSkin({
     required this.dark,
