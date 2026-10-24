@@ -248,13 +248,12 @@ class TemplateSwitchRow extends StatelessWidget {
 
 /// 按钮：几何完全一样，只差底色与前景
 ///
-/// 四档的**面**：实心 = 主题色底 + 其上文字；标准（plain）= 软主题底（[TemplateSkin.accentTint]）；
-/// 安静（quiet）= 无面；破坏（danger）= 无面 + 危险文字
+/// 四档的**面**：实心 = 主题色底 + 其上文字；标准（plain）= 控件面（[TemplateSkin.sunken]）；
+/// 安静（quiet）= 无面；破坏（danger）= 无面 + 危险文字。**只有实心带主题色**（用户 2026-10-24 定）
 ///
-/// 标准档为什么用软主题底、不再用「抬升底 + 描边」：抬升底在亮色与卡面同色（1.00）、
-/// 在暗色却比卡面亮 1.57 ⇒ 同一档一个主题里看不见、另一个主题里比实心还抢眼。
-/// 换成软主题底后亮暗分别是 1.26 / 1.33，两个主题都是同一种颜色语言，
-/// 档位次序（实心 > 标准 > 安静）才立得住（用户 2026-10-24 指出暗色标准太抢、亮色标准太单调）
+/// 标准档的面换过两轮：抬升底在亮色与卡面同色（1.00）、在暗色比卡面亮 1.57，一个看不见、
+/// 一个比实心还抢眼；软主题底能对齐两个主题但带了主题色。最终取控件面——
+/// 亮暗分别是 1.23 / 1.25，与输入框、分段同一种「控件表面」语言，不跟实心抢主题色
 class TemplateButton extends StatelessWidget {
   const TemplateButton({
     super.key,
@@ -280,10 +279,10 @@ class TemplateButton extends StatelessWidget {
         enabled
             ? (skin.accent, skin.onAccent)
             : (skin.sunken, skin.textDisabled),
-      TemplateButtonKind.plain =>
-        enabled
-            ? (skin.accentTint, skin.onAccentTint)
-            : (skin.sunken, skin.textDisabled),
+      TemplateButtonKind.plain => (
+        skin.sunken,
+        enabled ? skin.textPrimary : skin.textDisabled,
+      ),
       TemplateButtonKind.quiet => (
         Colors.transparent,
         enabled ? skin.textSecondary : skin.textDisabled,
