@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_presence_service.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
@@ -80,6 +81,8 @@ Future<void> _initialize() async {
   await LauncherTray.instance.applyMode();
   //后台初始化任务，不阻塞，进任务抽屉自跑
   addTask(StartupBackgroundTask());
+  //在线状态：已登录就建连接，好友列表靠它判断「在线」
+  MdtbbsPresenceService.instance;
 
   //系统分享进来的文件（安卓）：宿主已经把它们复制到缓存目录，
   //接线后与桌面拖入走同一条导入路；冷启动那次分享也在这里被取回来
