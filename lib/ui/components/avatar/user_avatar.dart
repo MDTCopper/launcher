@@ -1,12 +1,15 @@
+import 'dart:io';
+
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_config.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/util/io/avatar_cache.dart';
 import 'package:flutter/material.dart';
 
-/// 用户头像：有 `avatar_url` 就加载，没有 / 加载失败退回一个圆底图标
+/// 用户头像：有 `avatar_url` 就加载（**落盘缓存**，下次启动秒出），
+/// 没有 / 加载失败退回一个圆底图标
 ///
-/// BBS 的 `/me` 与好友在线聚合都带 `avatar_url`（论坛那头叫 `avatar_url`），
-/// 之前一直没显示，列表里全是同一个默认图标
-class UserAvatar extends StatelessWidget {
+/// BBS 的 `/me` 与好友在线聚合都带 `avatar_url`（站内相对路径，要按 [MdtbbsConfig.resolveUrl] 补全）
+class UserAvatar extends StatefulWidget {
   const UserAvatar({
     super.key,
     this.url,
@@ -19,8 +22,47 @@ class UserAvatar extends StatelessWidget {
   final IconData fallbackIcon;
 
   @override
+  State<UserAvatar> createState() => _UserAvatarState();
+}
+
+class _UserAvatarState extends State<UserAvatar> {
+  File? _file;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(UserAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) _resolve();
+  }
+
+  void _resolve() {
+    final raw = widget.url;
+    if (raw == null || raw.isEmpty) {
+      _file = null;
+      return;
+    }
+    final url = MdtbbsConfig.resolveUrl(raw);
+    final cached = AvatarCache.cached(url);
+    if (cached != null) {
+      _file = cached;
+      return;
+    }
+    _file = null;
+    AvatarCache.load(url).then((file) {
+      if (!mounted || file == null) return;
+      setState(() => _file = file);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final size = widget.size;
     final fallback = Container(
       width: size,
       height: size,
@@ -28,10 +70,14 @@ class UserAvatar extends StatelessWidget {
         color: colors.lowBackgroundOnCard,
         shape: BoxShape.circle,
       ),
-      child: Icon(fallbackIcon, size: size * 0.6, color: colors.itemSecondary),
+      child: Icon(
+        widget.fallbackIcon,
+        size: size * 0.6,
+        color: colors.itemSecondary,
+      ),
     );
-    final source = url;
-    if (source == null || source.isEmpty) return fallback;
+    final file = _file;
+    if (file == null) return fallback;
     // FittedBox 兜住父级的挤压：不然高度被压小、ClipOval 就成了椭圆
     return SizedBox(
       width: size,
@@ -43,9 +89,8 @@ class UserAvatar extends StatelessWidget {
           width: size,
           height: size,
           child: ClipOval(
-            child: Image.network(
-              // 服务端给的是站内相对路径（`/uploads/avatars/...`），得补成完整地址
-              MdtbbsConfig.resolveUrl(source),
+            child: Image.file(
+              file,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => fallback,
             ),
