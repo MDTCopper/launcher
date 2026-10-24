@@ -495,7 +495,7 @@ class AppShellState extends State<AppShell> {
       backgroundColor: Colors.transparent,
       onTap: () {
         _scaffoldKey.currentState?.closeDrawer();
-        _onRootNavigate(route, null);
+        _onRootNavigate(route, {'lead': label});
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(
