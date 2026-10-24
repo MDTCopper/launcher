@@ -12,6 +12,7 @@ import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_state.dart';
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
@@ -1892,6 +1893,7 @@ class _InviteFriendDialogState extends State<_InviteFriendDialog> {
     return Row(
       spacing: AppSpacing.related,
       children: [
+        UserAvatar(url: entry.user.avatarUrl, size: 24),
         Container(
           width: 8,
           height: 8,

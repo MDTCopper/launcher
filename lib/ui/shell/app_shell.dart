@@ -4,6 +4,7 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
@@ -358,7 +359,14 @@ class AppShellState extends State<AppShell> {
           preferPosition: .bottom,
           child: ReboundButton(
             backgroundColor: Colors.transparent,
-            onTap: () => _scaffoldKey.currentState?.openDrawer(),
+            onTap: () {
+              _scaffoldKey.currentState?.openDrawer();
+              // 头像在 /me 里，还没读过资料就先补一次
+              final accounts = AccountManager.instance;
+              if (accounts.isLoggedIn && accounts.account == null) {
+                unawaited(accounts.loadAccount());
+              }
+            },
             child: SizedBox(
               width: 24,
               height: 24,
@@ -427,10 +435,10 @@ class AppShellState extends State<AppShell> {
                   child: Row(
                     spacing: AppSpacing.related,
                     children: [
-                      Icon(
-                        Icons.account_circle,
-                        size: 32,
-                        color: colors.interactive,
+                      UserAvatar(
+                        url: account.avatarUrl,
+                        size: 36,
+                        fallbackIcon: Icons.account_circle,
                       ),
                       Expanded(
                         child: Column(

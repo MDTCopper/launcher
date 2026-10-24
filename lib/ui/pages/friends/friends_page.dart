@@ -6,6 +6,7 @@ import 'package:copper_launcher/domain/mdtbbs/mdtbbs_friends_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_friends_state.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -261,6 +262,7 @@ class _FriendsPageState extends State<FriendsPage> {
     return Row(
       spacing: AppSpacing.related,
       children: [
+        UserAvatar(url: request.user?.avatarUrl, size: 24),
         Expanded(
           child: Text(
             '$name 想加你为好友',
@@ -303,13 +305,24 @@ class _FriendsPageState extends State<FriendsPage> {
     return Row(
       spacing: AppSpacing.related,
       children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: entry.isOnline ? colors.success : colors.itemHint,
-          ),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            UserAvatar(url: entry.user.avatarUrl, size: 28),
+            Positioned(
+              right: -1,
+              bottom: -1,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: entry.isOnline ? colors.success : colors.itemHint,
+                  border: Border.all(color: colors.cardBackground, width: 1.5),
+                ),
+              ),
+            ),
+          ],
         ),
         Expanded(
           child: Column(

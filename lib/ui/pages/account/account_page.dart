@@ -5,6 +5,7 @@ import 'package:copper_launcher/data/mindustry/player_colors.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
 import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -341,29 +342,11 @@ class _AccountPageState extends State<AccountPage> {
   }
 
 
-  Widget _buildAvatar(MdtbbsAccount account) {
-    final colors = AppColors.of(context);
-    final avatar = account.avatar;
-    final fallback = Icon(
-      Icons.account_circle,
-      size: 48,
-      color: colors.itemSecondary,
-    );
-
-    return ClipOval(
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: avatar == null || avatar.isEmpty
-            ? fallback
-            : Image.network(
-                avatar,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => fallback,
-              ),
-      ),
-    );
-  }
+  Widget _buildAvatar(MdtbbsAccount account) => UserAvatar(
+    url: account.avatar,
+    size: 48,
+    fallbackIcon: Icons.account_circle,
+  );
 }
 
 /// 名字颜色弹窗：预设色 + 自定义取色

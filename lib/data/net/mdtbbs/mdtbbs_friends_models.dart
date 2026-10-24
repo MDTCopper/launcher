@@ -4,6 +4,10 @@
 /// - **按钮权限由服务端算**：`actions` 里的 `can_*` 直接用，客户端不按在线状态或会话策略自己推导
 /// - 好友用户 ID 是**唯一允许自行解析**的 ID（其余 ID 一律当不透明字符串原样传回）
 /// - 隐私策略不允许展示的资料服务端根本不返回 ⇒ 可选字段都可能缺，缺了按最保守的语义兜底
+library;
+
+import 'package:copper_launcher/util/io/log.dart';
+
 class MdtbbsFriendUser {
   const MdtbbsFriendUser({
     required this.userId,
@@ -20,13 +24,18 @@ class MdtbbsFriendUser {
   /// 成为好友的时间（服务端给字符串，不解析）
   final String? friendshipSince;
 
-  factory MdtbbsFriendUser.fromJson(Map<String, dynamic> json) =>
-      MdtbbsFriendUser(
-        userId: _asInt(json['id']) ?? 0,
-        username: '${json['username'] ?? ''}',
-        avatarUrl: json['avatar_url']?.toString(),
-        friendshipSince: json['friendship_since']?.toString(),
-      );
+  factory MdtbbsFriendUser.fromJson(Map<String, dynamic> json) {
+    // 头像字段名以服务端为准：这里只认 avatar_url，缺了就把键名记下来
+    if (json['avatar_url'] == null) {
+      addLog(.debug, '好友资料键：${json.keys.join(', ')}', tag: 'Friends');
+    }
+    return MdtbbsFriendUser(
+      userId: _asInt(json['id']) ?? 0,
+      username: '${json['username'] ?? ''}',
+      avatarUrl: json['avatar_url']?.toString(),
+      friendshipSince: json['friendship_since']?.toString(),
+    );
+  }
 }
 
 /// 在线状态；隐藏或不可见时服务端按隐私策略给 `offline`

@@ -21,6 +21,7 @@ class AccountSnapshot {
   const AccountSnapshot({
     required this.loggedIn,
     this.username,
+    this.avatarUrl,
     this.phoneVerified = false,
     this.hasLanlinkToken = false,
     this.subject,
@@ -29,6 +30,9 @@ class AccountSnapshot {
 
   final bool loggedIn;
   final String? username;
+
+  /// 论坛头像（`/me` 的 `avatar_url`）；没读完资料时为 null
+  final String? avatarUrl;
 
   /// 联机写操作（创建 / 加入房间）要求手机号验证
   final bool phoneVerified;
@@ -79,6 +83,7 @@ class AccountManager {
     snapshot.value = AccountSnapshot(
       loggedIn: stored?.isLoggedIn ?? false,
       username: account?.username ?? stored?.username,
+      avatarUrl: account?.avatar,
       phoneVerified: account?.phoneVerified ?? false,
       hasLanlinkToken: stored?.hasLanlinkToken ?? false,
       subject: stored?.subject,
@@ -259,6 +264,11 @@ class AccountManager {
       cancelToken: cancelToken,
     );
     _account = account;
+    addLog(
+      .debug,
+      '账号资料：${account.username ?? '?'} 头像=${account.avatar ?? '无'}',
+      tag: 'Account',
+    );
     final stored = _stored;
     if (stored != null) {
       _stored = stored.copyWith(

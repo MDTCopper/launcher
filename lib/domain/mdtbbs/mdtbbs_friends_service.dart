@@ -134,6 +134,12 @@ class MdtbbsFriendsService {
         '待处理请求 ${requests?.length ?? 0} 条',
         tag: 'Friends',
       );
+      // 头像在 `user.avatar_url` 里，服务端给的是相对路径；没给就是空
+      addLog(
+        .debug,
+        '好友头像：${_current.friends.map((e) => '${e.user.username}=${e.user.avatarUrl ?? '无'}').join('，')}',
+        tag: 'Friends',
+      );
     }
   }
 

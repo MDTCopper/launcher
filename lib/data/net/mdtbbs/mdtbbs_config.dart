@@ -49,6 +49,15 @@ class MdtbbsConfig {
   /// 否则会拼成 `/api/v1/api/v1/...`
   static String get origin => Uri.parse(apiBase).origin;
 
+  /// 站内相对路径补成完整地址（头像 `/uploads/avatars/...` 就是这种）
+  ///
+  /// 已经是 `http(s)://` 的原样返回
+  static String resolveUrl(String path) {
+    if (path.isEmpty) return path;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    return '$origin${path.startsWith('/') ? '' : '/'}$path';
+  }
+
   static String get authorizeEndpoint => '$issuer/api/authorize';
   static String get tokenEndpoint => '$issuer/api/token';
   static String get revokeEndpoint => '$issuer/api/revoke';
