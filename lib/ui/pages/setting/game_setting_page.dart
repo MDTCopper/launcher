@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/mindustry/settings/adapter.dart';
+import 'package:copper_launcher/data/mindustry/settings/keybind_metadata.dart';
 import 'package:copper_launcher/data/mindustry/settings/setting_metadata.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -14,6 +15,8 @@ import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
 import 'package:copper_launcher/util/io/print_on_debug.dart';
 import 'package:flutter/material.dart';
+
+import 'keybind_panel.dart';
 
 /// 游戏内设置页（数据驱动）
 ///
@@ -43,6 +46,12 @@ class _GameSettingPageState extends State<GameSettingPage> {
 
   /// 当前显示的可设置列表
   List<SettingSpec> _specs = mindustrySettingCatalog;
+
+  /// 当前版本可编辑的键位表；null = 该版本不支持键位编辑
+  List<KeybindSpec>? _keybinds;
+
+  /// 键位面板要读写的版本（与设置项同一个编辑版本）
+  Mindustry? _resolvedVersion;
 
   SettingCategory _category = SettingCategory.common;
 
@@ -87,8 +96,14 @@ class _GameSettingPageState extends State<GameSettingPage> {
                 v.releaseInt >= _supportedMinBuild!)
               v,
       ];
+      //键位表跟着编辑版本走；不支持的版本（v6 及更早）没有这一栏
+      _resolvedVersion = version;
+      _keybinds = version == null ? null : keybindCatalogFor(version);
       //切到第一个仍有设置的分类
-      final present = _specs.expand((s) => s.categories).toSet();
+      final present = <SettingCategory>{
+        ..._specs.expand((s) => s.categories),
+        if (_keybinds != null) SettingCategory.keybind,
+      };
       if (!present.contains(_category)) {
         _category = present.isEmpty ? SettingCategory.common : present.first;
       }
@@ -96,6 +111,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
     printOnDebug(
       '[GameSettingPage] build=$build 适配项=${_specs.length} '
       '常用=${_specs.where((s) => s.categories.contains(SettingCategory.common)).length} '
+      '键位=${_keybinds?.length ?? 0} '
       '来源=${specs != null ? "适配文件" : "内置目录兜底"}',
     );
   }
@@ -143,7 +159,11 @@ class _GameSettingPageState extends State<GameSettingPage> {
   }
 
   List<SettingCategory> get _presentCategories => SettingCategory.values
-      .where((c) => _specs.any((s) => s.categories.contains(c)))
+      .where(
+        (category) => category == SettingCategory.keybind
+            ? _keybinds != null
+            : _specs.any((s) => s.categories.contains(category)),
+      )
       .toList();
 
   // ── 写回 ──
@@ -395,20 +415,21 @@ class _GameSettingPageState extends State<GameSettingPage> {
     return ListContentPanel(
       items: [
         ContentPanelModule(
-          title: '覆盖',
+          title: _category == SettingCategory.keybind ? '版本' : '覆盖',
           child: Column(
             spacing: 8,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SwitchSettingBar(
-                wide: 220,
-                title: '启动时覆盖游戏内部设置',
-                value: settingsOverride,
-                onChanged: (v) => setState(() {
-                  config.setting.mindustrySettingsOverride = v;
-                  config.save();
-                }),
-              ),
+              if (_category != SettingCategory.keybind)
+                SwitchSettingBar(
+                  wide: 220,
+                  title: '启动时覆盖游戏内部设置',
+                  value: settingsOverride,
+                  onChanged: (v) => setState(() {
+                    config.setting.mindustrySettingsOverride = v;
+                    config.save();
+                  }),
+                ),
               _buildHeader(),
             ],
           ),
@@ -422,18 +443,32 @@ class _GameSettingPageState extends State<GameSettingPage> {
           ),
           child: KeyedSubtree(
             key: ValueKey(_category.title),
-            child: ContentPanelModule(
-              title: _category.title,
-              child: Column(
-                spacing: 8,
-                children: [
-                  for (final spec in _categorySpecs) _buildSpecBar(spec),
-                ],
-              ),
-            ),
+            child: _buildCategoryContent(),
           ),
         ),
       ],
+    );
+  }
+
+  /// 分类内容：键位分类渲染键位面板，其余分类照旧按设置项搭控件
+  Widget _buildCategoryContent() {
+    if (_category == SettingCategory.keybind) {
+      final version = _resolvedVersion;
+      final keybinds = _keybinds;
+      return ContentPanelModule(
+        title: _category.title,
+        child: version == null || keybinds == null
+            ? const Text('当前版本不支持键位编辑')
+            : KeybindPanel(version: version, specs: keybinds),
+      );
+    }
+
+    return ContentPanelModule(
+      title: _category.title,
+      child: Column(
+        spacing: 8,
+        children: [for (final spec in _categorySpecs) _buildSpecBar(spec)],
+      ),
     );
   }
 }

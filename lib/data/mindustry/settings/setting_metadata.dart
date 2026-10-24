@@ -5,7 +5,8 @@ enum SettingCategory {
   graphics('图像'),
   info('信息'),
   sound('音频'),
-  system('系统');
+  system('系统'),
+  keybind('键位');
 
   const SettingCategory(this.title);
 
