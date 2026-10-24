@@ -311,7 +311,7 @@ class MindustryLauncher {
     if (arcRef == null) {
       addLogAndPrint(
         .warning,
-        '查不到这个版本用的 arc：先不带 arc 原生库启动（性能下降）',
+        '查不到这个版本用的 arc：不带 arc 原生库启动，游戏很可能起不来',
         tag: 'Launch',
       );
     } else {
@@ -328,7 +328,7 @@ class MindustryLauncher {
         } catch (error) {
           addLogAndPrint(
             .warning,
-            'arc 原生库装不上：${removeNewlines('$error')}（先照起，性能下降）',
+            'arc 原生库装不上：${removeNewlines('$error')}（先照起）',
             tag: 'Launch',
           );
         }

@@ -9,8 +9,9 @@ import 'package:path/path.dart' as p;
 ///
 /// - **JRE 分两个包**（`universal.tar.xz` ABI 无关 + `bin-<abi>.tar.xz` ABI 相关），
 ///   两个都要叠加解压到同一棵树 —— 只解一个，JVM 起不来
-/// - **arc 原生库必须与本体 jar 里的 arc 同一个 ref**（该版本 `gradle.properties` 的
-///   `archash`）：对不上往往不是启动就炸，而是第一次用到才炸
+/// - **arc 原生库必须与本体 jar 里的 arc 同一个 ref**：v8 及以前查该版本
+///   `gradle.properties` 的 `archash`；v9 起 arc 并进本体仓库，原生库跟着本体提交走
+///   （见 [arcNativeLibUrl]）
 /// - **`bridge.jar` 一个包三种 ABI 都有**，不用按设备分；`snapshot` 是固定链接，想钉版本就给 tag
 class BridgePayload {
   BridgePayload._();
@@ -150,11 +151,48 @@ class BridgePayload {
 
   /// arc 原生库所在的 natives 模块（库的**名单**按 ref 走，模块名这里是结构常量）
   ///
-  /// 仓库里的路径是 `natives/<模块>/libs/<abi>/` —— **那个 `natives/` 前缀不能少**，
+  /// 仓库里的路径是 `natives/<模块>/libs/<abi>/` —— **那个 `natives/` 前缀不能少**；
+  /// v9 起 freetype 并进 `libarc.so`，只剩 `natives-android` 一个模块
   static const arcNativeModules = [
     'natives-android',
     'natives-freetype-android',
   ];
+
+  /// v9 起 arc 并入本体仓库：ref 记成 `mindustry-<提交或 tag>`，原生库也从本体仓库取
+  ///
+  /// 老版本仍是 Anuken/Arc 仓库的一份 `archash`；两种 ref 在 [arcNativeLibUrl] 里分流
+  static const arcMergedRefPrefix = 'mindustry-';
+
+  /// 把本体的提交 / tag 包成 arc ref
+  static String mergedArcRef(String revision) => '$arcMergedRefPrefix$revision';
+
+  /// 这个 ref 是不是 v9 起的合并形态
+  static bool isMergedArcRef(String arcRef) =>
+      arcRef.startsWith(arcMergedRefPrefix);
+
+  /// 合并形态的 ref 里取回本体提交 / tag
+  static String mergedArcRevision(String arcRef) =>
+      arcRef.substring(arcMergedRefPrefix.length);
+
+  /// 这个 ref 要装哪些 natives 模块
+  ///
+  /// v9 的 `arc/natives` 只有 `natives-android`；老版本两个模块都要
+  static List<String> arcNativeModulesFor(String arcRef) =>
+      isMergedArcRef(arcRef) ? const ['natives-android'] : arcNativeModules;
+
+  /// arc 原生库所在仓库
+  static String _arcRepo(String arcRef) =>
+      isMergedArcRef(arcRef) ? 'Anuken/Mindustry' : 'Anuken/Arc';
+
+  /// 仓库里的 ref：合并形态要剥掉 `mindustry-` 前缀
+  static String _arcUrlRef(String arcRef) =>
+      isMergedArcRef(arcRef) ? mergedArcRevision(arcRef) : arcRef;
+
+  /// 仓库里的目录：v9 在 `arc/natives/` 下，老版本在根部的 `natives/` 下
+  static String _arcNativeDir(String arcRef, String abi, String module) =>
+      isMergedArcRef(arcRef)
+      ? 'arc/natives/$module/libs/$abi'
+      : 'natives/$module/libs/$abi';
 
   /// 各模块里那份原生库的**常规文件名**：列目录用不了时按它下
   ///
@@ -171,7 +209,8 @@ class BridgePayload {
     String abi, {
     String module = 'natives-android',
   }) =>
-      'https://api.github.com/repos/Anuken/Arc/contents/natives/$module/libs/$abi?ref=$arcRef';
+      'https://api.github.com/repos/${_arcRepo(arcRef)}/contents/'
+      '${_arcNativeDir(arcRef, abi, module)}?ref=${_arcUrlRef(arcRef)}';
 
   /// 单个原生库的下载地址（raw，按 ref 钉死）
   static String arcNativeLibUrl(
@@ -180,10 +219,13 @@ class BridgePayload {
     String fileName, {
     String module = 'natives-android',
   }) =>
-      'https://raw.githubusercontent.com/Anuken/Arc/$arcRef/natives/$module/libs/$abi/$fileName';
+      'https://raw.githubusercontent.com/${_arcRepo(arcRef)}/'
+      '${_arcUrlRef(arcRef)}/${_arcNativeDir(arcRef, abi, module)}/$fileName';
 
-  /// 查某个游戏版本用的是哪个 arc：Mindustry 的 `gradle.properties` 里的 `archash`
-  /// （必须与本体 jar 里的 arc 同源，见文档 §3.3）
+  /// 查某个游戏版本的 `gradle.properties`
+  ///
+  /// v8 及以前里面有 `archash`（指到 `Anuken/Arc` 的提交）；v9 起这个键没了，
+  /// 因为 arc 已并进本体仓库（原生库跟着同一个提交 / tag 走）
   ///
   /// **走 raw 地址，不用 `github.com/.../raw/...` 那种重定向形式**：后者要多一跳、
   /// 而且有节点不代理它（回 404，还会被当成「上游说没有」而不换节点）
@@ -197,6 +239,7 @@ class BridgePayload {
   /// 从 `gradle.properties` 里读 `archash`（纯函数）
   ///
   /// 那是 java properties 格式：`key=value`，`#` / `!` 起头是注释；读不到返回 null
+  /// （v9 起恒为 null，不是错误）
   static String? parseArchash(String? content) =>
       propertyValue(content, 'archash');
 

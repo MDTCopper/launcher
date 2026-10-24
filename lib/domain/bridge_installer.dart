@@ -383,7 +383,7 @@ class BridgeInstaller {
 
   /// 清掉**与游戏版本无关**的那份载荷：JRE + 桥 jar + 适配层 + 临时目录
   ///
-  /// 留着 arc 原生库（它按游戏版本的 `archash` 分目录，清了要按版本重下）；
+  /// 留着 arc 原生库（它按游戏版本的 arc ref 分目录，清了要按版本重下）；
   /// 清完 [isRuntimeReady] 会变 false，下次启动会重新走安装页。
   /// 桥会把载荷里的文件改成只读，Android 上删只读文件没问题（看目录写权限），
   /// 单个删不掉只记一条日志，不让整次清理失败
@@ -528,7 +528,8 @@ class BridgeInstaller {
   /// 目录补上多出来的库 —— 列目录走 api，镜像节点常常不代理它（或共享 IP 被限流），
   /// 所以它失败只记一条警告，不能因此一个 `.so` 都不下
   ///
-  /// 跟具体游戏版本走（该版本的 `archash`），所以不在首次运行的安装页里做
+  /// 跟具体游戏版本走（v8 是该版本的 `archash`、v9 起是本体提交，见
+  /// [BridgePayload.arcNativeLibUrl]），所以不在首次运行的安装页里做
   static Future<List<String>> installArcNatives({
     required String arcRef,
     required String abi,
@@ -539,7 +540,7 @@ class BridgeInstaller {
     await arcDir.create(recursive: true);
 
     final names = <String>[];
-    for (final module in BridgePayload.arcNativeModules) {
+    for (final module in BridgePayload.arcNativeModulesFor(arcRef)) {
       final moduleNames = <String>{
         ...BridgePayload.arcNativeDefaultLibs(module),
       };

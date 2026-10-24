@@ -125,35 +125,55 @@ class BridgeLauncher {
   static String arcRefFileFor(Mindustry version) =>
       p.join(bridgeDirFor(version), 'arc-ref');
 
-  /// 这个版本该用哪份 arc（[Anuken/Arc] 的短 commit，文档 §3.3）
+  /// 这个版本该用哪份 arc
   ///
   /// 顺序：版本目录里的记录 → 本体 jar `version.properties` 的 `commitHash` 去查
   /// Mindustry 的 `gradle.properties` → 拿 `release` 当 tag 再查一次。
   /// **commit 那条是主路**：BE（自构建）版本没有 Mindustry tag（`release` 记的是构建号），
-  /// 而官方版本的 jar 里同样有 `commitHash` —— 一份本体由哪个提交编出来，就查那个提交的
-  /// `archash`，两种版本一条路。
+  /// 而官方版本的 jar 里同样有 `commitHash` —— 一份本体由哪个提交编出来，就查哪个提交。
   ///
-  /// 查到就落盘；都查不到返回 null（调用方按「不带 arc 原生库启动、性能下降」处理）
+  /// v8 及以前那份文件里有 `archash`，得到的是 Anuken/Arc 的提交；v9 起 arc 并进本体仓库，
+  /// 没有 `archash`，ref 改成 `mindustry-<提交或 tag>`（原生库也从本体仓库取）。
+  /// 查到就落盘；都查不到返回 null（调用方按「不带 arc 原生库启动」处理）
   static Future<String?> arcRefOf(
     Mindustry version, {
     void Function(String status)? onStatus,
   }) async {
     final cacheFile = File(arcRefFileFor(version));
+    final jar = File(version.resolvedJarPath);
+    final commit = jar.existsSync() ? await commitHashOfJar(jar.path) : null;
+
     if (cacheFile.existsSync()) {
       final cached = cacheFile.readAsStringSync().trim();
-      if (cached.isNotEmpty) return cached;
+      if (cached.isNotEmpty) {
+        // BE 会原地换本体：合并形态的 ref 钉的是提交，换了就要重新解
+        final stale =
+            BridgePayload.isMergedArcRef(cached) &&
+            commit != null &&
+            BridgePayload.mergedArcRevision(cached) != commit;
+        if (!stale) return cached;
+        addLogAndPrint(
+          .info,
+          'Android 桥：本体已换成提交 $commit，重新确认 arc',
+          tag: 'Bridge',
+        );
+      }
     }
 
-    final jar = File(version.resolvedJarPath);
     if (!jar.existsSync()) return null;
 
     onStatus?.call('正在确认这个版本用的 arc…');
     String? ref;
-    final commit = await commitHashOfJar(jar.path);
     if (commit != null) {
-      ref = await _fetchArchash(BridgePayload.arcRefUrlForCommit(commit));
+      ref = await _resolveArcRef(
+        BridgePayload.arcRefUrlForCommit(commit),
+        commit,
+      );
     }
-    ref ??= await _fetchArchash(BridgePayload.arcRefUrlForTag(version.release));
+    ref ??= await _resolveArcRef(
+      BridgePayload.arcRefUrlForTag(version.release),
+      version.release,
+    );
     if (ref == null) return null;
 
     await cacheFile.parent.create(recursive: true);
@@ -162,13 +182,18 @@ class BridgeLauncher {
     return ref;
   }
 
-  static Future<String?> _fetchArchash(String url) async {
+  /// 读 Mindustry 的 `gradle.properties` 判 arc 从哪来
+  ///
+  /// 有 `archash` 就是 v8 及以前；没有就是 v9 起（arc 并进本体仓库），ref 记本体提交 / tag。
+  /// 读不到返回 null；不是 properties 的响应（镜像回 HTML 之类）也按读不到处理
+  static Future<String?> _resolveArcRef(String url, String revision) async {
+    final String content;
     try {
       final response = await cio.get<String>(
         url,
         responseType: ResponseType.plain,
       );
-      return BridgePayload.parseArchash('${response.data}');
+      content = '${response.data}';
     } catch (error) {
       addLogAndPrint(
         .warning,
@@ -177,6 +202,11 @@ class BridgeLauncher {
       );
       return null;
     }
+
+    final archash = BridgePayload.parseArchash(content);
+    if (archash != null) return archash;
+    if (!content.contains('=')) return null;
+    return BridgePayload.mergedArcRef(revision);
   }
 
   /// 本体 jar 里 `version.properties` 的 `commitHash`；读不到返回 null
