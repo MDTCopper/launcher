@@ -183,13 +183,18 @@ class TemplateKeyRow extends StatelessWidget {
             child: TemplateTwoLine(skin: skin, title: title),
           ),
           const SizedBox(width: TemplateSpace.lg),
-          Flexible(
-            child: Text(
-              value,
-              style: TemplateType.item.copyWith(color: skin.textTertiary),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
+          // Flexible 给的是「最多一半」，Text 自己按内容宽度排 ⇒ 光设 textAlign 贴不到行尾，
+          // 得让这一格自己撑满再右对齐（2026-10-24 渲染样张里值停在了中间）
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                value,
+                style: TemplateType.item.copyWith(color: skin.textTertiary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+              ),
             ),
           ),
         ],
@@ -741,19 +746,31 @@ class TemplateProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 用两段 Expanded 拼出来：FractionallySizedBox 里的 ColoredBox 没有子节点时会量成 0 宽，
+    // 填充段在样张里根本画不出来（2026-10-24 渲染时发现）
+    final clamped = value.clamp(0.0, 1.0);
     return ClipRRect(
       borderRadius: BorderRadius.circular(TemplateRadius.pill),
       child: SizedBox(
         height: height,
-        child: Stack(
+        child: Row(
           children: [
-            ColoredBox(color: skin.sunken, child: const SizedBox.expand()),
-            FractionallySizedBox(
-              widthFactor: value.clamp(0.0, 1.0),
-              child: ColoredBox(
-                color: enabled ? skin.accent : skin.textDisabled,
+            if (clamped > 0)
+              Expanded(
+                flex: (clamped * 1000).round(),
+                child: ColoredBox(
+                  color: enabled ? skin.accent : skin.textDisabled,
+                  child: const SizedBox.expand(),
+                ),
               ),
-            ),
+            if (clamped < 1)
+              Expanded(
+                flex: ((1 - clamped) * 1000).round(),
+                child: ColoredBox(
+                  color: skin.sunken,
+                  child: const SizedBox.expand(),
+                ),
+              ),
           ],
         ),
       ),
