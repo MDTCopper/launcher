@@ -314,18 +314,22 @@ class TemplateButton extends StatelessWidget {
         horizontal: TemplateSpace.lg,
         vertical: TemplateSpace.sm + 1,
       ),
-      child: DefaultTextStyle(
-        style: TemplateType.item.copyWith(
-          color: foreground,
-          fontWeight: FontWeight.w600,
-        ),
-        child: IconTheme(
-          data: IconThemeData(color: foreground, size: 18),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: TemplateSpace.sm,
-            children: [Icon(icon), Text(label)],
-          ),
+      // 文字样式走 Text.style 合并环境样式；整层换 DefaultTextStyle 会把字体族一起丢掉
+      child: IconTheme(
+        data: IconThemeData(color: foreground, size: 18),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: TemplateSpace.sm,
+          children: [
+            Icon(icon),
+            Text(
+              label,
+              style: TemplateType.item.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
