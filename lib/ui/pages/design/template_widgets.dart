@@ -1,6 +1,5 @@
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
-import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
 import 'template_skin.dart';
@@ -249,11 +248,13 @@ class TemplateSwitchRow extends StatelessWidget {
 
 /// 按钮：几何完全一样，只差底色与前景
 ///
-/// 四档的**面**：实心 = 主题色底；标准（plain）= 抬升底 + 1px 描边；安静（quiet）= 无面；
-/// 破坏（danger）= 无面 + 危险文字。标准档为什么必须有描边：亮色的卡面已经接近白，
-/// 抬升底与卡面同色 ⇒ 只靠底色差根本看不出是个按钮（用户 2026-10-05
-/// 「亮色和暗色的按钮类型不一致，亮色没有软底」）——Fluent 的标准按钮在亮色下就是
-/// 「面 + 描边」，描边才是它可辨认的原因，暗色下那层更亮的面只是额外加的一档
+/// 四档的**面**：实心 = 主题色底 + 其上文字；标准（plain）= 软主题底（[TemplateSkin.accentTint]）；
+/// 安静（quiet）= 无面；破坏（danger）= 无面 + 危险文字
+///
+/// 标准档为什么用软主题底、不再用「抬升底 + 描边」：抬升底在亮色与卡面同色（1.00）、
+/// 在暗色却比卡面亮 1.57 ⇒ 同一档一个主题里看不见、另一个主题里比实心还抢眼。
+/// 换成软主题底后亮暗分别是 1.26 / 1.33，两个主题都是同一种颜色语言，
+/// 档位次序（实心 > 标准 > 安静）才立得住（用户 2026-10-24 指出暗色标准太抢、亮色标准太单调）
 class TemplateButton extends StatelessWidget {
   const TemplateButton({
     super.key,
@@ -279,10 +280,10 @@ class TemplateButton extends StatelessWidget {
         enabled
             ? (skin.accent, skin.onAccent)
             : (skin.sunken, skin.textDisabled),
-      TemplateButtonKind.plain => (
-        skin.raised,
-        enabled ? skin.textPrimary : skin.textDisabled,
-      ),
+      TemplateButtonKind.plain =>
+        enabled
+            ? (skin.accentTint, skin.onAccentTint)
+            : (skin.sunken, skin.textDisabled),
       TemplateButtonKind.quiet => (
         Colors.transparent,
         enabled ? skin.textSecondary : skin.textDisabled,
@@ -334,19 +335,7 @@ class TemplateButton extends StatelessWidget {
       ),
     );
 
-    // 标准档的面靠描边可辨认（前景层画，不然会被自己的底色盖住）
-    if (kind != TemplateButtonKind.plain) return button;
-    return DecoratedBox(
-      position: DecorationPosition.foreground,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(TemplateRadius.control),
-        border: Border.all(
-          color: enabled ? skin.controlBorder : skin.controlBorderDisabled,
-          width: AppBorderWidth.hairline,
-        ),
-      ),
-      child: button,
-    );
+    return button;
   }
 }
 
