@@ -149,6 +149,16 @@ class TemplateSkin {
   /// 取中性色阶的任意一档 tone（0 黑 ~ 100 白）
   Color neutralTone(double tone) => Color(_neutral.at(tone));
 
+  /// 禁用态前景：正文的 38%（Fluent 与 M3 的禁用字口径）
+  ///
+  /// 禁用态不参与对比度校验，但它必须一眼看出「不能点」而不是「坏掉了」，
+  /// 所以只降不染色：保住中性色相的明度关系，危险 / 强调这些语义色在禁用时一律退成它
+  Color get textDisabled => textPrimary.withAlpha((0.38 * 255).round());
+
+  /// 禁用态的控件边界：常态的一半，形状还在但不再抢眼
+  Color get controlBorderDisabled =>
+      controlBorder.withAlpha((0.5 * 255).round());
+
   /// 悬停 / 按下：压在**控件自己的底色**上算出来的一层
   ///
   /// 四条规则（前三条都是踩出来的）：

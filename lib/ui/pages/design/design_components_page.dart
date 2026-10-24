@@ -26,6 +26,7 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
   int _segmentValue = 0;
   double _sliderValue = 0.55;
   final _inputController = TextEditingController(text: '-XX:+UseG1GC');
+  final _disabledInputController = TextEditingController(text: '由启动器自动决定');
 
   TemplateSkin get _skin => TemplateSkin.of(
     hue: _hue,
@@ -35,6 +36,7 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
   @override
   void dispose() {
     _inputController.dispose();
+    _disabledInputController.dispose();
     super.dispose();
   }
 
@@ -84,6 +86,10 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
           ),
           Text(
             '用法：先按职责选组件；每一条下面写清它的状态、参数，以及还不齐的地方',
+            style: TemplateType.caption.copyWith(color: skin.textTertiary),
+          ),
+          Text(
+            '禁用态统一走前景 38%、控件边界减半，悬停与回弹都不响应；开关与分段的值仍然保留',
             style: TemplateType.caption.copyWith(color: skin.textTertiary),
           ),
         ],
@@ -173,17 +179,32 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
         (
           name: 'TemplateRow',
           duty: '卡内一行的外壳',
-          states: '静止 / 悬停 / 按下（缩放）/ 选中',
-          params: 'onTap · selected · padding（默认 12）',
+          states: '静止 / 悬停 / 按下（缩放）/ 选中 / 禁用',
+          params: 'onTap · selected · enabled · padding（默认 12）',
           issue: '行内不画分隔线，行与行只隔 2px，靠圆角块分行',
-          sample: TemplateRow(
-            skin: skin,
-            onTap: () {},
-            child: TemplateTwoLine(
-              skin: skin,
-              title: 'NewHorizon',
-              desc: 'v2.1.4 · 大型模组 · 12.8 MB',
-            ),
+          sample: Column(
+            spacing: TemplateSpace.sm,
+            children: [
+              TemplateRow(
+                skin: skin,
+                onTap: () {},
+                child: TemplateTwoLine(
+                  skin: skin,
+                  title: 'NewHorizon',
+                  desc: 'v2.1.4 · 大型模组 · 12.8 MB',
+                ),
+              ),
+              TemplateRow(
+                skin: skin,
+                enabled: false,
+                child: TemplateTwoLine(
+                  skin: skin,
+                  title: '不可用的一行',
+                  desc: '禁用时连悬停都不回应',
+                  enabled: false,
+                ),
+              ),
+            ],
           ),
         ),
         (
@@ -209,27 +230,47 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
         (
           name: 'TemplateSwitchRow',
           duty: '开关行：点整行也能切',
-          states: '开 / 关（关态的轨道有 3:1 描边）',
-          params: 'title · desc · value · onTap',
-          issue: '没有禁用态',
-          sample: TemplateSwitchRow(
-            skin: skin,
-            title: '游戏存档隔离',
-            desc: '存档与模组放在版本目录里',
-            value: _switchValue,
-            onTap: () => setState(() => _switchValue = !_switchValue),
+          states: '开 / 关（关态的轨道有 3:1 描边）/ 禁用',
+          params: 'title · desc · value · onTap · enabled',
+          issue: null,
+          sample: Column(
+            spacing: TemplateSpace.sm,
+            children: [
+              TemplateSwitchRow(
+                skin: skin,
+                title: '游戏存档隔离',
+                desc: '存档与模组放在版本目录里',
+                value: _switchValue,
+                onTap: () => setState(() => _switchValue = !_switchValue),
+              ),
+              TemplateSwitchRow(
+                skin: skin,
+                title: '仅在已同步时可用',
+                desc: '禁用时整行与开关一起退掉',
+                value: false,
+                onTap: () {},
+                enabled: false,
+              ),
+            ],
           ),
         ),
         (
           name: 'TemplateSelectRow',
           duty: '下拉行：标签 + 下拉框',
-          states: '静止 / 悬停',
-          params: 'title · value · onTap（为空＝静态框）· labelWidth（150）',
+          states: '静止 / 悬停 / 禁用',
+          params: 'title · value · onTap（为空＝静态框）· enabled · labelWidth（150）',
           issue: '只有样子，点了不出菜单',
-          sample: TemplateSelectRow(
-            skin: skin,
-            title: '游戏Java',
-            value: 'Java 17',
+          sample: Column(
+            spacing: TemplateSpace.sm,
+            children: [
+              TemplateSelectRow(skin: skin, title: '游戏Java', value: 'Java 17'),
+              TemplateSelectRow(
+                skin: skin,
+                title: '版本通道',
+                value: '未检测到本体',
+                enabled: false,
+              ),
+            ],
           ),
         ),
       ],
@@ -240,24 +281,38 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
         (
           name: 'TemplateSegment',
           duty: '单选分段：选中格是一道轻渐变（上亮下暗）',
-          states: '选中（静止 / 悬停 / 按下三态；按下把渐变反过来）/ 未选中（悬停一层薄底）',
-          params: 'options · value（下标）· onTap(index)',
-          issue: '没有禁用态；选项超过 4 个会挤',
-          sample: TemplateSegment(
-            skin: skin,
-            options: const ['跟随全局', '自动分配', '自定义'],
-            value: _segmentValue,
-            onTap: (index) => setState(() => _segmentValue = index),
+          states: '选中（静止 / 悬停 / 按下三态；按下把渐变反过来）/ 未选中（悬停一层薄底）/ 禁用',
+          params: 'options · value（下标）· onTap(index) · enabled',
+          issue: '选项超过 4 个会挤',
+          sample: Column(
+            spacing: TemplateSpace.sm,
+            children: [
+              TemplateSegment(
+                skin: skin,
+                options: const ['跟随全局', '自动分配', '自定义'],
+                value: _segmentValue,
+                onTap: (index) => setState(() => _segmentValue = index),
+              ),
+              TemplateSegment(
+                skin: skin,
+                options: const ['Java 17', 'Java 21'],
+                value: 1,
+                onTap: (_) {},
+                enabled: false,
+              ),
+            ],
           ),
         ),
         (
           name: 'TemplateSwitch',
           duty: '开关本体（轨道 + 滑块）',
-          states: '开 / 关 / 悬停 / 按下',
-          params: 'value · onTap',
+          states: '开 / 关 / 悬停 / 按下 / 禁用',
+          params: 'value · onTap · enabled',
           issue: '尺寸固定 40 × 22',
-          sample: Row(
+          sample: Wrap(
             spacing: TemplateSpace.xl,
+            runSpacing: TemplateSpace.md,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               TemplateSwitch(
                 skin: skin,
@@ -269,34 +324,69 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
                 value: false,
                 onTap: () => setState(() => _switchValue = false),
               ),
+              TemplateSwitch(
+                skin: skin,
+                value: true,
+                onTap: () {},
+                enabled: false,
+              ),
+              TemplateSwitch(
+                skin: skin,
+                value: false,
+                onTap: () {},
+                enabled: false,
+              ),
             ],
           ),
         ),
         (
           name: 'TemplateSliderRow',
           duty: '滑条行：标题固定，实时值只在右侧',
-          states: '静止 / 拖动中',
-          params: 'title · label · value · onChanged · divisions',
+          states: '静止 / 拖动中 / 禁用',
+          params: 'title · label · value · onChanged · divisions · enabled',
           issue: '没有刻度与两端极值提示',
-          sample: TemplateSliderRow(
-            skin: skin,
-            title: '内存上限',
-            label: '${(_sliderValue * 12).toStringAsFixed(1)} GB',
-            value: _sliderValue,
-            onChanged: (value) => setState(() => _sliderValue = value),
+          sample: Column(
+            spacing: TemplateSpace.sm,
+            children: [
+              TemplateSliderRow(
+                skin: skin,
+                title: '内存上限',
+                label: '${(_sliderValue * 12).toStringAsFixed(1)} GB',
+                value: _sliderValue,
+                onChanged: (value) => setState(() => _sliderValue = value),
+              ),
+              TemplateSliderRow(
+                skin: skin,
+                title: '交换空间',
+                label: '不可调',
+                value: 0.4,
+                enabled: false,
+              ),
+            ],
           ),
         ),
         (
           name: 'TemplateInputRow',
           duty: '输入行：标签 + 输入框',
-          states: '静止 / 聚焦 / 悬停',
-          params: 'title · controller · hint',
+          states: '静止 / 聚焦 / 悬停 / 禁用',
+          params: 'title · controller · hint · enabled',
           issue: '没有错误态；提交时机由宿主决定',
-          sample: TemplateInputRow(
-            skin: skin,
-            title: 'jvm虚拟机参数',
-            controller: _inputController,
-            hint: '-XX:+UseG1GC',
+          sample: Column(
+            spacing: TemplateSpace.md,
+            children: [
+              TemplateInputRow(
+                skin: skin,
+                title: 'jvm虚拟机参数',
+                controller: _inputController,
+                hint: '-XX:+UseG1GC',
+              ),
+              TemplateInputRow(
+                skin: skin,
+                title: '启动参数',
+                controller: _disabledInputController,
+                enabled: false,
+              ),
+            ],
           ),
         ),
       ],
@@ -307,40 +397,64 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
         (
           name: 'TemplateButton',
           duty: '按钮四档：实心 / 标准 / 安静 / 破坏',
-          states: '静止 / 悬停 / 按下',
-          params: 'kind · label · icon · onTap',
-          issue: '没有禁用态；实心在暗色悬停时会压到卡面 2.41:1（已知取舍）',
-          sample: Wrap(
+          states: '静止 / 悬停 / 按下 / 禁用',
+          params: 'kind · label · icon · onTap · enabled',
+          issue: '实心在暗色悬停时会压到卡面 2.41:1（已知取舍）',
+          sample: Column(
             spacing: TemplateSpace.md,
-            runSpacing: TemplateSpace.md,
             children: [
-              TemplateButton(
-                skin: skin,
-                label: '实心',
-                icon: Icons.play_arrow,
-                kind: TemplateButtonKind.solid,
-                onTap: () {},
+              Wrap(
+                spacing: TemplateSpace.md,
+                runSpacing: TemplateSpace.md,
+                children: [
+                  TemplateButton(
+                    skin: skin,
+                    label: '实心',
+                    icon: Icons.play_arrow,
+                    kind: TemplateButtonKind.solid,
+                    onTap: () {},
+                  ),
+                  TemplateButton(
+                    skin: skin,
+                    label: '标准',
+                    icon: Icons.copy_all,
+                    kind: TemplateButtonKind.plain,
+                    onTap: () {},
+                  ),
+                  TemplateButton(
+                    skin: skin,
+                    label: '安静',
+                    icon: Icons.star_outline,
+                    kind: TemplateButtonKind.quiet,
+                    onTap: () {},
+                  ),
+                  TemplateButton(
+                    skin: skin,
+                    label: '破坏',
+                    icon: Icons.delete_outline,
+                    kind: TemplateButtonKind.danger,
+                    onTap: () {},
+                  ),
+                ],
               ),
-              TemplateButton(
-                skin: skin,
-                label: '标准',
-                icon: Icons.copy_all,
-                kind: TemplateButtonKind.plain,
-                onTap: () {},
-              ),
-              TemplateButton(
-                skin: skin,
-                label: '安静',
-                icon: Icons.star_outline,
-                kind: TemplateButtonKind.quiet,
-                onTap: () {},
-              ),
-              TemplateButton(
-                skin: skin,
-                label: '破坏',
-                icon: Icons.delete_outline,
-                kind: TemplateButtonKind.danger,
-                onTap: () {},
+              Wrap(
+                spacing: TemplateSpace.md,
+                runSpacing: TemplateSpace.md,
+                children: [
+                  for (final (kind, label) in const [
+                    (TemplateButtonKind.solid, '实心'),
+                    (TemplateButtonKind.plain, '标准'),
+                    (TemplateButtonKind.quiet, '安静'),
+                    (TemplateButtonKind.danger, '破坏'),
+                  ])
+                    TemplateButton(
+                      skin: skin,
+                      label: label,
+                      icon: Icons.block,
+                      kind: kind,
+                      enabled: false,
+                    ),
+                ],
               ),
             ],
           ),
@@ -348,9 +462,9 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
         (
           name: 'TemplateShortcut',
           duty: '快捷入口小方块：并列入口',
-          states: '静止 / 悬停 / 按下',
-          params: 'icon · label · onTap',
-          issue: '没有禁用态；宽度自适应，不再逐个定宽',
+          states: '静止 / 悬停 / 按下 / 禁用',
+          params: 'icon · label · onTap · enabled',
+          issue: '宽度自适应，不再逐个定宽',
           sample: Wrap(
             spacing: TemplateSpace.md,
             runSpacing: TemplateSpace.md,
@@ -366,6 +480,12 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
                 icon: Icons.map_outlined,
                 label: '地图文件夹',
                 onTap: () {},
+              ),
+              TemplateShortcut(
+                skin: skin,
+                icon: Icons.folder_off_outlined,
+                label: '未安装',
+                enabled: false,
               ),
             ],
           ),
@@ -389,14 +509,20 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
         (
           name: 'TemplateProgressBar',
           duty: '细轨 + 实心填充',
-          states: '静态，值由外部给',
-          params: 'value（0~1）· height',
+          states: '静态 / 禁用（灰轨）',
+          params: 'value（0~1）· height · enabled',
           issue: '单色，没有分段',
           sample: Column(
             spacing: TemplateSpace.md,
             children: [
               TemplateProgressBar(skin: skin, value: 0.3, height: 8),
               TemplateProgressBar(skin: skin, value: 0.72, height: 8),
+              TemplateProgressBar(
+                skin: skin,
+                value: 0.72,
+                height: 8,
+                enabled: false,
+              ),
             ],
           ),
         ),

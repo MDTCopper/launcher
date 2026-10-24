@@ -85,6 +85,7 @@ class TemplateRow extends StatelessWidget {
     required this.child,
     this.onTap,
     this.selected = false,
+    this.enabled = true,
     this.padding,
   });
 
@@ -92,18 +93,20 @@ class TemplateRow extends StatelessWidget {
   final Widget child;
   final VoidCallback? onTap;
   final bool selected;
+  final bool enabled;
   final EdgeInsetsGeometry? padding;
 
   @override
   Widget build(BuildContext context) {
     final background = selected ? skin.selected : Colors.transparent;
     return ReboundContainer(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       pressedScale: 0.995,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
       backgroundColor: background,
-      hoverColor: skin.hoverOn(background),
-      highlightColor: skin.pressedOn(background),
+      // 禁用时连悬停都不回应；rebound 的悬停层与 onTap 无关，只看 hoverColor
+      hoverColor: enabled ? skin.hoverOn(background) : Colors.transparent,
+      highlightColor: enabled ? skin.pressedOn(background) : Colors.transparent,
       padding:
           padding ??
           const EdgeInsets.symmetric(
@@ -122,11 +125,13 @@ class TemplateTwoLine extends StatelessWidget {
     required this.skin,
     required this.title,
     this.desc,
+    this.enabled = true,
   });
 
   final TemplateSkin skin;
   final String title;
   final String? desc;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -136,14 +141,18 @@ class TemplateTwoLine extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TemplateType.item.copyWith(color: skin.textPrimary),
+          style: TemplateType.item.copyWith(
+            color: enabled ? skin.textPrimary : skin.textDisabled,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
         if (desc != null)
           Text(
             desc!,
-            style: TemplateType.caption.copyWith(color: skin.textTertiary),
+            style: TemplateType.caption.copyWith(
+              color: enabled ? skin.textTertiary : skin.textDisabled,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -199,6 +208,7 @@ class TemplateSwitchRow extends StatelessWidget {
     required this.desc,
     required this.value,
     required this.onTap,
+    this.enabled = true,
   });
 
   final TemplateSkin skin;
@@ -206,19 +216,31 @@ class TemplateSwitchRow extends StatelessWidget {
   final String desc;
   final bool value;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return TemplateRow(
       skin: skin,
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
+      enabled: enabled,
       child: Row(
         children: [
           Expanded(
-            child: TemplateTwoLine(skin: skin, title: title, desc: desc),
+            child: TemplateTwoLine(
+              skin: skin,
+              title: title,
+              desc: desc,
+              enabled: enabled,
+            ),
           ),
           const SizedBox(width: TemplateSpace.lg),
-          TemplateSwitch(skin: skin, value: value, onTap: onTap),
+          TemplateSwitch(
+            skin: skin,
+            value: value,
+            onTap: onTap,
+            enabled: enabled,
+          ),
         ],
       ),
     );
@@ -240,6 +262,7 @@ class TemplateButton extends StatelessWidget {
     required this.icon,
     required this.kind,
     this.onTap,
+    this.enabled = true,
   });
 
   final TemplateSkin skin;
@@ -247,25 +270,42 @@ class TemplateButton extends StatelessWidget {
   final IconData icon;
   final TemplateButtonKind kind;
   final VoidCallback? onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final (background, foreground) = switch (kind) {
-      TemplateButtonKind.solid => (skin.accent, skin.onAccent),
-      TemplateButtonKind.plain => (skin.raised, skin.textPrimary),
-      TemplateButtonKind.quiet => (Colors.transparent, skin.textSecondary),
-      TemplateButtonKind.danger => (Colors.transparent, skin.dangerText),
+      TemplateButtonKind.solid =>
+        enabled
+            ? (skin.accent, skin.onAccent)
+            : (skin.sunken, skin.textDisabled),
+      TemplateButtonKind.plain => (
+        skin.raised,
+        enabled ? skin.textPrimary : skin.textDisabled,
+      ),
+      TemplateButtonKind.quiet => (
+        Colors.transparent,
+        enabled ? skin.textSecondary : skin.textDisabled,
+      ),
+      TemplateButtonKind.danger => (
+        Colors.transparent,
+        enabled ? skin.dangerText : skin.textDisabled,
+      ),
     };
     // 实心上的状态要更明显，而且是「压暗」而不是按主题方向（见 solidHoverOn）
-    final solid = kind == TemplateButtonKind.solid;
+    final solid = kind == TemplateButtonKind.solid && enabled;
 
     final button = ReboundButton(
-      onTap: onTap ?? () {},
+      onTap: enabled ? (onTap ?? () {}) : null,
       backgroundColor: background,
-      hoverColor: solid
+      hoverColor: !enabled
+          ? Colors.transparent
+          : solid
           ? skin.solidHoverOn(background)
           : skin.hoverOn(background),
-      highlightColor: solid
+      highlightColor: !enabled
+          ? Colors.transparent
+          : solid
           ? skin.solidPressedOn(background)
           : skin.pressedOn(background),
       pressedScale: 0.96,
@@ -297,7 +337,7 @@ class TemplateButton extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(TemplateRadius.control),
         border: Border.all(
-          color: skin.controlBorder,
+          color: enabled ? skin.controlBorder : skin.controlBorderDisabled,
           width: AppBorderWidth.hairline,
         ),
       ),
@@ -313,37 +353,49 @@ class TemplateSwitch extends StatelessWidget {
     required this.skin,
     required this.value,
     required this.onTap,
+    this.enabled = true,
   });
 
   final TemplateSkin skin;
   final bool value;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
+    final track = enabled && value ? skin.accent : skin.sunken;
     return ReboundContainer(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       pressedScale: 0.94,
       borderRadius: BorderRadius.circular(TemplateRadius.pill),
-      backgroundColor: value ? skin.accent : skin.sunken,
-      hoverColor: skin.hoverOn(value ? skin.accent : skin.sunken),
-      highlightColor: skin.pressedOn(value ? skin.accent : skin.sunken),
+      backgroundColor: track,
+      hoverColor: enabled ? skin.hoverOn(track) : Colors.transparent,
+      highlightColor: enabled ? skin.pressedOn(track) : Colors.transparent,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         curve: Curves.easeOut,
         width: 40,
         height: 22,
         padding: const EdgeInsets.all(3),
+        // 禁用时仍按值摆滑块：位置本身就是开关的状态，不能因为不可用把它抹掉
         alignment: value ? Alignment.centerRight : Alignment.centerLeft,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(TemplateRadius.pill),
-          border: value ? null : Border.all(color: skin.controlBorder),
+          border: enabled && value
+              ? null
+              : Border.all(
+                  color: enabled
+                      ? skin.controlBorder
+                      : skin.controlBorderDisabled,
+                ),
         ),
         child: Container(
           width: 16,
           height: 16,
           decoration: BoxDecoration(
-            color: value ? skin.onAccent : skin.textTertiary,
+            color: enabled
+                ? (value ? skin.onAccent : skin.textTertiary)
+                : skin.textDisabled,
             shape: BoxShape.circle,
           ),
         ),
@@ -365,12 +417,14 @@ class TemplateSegment extends StatelessWidget {
     required this.options,
     required this.value,
     required this.onTap,
+    this.enabled = true,
   });
 
   final TemplateSkin skin;
   final List<String> options;
   final int value;
   final void Function(int index) onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -381,7 +435,9 @@ class TemplateSegment extends StatelessWidget {
         borderRadius: BorderRadius.circular(
           TemplateRadius.control + TemplateSpace.xs,
         ),
-        border: Border.all(color: skin.controlBorder),
+        border: Border.all(
+          color: enabled ? skin.controlBorder : skin.controlBorderDisabled,
+        ),
       ),
       child: Row(
         spacing: TemplateSpace.xs,
@@ -392,6 +448,7 @@ class TemplateSegment extends StatelessWidget {
                 skin: skin,
                 label: options[i],
                 selected: value == i,
+                enabled: enabled,
                 onTap: () => onTap(i),
               ),
             ),
@@ -407,12 +464,14 @@ class _SegmentPill extends StatefulWidget {
     required this.skin,
     required this.label,
     required this.selected,
+    required this.enabled,
     required this.onTap,
   });
 
   final TemplateSkin skin;
   final String label;
   final bool selected;
+  final bool enabled;
   final VoidCallback onTap;
 
   @override
@@ -439,14 +498,19 @@ class _SegmentPillState extends State<_SegmentPill> {
   Widget build(BuildContext context) {
     final skin = widget.skin;
     final selected = widget.selected;
+    final enabled = widget.enabled;
 
     // 需要按悬停换渐变，而 rebound 的悬停是它自己的内部状态（没有回调可用）
     // ⇒ 这里自己监听指针：MouseRegion 是被动观察，不抢点击与回弹
     return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+      onEnter: (_) {
+        if (enabled) setState(() => _hover = true);
+      },
+      onExit: (_) {
+        if (enabled) setState(() => _hover = false);
+      },
       child: ReboundContainer(
-        onTap: widget.onTap,
+        onTap: enabled ? widget.onTap : null,
         pressedScale: 0.96,
         borderRadius: BorderRadius.circular(TemplateRadius.control),
         backgroundColor: Colors.transparent,
@@ -472,10 +536,10 @@ class _SegmentPillState extends State<_SegmentPill> {
               colors: selected
                   ? [skin.neutralTone(_stops.$1), skin.neutralTone(_stops.$2)]
                   : [
-                      _hover
+                      enabled && _hover
                           ? skin.hoverOn(Colors.transparent)
                           : Colors.transparent,
-                      _hover
+                      enabled && _hover
                           ? skin.hoverOn(Colors.transparent)
                           : Colors.transparent,
                     ],
@@ -485,7 +549,11 @@ class _SegmentPillState extends State<_SegmentPill> {
             widget.label,
             textAlign: TextAlign.center,
             style: TemplateType.item.copyWith(
-              color: selected ? skin.textPrimary : skin.textSecondary,
+              color: !enabled
+                  ? skin.textDisabled
+                  : selected
+                  ? skin.textPrimary
+                  : skin.textSecondary,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
@@ -547,21 +615,26 @@ class TemplateShortcut extends StatelessWidget {
     required this.icon,
     required this.label,
     this.onTap,
+    this.enabled = true,
   });
 
   final TemplateSkin skin;
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
+    final foreground = enabled ? skin.textSecondary : skin.textDisabled;
     return ReboundContainer(
-      onTap: onTap ?? () {},
+      onTap: enabled ? (onTap ?? () {}) : null,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
       backgroundColor: skin.sunken,
-      hoverColor: skin.hoverOn(skin.sunken),
-      highlightColor: skin.pressedOn(skin.sunken),
+      hoverColor: enabled ? skin.hoverOn(skin.sunken) : Colors.transparent,
+      highlightColor: enabled
+          ? skin.pressedOn(skin.sunken)
+          : Colors.transparent,
       padding: const EdgeInsets.symmetric(
         horizontal: TemplateSpace.lg,
         vertical: TemplateSpace.md,
@@ -570,11 +643,8 @@ class TemplateShortcut extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: TemplateSpace.sm,
         children: [
-          Icon(icon, size: 18, color: skin.textSecondary),
-          Text(
-            label,
-            style: TemplateType.item.copyWith(color: skin.textSecondary),
-          ),
+          Icon(icon, size: 18, color: foreground),
+          Text(label, style: TemplateType.item.copyWith(color: foreground)),
         ],
       ),
     );
@@ -591,6 +661,7 @@ class TemplateSelectRow extends StatelessWidget {
     required this.title,
     required this.value,
     this.onTap,
+    this.enabled = true,
     this.labelWidth = 150,
   });
 
@@ -598,6 +669,7 @@ class TemplateSelectRow extends StatelessWidget {
   final String title;
   final String value;
   final VoidCallback? onTap;
+  final bool enabled;
   final double labelWidth;
 
   @override
@@ -605,13 +677,16 @@ class TemplateSelectRow extends StatelessWidget {
     return TemplateRow(
       skin: skin,
       onTap: onTap,
+      enabled: enabled,
       child: Row(
         children: [
           SizedBox(
             width: labelWidth,
             child: Text(
               title,
-              style: TemplateType.item.copyWith(color: skin.textPrimary),
+              style: TemplateType.item.copyWith(
+                color: enabled ? skin.textPrimary : skin.textDisabled,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -626,7 +701,11 @@ class TemplateSelectRow extends StatelessWidget {
               decoration: BoxDecoration(
                 color: skin.sunken,
                 borderRadius: BorderRadius.circular(TemplateRadius.control),
-                border: Border.all(color: skin.controlBorder),
+                border: Border.all(
+                  color: enabled
+                      ? skin.controlBorder
+                      : skin.controlBorderDisabled,
+                ),
               ),
               child: Row(
                 children: [
@@ -634,13 +713,17 @@ class TemplateSelectRow extends StatelessWidget {
                     child: Text(
                       value,
                       style: TemplateType.item.copyWith(
-                        color: skin.textPrimary,
+                        color: enabled ? skin.textPrimary : skin.textDisabled,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Icon(Icons.expand_more, size: 18, color: skin.textSecondary),
+                  Icon(
+                    Icons.expand_more,
+                    size: 18,
+                    color: enabled ? skin.textSecondary : skin.textDisabled,
+                  ),
                 ],
               ),
             ),
@@ -658,11 +741,13 @@ class TemplateProgressBar extends StatelessWidget {
     required this.skin,
     required this.value,
     this.height = 4,
+    this.enabled = true,
   });
 
   final TemplateSkin skin;
   final double value;
   final double height;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -675,7 +760,9 @@ class TemplateProgressBar extends StatelessWidget {
             ColoredBox(color: skin.sunken, child: const SizedBox.expand()),
             FractionallySizedBox(
               widthFactor: value.clamp(0.0, 1.0),
-              child: ColoredBox(color: skin.accent),
+              child: ColoredBox(
+                color: enabled ? skin.accent : skin.textDisabled,
+              ),
             ),
           ],
         ),
@@ -694,6 +781,7 @@ class TemplateSliderRow extends StatelessWidget {
     required this.label,
     this.onChanged,
     this.divisions = 20,
+    this.enabled = true,
   });
 
   final TemplateSkin skin;
@@ -702,11 +790,13 @@ class TemplateSliderRow extends StatelessWidget {
   final String label;
   final ValueChanged<double>? onChanged;
   final int divisions;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return TemplateRow(
       skin: skin,
+      enabled: enabled,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: TemplateSpace.md,
@@ -714,13 +804,17 @@ class TemplateSliderRow extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: TemplateTwoLine(skin: skin, title: title),
+                child: TemplateTwoLine(
+                  skin: skin,
+                  title: title,
+                  enabled: enabled,
+                ),
               ),
               const SizedBox(width: TemplateSpace.lg),
               Text(
                 label,
                 style: TemplateType.item.copyWith(
-                  color: skin.textPrimary,
+                  color: enabled ? skin.textPrimary : skin.textDisabled,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -738,7 +832,7 @@ class TemplateSliderRow extends StatelessWidget {
         final width = constraints.maxWidth;
 
         void update(double dx) {
-          if (onChanged == null || width <= 0) return;
+          if (!enabled || onChanged == null || width <= 0) return;
           final raw = (dx / width).clamp(0.0, 1.0);
           final stepped = divisions <= 1
               ? raw
@@ -748,14 +842,23 @@ class TemplateSliderRow extends StatelessWidget {
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTapDown: (detail) => update(detail.localPosition.dx),
-          onHorizontalDragUpdate: (detail) => update(detail.localPosition.dx),
+          onTapDown: enabled
+              ? (detail) => update(detail.localPosition.dx)
+              : null,
+          onHorizontalDragUpdate: enabled
+              ? (detail) => update(detail.localPosition.dx)
+              : null,
           child: SizedBox(
             height: 24,
             child: Stack(
               alignment: Alignment.centerLeft,
               children: [
-                TemplateProgressBar(skin: skin, value: value, height: 6),
+                TemplateProgressBar(
+                  skin: skin,
+                  value: value,
+                  height: 6,
+                  enabled: enabled,
+                ),
                 // 滑块：位置跟着值走
                 Positioned(
                   left: (width - 16) * value.clamp(0.0, 1.0),
@@ -765,7 +868,12 @@ class TemplateSliderRow extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: skin.surface,
                       shape: BoxShape.circle,
-                      border: Border.all(color: skin.accent, width: 2),
+                      border: Border.all(
+                        color: enabled
+                            ? skin.accent
+                            : skin.controlBorderDisabled,
+                        width: 2,
+                      ),
                     ),
                   ),
                 ),
@@ -786,28 +894,36 @@ class TemplateInputRow extends StatelessWidget {
     required this.title,
     required this.controller,
     this.hint = '',
+    this.enabled = true,
   });
 
   final TemplateSkin skin;
   final String title;
   final TextEditingController controller;
   final String hint;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return TemplateRow(
       skin: skin,
+      enabled: enabled,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: TemplateSpace.sm,
         children: [
           Text(
             title,
-            style: TemplateType.caption.copyWith(color: skin.textTertiary),
+            style: TemplateType.caption.copyWith(
+              color: enabled ? skin.textTertiary : skin.textDisabled,
+            ),
           ),
           TextField(
             controller: controller,
-            style: TemplateType.item.copyWith(color: skin.textPrimary),
+            enabled: enabled,
+            style: TemplateType.item.copyWith(
+              color: enabled ? skin.textPrimary : skin.textDisabled,
+            ),
             cursorColor: skin.accent,
             decoration: InputDecoration(
               isDense: true,
@@ -826,6 +942,10 @@ class TemplateInputRow extends StatelessWidget {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(TemplateRadius.control),
                 borderSide: BorderSide(color: skin.accent, width: 2),
+              ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(TemplateRadius.control),
+                borderSide: BorderSide(color: skin.controlBorderDisabled),
               ),
             ),
           ),
