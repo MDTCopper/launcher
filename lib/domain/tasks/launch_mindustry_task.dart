@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/domain/be_version.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
@@ -191,6 +192,23 @@ class LaunchMindustryTask extends Task {
         }
       } catch (e) {
         addLog(.warning, 'Steam 版本检查失败：${removeNewlines('$e')}', tag: 'Steam');
+      }
+    }
+
+    // BE 版同理：游戏自更新会先下载到 be_builds 再原地覆盖本体，
+    // 启动前核一次，记录里的 release 才跟得上
+    if (mindustry.isBe && !mindustry.steam) {
+      try {
+        final change = await BeVersion.refresh(mindustry);
+        if (change != null) {
+          NotificationManager.addNotice(
+            icon: Icons.sync,
+            title: '游戏本体已更新',
+            content: '${mindustry.tag}\r\n${change.description}',
+          );
+        }
+      } catch (e) {
+        addLog(.warning, 'BE 版本检查失败：${removeNewlines('$e')}', tag: 'BE');
       }
     }
 
@@ -423,6 +441,10 @@ class LaunchMindustryTask extends Task {
         LauncherTray.instance.hideIfTrayMode();
       }
       if (log.contains('exit')) {
+        // 自更新会先退旧进程、再由新进程把本体复制回来，等它落地后同步记录
+        if (mindustry.isBe && !mindustry.steam) {
+          unawaited(_watchBeSelfUpdate());
+        }
         // 回写最近启动时间与累计游玩时长
         final launchStart = _launchStartTime;
         if (launchStart != null) {
@@ -465,6 +487,21 @@ class LaunchMindustryTask extends Task {
         updateDisplay();
       }
     });
+  }
+
+  /// BE 自更新后会重启新进程并原地覆盖本体，等本体落地后把新 build 写回记录
+  Future<void> _watchBeSelfUpdate() async {
+    final change = await BeVersion.watchAfterExit(
+      mindustry,
+      since: _launchStartTime,
+    );
+    if (change == null) return;
+
+    NotificationManager.addNotice(
+      icon: Icons.system_update_alt,
+      title: '游戏已自更新',
+      content: '${mindustry.tag}\r\n${change.description}',
+    );
   }
 
   /// 自动选择 Java：按 [target]（游戏版本推荐值，走加载器时会抬到 17+）
