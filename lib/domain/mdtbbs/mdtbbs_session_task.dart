@@ -1,8 +1,14 @@
 import 'dart:async';
 
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_state.dart';
 import 'package:copper_launcher/domain/task.dart';
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/button/action_button.dart';
+import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/pages/online/online_page.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
+import 'package:copper_launcher/util/format/date_time_format.dart';
 import 'package:flutter/material.dart';
 
 /// 联机会话的任务卡片：会话在，卡片就在（抽屉里可见、可取消）
@@ -82,36 +88,95 @@ class MultiplayerSessionTask extends Task {
   @override
   Widget buildDisplayWidget(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final state = MdtbbsMultiplayerService.instance.state.value;
+    final session = state.session;
+    final roomName = session?.activityName?.trim();
+    final title = roomName == null || roomName.isEmpty ? '联机房间' : roomName;
+    final code = state.joinCode;
+    final busy = state.leaving || state.stoppingProxy;
+    final statusText = switch (status) {
+      TaskStatus.pending => '准备中',
+      TaskStatus.process => '会话中',
+      TaskStatus.completed => '已结束',
+      TaskStatus.failed => '失败',
+      TaskStatus.paused => '已暂停',
+      TaskStatus.cancel => '已退出',
+    };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 4,
       children: [
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(displayIcon, size: 32),
-            const SizedBox(width: 4),
-            Text(
-              '联机会话',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: theme.colorScheme.secondary,
+            Icon(displayIcon, size: 24, color: colors.interactive),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: colors.interactive,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Spacer(),
-            if (statusLabel != null)
-              Text(statusLabel!, style: theme.textTheme.bodySmall),
-            if (canCancel)
-              ReboundButton(onTap: cancel, child: const Icon(Icons.close)),
+            Text(createTime.toTimeString(), style: theme.textTheme.labelMedium),
           ],
         ),
-        Text(_summary, style: theme.textTheme.bodyMedium),
+        const SizedBox(height: 8),
+        Text('${code == null || code.isEmpty ? '' : '房间码 $code  '}$statusText'),
+        const SizedBox(height: 4),
         Text(
-          createTime.toString().split(' ').last.split('.').first,
-          style: theme.textTheme.bodySmall,
+          _summary,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.itemSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          spacing: 8,
+          children: [
+            Expanded(
+              child: ActionButton(
+                alignment: MainAxisAlignment.center,
+                backgroundColor: colors.highBackgroundOnCard,
+                icon: const Icon(Icons.meeting_room_outlined),
+                content: const Text('查看房间'),
+                enable: session != null,
+                onTap: () => _openRoom(context),
+              ),
+            ),
+            Expanded(
+              child: ActionButton(
+                alignment: MainAxisAlignment.center,
+                backgroundColor: colors.highBackgroundOnCard,
+                icon: const Icon(Icons.logout),
+                content: Text(busy ? '正在退出…' : '退出房间'),
+                enable: session != null && !busy,
+                onTap: () => _confirmLeave(context),
+              ),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  /// 抽屉里点「查看房间」：收起抽屉，再切到联机页（与左侧导航同一套切根路由）
+  void _openRoom(BuildContext context) {
+    Scaffold.maybeOf(context)?.closeEndDrawer();
+    final navigator = PageKeyProvider.navigatorKey.currentState;
+    if (navigator == null) return;
+    unawaited(navigator.pushNamedAndRemoveUntil(onlinePageRouteKey, (_) => false));
+  }
+
+  void _confirmLeave(BuildContext context) {
+    showConfirmationPopup(
+      context: context,
+      type: ConfirmationType.warning,
+      title: '退出房间？',
+      content: '会离开当前房间，房间里的其他人会看到你离开；房间码不再有效',
+      action: () => unawaited(onCancel()),
     );
   }
 }
