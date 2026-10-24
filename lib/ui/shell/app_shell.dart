@@ -340,10 +340,10 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  /// 顶栏的账户入口：点开左侧账户抽屉，有未读通知时右上角带红点
-  /// 顶栏的账户入口：显示账号头像，点开左侧账户抽屉；有未读通知时右上角带红点
+  /// 顶栏的账户入口：一张小卡片（头像 + 用户名），点开左侧账户抽屉
   Widget _buildAccountButton() {
     final colors = AppColors.of(context);
+    final theme = Theme.of(context);
     return AnimatedBuilder(
       animation: Listenable.merge([
         AccountManager.instance.snapshot,
@@ -351,7 +351,8 @@ class AppShellState extends State<AppShell> {
       ]),
       builder: (context, _) {
         final unread = MdtbbsNotificationService.instance.unreadCount;
-        final avatarUrl = AccountManager.instance.snapshot.value.avatarUrl;
+        final account = AccountManager.instance.snapshot.value;
+        final name = account.loggedIn ? (account.username ?? '已登录') : '未登录';
         return HintLayer(
           hint: '账户',
           preferPosition: .bottom,
@@ -365,39 +366,48 @@ class AppShellState extends State<AppShell> {
                 unawaited(accounts.loadAccount());
               }
             },
-            child: SizedBox(
-              width: 24,
-              height: 24,
-              child: Stack(
-                clipBehavior: Clip.none,
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              padding: const EdgeInsets.fromLTRB(4, 2, 8, 2),
+              decoration: BoxDecoration(
+                color: colors.highBackgroundOnCard,
+                borderRadius: BorderRadius.circular(AppRadius.item),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 6,
                 children: [
-                  Center(
-                    child: UserAvatar(
-                      url: avatarUrl,
-                      size: 22,
-                      fallbackIcon: Icons.account_circle_outlined,
+                  UserAvatar(
+                    url: account.avatarUrl,
+                    size: 20,
+                    fallbackIcon: Icons.account_circle_outlined,
+                  ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 96),
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium,
                     ),
                   ),
                   if (unread > 0)
-                    Positioned(
-                      right: -2,
-                      top: -2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 3,
-                          vertical: 0.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.error,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '',
-                          style: const TextStyle(
-                            fontSize: 9,
-                            color: Colors.white,
-                            height: 1.1,
-                          ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 0.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.error,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '',
+                        style: const TextStyle(
+                          fontSize: 9,
+                          color: Colors.white,
+                          height: 1.2,
                         ),
                       ),
                     ),
@@ -409,6 +419,7 @@ class AppShellState extends State<AppShell> {
       },
     );
   }
+
 
 
   /// 左侧账户抽屉：顶部是抽屉内的导航，四个页签的内容直接渲染在抽屉里
