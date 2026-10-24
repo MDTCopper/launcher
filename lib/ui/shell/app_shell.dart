@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
+import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
-import 'package:copper_launcher/ui/pages/cloud/version_cloud_save_page.dart';
+import 'package:copper_launcher/ui/pages/cloud/cloud_overview_page.dart';
 import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
 import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/online/online_page.dart';
@@ -73,11 +75,6 @@ class AppShellState extends State<AppShell> {
       label: '概览',
       items: [
         RailItem(label: '主页', icon: Icons.home_filled, route: '/'),
-        RailItem(
-          label: '账户',
-          icon: Icons.account_circle_outlined,
-          route: accountPageRouteKey,
-        ),
         RailItem(
           label: '联机',
           icon: Icons.public_outlined,
@@ -457,6 +454,13 @@ class AppShellState extends State<AppShell> {
                           ],
                         ),
                       ),
+                      if (account.loggedIn)
+                        IconTextButton(
+                          pressedScale: 0.96,
+                          icon: Icons.logout,
+                          content: '退出',
+                          onTap: _logoutAccount,
+                        ),
                     ],
                   ),
                 ),
@@ -476,6 +480,17 @@ class AppShellState extends State<AppShell> {
           },
         ),
       ),
+    );
+  }
+
+  /// 抽屉顶部的退出登录：二次确认后清掉账号态
+  void _logoutAccount() {
+    showConfirmationPopup(
+      context: context,
+      type: ConfirmationType.warning,
+      title: '退出 BBS 账号？',
+      content: '会撤销这个启动器的登录凭证并清掉本地账号信息；云端存档不受影响',
+      action: () => unawaited(AccountManager.instance.logout()),
     );
   }
 
@@ -520,48 +535,42 @@ class AppShellState extends State<AppShell> {
             : Colors.transparent,
         onTap: () => setState(() => _accountTab = tab),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            spacing: 4,
             children: [
               Stack(
                 clipBehavior: Clip.none,
                 children: [
                   Icon(
                     icon,
-                    size: 20,
-                    color: selected ? colors.interactive : colors.itemSecondary,
+                    size: 16,
+                    color: selected ? colors.interactive : colors.itemHint,
                   ),
                   if (badge > 0)
                     Positioned(
-                      right: -6,
+                      right: -5,
                       top: -3,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 3,
-                          vertical: 0.5,
-                        ),
+                        width: 7,
+                        height: 7,
                         decoration: BoxDecoration(
                           color: colors.error,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '',
-                          style: const TextStyle(
-                            fontSize: 9,
-                            color: Colors.white,
-                            height: 1.1,
-                          ),
+                          shape: BoxShape.circle,
                         ),
                       ),
                     ),
                 ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: selected ? colors.interactive : colors.itemHint,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: selected ? colors.interactive : colors.itemSecondary,
+                  ),
                 ),
               ),
             ],
@@ -571,11 +580,12 @@ class AppShellState extends State<AppShell> {
     );
   }
 
+
   /// 抽屉里那一块内容：四个页签各自就是一个现成的页面
   Widget _buildAccountTabContent() => switch (_accountTab) {
     _AccountTab.profile => const AccountPage(),
     _AccountTab.friends => const FriendsPage(),
-    _AccountTab.cloud => const VersionCloudSavePage(),
+    _AccountTab.cloud => const CloudOverviewPage(),
     _AccountTab.notices => const NotificationsPage(),
   };
 

@@ -1225,7 +1225,21 @@ class CloudSaveService {
   /// 没记过就是没开；上传过一次会由 [_bind] 顺手把它标成开（用户既然传了，就是在用它）
   static bool isEnabled(Mindustry version) =>
       sharedDataPathReason(version) == null &&
-      _loadEnabled().contains(_normalize(version.dataPath));
+      (_loadEnabled().contains(_globalKey) ||
+          _loadEnabled().contains(_normalize(version.dataPath)));
+
+  /// 全局开关在清单里的标记：在就是「所有版本都开」，不再逐个版本记
+  static const _globalKey = '*';
+
+  /// 云存档总开关（账户 → 云存档那一页用的就是这个）
+  static bool get globallyEnabled => _loadEnabled().contains(_globalKey);
+
+  /// 打开 / 关掉所有版本的云存档
+  ///
+  /// 打开时清掉零散的按目录记录，全部交给全局标记；关掉就是清空清单
+  static void setGlobalEnabled(bool enabled) {
+    _saveEnabled(enabled ? {_globalKey} : <String>{});
+  }
 
   /// 开关：只动这份清单，槽位绑定与「上次同步到哪儿」一个不碰
   static void setEnabled(Mindustry version, bool enabled) {

@@ -2,26 +2,18 @@ import 'dart:async';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/mindustry/player_colors.dart';
-import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
-import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
-import 'package:copper_launcher/domain/task.dart';
-import 'package:copper_launcher/domain/task_manager.dart';
-import 'package:copper_launcher/domain/tasks/cloud_pull_task.dart';
-import 'package:copper_launcher/ui/dialog/missing_mods_dialog.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
-import 'package:copper_launcher/ui/components/percent_bar.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
-import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
@@ -44,18 +36,12 @@ class AccountPage extends StatefulWidget {
 }
 
 class _AccountPageState extends State<AccountPage> {
-  /// 账号下的槽位列表：再进页面先用上次的，再后台刷新
-  static List<CloudSaveSlot>? _cachedSlots;
-
   final _nameController = TextEditingController();
 
   int _color = defaultPlayerColor;
   bool _override = true;
   bool _busy = false;
   MdtbbsAccount? _account;
-  CloudSaveQuota? _quota;
-  List<CloudSaveSlot> _slots = const [];
-  bool _loadingSlots = false;
 
   AccountManager get _accounts => AccountManager.instance;
 
@@ -65,7 +51,6 @@ class _AccountPageState extends State<AccountPage> {
     _loadIdentity();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAccount();
-      _loadSlots();
     });
   }
 
@@ -152,25 +137,8 @@ class _AccountPageState extends State<AccountPage> {
         }
       }
       // 云端用量要打网络，别挡页面：资料先显示，用量回来再补
-      unawaited(_loadQuota());
     } catch (error) {
       addLog(.warning, '账户页读账号失败：${removeNewlines('$error')}', tag: 'Account');
-    }
-  }
-
-  Future<void> _loadQuota() async {
-    try {
-      final token = await _accounts.ensureAccessToken();
-      if (token == null) return;
-      final quota = await CloudSaveService.quota(accessToken: token);
-      if (!mounted) return;
-      setState(() => _quota = quota);
-    } catch (error) {
-      addLog(
-        .warning,
-        '账户页读云端用量失败：${removeNewlines('$error')}',
-        tag: 'Account',
-      );
     }
   }
 
@@ -183,7 +151,6 @@ class _AccountPageState extends State<AccountPage> {
       await LauncherTray.instance.showMainWindow();
       addNotice(icon: Icons.check, title: '已登录 BBS');
       await _loadAccount();
-      await _loadSlots();
     } catch (error) {
       if (!mounted) return;
       addLog(.warning, 'BBS 登录失败：${removeNewlines('$error')}', tag: 'Account');
@@ -209,32 +176,13 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 
-  void _logout() {
-    showConfirmationPopup(
-      context: context,
-      type: ConfirmationType.warning,
-      title: '退出 BBS 账号？',
-      content: '会撤销这个启动器的登录凭证并清掉本地账号信息；云端存档不受影响',
-      action: () async {
-        await _accounts.logout();
-        if (!mounted) return;
-        setState(() => _account = null);
-        addNotice(icon: Icons.logout, title: '已退出登录');
-      },
-    );
-  }
 
   // ── 构建 ──
 
   @override
   Widget build(BuildContext context) {
     return ListContentPanel(
-      items: [
-        _buildIdentityPanel(),
-        _buildCommunityPanel(),
-        _buildQuotaPanel(),
-        _buildCloudSavePanel(),
-      ],
+      items: [_buildIdentityPanel(), _buildCommunityPanel()],
     );
   }
 
@@ -381,11 +329,10 @@ class _AccountPageState extends State<AccountPage> {
                   ],
                 ),
               ),
-              IconTextButton(icon: Icons.logout, content: '退出', onTap: _logout),
             ],
           ),
           Text(
-            '云存档、联机与好友都用这个账号；好友等社区功能接入后再放这里',
+            '云存档、联机与好友都用这个账号；退出登录在账户抽屉顶部',
             style: theme.textTheme.labelMedium,
           ),
         ],
@@ -393,251 +340,6 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 
-  /// 云端用量（登录后才有）
-  Widget _buildQuotaPanel() {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final quota = _quota;
-
-    return ContentPanelModule(
-      title: '云端用量',
-      child: quota == null
-          ? Text(
-              _accounts.isLoggedIn ? '读取中…' : '登录后显示',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.itemHint,
-              ),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 8,
-              children: [
-                PercentBar(
-                  total: (quota.limitBytes ?? 1).toDouble(),
-                  dataList: [
-                    PercentBarData(value: (quota.usedBytes ?? 0).toDouble()),
-                  ],
-                ),
-                Text(
-                  '${formatBytes(quota.usedBytes ?? 0)} / '
-                  '${formatBytes(quota.limitBytes ?? 0)}'
-                  '　槽位 ${quota.slotsUsed ?? 0}/${quota.slotsLimit ?? 0}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.itemSecondary,
-                  ),
-                ),
-                Text(
-                  '单个云包上限 ${formatBytes(quota.maxFileSizeBytes ?? 0)}；'
-                  '模组默认只记清单不带字节（带字节很容易超上限）',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: colors.itemHint,
-                  ),
-                ),
-                if (quota.maxUnpinnedVersionsPerSlot != null ||
-                    quota.maxUnpinnedAgeDays != null)
-                  Text(
-                    '未固定的快照：最多保留 '
-                    '${quota.maxUnpinnedVersionsPerSlot ?? '?'} 版 / '
-                    '${quota.maxUnpinnedAgeDays ?? '?'} 天；要长期留就固定它',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: colors.itemHint,
-                    ),
-                  ),
-              ],
-            ),
-    );
-  }
-
-  /// 云存档：按**当前选中版本**启用
-  ///
-  /// 开关按数据目录记（同步单元就是它），共用一份目录的版本共用同一个开关 —— 那种
-  /// 情况必须写清楚，不然用户会以为「这是这个版本自己的设置」
-  Widget _buildCloudSavePanel() {
-    final theme = Theme.of(context);
-    final version = config.versionOptions.selectedVersion;
-
-    if (version == null) {
-      return ContentPanelModule(
-        title: '云存档',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 8,
-          children: [
-            Text(
-              '先在主页选一个游戏版本——云存档是按版本的数据目录来的；'
-              '也可以直接从下面账号下的槽位拉取（会顺带装好需要的版本）',
-              style: theme.textTheme.bodyMedium,
-            ),
-            ..._buildSlotList(theme),
-          ],
-        ),
-      );
-    }
-
-    final enabled = CloudSaveService.isEnabled(version);
-    final shared =
-        CloudSaveService.versionsSharingDataPath(
-          version,
-          config.versionOptions.versionFolds.expand((fold) => fold.versions),
-        ) -
-        1;
-    return ContentPanelModule(
-      title: '云存档',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 8,
-        children: [
-          SwitchSettingBar(
-            title: '启用云存档',
-            value: enabled,
-            onChanged: (value) => _setCloudEnabled(version, value),
-          ),
-          Text('当前版本：${version.tag}', style: theme.textTheme.labelMedium),
-          if (shared > 0)
-            Text(
-              '这个版本与其他 $shared 个版本共用数据目录，云存档已禁用（会互相覆盖）；'
-              '要同步先给版本开隔离数据目录',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
-          Text('上传 / 恢复在「版本设置 → 云存档」里', style: theme.textTheme.labelMedium),
-          ..._buildSlotList(theme),
-        ],
-      ),
-    );
-  }
-
-  /// 账号下的云端槽位：点哪个拉哪个
-  List<Widget> _buildSlotList(ThemeData theme) {
-    if (!_accounts.isLoggedIn) return const [];
-    if (_loadingSlots) return [const LinearProgressIndicator()];
-    if (_slots.isEmpty) {
-      return [
-        Text('账号下还没有云端存档', style: theme.textTheme.labelMedium),
-      ];
-    }
-    return [
-      Text('账号下的云端槽位', style: theme.textTheme.labelLarge),
-      for (final slot in _slots)
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    slot.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    slot.updatedAt == null
-                        ? '还没有快照'
-                        : '更新于 ${slot.updatedAt!.toLocal().toString().split('.').first}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            IconTextButton(
-              icon: Icons.cloud_download_outlined,
-              content: '拉取',
-              onTap: () => _pullSlot(slot),
-            ),
-          ],
-        ),
-    ];
-  }
-
-  Future<void> _loadSlots() async {
-    if (!_accounts.isLoggedIn) {
-      if (mounted) setState(() => _slots = const []);
-      return;
-    }
-    final cached = _cachedSlots;
-    if (cached != null && mounted) {
-      setState(() => _slots = cached);
-    }
-    setState(() => _loadingSlots = true);
-    try {
-      final token = await _accounts.ensureAccessToken();
-      if (token == null) return;
-      final slots = await CloudSaveService.allSlots(accessToken: token);
-      if (!mounted) return;
-      _cachedSlots = slots;
-      setState(() => _slots = slots);
-    } on Object catch (error) {
-      addLog(
-        .warning,
-        '读取云端槽位失败：${removeNewlines('$error')}',
-        tag: 'Cloud',
-      );
-    } finally {
-      if (mounted) setState(() => _loadingSlots = false);
-    }
-  }
-
-  /// 拉取一个槽位：缺的版本与模组都静默补，补不回来的模组在完成后列成一张表
-  Future<void> _pullSlot(CloudSaveSlot slot) async {
-    final token = await _accounts.ensureAccessToken();
-    if (token == null) {
-      addNotice(
-        icon: Icons.info_outline,
-        title: '先登录 BBS',
-        content: '从云拉取需要登录',
-      );
-      return;
-    }
-
-    final task = CloudPullTask(accessToken: token, slot: slot);
-    addTask(task);
-    await task.done;
-    if (!mounted) return;
-    if (task.status == TaskStatus.cancel) {
-      addNotice(icon: Icons.close, title: '已取消从云拉取');
-      return;
-    }
-    if (task.error != null) {
-      addNotice(
-        icon: Icons.error_outline,
-        title: '从云拉取失败',
-        content: removeNewlines('${task.error}'),
-      );
-      return;
-    }
-    addNotice(
-      icon: Icons.cloud_download_outlined,
-      title: '从云拉取完成',
-      content: task.result ?? '',
-    );
-    if (task.missingMods.isNotEmpty) {
-      await showMissingModsDialog(context, task.missingMods);
-    }
-    await _loadSlots();
-  }
-
-
-  void _setCloudEnabled(Mindustry version, bool value) {
-    if (value) {
-      final reason = CloudSaveService.sharedDataPathReason(version);
-      if (reason != null) {
-        addNotice(
-          icon: Icons.warning_amber_outlined,
-          title: '不能开云存档',
-          content: reason,
-        );
-        return;
-      }
-    }
-    CloudSaveService.setEnabled(version, value);
-    setState(() {});
-    addLog(
-      .info,
-      '[${version.tag}] 云存档${value ? '开启' : '关闭'}，数据目录：${version.dataPath}',
-      tag: 'Cloud',
-    );
-  }
 
   Widget _buildAvatar(MdtbbsAccount account) {
     final colors = AppColors.of(context);

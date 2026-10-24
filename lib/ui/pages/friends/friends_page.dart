@@ -4,7 +4,9 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_friends_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_friends_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_friends_state.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
@@ -12,15 +14,14 @@ import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
-import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:flutter/material.dart';
 
 const friendsPageRouteKey = '/friends';
 
 /// 好友页（账户抽屉里的一项）
 ///
-/// 从联机页搬出来的：好友是账号级的东西，跟开没开房没关系。
-/// 状态仍然只在 [MdtbbsFriendsService] 里，这里只负责画和点
+/// 顶栏是搜索 + 加号：搜索在本地过滤（第三方接口没有按用户名搜人），
+/// 加号弹框填数字用户 ID；好友列表里在房间里时可以直接邀请
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key});
 
@@ -29,14 +30,17 @@ class FriendsPage extends StatefulWidget {
 }
 
 class _FriendsPageState extends State<FriendsPage> {
-  final _friendIdController = TextEditingController();
+  final _searchController = TextEditingController();
+  String _query = '';
 
   MdtbbsFriendsService get _friends => MdtbbsFriendsService.instance;
+  MdtbbsMultiplayerService get _mp => MdtbbsMultiplayerService.instance;
   AccountManager get _accounts => AccountManager.instance;
 
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_onSearchChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_accounts.isLoggedIn) unawaited(_friends.load());
     });
@@ -44,27 +48,24 @@ class _FriendsPageState extends State<FriendsPage> {
 
   @override
   void dispose() {
-    _friendIdController.dispose();
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _refresh() async {
-    await _friends.load(force: true);
+  void _onSearchChanged() {
+    final query = _searchController.text.trim();
+    if (query == _query) return;
+    setState(() => _query = query);
   }
 
-  Future<void> _addFriend() async {
-    final userId = int.tryParse(_friendIdController.text.trim());
-    if (userId == null || userId <= 0) {
-      addNotice(
-        icon: Icons.info_outline,
-        title: '用户 ID 不对',
-        content: '填对方的数字用户 ID',
-      );
-      return;
-    }
+  Future<void> _showAddFriend() async {
+    final userId = await showAnimatedDialog<int>(
+      context: context,
+      pageBuilder: (context, _, _) => const _AddFriendDialog(),
+    );
+    if (userId == null || !mounted) return;
     await _friends.addFriend(userId);
-    if (!mounted) return;
-    _friendIdController.clear();
   }
 
   Future<void> _removeFriend(MdtbbsFriendEntry entry) async {
@@ -83,30 +84,67 @@ class _FriendsPageState extends State<FriendsPage> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_friends.state, _accounts.snapshot]),
+      animation: Listenable.merge([
+        _friends.state,
+        _accounts.snapshot,
+        _mp.state,
+      ]),
       builder: (context, _) {
         final friends = _friends.state.value;
         final loggedIn = _accounts.isLoggedIn;
-        return CopperSingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.block),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: AppSpacing.group,
-              children: [
-                if (!loggedIn)
-                  _buildLoginHint(context)
-                else
-                  _buildFriendsPanel(context, friends),
-              ],
+        return Column(
+          children: [
+            _buildTopBar(loggedIn),
+            Expanded(
+              child: CopperSingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.block,
+                    0,
+                    AppSpacing.block,
+                    AppSpacing.block,
+                  ),
+                  child: loggedIn
+                      ? _buildFriendsPanel(friends)
+                      : _buildLoginHint(),
+                ),
+              ),
             ),
-          ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildLoginHint(BuildContext context) {
+  /// 顶栏：搜索 + 加号
+  Widget _buildTopBar(bool loggedIn) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.block),
+      child: Row(
+        spacing: AppSpacing.related,
+        children: [
+          Expanded(
+            child: OutlinedTextField(
+              controller: _searchController,
+              label: '搜索好友',
+              enable: loggedIn,
+            ),
+          ),
+          ReboundButton(
+            backgroundColor: AppColors.of(context).highBackgroundOnCard,
+            borderRadius: BorderRadius.circular(AppRadius.item),
+            onTap: loggedIn ? _showAddFriend : null,
+            child: const Padding(
+              padding: EdgeInsets.all(8),
+              child: Icon(Icons.add, size: 20),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoginHint() {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     return ContentPanelModule(
@@ -133,50 +171,83 @@ class _FriendsPageState extends State<FriendsPage> {
     );
   }
 
-  Widget _buildFriendsPanel(BuildContext context, FriendsState friends) {
+  Widget _buildFriendsPanel(FriendsState friends) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    return ContentPanelModule(
-      title: '好友',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: AppSpacing.related,
-        children: [
-          for (final request in friends.requests) _buildRequestRow(request),
-          if (friends.friends.isEmpty)
-            Text(
-              friends.loading ? '正在读取好友…' : '还没有好友，下面填用户 ID 添加',
-              style: theme.textTheme.bodySmall?.copyWith(color: colors.itemHint),
-            )
-          else
-            for (final entry in friends.sortedFriends) _buildFriendRow(entry),
-          _buildAddFriendRow(),
-          Row(
+    final visible = _query.isEmpty
+        ? friends.sortedFriends
+        : friends.sortedFriends
+              .where(
+                (entry) =>
+                    entry.user.username.toLowerCase().contains(
+                      _query.toLowerCase(),
+                    ) ||
+                    '${entry.user.userId}' == _query,
+              )
+              .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: AppSpacing.group,
+      children: [
+        if (friends.requests.isNotEmpty)
+          ContentPanelModule(
+            title: '好友请求',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: AppSpacing.related,
+              children: [
+                for (final request in friends.requests)
+                  _buildRequestRow(request),
+              ],
+            ),
+          ),
+        ContentPanelModule(
+          title: '好友',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: AppSpacing.related,
             children: [
-              Expanded(
-                child: Text(
-                  '在线 ${friends.onlineCount} / 共 ${friends.friends.length}',
-                  style: theme.textTheme.labelSmall?.copyWith(
+              if (visible.isEmpty)
+                Text(
+                  friends.loading
+                      ? '正在读取好友…'
+                      : (_query.isEmpty ? '还没有好友' : '没有匹配的好友'),
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: colors.itemHint,
                   ),
-                ),
+                )
+              else
+                for (final entry in visible) _buildFriendRow(entry),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '在线 ${friends.onlineCount} / 共 ${friends.friends.length}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.itemHint,
+                      ),
+                    ),
+                  ),
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.refresh,
+                    content: friends.loading ? '正在刷新…' : '刷新',
+                    onTap: friends.loading
+                        ? null
+                        : () => _friends.load(force: true),
+                  ),
+                ],
               ),
-              IconTextButton(
-                pressedScale: 0.96,
-                icon: Icons.refresh,
-                content: friends.loading ? '正在刷新…' : '刷新',
-                onTap: friends.loading ? null : _refresh,
+              Text(
+                '加好友要填数字用户 ID：第三方接口没有按用户名搜人',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.itemHint,
+                ),
               ),
             ],
           ),
-          Text(
-            '好友只能按数字用户 ID 添加：第三方接口没有按用户名搜人',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.itemHint,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -190,11 +261,6 @@ class _FriendsPageState extends State<FriendsPage> {
     return Row(
       spacing: AppSpacing.related,
       children: [
-        Icon(
-          Icons.person_add_alt,
-          size: AppIconSize.item,
-          color: colors.interactive,
-        ),
         Expanded(
           child: Text(
             '$name 想加你为好友',
@@ -229,6 +295,11 @@ class _FriendsPageState extends State<FriendsPage> {
     final status = entry.isOnline
         ? (activity == null || activity.isEmpty ? '在线' : '正在玩 $activity')
         : '离线';
+    final multiplayer = _mp.state.value;
+    final inRoom = multiplayer.peers.any((peer) => peer.userId == '$userId');
+    final invited = multiplayer.sentInvites.any(
+      (invite) => invite.targetUserId == '$userId',
+    );
     return Row(
       spacing: AppSpacing.related,
       children: [
@@ -260,6 +331,15 @@ class _FriendsPageState extends State<FriendsPage> {
             ],
           ),
         ),
+        if (multiplayer.inSession)
+          IconTextButton(
+            pressedScale: 0.96,
+            icon: Icons.send,
+            content: inRoom ? '已在房间' : (invited ? '已邀请' : '邀请'),
+            onTap: (busy || invited || inRoom)
+                ? null
+                : () => _mp.inviteFriend(userId),
+          ),
         IconTextButton(
           pressedScale: 0.96,
           icon: Icons.person_remove_outlined,
@@ -269,28 +349,98 @@ class _FriendsPageState extends State<FriendsPage> {
       ],
     );
   }
+}
 
-  Widget _buildAddFriendRow() {
-    // 抽屉里只有 360dp 宽：标签和按钮挤一行会把输入框压没，改成上下两行
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: AppSpacing.related,
-      children: [
-        OutlinedTextField(
-          controller: _friendIdController,
-          label: '好友用户 ID（数字）',
-          onEditingComplete: _addFriend,
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: IconTextButton(
-            pressedScale: 0.96,
-            icon: Icons.person_add_alt_1,
-            content: '加好友',
-            onTap: _addFriend,
+/// 加好友：第三方接口只能按数字用户 ID 加，所以这里就一个输入框
+class _AddFriendDialog extends StatefulWidget {
+  const _AddFriendDialog();
+
+  @override
+  State<_AddFriendDialog> createState() => _AddFriendDialogState();
+}
+
+class _AddFriendDialogState extends State<_AddFriendDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final userId = int.tryParse(_controller.text.trim());
+    if (userId == null || userId <= 0) {
+      setState(() => _error = '填对方的数字用户 ID');
+      return;
+    }
+    Navigator.of(context).pop(userId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Material(
+          color: Colors.transparent,
+          elevation: 6,
+          child: Container(
+            width: (MediaQuery.sizeOf(context).width - 32).clamp(0, 380),
+            padding: const EdgeInsets.all(AppSpacing.block),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(AppRadius.panel),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: AppSpacing.related,
+              children: [
+                Text('添加好友', style: theme.textTheme.titleMedium),
+                Text(
+                  '第三方接口没有按用户名搜人，只能填对方的数字用户 ID',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.itemHint,
+                  ),
+                ),
+                OutlinedTextField(
+                  controller: _controller,
+                  label: '用户 ID',
+                  onEditingComplete: _submit,
+                ),
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                Row(
+                  children: [
+                    const Spacer(),
+                    IconTextButton(
+                      pressedScale: 0.96,
+                      icon: Icons.close,
+                      content: '取消',
+                      onTap: () => Navigator.of(context).pop(),
+                    ),
+                    IconTextButton(
+                      pressedScale: 0.96,
+                      icon: Icons.person_add_alt_1,
+                      content: '添加',
+                      onTap: _submit,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

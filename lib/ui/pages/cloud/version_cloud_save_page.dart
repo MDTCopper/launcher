@@ -25,7 +25,6 @@ import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
-import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/components/tips/warning_bar.dart';
 import 'package:copper_launcher/ui/dialog/cloud_backup_prompt.dart';
@@ -798,29 +797,26 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 8,
         children: [
-          SwitchSettingBar(
-            title: '启用云存档',
-            value: enabled,
-            onChanged: (value) {
-              if (value) {
-                final reason = CloudSaveService.sharedDataPathReason(version);
-                if (reason != null) {
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '总开关：${CloudSaveService.globallyEnabled ? '已启用' : '已关闭'}',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+              IconTextButton(
+                icon: Icons.tune,
+                content: '去账户页改',
+                onTap: () {
                   addNotice(
-                    icon: Icons.warning_amber_outlined,
-                    title: '不能开云存档',
-                    content: reason,
+                    icon: Icons.tune,
+                    title: '云存档总开关在账户里',
+                    content: '点顶栏头像旁边的账户按钮 → 云存档',
                   );
-                  return;
-                }
-              }
-              CloudSaveService.setEnabled(version, value);
-              setState(() {});
-              addLog(
-                .info,
-                '[${version.tag}] 云存档${value ? '开启' : '关闭'}，数据目录：${version.dataPath}',
-                tag: 'Cloud',
-              );
-            },
+                },
+              ),
+            ],
           ),
           if (shared > 0)
             Text(
@@ -832,7 +828,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             )
           else
             Text(
-              enabled ? '开启后：启动游戏前拉云端、退出游戏后自动上传' : '没开：这个版本不参与云存档',
+              enabled ? '启用中：启动游戏前拉云端、退出游戏后自动上传' : '当前版本不参与云存档',
               style: theme.textTheme.labelMedium,
             ),
         ],
