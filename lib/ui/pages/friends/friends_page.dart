@@ -271,21 +271,24 @@ class _FriendsPageState extends State<FriendsPage> {
   }
 
   Widget _buildAddFriendRow() {
-    return Row(
+    // 抽屉里只有 360dp 宽：标签和按钮挤一行会把输入框压没，改成上下两行
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: AppSpacing.related,
       children: [
-        Expanded(
-          child: OutlinedTextField(
-            controller: _friendIdController,
-            label: '好友用户 ID（数字）',
-            onEditingComplete: _addFriend,
-          ),
+        OutlinedTextField(
+          controller: _friendIdController,
+          label: '好友用户 ID（数字）',
+          onEditingComplete: _addFriend,
         ),
-        IconTextButton(
-          pressedScale: 0.96,
-          icon: Icons.person_add_alt_1,
-          content: '加好友',
-          onTap: _addFriend,
+        Align(
+          alignment: Alignment.centerRight,
+          child: IconTextButton(
+            pressedScale: 0.96,
+            icon: Icons.person_add_alt_1,
+            content: '加好友',
+            onTap: _addFriend,
+          ),
         ),
       ],
     );

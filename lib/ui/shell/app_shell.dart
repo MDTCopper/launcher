@@ -35,6 +35,9 @@ import '../dialog/resource_importer.dart';
 import '../vars.dart';
 import 'navigation_rail.dart';
 
+/// 账户抽屉里的四个页签
+enum _AccountTab { profile, friends, cloud, notices }
+
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -47,6 +50,9 @@ class AppShellState extends State<AppShell> {
 
   /// 账户抽屉要从顶栏打开，拿 Scaffold 的 state
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  /// 抽屉里当前选中的页签
+  _AccountTab _accountTab = _AccountTab.profile;
 
   String _currentRoute = '/';
   String _pageName = '';
@@ -396,13 +402,14 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  /// 左侧账户抽屉：账户 / 好友 / 云存档 / 账户通知
+  /// 左侧账户抽屉：顶部是抽屉内的导航，四个页签的内容直接渲染在抽屉里
   Widget _buildAccountDrawer() {
     final colors = AppColors.of(context);
     final theme = Theme.of(context);
+    final width = MediaQuery.sizeOf(context).width;
     return Drawer(
       backgroundColor: colors.pageBackground,
-      width: 300,
+      width: width < 420 ? width : 360,
       elevation: 2,
       shadowColor: Colors.black,
       shape: RoundedRectangleBorder(side: BorderSide(color: colors.border)),
@@ -410,73 +417,61 @@ class AppShellState extends State<AppShell> {
         child: ValueListenableBuilder<AccountSnapshot>(
           valueListenable: AccountManager.instance.snapshot,
           builder: (context, account, _) {
-            return ValueListenableBuilder<List<MdtbbsNoticeItem>>(
-              valueListenable: MdtbbsNotificationService.instance.items,
-              builder: (context, _, _) {
-                final unread = MdtbbsNotificationService.instance.unreadCount;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.block),
-                      child: Row(
-                        spacing: AppSpacing.related,
-                        children: [
-                          Icon(
-                            Icons.account_circle,
-                            size: 36,
-                            color: colors.interactive,
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  account.loggedIn
-                                      ? (account.username ?? '已登录')
-                                      : '未登录',
-                                  style: theme.textTheme.titleSmall,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  account.loggedIn
-                                      ? '社区账号'
-                                      : '登录后可加好友、同步云存档',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: colors.itemHint,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.block,
+                    AppSpacing.related,
+                    AppSpacing.block,
+                    AppSpacing.related,
+                  ),
+                  child: Row(
+                    spacing: AppSpacing.related,
+                    children: [
+                      Icon(
+                        Icons.account_circle,
+                        size: 32,
+                        color: colors.interactive,
                       ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              account.loggedIn
+                                  ? (account.username ?? '已登录')
+                                  : '未登录',
+                              style: theme.textTheme.titleSmall,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              account.loggedIn
+                                  ? '社区账号'
+                                  : '登录后可加好友、同步云存档',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colors.itemHint,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildAccountNav(),
+                Divider(height: 1, color: colors.border),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 160),
+                    child: KeyedSubtree(
+                      key: ValueKey(_accountTab),
+                      child: _buildAccountTabContent(),
                     ),
-                    Divider(height: 1, color: colors.border),
-                    _buildDrawerItem(
-                      icon: Icons.person_outline,
-                      label: '账户（游戏内身份）',
-                      route: accountPageRouteKey,
-                    ),
-                    _buildDrawerItem(
-                      icon: Icons.people_outline,
-                      label: '好友',
-                      route: friendsPageRouteKey,
-                    ),
-                    _buildDrawerItem(
-                      icon: Icons.cloud_outlined,
-                      label: '云存档',
-                      route: versionCloudSavePageRouteKey,
-                    ),
-                    _buildDrawerItem(
-                      icon: Icons.notifications_none,
-                      label: '账户通知',
-                      route: notificationsPageRouteKey,
-                      badge: unread,
-                    ),
-                  ],
-                );
-              },
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -484,51 +479,105 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String label,
-    required String route,
+  /// 抽屉顶栏的四个入口：账户 / 好友 / 云存档 / 通知
+  Widget _buildAccountNav() {
+    return ValueListenableBuilder<List<MdtbbsNoticeItem>>(
+      valueListenable: MdtbbsNotificationService.instance.items,
+      builder: (context, _, _) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              _buildAccountNavItem(_AccountTab.profile, Icons.person_outline, '账户'),
+              _buildAccountNavItem(_AccountTab.friends, Icons.people_outline, '好友'),
+              _buildAccountNavItem(_AccountTab.cloud, Icons.cloud_outlined, '云存档'),
+              _buildAccountNavItem(
+                _AccountTab.notices,
+                Icons.notifications_none,
+                '通知',
+                badge: MdtbbsNotificationService.instance.unreadCount,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAccountNavItem(
+    _AccountTab tab,
+    IconData icon,
+    String label, {
     int badge = 0,
   }) {
     final colors = AppColors.of(context);
-    return ReboundButton(
-      backgroundColor: Colors.transparent,
-      onTap: () {
-        _scaffoldKey.currentState?.closeDrawer();
-        _onRootNavigate(route, {'lead': label});
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.block,
-          vertical: AppSpacing.related,
-        ),
-        child: Row(
-          spacing: AppSpacing.related,
-          children: [
-            Icon(icon, size: 20, color: colors.itemSecondary),
-            Expanded(
-              child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
-            ),
-            if (badge > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 1,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.error,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '$badge',
-                  style: const TextStyle(fontSize: 10, color: Colors.white),
+    final theme = Theme.of(context);
+    final selected = _accountTab == tab;
+    return Expanded(
+      child: ReboundButton(
+        backgroundColor: selected
+            ? colors.highBackgroundOnCard
+            : Colors.transparent,
+        onTap: () => setState(() => _accountTab = tab),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: selected ? colors.interactive : colors.itemSecondary,
+                  ),
+                  if (badge > 0)
+                    Positioned(
+                      right: -6,
+                      top: -3,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 3,
+                          vertical: 0.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.error,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '',
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: Colors.white,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: selected ? colors.interactive : colors.itemHint,
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+
+  /// 抽屉里那一块内容：四个页签各自就是一个现成的页面
+  Widget _buildAccountTabContent() => switch (_accountTab) {
+    _AccountTab.profile => const AccountPage(),
+    _AccountTab.friends => const FriendsPage(),
+    _AccountTab.cloud => const VersionCloudSavePage(),
+    _AccountTab.notices => const NotificationsPage(),
+  };
 
   Widget _buildNavigator() {
     Widget child = Navigator(
