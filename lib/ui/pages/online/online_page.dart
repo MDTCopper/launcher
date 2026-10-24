@@ -1149,26 +1149,56 @@ class _OnlinePageState extends State<OnlinePage> {
                   items: [_buildRoomStatusPanel(state)],
                   showBackToTop: false,
                 )
-              : Column(
-                  children: [
-                    Expanded(
-                      flex: 5,
-                      child: Align(
-                        alignment: const Alignment(0, 0.25),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 420),
-                          child: _buildJoinCodePanel(state, loggedIn),
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    // 宽且够高才按 5:4 分区；手机上固定比例会把内容顶出屏幕
+                    final split =
+                        constraints.maxWidth >= 760 &&
+                        constraints.maxHeight >= 560;
+                    if (split) {
+                      return Column(
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: Align(
+                              alignment: const Alignment(0, 0.25),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 420,
+                                ),
+                                child: _buildJoinCodePanel(state, loggedIn),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 4,
+                            child: ListContentPanel(
+                              items: [_buildFriendsPanel(state, loggedIn)],
+                              showBackToTop: false,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return CopperSingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.block,
+                          0,
+                          AppSpacing.block,
+                          AppSpacing.block,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          spacing: AppSpacing.block,
+                          children: [
+                            _buildJoinCodePanel(state, loggedIn),
+                            _buildFriendsPanel(state, loggedIn),
+                          ],
                         ),
                       ),
-                    ),
-                    Expanded(
-                      flex: 4,
-                      child: ListContentPanel(
-                        items: [_buildFriendsPanel(state, loggedIn)],
-                        showBackToTop: false,
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
         ),
       ],
@@ -1195,8 +1225,10 @@ class _OnlinePageState extends State<OnlinePage> {
             enable: !state.joining,
             onEditingComplete: _joinByCode,
           ),
-          Row(
+          OverflowBar(
+            alignment: MainAxisAlignment.start,
             spacing: AppSpacing.related,
+            overflowSpacing: AppSpacing.related,
             children: [
               IconTextButton(
                 pressedScale: 0.96,
@@ -1210,7 +1242,6 @@ class _OnlinePageState extends State<OnlinePage> {
                 content: '粘贴',
                 onTap: state.joining ? null : _pasteJoinCode,
               ),
-              const Spacer(),
               if (!loggedIn)
                 IconTextButton(
                   pressedScale: 0.96,
@@ -1938,87 +1969,82 @@ class _InviteFriendDialogState extends State<_InviteFriendDialog> {
         final colors = AppColors.of(context);
         final friends = _friends.state.value;
         final state = _mp.state.value;
+        // 手机上好友多或键盘弹出时内容会比屏幕高：整体可滚，别让弹框顶穿
         return Center(
-          child: Material(
-            color: Colors.transparent,
-            elevation: 6,
-            child: Container(
-              width: (MediaQuery.sizeOf(context).width - 32).clamp(0, 440),
-              padding: const EdgeInsets.all(AppSpacing.block),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondaryContainer,
-                borderRadius: BorderRadius.circular(AppRadius.panel),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: AppSpacing.related,
-                children: [
-                  Text('邀请好友加入', style: theme.textTheme.titleMedium),
-                  Text(
-                    friends.friends.isEmpty
-                        ? '还没有好友；可以先把房间码发给他，或在下面填用户 ID'
-                        : '点好友右边的「邀请」，邀请 5 分钟内有效',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.itemHint,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Material(
+              color: Colors.transparent,
+              elevation: 6,
+              child: Container(
+                width: (MediaQuery.sizeOf(context).width - 32).clamp(0, 440),
+                padding: const EdgeInsets.all(AppSpacing.block),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(AppRadius.panel),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: AppSpacing.related,
+                  children: [
+                    Text('邀请好友加入', style: theme.textTheme.titleMedium),
+                    Text(
+                      friends.friends.isEmpty
+                          ? '还没有好友；可以先把房间码发给他，或在下面填用户 ID'
+                          : '点好友右边的「邀请」，邀请 5 分钟内有效',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.itemHint,
+                      ),
                     ),
-                  ),
-                  if (friends.friends.isNotEmpty)
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 240),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          spacing: AppSpacing.related,
-                          children: [
-                            for (final entry in friends.sortedFriends)
-                              _buildFriendTile(entry, state),
-                          ],
+                    for (final entry in friends.sortedFriends)
+                      _buildFriendTile(entry, state),
+                    OutlinedTextField(
+                      controller: _controller,
+                      label: '好友用户 ID（数字）',
+                      enable: !_busy,
+                    ),
+                    if (_error != null)
+                      Text(
+                        _error!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
                         ),
                       ),
+                    OverflowBar(
+                      alignment: MainAxisAlignment.start,
+                      spacing: AppSpacing.related,
+                      overflowSpacing: AppSpacing.related,
+                      children: [
+                        IconTextButton(
+                          pressedScale: 0.96,
+                          icon: Icons.copy,
+                          content: '复制房间码',
+                          onTap: widget.onCopyCode == null
+                              ? null
+                              : () {
+                                  widget.onCopyCode!();
+                                  Navigator.of(context).pop();
+                                },
+                        ),
+                        IconTextButton(
+                          pressedScale: 0.96,
+                          icon: Icons.close,
+                          content: '取消',
+                          onTap: _busy
+                              ? null
+                              : () => Navigator.of(context).pop(),
+                        ),
+                        IconTextButton(
+                          pressedScale: 0.96,
+                          icon: Icons.person_add_alt,
+                          content: _busy ? '正在发送…' : '发送邀请',
+                          onTap: _busy ? null : _sendTyped,
+                        ),
+                      ],
                     ),
-                  OutlinedTextField(
-                    controller: _controller,
-                    label: '好友用户 ID（数字）',
-                    enable: !_busy,
-                  ),
-                  if (_error != null)
-                    Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  Row(
-                    spacing: AppSpacing.related,
-                    children: [
-                      IconTextButton(
-                        pressedScale: 0.96,
-                        icon: Icons.copy,
-                        content: '复制房间码',
-                        onTap: widget.onCopyCode == null
-                            ? null
-                            : () {
-                                widget.onCopyCode!();
-                                Navigator.of(context).pop();
-                              },
-                      ),
-                      const Spacer(),
-                      IconTextButton(
-                        pressedScale: 0.96,
-                        icon: Icons.close,
-                        content: '取消',
-                        onTap: _busy ? null : () => Navigator.of(context).pop(),
-                      ),
-                      IconTextButton(
-                        pressedScale: 0.96,
-                        icon: Icons.person_add_alt,
-                        content: _busy ? '正在发送…' : '发送邀请',
-                        onTap: _busy ? null : _sendTyped,
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -2162,10 +2188,11 @@ class _LanLinkJoinDialogState extends State<_LanLinkJoinDialog> {
                     color: theme.colorScheme.error,
                   ),
                 ),
-              Row(
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
                 spacing: AppSpacing.related,
+                overflowSpacing: AppSpacing.related,
                 children: [
-                  const Spacer(),
                   IconTextButton(
                     pressedScale: 0.96,
                     icon: Icons.close,
