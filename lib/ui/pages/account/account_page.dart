@@ -267,6 +267,8 @@ class _AccountPageState extends State<AccountPage> {
     }
 
     if (account == null) {
+      // 已登录但资料没拉回来（常见于启动时没网）：别摆成「未登录」，给个重试
+      final loggedIn = _accounts.isLoggedIn;
       return ContentPanelModule(
         title: '社区账号',
         child: Column(
@@ -274,8 +276,10 @@ class _AccountPageState extends State<AccountPage> {
           spacing: 12,
           children: [
             Text(
-              '登录 BBS 后可以同步存档、联机、加好友；'
-              '登录在系统浏览器里完成，启动器不接触你的密码。',
+              loggedIn
+                  ? '已经登录，但资料没读回来（多半是网络）。重试一次即可。'
+                  : '登录 BBS 后可以同步存档、联机、加好友；'
+                        '登录在系统浏览器里完成，启动器不接触你的密码。',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colors.itemSecondary,
               ),
@@ -284,9 +288,11 @@ class _AccountPageState extends State<AccountPage> {
               spacing: 12,
               children: [
                 IconTextButton(
-                  icon: Icons.login,
-                  content: '登录 BBS',
-                  onTap: _busy ? null : _login,
+                  icon: loggedIn ? Icons.refresh : Icons.login,
+                  content: loggedIn ? '重试' : '登录 BBS',
+                  onTap: _busy
+                      ? null
+                      : (loggedIn ? _loadAccount : _login),
                 ),
                 if (_busy)
                   const SizedBox(

@@ -98,16 +98,26 @@ Future<void> _initialize() async {
 
 /// 启动即登录：有落盘的账号就把它恢复出来，再拉一次资料
 ///
-/// 之前只在进账户 / 联机页时才拉 `/me`，于是顶栏没头像、好友页要等一会儿才有名字；
-/// 失败只记日志 —— 离线启动也该能用启动器
+/// 之前只在进账户 / 联机页时才拉 `/me`，于是顶栏没头像、好友页要等一会儿才有名字。
+/// 刚开机时常常还没连上网（`Failed host lookup`），所以失败会退避重试两次；
+/// 仍然失败就只记日志 —— 离线启动也该能用启动器
 Future<void> _warmUpAccount() async {
   final accounts = AccountManager.instance;
-  try {
-    await accounts.ensureRestored();
-    if (!accounts.isLoggedIn) return;
-    await accounts.loadAccount();
-  } on Object catch (error) {
-    addLog(.warning, '启动时恢复账号失败：${removeNewlines('$error')}', tag: 'Account');
+  for (var attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await accounts.ensureRestored();
+      if (!accounts.isLoggedIn) return;
+      await accounts.loadAccount();
+      return;
+    } on Object catch (error) {
+      addLog(
+        .warning,
+        '启动时恢复账号失败（第 $attempt 次）：${removeNewlines('$error')}',
+        tag: 'Account',
+      );
+      if (attempt == 3) return;
+      await Future.delayed(Duration(seconds: attempt == 1 ? 5 : 15));
+    }
   }
 }
 

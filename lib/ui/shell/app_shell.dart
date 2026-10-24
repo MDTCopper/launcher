@@ -367,8 +367,8 @@ class AppShellState extends State<AppShell> {
               }
             },
             child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 5),
-              padding: const EdgeInsets.fromLTRB(4, 2, 8, 2),
+              height: 26,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
               decoration: BoxDecoration(
                 color: colors.highBackgroundOnCard,
                 borderRadius: BorderRadius.circular(AppRadius.item),
@@ -380,7 +380,7 @@ class AppShellState extends State<AppShell> {
                 children: [
                   UserAvatar(
                     url: account.avatarUrl,
-                    size: 20,
+                    size: 18,
                     fallbackIcon: Icons.account_circle_outlined,
                   ),
                   ConstrainedBox(
@@ -403,7 +403,7 @@ class AppShellState extends State<AppShell> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        '',
+                        '$unread',
                         style: const TextStyle(
                           fontSize: 9,
                           color: Colors.white,

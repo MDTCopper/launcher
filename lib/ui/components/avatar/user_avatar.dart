@@ -32,15 +32,24 @@ class UserAvatar extends StatelessWidget {
     );
     final source = url;
     if (source == null || source.isEmpty) return fallback;
-    return ClipOval(
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Image.network(
-          // 服务端给的是站内相对路径（`/uploads/avatars/...`），得补成完整地址
-          MdtbbsConfig.resolveUrl(source),
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => fallback,
+    // FittedBox 兜住父级的挤压：不然高度被压小、ClipOval 就成了椭圆
+    return SizedBox(
+      width: size,
+      height: size,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        clipBehavior: Clip.hardEdge,
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: ClipOval(
+            child: Image.network(
+              // 服务端给的是站内相对路径（`/uploads/avatars/...`），得补成完整地址
+              MdtbbsConfig.resolveUrl(source),
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => fallback,
+            ),
+          ),
         ),
       ),
     );
