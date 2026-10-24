@@ -56,21 +56,21 @@ class MdtbbsRelayGuestProxy {
     required this.tunnel,
     required this.ownerPeerId,
     required this.ports,
-    this.roomName = 'Copper 联机房间',
-    this.maxPlayers = 8,
-    this.players = 1,
   });
 
   final MdtbbsRelayTunnel tunnel;
   final String ownerPeerId;
   final MdtbbsRelayProxyPorts ports;
 
-  /// 伪局域网列表里显示的房间名与人数
-  final String roomName;
-  final int maxPlayers;
-  final int players;
-
   MdtbbsRelayLanAdvertiser? _advertiser;
+
+  /// 房主游戏对局域网探测的回包；没有它就不往游戏里报房间
+  Uint8List? _hostServerData;
+  DateTime? _hostServerDataAt;
+  DateTime? _probeSentAt;
+  bool _probeWarned = false;
+  bool _advertising = false;
+  Timer? _probeTimer;
 
   final _streams = <int, Socket>{};
 
@@ -102,12 +102,15 @@ class MdtbbsRelayGuestProxy {
       _logStreamStats();
     });
     _advertiser = MdtbbsRelayLanAdvertiser(
-      roomName: roomName,
       port: ports.port,
-      maxPlayers: maxPlayers,
-      players: players,
+      payloadProvider: _advertisedPayload,
     );
     await _advertiser!.start();
+    _probeTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _probeHostGame(),
+    );
+    _probeHostGame();
     addLogAndPrint(
       .info,
       '房客代理已就绪：$localAddress → 房主 $ownerPeerId',
@@ -119,6 +122,8 @@ class MdtbbsRelayGuestProxy {
     _disposed = true;
     _statsTimer?.cancel();
     _statsTimer = null;
+    _probeTimer?.cancel();
+    _probeTimer = null;
     await _subscription?.cancel();
     _subscription = null;
     await _advertiser?.dispose();
@@ -150,6 +155,66 @@ class MdtbbsRelayGuestProxy {
       );
     }
     tunnel.sendUdpDatagram(ownerPeerId, datagram.data);
+  }
+
+  /// 已经在游戏里就不用再探：列表只需要房主还没开房时能如实空着
+  void _probeHostGame() {
+    if (_disposed || _streams.isNotEmpty) return;
+    final now = DateTime.now();
+    _probeSentAt ??= now;
+    if (!_probeWarned &&
+        _hostServerData == null &&
+        now.difference(_probeSentAt!) > const Duration(seconds: 10)) {
+      _probeWarned = true;
+      addLogAndPrint(
+        .warning,
+        '伪局域网：房主游戏 10 秒没有应答探测，房间不会出现在列表里',
+        tag: 'Multiplayer',
+      );
+    }
+    tunnel.sendUdpDatagram(
+      ownerPeerId,
+      Uint8List.fromList(kMindustryDiscoveryProbe),
+    );
+  }
+
+  /// 回给游戏的服务器信息：只用房主游戏自己的应答，过期就不回
+  Uint8List? _advertisedPayload() {
+    final data = _hostServerData;
+    final at = _hostServerDataAt;
+    if (data == null || at == null) return null;
+    if (DateTime.now().difference(at) > const Duration(seconds: 8)) {
+      if (_advertising) {
+        _advertising = false;
+        addLogAndPrint(
+          .info,
+          '伪局域网：房主游戏不再应答，房间从列表撤下',
+          tag: 'Multiplayer',
+        );
+      }
+      return null;
+    }
+    final payload = Uint8List.fromList(data);
+    if (payload.length < 2) return null;
+    // 端口改成中继代理的本机端口：游戏会连到这里，不是房主那边的 6567
+    ByteData.sublistView(payload).setInt16(
+      payload.length - 2,
+      ports.port,
+      Endian.big,
+    );
+    return payload;
+  }
+
+  void _onHostServerData(Uint8List payload) {
+    _hostServerData = payload;
+    _hostServerDataAt = DateTime.now();
+    if (_advertising) return;
+    _advertising = true;
+    addLogAndPrint(
+      .info,
+      '伪局域网：房主游戏已在开房，房间上架（${payload.length} 字节）',
+      tag: 'Multiplayer',
+    );
   }
 
   void _onGameTcpConnected(Socket socket) {
@@ -243,6 +308,11 @@ class MdtbbsRelayGuestProxy {
           notifyRelay: false,
         );
       case MdtbbsRelayUdpDatagram(:final payload):
+        // 没有游戏连接时，中继上来的 UDP 只可能是房主游戏对局域网探测的应答
+        if (_streams.isEmpty) {
+          _onHostServerData(payload);
+          return;
+        }
         final address = _gameAddress;
         final port = _gamePort;
         if (address == null || port == null) return;
@@ -669,11 +739,17 @@ class MdtbbsRelayHostBridge {
   /// 绑定是异步的，先到的数据报按对端缓冲，套接字就绪后补发
   Future<void> _forwardUdpToGame(String peerId, Uint8List payload) async {
     _udpPacketsDown++;
+    // 局域网探测是「房主游戏在不在开房」的唯一信号：没有 TCP 流也要转给游戏，
+    // 否则房客那边的房间列表只会在房主连上之后才出现（那时已经不需要列表了）
+    final isDiscoveryProbe =
+        payload.length == kMindustryDiscoveryProbe.length &&
+        payload[0] == kMindustryDiscoveryProbe[0] &&
+        payload[1] == kMindustryDiscoveryProbe[1];
     final tcpReady = _readyPeers.contains(peerId);
     // 前 5 个按对端各记一次：房客的 RegisterUDP 只有几字节，带的是它拿到的连接 id，
     // 与房主游戏发来的 RegisterTCP id 对不上就完不成 UDP 注册
     final logged = _udpForwardLogged[peerId] ?? 0;
-    if (logged < 5) {
+    if (logged < 5 && !isDiscoveryProbe) {
       _udpForwardLogged[peerId] = logged + 1;
       addLogAndPrint(
         .info,
@@ -682,7 +758,7 @@ class MdtbbsRelayHostBridge {
         tag: 'Multiplayer',
       );
     }
-    if (!tcpReady) {
+    if (!tcpReady && !isDiscoveryProbe) {
       final pending = _pendingUdpUntilReady.putIfAbsent(peerId, () => []);
       if (pending.length < 256) pending.add(payload);
       return;

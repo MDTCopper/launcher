@@ -1352,11 +1352,6 @@ class MdtbbsMultiplayerService {
             tunnel: openedTunnel,
             ownerPeerId: owner.first.peerId,
             ports: ports,
-            roomName: session.activityName ?? 'Copper 联机房间',
-            maxPlayers: session.maxPlayers,
-            players: _current.onlinePeerCount > 0
-                ? _current.onlinePeerCount
-                : 1,
           );
           await proxy.start();
           _guest = proxy;

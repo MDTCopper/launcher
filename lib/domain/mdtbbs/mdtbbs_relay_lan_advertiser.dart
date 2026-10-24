@@ -9,24 +9,27 @@ import 'package:copper_launcher/util/io/log.dart';
 const kMindustryDiscoveryGroup = '227.2.7.7';
 const kMindustryDiscoveryPort = 20151;
 
+/// Mindustry 的局域网探测包，等价 `ArcNetProvider.pingHostImpl` 里的 `{-2, 1}`
+const List<int> kMindustryDiscoveryProbe = [0xFE, 0x01];
+
 /// 官方中继房客侧：把房间伪装成本机局域网里的一个房间
 ///
 /// 游戏只会向 [kMindustryDiscoveryGroup]:[kMindustryDiscoveryPort] 发探测；
-/// 这里加入同一个组播组，收到**本机**的探测就回一份 `writeServerData` 负载。
+/// 这里加入同一个组播组，收到**本机**的探测就回一份服务器信息负载。
 /// 回包 socket 绑在 `127.0.0.1`，游戏看到的服务器地址才会是 loopback，
-/// 从而连到 [port] 上的中继代理
+/// 从而连到 [port] 上的中继代理。
+///
+/// 负载由 [payloadProvider] 现取：房主游戏没在开房时不回，房间就不会出现在列表里
 class MdtbbsRelayLanAdvertiser {
   MdtbbsRelayLanAdvertiser({
-    required this.roomName,
     required this.port,
-    this.maxPlayers = 8,
-    this.players = 1,
+    required this.payloadProvider,
   });
 
-  final String roomName;
   final int port;
-  final int maxPlayers;
-  final int players;
+
+  /// 返回 null 表示这次不回：游戏收不到应答，房间自然不出现
+  final Uint8List? Function() payloadProvider;
 
   RawDatagramSocket? _multicast;
   RawDatagramSocket? _reply;
@@ -65,12 +68,6 @@ class MdtbbsRelayLanAdvertiser {
     }
 
     _localAddresses = await _collectLocalAddresses();
-    final payload = buildMindustryServerData(
-      roomName: roomName,
-      port: port,
-      players: players,
-      maxPlayers: maxPlayers,
-    );
 
     _subscription = _multicast!.listen((event) {
       if (event != RawSocketEvent.read) return;
@@ -78,13 +75,10 @@ class MdtbbsRelayLanAdvertiser {
       if (datagram == null) return;
       // 只回本机自己的探测：广告的是 127.0.0.1，回给别人只会塞个连不上的房间
       if (!_localAddresses.contains(datagram.address.address)) return;
+      final payload = payloadProvider();
+      if (payload == null) return;
       _reply?.send(payload, InternetAddress.loopbackIPv4, datagram.port);
     });
-    addLogAndPrint(
-      .info,
-      '伪局域网：房间已广播（$roomName → 127.0.0.1:$port）',
-      tag: 'Multiplayer',
-    );
   }
 
   Future<void> dispose() async {
