@@ -16,6 +16,7 @@ import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/format/date_time_format.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/game_process_watch.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/java/java_compat.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -43,6 +44,15 @@ class LaunchMindustryTask extends Task {
 
   /// 本次启动时刻；游戏退出成功时用于计算本次游玩时长
   DateTime? _launchStartTime;
+
+  /// `exit` 只收尾一次：自更新接管与手动结束都可能走到这里
+  bool _exitHandled = false;
+  bool _finished = false;
+  bool _cancelled = false;
+
+  /// 自更新重启后接管的新进程 PID（null 表示没接管）
+  int? _adoptedPid;
+  String? _adoptedBuild;
 
   LaunchMindustryTask(this.mindustry);
 
@@ -79,7 +89,11 @@ class LaunchMindustryTask extends Task {
           ],
         ),
         const SizedBox(height: 8),
-        Text('Mindustry ${mindustry.tag}  $statusText'),
+        Text(
+          _adoptedBuild == null
+              ? 'Mindustry ${mindustry.tag}  $statusText'
+              : 'Mindustry ${mindustry.tag}  Build $_adoptedBuild（自更新后运行中）',
+        ),
         const SizedBox(height: 8),
         LinearProgressIndicator(),
         const SizedBox(height: 8),
@@ -143,6 +157,15 @@ class LaunchMindustryTask extends Task {
 
   @override
   void cancel() async {
+    _cancelled = true;
+    final adopted = _adoptedPid;
+    _adoptedPid = null;
+    _adoptedBuild = null;
+    if (adopted != null) {
+      GameProcessWatch.kill(adopted);
+      _removeLaunchSentinel();
+      addLog(.info, '结束自更新后重启的游戏进程 $adopted', tag: 'BE');
+    }
     super.cancel();
     await launcher.stopMindustryJar();
     status = TaskStatus.cancel;
@@ -441,67 +464,131 @@ class LaunchMindustryTask extends Task {
         LauncherTray.instance.hideIfTrayMode();
       }
       if (log.contains('exit')) {
-        // 自更新会先退旧进程、再由新进程把本体复制回来，等它落地后同步记录
-        if (mindustry.isBe && !mindustry.steam) {
-          unawaited(_watchBeSelfUpdate());
-        }
-        // 回写最近启动时间与累计游玩时长
-        final launchStart = _launchStartTime;
-        if (launchStart != null) {
-          final now = DateTime.now();
-          mindustry.lastLaunchTime = now;
-          final duration = now.difference(launchStart);
-          mindustry.playTime = (mindustry.playTime ?? Duration.zero) + duration;
-          _launchStartTime = null;
-          // 退出回调非异步上下文，fire-and-forget 保存
-          config.save();
-        }
-        //托盘模式下按恢复窗口选项决定是否弹出主窗口
-        LauncherTray.instance.showIfRestoreOnExit();
-        // 云存档：游戏退出后自动上传（只对启用了云存档的目录；失败只提示）
-        unawaited(CloudAutoSync.afterGameExit(mindustry));
-        if (log.contains('0')) {
-          NotificationManager.addNotice(
-            icon: Icons.info_outline,
-            title: '退出',
-            content: '正常游戏退出',
-          );
-          TaskLogManager.addLog(LogEntry(LogType.info, '正常游戏退出'));
-        } else if (log.contains('-1')) {
-          NotificationManager.addNotice(
-            icon: Icons.info_outline,
-            title: '退出',
-            content: '已停止游戏',
-          );
-          TaskLogManager.addLog(LogEntry(LogType.info, '已停止游戏'));
-        } else {
-          NotificationManager.addNotice(
-            icon: Icons.error_outline,
-            title: '退出',
-            content: '游戏异常退出 ($log)',
-          );
-          TaskLogManager.addLog(LogEntry(LogType.error, '游戏异常退出，退出码 ($log)'));
-        }
-        progress = 1.0;
-        status = TaskStatus.completed;
-        updateDisplay();
+        unawaited(_handleExit(log));
       }
     });
   }
 
-  /// BE 自更新后会重启新进程并原地覆盖本体，等本体落地后把新 build 写回记录
-  Future<void> _watchBeSelfUpdate() async {
-    final change = await BeVersion.watchAfterExit(
-      mindustry,
-      since: _launchStartTime,
-    );
-    if (change == null) return;
+  /// 游戏退出：BE 自更新重启的话把新进程接回来，否则按正常结束收尾
+  Future<void> _handleExit(String exitLog) async {
+    if (_exitHandled) return;
+    _exitHandled = true;
 
+    if (!_cancelled &&
+        mindustry.isBe &&
+        !mindustry.steam &&
+        !Platform.isAndroid) {
+      if (await _tryAdoptRestartedGame()) return;
+    }
+    _finishRun(exitLog);
+  }
+
+  /// 返回 false 表示不是自更新重启、或者没接上新进程
+  Future<bool> _tryAdoptRestartedGame() async {
+    final pending = BeVersion.pendingBuild(mindustry, since: _launchStartTime);
+    if (pending == null || _cancelled) return false;
+
+    final pid = await GameProcessWatch.findRestartedGame(
+      mindustry.resolvedJarPath,
+    );
+    if (pid == null) {
+      if (!_cancelled) {
+        addLog(.warning, '游戏自更新后没找到新进程，按退出收尾', tag: 'BE');
+      }
+      return false;
+    }
+    if (_cancelled) {
+      GameProcessWatch.kill(pid);
+      _removeLaunchSentinel();
+      return false;
+    }
+
+    _adoptedPid = pid;
+    _adoptedBuild = pending;
+    status = TaskStatus.process;
+    updateDisplay();
+    addLog(.info, '自更新重启：接管新进程 $pid（Build $pending）', tag: 'BE');
     NotificationManager.addNotice(
       icon: Icons.system_update_alt,
-      title: '游戏已自更新',
-      content: '${mindustry.tag}\r\n${change.description}',
+      title: '游戏自更新后仍在运行',
+      content: '${mindustry.tag}\r\n已更新到 Build $pending，继续运行',
     );
+    // 本体复制可能还没完成，记录交给后台对账
+    unawaited(BeVersion.watchAfterExit(mindustry, since: _launchStartTime));
+    unawaited(_watchAdopted(pid));
+    return true;
+  }
+
+  /// 等接管的那个进程结束；它结束才算这一局真的退出
+  Future<void> _watchAdopted(int pid) async {
+    while (!_cancelled && GameProcessWatch.isAlive(pid)) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+
+    final stopped = _cancelled;
+    _adoptedPid = null;
+    _adoptedBuild = null;
+    // 被启动器停掉时不会再有 exit 事件，收尾只能在这儿做
+    _finishRun(stopped ? 'exit -1' : 'exit 0');
+  }
+
+  /// 接管的进程不归 [MindustryLauncher] 管，强杀后要自己清启动哨兵
+  ///
+  /// 哨兵留着，下次启动会被游戏当成「mod 加载崩溃」，把启用中的 mod 全禁掉
+  void _removeLaunchSentinel() {
+    try {
+      final sentinel = File(p.join(mindustry.dataPath, 'launchid.dat'));
+      if (sentinel.existsSync()) sentinel.deleteSync();
+    } catch (_) {
+      // 删不掉只影响下一次启动的 mod 判定，不挡收尾
+    }
+  }
+
+  /// 一局真正结束：结算时长、恢复托盘、云存档上传、报退出
+  void _finishRun(String exitLog) {
+    if (_finished) return;
+    _finished = true;
+
+    // 回写最近启动时间与累计游玩时长
+    final launchStart = _launchStartTime;
+    if (launchStart != null) {
+      final now = DateTime.now();
+      mindustry.lastLaunchTime = now;
+      final duration = now.difference(launchStart);
+      mindustry.playTime = (mindustry.playTime ?? Duration.zero) + duration;
+      _launchStartTime = null;
+      // 退出回调非异步上下文，fire-and-forget 保存
+      config.save();
+    }
+    //托盘模式下按恢复窗口选项决定是否弹出主窗口
+    LauncherTray.instance.showIfRestoreOnExit();
+    // 云存档：游戏退出后自动上传（只对启用了云存档的目录；失败只提示）
+    unawaited(CloudAutoSync.afterGameExit(mindustry));
+    if (exitLog.contains('0')) {
+      NotificationManager.addNotice(
+        icon: Icons.info_outline,
+        title: '退出',
+        content: '正常游戏退出',
+      );
+      TaskLogManager.addLog(LogEntry(LogType.info, '正常游戏退出'));
+    } else if (exitLog.contains('-1')) {
+      NotificationManager.addNotice(
+        icon: Icons.info_outline,
+        title: '退出',
+        content: '已停止游戏',
+      );
+      TaskLogManager.addLog(LogEntry(LogType.info, '已停止游戏'));
+    } else {
+      NotificationManager.addNotice(
+        icon: Icons.error_outline,
+        title: '退出',
+        content: '游戏异常退出 ($exitLog)',
+      );
+      TaskLogManager.addLog(LogEntry(LogType.error, '游戏异常退出，退出码 ($exitLog)'));
+    }
+    progress = 1.0;
+    status = TaskStatus.completed;
+    updateDisplay();
   }
 
   /// 自动选择 Java：按 [target]（游戏版本推荐值，走加载器时会抬到 17+）

@@ -81,6 +81,24 @@ class BeVersion {
     return change;
   }
 
+  /// 这次退出有没有自更新的迹象：`be_builds/` 里有本局下载的、比记录新的包
+  ///
+  /// 只说明「下载并重启了」，本体可能还没被新进程复制回来（[watchAfterExit] 负责等它）
+  static String? pendingBuild(Mindustry version, {DateTime? since}) {
+    final downloaded = latestDownloadedBuild(version.dataPath);
+    if (downloaded == null || !isNewerBuild(downloaded, version.release)) {
+      return null;
+    }
+    if (since == null) return downloaded;
+
+    final jar = File(
+      p.join(version.dataPath, 'be_builds', 'client-be-$downloaded.jar'),
+    );
+    final modified = _modifiedOf(jar);
+    if (modified == null || modified.isBefore(since)) return null;
+    return downloaded;
+  }
+
   /// 游戏退出后等一等：这次退出是不是「自更新重启」造成的
   ///
   /// 新进程把本体整份复制回来，所以拿 `be_builds` 里那份的大小卡住：大小对上了才读版本，
@@ -92,18 +110,12 @@ class BeVersion {
     Duration timeout = const Duration(seconds: 15),
   }) async {
     try {
-      final downloaded = latestDownloadedBuild(version.dataPath);
-      if (downloaded == null || !isNewerBuild(downloaded, version.release)) {
-        return null;
-      }
+      final downloaded = pendingBuild(version, since: since);
+      if (downloaded == null) return null;
 
       final downloadedJar = File(
         p.join(version.dataPath, 'be_builds', 'client-be-$downloaded.jar'),
       );
-      if (since != null) {
-        final modified = _modifiedOf(downloadedJar);
-        if (modified == null || modified.isBefore(since)) return null;
-      }
 
       final jar = File(version.resolvedJarPath);
       final expectedLength = downloadedJar.existsSync()
