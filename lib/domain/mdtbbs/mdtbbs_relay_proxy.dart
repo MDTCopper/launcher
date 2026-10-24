@@ -68,6 +68,8 @@ class MdtbbsRelayGuestProxy {
   Uint8List? _hostServerData;
   DateTime? _hostServerDataAt;
   DateTime? _probeSentAt;
+  DateTime? _lastProbeAt;
+  Duration _relayRtt = Duration.zero;
   bool _probeWarned = false;
   bool _advertising = false;
   Timer? _probeTimer;
@@ -104,6 +106,7 @@ class MdtbbsRelayGuestProxy {
     _advertiser = MdtbbsRelayLanAdvertiser(
       port: ports.port,
       payloadProvider: _advertisedPayload,
+      replyDelay: () => _relayRtt,
     );
     await _advertiser!.start();
     _probeTimer = Timer.periodic(
@@ -162,6 +165,7 @@ class MdtbbsRelayGuestProxy {
     if (_disposed || _streams.isNotEmpty) return;
     final now = DateTime.now();
     _probeSentAt ??= now;
+    _lastProbeAt = now;
     if (!_probeWarned &&
         _hostServerData == null &&
         now.difference(_probeSentAt!) > const Duration(seconds: 10)) {
@@ -206,13 +210,21 @@ class MdtbbsRelayGuestProxy {
   }
 
   void _onHostServerData(Uint8List payload) {
+    final sentAt = _lastProbeAt;
+    if (sentAt != null) {
+      final rtt = DateTime.now().difference(sentAt);
+      if (rtt > Duration.zero && rtt < const Duration(seconds: 3)) {
+        _relayRtt = rtt;
+      }
+    }
     _hostServerData = payload;
     _hostServerDataAt = DateTime.now();
     if (_advertising) return;
     _advertising = true;
     addLogAndPrint(
       .info,
-      '伪局域网：房主游戏已在开房，房间上架（${payload.length} 字节）',
+      '伪局域网：房主游戏已在开房，房间上架（${payload.length} 字节，'
+      '中继往返 ${_relayRtt.inMilliseconds}ms）',
       tag: 'Multiplayer',
     );
   }

@@ -24,12 +24,17 @@ class MdtbbsRelayLanAdvertiser {
   MdtbbsRelayLanAdvertiser({
     required this.port,
     required this.payloadProvider,
+    this.replyDelay,
   });
 
   final int port;
 
   /// 返回 null 表示这次不回：游戏收不到应答，房间自然不出现
   final Uint8List? Function() payloadProvider;
+
+  /// 回包前压多久：游戏用「探测发出 → 收到应答」算列表里的延迟，
+  /// 直接从 loopback 秒回会显示 0ms，而实际数据要绕中继一圈
+  final Duration Function()? replyDelay;
 
   RawDatagramSocket? _multicast;
   RawDatagramSocket? _reply;
@@ -77,7 +82,20 @@ class MdtbbsRelayLanAdvertiser {
       if (!_localAddresses.contains(datagram.address.address)) return;
       final payload = payloadProvider();
       if (payload == null) return;
-      _reply?.send(payload, InternetAddress.loopbackIPv4, datagram.port);
+      final delay = replyDelay?.call() ?? Duration.zero;
+      final reply = _reply;
+      final targetPort = datagram.port;
+      if (reply == null) return;
+      if (delay <= Duration.zero) {
+        reply.send(payload, InternetAddress.loopbackIPv4, targetPort);
+        return;
+      }
+      unawaited(
+        Future<void>.delayed(delay, () {
+          if (!_running) return;
+          reply.send(payload, InternetAddress.loopbackIPv4, targetPort);
+        }),
+      );
     });
   }
 
