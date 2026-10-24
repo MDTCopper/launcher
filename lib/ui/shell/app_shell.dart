@@ -1,9 +1,14 @@
 import 'dart:async';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
+import 'package:copper_launcher/ui/pages/cloud/version_cloud_save_page.dart';
+import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
+import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/online/online_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_system_page.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
@@ -21,6 +26,7 @@ import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:window_manager/window_manager.dart';
 import 'parts/colorful_background.dart';
 import '../theme/app_colors.dart';
+import '../theme/design_system.dart';
 import '../components/overlay_layer/drag_file_field.dart';
 import 'drawer/info_drawer.dart';
 import '../page_framwork/sub_navigation_state.dart';
@@ -38,6 +44,9 @@ class AppShell extends StatefulWidget {
 
 class AppShellState extends State<AppShell> {
   final _navigatorKey = PageKeyProvider.navigatorKey;
+
+  /// 账户抽屉要从顶栏打开，拿 Scaffold 的 state
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   String _currentRoute = '/';
   String _pageName = '';
@@ -232,6 +241,8 @@ class AppShellState extends State<AppShell> {
                 },
               ),
 
+              _buildAccountButton(),
+
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 transitionBuilder: SwitcherBuilders.fadeSlide(Offset(0.0, 1.0)),
@@ -332,6 +343,193 @@ class AppShellState extends State<AppShell> {
     );
   }
 
+  /// 顶栏的账户入口：点开左侧账户抽屉，有未读通知时右上角带红点
+  Widget _buildAccountButton() {
+    final colors = AppColors.of(context);
+    return ValueListenableBuilder<List<MdtbbsNoticeItem>>(
+      valueListenable: MdtbbsNotificationService.instance.items,
+      builder: (context, _, _) {
+        final unread = MdtbbsNotificationService.instance.unreadCount;
+        return HintLayer(
+          hint: '账户',
+          preferPosition: .bottom,
+          child: ReboundButton(
+            backgroundColor: Colors.transparent,
+            onTap: () => _scaffoldKey.currentState?.openDrawer(),
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: Stack(
+                children: [
+                  const Positioned.fill(
+                    child: Icon(Icons.account_circle_outlined, size: 22),
+                  ),
+                  if (unread > 0)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 3,
+                          vertical: 0.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.error,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '$unread',
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: Colors.white,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 左侧账户抽屉：账户 / 好友 / 云存档 / 账户通知
+  Widget _buildAccountDrawer() {
+    final colors = AppColors.of(context);
+    final theme = Theme.of(context);
+    return Drawer(
+      backgroundColor: colors.pageBackground,
+      width: 300,
+      elevation: 2,
+      shadowColor: Colors.black,
+      shape: RoundedRectangleBorder(side: BorderSide(color: colors.border)),
+      child: SafeArea(
+        child: ValueListenableBuilder<AccountSnapshot>(
+          valueListenable: AccountManager.instance.snapshot,
+          builder: (context, account, _) {
+            return ValueListenableBuilder<List<MdtbbsNoticeItem>>(
+              valueListenable: MdtbbsNotificationService.instance.items,
+              builder: (context, _, _) {
+                final unread = MdtbbsNotificationService.instance.unreadCount;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(AppSpacing.block),
+                      child: Row(
+                        spacing: AppSpacing.related,
+                        children: [
+                          Icon(
+                            Icons.account_circle,
+                            size: 36,
+                            color: colors.interactive,
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  account.loggedIn
+                                      ? (account.username ?? '已登录')
+                                      : '未登录',
+                                  style: theme.textTheme.titleSmall,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  account.loggedIn
+                                      ? '社区账号'
+                                      : '登录后可加好友、同步云存档',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: colors.itemHint,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(height: 1, color: colors.border),
+                    _buildDrawerItem(
+                      icon: Icons.person_outline,
+                      label: '账户（游戏内身份）',
+                      route: accountPageRouteKey,
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.people_outline,
+                      label: '好友',
+                      route: friendsPageRouteKey,
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.cloud_outlined,
+                      label: '云存档',
+                      route: versionCloudSavePageRouteKey,
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.notifications_none,
+                      label: '账户通知',
+                      route: notificationsPageRouteKey,
+                      badge: unread,
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required String label,
+    required String route,
+    int badge = 0,
+  }) {
+    final colors = AppColors.of(context);
+    return ReboundButton(
+      backgroundColor: Colors.transparent,
+      onTap: () {
+        _scaffoldKey.currentState?.closeDrawer();
+        _onRootNavigate(route, null);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.block,
+          vertical: AppSpacing.related,
+        ),
+        child: Row(
+          spacing: AppSpacing.related,
+          children: [
+            Icon(icon, size: 20, color: colors.itemSecondary),
+            Expanded(
+              child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+            ),
+            if (badge > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 1,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.error,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$badge',
+                  style: const TextStyle(fontSize: 10, color: Colors.white),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildNavigator() {
     Widget child = Navigator(
       key: PageKeyProvider.navigatorKey,
@@ -347,9 +545,11 @@ class AppShellState extends State<AppShell> {
     final colors = AppColors.of(context);
 
     Widget shell = Scaffold(
+      key: _scaffoldKey,
       // 键盘不改启动器尺寸：输入法内边距由辅助输入条承接，页面自己不跟着缩
       resizeToAvoidBottomInset: false,
       backgroundColor: colors.pageBackground,
+      drawer: _buildAccountDrawer(),
       endDrawer: Drawer(
         backgroundColor: colors.pageBackground.withAlpha(230),
         width: MediaQuery.of(context).size.width * 0.45,

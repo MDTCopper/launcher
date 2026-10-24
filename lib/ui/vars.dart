@@ -9,6 +9,8 @@ import 'package:copper_launcher/ui/pages/design/design_mods_rework_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_setting_rework_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_system_page.dart';
 import 'package:copper_launcher/ui/pages/design/design_template_page.dart';
+import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
+import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/overview/version_select.dart';
 import 'package:copper_launcher/ui/pages/overview/version_setting.dart';
 import 'package:copper_launcher/ui/pages/mindustry/mindustry_download_page.dart';
@@ -45,6 +47,8 @@ const Map<String, Widget> routeMap = {
   '/version_setting': VersionSettingPage(),
   accountPageRouteKey: AccountPage(),
   onlinePageRouteKey: OnlinePage(),
+  friendsPageRouteKey: FriendsPage(),
+  notificationsPageRouteKey: NotificationsPage(),
 
   //发现 - Mindustry
   '/mindustry_download': MindustryDownloadPage(),

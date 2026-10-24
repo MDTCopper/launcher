@@ -52,7 +52,6 @@ class _OnlinePageState extends State<OnlinePage> {
   final _roomNameController = TextEditingController();
   final _joinCodeController = TextEditingController();
   final _inviteUserIdController = TextEditingController();
-  final _friendIdController = TextEditingController();
 
   int _maxPlayers = 8;
   String _visibility = 'private';
@@ -60,7 +59,6 @@ class _OnlinePageState extends State<OnlinePage> {
   bool _requireApproval = false;
   Timer? _retryTicker;
   Timer? _peerTicker;
-  Timer? _friendTicker;
 
   /// 上一帧是否在房间里：用来判断「刚退出房间」，退出后回到入口页
   bool _wasInSession = false;
@@ -88,11 +86,6 @@ class _OnlinePageState extends State<OnlinePage> {
       unawaited(_mp.refreshPeers());
       unawaited(_mp.refreshSessionStatus());
     });
-    // 好友在线状态：后台轮询，失败不弹通知
-    _friendTicker = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (!mounted || !_accounts.isLoggedIn) return;
-      unawaited(_friends.load(force: true, quiet: true));
-    });
   }
 
   @override
@@ -100,12 +93,10 @@ class _OnlinePageState extends State<OnlinePage> {
     _mp.state.removeListener(_onMultiplayerStateChanged);
     _retryTicker?.cancel();
     _peerTicker?.cancel();
-    _friendTicker?.cancel();
     _mp.stopInvitePolling();
     _roomNameController.dispose();
     _joinCodeController.dispose();
     _inviteUserIdController.dispose();
-    _friendIdController.dispose();
     super.dispose();
   }
 
@@ -477,10 +468,7 @@ class _OnlinePageState extends State<OnlinePage> {
             final side = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: AppSpacing.block,
-              children: [
-                buttons,
-                if (loggedIn) _buildFriendsPanel(state, loggedIn),
-              ],
+              children: [buttons],
             );
             if (!wide) {
               return Column(
@@ -1173,7 +1161,7 @@ class _OnlinePageState extends State<OnlinePage> {
                           Expanded(
                             flex: 4,
                             child: ListContentPanel(
-                              items: [_buildFriendsPanel(state, loggedIn)],
+                              items: [_buildInvitesPanel(state, loggedIn)],
                               showBackToTop: false,
                             ),
                           ),
@@ -1193,7 +1181,7 @@ class _OnlinePageState extends State<OnlinePage> {
                           spacing: AppSpacing.block,
                           children: [
                             _buildJoinCodePanel(state, loggedIn),
-                            _buildFriendsPanel(state, loggedIn),
+                            _buildInvitesPanel(state, loggedIn),
                           ],
                         ),
                       ),
@@ -1264,225 +1252,57 @@ class _OnlinePageState extends State<OnlinePage> {
     );
   }
 
-  Widget _buildFriendsPanel(MultiplayerState state, bool loggedIn) {
+  /// 收到的房间邀请：好友列表搬去账户抽屉了，联机页只留跟「进这个房间」有关的东西
+  Widget _buildInvitesPanel(MultiplayerState state, bool loggedIn) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    final friends = _friends.state.value;
+    final invites = state.invites;
     return ContentPanelModule(
-      title: '好友',
+      title: '收到的邀请',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: AppSpacing.related,
         children: [
           if (!loggedIn)
             Text(
-              '登录后可以加好友、把房间邀请发给好友',
+              '登录后可以看到好友发来的房间邀请',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.itemHint,
               ),
             )
           else ...[
-            for (final request in friends.requests)
-              _buildFriendRequestRow(request),
-            if (friends.friends.isEmpty)
-              Text(
-                friends.loading ? '正在读取好友…' : '还没有好友，下面填用户 ID 添加',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.itemHint,
-                ),
-              )
-            else
-              for (final entry in friends.sortedFriends)
-                _buildFriendRow(state, entry),
-            _buildAddFriendRow(),
-            if (state.invites.isNotEmpty) ...[
-              Text(
-                '收到的邀请',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.itemSecondary,
-                ),
-              ),
-              for (final invite in state.invites) _buildInviteRow(state, invite),
-            ],
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    '在线 ${friends.onlineCount} / 共 ${friends.friends.length}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: colors.itemHint,
+                    invites.isEmpty ? '还没有收到邀请' : '共  条',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.itemSecondary,
                     ),
                   ),
                 ),
                 IconTextButton(
                   pressedScale: 0.96,
                   icon: Icons.refresh,
-                  content: friends.loading ? '正在刷新…' : '刷新',
-                  onTap: friends.loading ? null : _refreshFriends,
+                  content: state.loadingInvites ? '正在刷新…' : '刷新',
+                  onTap: state.loadingInvites
+                      ? null
+                      : () => _mp.refreshInvites(announce: true),
                 ),
               ],
             ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Future<void> _refreshFriends() async {
-    await _friends.load(force: true);
-    await _mp.refreshInvites();
-  }
-
-  Widget _buildFriendRequestRow(MdtbbsFriendRequest request) {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final busy = _friends.state.value.busyRequestIds.contains(
-      request.requestId,
-    );
-    final name = request.user?.username ?? '有玩家';
-    return Row(
-      spacing: AppSpacing.related,
-      children: [
-        Icon(
-          Icons.person_add_alt,
-          size: AppIconSize.item,
-          color: colors.interactive,
-        ),
-        Expanded(
-          child: Text(
-            '$name 想加你为好友',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.itemSecondary,
-            ),
-          ),
-        ),
-        IconTextButton(
-          pressedScale: 0.96,
-          icon: Icons.check,
-          content: '接受',
-          onTap: busy ? null : () => _friends.acceptRequest(request.requestId),
-        ),
-        IconTextButton(
-          pressedScale: 0.96,
-          icon: Icons.close,
-          content: '拒绝',
-          onTap: busy ? null : () => _friends.rejectRequest(request.requestId),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFriendRow(MultiplayerState state, MdtbbsFriendEntry entry) {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    final userId = entry.user.userId;
-    final busy = _friends.state.value.busyUserIds.contains(userId);
-    final inRoom = state.peers.any((peer) => peer.userId == '$userId');
-    final invited = state.sentInvites.any(
-      (invite) => invite.targetUserId == '$userId',
-    );
-    final activity = entry.activity?.name;
-    final status = entry.isOnline
-        ? (activity == null || activity.isEmpty ? '在线' : '正在玩 $activity')
-        : '离线';
-    return Row(
-      spacing: AppSpacing.related,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: entry.isOnline ? colors.success : colors.itemHint,
-          ),
-        ),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            for (final invite in invites) _buildInviteRow(state, invite),
+            if (invites.isEmpty)
               Text(
-                entry.user.username.isEmpty
-                    ? '用户 $userId'
-                    : entry.user.username,
-                style: theme.textTheme.bodyMedium,
-              ),
-              Text(
-                status,
+                '好友在「好友」页或房间里点「邀请」；也可以直接把房间码发给朋友',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: colors.itemHint,
                 ),
               ),
-            ],
-          ),
-        ),
-        if (state.inSession)
-          IconTextButton(
-            pressedScale: 0.96,
-            icon: Icons.send,
-            content: inRoom ? '已在房间' : (invited ? '已邀请' : '邀请'),
-            onTap: (busy || invited || inRoom)
-                ? null
-                : () => _mp.inviteFriend(userId),
-          ),
-        IconTextButton(
-          pressedScale: 0.96,
-          icon: Icons.person_remove_outlined,
-          content: '删除',
-          onTap: busy ? null : () => _confirmRemoveFriend(entry),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAddFriendRow() {
-    return Row(
-      spacing: AppSpacing.related,
-      children: [
-        Expanded(
-          child: OutlinedTextField(
-            controller: _friendIdController,
-            label: '好友用户 ID（数字）',
-            onEditingComplete: _addFriend,
-          ),
-        ),
-        IconTextButton(
-          pressedScale: 0.96,
-          icon: Icons.person_add_alt_1,
-          content: '加好友',
-          onTap: _addFriend,
-        ),
-      ],
-    );
-  }
-
-  Future<void> _addFriend() async {
-    final userId = int.tryParse(_friendIdController.text.trim());
-    if (userId == null || userId <= 0) {
-      addNotice(
-        icon: Icons.info_outline,
-        title: '用户 ID 不对',
-        content: '填对方的数字用户 ID',
-      );
-      return;
-    }
-    await _friends.addFriend(userId);
-    if (!mounted) return;
-    _friendIdController.clear();
-  }
-
-  Future<void> _confirmRemoveFriend(MdtbbsFriendEntry entry) async {
-    final name = entry.user.username.isEmpty
-        ? '用户 ${entry.user.userId}'
-        : entry.user.username;
-    final confirmed = await showAnimatedDialog<bool>(
-      context: context,
-      pageBuilder: (context, _, _) => _ConfirmDialog(
-        title: '删除好友',
-        message: '确定把 $name 从好友列表删掉？',
-        confirmLabel: '删除',
+          ],
+        ],
       ),
     );
-    if (confirmed == true) await _friends.removeFriend(entry.user.userId);
   }
 
   Widget _buildInviteRow(MultiplayerState state, MdtbbsInvite invite) {
