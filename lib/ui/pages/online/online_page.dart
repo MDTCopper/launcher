@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:copper_launcher/data/net/lanlink/lanlink_api.dart';
+import 'package:copper_launcher/data/net/lanlink/lanlink_models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_friends_models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/lanlink/lanlink_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_friends_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_state.dart';
@@ -142,6 +145,8 @@ class _OnlinePageState extends State<OnlinePage> {
         state.self?.role == 'owner' ? _OnlineView.host : _OnlineView.guest,
       );
     }
+    // LanLink 的桥在服务层活着，重新进页面要把它那条状态画出来
+    setState(() {});
   }
 
   void _setView(_OnlineView view) {
@@ -194,6 +199,7 @@ class _OnlinePageState extends State<OnlinePage> {
         (caps == null || caps.joinPolicies.contains(_joinPolicy))
         ? _joinPolicy
         : (caps.joinPolicies.isNotEmpty ? caps.joinPolicies.first : 'public');
+    await _stopLanLinkIfJoined();
     await _mp.create(
       activityName: _roomNameController.text.trim().isEmpty
           ? '我的房间'
@@ -221,7 +227,45 @@ class _OnlinePageState extends State<OnlinePage> {
       return;
     }
     _joinCodeController.text = code;
+    await _stopLanLinkIfJoined();
     await _mp.joinByCode(code);
+  }
+
+  /// 两种联机都占本机 6567 与组播 20151，同时开必冲突
+  Future<void> _stopLanLinkIfJoined() async {
+    if (!LanLinkService.instance.isJoined) return;
+    await LanLinkService.instance.leave();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _showLanLinkJoin() async {
+    if (_mp.state.value.inSession) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '先退出官方联机房间',
+        content: 'LanLink 与官方联机都占本机 6567 端口，同时开会冲突',
+      );
+      return;
+    }
+    final room = await showAnimatedDialog<LanLinkRoom>(
+      context: context,
+      pageBuilder: (context, _, _) => const _LanLinkJoinDialog(),
+    );
+    if (!mounted || room == null) return;
+    setState(() {});
+    addNotice(
+      icon: Icons.cable,
+      title: '已加入 LanLink 房间',
+      content: '${room.code} ${room.displayName} · 进游戏在「局域网游戏」里找它',
+      duration: const Duration(seconds: 8),
+    );
+  }
+
+  Future<void> _leaveLanLink() async {
+    await LanLinkService.instance.leave();
+    if (!mounted) return;
+    setState(() {});
+    addNotice(icon: Icons.link_off, title: '已离开 LanLink 房间');
   }
 
   /// 从整段分享文本里抠出房间码；没有就按原样大写
@@ -391,6 +435,14 @@ class _OnlinePageState extends State<OnlinePage> {
                   subtitle: '输入房间码加入朋友的房间',
                   onTap: () => _setView(_OnlineView.guest),
                 ),
+                _buildBigModeButton(
+                  icon: Icons.cable,
+                  title: 'LanLink',
+                  subtitle: '用社区模组的 MDT-XXXXXX 房间码加入',
+                  onTap: _showLanLinkJoin,
+                ),
+                if (LanLinkService.instance.isJoined)
+                  _buildLanLinkPanel(LanLinkService.instance.activeRoom),
                 if (!loggedIn)
                   Row(
                     spacing: AppSpacing.related,
@@ -504,6 +556,40 @@ class _OnlinePageState extends State<OnlinePage> {
     );
   }
 
+  Widget _buildLanLinkPanel(LanLinkRoom? room) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final name = room == null || room.displayName.isEmpty
+        ? 'LanLink 房间'
+        : room.displayName;
+    return ContentPanelModule(
+      title: 'LanLink 已加入',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: AppSpacing.related,
+        children: [
+          Text('${room?.code ?? ''}  $name', style: theme.textTheme.titleSmall),
+          Text(
+            '本机桥 ${LanLinkService.instance.localAddress}；'
+            '进游戏在「局域网游戏」里找它',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.itemSecondary,
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconTextButton(
+              pressedScale: 0.96,
+              icon: Icons.link_off,
+              content: '离开 LanLink 房间',
+              onTap: _leaveLanLink,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDisclaimer(MultiplayerState state) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
@@ -530,7 +616,8 @@ class _OnlinePageState extends State<OnlinePage> {
             style: theme.textTheme.bodySmall?.copyWith(color: colors.itemHint),
           ),
           Text(
-            '目前只保留官方联机；LanLink 与公开房间暂时收在后台。',
+            'LanLink 走社区模组的房间码（MDT-XXXXXX），与本机官方联机不能同时开：'
+            '两者都占 6567 端口。',
             style: theme.textTheme.bodySmall?.copyWith(color: colors.itemHint),
           ),
           if (state.lastMessage != null)
@@ -1980,6 +2067,123 @@ class _InviteFriendDialogState extends State<_InviteFriendDialog> {
           onTap: (_busy || invited || inRoom) ? null : () => _send(userId),
         ),
       ],
+    );
+  }
+}
+
+/// LanLink 加入：填 `MDT-XXXXXX`，解析房间后起本机桥
+class _LanLinkJoinDialog extends StatefulWidget {
+  const _LanLinkJoinDialog();
+
+  @override
+  State<_LanLinkJoinDialog> createState() => _LanLinkJoinDialogState();
+}
+
+class _LanLinkJoinDialogState extends State<_LanLinkJoinDialog> {
+  final _controller = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _join() async {
+    final code = LanLinkRoomCode.tryParse(_controller.text);
+    if (code == null) {
+      setState(() => _error = '房间码是 MDT- 加 6 位，例如 MDT-8FB633');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final room = await LanLinkService.instance.resolve(code);
+      if (room == null) {
+        if (mounted) setState(() => _error = '房间不存在或已关闭');
+        return;
+      }
+      await LanLinkService.instance.join(room);
+      if (mounted) Navigator.of(context).pop(room);
+    } on LanLinkException catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _error = error.message.isEmpty
+            ? '加入失败${error.code.isEmpty ? '' : '（${error.code}）'}'
+            : error.message,
+      );
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = '加入失败：$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        elevation: 6,
+        child: Container(
+          width: (MediaQuery.sizeOf(context).width - 32).clamp(0, 420),
+          padding: const EdgeInsets.all(AppSpacing.block),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(AppRadius.panel),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: AppSpacing.related,
+            children: [
+              Text('LanLink 加入', style: theme.textTheme.titleMedium),
+              Text(
+                '填房主给的 MDT-XXXXXX 房间码；加入后进游戏，在「局域网游戏」里找这个房间',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.itemHint,
+                ),
+              ),
+              OutlinedTextField(
+                controller: _controller,
+                label: '房间码（MDT-XXXXXX）',
+                enable: !_busy,
+                onEditingComplete: _join,
+              ),
+              if (_error != null)
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              Row(
+                spacing: AppSpacing.related,
+                children: [
+                  const Spacer(),
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.close,
+                    content: '取消',
+                    onTap: _busy ? null : () => Navigator.of(context).pop(),
+                  ),
+                  IconTextButton(
+                    pressedScale: 0.96,
+                    icon: Icons.login,
+                    content: _busy ? '正在加入…' : '加入房间',
+                    onTap: _busy ? null : _join,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
