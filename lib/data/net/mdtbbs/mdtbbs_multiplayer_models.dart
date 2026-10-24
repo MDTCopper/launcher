@@ -354,11 +354,17 @@ class MdtbbsJoinIntent {
   final String intentId;
   final String? expiresAt;
 
-  factory MdtbbsJoinIntent.fromJson(Map<String, dynamic> json) =>
-      MdtbbsJoinIntent(
-        intentId: '${json['intent_id'] ?? json['id'] ?? ''}',
-        expiresAt: json['expires_at']?.toString(),
-      );
+  factory MdtbbsJoinIntent.fromJson(Map<String, dynamic> json) {
+    // 服务端可能把意图包一层（`join_intent` / `intent`）给出对象，也可能直接给 id 字符串
+    final nested = json['join_intent'] ?? json['intent'];
+    final source = nested is Map ? nested.cast<String, dynamic>() : json;
+    final direct = nested is String ? nested : null;
+    return MdtbbsJoinIntent(
+      intentId:
+          '${direct ?? source['intent_id'] ?? source['id'] ?? json['join_intent_id'] ?? ''}',
+      expiresAt: (source['expires_at'] ?? json['expires_at'])?.toString(),
+    );
+  }
 }
 
 /// `GET /multiplayer/preferences`：用户默认的加入意图客户端

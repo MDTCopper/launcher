@@ -1,5 +1,6 @@
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:dio/dio.dart';
 
 /// 当前用户不在任何会话里（`/sessions/mine` 的语义化 404）
@@ -341,6 +342,9 @@ class MdtbbsMultiplayerApi {
   }
 
   /// 接受邀请 → 返回加入意图（60 秒内使用）
+  ///
+  /// 服务端不一定给意图：没给时返回空 id，由调用方退回「直接加入会话」。
+  /// 这里把应答的键名记下来（只记键，不记值），下次形状变了能一眼看出来
   static Future<MdtbbsJoinIntent> acceptInvite({
     required String accessToken,
     required String inviteId,
@@ -353,7 +357,17 @@ class MdtbbsMultiplayerApi {
       cancelToken: cancelToken,
       timeout: _callTimeout,
     );
-    return MdtbbsJoinIntent.fromJson(_map(data));
+    final map = _map(data);
+    final intent = MdtbbsJoinIntent.fromJson(map);
+    if (intent.intentId.isEmpty) {
+      addLogAndPrint(
+        .warning,
+        '接受邀请的应答里没有 intent_id（键：${map.keys.join(', ')}），'
+        '改为直接加入会话',
+        tag: 'Mdtbbs',
+      );
+    }
+    return intent;
   }
 
   /// 拒绝 / 撤销邀请

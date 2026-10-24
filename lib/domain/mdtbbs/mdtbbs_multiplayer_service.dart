@@ -954,10 +954,18 @@ class MdtbbsMultiplayerService {
         inviteId: inviteId,
       );
       if (!_isAccountEpochCurrent(epoch)) return;
-      final joined = await MdtbbsMultiplayerApi.consumeJoinIntent(
-        accessToken: token,
-        intentId: intent.intentId,
-      );
+      // 服务端没给加入意图时退回「带着邀请直接加入」：
+      // 邀请已经接受了，会话认这条凭证，比卡在空 intent id 上强
+      final joined = intent.intentId.isEmpty
+          ? await MdtbbsMultiplayerApi.join(
+              accessToken: token,
+              sessionId: invite.sessionId,
+              inviteId: inviteId,
+            )
+          : await MdtbbsMultiplayerApi.consumeJoinIntent(
+              accessToken: token,
+              intentId: intent.intentId,
+            );
       if (!_isAccountEpochCurrent(epoch)) return;
       final session = await MdtbbsMultiplayerApi.session(
         accessToken: token,
