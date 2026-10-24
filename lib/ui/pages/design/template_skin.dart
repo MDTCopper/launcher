@@ -159,6 +159,15 @@ class TemplateSkin {
   Color get controlBorderDisabled =>
       controlBorder.withAlpha((0.5 * 255).round());
 
+  /// 禁用的实心：主题色只留 12%（用户 2026-10-24「实心变的颜色更透明一点」）
+  ///
+  /// 换成中性灰会让「主行动不可用」和「标准不可用」长得一模一样；留一层淡主题色，
+  /// 既看得出它原本是主行动，又不会跟可用态抢
+  Color get solidDisabledSurface => accent.withAlpha((0.12 * 255).round());
+
+  /// 禁用的标准：比控件面再暗一档（同一次口径「标准更暗一点」）
+  Color get standardDisabledSurface => neutralTone(dark ? 16 : 84);
+
   /// 悬停 / 按下：压在**控件自己的底色**上算出来的一层
   ///
   /// 四条规则（前三条都是踩出来的）：

@@ -89,7 +89,8 @@ class _DesignComponentsPageState extends State<DesignComponentsPage> {
             style: TemplateType.caption.copyWith(color: skin.textTertiary),
           ),
           Text(
-            '禁用态统一走前景 38%、控件边界减半，悬停与回弹都不响应；开关与分段的值仍然保留',
+            '禁用态：字退到正文 38%，悬停与回弹都不响应；实心留 12% 主题色、标准比控件面暗一档，'
+            '开关与分段的值仍然保留',
             style: TemplateType.caption.copyWith(color: skin.textTertiary),
           ),
         ],
