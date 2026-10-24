@@ -12,13 +12,26 @@ import 'package:flutter/material.dart';
 /// 页面只做两件事：订阅 [state] 渲染、调下面的动作；网络调用不写在页面里
 /// （散在页面里会切页就丢、每次进页面都得重拉一遍）
 class MdtbbsFriendsService {
-  MdtbbsFriendsService._();
+  MdtbbsFriendsService._() {
+    _accounts.snapshot.addListener(_onAccountChanged);
+  }
 
   static final MdtbbsFriendsService instance = MdtbbsFriendsService._();
 
   final ValueNotifier<FriendsState> state = ValueNotifier(const FriendsState());
 
   AccountManager get _accounts => AccountManager.instance;
+
+  /// 退出登录后清掉上一个人的好友，别让界面继续显示
+  void _onAccountChanged() {
+    if (_accounts.snapshot.value.loggedIn) return;
+    if (_current.friends.isEmpty &&
+        _current.requests.isEmpty &&
+        !_current.loaded) {
+      return;
+    }
+    clear();
+  }
 
   /// 用例里替换令牌来源；生产代码不设置它
   @visibleForTesting
@@ -61,8 +74,9 @@ class MdtbbsFriendsService {
   /// 拉第一页：好友（在线聚合）与待处理请求
   ///
   /// 两个接口**各自错误各自报** —— 一个失败时另一个照常显示，
-  /// 不然「拉失败」和「真的一个好友都没有」在界面上长得一模一样
-  Future<void> load({bool force = false}) async {
+  /// 不然「拉失败」和「真的一个好友都没有」在界面上长得一模一样。
+  /// [quiet] 用于后台轮询：失败不弹通知，只记日志
+  Future<void> load({bool force = false, bool quiet = false}) async {
     if (_current.loading) return;
     if (!force && _current.loaded) return;
     final token = await _token();
@@ -104,7 +118,15 @@ class MdtbbsFriendsService {
 
     _set(_current.copyWith(loading: false, loaded: true));
     if (failures.isNotEmpty) {
-      _notify('读取失败 —— ${failures.join('；')}', isError: true);
+      if (quiet) {
+        addLogAndPrint(
+          .debug,
+          '好友轮询失败 —— ${failures.join('；')}',
+          tag: 'Friends',
+        );
+      } else {
+        _notify('读取失败 —— ${failures.join('；')}', isError: true);
+      }
     } else {
       addLogAndPrint(
         .info,
