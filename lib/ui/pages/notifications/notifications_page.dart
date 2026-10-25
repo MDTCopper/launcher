@@ -8,6 +8,8 @@ import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/shell/app_navigation.dart';
+import 'package:copper_launcher/ui/pages/online/online_page.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/format/date_time_format.dart';
@@ -209,6 +211,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
         // 失败原因由联机服务弹过提示了，这里只把这条留在未读里
         throw const _NoticeActionError('没进得去，详情看提示');
       }
+      // 进房了就跳到联机页，顺手把抽屉收起来（通知是抽屉里的一页）
+      AppNavigation.goTo(onlinePageRouteKey);
       return '已进入房间';
     });
   }

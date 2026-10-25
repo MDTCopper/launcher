@@ -5,6 +5,7 @@ import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
+import 'package:copper_launcher/ui/shell/app_navigation.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
@@ -393,21 +394,22 @@ class AppShellState extends State<AppShell> {
                     ),
                   ),
                   if (unread > 0)
+                    // 固定高度 + 圆角一半：不加尺寸约束的话会被行高挤成椭圆
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 0.5,
-                      ),
+                      height: 14,
+                      constraints: const BoxConstraints(minWidth: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: colors.error,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(7),
                       ),
                       child: Text(
                         '$unread',
                         style: const TextStyle(
                           fontSize: 9,
                           color: Colors.white,
-                          height: 1.2,
+                          height: 1,
                         ),
                       ),
                     ),
@@ -621,6 +623,24 @@ class AppShellState extends State<AppShell> {
     );
     return child;
   }
+
+  /// 抽屉里的内容想「跳到某页并收起抽屉」时走 [AppNavigation]（避免和页面互相 import）
+  @override
+  void initState() {
+    super.initState();
+    AppNavigation.handler = (route) {
+      _scaffoldKey.currentState?.closeDrawer();
+      // 带上 lead，顶栏才显示页面名而不是路由串
+      _onRootNavigate(route, {'lead': _labelOfRoute(route)});
+    };
+  }
+
+  /// 抽屉跳转时给顶栏用的标题
+  String _labelOfRoute(String route) => switch (route) {
+    onlinePageRouteKey => '联机',
+    '/' => '主页',
+    _ => route,
+  };
 
   @override
   Widget build(BuildContext context) {
