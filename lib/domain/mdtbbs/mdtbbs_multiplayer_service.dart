@@ -920,21 +920,24 @@ class MdtbbsMultiplayerService {
     }
   }
 
-  Future<void> revokeInvite(String inviteId) =>
+  Future<bool> revokeInvite(String inviteId) =>
       _respondInvite(inviteId, revoke: true);
 
-  Future<void> declineInvite(String inviteId) =>
+  Future<bool> declineInvite(String inviteId) =>
       _respondInvite(inviteId, revoke: false);
 
-  Future<void> _respondInvite(String inviteId, {required bool revoke}) async {
+  Future<bool> _respondInvite(
+    String inviteId, {
+    required bool revoke,
+  }) async {
     if (inviteId.isEmpty) {
       _notify('这条邀请没有 ID，无法处理', isError: true);
-      return;
+      return false;
     }
-    if (_current.busyInviteId != null) return;
+    if (_current.busyInviteId != null) return false;
     final epoch = _accountEpoch;
     final token = await _token();
-    if (token == null || !_isAccountEpochCurrent(epoch)) return;
+    if (token == null || !_isAccountEpochCurrent(epoch)) return false;
     _set(_current.copyWith(busyInviteId: inviteId));
     try {
       await MdtbbsMultiplayerApi.respondInvite(
@@ -942,7 +945,7 @@ class MdtbbsMultiplayerService {
         inviteId: inviteId,
         revoke: revoke,
       );
-      if (!_isAccountEpochCurrent(epoch)) return;
+      if (!_isAccountEpochCurrent(epoch)) return false;
       _set(
         _current.copyWith(
           clearBusyInvite: true,
@@ -953,13 +956,15 @@ class MdtbbsMultiplayerService {
         ),
       );
       _notify(revoke ? '已撤销邀请' : '已拒绝邀请');
+      return true;
     } on Object catch (error) {
-      if (!_isAccountEpochCurrent(epoch)) return;
+      if (!_isAccountEpochCurrent(epoch)) return false;
       _set(_current.copyWith(clearBusyInvite: true));
       _notify(
         '${revoke ? '撤销' : '拒绝'}邀请失败：${describeMdtbbsError(error)}',
         isError: true,
       );
+      return false;
     }
   }
 

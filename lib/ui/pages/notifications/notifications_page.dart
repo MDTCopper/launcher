@@ -173,6 +173,14 @@ class _NotificationsPageState extends State<NotificationsPage> {
           onTap: () => unawaited(_acceptInvite(targetId)),
         ),
       );
+      actions.add(
+        IconTextButton(
+          pressedScale: 0.96,
+          icon: Icons.visibility_off_outlined,
+          content: '忽略',
+          onTap: () => unawaited(_ignoreInvite(targetId)),
+        ),
+      );
     }
     if (actions.isEmpty) return const SizedBox.shrink();
     return Row(spacing: AppSpacing.related, children: actions);
@@ -214,6 +222,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
       // 进房了就跳到联机页，顺手把抽屉收起来（通知是抽屉里的一页）
       AppNavigation.goTo(onlinePageRouteKey);
       return '已进入房间';
+    });
+  }
+
+  Future<void> _ignoreInvite(String inviteId) async {
+    await _run(inviteId, 'invite:$inviteId', () async {
+      final declined = await MdtbbsMultiplayerService.instance.declineInvite(
+        inviteId,
+      );
+      if (!declined) throw const _NoticeActionError('没忽略掉，详情看提示');
+      return '已忽略这条邀请';
     });
   }
 
