@@ -38,6 +38,9 @@ class _FriendsPageState extends State<FriendsPage> {
   MdtbbsMultiplayerService get _mp => MdtbbsMultiplayerService.instance;
   AccountManager get _accounts => AccountManager.instance;
 
+  /// 邀请冷却的倒计时：有冷却时才每秒重建（没冷却就白跑）
+  Timer? _coolTick;
+
   @override
   void initState() {
     super.initState();
@@ -45,10 +48,21 @@ class _FriendsPageState extends State<FriendsPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_accounts.isLoggedIn) unawaited(_friends.load());
     });
+    _coolTick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (!_mp.state.value.inSession) return;
+      for (final entry in _friends.state.value.friends) {
+        if (_mp.inviteCooldownLeft(entry.user.userId) > 0) {
+          setState(() {});
+          return;
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _coolTick?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
@@ -302,6 +316,16 @@ class _FriendsPageState extends State<FriendsPage> {
     final invited = multiplayer.sentInvites.any(
       (invite) => invite.targetUserId == '$userId',
     );
+    // 冷却剩余秒数：界面上直接写出来，不然用户以为点了没反应
+    final cooldown = _mp.inviteCooldownLeft(userId);
+    final coolingDown = cooldown > 0;
+    final inviteLabel = inRoom
+        ? '已在房间'
+        : invited
+        ? '已邀请'
+        : coolingDown
+        ? '冷却 ${cooldown}s'
+        : '邀请';
     return Row(
       spacing: AppSpacing.related,
       children: [
@@ -348,8 +372,8 @@ class _FriendsPageState extends State<FriendsPage> {
           IconTextButton(
             pressedScale: 0.96,
             icon: Icons.send,
-            content: inRoom ? '已在房间' : (invited ? '已邀请' : '邀请'),
-            onTap: (busy || invited || inRoom)
+            content: inviteLabel,
+            onTap: (busy || invited || inRoom || coolingDown)
                 ? null
                 : () => _mp.inviteFriend(userId),
           ),
