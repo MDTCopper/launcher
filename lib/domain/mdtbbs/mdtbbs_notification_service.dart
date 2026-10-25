@@ -4,6 +4,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_friends_api.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_friends_models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_api.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_realtime_service.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
@@ -36,14 +37,18 @@ class MdtbbsNoticeItem {
   };
 }
 
-/// 账户通知的中心：轮询好友请求与联机邀请，新的就记一条并弹一次提示
+/// 账户通知的中心：实时事件优先，轮询兜底
 ///
-/// 先做轮询版（30 秒一次）。官方文档里有 `/realtime/v1` 的事件流
-/// （`friend.request.created`、`multiplayer.invite.created`…），
-/// 下一轮把那套接上就能改成实时，这里的 [items] 不用动
+/// 主路径是 `/realtime/v1`（[MdtbbsRealtimeService]）：好友请求 / 联机邀请一到达就记一条并弹提示。
+/// 轮询留作兜底：实时通道没连上（没网、票据失败、服务端开关关着）时每 30 秒拉一次，
+/// 两者用同一套去重键，不会重复弹。
 class MdtbbsNotificationService {
   MdtbbsNotificationService._() {
     _accounts.snapshot.addListener(_onAccountChanged);
+    // 实时通道把事件抛过来，直接进同一个列表
+    final realtime = MdtbbsRealtimeService.instance;
+    realtime.onEvent = handleRealtimeEvent;
+    realtime.onNeedSnapshot = () => unawaited(_poll(announce: true));
     if (_accounts.isLoggedIn) unawaited(_start());
   }
 
@@ -106,8 +111,54 @@ class MdtbbsNotificationService {
     items.value = const [];
   }
 
+  /// 实时通道来事件：与轮询用同一套去重键，谁先到算谁
+  void handleRealtimeEvent(MdtbbsRealtimeEvent event) {
+    final data = event.data;
+    MdtbbsNoticeItem? item;
+    switch (event.event) {
+      case 'friend.request.created':
+        final id = '${data['request_id'] ?? data['id'] ?? ''}';
+        if (id.isEmpty) break;
+        final user = data['user'];
+        final name = (user is Map ? '${user['username'] ?? ''}' : '');
+        item = MdtbbsNoticeItem(
+          id: 'friend:$id',
+          kind: MdtbbsNoticeKind.friendRequest,
+          title: '好友请求',
+          body: name.isEmpty ? '有人想加你为好友' : '$name 想加你为好友',
+        );
+      case 'multiplayer.invite.created':
+        final id = '${data['invite_id'] ?? data['id'] ?? ''}';
+        if (id.isEmpty) break;
+        final session = data['session'];
+        final room = (session is Map ? '${session['activity_name'] ?? ''}' : '');
+        item = MdtbbsNoticeItem(
+          id: 'invite:$id',
+          kind: MdtbbsNoticeKind.invite,
+          title: '联机邀请',
+          body: room.isEmpty ? '有人邀请你进入房间' : '邀请你进入「$room」',
+        );
+      default:
+        return;
+    }
+    final notice = item;
+    if (notice == null) return;
+    if (!_seen.add(notice.id)) return;
+    _seeded = true;
+    items.value = [notice, ...items.value];
+    addNotice(
+      icon: notice.icon,
+      title: notice.title,
+      content: notice.body,
+      duration: const Duration(seconds: 6),
+    );
+    addLogAndPrint(.info, '实时通知：${notice.title}（${notice.body}）', tag: 'Notify');
+  }
+
   Future<void> _poll({required bool announce}) async {
     if (_polling) return;
+    // 实时通道连着就不轮询了；没连上时它仍然是兜底
+    if (_seeded && MdtbbsRealtimeService.instance.connected.value) return;
     _polling = true;
     final fresh = <MdtbbsNoticeItem>[];
     try {

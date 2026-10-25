@@ -5,6 +5,7 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_presence_service.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_realtime_service.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
@@ -85,8 +86,10 @@ Future<void> _initialize() async {
   addTask(StartupBackgroundTask());
   //在线状态：已登录就建连接，好友列表靠它判断「在线」
   MdtbbsPresenceService.instance;
-  //账户通知：轮询好友请求与联机邀请（实时事件流排后续）
+  //账户通知：实时事件流优先（/realtime/v1），轮询兜底
   MdtbbsNotificationService.instance;
+  //实时通道：好友请求 / 联机邀请一到就推，失败自动退避重连
+  MdtbbsRealtimeService.instance;
   //启动即登录：读盘 → 拉一次资料（头像 / 用户名给顶栏与好友用），失败不打扰
   unawaited(_warmUpAccount());
 
