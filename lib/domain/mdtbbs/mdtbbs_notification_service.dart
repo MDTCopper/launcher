@@ -105,6 +105,18 @@ class MdtbbsNotificationService {
     if (changed) items.value = List.of(items.value);
   }
 
+  /// 把某一条标成已读（就地处理完通知时用）
+  void markRead(String id) {
+    var changed = false;
+    for (final item in items.value) {
+      if (item.id == id && !item.read) {
+        item.read = true;
+        changed = true;
+      }
+    }
+    if (changed) items.value = List.of(items.value);
+  }
+
   void clear() {
     _seen.clear();
     _seeded = false;

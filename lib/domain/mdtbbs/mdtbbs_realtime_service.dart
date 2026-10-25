@@ -64,6 +64,7 @@ class MdtbbsRealtimeService {
   StreamSubscription<dynamic>? _subscription;
   Timer? _heartbeat;
   Timer? _reconnect;
+  bool _connecting = false;
   int _attempt = 0;
   bool _running = false;
   bool _wasLoggedIn = false;
@@ -72,6 +73,8 @@ class MdtbbsRealtimeService {
   String? _lastEventId;
 
   Future<void> _start() async {
+    // 已连上或正在连就别再起一条：账号恢复会再通知一次，容易连出两条
+    if (_running && (_socket != null || _connecting)) return;
     _running = true;
     await _connect();
   }
@@ -100,7 +103,8 @@ class MdtbbsRealtimeService {
   }
 
   Future<void> _connect() async {
-    if (!_running) return;
+    if (!_running || _connecting) return;
+    _connecting = true;
     _reconnect?.cancel();
     _heartbeat?.cancel();
     unawaited(_subscription?.cancel());
@@ -138,6 +142,8 @@ class MdtbbsRealtimeService {
     } on Object catch (error) {
       addLog(.debug, '实时通道连接失败：$error', tag: 'Realtime');
       _scheduleReconnect();
+    } finally {
+      _connecting = false;
     }
   }
 
