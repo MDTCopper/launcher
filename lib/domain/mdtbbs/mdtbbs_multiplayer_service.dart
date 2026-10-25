@@ -847,6 +847,22 @@ class MdtbbsMultiplayerService {
     }
   }
 
+  /// 每个好友的邀请冷却：30 秒内不重复发
+  ///
+  /// 服务端文档里没有「已有邀请 / 重复邀请」这类错误码（只有 INVITE_ALREADY_ACCEPTED），
+  /// 所以去重和冷却只能客户端自己保证
+  final Map<int, DateTime> _inviteSentAt = {};
+
+  static const _inviteCooldown = Duration(seconds: 30);
+
+  /// 距离下次可邀请还有几秒（0 表示现在就能发）
+  int inviteCooldownLeft(int targetUserId) {
+    final at = _inviteSentAt[targetUserId];
+    if (at == null) return 0;
+    final left = _inviteCooldown - DateTime.now().difference(at);
+    return left.inSeconds <= 0 ? 0 : left.inSeconds;
+  }
+
   Future<void> inviteFriend(int targetUserId) async {
     final session = _current.session;
     if (session == null) {
@@ -855,6 +871,19 @@ class MdtbbsMultiplayerService {
     }
     if (targetUserId <= 0) {
       _notify('用户 ID 不对', isError: true);
+      return;
+    }
+    // 已经有一条待处理的邀请就别重复发
+    final pending = _current.sentInvites.any(
+      (invite) => invite.targetUserId == '$targetUserId',
+    );
+    if (pending) {
+      _notify('已经邀请过了，等对方回应', isError: true);
+      return;
+    }
+    final left = inviteCooldownLeft(targetUserId);
+    if (left > 0) {
+      _notify('刚邀请过，$left 秒后再试', isError: true);
       return;
     }
     if (_current.inviting) return;
@@ -872,6 +901,7 @@ class MdtbbsMultiplayerService {
           _current.session?.id != session.id) {
         return;
       }
+      _inviteSentAt[targetUserId] = DateTime.now();
       _set(
         _current.copyWith(
           sentInvites: [

@@ -229,7 +229,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
       final message = await action();
       addNotice(icon: Icons.check, title: message);
       addLog(.info, '通知处理：$message（$targetId）', tag: 'Notify');
-      _notifications.markRead(noticeId);
+      // 已经处理掉了，别再把这条留在列表里
+      _notifications.removeNotice(noticeId);
     } on Object catch (error) {
       final text = removeNewlines('$error');
       addNotice(icon: Icons.close, title: '没成功', content: text);

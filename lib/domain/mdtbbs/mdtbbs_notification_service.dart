@@ -117,6 +117,15 @@ class MdtbbsNotificationService {
     if (changed) items.value = List.of(items.value);
   }
 
+  /// 处理完就把这条从列表里拿掉（邀请已经进了、好友已经加上了，留着没意义）
+  void removeNotice(String id) {
+    final next = [
+      for (final item in items.value)
+        if (item.id != id) item,
+    ];
+    if (next.length != items.value.length) items.value = next;
+  }
+
   void clear() {
     _seen.clear();
     _seeded = false;
