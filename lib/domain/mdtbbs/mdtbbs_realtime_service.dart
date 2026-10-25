@@ -204,8 +204,12 @@ class MdtbbsRealtimeService {
   void _startHeartbeat(int seconds) {
     _heartbeat?.cancel();
     final interval = Duration(seconds: seconds.clamp(10, 120));
-    addLog(.debug, '实时通道心跳 ${interval.inSeconds}s', tag: 'Realtime');
-    _heartbeat = Timer.periodic(interval, (_) {
+    // 连上就先打一次：服务端约 30 秒收不到心跳就断开（实测每 32 秒掉一次），
+    // 按整间隔发正好卡在边界上，所以按半间隔打
+    _send({'type': 'heartbeat'});
+    final tick = Duration(milliseconds: interval.inMilliseconds ~/ 2);
+    addLog(.debug, '实时通道心跳 ${tick.inSeconds}s', tag: 'Realtime');
+    _heartbeat = Timer.periodic(tick, (_) {
       _send({'type': 'heartbeat'});
     });
   }

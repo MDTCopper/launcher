@@ -933,27 +933,32 @@ class MdtbbsMultiplayerService {
     }
   }
 
-  Future<void> acceptInvite(String inviteId) async {
-    final invite = _inviteOf(inviteId);
+  Future<bool> acceptInvite(String inviteId) async {
+    // 邀请可能来自实时通知，本会话还没拉过邀请列表：先补一次再找
+    var invite = _inviteOf(inviteId);
+    if (invite == null) {
+      await refreshInvites();
+      invite = _inviteOf(inviteId);
+    }
     if (invite == null) {
       _notify('这条邀请已经不在了', isError: true);
-      return;
+      return false;
     }
     if (_current.session != null) {
       _notify('已经在房间里了，先离开再接受邀请', isError: true);
-      return;
+      return false;
     }
-    if (_current.busyInviteId != null) return;
+    if (_current.busyInviteId != null) return false;
     final epoch = _accountEpoch;
     final token = await _token();
-    if (token == null || !_isAccountEpochCurrent(epoch)) return;
+    if (token == null || !_isAccountEpochCurrent(epoch)) return false;
     _set(_current.copyWith(busyInviteId: inviteId));
     try {
       final intent = await MdtbbsMultiplayerApi.acceptInvite(
         accessToken: token,
         inviteId: inviteId,
       );
-      if (!_isAccountEpochCurrent(epoch)) return;
+      if (!_isAccountEpochCurrent(epoch)) return false;
       // 服务端没给加入意图时退回「带着邀请直接加入」：
       // 邀请已经接受了，会话认这条凭证，比卡在空 intent id 上强
       final joined = intent.intentId.isEmpty
@@ -966,12 +971,12 @@ class MdtbbsMultiplayerService {
               accessToken: token,
               intentId: intent.intentId,
             );
-      if (!_isAccountEpochCurrent(epoch)) return;
+      if (!_isAccountEpochCurrent(epoch)) return false;
       final session = await MdtbbsMultiplayerApi.session(
         accessToken: token,
         sessionId: invite.sessionId,
       );
-      if (!_isAccountEpochCurrent(epoch)) return;
+      if (!_isAccountEpochCurrent(epoch)) return false;
       _rememberSession(
         sessionId: session.id,
         peerId: joined.peer.peerId,
@@ -993,10 +998,12 @@ class MdtbbsMultiplayerService {
       _armHeartbeat();
       unawaited(refreshPeers());
       unawaited(_autoPrepareProxy());
+      return true;
     } on Object catch (error) {
-      if (!_isAccountEpochCurrent(epoch)) return;
+      if (!_isAccountEpochCurrent(epoch)) return false;
       _set(_current.copyWith(clearBusyInvite: true));
       _notify('接受邀请失败：${describeMdtbbsError(error)}', isError: true);
+      return false;
     }
   }
 

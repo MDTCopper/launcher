@@ -319,8 +319,9 @@ class _OnlinePageState extends State<OnlinePage> {
     await _createRoom();
   }
 
-  Future<void> _joinInvite(MdtbbsInvite invite) =>
-      _mp.acceptInvite(invite.inviteId);
+  Future<void> _joinInvite(MdtbbsInvite invite) async {
+    await _mp.acceptInvite(invite.inviteId);
+  }
 
   Future<void> _showInviteDialog() async {
     final state = _mp.state.value;

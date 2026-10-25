@@ -202,8 +202,14 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Future<void> _acceptInvite(String inviteId) async {
     await _run(inviteId, 'invite:$inviteId', () async {
-      await MdtbbsMultiplayerService.instance.acceptInvite(inviteId);
-      return '正在进入房间';
+      final joined = await MdtbbsMultiplayerService.instance.acceptInvite(
+        inviteId,
+      );
+      if (!joined) {
+        // 失败原因由联机服务弹过提示了，这里只把这条留在未读里
+        throw const _NoticeActionError('没进得去，详情看提示');
+      }
+      return '已进入房间';
     });
   }
 
