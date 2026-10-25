@@ -67,6 +67,7 @@ config.*
 # 运行时产物：云存档的临时目录与「恢复前备份」、启动器配置的备份、清单哈希缓存。
 # debug 下数据根就是仓库根，这几个目录 / 文件会落在仓库里，别提交
 tmp/
+cache/
 cloud-backups/
 config-backups/
 cloud-manifest-cache.json
