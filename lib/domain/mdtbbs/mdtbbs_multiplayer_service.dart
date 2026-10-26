@@ -613,8 +613,13 @@ class MdtbbsMultiplayerService {
         gameId: 'mindustry',
       );
       lobby.value = sessions;
-    } on Object {
-      addLog(.debug, '读取大厅失败：', tag: 'Multiplayer');
+      addLogAndPrint(
+        .debug,
+        '大厅：${sessions.length} 个会话',
+        tag: 'Multiplayer',
+      );
+    } on Object catch (error) {
+      addLog(.debug, '读取大厅失败：${error.runtimeType} / $error', tag: 'Multiplayer');
     } finally {
       _lobbyLoading = false;
     }
@@ -665,7 +670,7 @@ class MdtbbsMultiplayerService {
         ),
       );
       _beginSessionTask();
-      _notify('已加入房间（）');
+      _notify('已加入房间（${session.id}）');
       _armHeartbeat();
       unawaited(refreshPeers());
       unawaited(_autoPrepareProxy());

@@ -353,7 +353,16 @@ class MdtbbsMultiplayerApi {
       cancelToken: cancelToken,
       timeout: _callTimeout,
     );
-    return _list(data).map(MdtbbsSession.fromJson).toList();
+    // 实测（2026-10-26）：这个接口的 data 是对象而不是数组，里面才装列表，
+    // 具体键名先按常见的几个试，试不出来就把键名记下来
+    // 实测（2026-10-26）：这个接口回的是完整信封 {data:[...], total, page, limit}
+    final raw = data is Map
+        ? data['data'] ?? data['sessions'] ?? data['items']
+        : data;
+    if (raw is! List && data is Map) {
+      addLog(.warning, '会话列表形状没见过：${(data).keys.join(', ')}', tag: 'Multiplayer');
+    }
+    return _list(raw).map(MdtbbsSession.fromJson).toList();
   }
 
   static Future<List<MdtbbsInvite>> invites({

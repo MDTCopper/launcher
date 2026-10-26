@@ -391,7 +391,7 @@ class _FriendsPageState extends State<FriendsPage> {
           IconTextButton(
             pressedScale: 0.96,
             icon: Icons.meeting_room_outlined,
-            content: '加入房间',
+            content: '加入',
             onTap: busy
                 ? null
                 : () => unawaited(
