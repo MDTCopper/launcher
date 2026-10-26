@@ -133,13 +133,21 @@ class MdtbbsNotificationService {
   }
 
   /// 实时通道来事件：与轮询用同一套去重键，谁先到算谁
+  ///
+  /// 1.8.0 的说明是「实时事件 payload 是轻量变更通知」——可能只有 ID，
+  /// 也可能字段名跟 HTTP 对象不一样。所以解析不到 ID 时**立刻拉一次列表兜底**，
+  /// 不能静默丢掉这条事件（实时连着的时候轮询本来就被跳过了）
   void handleRealtimeEvent(MdtbbsRealtimeEvent event) {
     final data = event.data;
     MdtbbsNoticeItem? item;
     switch (event.event) {
       case 'friend.request.created':
         final id = '${data['request_id'] ?? data['id'] ?? ''}';
-        if (id.isEmpty) break;
+        if (id.isEmpty) {
+          addLog(.debug, '好友请求事件没有 ID，回退到拉列表', tag: 'Notify');
+          unawaited(_poll(announce: true, force: true));
+          return;
+        }
         final user = data['user'];
         final name = (user is Map ? '${user['username'] ?? ''}' : '');
         item = MdtbbsNoticeItem(
@@ -150,7 +158,11 @@ class MdtbbsNotificationService {
         );
       case 'multiplayer.invite.created':
         final id = '${data['invite_id'] ?? data['id'] ?? ''}';
-        if (id.isEmpty) break;
+        if (id.isEmpty) {
+          addLog(.debug, '联机邀请事件没有 ID，回退到拉列表', tag: 'Notify');
+          unawaited(_poll(announce: true, force: true));
+          return;
+        }
         final session = data['session'];
         final room = (session is Map ? '${session['activity_name'] ?? ''}' : '');
         item = MdtbbsNoticeItem(
@@ -163,7 +175,6 @@ class MdtbbsNotificationService {
         return;
     }
     final notice = item;
-    if (notice == null) return;
     if (!_seen.add(notice.id)) return;
     _seeded = true;
     items.value = [notice, ...items.value];
@@ -176,10 +187,12 @@ class MdtbbsNotificationService {
     addLogAndPrint(.info, '实时通知：${notice.title}（${notice.body}）', tag: 'Notify');
   }
 
-  Future<void> _poll({required bool announce}) async {
+  Future<void> _poll({required bool announce, bool force = false}) async {
     if (_polling) return;
     // 实时通道连着就不轮询了；没连上时它仍然是兜底
-    if (_seeded && MdtbbsRealtimeService.instance.connected.value) return;
+    if (!force && _seeded && MdtbbsRealtimeService.instance.connected.value) {
+      return;
+    }
     _polling = true;
     final fresh = <MdtbbsNoticeItem>[];
     try {

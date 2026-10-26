@@ -596,6 +596,88 @@ class MdtbbsMultiplayerService {
     }
   }
 
+  /// 大厅里的会话（公开 + 好友可见），「直接加入好友房间」靠它
+  final ValueNotifier<List<MdtbbsSession>> lobby = ValueNotifier(const []);
+
+  bool _lobbyLoading = false;
+
+  /// 拉一次会话列表（失败不打扰，保持上一次的结果）
+  Future<void> refreshLobby() async {
+    if (_lobbyLoading) return;
+    _lobbyLoading = true;
+    try {
+      final token = await _token();
+      if (token == null) return;
+      final sessions = await MdtbbsMultiplayerApi.sessions(
+        accessToken: token,
+        gameId: 'mindustry',
+      );
+      lobby.value = sessions;
+    } on Object {
+      addLog(.debug, '读取大厅失败：', tag: 'Multiplayer');
+    } finally {
+      _lobbyLoading = false;
+    }
+  }
+
+  /// 某个好友正在开的房间（没有就 null）
+  MdtbbsSession? lobbySessionOf(String userId) {
+    for (final session in lobby.value) {
+      if (session.ownerUserId == userId) return session;
+    }
+    return null;
+  }
+
+  /// 直接加入一个已知会话（好友房间 / 大厅点进来）
+  Future<bool> joinSession(String sessionId) async {
+    if (_current.session != null) {
+      _notify('已经在房间里了，先离开', isError: true);
+      return false;
+    }
+    if (_current.joining) return false;
+    final epoch = _accountEpoch;
+    final token = await _token();
+    if (token == null || !_isAccountEpochCurrent(epoch)) return false;
+    _set(_current.copyWith(joining: true));
+    try {
+      final joined = await MdtbbsMultiplayerApi.join(
+        accessToken: token,
+        sessionId: sessionId,
+      );
+      if (!_isAccountEpochCurrent(epoch)) return false;
+      final session = await MdtbbsMultiplayerApi.session(
+        accessToken: token,
+        sessionId: sessionId,
+      );
+      if (!_isAccountEpochCurrent(epoch)) return false;
+      _rememberSession(
+        sessionId: session.id,
+        peerId: joined.peer.peerId,
+        resumeToken: joined.resumeToken,
+        activityName: session.activityName,
+      );
+      _set(
+        _current.copyWith(
+          session: session,
+          self: joined.peer,
+          resuming: false,
+          joining: false,
+        ),
+      );
+      _beginSessionTask();
+      _notify('已加入房间（）');
+      _armHeartbeat();
+      unawaited(refreshPeers());
+      unawaited(_autoPrepareProxy());
+      return true;
+    } on Object {
+      if (!_isAccountEpochCurrent(epoch)) return false;
+      _set(_current.copyWith(joining: false));
+      _notify('加入房间失败：', isError: true);
+      return false;
+    }
+  }
+
   Future<void> joinByCode(String code) async {
     if (_current.joining) return;
     final trimmed = code.trim();

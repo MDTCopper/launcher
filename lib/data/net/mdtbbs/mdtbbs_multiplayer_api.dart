@@ -328,6 +328,34 @@ class MdtbbsMultiplayerApi {
   }
 
   /// 列出收到的邀请（含会话摘要）；5 分钟过期
+  /// 联机会话列表（公开大厅 / 好友在玩的房间）
+  ///
+  /// 1.8.0 起支持 `game_id` / `game_version` 精确筛选；分页与隐私范围不变。
+  /// `visibility: friends` 的会话是否出现在这里由服务端按好友关系决定。
+  static Future<List<MdtbbsSession>> sessions({
+    required String accessToken,
+    String? gameId,
+    String? gameVersion,
+    int page = 1,
+    int limit = 50,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await MdtbbsClient.getJson(
+      '$_base/sessions',
+      accessToken: accessToken,
+      queryParameters: {
+        if (gameId != null && gameId.isNotEmpty) 'game_id': gameId,
+        if (gameVersion != null && gameVersion.isNotEmpty)
+          'game_version': gameVersion,
+        'page': page,
+        'limit': limit,
+      },
+      cancelToken: cancelToken,
+      timeout: _callTimeout,
+    );
+    return _list(data).map(MdtbbsSession.fromJson).toList();
+  }
+
   static Future<List<MdtbbsInvite>> invites({
     required String accessToken,
     CancelToken? cancelToken,

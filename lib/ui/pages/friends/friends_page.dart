@@ -14,6 +14,8 @@ import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.da
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/pages/online/online_page.dart';
+import 'package:copper_launcher/ui/shell/app_navigation.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
@@ -47,6 +49,7 @@ class _FriendsPageState extends State<FriendsPage> {
     _searchController.addListener(_onSearchChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_accounts.isLoggedIn) unawaited(_friends.load());
+      if (_accounts.isLoggedIn) unawaited(_mp.refreshLobby());
     });
     _coolTick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -103,6 +106,7 @@ class _FriendsPageState extends State<FriendsPage> {
         _friends.state,
         _accounts.snapshot,
         _mp.state,
+        _mp.lobby,
       ]),
       builder: (context, _) {
         final friends = _friends.state.value;
@@ -249,7 +253,11 @@ class _FriendsPageState extends State<FriendsPage> {
                     content: friends.loading ? '正在刷新…' : '刷新',
                     onTap: friends.loading
                         ? null
-                        : () => _friends.load(force: true),
+                        : () {
+                            unawaited(_friends.load(force: true));
+                            // 顺手刷新大厅：好友是不是刚开了房间要看它
+                            unawaited(_mp.refreshLobby());
+                          },
                   ),
                 ],
               ),
@@ -319,6 +327,7 @@ class _FriendsPageState extends State<FriendsPage> {
     // 冷却剩余秒数：界面上直接写出来，不然用户以为点了没反应
     final cooldown = _mp.inviteCooldownLeft(userId);
     final coolingDown = cooldown > 0;
+    final friendRoom = _mp.lobbySessionOf('$userId');
     final inviteLabel = inRoom
         ? '已在房间'
         : invited
@@ -376,6 +385,20 @@ class _FriendsPageState extends State<FriendsPage> {
             onTap: (busy || invited || inRoom || coolingDown)
                 ? null
                 : () => _mp.inviteFriend(userId),
+          ),
+        // 好友正在开的房间：不在房里时给一个直接加入的入口
+        if (!multiplayer.inSession && friendRoom != null)
+          IconTextButton(
+            pressedScale: 0.96,
+            icon: Icons.meeting_room_outlined,
+            content: '加入房间',
+            onTap: busy
+                ? null
+                : () => unawaited(
+                    _mp.joinSession(friendRoom.id).then((joined) {
+                      if (joined) AppNavigation.goTo(onlinePageRouteKey);
+                    }),
+                  ),
           ),
         IconTextButton(
           pressedScale: 0.96,
