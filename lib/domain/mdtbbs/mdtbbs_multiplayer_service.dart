@@ -4,6 +4,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_api.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_multiplayer_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_realtime_service.dart';
 import 'package:copper_launcher/domain/account/account_store.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_error_text.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_state.dart';
@@ -26,6 +27,23 @@ class MdtbbsMultiplayerService {
     _accountLoggedIn = snapshot.loggedIn;
     _lastAccountSubject = snapshot.subject;
     _accounts.snapshot.addListener(_onAccountSnapshotChanged);
+    // 服务端推「房间没了」时立刻收拾，不用等心跳失败
+    MdtbbsRealtimeService.instance.onSessionEvent = _onRealtimeSessionEvent;
+  }
+
+  /// 实时通道来的会话事件：只有「房间结束」这一类需要动作
+  void _onRealtimeSessionEvent(MdtbbsRealtimeEvent event) {
+    final session = _current.session;
+    if (session == null) return;
+    final data = event.data;
+    final id = '${data['session_id'] ?? data['id'] ?? ''}';
+    if (id.isNotEmpty && id != session.id) return;
+    if (event.event.contains('closed') ||
+        event.event.contains('ended') ||
+        event.event.contains('expired')) {
+      addLogAndPrint(.warning, '实时事件通知房间已关闭：${event.event}', tag: 'Multiplayer');
+      unawaited(_endBecauseSessionClosed());
+    }
   }
 
   static final MdtbbsMultiplayerService instance = MdtbbsMultiplayerService._();
@@ -52,6 +70,16 @@ class MdtbbsMultiplayerService {
   int _heartbeatGeneration = 0;
   int? _heartbeatInFlightGeneration;
   bool _heartbeatRecoveryInFlight = false;
+
+  /// 连续「连不上服务器」的起始时间（网络断了，不是服务端说房间没了）
+  ///
+  /// 分两种失败很关键：服务端明确回 `SESSION_CLOSED` 要立即退房；
+  /// 而完全连不上（超时 / DNS / 断网）时服务端什么都没说，只能靠本地计时兜底——
+  /// 否则断网期间房客会一直停在房间里，等网络恢复才被踢出去
+  DateTime? _offlineSince;
+
+  /// 断网多久之后就认定「这次联机没救了」，本地退房
+  static const _offlineGiveUp = Duration(seconds: 60);
   bool _checkingSessionStatus = false;
 
   /// 断线重连：2s / 5s / 10s 三次，成功后清零
@@ -1162,6 +1190,8 @@ class MdtbbsMultiplayerService {
       unawaited(_beat(sessionId, peerId, generation));
     });
     _armSessionWatch();
+    // 订阅这个会话的实时事件：房主关房时服务端会推过来
+    MdtbbsRealtimeService.instance.subscribeSessions([sessionId]);
   }
 
   bool _isCurrentHeartbeat(String sessionId, String peerId, int generation) =>
@@ -1188,6 +1218,7 @@ class MdtbbsMultiplayerService {
       );
       if (!_isCurrentHeartbeat(sessionId, peerId, generation)) return;
       _heartbeatFailures = 0;
+      _noteReachable();
       _set(
         _current.copyWith(
           lastHeartbeatAt: DateTime.now(),
@@ -1214,6 +1245,8 @@ class MdtbbsMultiplayerService {
         await _endBecauseSessionClosed();
         return;
       }
+      // 不是服务端说房间没了，就是「联系不上」：DNS 失败、超时、5xx 都算
+      await _noteUnreachable(error);
       _heartbeatFailures++;
       _set(_current.copyWith(heartbeatFailures: _heartbeatFailures));
       addLogAndPrint(
@@ -1351,6 +1384,10 @@ class MdtbbsMultiplayerService {
   }
 
   void forgetSession() {
+    final closingSessionId = _heartbeatSessionId ?? _current.session?.id;
+    if (closingSessionId != null) {
+      MdtbbsRealtimeService.instance.unsubscribeSessions([closingSessionId]);
+    }
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _sessionWatch?.cancel();
@@ -1399,6 +1436,7 @@ class MdtbbsMultiplayerService {
         await _endBecauseSessionClosed();
         return;
       }
+      _noteReachable();
       if (latest.status == 'closing' && !_hostLeftWarned) {
         _hostLeftWarned = true;
         _notify('房主已离开，房间即将关闭', isError: true);
@@ -1409,9 +1447,13 @@ class MdtbbsMultiplayerService {
           error.code == 'SESSION_CLOSED' ||
           error.code == 'SESSION_EXPIRED') {
         await _endBecauseSessionClosed();
+        return;
       }
-    } on Object {
-      // 网络抖动不当成房间没了，下一轮再看
+      // 其它错误（DNS、超时、5xx）都是「联系不上」，记断网时长
+      await _noteUnreachable(error);
+    } on Object catch (error) {
+      // 网络抖动不当成房间没了，但要记断网时长：断太久就本地退房
+      await _noteUnreachable(error);
     }
   }
 
@@ -1423,6 +1465,37 @@ class MdtbbsMultiplayerService {
     _set(_current.copyWith(clearSession: true, clearSelf: true, peers: const []));
     _accounts.clearMultiplayerSession();
     _notify('房间已关闭（房主已离开）', isError: true);
+  }
+
+  /// 有一个请求成功到过服务器：清掉断网计时
+  void _noteReachable() {
+    if (_offlineSince == null) return;
+    _offlineSince = null;
+    addLogAndPrint(.info, '与服务器恢复连通', tag: 'Multiplayer');
+  }
+
+  /// 一次「根本没连上服务器」的失败：累计断网时长，超时就本地退房
+  Future<void> _noteUnreachable(Object error) async {
+    final since = _offlineSince ??= DateTime.now();
+    final seconds = DateTime.now().difference(since).inSeconds;
+    addLog(.debug, '连不上服务器已 $seconds 秒：$error', tag: 'Multiplayer');
+    if (seconds < _offlineGiveUp.inSeconds) return;
+    await _endBecauseOffline();
+  }
+
+  /// 断网太久：服务端那边我们的 peer 早过期了，本地没有理由继续「在房间里」
+  Future<void> _endBecauseOffline() async {
+    if (_current.session == null) return;
+    _offlineSince = null;
+    addLogAndPrint(
+      .warning,
+      '断网超过 ${_offlineGiveUp.inSeconds} 秒，本地退出房间',
+      tag: 'Multiplayer',
+    );
+    forgetSession();
+    _set(_current.copyWith(clearSession: true, clearSelf: true, peers: const []));
+    _accounts.clearMultiplayerSession();
+    _notify('网络中断，已退出房间', isError: true);
   }
 
   // ── 联机通道 ────────────────────────────────────────────────

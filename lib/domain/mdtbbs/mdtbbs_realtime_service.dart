@@ -55,8 +55,26 @@ class MdtbbsRealtimeService {
   /// `resume_failed` / 长时间断线时回调，让上层重拉快照
   void Function()? onNeedSnapshot;
 
+  /// 事件流里「跟会话有关」的推送（房间关闭、对端离开等）走这个回调
+  void Function(MdtbbsRealtimeEvent event)? onSessionEvent;
+
   /// 当前是否连着（界面可以据此显示「实时 / 轮询」）
   final ValueNotifier<bool> connected = ValueNotifier(false);
+
+  /// 当前订阅的会话（重连后要重新发一遍）
+  final Set<String> _subscribedSessions = {};
+
+  /// 订阅某个会话的事件（进房后调用）
+  void subscribeSessions(Iterable<String> ids) {
+    _subscribedSessions.addAll(ids);
+    if (_subscribedSessions.isEmpty) return;
+    _send({'type': 'subscribe', 'sessions': _subscribedSessions.toList()});
+  }
+
+  /// 退房时取消订阅
+  void unsubscribeSessions(Iterable<String> ids) {
+    _subscribedSessions.removeAll(ids);
+  }
 
   AccountManager get _accounts => AccountManager.instance;
 
@@ -180,6 +198,9 @@ class MdtbbsRealtimeService {
     switch (frame['type']) {
       case 'hello':
         _startHeartbeat((frame['heartbeat_interval'] as num?)?.toInt() ?? 30);
+        if (_subscribedSessions.isNotEmpty) {
+          _send({'type': 'subscribe', 'sessions': _subscribedSessions.toList()});
+        }
         if (_lastEventId != null) {
           _send({'type': 'resume', 'last_event_id': _lastEventId});
         }
@@ -189,6 +210,11 @@ class MdtbbsRealtimeService {
         if (event.event.isNotEmpty) {
           addLog(.debug, '实时事件：${event.event}', tag: 'Realtime');
           onEvent?.call(event);
+          // 会话事件（房间关闭 / 对端变化）另外抛一路
+          if (event.event.startsWith('multiplayer.session') ||
+              event.event.startsWith('session.')) {
+            onSessionEvent?.call(event);
+          }
         }
       case 'resume_failed':
         addLog(.warning, '实时通道恢复失败，需要重拉快照', tag: 'Realtime');
