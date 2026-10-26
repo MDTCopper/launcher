@@ -109,6 +109,18 @@ class MdtbbsMultiplayerService {
 
   MultiplayerState get _current => state.value;
 
+  /// token 拿不到时给一句准确的话：是没登录，还是网络不通
+  void _notifyTokenUnavailable() {
+    if (_accounts.isLoggedIn) {
+      _notify(
+        '连不上服务器（拿不到访问令牌），检查网络后重试',
+        isError: true,
+        title: '网络异常',
+      );
+    } else {
+      _notify('请先登录社区账号', isError: true);
+    }
+  }
   bool _isAccountEpochCurrent(int epoch) => epoch == _accountEpoch;
 
   void _set(MultiplayerState next) {
@@ -125,15 +137,15 @@ class MdtbbsMultiplayerService {
 
   void _finishSessionTask() => _sessionTask.finish();
 
-  void _notify(String text, {bool isError = false}) {
-    if (isError) {
-      addLogAndPrint(.warning, text, tag: 'Multiplayer');
-    } else {
-      addLogAndPrint(.info, text, tag: 'Multiplayer');
-    }
+  void _notify(String text, {bool isError = false, String? title}) {
+    addLogAndPrint(
+      isError ? .warning : .info,
+      text,
+      tag: 'Multiplayer',
+    );
     addNotice(
       icon: isError ? Icons.error_outline : Icons.check_circle_outline,
-      title: isError ? '联机操作失败' : '联机',
+      title: title ?? (isError ? '联机操作失败' : '联机'),
       content: text,
       duration: const Duration(seconds: 8),
     );
@@ -568,7 +580,7 @@ class MdtbbsMultiplayerService {
     final epoch = _accountEpoch;
     final token = await _token();
     if (token == null || !_isAccountEpochCurrent(epoch)) {
-      if (_isAccountEpochCurrent(epoch)) _notify('请先登录社区账号', isError: true);
+      if (_isAccountEpochCurrent(epoch)) _notifyTokenUnavailable();
       return;
     }
     _set(_current.copyWith(creating: true));
@@ -721,7 +733,7 @@ class MdtbbsMultiplayerService {
     final epoch = _accountEpoch;
     final token = await _token();
     if (token == null || !_isAccountEpochCurrent(epoch)) {
-      if (_isAccountEpochCurrent(epoch)) _notify('请先登录社区账号', isError: true);
+      if (_isAccountEpochCurrent(epoch)) _notifyTokenUnavailable();
       return;
     }
     _set(_current.copyWith(joining: true));
@@ -1464,7 +1476,7 @@ class MdtbbsMultiplayerService {
     forgetSession();
     _set(_current.copyWith(clearSession: true, clearSelf: true, peers: const []));
     _accounts.clearMultiplayerSession();
-    _notify('房间已关闭（房主已离开）', isError: true);
+    _notify('房主已离开，房间已关闭', isError: true, title: '已退出房间');
   }
 
   /// 有一个请求成功到过服务器：清掉断网计时
@@ -1495,7 +1507,7 @@ class MdtbbsMultiplayerService {
     forgetSession();
     _set(_current.copyWith(clearSession: true, clearSelf: true, peers: const []));
     _accounts.clearMultiplayerSession();
-    _notify('网络中断，已退出房间', isError: true);
+    _notify('与服务器断开超过 60 秒，已退出房间', isError: true, title: '网络中断');
   }
 
   // ── 联机通道 ────────────────────────────────────────────────
@@ -1545,7 +1557,7 @@ class MdtbbsMultiplayerService {
     String? cachedToken = await _token();
     if (cachedToken == null || !_isAccountEpochCurrent(epoch)) {
       if (!auto && _isAccountEpochCurrent(epoch)) {
-        _notify('请先登录社区账号', isError: true);
+        _notifyTokenUnavailable();
       }
       return;
     }
