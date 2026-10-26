@@ -1161,6 +1161,7 @@ class MdtbbsMultiplayerService {
       if (_heartbeatInFlightGeneration == generation) return;
       unawaited(_beat(sessionId, peerId, generation));
     });
+    _armSessionWatch();
   }
 
   bool _isCurrentHeartbeat(String sessionId, String peerId, int generation) =>
@@ -1200,6 +1201,19 @@ class MdtbbsMultiplayerService {
       );
     } on Object catch (error) {
       if (!_isCurrentHeartbeat(sessionId, peerId, generation)) return;
+      // 服务端已经明确说「会话没了」，就别再等三轮、更别等宽限期
+      if (error is MdtbbsException &&
+          (error.code == 'SESSION_CLOSED' ||
+              error.code == 'SESSION_NOT_FOUND' ||
+              error.code == 'SESSION_EXPIRED')) {
+        addLogAndPrint(
+          .warning,
+          '心跳报会话已关闭：${describeMdtbbsError(error)}',
+          tag: 'Multiplayer',
+        );
+        await _endBecauseSessionClosed();
+        return;
+      }
       _heartbeatFailures++;
       _set(_current.copyWith(heartbeatFailures: _heartbeatFailures));
       addLogAndPrint(
@@ -1339,12 +1353,76 @@ class MdtbbsMultiplayerService {
   void forgetSession() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _sessionWatch?.cancel();
+    _sessionWatch = null;
+    _hostLeftWarned = false;
     _heartbeatGeneration++;
     _heartbeatInFlightGeneration = null;
     _heartbeatRecoveryInFlight = false;
     _heartbeatPeerId = null;
     _heartbeatSessionId = null;
     _heartbeatFailures = 0;
+  }
+
+  /// 盯一下会话还在不在（房主退出后服务端会给一段 closing 宽限）
+  ///
+  /// 光靠心跳失败要等三轮（90 秒）+ 宽限期才发现房间没了，房客会在这段时间里
+  /// 一直停在「房间里」——这个轮询就是为了把这段空白压到十几秒
+  Timer? _sessionWatch;
+  bool _hostLeftWarned = false;
+
+  void _armSessionWatch() {
+    _sessionWatch?.cancel();
+    if (_current.session == null) return;
+    _sessionWatch = Timer.periodic(const Duration(seconds: 15), (_) {
+      unawaited(_checkSessionAlive());
+    });
+    unawaited(_checkSessionAlive());
+  }
+
+  Future<void> _checkSessionAlive() async {
+    final session = _current.session;
+    if (session == null) {
+      _sessionWatch?.cancel();
+      _sessionWatch = null;
+      return;
+    }
+    final token = await _token();
+    if (token == null || _current.session?.id != session.id) return;
+    try {
+      final latest = await MdtbbsMultiplayerApi.session(
+        accessToken: token,
+        sessionId: session.id,
+      );
+      if (_current.session?.id != session.id) return;
+      if (latest.status == 'closed') {
+        await _endBecauseSessionClosed();
+        return;
+      }
+      if (latest.status == 'closing' && !_hostLeftWarned) {
+        _hostLeftWarned = true;
+        _notify('房主已离开，房间即将关闭', isError: true);
+        addLogAndPrint(.info, '会话进入 closing：房主已退出', tag: 'Multiplayer');
+      }
+    } on MdtbbsException catch (error) {
+      if (error.code == 'SESSION_NOT_FOUND' ||
+          error.code == 'SESSION_CLOSED' ||
+          error.code == 'SESSION_EXPIRED') {
+        await _endBecauseSessionClosed();
+      }
+    } on Object {
+      // 网络抖动不当成房间没了，下一轮再看
+    }
+  }
+
+  /// 服务端确认房间已经关了：本地直接收拾干净，并告诉用户原因
+  Future<void> _endBecauseSessionClosed() async {
+    if (_current.session == null) return;
+    addLogAndPrint(.warning, '房间已关闭，退出本地会话', tag: 'Multiplayer');
+    forgetSession();
+    _set(_current.copyWith(clearSession: true, clearSelf: true, peers: const []));
+    _accounts.clearMultiplayerSession();
+    _notify('房间已关闭（房主已离开）', isError: true);
   }
 
   // ── 联机通道 ────────────────────────────────────────────────
