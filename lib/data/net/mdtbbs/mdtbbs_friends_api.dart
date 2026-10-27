@@ -71,7 +71,7 @@ class MdtbbsFriendsApi {
     CancelToken? cancelToken,
   }) async {
     final data = await MdtbbsClient.getJson(
-      '$_base/users/search',
+      '/users/search',
       accessToken: accessToken,
       queryParameters: {'q': query, 'limit': limit},
       cancelToken: cancelToken,
