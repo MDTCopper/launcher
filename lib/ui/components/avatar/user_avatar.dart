@@ -46,7 +46,7 @@ class _UserAvatarState extends State<UserAvatar> {
       _file = null;
       return;
     }
-    final url = MdtbbsConfig.resolveUrl(raw);
+    final url = _sized(MdtbbsConfig.resolveUrl(raw), widget.size);
     final cached = AvatarCache.cached(url);
     if (cached != null) {
       _file = cached;
@@ -57,6 +57,17 @@ class _UserAvatarState extends State<UserAvatar> {
       if (!mounted || file == null) return;
       setState(() => _file = file);
     });
+  }
+
+  /// 服务端支持 ?size=32|64|128 的 WebP 缩略图，列表里别拉原图
+  static String _sized(String url, double size) {
+    if (url.contains('?size=')) return url;
+    final bucket = size <= 32
+        ? 32
+        : size <= 64
+        ? 64
+        : 128;
+    return '$url?size=$bucket';
   }
 
   @override

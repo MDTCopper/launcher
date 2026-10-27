@@ -328,6 +328,8 @@ class _FriendsPageState extends State<FriendsPage> {
     final cooldown = _mp.inviteCooldownLeft(userId);
     final coolingDown = cooldown > 0;
     final friendRoom = _mp.lobbySessionOf('$userId');
+    // 服务端在列表里就给了「我能不能进」，别等点下去才报错
+    final canJoin = friendRoom != null && (friendRoom.joinable ?? true);
     final inviteLabel = inRoom
         ? '已在房间'
         : invited
@@ -391,8 +393,8 @@ class _FriendsPageState extends State<FriendsPage> {
           IconTextButton(
             pressedScale: 0.96,
             icon: Icons.meeting_room_outlined,
-            content: '加入',
-            onTap: busy
+            content: canJoin ? '加入' : '不可进',
+            onTap: (busy || !canJoin)
                 ? null
                 : () => unawaited(
                     _mp.joinSession(friendRoom.id).then((joined) {

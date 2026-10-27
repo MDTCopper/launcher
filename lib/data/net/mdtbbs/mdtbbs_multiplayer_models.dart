@@ -88,6 +88,9 @@ class MdtbbsSession {
     required this.status,
     this.expiresAt,
     this.requireApproval,
+    this.joinable,
+    this.blockedReason,
+    this.canRequestJoin,
   });
 
   final String id;
@@ -113,6 +116,15 @@ class MdtbbsSession {
   /// 服务端若回传就带上；没回传时界面用本机创建时的值兜底
   final bool? requireApproval;
 
+  /// 大厅列表里服务端算好的「我能不能进」：`null` 表示这条信息没给
+  final bool? joinable;
+
+  /// 不能进的原因（人满 / 仅邀请 / 需审批…），只在 joinable == false 时有值
+  final String? blockedReason;
+
+  /// 需要审批时能不能发加入申请
+  final bool? canRequestJoin;
+
   factory MdtbbsSession.fromJson(Map<String, dynamic> json) {
     final game = (json['game'] as Map?)?.cast<String, dynamic>() ?? const {};
     return MdtbbsSession(
@@ -128,6 +140,9 @@ class MdtbbsSession {
       status: '${json['status'] ?? ''}',
       expiresAt: json['expires_at']?.toString(),
       requireApproval: json['require_approval'] as bool?,
+      joinable: json['joinable'] as bool?,
+      blockedReason: json['blocked_reason']?.toString(),
+      canRequestJoin: json['can_request_join'] as bool?,
     );
   }
 }
