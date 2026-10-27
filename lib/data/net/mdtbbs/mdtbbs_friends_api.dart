@@ -61,6 +61,28 @@ class MdtbbsFriendsApi {
   }
 
   /// 发好友请求；[targetUserId] 是**论坛整数用户 ID**（文档写死是 number，别传字符串）
+  /// 按用户名搜人（`GET /users/search?q=`，2026-10-26 起公开）
+  ///
+  /// 服务端已排除：调用者自己、已经是好友的人、被我屏蔽的人
+  static Future<List<MdtbbsFriendUser>> searchUsers({
+    required String accessToken,
+    required String query,
+    int limit = 10,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await MdtbbsClient.getJson(
+      '$_base/users/search',
+      accessToken: accessToken,
+      queryParameters: {'q': query, 'limit': limit},
+      cancelToken: cancelToken,
+      timeout: _callTimeout,
+    );
+    final list = data is Map ? data['data'] ?? data['items'] : data;
+    return ((list as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => MdtbbsFriendUser.fromJson(e.cast<String, dynamic>()))
+        .toList();
+  }
   static Future<void> sendRequest({
     required String accessToken,
     required int targetUserId,

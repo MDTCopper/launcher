@@ -7,6 +7,8 @@ import 'package:copper_launcher/domain/mdtbbs/mdtbbs_friends_state.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
+import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_friends_api.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
@@ -262,7 +264,7 @@ class _FriendsPageState extends State<FriendsPage> {
                 ],
               ),
               Text(
-                '加好友要填数字用户 ID：第三方接口没有按用户名搜人',
+                '加好友可以按用户名搜，搜不到再填数字用户 ID',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: colors.itemHint,
                 ),
@@ -413,96 +415,196 @@ class _FriendsPageState extends State<FriendsPage> {
   }
 }
 
-/// 加好友：第三方接口只能按数字用户 ID 加，所以这里就一个输入框
-class _AddFriendDialog extends StatefulWidget {
-  const _AddFriendDialog();
+  /// 加好友：按用户名搜索（`GET /users/search`），结果里点一下就发请求
+  ///
+  /// 全数字的输入额外给一条「按 ID 添加」——老习惯和搜不到名字时都能用
+  class _AddFriendDialog extends StatefulWidget {
+    const _AddFriendDialog();
 
-  @override
-  State<_AddFriendDialog> createState() => _AddFriendDialogState();
-}
-
-class _AddFriendDialogState extends State<_AddFriendDialog> {
-  final _controller = TextEditingController();
-  String? _error;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+    @override
+    State<_AddFriendDialog> createState() => _AddFriendDialogState();
   }
 
-  void _submit() {
-    final userId = int.tryParse(_controller.text.trim());
-    if (userId == null || userId <= 0) {
-      setState(() => _error = '填对方的数字用户 ID');
-      return;
+  class _AddFriendDialogState extends State<_AddFriendDialog> {
+    final _controller = TextEditingController();
+    List<MdtbbsFriendUser> _results = const [];
+    bool _searching = false;
+    String? _error;
+    String? _hint;
+
+    @override
+    void dispose() {
+      _controller.dispose();
+      super.dispose();
     }
-    Navigator.of(context).pop(userId);
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = AppColors.of(context);
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Material(
-          color: Colors.transparent,
-          elevation: 6,
-          child: Container(
-            width: (MediaQuery.sizeOf(context).width - 32).clamp(0, 380),
-            padding: const EdgeInsets.all(AppSpacing.block),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(AppRadius.panel),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: AppSpacing.related,
-              children: [
-                Text('添加好友', style: theme.textTheme.titleMedium),
-                Text(
-                  '第三方接口没有按用户名搜人，只能填对方的数字用户 ID',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.itemHint,
-                  ),
-                ),
-                OutlinedTextField(
-                  controller: _controller,
-                  label: '用户 ID',
-                  onEditingComplete: _submit,
-                ),
-                if (_error != null)
+    int? get _asUserId {
+      final value = int.tryParse(_controller.text.trim());
+      return (value != null && value > 0) ? value : null;
+    }
+
+    Future<void> _search() async {
+      final query = _controller.text.trim();
+      if (query.isEmpty) {
+        setState(() => _error = '输入用户名再搜');
+        return;
+      }
+      setState(() {
+        _searching = true;
+        _error = null;
+        _hint = null;
+      });
+      try {
+        final token = await AccountManager.instance.ensureAccessToken();
+        if (token == null) throw const _SearchError('还没登录或连不上服务器');
+        final found = await MdtbbsFriendsApi.searchUsers(
+          accessToken: token,
+          query: query,
+        );
+        if (!mounted) return;
+        setState(() {
+          _results = found;
+          _hint = found.isEmpty ? '没搜到人（服务端已排除自己和已有好友）' : null;
+        });
+      } on Object catch (error) {
+        if (!mounted) return;
+        setState(() => _error = removeNewlines('$error'));
+      } finally {
+        if (mounted) setState(() => _searching = false);
+      }
+    }
+
+    void _pick(int userId) => Navigator.of(context).pop(userId);
+
+    @override
+    Widget build(BuildContext context) {
+      final theme = Theme.of(context);
+      final colors = AppColors.of(context);
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Material(
+            color: Colors.transparent,
+            elevation: 6,
+            child: Container(
+              width: (MediaQuery.sizeOf(context).width - 32).clamp(0, 380),
+              padding: const EdgeInsets.all(AppSpacing.block),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(AppRadius.panel),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: AppSpacing.related,
+                children: [
+                  Text('添加好友', style: theme.textTheme.titleMedium),
                   Text(
-                    _error!,
+                    '按用户名搜人；搜不到也可以直接填对方的数字用户 ID',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
+                      color: colors.itemSecondary,
                     ),
                   ),
-                Row(
-                  children: [
-                    const Spacer(),
-                    IconTextButton(
+                  Row(
+                    spacing: AppSpacing.related,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          autofocus: true,
+                          decoration: const InputDecoration(
+                            hintText: '用户名 / 数字 ID',
+                          ),
+                          onSubmitted: (_) => unawaited(_search()),
+                        ),
+                      ),
+                      IconTextButton(
+                        pressedScale: 0.96,
+                        icon: Icons.search,
+                        content: _searching ? '搜索中…' : '搜索',
+                        onTap: _searching ? null : () => unawaited(_search()),
+                      ),
+                    ],
+                  ),
+                  if (_error != null)
+                    Text(
+                      _error!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  if (_hint != null)
+                    Text(
+                      _hint!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.itemHint,
+                      ),
+                    ),
+                  for (final user in _results)
+                    Row(
+                      spacing: AppSpacing.related,
+                      children: [
+                        UserAvatar(url: user.avatarUrl, size: 24),
+                        Expanded(
+                          child: Text(
+                            user.username.isEmpty
+                                ? '用户 ${user.userId}'
+                                : user.username,
+                            style: theme.textTheme.bodyMedium,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconTextButton(
+                          pressedScale: 0.96,
+                          icon: Icons.person_add_alt,
+                          content: '添加',
+                          onTap: () => _pick(user.userId),
+                        ),
+                      ],
+                    ),
+                  if (_asUserId != null)
+                    Row(
+                      spacing: AppSpacing.related,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '按 ID 添加用户 ${_asUserId!}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.itemSecondary,
+                            ),
+                          ),
+                        ),
+                        IconTextButton(
+                          pressedScale: 0.96,
+                          icon: Icons.person_add_alt,
+                          content: '添加',
+                          onTap: () => _pick(_asUserId!),
+                        ),
+                      ],
+                    ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconTextButton(
                       pressedScale: 0.96,
                       icon: Icons.close,
                       content: '取消',
                       onTap: () => Navigator.of(context).pop(),
                     ),
-                    IconTextButton(
-                      pressedScale: 0.96,
-                      icon: Icons.person_add_alt_1,
-                      content: '添加',
-                      onTap: _submit,
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    }
   }
-}
+
+  class _SearchError implements Exception {
+    const _SearchError(this.message);
+
+    final String message;
+
+    @override
+    String toString() => message;
+  }

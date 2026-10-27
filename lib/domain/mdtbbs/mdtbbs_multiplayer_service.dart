@@ -632,7 +632,51 @@ class MdtbbsMultiplayerService {
     } on Object catch (error) {
       if (!_isAccountEpochCurrent(epoch)) return;
       _set(_current.copyWith(creating: false));
+      // 每账号只允许一个活跃会话：已经有一个就直接接管，别让用户看到一条失败提示
+      if (error is MdtbbsException &&
+          error.code == 'SESSION_ALREADY_ACTIVE') {
+        addLogAndPrint(.info, '已有活跃会话，切过去', tag: 'Multiplayer');
+        final adopted = await _adoptExistingSession(token, epoch);
+        if (adopted) {
+          _notify('你已有一个房间，已经切过去了', title: '联机');
+          return;
+        }
+      }
       _notify('创建房间失败：${describeMdtbbsError(error)}', isError: true);
+    }
+  }
+
+  /// `SESSION_ALREADY_ACTIVE` 时把服务端已有的会话接过来
+  Future<bool> _adoptExistingSession(String token, int epoch) async {
+    try {
+      final session = await MdtbbsMultiplayerApi.currentSession(
+        accessToken: token,
+      );
+      if (!_isAccountEpochCurrent(epoch) || session == null) return false;
+      final peers = await MdtbbsMultiplayerApi.peers(
+        accessToken: token,
+        sessionId: session.id,
+      );
+      if (!_isAccountEpochCurrent(epoch)) return false;
+      _set(
+        _current.copyWith(
+          session: session,
+          self: null,
+          clearSelf: true,
+          peers: peers,
+          resuming: false,
+          creating: false,
+          clearJoinCode: true,
+        ),
+      );
+      _beginSessionTask();
+      _armHeartbeat();
+      unawaited(refreshPeers());
+      unawaited(_autoPrepareProxy());
+      return true;
+    } on Object catch (error) {
+      addLog(.warning, '接管已有会话失败：$error', tag: 'Multiplayer');
+      return false;
     }
   }
 
