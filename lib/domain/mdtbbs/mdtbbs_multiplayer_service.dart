@@ -680,6 +680,27 @@ class MdtbbsMultiplayerService {
     }
   }
 
+  /// 申请加入需要审批的房间（房主那边同意后才进得去）
+  Future<bool> requestJoin(String sessionId) async {
+    if (sessionId.isEmpty) return false;
+    final token = await _token();
+    if (token == null) {
+      _notifyTokenUnavailable();
+      return false;
+    }
+    try {
+      await MdtbbsMultiplayerApi.createJoinRequest(
+        accessToken: token,
+        sessionId: sessionId,
+      );
+      _notify('已发送加入申请，等房主同意', title: '联机');
+      return true;
+    } on Object catch (error) {
+      _notify('申请加入失败：${describeMdtbbsError(error)}', isError: true);
+      return false;
+    }
+  }
+
   /// 大厅里的会话（公开 + 好友可见），「直接加入好友房间」靠它
   final ValueNotifier<List<MdtbbsSession>> lobby = ValueNotifier(const []);
 

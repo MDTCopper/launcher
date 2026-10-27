@@ -332,6 +332,12 @@ class _FriendsPageState extends State<FriendsPage> {
     final friendRoom = _mp.lobbySessionOf('$userId');
     // 服务端在列表里就给了「我能不能进」，别等点下去才报错
     final canJoin = friendRoom != null && (friendRoom.joinable ?? true);
+    // 需要房主同意的房间：改成「申请加入」
+    final needsApproval =
+        friendRoom != null &&
+        !canJoin &&
+        (friendRoom.requireApproval == true ||
+            friendRoom.canRequestJoin == true);
     final inviteLabel = inRoom
         ? '已在房间'
         : invited
@@ -395,13 +401,21 @@ class _FriendsPageState extends State<FriendsPage> {
           IconTextButton(
             pressedScale: 0.96,
             icon: Icons.meeting_room_outlined,
-            content: canJoin ? '加入' : '不可进',
-            onTap: (busy || !canJoin)
+            content: canJoin
+                ? '加入'
+                : needsApproval
+                ? '申请加入'
+                : '不可进',
+            onTap: (busy || (!canJoin && !needsApproval))
                 ? null
                 : () => unawaited(
-                    _mp.joinSession(friendRoom.id).then((joined) {
-                      if (joined) AppNavigation.goTo(onlinePageRouteKey);
-                    }),
+                    needsApproval
+                        ? _mp.requestJoin(friendRoom.id)
+                        : _mp.joinSession(friendRoom.id).then((joined) {
+                            if (joined) {
+                              AppNavigation.goTo(onlinePageRouteKey);
+                            }
+                          }),
                   ),
           ),
         IconTextButton(
