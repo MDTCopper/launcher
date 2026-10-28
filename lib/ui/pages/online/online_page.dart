@@ -1476,6 +1476,15 @@ class _OnlinePageState extends State<OnlinePage> {
   final Set<String> _peerProfileLoading = {};
   final Set<String> _friendRequestSent = {};
 
+  /// 成员头像：自己用账号头像，好友用好友资料，陌生人用拉到的公开资料
+  String? _peerAvatarUrl(String userId, {required bool isSelf}) {
+    if (isSelf) return AccountManager.instance.snapshot.value.avatarUrl;
+    for (final entry in MdtbbsFriendsService.instance.state.value.friends) {
+      if ('${entry.user.userId}' == userId) return entry.user.avatarUrl;
+    }
+    return _peerProfiles[userId]?.avatarUrl;
+  }
+
   bool _isFriend(String userId) {
     for (final entry in MdtbbsFriendsService.instance.state.value.friends) {
       if ('${entry.user.userId}' == userId) return true;
@@ -1556,10 +1565,10 @@ class _OnlinePageState extends State<OnlinePage> {
     return Row(
       spacing: AppSpacing.related,
       children: [
-        Icon(
-          active ? Icons.person : Icons.person_off_outlined,
-          size: AppIconSize.item,
-          color: active ? theme.colorScheme.primary : colors.itemHint,
+        UserAvatar(
+          url: _peerAvatarUrl(peer.userId, isSelf: isSelf),
+          size: 24,
+          fallbackIcon: active ? Icons.person : Icons.person_off_outlined,
         ),
         Expanded(
           child: Text(
