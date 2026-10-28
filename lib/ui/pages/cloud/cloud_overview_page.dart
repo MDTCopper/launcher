@@ -91,7 +91,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
         spacing: AppSpacing.related,
         children: [
           Text(
-            '把账号下任意一份云端存档拉回当前选中的版本；覆盖前会自动备份',
+            _pullTargetHint(),
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.itemSecondary,
             ),
@@ -138,6 +138,13 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
         ],
       ),
     );
+  }
+
+  /// 拉取会落到哪儿：用户最常问的就是「拉到哪去了」
+  String _pullTargetHint() {
+    final version = config.versionOptions.selectedVersion;
+    if (version == null) return '先在主页选一个游戏版本，再从这里拉';
+    return '会拉进「${version.tag}」的数据目录：\n${version.dataPath}';
   }
 
   List<CloudSaveSlot>? _cloudSlots;

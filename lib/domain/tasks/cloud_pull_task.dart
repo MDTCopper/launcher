@@ -98,7 +98,7 @@ class CloudPullTask extends CloudSyncTask {
     }
     updateQueueItem(item, done: true);
 
-    final parts = ['已拉取 ${slot.name}'];
+    final parts = ['已拉取 ${slot.name}', '写入 ${version.dataPath}'];
     if (installedNow) parts.add('新装版本 ${version.tag}');
     if (missingMods.isNotEmpty) parts.add('${missingMods.length} 个模组没补回来');
     return parts.join('，');
