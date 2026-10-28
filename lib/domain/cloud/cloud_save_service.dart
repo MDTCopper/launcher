@@ -1222,31 +1222,41 @@ class CloudSaveService {
 
   /// 这个版本用的那份数据目录开没开云存档
   ///
-  /// 没记过就是没开；上传过一次会由 [_bind] 顺手把它标成开（用户既然传了，就是在用它）
+  /// 2026-10-28 起口径变了：**总开关是前置条件**，不是「一键全开」——
+  /// 总开关关着时所有版本一律视为关；总开关开着时，按版本记的那份清单说了算（默认关）
   static bool isEnabled(Mindustry version) =>
       sharedDataPathReason(version) == null &&
-      (_loadEnabled().contains(_globalKey) ||
-          _loadEnabled().contains(_normalize(version.dataPath)));
+      globallyEnabled &&
+      _loadEnabled().contains(_normalize(version.dataPath));
 
-  /// 全局开关在清单里的标记：在就是「所有版本都开」，不再逐个版本记
+  /// 全局开关在清单里的标记：在就表示「总开关开着」
   static const _globalKey = '*';
 
   /// 云存档总开关（账户 → 云存档那一页用的就是这个）
   static bool get globallyEnabled => _loadEnabled().contains(_globalKey);
 
-  /// 打开 / 关掉所有版本的云存档
+  /// 打开 / 关掉总开关
   ///
-  /// 打开时清掉零散的按目录记录，全部交给全局标记；关掉就是清空清单
+  /// 打开只多一个全局标记，不动各版本自己的开关（它们默认关，由用户逐个开）；
+  /// 关掉时清空清单 —— 总开关一关，局部开关全部作废
   static void setGlobalEnabled(bool enabled) {
-    _saveEnabled(enabled ? {_globalKey} : <String>{});
+    if (enabled) {
+      _saveEnabled({_globalKey, ..._loadEnabled()});
+    } else {
+      _saveEnabled(const <String>{});
+    }
   }
 
   /// 开关：只动这份清单，槽位绑定与「上次同步到哪儿」一个不碰
-  static void setEnabled(Mindustry version, bool enabled) {
+  ///
+  /// 总开关关着时**开不了**（返回 false），界面据此提示先去开总开关
+  static bool setEnabled(Mindustry version, bool enabled) {
+    if (enabled && !globallyEnabled) return false;
     final paths = _loadEnabled();
     final path = _normalize(version.dataPath);
     final changed = enabled ? paths.add(path) : paths.remove(path);
     if (changed) _saveEnabled(paths);
+    return true;
   }
 
   /// 有多少个版本共用这份数据目录（含自己）
@@ -1562,9 +1572,12 @@ class CloudSaveService {
     );
     _saveStates(states);
 
-    // 认过槽位就说明这份数据目录在用云存档，把开关一并标上
-    final paths = _loadEnabled();
-    if (paths.add(_normalize(dataPath))) _saveEnabled(paths);
+    // 认过槽位说明这份数据目录在用云存档，把开关一并标上；
+    // 但总开关关着时不标 —— 那种情况下这个版本本来就该是「关」
+    if (globallyEnabled) {
+      final paths = _loadEnabled();
+      if (paths.add(_normalize(dataPath))) _saveEnabled(paths);
+    }
   }
 
   /// 路径大小写不敏感的平台上要归一，否则同一个目录会记成两条绑定

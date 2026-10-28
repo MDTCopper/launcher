@@ -21,11 +21,13 @@ import 'package:copper_launcher/domain/cloud/game_version_fill.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill_runner.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/cloud_pull_task.dart';
 import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
+import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/components/tips/warning_bar.dart';
 import 'package:copper_launcher/ui/dialog/cloud_backup_prompt.dart';
 import 'package:copper_launcher/ui/dialog/cloud_restore_gap_prompt.dart';
@@ -768,6 +770,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         if (_error != null) _buildErrorHint(),
         _buildVersionPanel(),
         _buildSnapshotPanel(),
+        _buildPullPanel(),
         _buildHintsPanel(),
         if (kDebugMode) _buildDebugPanel(),
       ],
@@ -780,10 +783,12 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   /// 共用同一个开关，所以要把这件事写出来
   Widget _buildEnablePanel() {
     final theme = Theme.of(context);
+    final colors = AppColors.of(context);
     final version = _selectedVersion;
     if (version == null) return const SizedBox.shrink();
 
     final enabled = CloudSaveService.isEnabled(version);
+    final globalOn = CloudSaveService.globallyEnabled;
     final shared =
         CloudSaveService.versionsSharingDataPath(
           version,
@@ -797,17 +802,45 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 8,
         children: [
+          // 总开关是前置条件：关着时这个版本的开关直接禁用
+          SwitchSettingBar(
+            title: '这个版本启用云存档',
+            value: enabled,
+            onChanged: globalOn
+                ? (value) {
+                    final ok = CloudSaveService.setEnabled(version, value);
+                    if (!ok) {
+                      addNotice(
+                        icon: Icons.info_outline,
+                        title: '先打开总开关',
+                        content: '账户 → 云存档 里的总开关关着，局部开关打不开',
+                      );
+                      return;
+                    }
+                    setState(() {});
+                    addLog(
+                      .info,
+                      '[${version.tag}] 云存档${value ? '开启' : '关闭'}，数据目录：${version.dataPath}',
+                      tag: 'Cloud',
+                    );
+                  }
+                : null,
+          ),
           Row(
             children: [
               Expanded(
                 child: Text(
-                  '总开关：${CloudSaveService.globallyEnabled ? '已启用' : '已关闭'}',
-                  style: theme.textTheme.bodyMedium,
+                  globalOn
+                      ? '总开关已开：各版本自己决定要不要参与（默认关）'
+                      : '总开关关着：先去账户 → 云存档打开，才能逐个版本开',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.itemSecondary,
+                  ),
                 ),
               ),
               IconTextButton(
                 icon: Icons.tune,
-                content: '去账户页改',
+                content: '总开关',
                 onTap: () {
                   addNotice(
                     icon: Icons.tune,
@@ -1063,6 +1096,130 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             style: theme.textTheme.bodySmall?.copyWith(color: colors.itemHint),
           ),
       ],
+    );
+  }
+
+  /// 账号下所有云端槽位（点到「查看云端存档」才有）
+  List<CloudSaveSlot>? _cloudSlots;
+  bool _loadingCloudSlots = false;
+
+  /// 拉取账号下全部槽位，摊在面板里让用户挑一个拉回来
+  Future<void> _loadCloudSlots() async {
+    if (_loadingCloudSlots) return;
+    setState(() {
+      _loadingCloudSlots = true;
+      _error = null;
+    });
+    try {
+      final token = await _accounts.ensureAccessToken();
+      if (token == null) throw const MdtbbsException(message: '登录已失效，请重新登录');
+      final slots = await CloudSaveService.allSlots(accessToken: token);
+      if (!mounted) return;
+      setState(() => _cloudSlots = slots);
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _error = '读取云端存档失败：${removeNewlines('$error')}');
+    } finally {
+      if (mounted) setState(() => _loadingCloudSlots = false);
+    }
+  }
+
+  /// 把某个云端槽位拉回本版本的数据目录
+  Future<void> _pullSlot(CloudSaveSlot slot) async {
+    final token = await _accounts.ensureAccessToken();
+    if (token == null) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '先登录 BBS',
+        content: '从云拉取需要登录',
+      );
+      return;
+    }
+    final task = CloudPullTask(accessToken: token, slot: slot);
+    addTask(task);
+    await task.done;
+    if (!mounted) return;
+    if (task.status == TaskStatus.cancel) {
+      addNotice(icon: Icons.close, title: '已取消从云拉取');
+      return;
+    }
+    if (task.error != null) {
+      addNotice(
+        icon: Icons.error_outline,
+        title: '从云拉取失败',
+        content: removeNewlines('${task.error}'),
+      );
+      return;
+    }
+    addNotice(
+      icon: Icons.cloud_download_outlined,
+      title: '从云拉取完成',
+      content: task.result ?? '',
+    );
+    if (task.missingMods.isNotEmpty) {
+      await showMissingModsDialog(context, task.missingMods);
+    }
+    await _reload();
+  }
+
+  /// 云端槽位列表：拉取入口就在这里（快照列表只有本版本绑定的那份）
+  Widget _buildPullPanel() {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final slots = _cloudSlots;
+    return ContentPanelModule(
+      title: '从云端拉取',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 8,
+        children: [
+          Text(
+            '把账号下任意一份云端存档拉回这个版本；拉取会覆盖本地数据目录里同名的文件',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.itemSecondary,
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconTextButton(
+              pressedScale: 0.96,
+              icon: Icons.cloud_download_outlined,
+              content: _loadingCloudSlots
+                  ? '读取中…'
+                  : (slots == null ? '查看云端存档' : '重新读取'),
+              onTap: _loadingCloudSlots ? null : () => unawaited(_loadCloudSlots()),
+            ),
+          ),
+          if (slots != null && slots.isEmpty)
+            Text(
+              '账号下还没有任何云端存档',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.itemHint,
+              ),
+            ),
+          for (final slot in slots ?? const <CloudSaveSlot>[])
+            Row(
+              spacing: 8,
+              children: [
+                Expanded(
+                  child: Text(
+                    slot.name,
+                    style: theme.textTheme.bodyMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconTextButton(
+                  pressedScale: 0.96,
+                  icon: Icons.download,
+                  content: '拉取',
+                  onTap: _busy == null
+                      ? () => unawaited(_pullSlot(slot))
+                      : null,
+                ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 
