@@ -126,26 +126,44 @@ class OAuthLoopbackServer {
   }
 
   static String _resultPage(OAuthCallbackResult result) {
-    final title = result.isSuccess ? '授权成功' : '授权未完成';
-    final detail = result.isSuccess
-        ? '可以回到 Copper 启动器继续操作，这个页面可以直接关闭。'
+    final ok = result.isSuccess;
+    final title = ok ? '已登录，可以返回启动器' : '授权未完成';
+    final detail = ok
+        ? '这个页面可以直接关闭。手机上请从最近任务切回 Copper 启动器，或者按返回键关掉浏览器，启动器会自动继续。'
         : _escape(result.errorDescription ?? result.error ?? '未知原因');
+    final hint = ok
+        ? '启动器会自动继续；如果它没反应，重新点一次「登录 BBS」即可'
+        : '回到 Copper 启动器重新点一次「登录 BBS」';
     return '''
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><title>$title</title>
+<head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>$title</title>
 <style>
-body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;
-background:#1b1b1f;color:#e6e6e6;font-family:system-ui,"Microsoft YaHei",sans-serif}
-main{text-align:center;max-width:32rem;padding:2rem}
-h1{font-size:1.25rem;font-weight:600;margin:0 0 .75rem}
-p{margin:0;line-height:1.6;color:#a8a8b3}
+:root{color-scheme:dark}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background:#161619;color:#e8e8ec;font-family:system-ui,"Microsoft YaHei",sans-serif;
+padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom))}
+main{text-align:center;max-width:34rem;width:100%}
+.badge{width:64px;height:64px;margin:0 auto 20px;border-radius:50%;
+display:flex;align-items:center;justify-content:center;font-size:34px;line-height:1;
+background:${ok ? '#1f3a26' : '#3a1f22'};color:${ok ? '#5dd07a' : '#f2777a'}}
+h1{font-size:clamp(1.15rem,4.5vw,1.45rem);font-weight:600;margin:0 0 12px}
+p{margin:0;line-height:1.7;color:#a6a6b2;font-size:clamp(.9rem,3.6vw,1rem)}
+.hint{margin-top:18px;padding-top:16px;border-top:1px solid #2b2b31;color:#7d7d8a;font-size:.85rem}
 </style></head>
-<body><main><h1>$title</h1><p>$detail</p></main></body>
+<body><main>
+<div class="badge">${ok ? '✓' : '!'}</div>
+<h1>$title</h1>
+<p>$detail</p>
+<div class="hint">$hint</div>
+</main>
+<script>if ($ok) { try { setTimeout(function () { window.close() }, 1200) } catch (e) {} }</script>
+</body>
 </html>
 ''';
   }
-
   /// 错误说明可能来自服务端，落到 HTML 里要先转义
   static String _escape(String text) => text
       .replaceAll('&', '&amp;')
