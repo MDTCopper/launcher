@@ -56,7 +56,7 @@ class CloudPullTask extends CloudSyncTask {
     var version = targetVersion ?? CloudSaveService.findInstalledVersion(release);
     var installedNow = false;
     if (version == null) {
-      final install = await _prepareVersion(release);
+      final install = await _prepareVersion(release, slot.name);
       if (install == null) {
         updateQueueItem(item, failed: true);
         return '版本装不上：$release';
@@ -104,10 +104,12 @@ class CloudPullTask extends CloudSyncTask {
     return parts.join('，');
   }
 
-  Future<Task?> _prepareVersion(String release) async {
+  Future<Task?> _prepareVersion(String release, String tag) async {
     setPhase('查找游戏版本 $release');
     final prep = await prepareGameVersion(
-      game: CloudGameInfo(tag: release, release: release),
+      // tag 用槽位名（如 "android · v160.7"）：拉下来在版本列表里一眼找得到，
+      // 不会跟本机同发布号的版本混在一起
+      game: CloudGameInfo(tag: tag, release: release),
       // 云拉下来的版本默认隔离：否则会落进官方默认数据目录，和别的版本共用
       isolation: true,
     );
