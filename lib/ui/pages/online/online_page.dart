@@ -22,6 +22,8 @@ import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.da
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_friends_api.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:flutter/material.dart';
@@ -1469,11 +1471,88 @@ class _OnlinePageState extends State<OnlinePage> {
     );
   }
 
+  /// 房间里非好友成员的公开资料（按 userId 缓存，取到一次就够）
+  final Map<String, MdtbbsFriendUser> _peerProfiles = {};
+  final Set<String> _peerProfileLoading = {};
+  final Set<String> _friendRequestSent = {};
+
+  bool _isFriend(String userId) {
+    for (final entry in MdtbbsFriendsService.instance.state.value.friends) {
+      if ('${entry.user.userId}' == userId) return true;
+    }
+    return false;
+  }
+
+  String? _peerName(String userId) {
+    final profile = _peerProfiles[userId];
+    if (profile != null && profile.username.isNotEmpty) return profile.username;
+    for (final entry in MdtbbsFriendsService.instance.state.value.friends) {
+      if ('${entry.user.userId}' == userId) return entry.user.username;
+    }
+    return null;
+  }
+
+  void _ensurePeerProfile(String userId) {
+    final id = int.tryParse(userId);
+    if (id == null || id <= 0) return;
+    if (_peerProfiles.containsKey(userId) ||
+        _peerProfileLoading.contains(userId)) {
+      return;
+    }
+    _peerProfileLoading.add(userId);
+    unawaited(() async {
+      try {
+        final token = await AccountManager.instance.ensureAccessToken();
+        if (token == null) return;
+        final profile = await MdtbbsFriendsApi.userProfile(
+          accessToken: token,
+          userId: id,
+        );
+        if (!mounted) return;
+        setState(() => _peerProfiles[userId] = profile);
+      } on Object {
+        // 读不到就继续显示「用户 <id>」
+      } finally {
+        _peerProfileLoading.remove(userId);
+      }
+    }());
+  }
+
+  Future<void> _addPeerAsFriend(String userId) async {
+    final id = int.tryParse(userId);
+    if (id == null || id <= 0 || _friendRequestSent.contains(userId)) return;
+    try {
+      final token = await AccountManager.instance.ensureAccessToken();
+      if (token == null) {
+        addNotice(icon: Icons.info_outline, title: '先登录，或检查网络');
+        return;
+      }
+      await MdtbbsFriendsApi.sendRequest(
+        accessToken: token,
+        targetUserId: id,
+      );
+      if (!mounted) return;
+      setState(() => _friendRequestSent.add(userId));
+      addNotice(icon: Icons.check, title: '已发送好友请求');
+    } on Object catch (error) {
+      addNotice(
+        icon: Icons.close,
+        title: '加好友失败',
+        content: removeNewlines('$error'),
+      );
+    }
+  }
+
   Widget _buildPeerRow(MultiplayerState state, MdtbbsPeer peer) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     final isSelf = state.self?.peerId == peer.peerId;
     final active = peer.status == 'active';
+    final friend = _isFriend(peer.userId);
+    // 非好友又没资料：先拉一次公开资料，把名字显示出来
+    if (!isSelf && !friend) _ensurePeerProfile(peer.userId);
+    final known = _peerName(peer.userId);
+    final name = isSelf ? '我' : (known ?? '用户 ${peer.userId}');
     return Row(
       spacing: AppSpacing.related,
       children: [
@@ -1484,12 +1563,21 @@ class _OnlinePageState extends State<OnlinePage> {
         ),
         Expanded(
           child: Text(
-            '${isSelf ? '我' : '成员'}（${peer.role == 'owner' ? '房主' : '成员'}）',
+            '$name（${peer.role == 'owner' ? '房主' : '成员'}）',
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.itemSecondary,
             ),
           ),
         ),
+        if (!isSelf && !friend)
+          IconTextButton(
+            pressedScale: 0.96,
+            icon: Icons.person_add_alt,
+            content: _friendRequestSent.contains(peer.userId) ? '已发送' : '加好友',
+            onTap: _friendRequestSent.contains(peer.userId)
+                ? null
+                : () => unawaited(_addPeerAsFriend(peer.userId)),
+          ),
         Text(
           _peerStatusLabel(peer.status),
           style: theme.textTheme.labelSmall?.copyWith(

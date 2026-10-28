@@ -61,6 +61,23 @@ class MdtbbsFriendsApi {
   }
 
   /// 发好友请求；[targetUserId] 是**论坛整数用户 ID**（文档写死是 number，别传字符串）
+  /// 按 ID 读公开资料（`GET /users/{id}`）：联机房间里显示成员名字用
+  static Future<MdtbbsFriendUser> userProfile({
+    required String accessToken,
+    required int userId,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await MdtbbsClient.getJson(
+      '/users/$userId',
+      accessToken: accessToken,
+      cancelToken: cancelToken,
+      timeout: _callTimeout,
+    );
+    final map = data is Map ? (data['data'] ?? data) : data;
+    return MdtbbsFriendUser.fromJson(
+      (map as Map).cast<String, dynamic>(),
+    );
+  }
   /// 按用户名搜人（`GET /users/search?q=`，2026-10-26 起公开）
   ///
   /// 服务端已排除：调用者自己、已经是好友的人、被我屏蔽的人
