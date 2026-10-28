@@ -1007,7 +1007,33 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 8,
         children: [
-          Text(version.tag, style: theme.textTheme.bodyLarge),
+          Row(
+            spacing: 8,
+            children: [
+              Text(version.tag, style: theme.textTheme.bodyLarge),
+              // 默认数据目录那份是「唯一可共享存档」，不绑定版本，只做提示
+              if (!version.isolation)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text('默认存档', style: theme.textTheme.labelSmall),
+                ),
+            ],
+          ),
+          if (!version.isolation)
+            Text(
+              '这份存档在游戏默认数据目录：不绑定任何版本，所有「未隔离」的版本共用它。'
+              '要一份独立的云存档，给这个版本打开隔离数据目录。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            ),
           Text(
             version.dataPath,
             style: theme.textTheme.labelSmall?.copyWith(color: colors.itemHint),
