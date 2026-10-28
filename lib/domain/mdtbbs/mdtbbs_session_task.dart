@@ -65,6 +65,11 @@ class MultiplayerSessionTask extends Task {
           '${session.currentPlayers}/${session.maxPlayers} 人 · $heartbeat · $proxy';
     } else if (state.waitingForSession || state.resuming) {
       _summary = '正在恢复会话…';
+    } else {
+      // 会话没了：卡片收尾，别停在「进行中」
+      _summary = '已退出房间';
+      finish();
+      return;
     }
     updateDisplay();
   }
