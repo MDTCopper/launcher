@@ -344,14 +344,24 @@ class CloudSaveService {
   static const backupKeep = 5;
 
   /// 槽位名：设备名 + 游戏版本（上限 100 字符，这里截断兜底）
+  /// 槽位名：默认数据目录的版本共用「设备 · 发布号」这一个名字（这就是唯一可共享的那份），
+  /// 隔离目录的版本各自带上一段版本标识，避免同发布号的多个变体抢同一个槽位
   static String slotNameFor({
     required String deviceName,
     required CloudGameInfo game,
+    String? discriminator,
   }) {
     final release = game.release.isNotEmpty ? game.release : game.tag;
-    final name = '$deviceName · $release';
+    final suffix = (discriminator == null || discriminator.isEmpty)
+        ? ''
+        : ' · $discriminator';
+    final name = '$deviceName · $release$suffix';
     return name.length <= 100 ? name : name.substring(0, 100);
   }
+
+  /// 隔离版本用它区分槽位；非隔离（默认数据目录）返回 null，与旧行为一致
+  static String? slotDiscriminatorOf(Mindustry version) =>
+      version.isolation ? version.tag : null;
 
   /// 设备名：槽位命名与「另一台设备传的」提示用
   static String get deviceName {
@@ -396,6 +406,7 @@ class CloudSaveService {
     final wanted = slotNameFor(
       deviceName: name,
       game: CloudGameInfo.fromVersion(version),
+      discriminator: slotDiscriminatorOf(version),
     );
     final page = await MdtbbsCloudSaveApi.listSlots(
       accessToken: accessToken,
@@ -490,6 +501,7 @@ class CloudSaveService {
       name: slotNameFor(
         deviceName: name,
         game: CloudGameInfo.fromVersion(version),
+        discriminator: slotDiscriminatorOf(version),
       ),
       cancelToken: cancelToken,
     );
