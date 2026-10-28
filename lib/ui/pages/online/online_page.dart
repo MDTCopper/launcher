@@ -23,6 +23,9 @@ import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_friends_api.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
+import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
@@ -278,6 +281,37 @@ class _OnlinePageState extends State<OnlinePage> {
     final code = _normalizeJoinCode(text);
     if (code.isEmpty) return;
     _joinCodeController.text = code;
+  }
+
+  /// 房间页左上角那个「退出房间」：房主走关房确认，成员走离房确认
+  /// 「启动当前游戏」：用主页选中的版本拉起来，云存档/补全走原本那套
+  Future<void> _launchCurrentGame() async {
+    final version = config.versionOptions.selectedVersion;
+    if (version == null) {
+      addNotice(
+        icon: Icons.info_outline,
+        title: '先在主页选一个游戏版本',
+      );
+      return;
+    }
+    addTask(LaunchMindustryTask(version));
+  }
+
+  Future<void> _leaveRoom() async {
+    final state = _mp.state.value;
+    if (state.self?.role == 'owner') {
+      await _confirmCloseRoom();
+      return;
+    }
+    final confirmed = await showAnimatedDialog<bool>(
+      context: context,
+      pageBuilder: (context, _, _) => const _ConfirmDialog(
+        title: '退出房间？',
+        message: '退出后要重新拿房间码或邀请才能回来。',
+        confirmLabel: '退出房间',
+      ),
+    );
+    if (confirmed == true) await _mp.leave();
   }
 
   Future<void> _confirmCloseRoom() async {
@@ -701,8 +735,8 @@ class _OnlinePageState extends State<OnlinePage> {
                     state.creating
                         ? '正在开启房间…'
                         : state.inSession
-                        ? '房间已开启，但服务端没有给房间码'
-                        : '开启房间以获取房间码',
+                        ? '没有房间码：这个可见范围只能用邀请进'
+                        : '开启房间后显示房间码（仅公开房间有）',
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: colors.itemHint,
                     ),
@@ -749,9 +783,11 @@ class _OnlinePageState extends State<OnlinePage> {
               children: [
                 IconTextButton(
                   pressedScale: 0.96,
-                  icon: Icons.arrow_back,
-                  content: '返回',
-                  onTap: () => _setView(_OnlineView.entry),
+                  icon: state.inSession ? Icons.logout : Icons.arrow_back,
+                  content: state.inSession ? '退出房间' : '返回',
+                  onTap: () => state.inSession
+                      ? unawaited(_leaveRoom())
+                      : _setView(_OnlineView.entry),
                 ),
                 const SizedBox(width: AppSpacing.related),
                 codeBlock,
@@ -770,9 +806,11 @@ class _OnlinePageState extends State<OnlinePage> {
                 children: [
                   IconTextButton(
                     pressedScale: 0.96,
-                    icon: Icons.arrow_back,
-                    content: '返回',
-                    onTap: () => _setView(_OnlineView.entry),
+                    icon: state.inSession ? Icons.logout : Icons.arrow_back,
+                    content: state.inSession ? '退出房间' : '返回',
+                    onTap: () => state.inSession
+                        ? unawaited(_leaveRoom())
+                        : _setView(_OnlineView.entry),
                   ),
                   codeBlock,
                 ],
@@ -1055,6 +1093,15 @@ class _OnlinePageState extends State<OnlinePage> {
           _buildInfoRow('加入方式', _joinPolicyLabel(joinPolicy)),
           _buildInfoRow('需我同意', approval ? '是' : '否'),
           const SizedBox(height: AppSpacing.tight),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconTextButton(
+              pressedScale: 0.96,
+              icon: Icons.play_arrow,
+              content: '启动当前游戏',
+              onTap: () => unawaited(_launchCurrentGame()),
+            ),
+          ),
           Text(
             '房间已开启，改配置要先关闭房间',
             style: theme.textTheme.labelSmall?.copyWith(
