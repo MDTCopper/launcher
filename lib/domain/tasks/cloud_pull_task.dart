@@ -17,7 +17,11 @@ import 'package:flutter/material.dart';
 ///
 /// 缺游戏版本时静默装（默认隔离）；缺的模组也静默补，补不回来的记进 [missingMods]
 class CloudPullTask extends CloudSyncTask {
-  CloudPullTask({required this.accessToken, required this.slot})
+  CloudPullTask({
+    required this.accessToken,
+    required this.slot,
+    this.targetVersion,
+  })
     : super(
         direction: CloudSyncDirection.download,
         versionTag: slot.name,
@@ -27,6 +31,9 @@ class CloudPullTask extends CloudSyncTask {
 
   final String accessToken;
   final CloudSaveSlot slot;
+
+  /// 指定拉回哪个版本的数据目录（默认存档走这条：不建版本、不补全游戏）
+  final Mindustry? targetVersion;
 
   /// 补不回来的模组：名字 + 原因，调用方在完成后列成一张表
   final List<({String name, String reason})> missingMods = [];
@@ -46,7 +53,7 @@ class CloudPullTask extends CloudSyncTask {
     setPhase('同步 ${slot.name}');
 
     final release = CloudSaveService.releaseFromSlotName(slot.name);
-    var version = CloudSaveService.findInstalledVersion(release);
+    var version = targetVersion ?? CloudSaveService.findInstalledVersion(release);
     var installedNow = false;
     if (version == null) {
       final install = await _prepareVersion(release);
@@ -85,7 +92,10 @@ class CloudPullTask extends CloudSyncTask {
       dataPath: version.dataPath,
       manifest: report.manifest,
     );
-    await _fillMods(version: version, report: report);
+    // 默认数据目录那份不补全游戏：它就是本机现有数据，补全没有意义
+    if (!(!version.isolation && targetVersion != null)) {
+      await _fillMods(version: version, report: report);
+    }
     updateQueueItem(item, done: true);
 
     final parts = ['已拉取 ${slot.name}'];

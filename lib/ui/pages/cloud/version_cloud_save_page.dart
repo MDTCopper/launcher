@@ -1161,7 +1161,13 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       );
       return;
     }
-    final task = CloudPullTask(accessToken: token, slot: slot);
+    // 选中版本没开隔离 = 拉的就是「默认存档」：直接写回它的数据目录，不装版本也不补全
+    final version = _selectedVersion;
+    final task = CloudPullTask(
+      accessToken: token,
+      slot: slot,
+      targetVersion: version != null && !version.isolation ? version : null,
+    );
     addTask(task);
     await task.done;
     if (!mounted) return;
