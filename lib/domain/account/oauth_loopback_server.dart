@@ -59,13 +59,15 @@ class OAuthLoopbackServer {
       }
 
       final result = _resultOf(request.uri);
-      if (!_completer.isCompleted) _completer.complete(result);
-
+      // 先把页面写回去再完成登录：反过来的话上层会立刻 force-close 服务端，
+      // 浏览器只拿到半截（表现就是白页、没有任何文案）
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.html
+        ..headers.set('cache-control', 'no-store')
         ..write(_resultPage(result));
       await request.response.close();
+      if (!_completer.isCompleted) _completer.complete(result);
     });
   }
 
