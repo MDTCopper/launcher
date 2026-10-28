@@ -125,9 +125,13 @@ class MdtbbsMultiplayerService {
 
   void _set(MultiplayerState next) {
     state.value = next;
-    if (_sessionTask.status == TaskStatus.process) {
-      _sessionTask.updateFrom(next);
+    if (_sessionTask.status != TaskStatus.process) return;
+    // 会话已经没了：卡片必须收尾（房主退出 / 断网 / 被移出都会走到这）
+    if (next.session == null) {
+      _sessionTask.finish();
+      return;
     }
+    _sessionTask.updateFrom(next);
   }
 
   void _beginSessionTask() {
