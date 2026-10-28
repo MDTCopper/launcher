@@ -22,6 +22,10 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val shareIntentHandler by lazy { ShareIntentHandler(applicationContext) }
     private var shareChannel: MethodChannel? = null
+    private var hostChannel: MethodChannel? = null
+
+    /** 登录回调（copperlauncher://oauth/...）：攒着等 Dart 来取，冷启动也丢不了 */
+    private var pendingAuthUri: String? = null
     private var multicastLock: WifiManager.MulticastLock? = null
 
     /**
@@ -55,15 +59,19 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "moveTaskToBack" -> result.success(moveTaskToBack(true))
-                    "killGameProcess" -> killGameProcess(result)
-                    "isGameProcessRunning" -> isGameProcessRunning(result)
-                    else -> result.notImplemented()
+        hostChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        hostChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "takeAuthUri" -> {
+                    result.success(pendingAuthUri)
+                    pendingAuthUri = null
                 }
+                "moveTaskToBack" -> result.success(moveTaskToBack(true))
+                "killGameProcess" -> killGameProcess(result)
+                "isGameProcessRunning" -> isGameProcessRunning(result)
+                else -> result.notImplemented()
             }
+        }
 
         shareChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
             .apply {
@@ -76,13 +84,34 @@ class MainActivity : FlutterActivity() {
             }
 
         // 冷启动那次分享：先复制好攒着，Dart 起来后会自己来取
-        dispatchShare(intent)
+        dispatchIncoming(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        dispatchIncoming(intent)
+    }
+
+    /** 分享与登录回调走同一个入口：先认登录回调，再当分享处理 */
+    private fun dispatchIncoming(intent: Intent?) {
+        if (captureAuthUri(intent)) return
         dispatchShare(intent)
+    }
+
+    /**
+     * 收登录回调：`copperlauncher://oauth/callback?code=...&state=...`
+     *
+     * 收到就先攒着并通知 Dart 来取；Dart 那边登录流程会轮询 `takeAuthUri`
+     */
+    private fun captureAuthUri(intent: Intent?): Boolean {
+        if (intent?.action != Intent.ACTION_VIEW) return false
+        val data = intent.data ?: return false
+        if (data.scheme != "copperlauncher" || data.host != "oauth") return false
+        pendingAuthUri = data.toString()
+        Log.i(TAG, "收到登录回调")
+        hostChannel?.invokeMethod("authCallbackAvailable", null)
+        return true
     }
 
     /**

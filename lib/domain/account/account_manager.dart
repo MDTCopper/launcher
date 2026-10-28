@@ -3,6 +3,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_config.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_store.dart';
+import 'package:copper_launcher/domain/account/auth_callback_bridge.dart';
 import 'package:copper_launcher/domain/account/oauth_loopback_server.dart';
 import 'package:copper_launcher/domain/account/pkce.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -195,15 +196,28 @@ class AccountManager {
     final challenge = Pkce.challengeOf(verifier);
     final state = Pkce.createState();
 
-    final server = await OAuthLoopbackServer.start(expectedState: state);
-    final redirectUri = server.redirectUri;
+    // 走「URL 回到软件」时不需要本地回调服务器：浏览器授权完由系统唤起启动器
+    // （需要 MindAuth 那边把 copperlauncher://oauth/callback 登记为回调地址）
+    final useScheme = MdtbbsConfig.useSchemeRedirect;
+    OAuthLoopbackServer? loopback;
+    final String redirectUri;
+    if (useScheme) {
+      redirectUri = MdtbbsConfig.schemeRedirectUri;
+    } else {
+      loopback = await OAuthLoopbackServer.start(expectedState: state);
+      redirectUri = loopback.redirectUri;
+    }
     final authorizeUrl = MdtbbsAccountApi.authorizeUrl(
       redirectUri: redirectUri,
       state: state,
       codeChallenge: challenge,
     );
     onAuthorizeUrl?.call(authorizeUrl);
-    addLogAndPrint(.info, '开始登录 BBS，回调端口 ${server.port}', tag: 'Account');
+    addLogAndPrint(
+      .info,
+      useScheme ? '开始登录 BBS，等待 URL 回调' : '开始登录 BBS，回调端口 ${loopback!.port}',
+      tag: 'Account',
+    );
 
     try {
       if (!await openBrowser(Uri.parse(authorizeUrl))) {
@@ -212,7 +226,23 @@ class AccountManager {
       }
       addLogAndPrint(.info, '已在系统浏览器打开授权页，等待回调', tag: 'Account');
 
-      final result = await server.waitForCallback();
+      final OAuthCallbackResult result;
+      if (useScheme) {
+        final uri = await AuthCallbackBridge.wait(
+          timeout: const Duration(minutes: 3),
+          accept: (uri) =>
+              uri.scheme == 'copperlauncher' && uri.queryParameters['state'] == state,
+        );
+        result = uri == null
+            ? const OAuthCallbackResult(error: 'timeout', errorDescription: '没等到回调')
+            : OAuthCallbackResult(
+                code: uri.queryParameters['code'],
+                error: uri.queryParameters['error'],
+                errorDescription: uri.queryParameters['error_description'],
+              );
+      } else {
+        result = await loopback!.waitForCallback();
+      }
       if (!result.isSuccess) {
         addLogAndPrint(
           .warning,
@@ -241,7 +271,7 @@ class AccountManager {
 
       return await loadAccount(cancelToken: cancelToken);
     } finally {
-      await server.close();
+      await loopback?.close();
     }
   }
 

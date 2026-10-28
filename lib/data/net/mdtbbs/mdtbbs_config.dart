@@ -66,6 +66,15 @@ class MdtbbsConfig {
   /// 桌面回调登记形态：loopback + **端口 0**，运行时随机端口也匹配登记值
   static const registeredRedirectUri = 'http://127.0.0.1:0/oauth/callback';
 
+  /// 「URL 回到软件」用的回调地址（需要 MindAuth 把这条登记进客户端回调白名单）
+  ///
+  /// 用 `--dart-define=COPPER_OAUTH_SCHEME=true` 打开；没登记时保持 loopback
+  static const schemeRedirectUri = 'copperlauncher://oauth/callback';
+
+  static const bool useSchemeRedirect = bool.fromEnvironment(
+    'COPPER_OAUTH_SCHEME',
+  );
+
   /// 运行时回调地址：主机 / path / query 必须与登记值一致，只把端口换成实际绑定的那个
   static String redirectUriFor(int port) =>
       'http://127.0.0.1:$port/oauth/callback';
