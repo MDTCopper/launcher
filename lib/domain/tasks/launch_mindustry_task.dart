@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/be_version.dart';
+import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
@@ -192,6 +193,9 @@ class LaunchMindustryTask extends Task {
   }
 
   Future<void> _launchGame() async {
+    // 上次桥侧取消可能留下标记；新一局先清掉，避免误判
+    _clearLaunchCanceledMarker();
+
     NotificationManager.addNotice(
       icon: Icons.rocket_launch_outlined,
       title: '启动',
@@ -470,9 +474,47 @@ class LaunchMindustryTask extends Task {
   }
 
   /// 游戏退出：BE 自更新重启的话把新进程接回来，否则按正常结束收尾
+  File _launchCanceledMarkerFile() =>
+      File('${BridgeLauncher.cacheDirFor(mindustry)}/launch-canceled');
+
+  /// 桥侧「取消启动」的标记；读到就删掉，按取消收尾
+  bool _takeLaunchCanceledMarker() {
+    try {
+      final file = _launchCanceledMarkerFile();
+      if (!file.existsSync()) return false;
+      file.deleteSync();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _clearLaunchCanceledMarker() {
+    try {
+      final file = _launchCanceledMarkerFile();
+      if (file.existsSync()) file.deleteSync();
+    } catch (_) {
+      // 没有就算了
+    }
+  }
+
   Future<void> _handleExit(String exitLog) async {
     if (_exitHandled) return;
     _exitHandled = true;
+
+    // 桥侧点「取消启动」会留这个标记：按取消收尾，不报正常退出
+    if (_takeLaunchCanceledMarker()) {
+      NotificationManager.addNotice(
+        icon: Icons.cancel,
+        title: '已取消',
+        content: '启动已取消',
+      );
+      TaskLogManager.addLog(LogEntry(LogType.info, '已取消启动'));
+      progress = 1.0;
+      status = TaskStatus.cancel;
+      updateDisplay();
+      return;
+    }
 
     if (!_cancelled &&
         mindustry.isBe &&
