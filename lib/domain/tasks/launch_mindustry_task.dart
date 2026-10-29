@@ -51,6 +51,9 @@ class LaunchMindustryTask extends Task {
   bool _finished = false;
   bool _cancelled = false;
 
+  /// 桥侧「取消启动」收尾；和手动结束进程区分开
+  bool _launchCanceled = false;
+
   /// 自更新重启后接管的新进程 PID（null 表示没接管）
   int? _adoptedPid;
   String? _adoptedBuild;
@@ -68,7 +71,7 @@ class LaunchMindustryTask extends Task {
       TaskStatus.completed => '已退出',
       TaskStatus.failed => '启动失败',
       TaskStatus.paused => '已暂停',
-      TaskStatus.cancel => '已停止',
+      TaskStatus.cancel => _launchCanceled ? '已取消' : '已停止',
     };
 
     return Column(
@@ -504,6 +507,7 @@ class LaunchMindustryTask extends Task {
 
     // 桥侧点「取消启动」会留这个标记：按取消收尾，不报正常退出
     if (_takeLaunchCanceledMarker()) {
+      _launchCanceled = true;
       NotificationManager.addNotice(
         icon: Icons.cancel,
         title: '已取消',
