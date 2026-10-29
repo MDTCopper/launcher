@@ -11,6 +11,7 @@ import io.github.copper.MindustryActivity;
 @SuppressWarnings("unused")
 public class Loader {
     /** Starts the loader through MindustryActivity, passing the loader jar and its arguments. */
+    @SuppressWarnings("deprecation")
     public static void launch(String loaderPath, Context activityContext, String[] args) {
         File jar = new File(loaderPath);
         if (!jar.exists())
@@ -25,6 +26,10 @@ public class Loader {
         intent.putExtra("copper_loader_jar", jar.getAbsolutePath());
         intent.putExtra("copper_args", args);
         activityContext.startActivity(intent);
+        // 启动器已经用主题色罩住自己：淡入淡出比系统默认的滑动更稳，不会滑到一半停住
+        if (activityContext instanceof Activity)
+            ((Activity) activityContext).overridePendingTransition(
+                    android.R.anim.fade_in, android.R.anim.fade_out);
     }
 
     /** Runs {@code ArtBuilder} on the device to build the dex cache. */

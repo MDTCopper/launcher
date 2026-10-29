@@ -76,6 +76,7 @@ class MindustryLauncher {
     Memory? maxMemory,
     String? javaExecutable,
     List<String>? extraArgs = const [],
+    void Function(String status)? onStatus,
   }) async {
     // Android 上没有「桌面 JDK」这回事：Java 是载荷里的 JRE，进程由桥在游戏进程里起
     if (Platform.isAndroid) {
@@ -83,6 +84,7 @@ class MindustryLauncher {
         mindustry,
         maxMemory: maxMemory,
         extraArgs: extraArgs ?? const [],
+        onStatus: onStatus,
       );
     }
 
@@ -205,6 +207,7 @@ class MindustryLauncher {
       }
 
       _reportedModMismatch = false;
+      onStatus?.call('正在启动游戏…');
       _jarProcess = await Process.start(
         javaCmd,
         args,
@@ -256,6 +259,7 @@ class MindustryLauncher {
     Mindustry mindustry, {
     Memory? maxMemory,
     List<String> extraArgs = const [],
+    void Function(String status)? onStatus,
   }) async {
     if (_logController == null || _logController!.isClosed) {
       _logController = StreamController<String>.broadcast();
@@ -290,8 +294,10 @@ class MindustryLauncher {
       final desktopLoader = usableLoaderPath(mindustry);
       final wrapper = await BridgeInstaller.ensureLoaderWrapper(
         desktopLoaderPath: desktopLoader,
-        onStatus: (status) =>
-            addLogAndPrint(.info, 'Android 桥：$status', tag: 'Bridge'),
+        onStatus: (status) {
+          onStatus?.call(status);
+          addLogAndPrint(.info, 'Android 桥：$status', tag: 'Bridge');
+        },
       );
       if (wrapper != null && desktopLoader != null) {
         loaderJars = [wrapper, desktopLoader];
@@ -306,7 +312,7 @@ class MindustryLauncher {
       }
     }
 
-    final arcRef = await BridgeLauncher.arcRefOf(mindustry);
+    final arcRef = await BridgeLauncher.arcRefOf(mindustry, onStatus: onStatus);
     String? arcDir;
     if (arcRef == null) {
       addLogAndPrint(
@@ -322,8 +328,10 @@ class MindustryLauncher {
           await BridgeInstaller.installArcNatives(
             arcRef: arcRef,
             abi: abi,
-            onStatus: (status) =>
-                addLogAndPrint(.info, 'Android 桥：$status', tag: 'Bridge'),
+            onStatus: (status) {
+              onStatus?.call(status);
+              addLogAndPrint(.info, 'Android 桥：$status', tag: 'Bridge');
+            },
           );
         } catch (error) {
           addLogAndPrint(
@@ -359,6 +367,7 @@ class MindustryLauncher {
     );
 
     try {
+      onStatus?.call('正在启动游戏…');
       BridgeLauncher.launchWithBridge(bridgeJar: bridgeJar.path, args: args);
     } catch (error) {
       addLogAndPrint(

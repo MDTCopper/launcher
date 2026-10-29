@@ -11,6 +11,7 @@ import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/dialog/java_missing_prompt.dart';
+import 'package:copper_launcher/ui/launch_veil.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
@@ -49,6 +50,7 @@ class LaunchMindustryTask extends Task {
   bool _exitHandled = false;
   bool _finished = false;
   bool _cancelled = false;
+  bool _gameStarted = false;
 
   /// 自更新重启后接管的新进程 PID（null 表示没接管）
   int? _adoptedPid;
@@ -157,6 +159,7 @@ class LaunchMindustryTask extends Task {
 
   @override
   void cancel() async {
+    LaunchVeil.hide();
     _cancelled = true;
     final adopted = _adoptedPid;
     _adoptedPid = null;
@@ -188,6 +191,8 @@ class LaunchMindustryTask extends Task {
       );
       status = TaskStatus.failed;
       updateDisplay();
+    } finally {
+      if (!_gameStarted) LaunchVeil.hide();
     }
   }
 
@@ -421,6 +426,14 @@ class LaunchMindustryTask extends Task {
     // 记录本次启动时刻，游戏退出时回写 lastLaunchTime 与 playTime
     _launchStartTime = DateTime.now();
 
+    // 启动罩放在这里：云存档冲突、Java 缺失这类要玩家选择的弹窗都已经过去了，
+    // 罩子盖上来之后不会再挡住它们。桌面端等 Steam 的提示不能被罩住，
+    // 所以只在 Android 提前罩；桌面端由 launcher.start 的 onStatus 在真起进程前罩上
+    if (Platform.isAndroid) {
+      LaunchVeil.show('正在启动 ${mindustry.tag}…');
+      await LaunchVeil.ensureVisibleFor(const Duration(milliseconds: 450));
+    }
+
     final isLaunchStarted = await launcher.start(
       mindustry,
       maximize: maximize,
@@ -428,6 +441,7 @@ class LaunchMindustryTask extends Task {
       maxMemory: maxMemory,
       javaExecutable: javaPath,
       extraArgs: args,
+      onStatus: LaunchVeil.update,
     );
 
     if (!isLaunchStarted) {
@@ -449,11 +463,14 @@ class LaunchMindustryTask extends Task {
       return;
     }
 
+    _gameStarted = true;
+
     //监听游戏状态
     launcher.logStream!.listen((log) {
       if (log.contains('Total time to load')) {
         final index = log.indexOf(':');
         final time = log.substring(index);
+        LaunchVeil.hide();
         NotificationManager.addNotice(
           icon: Icons.check,
           title: '启动成功',
@@ -471,6 +488,7 @@ class LaunchMindustryTask extends Task {
 
   /// 游戏退出：BE 自更新重启的话把新进程接回来，否则按正常结束收尾
   Future<void> _handleExit(String exitLog) async {
+    LaunchVeil.hide();
     if (_exitHandled) return;
     _exitHandled = true;
 

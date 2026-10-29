@@ -1,5 +1,6 @@
 package io.github.copper.bridge;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 
@@ -19,6 +20,7 @@ import java.io.File;
  */
 public class Bridge {
     /** Starts the bridge through {@link MindustryActivity}, passing the bridge jar and its arguments. */
+    @SuppressWarnings("deprecation")
     public static void launch(String bridgePath, Context activityContext, String[] args) {
         File jar = new File(bridgePath);
         if (!jar.exists())
@@ -33,6 +35,10 @@ public class Bridge {
         intent.putExtra("copper_bridge_jar", jar.getAbsolutePath());
         intent.putExtra("copper_bridge_args", args);
         activityContext.startActivity(intent);
+        // 启动器已经用主题色罩住自己：淡入淡出比系统默认的滑动更稳，不会滑到一半停住
+        if (activityContext instanceof Activity)
+            ((Activity) activityContext).overridePendingTransition(
+                    android.R.anim.fade_in, android.R.anim.fade_out);
     }
 
     private Bridge() {
