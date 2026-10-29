@@ -221,6 +221,13 @@ class CopperIO {
   ///退避重试能接着下（Range 从断点续）；实测 86MB 那次在 213 秒处因同一块连掐两次整单失败
   static const int _abortedRetryLimit = 3;
 
+  ///「建连失败」的重试上限
+  ///
+  ///瞬时建连失败在弱网上很常见，而一个分块放弃就是整份文件白下；早期只再试 1 次，
+  ///实测 4 次真实下载里有 1 次因单个分块建连超时整单作废（82MB）。
+  ///本地探针 `test/harness/cio_retry_probe.dart` 可复现：注入 2 次建连失败时旧口径 10 次全败
+  static const int _connectRetryLimit = 3;
+
   ///失败重试的退避区间：第 n 次等 random(0, min(cap, base * 2^n))，全抖动
   static const int _retryBackoffBaseMs = 500;
   static const int _retryBackoffCapMs = 5000;
@@ -1663,9 +1670,9 @@ class CopperIO {
         final delivered = chunk.received - attemptStart;
         final limit = e is FileSystemException
             ? 0
-            : (delivered > 0
-                  ? _abortedRetryLimit
-                  : (isTransport ? 1 : retryLimit));
+            : (isTransport
+                  ? (delivered > 0 ? _abortedRetryLimit : _connectRetryLimit)
+                  : retryLimit);
         if (tryTime < limit) {
           await Future.delayed(_retryDelay(tryTime));
           await downloadPiece(chunk, tryTime: tryTime + 1);
