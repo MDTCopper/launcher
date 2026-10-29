@@ -77,6 +77,7 @@ class MindustryLauncher {
     String? javaExecutable,
     List<String>? extraArgs = const [],
     void Function(String status)? onStatus,
+    int? veilColor,
   }) async {
     // Android 上没有「桌面 JDK」这回事：Java 是载荷里的 JRE，进程由桥在游戏进程里起
     if (Platform.isAndroid) {
@@ -85,6 +86,7 @@ class MindustryLauncher {
         maxMemory: maxMemory,
         extraArgs: extraArgs ?? const [],
         onStatus: onStatus,
+        veilColor: veilColor,
       );
     }
 
@@ -260,6 +262,7 @@ class MindustryLauncher {
     Memory? maxMemory,
     List<String> extraArgs = const [],
     void Function(String status)? onStatus,
+    int? veilColor,
   }) async {
     if (_logController == null || _logController!.isClosed) {
       _logController = StreamController<String>.broadcast();
@@ -365,6 +368,19 @@ class MindustryLauncher {
           mindustry.useBetterGPU ??
           config.setting.launchOptions.javaOptions.useBetterGPU,
     );
+
+    // 桥里的启动罩用启动器当前主题的背景色：同色接上去，中间就不会露黑
+    if (veilColor != null) {
+      try {
+        final file = File(
+          '${BridgeLauncher.cacheDirFor(mindustry)}/veil-color',
+        );
+        await file.parent.create(recursive: true);
+        await file.writeAsString('$veilColor');
+      } catch (_) {
+        // 写不了就让桥退回黑罩
+      }
+    }
 
     try {
       onStatus?.call('正在启动游戏…');

@@ -11,6 +11,9 @@ class LaunchVeil {
     const LaunchVeilState(),
   );
 
+  /// 当前主题的页面背景色；桥里的同色罩子用它，避免启动器罩子与游戏窗口之间露出黑
+  static Color? backgroundColor;
+
   static DateTime? _shownAt;
 
   static void show(String status) {
@@ -95,6 +98,7 @@ class _LaunchVeilHostState extends State<LaunchVeilHost>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    LaunchVeil.backgroundColor = theme.scaffoldBackgroundColor;
     return ValueListenableBuilder<LaunchVeilState>(
       valueListenable: LaunchVeil.state,
       child: widget.child,

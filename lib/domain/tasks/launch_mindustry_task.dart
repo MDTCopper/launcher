@@ -442,6 +442,7 @@ class LaunchMindustryTask extends Task {
       javaExecutable: javaPath,
       extraArgs: args,
       onStatus: LaunchVeil.update,
+      veilColor: LaunchVeil.backgroundColor?.toARGB32(),
     );
 
     if (!isLaunchStarted) {
