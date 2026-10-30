@@ -48,6 +48,34 @@ enum ModState {
 String modsDirIn(String dataPath, {required bool copper}) =>
     copper ? p.joinAll([dataPath, 'copper', 'mods']) : p.join(dataPath, 'mods');
 
+/// 该数据目录下所有可能放模组的目录（原版 + Copper 原生）
+///
+/// 模组去重要跨这两个目录找同一个 mod：加载器两个目录都会扫，重复的只该留一份
+List<String> allModsDirsIn(String dataPath) => [
+  modsDirIn(dataPath, copper: true),
+  modsDirIn(dataPath, copper: false),
+];
+
+/// 禁用态的文件名后缀：Mindustry 自己用 `.disable`，云端清单与历史数据里也见过 `.disabled`
+const List<String> modDisabledSuffixes = ['.disable', '.disabled'];
+
+/// 文件名是不是禁用态的模组
+bool isDisabledModFileName(String fileName) {
+  final lower = fileName.toLowerCase();
+  return modDisabledSuffixes.any(lower.endsWith);
+}
+
+/// 去掉禁用后缀，返回真实的模组文件名
+String stripDisabledModSuffix(String fileName) {
+  final lower = fileName.toLowerCase();
+  for (final suffix in modDisabledSuffixes) {
+    if (lower.endsWith(suffix)) {
+      return fileName.substring(0, fileName.length - suffix.length);
+    }
+  }
+  return fileName;
+}
+
 @JsonSerializable()
 class Mod {
   Mod({

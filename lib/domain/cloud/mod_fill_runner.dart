@@ -395,6 +395,7 @@ Future<List<ModFillOutcome>> fillMissingMods({
 /// 云存档把它挂成子任务：不进任务抽屉、不发通知、进度由主卡的队列项接
 Task buildFillTask(ModFillPlan plan, Mindustry version) {
   final savePath = version.modsPath;
+  final modsDirs = allModsDirsIn(version.dataPath);
   switch (plan.kind) {
     case ModFillKind.java:
       return JavaModDownloadTask(
@@ -402,6 +403,7 @@ Task buildFillTask(ModFillPlan plan, Mindustry version) {
         modMeta: plan.release!,
         savePath: savePath,
         mainAssetIndex: plan.mainAssetIndex,
+        modsDirs: modsDirs,
       );
     case ModFillKind.zip:
       return ZipModDownloadTask(
@@ -409,12 +411,14 @@ Task buildFillTask(ModFillPlan plan, Mindustry version) {
         plan.release!,
         savePath,
         mainAssetIndex: plan.mainAssetIndex,
+        modsDirs: modsDirs,
       );
     case ModFillKind.source:
       return SourceModDownloadTask(
         modListMeta: plan.entry,
         modMeta: plan.release,
         savePath: savePath,
+        modsDirs: modsDirs,
       );
   }
 }
@@ -451,6 +455,7 @@ Future<String?> _resolveRepoFullName(
 void _queue(ModFillPlan plan, Mindustry version) {
   final entry = plan.entry;
   final savePath = version.modsPath;
+  final modsDirs = allModsDirsIn(version.dataPath);
   switch (plan.kind) {
     case ModFillKind.java:
       addTask(
@@ -459,6 +464,7 @@ void _queue(ModFillPlan plan, Mindustry version) {
           modMeta: plan.release!,
           savePath: savePath,
           mainAssetIndex: plan.mainAssetIndex,
+          modsDirs: modsDirs,
         ),
       );
     case ModFillKind.zip:
@@ -468,6 +474,7 @@ void _queue(ModFillPlan plan, Mindustry version) {
           plan.release!,
           savePath,
           mainAssetIndex: plan.mainAssetIndex,
+          modsDirs: modsDirs,
         ),
       );
     case ModFillKind.source:
@@ -476,6 +483,7 @@ void _queue(ModFillPlan plan, Mindustry version) {
           modListMeta: entry,
           modMeta: plan.release,
           savePath: savePath,
+          modsDirs: modsDirs,
         ),
       );
   }

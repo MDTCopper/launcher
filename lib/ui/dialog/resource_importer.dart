@@ -7,8 +7,9 @@ import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/data/models.dart'
-    show Mindustry, modsDirIn;
+    show Mindustry, allModsDirsIn, modsDirIn;
 import 'package:copper_launcher/domain/local_game_importer.dart';
+import 'package:copper_launcher/domain/mod_install.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:flutter/material.dart';
@@ -261,6 +262,13 @@ class ResourceImporterState extends State<ResourceImporter> {
   bool get _isTargetNotIsolated =>
       widget.mindustry != null && !widget.mindustry!.isolation;
 
+  ///去重时要在哪些目录里找同一个 mod 的旧文件：目标数据目录的两个模组目录
+  List<String> get _targetModsDirs {
+    final dataPath = widget.mindustry?.dataPath ?? AppPaths.defaultGameData;
+    if (dataPath == null || dataPath.isEmpty) return const [];
+    return allModsDirsIn(dataPath);
+  }
+
   ///把 [source] 复制到 [dir]，同名文件自动加序号，不覆盖已有内容；
   ///返回 null 表示复制成功，否则为失败原因（与 [_importOne] 的返回值契约一致）
   Future<String?> _copyInto(String dir, String source) async {
@@ -289,23 +297,43 @@ class ResourceImporterState extends State<ResourceImporter> {
     }
   }
 
-  ///把单个资源导入对应目录，返回 null 表示成功，否则为失败原因
-  Future<String?> _importOne(FileReader reader) async {
+  ///把单个资源导入对应目录，返回 null 表示成功，否则为失败原因；
+  ///[knownMods] 是批量导入时复用的一次模组扫描结果（装完会更新）
+  Future<String?> _importOne(
+    FileReader reader, {
+    List<InstalledModFile>? knownMods,
+  }) async {
     //目标数据目录：指定版本 → 该版本的独立数据目录（版本隔离感知）；
     //未指定 → 默认游戏数据目录
     final gameData = widget.mindustry?.dataPath ?? AppPaths.defaultGameData;
     switch (reader.type) {
       case ResourceType.mod:
         final mod = reader.mod;
-        if (mod?.path == null || gameData == null) {
+        if (mod == null) return '未找到游戏数据目录';
+        final modPath = mod.path;
+        if (modPath == null || gameData == null) {
           return '未找到游戏数据目录';
         }
-        //Copper 原生模组要进 `<数据目录>/copper/mods`：放进 mods 的话加载器
-        //会按原版模组读它（找不到 mod.json），等于没装
-        return await _copyInto(
-          modsDirIn(gameData, copper: mod!.copper),
-          mod.path!,
-        );
+        //同一个 mod 只留这一份新文件：旧版本文件先删掉（不比版本号），
+        //Copper 原生模组要进 `<数据目录>/copper/mods`，原版模组进 `mods`
+        try {
+          await installModFile(
+            sourcePath: modPath,
+            mod: mod,
+            targetDir: modsDirIn(gameData, copper: mod.copper),
+            modsDirs: _targetModsDirs,
+            tempDir: p.join(gameData, 'tmp'),
+            known: knownMods,
+          );
+          return null;
+        } catch (error) {
+          addLog(
+            .error,
+            '导入模组失败：$modPath，${removeNewlines('$error')}',
+            tag: 'Import',
+          );
+          return '复制失败：$error';
+        }
       case ResourceType.mapSave:
         if (reader.mapSave?.path == null || gameData == null) {
           return '未找到游戏数据目录';
@@ -339,11 +367,17 @@ class ResourceImporterState extends State<ResourceImporter> {
 
     addLog(.info, '开始导入 ${_selected.length} 个资源，目标目录：$_targetDataPath', tag: 'Import');
 
+    //模组要跨两个目录去重，一批里可能导入多个模组：扫一次复用，别每个文件都重扫
+    final knownMods =
+        _selected.any((index) => importList[index].type == ResourceType.mod)
+        ? await scanInstalledMods(_targetModsDirs)
+        : null;
+
     var ok = 0;
     final failures = <String>[];
     for (final index in _selected) {
       final reader = importList[index];
-      final error = await _importOne(reader);
+      final error = await _importOne(reader, knownMods: knownMods);
       if (error == null) {
         ok++;
       } else {

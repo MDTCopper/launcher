@@ -15,6 +15,7 @@ import 'package:path/path.dart' as p;
 import '../../ui/shell/drawer/log_list.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import '../../util/format/byte_unit.dart';
+import '../mod_install.dart';
 import '../task.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
@@ -34,11 +35,15 @@ class JavaModDownloadTask extends Task {
 
   List<HttpChunkInfo> chunks = [];
 
+  /// 去重时要在哪些目录里找同一个 mod 的旧文件；不传就只看 [savePath]
+  final List<String>? modsDirs;
+
   JavaModDownloadTask({
     required this.modListMeta,
     required this.modMeta,
     required this.savePath,
     this.mainAssetIndex = 0,
+    this.modsDirs,
   });
 
   @override
@@ -73,7 +78,7 @@ class JavaModDownloadTask extends Task {
 
       var fileName = asset.name;
 
-      final path = p.join(savePath, fileName);
+      var path = p.join(savePath, fileName);
       file = File(path);
       if (!await file.exists()) await file.create(recursive: true);
 
@@ -99,7 +104,17 @@ class JavaModDownloadTask extends Task {
         throw Exception('文件可能在合并过程中损坏');
       }
       final reader = await FileReader.fromPath(path);
-      if (reader.mod == null) throw Exception('mod.json 解析失败');
+      final mod = reader.mod;
+      if (mod == null) throw Exception('mod.json 解析失败');
+
+      //同一个 mod 只留刚下载的这份：旧版本文件删掉，旧版本是禁用态就沿用禁用名
+      final installed = await dedupeInstalledMod(
+        installedPath: path,
+        mod: mod,
+        modsDirs: modsDirs ?? [savePath],
+      );
+      path = installed.path;
+      file = File(path);
 
       status = TaskStatus.completed;
 
@@ -286,11 +301,15 @@ class ZipModDownloadTask extends Task {
   final CancelToken cancelToken = CancelToken();
   late File file;
 
+  /// 去重时要在哪些目录里找同一个 mod 的旧文件；不传就只看 [savePath]
+  final List<String>? modsDirs;
+
   ZipModDownloadTask(
     this.modListMeta,
     this.modMeta,
     this.savePath, {
     this.mainAssetIndex = 0,
+    this.modsDirs,
   }) : assert(!modListMeta.hasJava, '下载模组只能为非Java');
 
   void _updateProgress(int size, int total) {
@@ -346,7 +365,7 @@ class ZipModDownloadTask extends Task {
     final url = asset.url;
 
     try {
-      final path = p.join(savePath, fileName);
+      var path = p.join(savePath, fileName);
 
       file = File(path);
       if (await file.exists()) await file.delete();
@@ -371,7 +390,17 @@ class ZipModDownloadTask extends Task {
       }
 
       final reader = await FileReader.fromPath(path);
-      if (reader.mod == null) throw Exception('mod.json 解析失败');
+      final mod = reader.mod;
+      if (mod == null) throw Exception('mod.json 解析失败');
+
+      //同一个 mod 只留刚下载的这份：旧版本文件删掉，旧版本是禁用态就沿用禁用名
+      final installed = await dedupeInstalledMod(
+        installedPath: path,
+        mod: mod,
+        modsDirs: modsDirs ?? [savePath],
+      );
+      path = installed.path;
+      file = File(path);
 
       await _progressMoveTo100();
 
@@ -525,10 +554,14 @@ class SourceModDownloadTask extends Task {
   final CancelToken cancelToken = CancelToken();
   late File file;
 
+  /// 去重时要在哪些目录里找同一个 mod 的旧文件；不传就只看 [savePath]
+  final List<String>? modsDirs;
+
   SourceModDownloadTask({
     required this.modListMeta,
     required this.modMeta,
     required this.savePath,
+    this.modsDirs,
   });
 
   /// 找一个能下的源码归档分支：先探 `main` / `master`，再问仓库的默认分支
@@ -673,6 +706,13 @@ class SourceModDownloadTask extends Task {
           await file.rename(newPath);
           file = File(newPath);
         }
+        //同一个 mod 只留这份：旧版本文件删掉，旧版本是禁用态就沿用禁用名
+        final installed = await dedupeInstalledMod(
+          installedPath: file.path,
+          mod: mod,
+          modsDirs: modsDirs ?? [savePath],
+        );
+        file = File(installed.path);
       }
 
       await _progressMoveTo100();

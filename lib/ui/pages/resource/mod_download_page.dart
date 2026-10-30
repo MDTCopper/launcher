@@ -968,6 +968,12 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
   bool get javaDownloadBan =>
       modListMeta.hasJava && _assetCandidates.isEmpty && !widget.downloadSource;
   void _download() async {
+    //下载到当前版本时，去重要跨原版 / Copper 两个模组目录找旧版本；
+    //自定义存储路径没有版本上下文，只在该目录内去重
+    final modsDirs = otherSavePath == null && version != null
+        ? allModsDirsIn(version!.dataPath)
+        : null;
+
     // 源码下载：走源码 task
     if (widget.downloadSource) {
       addTask(
@@ -975,6 +981,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
           modListMeta: modListMeta,
           modMeta: modMeta,
           savePath: version?.modsPath ?? otherSavePath!,
+          modsDirs: modsDirs,
         ),
       );
       if (mounted) Navigator.pop(context);
@@ -989,6 +996,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
           modListMeta: modListMeta,
           modMeta: modMeta,
           savePath: version?.modsPath ?? otherSavePath!,
+          modsDirs: modsDirs,
         ),
       );
       if (mounted) Navigator.pop(context);
@@ -1004,6 +1012,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
           modMeta: modMeta!,
           savePath: version?.modsPath ?? otherSavePath!,
           mainAssetIndex: mainAssetIndex,
+          modsDirs: modsDirs,
         ),
       );
     } else {
@@ -1014,6 +1023,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
           modMeta!,
           version?.modsPath ?? otherSavePath!,
           mainAssetIndex: mainAssetIndex,
+          modsDirs: modsDirs,
         ),
       );
     }
