@@ -6,7 +6,9 @@ import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_cloud_save_api.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
+import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
+import 'package:copper_launcher/domain/cloud/cloud_binding_store.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
 import 'package:copper_launcher/util/app_paths.dart';
@@ -14,8 +16,11 @@ import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+
+export 'package:copper_launcher/domain/cloud/cloud_binding_store.dart';
 
 /// 一次上传的结果
 class CloudSaveUploadResult {
@@ -85,58 +90,9 @@ enum CloudSyncStatus {
 
   /// 两边都改过：我们没有合并语义，只能让用户选（覆盖 / 留副本）
   conflicted,
-}
 
-/// 本地记的「这个数据目录上次同步到哪儿」
-///
-/// 没有它就只能在上传时被服务端 409 告知冲突，或者让用户自己看时间猜；
-/// 有了它才能在本地分辨「本机改没改 / 云端有没有新的」（Steam 的 `remotecache.vdf` 干的就是这事）
-class CloudSyncState {
-  const CloudSyncState({
-    required this.slotId,
-    this.snapshotId,
-    this.files = const {},
-  });
-
-  final String slotId;
-
-  /// 上次同步到的云端快照（上传成功后是新快照，恢复后是那个被恢复的快照）
-  final String? snapshotId;
-
-  /// 上次同步时各文件的 sha256（键是数据目录内的相对路径）
-  final Map<String, String> files;
-
-  Map<String, dynamic> toJson() => {
-    'slot_id': slotId,
-    if (snapshotId != null) 'snapshot_id': snapshotId,
-    if (files.isNotEmpty) 'files': files,
-  };
-
-  /// 读一条绑定；认不出来给 null
-  ///
-  /// 兼容老形态（值是**槽位 id 字符串**，那时还没有「上次同步到哪儿」这回事）
-  static CloudSyncState? fromJson(Object? value) {
-    if (value is String && value.isNotEmpty) {
-      return CloudSyncState(slotId: value);
-    }
-    if (value is! Map) return null;
-
-    final slotId = '${value['slot_id'] ?? ''}';
-    if (slotId.isEmpty) return null;
-    final rawFiles = value['files'];
-    return CloudSyncState(
-      slotId: slotId,
-      snapshotId: value['snapshot_id'] is String
-          ? value['snapshot_id'] as String
-          : null,
-      files: rawFiles is Map
-          ? {
-              for (final entry in rawFiles.entries)
-                if (entry.value is String) '${entry.key}': '${entry.value}',
-            }
-          : const {},
-    );
-  }
+  /// 已绑定但还没有同步基线：先让用户选拉取 / 上传
+  boundUnsynced,
 }
 
 /// 一侧（本机 / 云端）的「这份存档是什么」
@@ -322,9 +278,6 @@ class CloudSaveService {
 
   static String get _bindingPath => p.join(_root, bindingFileName);
 
-  /// 这次运行里已经提示过「有同版本槽位但没绑定」的 tag，别每次进页面都刷一条
-  static final Set<String> _unboundLogged = {};
-
   /// 云包与临时文件都放这里
   ///
   /// **不能放进游戏数据目录**：Steam 云对 `saves/`、`maps/`、`mods` 等的规则是 `*`，
@@ -343,25 +296,145 @@ class CloudSaveService {
   /// 备份只留最近这么多份：每次恢复留一份会一直涨
   static const backupKeep = 5;
 
-  /// 槽位名：设备名 + 游戏版本（上限 100 字符，这里截断兜底）
-  /// 槽位名：默认数据目录的版本共用「设备 · 发布号」这一个名字（这就是唯一可共享的那份），
-  /// 隔离目录的版本各自带上一段版本标识，避免同发布号的多个变体抢同一个槽位
+  /// 用例可指定账号，避免依赖真实登录
+  @visibleForTesting
+  static String? accountOverride;
+
+  /// 当前账号 subject；没有登录 / 还没读到资料时为 null
+  static String? get currentAccountId {
+    final override = accountOverride;
+    if (override != null && override.trim().isNotEmpty) return override.trim();
+    final subject = AccountManager.instance.subject?.trim();
+    return (subject == null || subject.isEmpty) ? null : subject;
+  }
+
+  /// 云操作前确保能拿到账号；取不到就返回 null，调用方拒绝操作
+  static Future<String?> _resolveAccountId() async {
+    final override = accountOverride;
+    if (override != null && override.trim().isNotEmpty) return override.trim();
+    final accounts = AccountManager.instance;
+    await accounts.ensureRestored();
+    if (!accounts.isLoggedIn) return null;
+    var subject = accounts.subject?.trim();
+    if (subject == null || subject.isEmpty) {
+      try {
+        await accounts.loadAccount();
+      } catch (_) {}
+      subject = accounts.subject?.trim();
+    }
+    return (subject == null || subject.isEmpty) ? null : subject;
+  }
+
+  static CloudBindingStore _loadStore() => CloudBindingStore.load(_bindingPath);
+
+  static void _saveStore(CloudBindingStore store) => store.save(_bindingPath);
+
+  /// 本机同步单元：默认 / 隔离实例 / 外置目录
+  static String profileIdOf(Mindustry version) => localProfileIdOf(version);
+
+  /// 这个数据目录当前属于哪个账号；null = 未占用
+  static String? ownerOf(Mindustry version) =>
+      _loadStore().ownerOf(profileIdOf(version));
+
+  static bool isLocked(Mindustry version) {
+    final account = currentAccountId;
+    final owner = ownerOf(version);
+    return account != null && owner != null && owner != account;
+  }
+
+  /// 槽位名：非默认 `设备 · release · boundTag #短码`；默认 `设备 · 默认存档 #短码`
   static String slotNameFor({
     required String deviceName,
     required CloudGameInfo game,
-    String? discriminator,
+    String? boundTag,
+    bool isDefault = false,
+    String? signatureShort,
   }) {
     final release = game.release.isNotEmpty ? game.release : game.tag;
-    final suffix = (discriminator == null || discriminator.isEmpty)
+    final tag = (boundTag == null || boundTag.trim().isEmpty)
         ? ''
-        : ' · $discriminator';
-    final name = '$deviceName · $release$suffix';
-    return name.length <= 100 ? name : name.substring(0, 100);
+        : ' · ${boundTag.trim()}';
+    final base = isDefault
+        ? '$deviceName · 默认存档'
+        : '$deviceName · $release$tag';
+    final suffix = (signatureShort == null || signatureShort.isEmpty)
+        ? ''
+        : ' #$signatureShort';
+    final name = '$base$suffix';
+    if (name.length <= 100) return name;
+    final keep = 100 - suffix.length;
+    if (keep <= 0) return name.substring(0, 100);
+    return '${base.substring(0, keep)}$suffix';
   }
 
-  /// 隔离版本用它区分槽位；非隔离（默认数据目录）返回 null，与旧行为一致
-  static String? slotDiscriminatorOf(Mindustry version) =>
-      version.isolation ? version.tag : null;
+  /// 从云端槽位名里解出 `boundTag`；默认存档 / 旧命名返回 null
+  static String? boundTagOfSlotName(String name) {
+    final withoutShort = name.replaceFirst(RegExp(r' #[0-9a-fA-F]{8}$'), '');
+    final parts = withoutShort.split(' · ');
+    if (parts.length < 3) return null;
+    final tag = parts.sublist(2).join(' · ').trim();
+    return tag.isEmpty ? null : tag;
+  }
+
+  /// 采用云端标签：把本机隔离实例的 tag / 文件夹改成云端 `boundTag`
+  ///
+  /// 云槽位名、云签名、slotId 都不动；失败抛 [StateError]，调用方不要继续拉取。
+  static Future<void> adoptCloudTag(Mindustry version, String cloudTag) async {
+    final tag = cloudTag.trim();
+    if (tag.isEmpty || tag == version.tag) return;
+    final error = WindowsFileNameValidator.tagValidate(tag);
+    if (error != null) throw StateError('云端标签不能用作版本名：$error');
+
+    final fold = config.versionOptions.versionFolds.firstWhere(
+      (fold) => fold.versions.contains(version),
+      orElse: () => VersionFold(tag: '', path: '', versions: []),
+    );
+    if (fold.versions.any((other) => other != version && other.tag == tag)) {
+      throw StateError('本机已有同名版本「$tag」，不能直接采用云端标签');
+    }
+
+    final oldFolder = version.foldPath;
+    final newFolder = p.join(version.resolvedPath, tag);
+    if (oldFolder != newFolder && Directory(oldFolder).existsSync()) {
+      if (Directory(newFolder).existsSync()) {
+        throw StateError('目标版本文件夹已存在：$newFolder');
+      }
+      await Directory(oldFolder).rename(newFolder);
+      final bodyPath = version.resolvedJarPath;
+      if (p.isWithin(oldFolder, bodyPath)) {
+        version.jarPath = AppPaths.toStoredPath(
+          p.join(newFolder, p.relative(bodyPath, from: oldFolder)),
+        );
+      }
+    }
+
+    version.tag = tag;
+    await config.save();
+    addLog(.info, '采用云端标签，本机版本改名为 [$tag]', tag: 'Cloud');
+  }
+
+  /// 采用本地标签：把云端槽位名改成当前实例 tag；云签名与 slotId 不变
+  static Future<void> renameCloudSlotToLocalTag({
+    required String accessToken,
+    required String slotId,
+    required Mindustry version,
+    CancelToken? cancelToken,
+  }) async {
+    final signature = cloudSignatureForSlot(slotId);
+    final name = slotNameFor(
+      deviceName: deviceName,
+      game: CloudGameInfo.fromVersion(version),
+      boundTag: version.tag,
+      signatureShort: cloudSignatureShort(signature),
+    );
+    await MdtbbsCloudSaveApi.renameSlot(
+      accessToken: accessToken,
+      slotId: slotId,
+      name: name,
+      cancelToken: cancelToken,
+    );
+    addLog(.info, '采用本地标签，云端槽位改名为 [$name]', tag: 'Cloud');
+  }
 
   /// 设备名：槽位命名与「另一台设备传的」提示用
   static String get deviceName {
@@ -373,66 +446,54 @@ class CloudSaveService {
     return host;
   }
 
-  /// 找这个数据目录**已有**的云端槽位；找不到给 null，**不创建**
-  ///
-  /// 页面加载走这条：只是看看状态，不该产生写操作（建槽是占配额的动作，要用户点）
+  /// 找这个数据目录**已有**的云端槽位；找不到给 null，**不创建、不按名字认领**
   static Future<CloudSaveSlot?> findSlot({
     required String accessToken,
     required Mindustry version,
     String? deviceName,
     CancelToken? cancelToken,
   }) async {
-    final name = deviceName ?? CloudSaveService.deviceName;
-    final dataPath = _normalize(version.dataPath);
-    final states = _loadStates();
+    final account = await _resolveAccountId();
+    if (account == null) return null;
 
-    final boundId = states[dataPath]?.slotId;
-    if (boundId != null) {
-      try {
-        return await MdtbbsCloudSaveApi.slot(
-          accessToken: accessToken,
-          slotId: boundId,
-          cancelToken: cancelToken,
-        );
-      } on MdtbbsException catch (error) {
-        // 云端删掉了 / 换账号了：绑定作废，往下走按名字再认一次
-        if (error.statusCode != 404) rethrow;
-        addLog(.info, '云端槽位已不存在，重新认一个', tag: 'Cloud');
-        states.remove(dataPath);
-        _saveStates(states);
-      }
+    final profile = profileIdOf(version);
+    final store = _loadStore();
+    final owner = store.ownerOf(profile);
+    if (owner != null && owner != account) {
+      addLog(.info, '云存档 [${version.tag}] 被账号 $owner 占用，当前账号不能操作', tag: 'Cloud');
+      return null;
     }
+    final state = store.stateOf(account, profile);
+    if (state == null || state.slotId.isEmpty) return null;
 
-    final wanted = slotNameFor(
-      deviceName: name,
-      game: CloudGameInfo.fromVersion(version),
-      discriminator: slotDiscriminatorOf(version),
-    );
-    final page = await MdtbbsCloudSaveApi.listSlots(
-      accessToken: accessToken,
-      cancelToken: cancelToken,
-    );
-    for (final slot in page.slots) {
-      if (slot.name == wanted) {
-        _bind(dataPath, slot.id);
-        return slot;
-      }
-    }
-
-    // 名字没认到、但账号下有同发布号的槽位：多半是设备名变过，记一句（不改行为）
-    final release = CloudGameInfo.fromVersion(version).release;
-    final hasSameRelease = page.slots.any(
-      (slot) => releaseFromSlotName(slot.name) == release,
-    );
-    if (hasSameRelease && _unboundLogged.add(version.tag)) {
-      addLog(
-        .warning,
-        '云存档 [${version.tag}]：账号下有同发布号的槽位但没绑定到本机（设备名可能变过），'
-        '可用「从云拉取」认领',
-        tag: 'Cloud',
+    try {
+      final slot = await MdtbbsCloudSaveApi.slot(
+        accessToken: accessToken,
+        slotId: state.slotId,
+        cancelToken: cancelToken,
       );
+      // 顺手刷新缓存里的 dataPath（tag 改名 / 数据目录搬迁后仍能显示对）
+      if (state.dataPath != version.dataPath) {
+        store.putState(
+          account,
+          profile,
+          state.copyWith(dataPath: version.dataPath),
+        );
+        _saveStore(store);
+      }
+      return slot;
+    } on MdtbbsException catch (error) {
+      if (error.statusCode == 404 || error.statusCode == 403) {
+        // 不删、不按名字认领；只标 stale，等用户选
+        if (!state.stale) {
+          store.putState(account, profile, state.copyWith(stale: true));
+          _saveStore(store);
+        }
+        addLog(.warning, '云存档绑定已失效（${error.statusCode}），等待用户处理', tag: 'Cloud');
+        return null;
+      }
+      rethrow;
     }
-    return null;
   }
 
   /// 账号下所有槽位（把分页拉全）
@@ -454,9 +515,104 @@ class CloudSaveService {
     return slots;
   }
 
-  /// 把版本的数据目录绑到指定槽位
-  static void bindSlot(Mindustry version, String slotId) =>
-      _bind(_normalize(version.dataPath), slotId);
+  /// 把当前账号的数据目录绑到指定槽位（供拉取 / 上传在完成对话框后调用）
+  static void bindSlot(Mindustry version, String slotId) {
+    final account = currentAccountId;
+    if (account == null) return;
+    final profile = profileIdOf(version);
+    final store = _loadStore();
+    final owner = store.ownerOf(profile);
+    if (owner != null && owner != account) {
+      throw CloudProfileLockedException(owner, localProfileId: profile);
+    }
+    final isDefault = profile == 'default';
+    final signature = cloudSignatureForSlot(slotId);
+    store.putState(
+      account,
+      profile,
+      CloudSyncState(
+        slotId: slotId,
+        cloudSignature: signature,
+        boundTag: isDefault ? null : version.tag,
+        cloudTag: isDefault ? null : version.tag,
+        slotName: slotNameFor(
+          deviceName: deviceName,
+          game: CloudGameInfo.fromVersion(version),
+          boundTag: version.tag,
+          isDefault: isDefault,
+          signatureShort: cloudSignatureShort(signature),
+        ),
+        baseline: false,
+        profileKind: isDefault ? 'default' : 'instance',
+        release: version.release,
+        build: version.versionNumber ?? version.releaseInt,
+        isBe: version.isBe,
+        dataPath: version.dataPath,
+      ),
+    );
+    store.setOwner(profile, account);
+    _saveStore(store);
+  }
+
+  /// 解绑当前数据目录（只删本机绑定，不动云端 / 本机存档）
+  static void unbind(Mindustry version) {
+    final account = currentAccountId;
+    if (account == null) return;
+    final profile = profileIdOf(version);
+    final store = _loadStore();
+    final owner = store.ownerOf(profile);
+    if (owner != null && owner != account) {
+      throw CloudProfileLockedException(owner, localProfileId: profile);
+    }
+    store.removeState(account, profile);
+    store.clearOwner(profile);
+    _saveStore(store);
+  }
+
+  /// 把当前数据目录的 active owner 覆盖为当前账号
+  static void takeover(Mindustry version) {
+    final account = currentAccountId;
+    if (account == null) return;
+    final profile = profileIdOf(version);
+    final store = _loadStore();
+    final owner = store.ownerOf(profile);
+    if (owner != null && owner != account) {
+      // 原 owner 的绑定保留为 dormant；只改归属
+      store.setOwner(profile, account);
+      _saveStore(store);
+      addLog(.info, '云存档归属改为账号 $account（原 $owner）', tag: 'Cloud');
+    }
+  }
+
+  /// 这份云存档在本机绑到了哪个 profile；没绑返回 null
+  static String? profileIdBoundToSlot(String slotId) {
+    final account = currentAccountId;
+    if (account == null) return null;
+    for (final entry in _loadStore().profilesOf(account).entries) {
+      if (entry.value.slotId == slotId) return entry.key;
+    }
+    return null;
+  }
+
+  /// 某个 profile 对应的本机版本；default 取第一个未隔离版本
+  static Mindustry? versionOfProfile(String profileId) {
+    for (final fold in config.versionOptions.versionFolds) {
+      for (final version in fold.versions) {
+        if (profileIdOf(version) == profileId) return version;
+      }
+    }
+    return null;
+  }
+
+  /// 丢弃一个失效 profile 的绑定（实例已经不在了）
+  static void discardProfileBinding(String profileId) {
+    final account = currentAccountId;
+    if (account == null) return;
+    final store = _loadStore();
+    store.removeState(account, profileId);
+    store.clearOwner(profileId);
+    _saveStore(store);
+  }
 
   /// 按发布号或 tag 找本机已有的版本
   static Mindustry? findInstalledVersion(String releaseOrTag) {
@@ -478,34 +634,101 @@ class CloudSaveService {
     return (index < 0 ? name : name.substring(index + 3)).trim();
   }
 
-  /// 找（或建）这个版本的数据目录对应的云端槽位
+  /// 取当前绑定槽位；没有绑定时只有 [allowCreate] 才建新槽
   ///
-  /// 先认本地记下的槽位 id（用户改过名也找得到），再退到按名字认，最后才新建
+  /// 自动同步不允许建槽；手动上传 / 显式新建才允许。
   static Future<CloudSaveSlot> resolveSlot({
     required String accessToken,
     required Mindustry version,
     String? deviceName,
+    bool allowCreate = true,
     CancelToken? cancelToken,
   }) async {
-    final found = await findSlot(
-      accessToken: accessToken,
-      version: version,
-      deviceName: deviceName,
-      cancelToken: cancelToken,
-    );
-    if (found != null) return found;
+    final account = await _resolveAccountId();
+    if (account == null) throw const CloudBindingRequiredException('未登录 BBS，无法操作云存档');
+    final profile = profileIdOf(version);
+    final store = _loadStore();
+    final owner = store.ownerOf(profile);
+    if (owner != null && owner != account) {
+      throw CloudProfileLockedException(owner, localProfileId: profile);
+    }
+
+    final state = store.stateOf(account, profile);
+    if (state != null) {
+      try {
+        return await MdtbbsCloudSaveApi.slot(
+          accessToken: accessToken,
+          slotId: state.slotId,
+          cancelToken: cancelToken,
+        );
+      } on MdtbbsException catch (error) {
+        if (error.statusCode == 404 || error.statusCode == 403) {
+          store.putState(account, profile, state.copyWith(stale: true));
+          _saveStore(store);
+          throw const CloudBindingRequiredException('云存档绑定已失效，先重新选择槽位');
+        }
+        rethrow;
+      }
+    }
+
+    if (!allowCreate) {
+      throw const CloudBindingRequiredException('还没有绑定云存档');
+    }
 
     final name = deviceName ?? CloudSaveService.deviceName;
+    final isDefault = profile == 'default';
+    final baseName = slotNameFor(
+      deviceName: name,
+      game: CloudGameInfo.fromVersion(version),
+      boundTag: version.tag,
+      isDefault: isDefault,
+    );
     final created = await MdtbbsCloudSaveApi.createSlot(
       accessToken: accessToken,
-      name: slotNameFor(
-        deviceName: name,
-        game: CloudGameInfo.fromVersion(version),
-        discriminator: slotDiscriminatorOf(version),
-      ),
+      name: baseName,
       cancelToken: cancelToken,
     );
-    _bind(_normalize(version.dataPath), created.id);
+    final signature = cloudSignatureForSlot(created.id);
+    final short = cloudSignatureShort(signature);
+    var slotName = baseName;
+    try {
+      final withShort = slotNameFor(
+        deviceName: name,
+        game: CloudGameInfo.fromVersion(version),
+        boundTag: version.tag,
+        isDefault: isDefault,
+        signatureShort: short,
+      );
+      await MdtbbsCloudSaveApi.renameSlot(
+        accessToken: accessToken,
+        slotId: created.id,
+        name: withShort,
+        cancelToken: cancelToken,
+      );
+      slotName = withShort;
+    } catch (error) {
+      addLog(.warning, '槽位名补短码失败：${removeNewlines('$error')}', tag: 'Cloud');
+    }
+
+    store.putState(
+      account,
+      profile,
+      CloudSyncState(
+        slotId: created.id,
+        cloudSignature: signature,
+        boundTag: isDefault ? null : version.tag,
+        cloudTag: isDefault ? null : version.tag,
+        slotName: slotName,
+        baseline: false,
+        profileKind: isDefault ? 'default' : 'instance',
+        release: version.release,
+        build: version.versionNumber ?? version.releaseInt,
+        isBe: version.isBe,
+        dataPath: version.dataPath,
+      ),
+    );
+    store.setOwner(profile, account);
+    _saveStore(store);
     return created;
   }
 
@@ -542,18 +765,18 @@ class CloudSaveService {
     bool includePreviews = false,
     bool includeModBytes = false,
     bool Function(CloudModEntry mod)? includeBytesWhen,
+    bool allowCreateSlot = true,
     void Function(String status)? onStatus,
     ProgressCallback? onSendProgress,
     CancelToken? cancelToken,
   }) async {
-    final shared = sharedDataPathReason(version);
-    if (shared != null) throw StateError(shared);
     final name = deviceName ?? CloudSaveService.deviceName;
     onStatus?.call('查云端槽位');
     final slot = await resolveSlot(
       accessToken: accessToken,
       version: version,
       deviceName: name,
+      allowCreate: allowCreateSlot,
       cancelToken: cancelToken,
     );
 
@@ -824,19 +1047,26 @@ class CloudSaveService {
   /// 把某个快照拉下来并解进本机数据目录
   ///
   /// 严格按官方要求：**先落临时文件 → 校验字节数与 sha256 → 才交给解包**；
-  /// 解包按 [mode] 处理同名文件 —— 默认留两份，**不覆盖本机**。
+  /// 解包按 [mode] 处理同名文件；**默认整份覆盖**，不留 `-cloud-` 副本。
   /// `settings.bin` 也在这条路上当普通文件同步（含键位 / UI / 存档标题）
   static Future<CloudImportReport> download({
     required String accessToken,
     required Mindustry version,
     required String slotId,
     required String snapshotId,
-    CloudImportMode mode = CloudImportMode.keepBoth,
+    CloudImportMode mode = CloudImportMode.overwrite,
     HttpStatusCallback? onStatus,
     CancelToken? cancelToken,
   }) async {
-    final shared = sharedDataPathReason(version);
-    if (shared != null) throw StateError(shared);
+    final account = await _resolveAccountId();
+    if (account == null) {
+      throw const MdtbbsException(message: '未登录 BBS，不能拉取云存档');
+    }
+    final profile = profileIdOf(version);
+    final owner = _loadStore().ownerOf(profile);
+    if (owner != null && owner != account) {
+      throw CloudProfileLockedException(owner, localProfileId: profile);
+    }
     final tempPath = await _fetchSnapshot(
       accessToken: accessToken,
       slotId: slotId,
@@ -845,11 +1075,54 @@ class CloudSaveService {
       cancelToken: cancelToken,
     );
     try {
-      final extracted = await _extract(tempPath, version: version, mode: mode);
-      await _applyModStatesQuietly(version, extracted.manifest);
-      return extracted.report;
+      final reader = await CloudArchiveReader.open(tempPath);
+      _validateCloudManifest(
+        reader.manifest,
+        version: version,
+        slotId: slotId,
+      );
+      final report = await reader.extractTo(
+        dataPath: version.dataPath,
+        mode: mode,
+        backupDir: _campaignBackupDir(),
+      );
+      await _applyModStatesQuietly(version, reader.manifest);
+      if (report.rejected.isEmpty) {
+        _rememberSynced(
+          version,
+          slotId: slotId,
+          snapshotId: snapshotId,
+          files: reader.manifest.fileHashes,
+        );
+      }
+      return report;
     } finally {
       _deleteQuietly(tempPath);
+    }
+  }
+
+  /// 下载 / 恢复前校验归属与云签名；不通过就不解包
+  static void _validateCloudManifest(
+    CloudManifest manifest, {
+    required Mindustry version,
+    required String slotId,
+  }) {
+    final account = currentAccountId;
+    if (account == null) {
+      throw const MdtbbsException(message: '未登录 BBS，不能恢复云存档');
+    }
+    final manifestAccount = manifest.account?.trim();
+    if (manifestAccount != null &&
+        manifestAccount.isNotEmpty &&
+        manifestAccount != account) {
+      throw MdtbbsException(
+        message: '这份云存档属于账号 $manifestAccount，不是当前账号',
+      );
+    }
+    final expected = localState(version)?.signature ?? cloudSignatureForSlot(slotId);
+    final actual = manifest.cloudSignature?.trim();
+    if (actual != null && actual.isNotEmpty && actual != expected) {
+      throw const MdtbbsException(message: '这是另一份云存档，不能覆盖当前绑定');
     }
   }
 
@@ -868,8 +1141,16 @@ class CloudSaveService {
     HttpStatusCallback? onProgress,
     CancelToken? cancelToken,
   }) async {
-    final shared = sharedDataPathReason(version);
-    if (shared != null) throw StateError(shared);
+    final account = await _resolveAccountId();
+    if (account == null) {
+      throw const MdtbbsException(message: '未登录 BBS，不能恢复云存档');
+    }
+    final profile = profileIdOf(version);
+    final owner = _loadStore().ownerOf(profile);
+    if (owner != null && owner != account) {
+      throw CloudProfileLockedException(owner, localProfileId: profile);
+    }
+
     onStatus?.call('备份本机存档');
     final backup = await _backupForRestore(version);
 
@@ -884,24 +1165,25 @@ class CloudSaveService {
 
     try {
       onStatus?.call('覆盖本机存档');
-      final extracted = await _extract(
-        tempPath,
-        version: version,
+      final reader = await CloudArchiveReader.open(tempPath);
+      _validateCloudManifest(reader.manifest, version: version, slotId: slotId);
+      final report = await reader.extractTo(
+        dataPath: version.dataPath,
         mode: CloudImportMode.overwrite,
       );
-      await _applyModStatesQuietly(version, extracted.manifest);
+      await _applyModStatesQuietly(version, reader.manifest);
       _pruneBackups();
       // 落干净了才记「同步到这个快照」；有拒收说明本机与云上并不一致，别谎报
-      if (extracted.report.rejected.isEmpty) {
+      if (report.rejected.isEmpty) {
         _rememberSynced(
           version,
           slotId: slotId,
           snapshotId: snapshotId,
-          files: extracted.manifest.fileHashes,
+          files: reader.manifest.fileHashes,
         );
       }
       return CloudSaveRestoreResult(
-        report: extracted.report,
+        report: report,
         backupPath: backup.path,
         backupBytes: backup.bytes,
       );
@@ -948,8 +1230,13 @@ class CloudSaveService {
   ///
   /// 文件名里就是时间戳（`cloud-backup-2026-10-15T19-30-00.zip`），所以按名字倒序
   /// 就是时间倒序 —— 与 [_pruneBackups] 的清理顺序同一套口径
+  static String get _accountBackupDir {
+    final account = currentAccountId;
+    return account == null ? backupDir : p.join(backupDir, account);
+  }
+
   static List<CloudBackupFile> backups() {
-    final directory = Directory(backupDir);
+    final directory = Directory(_accountBackupDir);
     if (!directory.existsSync()) return const [];
     final files =
         [
@@ -1111,18 +1398,29 @@ class CloudSaveService {
     String archivePath, {
     required Mindustry version,
     required CloudImportMode mode,
+    String? backupDir,
   }) async {
     final reader = await CloudArchiveReader.open(archivePath);
     final report = await reader.extractTo(
       dataPath: version.dataPath,
       mode: mode,
+      backupDir: backupDir,
     );
     return (report: report, manifest: reader.manifest);
   }
 
-  /// 「恢复」前留的底：把本机这份按云包格式导出到 [backupDir]
+  /// keepBoth 下战役关键文件被覆盖前的本机副本目录
+  static String _campaignBackupDir() {
+    final stamp = DateTime.now()
+        .toIso8601String()
+        .substring(0, 19)
+        .replaceAll(RegExp('[:.]'), '-');
+    return p.join(_accountBackupDir, 'local-$stamp');
+  }
+
+  /// 「恢复」前留的底：把本机这份按云包格式导出到账号自己的备份目录
   static Future<CloudArchiveExport> _backupForRestore(Mindustry version) async {
-    final directory = Directory(backupDir);
+    final directory = Directory(_accountBackupDir);
     if (!directory.existsSync()) directory.createSync(recursive: true);
     // 文件名带时间戳，清理时按名字倒序就是「最新在前」
     final stamp = DateTime.now()
@@ -1132,7 +1430,7 @@ class CloudSaveService {
     try {
       return await _exportWithCache(
         version: version,
-        outputPath: p.join(backupDir, '$backupFilePrefix$stamp.zip'),
+        outputPath: p.join(_accountBackupDir, '$backupFilePrefix$stamp.zip'),
         deviceName: deviceName,
       );
     } catch (error) {
@@ -1156,11 +1454,18 @@ class CloudSaveService {
     void Function(String status)? onStatus,
   }) async {
     final cache = CloudHashCache.load(hashCachePath);
+    final account = currentAccountId;
+    final state = localState(version);
+    final profile = profileIdOf(version);
     try {
       return await CloudArchive.export(
         version: version,
         outputPath: outputPath,
         deviceName: deviceName,
+        account: account,
+        cloudSignature: state?.signature,
+        boundTag: state?.boundTag,
+        profileKind: profile == 'default' ? 'default' : 'instance',
         includePreviews: includePreviews,
         includeModBytes: includeModBytes,
         includeBytesWhen: includeBytesWhen,
@@ -1180,7 +1485,7 @@ class CloudSaveService {
   /// 备份只留最近 [backupKeep] 份：每次恢复留一份会一直涨
   static void _pruneBackups() {
     try {
-      final directory = Directory(backupDir);
+      final directory = Directory(_accountBackupDir);
       if (!directory.existsSync()) return;
       final files = [
         for (final entity in directory.listSync())
@@ -1207,9 +1512,16 @@ class CloudSaveService {
       slotId: slotId,
       cancelToken: cancelToken,
     );
-    final states = _loadStates();
-    states.removeWhere((_, value) => value.slotId == slotId);
-    _saveStates(states);
+    final account = currentAccountId;
+    if (account == null) return;
+    final store = _loadStore();
+    final profiles = Map<String, CloudSyncState>.from(store.profilesOf(account));
+    for (final entry in profiles.entries) {
+      if (entry.value.slotId != slotId) continue;
+      store.removeState(account, entry.key);
+      store.clearOwner(entry.key);
+    }
+    _saveStore(store);
   }
 
   static List<CloudSaveModInfo> _modsOf(CloudManifest manifest) => [
@@ -1232,42 +1544,46 @@ class CloudSaveService {
   /// 绑定文件（`<数据根>/mdtbbs_cloud_slots.json`）：数据目录 → 云端槽位 + 上次同步到哪儿
   static String get bindingPath => _bindingPath;
 
-  /// 这个版本用的那份数据目录开没开云存档
+  /// 这个版本当前使用的数据目录开没开云存档
   ///
-  /// 2026-10-28 起口径变了：**总开关是前置条件**，不是「一键全开」——
-  /// 总开关关着时所有版本一律视为关；总开关开着时，按版本记的那份清单说了算（默认关）
-  static bool isEnabled(Mindustry version) =>
-      sharedDataPathReason(version) == null &&
-      globallyEnabled &&
-      _loadEnabled().contains(_normalize(version.dataPath));
-
-  /// 全局开关在清单里的标记：在就表示「总开关开着」
-  static const _globalKey = '*';
-
-  /// 云存档总开关（账户 → 云存档那一页用的就是这个）
-  static bool get globallyEnabled => _loadEnabled().contains(_globalKey);
-
-  /// 打开 / 关掉总开关
-  ///
-  /// 打开只多一个全局标记，不动各版本自己的开关（它们默认关，由用户逐个开）；
-  /// 关掉时清空清单 —— 总开关一关，局部开关全部作废
-  static void setGlobalEnabled(bool enabled) {
-    if (enabled) {
-      _saveEnabled({_globalKey, ..._loadEnabled()});
-    } else {
-      _saveEnabled(const <String>{});
-    }
+  /// 总开关是前置条件；profile 按账号记，换账号不继承。
+  static bool isEnabled(Mindustry version) {
+    final account = currentAccountId;
+    if (account == null || !globallyEnabled) return false;
+    final profile = profileIdOf(version);
+    final owner = ownerOf(version);
+    if (owner != null && owner != account) return false;
+    return _loadEnabled().profilesOf(account).contains(profile);
   }
 
-  /// 开关：只动这份清单，槽位绑定与「上次同步到哪儿」一个不碰
-  ///
-  /// 总开关关着时**开不了**（返回 false），界面据此提示先去开总开关
+  /// 云存档总开关（账户 → 云存档那一页用的就是这个）
+  static bool get globallyEnabled {
+    final account = currentAccountId;
+    if (account == null) return false;
+    return _loadEnabled().globalOf(account);
+  }
+
+  /// 打开 / 关掉总开关（按当前账号）
+  static void setGlobalEnabled(bool enabled) {
+    final account = currentAccountId;
+    if (account == null) return;
+    final store = _loadEnabled();
+    store.setGlobal(account, enabled);
+    if (!enabled) store.clearProfiles(account);
+    _saveEnabled(store);
+  }
+
+  /// 开关：按当前账号 + profile 记；总开关关着时开不了
   static bool setEnabled(Mindustry version, bool enabled) {
+    final account = currentAccountId;
+    if (account == null) return false;
     if (enabled && !globallyEnabled) return false;
-    final paths = _loadEnabled();
-    final path = _normalize(version.dataPath);
-    final changed = enabled ? paths.add(path) : paths.remove(path);
-    if (changed) _saveEnabled(paths);
+    final profile = profileIdOf(version);
+    final owner = ownerOf(version);
+    if (enabled && owner != null && owner != account) return false;
+    final store = _loadEnabled();
+    final changed = store.setProfile(account, profile, enabled);
+    if (changed) _saveEnabled(store);
     return true;
   }
 
@@ -1286,33 +1602,23 @@ class CloudSaveService {
     return count;
   }
 
-  /// 这份数据目录被多个版本共用时，云存档分不清是谁的、会互相覆盖
-  ///
-  /// 返回给人看的原因；没共用返回 null
-  static String? sharedDataPathReason(Mindustry version) {
-    final versions = config.versionOptions.versionFolds.expand(
-      (fold) => fold.versions,
-    );
-    final count = versionsSharingDataPath(version, versions);
-    if (count <= 1) return null;
-    return '这份数据目录被 $count 个版本共用，云存档会互相覆盖；'
-        '先给这个版本开隔离数据目录';
+  /// 这个数据目录上次同步到哪儿；没记过给 null
+  static CloudSyncState? localState(Mindustry version) {
+    final account = currentAccountId;
+    if (account == null) return null;
+    return _loadStore().stateOf(account, profileIdOf(version));
   }
 
-  /// 这个数据目录上次同步到哪儿；没记过给 null
-  static CloudSyncState? localState(Mindustry version) =>
-      _loadStates()[_normalize(version.dataPath)];
-
   /// 现在处于什么状态（**纯函数**，不联网、不扫盘）
-  ///
-  /// [localHashes] 是本机现在的文件投影（`CloudManifest.fileHashes`）；没有本机记录时
-  /// 只能保守判断：本机有东西 + 云端有 head ⇒ 当作冲突让用户选，别替他把一边盖掉
   static CloudSyncStatus statusOf({
     required CloudSaveSlot? slot,
     required CloudSyncState? state,
     required Map<String, String> localHashes,
   }) {
     if (slot == null) return CloudSyncStatus.noSlot;
+    if (state != null && !state.hasBaseline) {
+      return CloudSyncStatus.boundUnsynced;
+    }
 
     final localChanged = state == null
         ? localHashes.isNotEmpty
@@ -1381,7 +1687,7 @@ class CloudSaveService {
       slot: slot,
       remote: snapshot == null ? null : _sideOfSnapshot(snapshot),
       changedFiles: _changedFiles(state?.files, manifest.fileHashes),
-      hasBaseline: state != null && state.files.isNotEmpty,
+      hasBaseline: state?.hasBaseline ?? false,
     );
   }
 
@@ -1479,77 +1785,29 @@ class CloudSaveService {
     return true;
   }
 
-  static Map<String, CloudSyncState> _loadStates() {
-    final file = File(_bindingPath);
-    if (!file.existsSync()) return {};
-    try {
-      final decoded = jsonDecode(file.readAsStringSync());
-      if (decoded is! Map) return {};
-
-      // 新形态是 { version, slots: { 数据目录: {...} } }；老形态直接是 { 数据目录: 槽位id }
-      final raw = decoded['slots'] is Map ? decoded['slots'] as Map : decoded;
-      final states = <String, CloudSyncState>{};
-      for (final entry in raw.entries) {
-        final state = CloudSyncState.fromJson(entry.value);
-        if (state != null) states['${entry.key}'] = state;
-      }
-      return states;
-    } catch (error) {
-      addLog(
-        .warning,
-        '云槽位绑定读取失败，按没有绑定处理：${removeNewlines('$error')}',
-        tag: 'Cloud',
-      );
-      return {};
-    }
-  }
-
-  static void _saveStates(Map<String, CloudSyncState> states) {
-    try {
-      final directory = Directory(p.dirname(_bindingPath));
-      if (!directory.existsSync()) directory.createSync(recursive: true);
-      File(_bindingPath).writeAsStringSync(
-        jsonEncode({
-          'version': 2,
-          'slots': {
-            for (final entry in states.entries) entry.key: entry.value.toJson(),
-          },
-        }),
-        flush: true,
-      );
-    } catch (error) {
-      addLog(.warning, '云槽位绑定写入失败：${removeNewlines('$error')}', tag: 'Cloud');
-    }
-  }
-
-  static Set<String> _loadEnabled() {
+  static _EnabledStore _loadEnabled() {
     final file = File(enabledPath);
-    if (!file.existsSync()) return {};
+    if (!file.existsSync()) return _EnabledStore();
     try {
       final decoded = jsonDecode(file.readAsStringSync());
-      if (decoded is! Map) return {};
-      final raw = decoded['data_paths'];
-      if (raw is! List) return {};
-      return {
-        for (final item in raw)
-          if (item is String) item,
-      };
+      if (decoded is! Map) return _EnabledStore();
+      return _EnabledStore.fromJson(decoded.cast<String, dynamic>());
     } catch (error) {
       addLog(
         .warning,
         '云存档开关读取失败，按都没开处理：${removeNewlines('$error')}',
         tag: 'Cloud',
       );
-      return {};
+      return _EnabledStore();
     }
   }
 
-  static void _saveEnabled(Set<String> paths) {
+  static void _saveEnabled(_EnabledStore store) {
     try {
       final directory = Directory(p.dirname(enabledPath));
       if (!directory.existsSync()) directory.createSync(recursive: true);
       File(enabledPath).writeAsStringSync(
-        jsonEncode({'version': 1, 'data_paths': paths.toList()}),
+        jsonEncode(store.toJson()),
         flush: true,
       );
     } catch (error) {
@@ -1564,32 +1822,35 @@ class CloudSaveService {
     required String? snapshotId,
     required Map<String, String> files,
   }) {
-    final states = _loadStates();
-    states[_normalize(version.dataPath)] = CloudSyncState(
-      slotId: slotId,
-      snapshotId: snapshotId,
-      files: files,
+    final account = currentAccountId;
+    if (account == null) return;
+    final profile = profileIdOf(version);
+    final store = _loadStore();
+    final existing = store.stateOf(account, profile);
+    final isDefault = profile == 'default';
+    final signature = existing?.signature ?? cloudSignatureForSlot(slotId);
+    store.putState(
+      account,
+      profile,
+      CloudSyncState(
+        slotId: slotId,
+        cloudSignature: signature,
+        snapshotId: snapshotId,
+        files: files,
+        boundTag: isDefault ? null : (existing?.boundTag ?? version.tag),
+        cloudTag: isDefault ? null : (existing?.cloudTag ?? version.tag),
+        slotName: existing?.slotName,
+        pendingSlotRename: existing?.pendingSlotRename ?? false,
+        baseline: true,
+        profileKind: isDefault ? 'default' : 'instance',
+        release: version.release,
+        build: version.versionNumber ?? version.releaseInt,
+        isBe: version.isBe,
+        dataPath: version.dataPath,
+      ),
     );
-    _saveStates(states);
-  }
-
-  static void _bind(String dataPath, String slotId) {
-    final states = _loadStates();
-    final existing = states[dataPath];
-    // 只是认了个槽位：上次同步到哪儿保持不变（别把已有记录清了）
-    states[dataPath] = CloudSyncState(
-      slotId: slotId,
-      snapshotId: existing?.snapshotId,
-      files: existing?.files ?? const {},
-    );
-    _saveStates(states);
-
-    // 认过槽位说明这份数据目录在用云存档，把开关一并标上；
-    // 但总开关关着时不标 —— 那种情况下这个版本本来就该是「关」
-    if (globallyEnabled) {
-      final paths = _loadEnabled();
-      if (paths.add(_normalize(dataPath))) _saveEnabled(paths);
-    }
+    store.setOwner(profile, account);
+    _saveStore(store);
   }
 
   /// 路径大小写不敏感的平台上要归一，否则同一个目录会记成两条绑定
@@ -1606,4 +1867,70 @@ class CloudSaveService {
       // 临时文件删不掉不影响结果
     }
   }
+}
+
+/// `cloud-enabled.json` v2：账号 → 总开关 + 已启用的 profile
+class _EnabledStore {
+  _EnabledStore({
+    Map<String, bool>? globals,
+    Map<String, Set<String>>? profiles,
+  }) : globals = globals ?? {},
+       profiles = profiles ?? {};
+
+  final Map<String, bool> globals;
+  final Map<String, Set<String>> profiles;
+
+  factory _EnabledStore.fromJson(Map<String, dynamic> json) {
+    final globals = <String, bool>{};
+    final profiles = <String, Set<String>>{};
+    final rawAccounts = json['accounts'];
+    if (rawAccounts is Map) {
+      for (final entry in rawAccounts.entries) {
+        final account = '${entry.key}';
+        final value = entry.value;
+        if (value is! Map) continue;
+        globals[account] = value['global'] == true;
+        final rawProfiles = value['profiles'];
+        profiles[account] = rawProfiles is List
+            ? {
+                for (final item in rawProfiles)
+                  if (item is String) item,
+              }
+            : {};
+      }
+    }
+    return _EnabledStore(globals: globals, profiles: profiles);
+  }
+
+  bool globalOf(String account) => globals[account] == true;
+
+  Set<String> profilesOf(String account) => profiles[account] ?? const {};
+
+  void setGlobal(String account, bool enabled) {
+    globals[account] = enabled;
+    profiles.putIfAbsent(account, () => {});
+  }
+
+  bool setProfile(String account, String profile, bool enabled) {
+    final set = profiles.putIfAbsent(account, () => {});
+    return enabled ? set.add(profile) : set.remove(profile);
+  }
+
+  void clearProfiles(String account) {
+    profiles[account] = {};
+  }
+
+  Map<String, dynamic> toJson() => {
+    'version': 2,
+    'accounts': {
+      for (final account in {
+        ...globals.keys,
+        ...profiles.keys,
+      })
+        account: {
+          'global': globalOf(account),
+          'profiles': profilesOf(account).toList(),
+        },
+    },
+  };
 }

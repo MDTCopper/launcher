@@ -13,8 +13,8 @@ enum CloudConflictChoice {
   /// 用本机这份覆盖云端当前版本
   useLocal,
 
-  /// 两份都留：云端那份解出来，同名不同内容的另存一份
-  keepBoth,
+  /// 跳过同步直接启动；本次不再自动同步，下次启动仍会提醒
+  skipAndLaunch,
 
   /// 没选 / 关掉弹窗 —— 调用方据此**停止启动**
   cancel,
@@ -154,7 +154,7 @@ class _CloudConflictDialog extends StatelessWidget {
               Text('云存档冲突', style: theme.textTheme.titleLarge),
               Text(
                 '${versionTag == null ? '这个版本' : '「$versionTag」'}的存档本机与云端都改过，'
-                '需要你选一份，或者两份都留下。不选就**不启动**（不会动任何一边）。',
+                '需要你选一份覆盖，或者跳过同步直接启动。不选就**不启动**（不会动任何一边）。',
                 style: theme.textTheme.bodySmall,
               ),
               Row(
@@ -208,10 +208,11 @@ class _CloudConflictDialog extends StatelessWidget {
                         Navigator.of(context).pop(CloudConflictChoice.useLocal),
                   ),
                   IconTextButton(
-                    icon: Icons.copy_all_outlined,
-                    content: '两份都留',
-                    onTap: () =>
-                        Navigator.of(context).pop(CloudConflictChoice.keepBoth),
+                    icon: Icons.skip_next,
+                    content: '跳过同步并启动',
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(CloudConflictChoice.skipAndLaunch),
                   ),
                   IconTextButton(
                     icon: Icons.close,

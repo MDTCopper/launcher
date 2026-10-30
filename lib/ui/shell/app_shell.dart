@@ -429,9 +429,13 @@ class AppShellState extends State<AppShell> {
     final colors = AppColors.of(context);
     final theme = Theme.of(context);
     final width = MediaQuery.sizeOf(context).width;
+    // 账户抽屉按窗口比例取宽：窄屏仍铺满，桌面端不固定 360
+    final drawerWidth = width < 420
+        ? width
+        : (width * 0.36).clamp(360.0, 620.0).toDouble();
     return Drawer(
       backgroundColor: colors.pageBackground,
-      width: width < 420 ? width : 360,
+      width: drawerWidth,
       elevation: 2,
       shadowColor: Colors.black,
       shape: RoundedRectangleBorder(side: BorderSide(color: colors.border)),

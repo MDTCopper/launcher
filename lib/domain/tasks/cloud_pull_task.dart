@@ -1,4 +1,3 @@
-import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
@@ -10,6 +9,7 @@ import 'package:copper_launcher/domain/cloud/game_version_fill.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill_runner.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
 
@@ -17,11 +17,7 @@ import 'package:flutter/material.dart';
 ///
 /// 缺游戏版本时静默装（默认隔离）；缺的模组也静默补，补不回来的记进 [missingMods]
 class CloudPullTask extends CloudSyncTask {
-  CloudPullTask({
-    required this.accessToken,
-    required this.slot,
-    this.targetVersion,
-  })
+  CloudPullTask({required this.accessToken, required this.slot})
     : super(
         direction: CloudSyncDirection.download,
         versionTag: slot.name,
@@ -31,9 +27,6 @@ class CloudPullTask extends CloudSyncTask {
 
   final String accessToken;
   final CloudSaveSlot slot;
-
-  /// 指定拉回哪个版本的数据目录（默认存档走这条：不建版本、不补全游戏）
-  final Mindustry? targetVersion;
 
   /// 补不回来的模组：名字 + 原因，调用方在完成后列成一张表
   final List<({String name, String reason})> missingMods = [];
@@ -53,47 +46,81 @@ class CloudPullTask extends CloudSyncTask {
     setPhase('同步 ${slot.name}');
 
     final release = CloudSaveService.releaseFromSlotName(slot.name);
-    var version = targetVersion ?? CloudSaveService.findInstalledVersion(release);
+    final isDefaultSlot =
+        slot.name.contains('默认存档') ||
+        CloudSaveService.profileIdBoundToSlot(slot.id) == 'default';
+    final boundProfile = CloudSaveService.profileIdBoundToSlot(slot.id);
+    final targetProfile = boundProfile ?? (isDefaultSlot ? 'default' : null);
+    var version = targetProfile == null
+        ? null
+        : CloudSaveService.versionOfProfile(targetProfile);
+    var needBind = targetProfile == null;
     var installedNow = false;
     if (version == null) {
-      final install = await _prepareVersion(release, slot.name);
+      // 绑定在但实例已经不在了：旧 profile 作废，按「没有实例」新建一个
+      if (boundProfile != null && boundProfile != 'default') {
+        CloudSaveService.discardProfileBinding(boundProfile);
+      }
+      final install = await _prepareVersion(
+        release,
+        isolation: !isDefaultSlot,
+      );
       if (install == null) {
         updateQueueItem(item, failed: true);
         return '版本装不上：$release';
       }
       bindQueueSubTask(item, install);
       await install.startAsync();
-      version = CloudSaveService.findInstalledVersion(release);
+      version = isDefaultSlot
+          ? (CloudSaveService.versionOfProfile('default') ??
+                CloudSaveService.findInstalledVersion(release))
+          : CloudSaveService.findInstalledVersion(release);
       if (version == null) {
         updateQueueItem(item, failed: true);
         return '版本装完没找到：$release';
       }
       installedNow = true;
+      needBind = !isDefaultSlot;
+      // 新实例优先采用云端 boundTag，保证本地绑定与云端槽位名一致
+      final cloudTag = CloudSaveService.boundTagOfSlotName(slot.name);
+      if (!isDefaultSlot &&
+          cloudTag != null &&
+          cloudTag.isNotEmpty &&
+          cloudTag != version.tag) {
+        try {
+          await CloudSaveService.adoptCloudTag(version, cloudTag);
+        } catch (error) {
+          addLog(
+            .warning,
+            '新实例采用云端标签失败，保留 ${version.tag}：${removeNewlines('$error')}',
+            tag: 'Cloud',
+          );
+        }
+      }
     }
 
-    CloudSaveService.bindSlot(version, slot.id);
+    if (needBind) CloudSaveService.bindSlot(version, slot.id);
     final head = slot.currentSnapshotId;
     if (head == null) {
       updateQueueItem(item, done: true);
       return '${slot.name} 还没有快照';
     }
-    final report = await CloudSaveService.download(
+    final restored = await CloudSaveService.restore(
       accessToken: accessToken,
       version: version,
       slotId: slot.id,
       snapshotId: head,
-      onStatus: (state) => updateQueueItem(item, progress: state.progress),
+      onStatus: setPhase,
+      onProgress: (state) => updateQueueItem(item, progress: state.progress),
       cancelToken: cancelToken,
     );
-    if (installedNow) {
-      await _syncVersionTag(version, report.manifest.game.tag);
-    }
+    final report = restored.report;
     await applyModEnabledStates(
       dataPath: version.dataPath,
       manifest: report.manifest,
     );
     // 默认数据目录那份不补全游戏：它就是本机现有数据，补全没有意义
-    if (!(!version.isolation && targetVersion != null)) {
+    if (version.isolation) {
       await _fillMods(version: version, report: report);
     }
     updateQueueItem(item, done: true);
@@ -104,14 +131,13 @@ class CloudPullTask extends CloudSyncTask {
     return parts.join('，');
   }
 
-  Future<Task?> _prepareVersion(String release, String tag) async {
+  Future<Task?> _prepareVersion(String release, {required bool isolation}) async {
     setPhase('查找游戏版本 $release');
     final prep = await prepareGameVersion(
-      // tag 用槽位名（如 "android · v160.7"）：拉下来在版本列表里一眼找得到，
-      // 不会跟本机同发布号的版本混在一起
-      game: CloudGameInfo(tag: tag, release: release),
-      // 云拉下来的版本默认隔离：否则会落进官方默认数据目录，和别的版本共用
-      isolation: true,
+      // 新实例 tag 用游戏版本号；不再用槽位名，避免实例 tag 被设备 / 云端名污染
+      game: CloudGameInfo(tag: release, release: release),
+      // 非默认云存档新建隔离实例；默认存档用默认数据目录
+      isolation: isolation,
     );
     return prep.task;
   }
@@ -154,27 +180,5 @@ class CloudPullTask extends CloudSyncTask {
       }
     }
   }
-
-  /// 装出来的版本按发布号起名，云端清单记的却是原设备的 tag（`v8 Build 160.5`）；
-  /// 本次新装的版本对齐云端那份，免得两边名字对不上
-  Future<void> _syncVersionTag(Mindustry version, String cloudTag) async {
-    final wanted = cloudTag.trim();
-    if (wanted.isEmpty || wanted == version.tag) return;
-    final others = config.versionOptions.versionFolds.expand(
-      (fold) => fold.versions,
-    );
-    if (others.any((other) => other != version && other.tag == wanted)) {
-      addLog(
-        .warning,
-        '云端 tag [$wanted] 与已有版本重名，保留 ${version.tag}',
-        tag: 'Cloud',
-      );
-      return;
-    }
-    version.tag = wanted;
-    await config.saveAsJson();
-    addLog(.info, '版本 tag 同步为云端的 [$wanted]', tag: 'Cloud');
-  }
-
 
 }

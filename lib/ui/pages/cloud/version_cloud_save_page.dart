@@ -408,9 +408,10 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       type: ConfirmationType.warning,
       title: '用云端这份覆盖本机？',
       content:
-          '把云端第 ${snapshot.revision ?? '?'} 版解到本机数据目录。\n'
-          '同名且内容不同的文件会**留两份**（新那份带 -cloud- 后缀），'
-          '本机原有文件不动。\n\n'
+          '把云端第 ${snapshot.revision ?? '?'} 版**整份覆盖**到本机数据目录；'
+          '覆盖前会先自备份（云包覆盖到的那些文件），出问题可还原。\n'
+          'settings.bin、键位、UI、身份也会按云端整份落地；'
+          '游戏内身份由启动前覆写在启动时恢复。\n\n'
           '${CloudNotes.gameRunningHint}',
       action: () => _runRestore(version: version, snapshot: snapshot),
     );
@@ -438,15 +439,17 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           final restoreItem = CloudTaskItem(title: '恢复云端存档');
           task.setQueue([restoreItem]);
           task.setPhase('下载云端快照');
-          restored = await CloudSaveService.download(
+          final result = await CloudSaveService.restore(
             accessToken: token,
             version: version,
             slotId: snapshot.slotId ?? _slot!.id,
             snapshotId: snapshot.id,
-            onStatus: (state) =>
+            onStatus: task.setPhase,
+            onProgress: (state) =>
                 task.updateQueueItem(restoreItem, progress: state.progress),
             cancelToken: task.cancelToken,
           );
+          restored = result.report;
           task.updateQueueItem(restoreItem, done: true);
           final report = restored!;
           final extra = await _handleRestoreGapInsideTask(
@@ -613,9 +616,6 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   /// 恢复报告压成一句话：落地几份、留了几份、拒了几份
   String _restoreSummary(CloudImportReport report) {
     final parts = <String>['写入 ${report.written.length} 份'];
-    if (report.keptBoth.isNotEmpty) {
-      parts.add('同名留两份 ${report.keptBoth.length} 份');
-    }
     if (report.unchanged.isNotEmpty) {
       parts.add('内容相同跳过 ${report.unchanged.length} 份');
     }
@@ -759,6 +759,32 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     );
   }
 
+  void _unbind() {
+    final version = _selectedVersion;
+    if (version == null) return;
+    showConfirmationPopup(
+      context: context,
+      type: ConfirmationType.warning,
+      title: '解绑这个数据目录的云存档？',
+      content:
+          '只删本机绑定；云端槽位 / 快照与本机存档都不动。\n'
+          '解绑后要重新选槽位或上传才能继续同步。',
+      action: () {
+        try {
+          CloudSaveService.unbind(version);
+          addNotice(icon: Icons.link_off, title: '已解绑云存档');
+          unawaited(_reload());
+        } catch (error) {
+          addNotice(
+            icon: Icons.error_outline,
+            title: '解绑失败',
+            content: removeNewlines('$error'),
+          );
+        }
+      },
+    );
+  }
+
   // ── 界面 ──
 
   @override
@@ -851,13 +877,10 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
               ),
             ],
           ),
-          if (shared > 0)
+          if (!version.isolation && shared > 0)
             Text(
-              '这个版本与其他 $shared 个版本共用数据目录，云存档已禁用（会互相覆盖）；'
-              '要同步先给版本开隔离数据目录',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.error,
-              ),
+              '默认存档由这个版本与其他 $shared 个未隔离版本共用；同一时间只能启动一个游戏。',
+              style: theme.textTheme.labelMedium,
             )
           else
             Text(
@@ -1000,6 +1023,10 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     }
 
     final head = slot?.currentSnapshot;
+    final lockedOwner = CloudSaveService.ownerOf(version);
+    final locked = CloudSaveService.isLocked(version);
+    final boundState = CloudSaveService.localState(version);
+    final staleBound = slot == null && boundState != null;
 
     return ContentPanelModule(
       title: '当前版本',
@@ -1038,16 +1065,55 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             version.dataPath,
             style: theme.textTheme.labelSmall?.copyWith(color: colors.itemHint),
           ),
+          if (locked)
+            Row(
+              spacing: 8,
+              children: [
+                Expanded(
+                  child: Text(
+                    '这个数据目录当前由账号 ${lockedOwner ?? '其他账号'} 使用；'
+                    '要操作先覆盖归属到当前账号。',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.itemSecondary,
+                    ),
+                  ),
+                ),
+                IconTextButton(
+                  icon: Icons.swap_horiz,
+                  content: '覆盖归属',
+                  onTap: () {
+                    try {
+                      CloudSaveService.takeover(version);
+                      addNotice(icon: Icons.swap_horiz, title: '已覆盖归属到当前账号');
+                      unawaited(_reload());
+                    } catch (error) {
+                      addNotice(
+                        icon: Icons.error_outline,
+                        title: '覆盖归属失败',
+                        content: removeNewlines('$error'),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          if (boundState != null && !boundState.hasBaseline)
+            Text(
+              '已绑定，还没有同步基线：先拉取云端或上传本机',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            ),
           if (slot == null)
             Text(
-              '这个版本还没传到云端',
+              staleBound ? '本机绑定在云端已失效，先解绑再重新上传' : '这个版本还没传到云端',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colors.itemSecondary,
               ),
             )
           else
             Text(
-              '云端槽位「${slot.name}」\n'
+              '云端槽位「${_shortSlotLabel(slot)}」\n'
               '当前版本：${head?.revision == null ? '—' : '第 ${head!.revision} 版'}'
               '${head?.createdAt == null ? '' : '，${head!.createdAt!.toLocal().format('yyyy-MM-dd HH:mm')}'}'
               '${head?.size == null ? '' : '，${formatBytes(head!.size!)}'}',
@@ -1062,10 +1128,21 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
               IconTextButton(
                 icon: Icons.cloud_upload_outlined,
                 content: '上传当前版本',
-                onTap: (_busy == null && _accounts.isLoggedIn && !_loading)
+                onTap:
+                    (_busy == null &&
+                        _accounts.isLoggedIn &&
+                        !_loading &&
+                        !locked &&
+                        !staleBound)
                     ? () => _upload()
                     : null,
               ),
+              if ((slot != null && version.isolation) || staleBound)
+                IconTextButton(
+                  icon: Icons.link_off,
+                  content: '解绑',
+                  onTap: _busy == null ? _unbind : null,
+                ),
               if (slot != null)
                 IconTextButton(
                   icon: Icons.delete_forever,
@@ -1150,7 +1227,16 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     }
   }
 
-  /// 把某个云端槽位拉回本版本的数据目录
+  /// 槽位名在界面只显示 tag / 发布号，完整设备名留给确认弹窗
+  String _shortSlotLabel(CloudSaveSlot slot) {
+    if (slot.name.contains('默认存档')) return '默认存档';
+    final tag =
+        CloudSaveService.boundTagOfSlotName(slot.name) ??
+        CloudSaveService.releaseFromSlotName(slot.name);
+    return tag.length <= 28 ? tag : '${tag.substring(0, 27)}…';
+  }
+
+  /// 把某个云端槽位拉回它已绑定的实例；没有实例由任务新建
   Future<void> _pullSlot(CloudSaveSlot slot) async {
     final token = await _accounts.ensureAccessToken();
     if (token == null) {
@@ -1161,13 +1247,8 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       );
       return;
     }
-    // 选中版本没开隔离 = 拉的就是「默认存档」：直接写回它的数据目录，不装版本也不补全
-    final version = _selectedVersion;
-    final task = CloudPullTask(
-      accessToken: token,
-      slot: slot,
-      targetVersion: version != null && !version.isolation ? version : null,
-    );
+    // 拉取只认这份云存档已经绑定的实例；没实例由任务新建
+    final task = CloudPullTask(accessToken: token, slot: slot);
     addTask(task);
     await task.done;
     if (!mounted) return;
@@ -1194,7 +1275,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     await _reload();
   }
 
-  /// 云端槽位列表：拉取入口就在这里（快照列表只有本版本绑定的那份）
+  /// 云端槽位列表：拉取会进该槽位已绑定的实例，没有实例就新建
   Widget _buildPullPanel() {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
@@ -1206,7 +1287,8 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         spacing: 8,
         children: [
           Text(
-            '把账号下任意一份云端存档拉回这个版本；拉取会覆盖本地数据目录里同名的文件',
+            '把账号下任意一份云端存档拉回它已绑定的实例；没有实例会新建一个。'
+            '要绑到当前版本，用云存档总页槽位菜单的「绑定到当前版本」。',
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.itemSecondary,
             ),
@@ -1235,7 +1317,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
               children: [
                 Expanded(
                   child: Text(
-                    slot.name,
+                    _shortSlotLabel(slot),
                     style: theme.textTheme.bodyMedium,
                     overflow: TextOverflow.ellipsis,
                   ),

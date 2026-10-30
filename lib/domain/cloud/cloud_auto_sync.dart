@@ -28,6 +28,14 @@ class CloudAutoSync {
   /// 正在跑的自动同步；关启动器前要等它（见 [waitForPending]）
   static Future<void>? _pending;
 
+  /// 本次会话里玩家在冲突弹窗选了「跳过同步并启动」的 profile
+  ///
+  /// 只挡本次退出后上传；下次启动仍然重新检查、重新提醒。
+  static final Set<String> _skipAutoSync = {};
+
+  static String _skipKey(Mindustry version) =>
+      CloudSaveService.profileIdOf(version);
+
   static bool get isBusy => _pending != null;
 
   /// 启动前那次「查云端」最多等这么久，超了就问玩家要不要直接启动
@@ -40,6 +48,7 @@ class CloudAutoSync {
   static Future<bool> beforeLaunch(Mindustry version) async {
     try {
       if (!CloudSaveService.isEnabled(version)) return true;
+      if (_skipAutoSync.contains(_skipKey(version))) return true;
       final token = await _token();
       if (token == null) return true;
 
@@ -140,22 +149,9 @@ class CloudAutoSync {
           content: '云包 ${result.archiveBytes} 字节',
         );
         return true;
-      case CloudConflictChoice.keepBoth:
-        if (slotId == null || snapshotId == null) return true;
-        addLog(.info, '云存档冲突：玩家选择两份都留 [${version.tag}]', tag: 'Cloud');
-        final report = await CloudSaveService.download(
-          accessToken: token,
-          version: version,
-          slotId: slotId,
-          snapshotId: snapshotId,
-          mode: CloudImportMode.keepBoth,
-        );
-        addNotice(
-          icon: Icons.copy_all_outlined,
-          title: '云存档已合并到本机',
-          content: '写入 ${report.written.length} 份（同名不同内容的带 -cloud- 后缀）',
-        );
-        _notifyRestoreGap(version, report);
+      case CloudConflictChoice.skipAndLaunch:
+        _skipAutoSync.add(_skipKey(version));
+        addLog(.info, '云存档冲突：玩家选择跳过同步并启动 [${version.tag}]', tag: 'Cloud');
         return true;
       case CloudConflictChoice.cancel:
         addLog(.info, '云存档冲突：玩家没选，按不启动处理 [${version.tag}]', tag: 'Cloud');
@@ -219,6 +215,10 @@ class CloudAutoSync {
 
   /// 游戏**退出后**：把本机这份传上去；关启动器前用 [waitForPending] 等它
   static Future<void> afterGameExit(Mindustry version) {
+    if (_skipAutoSync.remove(_skipKey(version))) {
+      addLog(.info, '云存档：本次跳过同步，退出后不上传 [${version.tag}]', tag: 'Cloud');
+      return Future<void>.value();
+    }
     final task = _uploadAfterExit(version);
     _pending = task;
     unawaited(
@@ -232,6 +232,11 @@ class CloudAutoSync {
   static Future<void> _uploadAfterExit(Mindustry version) async {
     try {
       if (!CloudSaveService.isEnabled(version)) return;
+      final state = CloudSaveService.localState(version);
+      if (state == null || !state.hasBaseline) {
+        addLog(.info, '云存档还没有同步基线，跳过退出后上传 [${version.tag}]', tag: 'Cloud');
+        return;
+      }
       final token = await _token();
       if (token == null) return;
 
@@ -244,6 +249,7 @@ class CloudAutoSync {
             accessToken: token,
             version: version,
             reason: CloudSaveUploadReason.afterExit,
+            allowCreateSlot: false,
             onStatus: task.setPhase,
             onSendProgress: task.acceptBytes,
             cancelToken: task.cancelToken,

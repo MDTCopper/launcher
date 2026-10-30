@@ -67,7 +67,6 @@ class CloudGameInfo {
   );
 
   Map<String, dynamic> toJson() => {
-    'tag': tag,
     'release': release,
     if (build != null) 'build': build,
     'isBe': isBe,
@@ -228,6 +227,9 @@ class CloudManifest {
     required this.exportedAt,
     required this.deviceName,
     this.account,
+    this.cloudSignature,
+    this.boundTag,
+    this.profileKind = 'instance',
     this.isIsolated = true,
     List<CloudFileEntry>? files,
     List<CloudModEntry>? mods,
@@ -237,7 +239,7 @@ class CloudManifest {
        modStates = modStates ?? {};
 
   /// 容器格式版本：以后改结构就靠它做兼容
-  static const formatVersion = 1;
+  static const formatVersion = 2;
 
   final CloudGameInfo game;
   final DateTime exportedAt;
@@ -245,6 +247,15 @@ class CloudManifest {
   /// 导出这台设备的名字（冲突提示里说「另一台设备 X 传的」）
   final String deviceName;
   final String? account;
+
+  /// 云签名；旧包 / 本地备份可能缺
+  final String? cloudSignature;
+
+  /// 非默认存档的绑定 tag；默认存档为 null
+  final String? boundTag;
+
+  /// `default` / `instance` / `external`
+  final String profileKind;
 
   /// 数据目录是否独占（未开版本隔离时多个 tag 共用一份，云端包语义会乱 ⇒ 建议要求隔离）
   final bool isIsolated;
@@ -289,6 +300,9 @@ class CloudManifest {
     'exportedAt': exportedAt.toIso8601String(),
     'deviceName': deviceName,
     if (account != null) 'account': account,
+    if (cloudSignature != null) 'cloudSignature': cloudSignature,
+    if (boundTag != null) 'boundTag': boundTag,
+    'profileKind': profileKind,
     'isIsolated': isIsolated,
     'files': [for (final file in files) file.toJson()],
     'mods': [for (final mod in mods) mod.toJson()],
@@ -304,6 +318,9 @@ class CloudManifest {
         DateTime.fromMillisecondsSinceEpoch(0),
     deviceName: '${json['deviceName'] ?? ''}',
     account: json['account'] as String?,
+    cloudSignature: json['cloudSignature'] as String?,
+    boundTag: json['boundTag'] as String?,
+    profileKind: '${json['profileKind'] ?? 'instance'}',
     isIsolated: json['isIsolated'] != false,
     files: [
       for (final item in (json['files'] as List? ?? const []))
@@ -327,6 +344,9 @@ class CloudManifest {
     required Mindustry version,
     required String deviceName,
     String? account,
+    String? cloudSignature,
+    String? boundTag,
+    String profileKind = 'instance',
     bool includeModBytes = false,
     bool includePreviews = false,
     CloudHashCache? cache,
@@ -383,6 +403,9 @@ class CloudManifest {
       exportedAt: DateTime.now(),
       deviceName: deviceName,
       account: account,
+      cloudSignature: cloudSignature,
+      boundTag: boundTag,
+      profileKind: profileKind,
       isIsolated: version.isolation,
       files: files,
       mods: mods,

@@ -51,6 +51,9 @@ class CloudArchive {
     required String outputPath,
     required String deviceName,
     String? account,
+    String? cloudSignature,
+    String? boundTag,
+    String profileKind = 'instance',
     bool includePreviews = false,
     bool includeModBytes = false,
     bool Function(CloudModEntry mod)? includeBytesWhen,
@@ -61,6 +64,9 @@ class CloudArchive {
       version: version,
       deviceName: deviceName,
       account: account,
+      cloudSignature: cloudSignature,
+      boundTag: boundTag,
+      profileKind: profileKind,
       includePreviews: includePreviews,
       includeModBytes: includeModBytes,
       includeBytesWhen: includeBytesWhen,
@@ -263,11 +269,15 @@ class CloudArchiveReader {
   ///
   /// - 逐份校验 sha256，对不上的一律不落地（记进 [CloudImportReport.rejected]）；
   /// - 只写清单里点过名的东西，包里多出来的条目当没看见（也会记一笔）；
-  /// - 同名文件按 [mode] 处理，**默认留两份**（`<名字>-cloud-<哈希前 8 位>.<扩展名>`）；
+  /// - 同名文件按 [mode] 处理，默认 [CloudImportMode.overwrite]；云存档恢复 / 拉取由调用方
+  ///   先做整目录备份；[CloudImportMode.keepBoth] 只保留给底层测试；
+  /// - 战役关键文件（settings.bin + sector-*.msav）必须成对落地；keepBoth 下也覆盖，
+  ///   避免出现「区块存档在、SectorInfo 没在」的假重置；
   /// - 模组字节按 `isCopper` 落回 `mods/` 或 `copper/mods/`，**不认识的模组不代装**。
   Future<CloudImportReport> extractTo({
     required String dataPath,
-    CloudImportMode mode = CloudImportMode.keepBoth,
+    CloudImportMode mode = CloudImportMode.overwrite,
+    String? backupDir,
   }) async {
     final report = CloudImportReport(manifest: manifest);
 
@@ -291,6 +301,7 @@ class CloudArchiveReader {
       planned[CloudCategory.entryNameOf(entry.category, name)] = _PlannedFile(
         sha256: entry.sha256,
         destination: p.join(dataPath, entry.category.folder, name),
+        campaignCritical: _isCampaignCritical(entry.category, name),
       );
     }
     for (final mod in carriedMods) {
@@ -340,15 +351,35 @@ class CloudArchiveReader {
         report.unchanged.add(destination);
         continue;
       }
+
+      // 战役关键文件必须成对覆盖：settings.bin 装 SectorInfo / 解锁，sector-*.msav
+      // 是区块本体。若其中一个被留成 -cloud- 副本，游戏只会读到半套，表现就是进度重置。
+      final campaignOverwrite =
+          target.campaignCritical &&
+          settled != destination &&
+          mode != CloudImportMode.skip;
       if (settled != destination) {
-        switch (mode) {
-          case CloudImportMode.keepBoth:
-            report.keptBoth.add(settled);
-          case CloudImportMode.skip:
-            report.conflicts.add(destination);
-            continue;
-          case CloudImportMode.overwrite:
-            report.overwritten.add(destination);
+        if (campaignOverwrite) {
+          final backup = _backupLocalFile(
+            destination: destination,
+            dataPath: dataPath,
+            backupDir: backupDir,
+          );
+          if (backup != null) {
+            report.campaignBackups.add(backup);
+          }
+          report.campaignOverwritten.add(destination);
+          report.overwritten.add(destination);
+        } else {
+          switch (mode) {
+            case CloudImportMode.keepBoth:
+              report.keptBoth.add(settled);
+            case CloudImportMode.skip:
+              report.conflicts.add(destination);
+              continue;
+            case CloudImportMode.overwrite:
+              report.overwritten.add(destination);
+          }
         }
       } else {
         report.written.add(destination);
@@ -357,11 +388,15 @@ class CloudArchiveReader {
       // 临时文件放数据目录的 `tmp/` —— **不能放在目标旁边**：Steam 云对
       // `saves/`、`maps`、`mods`、`schematics` 的规则是 `*`，会把半个 `.importing`
       // 也传上去、还占配额（`tmp/` 不在规则里）
+      final writeTo = campaignOverwrite || mode == CloudImportMode.overwrite
+          ? destination
+          : settled;
       _writeAtomicallySync(
-        File(mode == CloudImportMode.overwrite ? destination : settled),
+        File(writeTo),
         content,
         tempDir: p.join(dataPath, 'tmp'),
       );
+
     }
 
     // 清单里有、包里没有的（导出时被丢掉的那种）
@@ -424,8 +459,8 @@ class CloudArchiveReader {
 
 /// 同名但内容不同时怎么办（`extractTo` 的 [CloudImportMode]）
 ///
-/// 默认**留两份** —— 解包本身绝不静默覆盖；[overwrite] 只给「恢复云端快照」这种
-/// 明确要盖掉本机的场景，调用方必须先自己备份
+/// 云存档的恢复 / 拉取一律用 [overwrite]，覆盖前由调用方做整目录备份；
+/// [keepBoth] 只保留给底层测试，不再出现在玩家可选的冲突流程里。
 enum CloudImportMode {
   /// 另存一份 `<名字>-cloud-<哈希前 8 位>.<扩展名>`，本机那份不动
   keepBoth,
@@ -455,6 +490,12 @@ class CloudImportReport {
   /// 同名但内容不同，被覆盖掉的本机文件（[CloudImportMode.overwrite]）
   final List<String> overwritten = [];
 
+  /// keepBoth 模式下仍被覆盖的战役关键文件（settings.bin / sector-*.msav）
+  final List<String> campaignOverwritten = [];
+
+  /// 战役关键文件覆盖前留下的本机副本
+  final List<String> campaignBackups = [];
+
   /// 同名但内容不同，[CloudArchiveReader.extractTo] 传了 [CloudImportMode.skip]
   final List<String> conflicts = [];
 
@@ -470,7 +511,11 @@ class CloudImportReport {
   int appliedModStates = 0;
 
   /// 一个文件都没落地、也没被拒 —— 说明本机已经是这个包的样子了
-  bool get isNoop => written.isEmpty && keptBoth.isEmpty && overwritten.isEmpty;
+  bool get isNoop =>
+      written.isEmpty &&
+      keptBoth.isEmpty &&
+      overwritten.isEmpty &&
+      campaignOverwritten.isEmpty;
 }
 
 /// 被拒的条目与原因（给用户看的）
@@ -494,10 +539,45 @@ class CloudArchiveException implements Exception {
 }
 
 class _PlannedFile {
-  const _PlannedFile({required this.sha256, required this.destination});
+  const _PlannedFile({
+    required this.sha256,
+    required this.destination,
+    this.campaignCritical = false,
+  });
 
   final String sha256;
   final String destination;
+
+  /// settings.bin 或 sector-*.msav：必须与配套文件一起覆盖
+  final bool campaignCritical;
+}
+
+/// settings.bin 装 SectorInfo / 解锁，sector-*.msav 是区块本体
+bool _isCampaignCritical(CloudCategory category, String name) {
+  if (category == CloudCategory.settings) return true;
+  if (category != CloudCategory.save) return false;
+  return name.toLowerCase().startsWith('sector-');
+}
+
+/// 覆盖前把本机那份复制到 [backupDir]；没给目录 / 文件不存在时返回 null
+String? _backupLocalFile({
+  required String destination,
+  required String dataPath,
+  String? backupDir,
+}) {
+  if (backupDir == null || backupDir.isEmpty) return null;
+  final source = File(destination);
+  if (!source.existsSync()) return null;
+  try {
+    final relative = p.relative(destination, from: dataPath);
+    final target = File(p.join(backupDir, relative));
+    target.parent.createSync(recursive: true);
+    source.copySync(target.path);
+    return target.path;
+  } catch (_) {
+    // 备份失败不拦覆盖：调用方（restore）还有整目录备份；这里只记日志没必要
+    return null;
+  }
 }
 
 /// 包内条目名一律用 `/`，统一按 posix 规整
