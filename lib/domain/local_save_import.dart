@@ -60,6 +60,9 @@ class LocalSaveImport {
     final knownMods = kinds.any(_isModsKind)
         ? await scanInstalledMods(modsDirs)
         : null;
+    final modStates = knownMods == null
+        ? null
+        : await readInstalledModStates(version.settingPath);
 
     final counts = <VersionDataKind, int>{};
     var bytes = 0;
@@ -71,6 +74,7 @@ class LocalSaveImport {
               modsDirs: modsDirs,
               tempDir: p.join(to, 'tmp'),
               known: knownMods!,
+              modStates: modStates,
             )
           : await _copyOverwrite(from: kind.pathIn(from), to: kind.pathIn(to));
       if (result.files > 0) counts[kind] = result.files;
@@ -103,6 +107,7 @@ class LocalSaveImport {
     required List<String> modsDirs,
     required String tempDir,
     required List<InstalledModFile> known,
+    required Map<String, bool>? modStates,
   }) async {
     final source = Directory(from);
     if (!await source.exists()) {
@@ -135,10 +140,13 @@ class LocalSaveImport {
           final installed = await installModFile(
             sourcePath: entity.path,
             mod: mod,
-            targetDir: p.dirname(p.join(to, relative)),
+            //模组一律平铺到该类模组目录：扫描与去重都只看目录第一层，
+            //落进子目录的话既不参与去重、游戏 / 加载器也未必扫得到
+            targetDir: to,
             modsDirs: modsDirs,
             tempDir: tempDir,
             known: known,
+            modStates: modStates,
           );
           files++;
           bytes += await File(installed.path).length();

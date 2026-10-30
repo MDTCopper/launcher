@@ -973,6 +973,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     final modsDirs = otherSavePath == null && version != null
         ? allModsDirsIn(version!.dataPath)
         : null;
+    final settingsPath = modsDirs == null ? null : version!.settingPath;
 
     // 源码下载：走源码 task
     if (widget.downloadSource) {
@@ -982,6 +983,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
           modMeta: modMeta,
           savePath: version?.modsPath ?? otherSavePath!,
           modsDirs: modsDirs,
+          settingsPath: settingsPath,
         ),
       );
       if (mounted) Navigator.pop(context);
@@ -997,6 +999,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
           modMeta: modMeta,
           savePath: version?.modsPath ?? otherSavePath!,
           modsDirs: modsDirs,
+          settingsPath: settingsPath,
         ),
       );
       if (mounted) Navigator.pop(context);
@@ -1013,6 +1016,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
           savePath: version?.modsPath ?? otherSavePath!,
           mainAssetIndex: mainAssetIndex,
           modsDirs: modsDirs,
+          settingsPath: settingsPath,
         ),
       );
     } else {
@@ -1024,6 +1028,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
           version?.modsPath ?? otherSavePath!,
           mainAssetIndex: mainAssetIndex,
           modsDirs: modsDirs,
+          settingsPath: settingsPath,
         ),
       );
     }

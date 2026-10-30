@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
+import 'package:copper_launcher/domain/mod_install.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:path/path.dart' as p;
@@ -32,29 +33,43 @@ class CloudModStateReport {
 ///
 /// **只改文件名后缀**（禁用 → `.disable`，启用 → 去掉后缀），不碰 `settings.bin`：
 /// 那份已经按云包逐字节覆盖过了，游戏真正跳过禁用模组靠的是后缀。
-/// 同一个模组在 `mods/` 与 `copper/mods/` 都可能有一份，按清单里的 `isCopper` 只认一边。
+/// 同一个模组在 `mods/` 与 `copper/mods/` 都可能有一份：先按清单里的 `isCopper` 与文件名找，
+/// 找不到再按内部名两边找（补全 / 下载装的版本文件名可能与清单记的不一致）
 Future<CloudModStateReport> applyModEnabledStates({
   required String dataPath,
   required CloudManifest manifest,
 }) async {
   final report = CloudModStateReport();
 
+  //按内部名兜底查找要解析目录里的模组元数据：整个清单只扫一次
+  List<InstalledModFile>? installedMods;
+  Future<List<File>> findFiles(CloudModEntry mod) async {
+    final directory = Directory(modsDirIn(dataPath, copper: mod.isCopper));
+    if (directory.existsSync()) {
+      final wanted = normalizedModFileName(mod.fileName);
+      final matches = [
+        for (final entity in directory.listSync())
+          if (entity is File &&
+              normalizedModFileName(p.basename(entity.path)) == wanted)
+            entity,
+      ];
+      if (matches.isNotEmpty) return matches;
+    }
+
+    final internalName = mod.internalName;
+    if (internalName == null) return const [];
+    installedMods ??= await scanInstalledMods(allModsDirsIn(dataPath));
+    return [
+      for (final file in installedMods!)
+        if (file.internalName == internalName) File(file.path),
+    ];
+  }
+
   for (final mod in manifest.mods) {
     final desired = mod.enabled ?? manifest.modStates[mod.internalName ?? ''];
     if (desired == null) continue;
 
-    final directory = Directory(modsDirIn(dataPath, copper: mod.isCopper));
-    if (!directory.existsSync()) {
-      report.missing++;
-      continue;
-    }
-
-    final wanted = normalizedModFileName(mod.fileName);
-    final matches = [
-      for (final entity in directory.listSync())
-        if (entity is File && normalizedModFileName(p.basename(entity.path)) == wanted)
-          entity,
-    ];
+    final matches = await findFiles(mod);
     if (matches.isEmpty) {
       report.missing++;
       continue;
@@ -66,8 +81,9 @@ Future<CloudModStateReport> applyModEnabledStates({
       if (desired && !hasSuffix) continue;
       if (!desired && hasSuffix) continue;
 
+      final directory = p.dirname(file.path);
       final targetName = desired ? _stripDisabledSuffix(name) : '$name.disable';
-      final target = File(p.join(directory.path, targetName));
+      final target = File(p.join(directory, targetName));
       if (target.existsSync() && target.path != file.path) {
         // 目标名已经有文件：留着两份也不对，宁可不动并记一笔
         report.conflicts++;

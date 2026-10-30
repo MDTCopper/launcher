@@ -38,12 +38,16 @@ class JavaModDownloadTask extends Task {
   /// 去重时要在哪些目录里找同一个 mod 的旧文件；不传就只看 [savePath]
   final List<String>? modsDirs;
 
+  /// 目标数据目录的 settings.bin：旧版本可能只在设置里被禁用；不传就只看文件名
+  final String? settingsPath;
+
   JavaModDownloadTask({
     required this.modListMeta,
     required this.modMeta,
     required this.savePath,
     this.mainAssetIndex = 0,
     this.modsDirs,
+    this.settingsPath,
   });
 
   @override
@@ -112,6 +116,7 @@ class JavaModDownloadTask extends Task {
         installedPath: path,
         mod: mod,
         modsDirs: modsDirs ?? [savePath],
+        modStates: await readInstalledModStates(settingsPath),
       );
       path = installed.path;
       file = File(path);
@@ -304,12 +309,16 @@ class ZipModDownloadTask extends Task {
   /// 去重时要在哪些目录里找同一个 mod 的旧文件；不传就只看 [savePath]
   final List<String>? modsDirs;
 
+  /// 目标数据目录的 settings.bin：旧版本可能只在设置里被禁用；不传就只看文件名
+  final String? settingsPath;
+
   ZipModDownloadTask(
     this.modListMeta,
     this.modMeta,
     this.savePath, {
     this.mainAssetIndex = 0,
     this.modsDirs,
+    this.settingsPath,
   }) : assert(!modListMeta.hasJava, '下载模组只能为非Java');
 
   void _updateProgress(int size, int total) {
@@ -398,6 +407,7 @@ class ZipModDownloadTask extends Task {
         installedPath: path,
         mod: mod,
         modsDirs: modsDirs ?? [savePath],
+        modStates: await readInstalledModStates(settingsPath),
       );
       path = installed.path;
       file = File(path);
@@ -557,11 +567,15 @@ class SourceModDownloadTask extends Task {
   /// 去重时要在哪些目录里找同一个 mod 的旧文件；不传就只看 [savePath]
   final List<String>? modsDirs;
 
+  /// 目标数据目录的 settings.bin：旧版本可能只在设置里被禁用；不传就只看文件名
+  final String? settingsPath;
+
   SourceModDownloadTask({
     required this.modListMeta,
     required this.modMeta,
     required this.savePath,
     this.modsDirs,
+    this.settingsPath,
   });
 
   /// 找一个能下的源码归档分支：先探 `main` / `master`，再问仓库的默认分支
@@ -702,15 +716,23 @@ class SourceModDownloadTask extends Task {
         if (newName != fileName) {
           final newPath = p.join(savePath, newName);
           final newFile = File(newPath);
-          if (await newFile.exists()) await newFile.delete();
-          await file.rename(newPath);
-          file = File(newPath);
+          try {
+            await file.rename(newPath);
+            file = File(newPath);
+          } on FileSystemException {
+            //rename 到已存在的名字会失败：改成覆盖复制再删原文件，
+            //不能先把目标删了，否则复制失败时新旧都没了
+            await file.copy(newFile.path);
+            await file.delete();
+            file = newFile;
+          }
         }
         //同一个 mod 只留这份：旧版本文件删掉，旧版本是禁用态就沿用禁用名
         final installed = await dedupeInstalledMod(
           installedPath: file.path,
           mod: mod,
           modsDirs: modsDirs ?? [savePath],
+          modStates: await readInstalledModStates(settingsPath),
         );
         file = File(installed.path);
       }

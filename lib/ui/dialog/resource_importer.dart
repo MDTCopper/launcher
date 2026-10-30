@@ -269,6 +269,13 @@ class ResourceImporterState extends State<ResourceImporter> {
     return allModsDirsIn(dataPath);
   }
 
+  ///目标数据目录的 settings.bin：判断旧版本是不是「游戏内禁用但文件名没改」
+  String? get _targetSettingsPath {
+    final dataPath = widget.mindustry?.dataPath ?? AppPaths.defaultGameData;
+    if (dataPath == null || dataPath.isEmpty) return null;
+    return p.join(dataPath, 'settings.bin');
+  }
+
   ///把 [source] 复制到 [dir]，同名文件自动加序号，不覆盖已有内容；
   ///返回 null 表示复制成功，否则为失败原因（与 [_importOne] 的返回值契约一致）
   Future<String?> _copyInto(String dir, String source) async {
@@ -298,10 +305,11 @@ class ResourceImporterState extends State<ResourceImporter> {
   }
 
   ///把单个资源导入对应目录，返回 null 表示成功，否则为失败原因；
-  ///[knownMods] 是批量导入时复用的一次模组扫描结果（装完会更新）
+  ///[knownMods] / [modStates] 是批量导入时复用的一次扫描与启用态，装完会更新
   Future<String?> _importOne(
     FileReader reader, {
     List<InstalledModFile>? knownMods,
+    Map<String, bool>? modStates,
   }) async {
     //目标数据目录：指定版本 → 该版本的独立数据目录（版本隔离感知）；
     //未指定 → 默认游戏数据目录
@@ -324,6 +332,7 @@ class ResourceImporterState extends State<ResourceImporter> {
             modsDirs: _targetModsDirs,
             tempDir: p.join(gameData, 'tmp'),
             known: knownMods,
+            modStates: modStates,
           );
           return null;
         } catch (error) {
@@ -372,12 +381,19 @@ class ResourceImporterState extends State<ResourceImporter> {
         _selected.any((index) => importList[index].type == ResourceType.mod)
         ? await scanInstalledMods(_targetModsDirs)
         : null;
+    final modStates = knownMods == null
+        ? null
+        : await readInstalledModStates(_targetSettingsPath);
 
     var ok = 0;
     final failures = <String>[];
     for (final index in _selected) {
       final reader = importList[index];
-      final error = await _importOne(reader, knownMods: knownMods);
+      final error = await _importOne(
+        reader,
+        knownMods: knownMods,
+        modStates: modStates,
+      );
       if (error == null) {
         ok++;
       } else {

@@ -396,6 +396,7 @@ Future<List<ModFillOutcome>> fillMissingMods({
 Task buildFillTask(ModFillPlan plan, Mindustry version) {
   final savePath = version.modsPath;
   final modsDirs = allModsDirsIn(version.dataPath);
+  final settingsPath = version.settingPath;
   switch (plan.kind) {
     case ModFillKind.java:
       return JavaModDownloadTask(
@@ -404,6 +405,7 @@ Task buildFillTask(ModFillPlan plan, Mindustry version) {
         savePath: savePath,
         mainAssetIndex: plan.mainAssetIndex,
         modsDirs: modsDirs,
+        settingsPath: settingsPath,
       );
     case ModFillKind.zip:
       return ZipModDownloadTask(
@@ -412,6 +414,7 @@ Task buildFillTask(ModFillPlan plan, Mindustry version) {
         savePath,
         mainAssetIndex: plan.mainAssetIndex,
         modsDirs: modsDirs,
+        settingsPath: settingsPath,
       );
     case ModFillKind.source:
       return SourceModDownloadTask(
@@ -419,6 +422,7 @@ Task buildFillTask(ModFillPlan plan, Mindustry version) {
         modMeta: plan.release,
         savePath: savePath,
         modsDirs: modsDirs,
+        settingsPath: settingsPath,
       );
   }
 }
@@ -456,6 +460,7 @@ void _queue(ModFillPlan plan, Mindustry version) {
   final entry = plan.entry;
   final savePath = version.modsPath;
   final modsDirs = allModsDirsIn(version.dataPath);
+  final settingsPath = version.settingPath;
   switch (plan.kind) {
     case ModFillKind.java:
       addTask(
@@ -465,6 +470,7 @@ void _queue(ModFillPlan plan, Mindustry version) {
           savePath: savePath,
           mainAssetIndex: plan.mainAssetIndex,
           modsDirs: modsDirs,
+          settingsPath: settingsPath,
         ),
       );
     case ModFillKind.zip:
@@ -475,6 +481,7 @@ void _queue(ModFillPlan plan, Mindustry version) {
           savePath,
           mainAssetIndex: plan.mainAssetIndex,
           modsDirs: modsDirs,
+          settingsPath: settingsPath,
         ),
       );
     case ModFillKind.source:
@@ -484,6 +491,7 @@ void _queue(ModFillPlan plan, Mindustry version) {
           modMeta: plan.release,
           savePath: savePath,
           modsDirs: modsDirs,
+          settingsPath: settingsPath,
         ),
       );
   }

@@ -39,6 +39,26 @@ class ModInstallOutcome {
   final List<String> removed;
 }
 
+/// 读某份数据目录的模组启用态（`settings.bin` 里 `mod-<内部名>-enabled`）
+///
+/// 文件不存在 / 解析失败返回 null；游戏内禁用（只写了设置、文件名没改）也算禁用态，
+/// 装新版本时要沿用，不能只看文件名后缀
+Future<Map<String, bool>?> readInstalledModStates(String? settingsPath) async {
+  if (settingsPath == null || settingsPath.isEmpty) return null;
+  final file = File(settingsPath);
+  if (!await file.exists()) return null;
+  try {
+    return MindustrySettings.fromFile(settingsPath).modStates;
+  } catch (error) {
+    addLog(
+      .warning,
+      '读取模组启用状态失败：$settingsPath，${removeNewlines('$error')}',
+      tag: 'ModInstall',
+    );
+    return null;
+  }
+}
+
 /// 扫描这些目录里认得出的模组文件（jar / zip，含禁用态）
 ///
 /// 只扫目录第一层：模组文件都是平铺的；认不出元数据的文件（坏包 / 不是 mod 的 jar）跳过，
@@ -64,12 +84,14 @@ Future<List<InstalledModFile>> scanInstalledMods(
 /// 装一份本地 mod 文件到 [targetDir]
 ///
 /// 规则：同一个 mod（内部名相同）只留这一份新文件，旧版本文件全部删掉——
-/// **不比版本号**，新文件总是赢；旧文件是禁用态时新文件也落成禁用态。
+/// **不比版本号**，新文件总是赢；旧文件是禁用态（文件名后缀或 settings.bin 关着）
+/// 时新文件也落成禁用态。
 ///
 /// [modsDirs] 是这个数据目录下全部模组目录（用于找回旧版本，含 copper/mods）；
 /// [targetDir] 是这份新文件该落的目录（按它是不是 Copper 原生模组决定）；
 /// [tempDir] 放拷贝中的临时文件，别落在 mods 目录里（Steam 云会把 mods 下所有文件传上去）；
-/// [known] 是批量导入时复用的一次扫描结果，会在装完后更新，避免每个文件都重扫目录
+/// [known] 是批量导入时复用的一次扫描结果，会在装完后更新，避免每个文件都重扫目录；
+/// [modStates] 是 `settings.bin` 里的启用态，传了才能识别「游戏内禁用但文件名没改」的旧版本
 Future<ModInstallOutcome> installModFile({
   required String sourcePath,
   required Mod mod,
@@ -77,57 +99,90 @@ Future<ModInstallOutcome> installModFile({
   required Iterable<String> modsDirs,
   required String tempDir,
   List<InstalledModFile>? known,
+  Map<String, bool>? modStates,
 }) async {
   final installed = known ?? await scanInstalledMods(modsDirs);
   final previous = _filesOf(installed, mod.internalName);
   final disabled =
       isDisabledModFileName(p.basename(sourcePath)) ||
-      previous.any((file) => file.disabled);
+      previous.any((file) => file.disabled) ||
+      modStates?[mod.internalName] == false;
 
-  final destination = p.join(
+  var destination = p.join(
     targetDir,
     _installedFileName(p.basename(sourcePath), disabled: disabled),
   );
-
-  //先拷到临时位置：拷完再删旧文件，中途失败不会把旧版本弄丢
-  final temporary = await _copyToTemp(sourcePath, tempDir, destination);
-  try {
-    final removed = <String>[];
-    for (final file in previous) {
-      if (await _deleteQuietly(file.path)) removed.add(file.path);
-    }
-    //目的地可能有认不出元数据的同名文件（坏包之类），按「新文件覆盖旧文件」一并盖掉
-    if (!previous.any((file) => _samePath(file.path, destination))) {
-      await _deleteQuietly(destination);
-    }
-
-    await Directory(targetDir).create(recursive: true);
-    await File(temporary).rename(destination);
-
-    _rememberInstalled(
-      known,
-      previous,
-      InstalledModFile(
-        path: destination,
-        internalName: mod.internalName,
-        disabled: disabled,
-      ),
-    );
+  //目标文件名被另一个 mod 占着（GitHub 资产的 `mod.jar` / `release.jar` 常撞名）：
+  //不删别人的文件，改用带序号的名字
+  final occupiedByOtherMod = installed.any(
+    (file) => _samePath(file.path, destination) && file.internalName != mod.internalName,
+  );
+  if (occupiedByOtherMod) {
+    destination = _uniqueDestinationName(destination);
     addLog(
       .info,
-      '装模组：$sourcePath → $destination${disabled ? '（禁用态）' : ''}'
-      '${removed.isEmpty ? '' : '；替换旧文件 ${removed.length} 个：${removed.join('；')}'}',
+      '目标文件名已被另一个 mod 占用，改存：$destination',
       tag: 'ModInstall',
     );
-    return ModInstallOutcome(
-      path: destination,
-      disabled: disabled,
-      removed: removed,
-    );
+  }
+
+  //先拷到临时位置：源文件完全读完再动目标目录
+  final temporary = await _copyToTemp(sourcePath, tempDir, destination);
+  await Directory(targetDir).create(recursive: true);
+
+  //同名的旧目标先挪开、新文件 rename 成功后再删：rename 失败时能还原，
+  //不会出现「旧的删了、新的没落」把 mod 弄丢
+  String? backup;
+  try {
+    if (await File(destination).exists()) {
+      backup = _backupPathOf(destination);
+      await File(destination).rename(backup);
+    }
+    await File(temporary).rename(destination);
   } catch (error) {
+    if (backup != null) {
+      try {
+        await File(backup).rename(destination);
+      } catch (restoreError) {
+        addLog(
+          .warning,
+          '还原旧模组文件失败：$destination，${removeNewlines('$restoreError')}',
+          tag: 'ModInstall',
+        );
+      }
+    }
     await _deleteQuietly(temporary);
     rethrow;
   }
+  if (backup != null) await _deleteQuietly(backup);
+
+  //新文件已经落好，再清同一个 mod 的其他旧版本；删不掉只记日志，不影响这次安装
+  final removed = <String>[];
+  for (final file in previous) {
+    if (_samePath(file.path, destination)) continue;
+    if (await _deleteQuietly(file.path)) removed.add(file.path);
+  }
+
+  _rememberInstalled(
+    known,
+    previous,
+    InstalledModFile(
+      path: destination,
+      internalName: mod.internalName,
+      disabled: disabled,
+    ),
+  );
+  addLog(
+    .info,
+    '装模组：$sourcePath → $destination${disabled ? '（禁用态）' : ''}'
+    '${removed.isEmpty ? '' : '；替换旧文件 ${removed.length} 个：${removed.join('；')}'}',
+    tag: 'ModInstall',
+  );
+  return ModInstallOutcome(
+    path: destination,
+    disabled: disabled,
+    removed: removed,
+  );
 }
 
 /// 文件已经写好（下载 / 源码解压完成）之后的去重收尾
@@ -138,13 +193,16 @@ Future<ModInstallOutcome> dedupeInstalledMod({
   required String installedPath,
   required Mod mod,
   required Iterable<String> modsDirs,
+  Map<String, bool>? modStates,
 }) async {
   final installed = await scanInstalledMods(modsDirs);
   final previous = [
     for (final file in _filesOf(installed, mod.internalName))
       if (!_samePath(file.path, installedPath)) file,
   ];
-  final disabled = previous.any((file) => file.disabled);
+  final disabled =
+      previous.any((file) => file.disabled) ||
+      modStates?[mod.internalName] == false;
 
   final removed = <String>[];
   for (final file in previous) {
@@ -238,6 +296,31 @@ String _installedFileName(String sourceFileName, {required bool disabled}) {
   if (!disabled || hasSuffix) return sourceFileName;
   return '${stripDisabledModSuffix(sourceFileName)}.disable';
 }
+
+/// 目标名被别的 mod 占着时，按 `名字 (1).jar` 的规则找一个没被占用的名字
+String _uniqueDestinationName(String destination) {
+  final directory = p.dirname(destination);
+  final fileName = p.basename(destination);
+  final lower = fileName.toLowerCase();
+  final disabledSuffix = isDisabledModFileName(fileName)
+      ? (lower.endsWith('.disabled') ? '.disabled' : '.disable')
+      : '';
+  final rawName = stripDisabledModSuffix(fileName);
+  final extension = p.extension(rawName);
+  final stem = p.basenameWithoutExtension(rawName);
+  var index = 1;
+  while (true) {
+    final candidate = p.join(
+      directory,
+      '$stem ($index)$extension$disabledSuffix',
+    );
+    if (!File(candidate).existsSync()) return candidate;
+    index++;
+  }
+}
+
+String _backupPathOf(String destination) =>
+    '$destination.installing-${DateTime.now().microsecondsSinceEpoch}';
 
 Future<String> _copyToTemp(
   String sourcePath,
