@@ -2,6 +2,7 @@ package io.github.copper.launcher
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.Handler
@@ -9,6 +10,7 @@ import android.os.Looper
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 /**
@@ -26,6 +28,10 @@ class MainActivity : FlutterActivity() {
 
     /** 登录回调（copperlauncher://oauth/...）：攒着等 Dart 来取，冷启动也丢不了 */
     private var pendingAuthUri: String? = null
+
+    /** 桌面快捷方式带来的版本 id：同样攒着等 Dart 来取 */
+    private var pendingLaunchVersionId: String? = null
+
     private var multicastLock: WifiManager.MulticastLock? = null
 
     /**
@@ -34,6 +40,7 @@ class MainActivity : FlutterActivity() {
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleDebugPin(intent)
         try {
             val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
             multicastLock = wifi?.createMulticastLock("copper-lan-discovery")?.apply {
@@ -66,6 +73,15 @@ class MainActivity : FlutterActivity() {
                     result.success(pendingAuthUri)
                     pendingAuthUri = null
                 }
+                "takeLaunchRequest" -> {
+                    result.success(pendingLaunchVersionId)
+                    pendingLaunchVersionId = null
+                }
+                "requestPinShortcut" -> requestPinShortcut(call, result)
+                "finishLauncher" -> {
+                    result.success(true)
+                    finish()
+                }
                 "moveTaskToBack" -> result.success(moveTaskToBack(true))
                 "killGameProcess" -> killGameProcess(result)
                 "isGameProcessRunning" -> isGameProcessRunning(result)
@@ -90,13 +106,28 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleDebugPin(intent)
         dispatchIncoming(intent)
     }
 
-    /** 分享与登录回调走同一个入口：先认登录回调，再当分享处理 */
+    /** 分享、登录回调与桌面快捷方式走同一个入口：先认快捷方式，再认登录回调，最后当分享处理 */
     private fun dispatchIncoming(intent: Intent?) {
+        if (captureLaunchRequest(intent)) return
         if (captureAuthUri(intent)) return
         dispatchShare(intent)
+    }
+
+    /**
+     * 收桌面快捷方式带来的版本 id：`action=io.github.copper.launcher.LAUNCH_GAME`
+     *
+     * 收到就先攒着并通知 Dart 来取；Dart 在启动器起来后取一次，直接拉起对应版本
+     */
+    private fun captureLaunchRequest(intent: Intent?): Boolean {
+        if (intent?.action != GameShortcut.ACTION_LAUNCH_GAME) return false
+        pendingLaunchVersionId = intent.getStringExtra(GameShortcut.EXTRA_VERSION_ID)
+        Log.i(TAG, "收到快捷方式启动请求：$pendingLaunchVersionId")
+        hostChannel?.invokeMethod("launchRequestAvailable", null)
+        return true
     }
 
     /**
@@ -154,6 +185,26 @@ class MainActivity : FlutterActivity() {
             val running = io.github.copper.GameProcess.isRunning(applicationContext)
             Handler(Looper.getMainLooper()).post { result.success(running) }
         }.start()
+    }
+
+    /** 分享与登录回调之外的第三种外部 intent：桌面快捷方式（只 debug 包可用 adb 触发） */
+    private fun handleDebugPin(intent: Intent?) {
+        if (intent?.action != GameShortcut.ACTION_DEBUG_PIN) return
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) return
+        val versionId = intent.getStringExtra("version_id").orEmpty()
+        val tag = intent.getStringExtra("tag").orEmpty()
+        val jarPath = intent.getStringExtra("jar_path").orEmpty()
+        val requested = GameShortcut.requestPin(this, versionId, tag, jarPath)
+        Log.i(TAG, "调试：请求桌面快捷方式 version=$versionId 提交=$requested")
+    }
+
+    /** Dart 侧请求建快捷方式（以后接版本页面按钮用） */
+    private fun requestPinShortcut(call: MethodCall, result: MethodChannel.Result) {
+        val args = call.arguments as? Map<*, *>
+        val versionId = args?.get("versionId") as? String ?: ""
+        val tag = args?.get("tag") as? String ?: ""
+        val jarPath = args?.get("jarPath") as? String ?: ""
+        result.success(GameShortcut.requestPin(this, versionId, tag, jarPath))
     }
 
     private companion object {

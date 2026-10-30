@@ -6,6 +6,7 @@ import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_presence_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_realtime_service.dart';
+import 'package:copper_launcher/domain/shortcut_launch.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
@@ -97,6 +98,8 @@ Future<void> _initialize() async {
   //接线后与桌面拖入走同一条导入路；冷启动那次分享也在这里被取回来
   ShareIn.onFiles((files) => unawaited(_importSharedFiles(files)));
   await ShareIn.start();
+  //桌面快捷方式「直接启动」：把冷启动那次请求取回来，启动器起来后拉起对应版本
+  unawaited(ShortcutLaunch.start(waitForShell: _waitForShell));
 }
 
 /// 启动即登录：有落盘的账号就把它恢复出来，再拉一次资料

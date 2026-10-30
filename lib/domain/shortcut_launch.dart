@@ -1,0 +1,121 @@
+import 'dart:io';
+
+import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/data/mindustry/mindustry.dart';
+import 'package:copper_launcher/domain/bridge_installer.dart';
+import 'package:copper_launcher/domain/game_instance.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/util/android_host.dart';
+import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/io/log.dart';
+import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/services.dart';
+
+/// 桌面快捷方式「直接启动游戏」的 Dart 侧入口
+///
+/// 快捷方式带 `version_id` 回到宿主（`MainActivity` 先攒着），这里在启动器起来后
+/// 取一次并直接拉起对应版本；取走即清空，连点不会重复建启动任务
+class ShortcutLaunch {
+  ShortcutLaunch._();
+
+  static const _channel = MethodChannel('io.github.copper.launcher/host');
+  static const _available = 'launchRequestAvailable';
+
+  static bool _started = false;
+  static bool _handling = false;
+  static Future<bool> Function()? _waitForShell;
+
+  /// 启动时调一次：接管后续请求，并把冷启动那次取回来
+  ///
+  /// [waitForShell] 给界面就绪信号：启动前可能还有冲突弹窗之类的界面动作，
+  /// 拿不到界面时这次请求只记日志、不启动
+  static Future<void> start({Future<bool> Function()? waitForShell}) async {
+    if (!Platform.isAndroid || _started) return;
+    _started = true;
+    _waitForShell = waitForShell;
+    _channel.setMethodCallHandler(_handleCall);
+    await _consume();
+  }
+
+  /// 宿主通知有新请求；本体要自己取一次（冷启动时通知会早于这里接线）
+  static Future<void> _handleCall(MethodCall call) async {
+    if (call.method != _available) return;
+    await _consume();
+  }
+
+  static Future<void> _consume() async {
+    if (_handling) return;
+    final versionId = await _takeLaunchRequest();
+    if (versionId == null) return;
+    _handling = true;
+    try {
+      final ready = await _waitForShell?.call() ?? true;
+      if (!ready) {
+        addLog(.warning, '快捷方式启动：界面没起来，忽略这次请求', tag: 'Shortcut');
+        return;
+      }
+      await _launch(versionId);
+    } finally {
+      _handling = false;
+    }
+  }
+
+  static Future<String?> _takeLaunchRequest() async {
+    try {
+      final value = await _channel.invokeMethod<String>('takeLaunchRequest');
+      if (value == null || value.isEmpty) return null;
+      addLog(.info, '快捷方式启动请求：$value', tag: 'Shortcut');
+      return value;
+    } on Object catch (error) {
+      addLog(.warning, '取快捷方式启动请求失败：${removeNewlines('$error')}', tag: 'Shortcut');
+      return null;
+    }
+  }
+
+  static Future<void> _launch(String versionId) async {
+    if (!BridgeInstaller.isRuntimeReady()) {
+      addLog(.warning, '快捷方式启动：桥运行环境还没装好，忽略', tag: 'Shortcut');
+      return;
+    }
+    if (await AndroidHost.isGameProcessRunning() == true) {
+      addLog(.info, '快捷方式启动：游戏已在运行，回到游戏', tag: 'Shortcut');
+      // 快捷方式是显式拉起 MainActivity，会在游戏上再压一个启动器实例；
+      // 结束自己就把下面的游戏露出来，别让人看到启动器
+      await _finishLauncher();
+      return;
+    }
+
+    final version = _findVersion(versionId);
+    if (version == null) {
+      addLog(.warning, '快捷方式启动：找不到版本 $versionId', tag: 'Shortcut');
+      addNotice(
+        icon: Icons.error_outline,
+        title: '快捷方式失效',
+        content: '启动器里已经找不到这个版本，重新添加一个桌面快捷方式',
+      );
+      return;
+    }
+
+    addLog(.info, '快捷方式启动：${version.tag}', tag: 'Shortcut');
+    await GameInstance.launch(version);
+  }
+
+  /// 结束当前启动器实例（游戏在跑时用），把下面的游戏露出来
+  static Future<void> _finishLauncher() async {
+    try {
+      await _channel.invokeMethod('finishLauncher');
+    } on Object catch (error) {
+      addLog(.warning, '结束启动器实例失败：${removeNewlines('$error')}', tag: 'Shortcut');
+    }
+  }
+
+  /// 按 id 找版本；找不到就是快捷方式失效（不回落选中版本，免得启动错版本）
+  static Mindustry? _findVersion(String versionId) {
+    for (final fold in config.versionOptions.versionFolds) {
+      for (final version in fold.versions) {
+        if (version.id == versionId) return version;
+      }
+    }
+    return null;
+  }
+}
