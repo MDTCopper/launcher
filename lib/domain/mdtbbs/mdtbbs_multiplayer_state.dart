@@ -48,6 +48,9 @@ class MultiplayerState {
     this.loadingInvites = false,
     this.inviting = false,
     this.busyInviteId,
+    this.joinRequests = const [],
+    this.loadingJoinRequests = false,
+    this.busyJoinRequestId,
   });
 
   // ── 能力（进页面拉一次，缓存住） ──
@@ -136,6 +139,11 @@ class MultiplayerState {
   /// 正在处理的邀请 ID（接受 / 拒绝 / 撤销）：按操作粒度禁用，不整页锁死
   final String? busyInviteId;
 
+  /// 房主看到的待处理加入申请
+  final List<MdtbbsJoinRequest> joinRequests;
+  final bool loadingJoinRequests;
+  final String? busyJoinRequestId;
+
   /// 从落盘恢复过会话 ID、但服务端快照还没回来
   bool get waitingForSession => session == null && joinCode != null;
 
@@ -163,6 +171,9 @@ class MultiplayerState {
 
   /// 待处理的邀请条数（页面上的角标用）
   int get pendingInviteCount => invites.length;
+
+  /// 待处理加入申请条数
+  int get pendingJoinRequestCount => joinRequests.length;
 
   MultiplayerState copyWith({
     MdtbbsMultiplayerCapabilities? capabilities,
@@ -194,6 +205,11 @@ class MultiplayerState {
     bool? loadingInvites,
     bool? inviting,
     String? busyInviteId,
+    List<MdtbbsJoinRequest>? joinRequests,
+    bool? loadingJoinRequests,
+    String? busyJoinRequestId,
+    bool clearJoinRequests = false,
+    bool clearBusyJoinRequest = false,
     bool clearSession = false,
     bool clearJoinCode = false,
     bool clearSelf = false,
@@ -240,5 +256,12 @@ class MultiplayerState {
     loadingInvites: loadingInvites ?? this.loadingInvites,
     inviting: inviting ?? this.inviting,
     busyInviteId: clearBusyInvite ? null : (busyInviteId ?? this.busyInviteId),
+    joinRequests: clearJoinRequests
+        ? const []
+        : (joinRequests ?? this.joinRequests),
+    loadingJoinRequests: loadingJoinRequests ?? this.loadingJoinRequests,
+    busyJoinRequestId: clearBusyJoinRequest
+        ? null
+        : (busyJoinRequestId ?? this.busyJoinRequestId),
   );
 }

@@ -509,6 +509,7 @@ class MdtbbsMultiplayerService {
         clearProxyError: true,
         clearProxyRetryAt: true,
         clearSentInvites: true,
+        clearJoinRequests: true,
       ),
     );
   }
@@ -918,6 +919,7 @@ class MdtbbsMultiplayerService {
         clearProxyError: true,
         clearProxyRetryAt: true,
         clearSentInvites: true,
+        clearJoinRequests: true,
       ),
     );
   }
@@ -1042,6 +1044,106 @@ class MdtbbsMultiplayerService {
       }
     }
   }
+
+  /// 房主刷新待处理加入申请；非房主会收到 SESSION_PERMISSION_DENIED
+  Future<void> refreshJoinRequests({bool announce = false}) async {
+    final session = _current.session;
+    if (session == null) return;
+    final epoch = _accountEpoch;
+    final token = await _token();
+    if (token == null || !_isAccountEpochCurrent(epoch)) return;
+    _set(_current.copyWith(loadingJoinRequests: true));
+    try {
+      final page = await MdtbbsMultiplayerApi.joinRequests(
+        accessToken: token,
+        sessionId: session.id,
+      );
+      if (!_isAccountEpochCurrent(epoch)) return;
+      _set(
+        _current.copyWith(
+          joinRequests: page.requests,
+          loadingJoinRequests: false,
+        ),
+      );
+      if (announce) {
+        _notify(
+          page.requests.isEmpty
+              ? '没有待处理的加入申请'
+              : '待处理加入申请 ${page.requests.length} 条',
+        );
+      }
+    } on Object catch (error) {
+      if (!_isAccountEpochCurrent(epoch)) return;
+      _set(_current.copyWith(loadingJoinRequests: false));
+      final message = describeMdtbbsError(error);
+      if (announce) {
+        _notify('读取加入申请失败：$message', isError: true);
+      } else {
+        addLogAndPrint(.debug, '读取加入申请失败：$message', tag: 'Multiplayer');
+      }
+    }
+  }
+
+  Future<bool> approveJoinRequest(String requestId) async {
+    if (requestId.isEmpty || _current.busyJoinRequestId != null) return false;
+    final epoch = _accountEpoch;
+    final token = await _token();
+    if (token == null || !_isAccountEpochCurrent(epoch)) return false;
+    _set(_current.copyWith(busyJoinRequestId: requestId));
+    try {
+      await MdtbbsMultiplayerApi.approveJoinRequest(
+        accessToken: token,
+        requestId: requestId,
+      );
+      if (!_isAccountEpochCurrent(epoch)) return false;
+      _set(
+        _current.copyWith(
+          joinRequests: _withoutJoinRequest(requestId),
+          clearBusyJoinRequest: true,
+        ),
+      );
+      _notify('已批准加入申请');
+      return true;
+    } on Object catch (error) {
+      if (!_isAccountEpochCurrent(epoch)) return false;
+      _set(_current.copyWith(clearBusyJoinRequest: true));
+      _notify('批准失败：${describeMdtbbsError(error)}', isError: true);
+      return false;
+    }
+  }
+
+  Future<bool> rejectJoinRequest(String requestId) async {
+    if (requestId.isEmpty || _current.busyJoinRequestId != null) return false;
+    final epoch = _accountEpoch;
+    final token = await _token();
+    if (token == null || !_isAccountEpochCurrent(epoch)) return false;
+    _set(_current.copyWith(busyJoinRequestId: requestId));
+    try {
+      await MdtbbsMultiplayerApi.rejectJoinRequest(
+        accessToken: token,
+        requestId: requestId,
+      );
+      if (!_isAccountEpochCurrent(epoch)) return false;
+      _set(
+        _current.copyWith(
+          joinRequests: _withoutJoinRequest(requestId),
+          clearBusyJoinRequest: true,
+        ),
+      );
+      _notify('已拒绝加入申请');
+      return true;
+    } on Object catch (error) {
+      if (!_isAccountEpochCurrent(epoch)) return false;
+      _set(_current.copyWith(clearBusyJoinRequest: true));
+      _notify('拒绝失败：${describeMdtbbsError(error)}', isError: true);
+      return false;
+    }
+  }
+
+  List<MdtbbsJoinRequest> _withoutJoinRequest(String requestId) => [
+    for (final request in _current.joinRequests)
+      if (request.requestId != requestId) request,
+  ];
 
   /// 每个好友的邀请冷却：30 秒内不重复发
   ///
@@ -1543,7 +1645,12 @@ class MdtbbsMultiplayerService {
     if (_current.session == null) return;
     addLogAndPrint(.warning, '房间已关闭，退出本地会话', tag: 'Multiplayer');
     forgetSession();
-    _set(_current.copyWith(clearSession: true, clearSelf: true, peers: const []));
+    _set(_current.copyWith(
+      clearSession: true,
+      clearSelf: true,
+      peers: const [],
+      clearJoinRequests: true,
+    ));
     _accounts.clearMultiplayerSession();
     _notify('房主已离开，房间已关闭', isError: true, title: '已退出房间');
   }
@@ -1574,7 +1681,12 @@ class MdtbbsMultiplayerService {
       tag: 'Multiplayer',
     );
     forgetSession();
-    _set(_current.copyWith(clearSession: true, clearSelf: true, peers: const []));
+    _set(_current.copyWith(
+      clearSession: true,
+      clearSelf: true,
+      peers: const [],
+      clearJoinRequests: true,
+    ));
     _accounts.clearMultiplayerSession();
     _notify('与服务器断开超过 60 秒，已退出房间', isError: true, title: '网络中断');
   }

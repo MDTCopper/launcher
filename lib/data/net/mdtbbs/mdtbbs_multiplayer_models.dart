@@ -6,6 +6,8 @@
 
 library;
 
+import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
+
 /// `GET /multiplayer/capabilities`
 ///
 /// 展示任何联机入口前**必须**先核对这四个布尔与顶层 `multiplayer` 能力标志
@@ -313,6 +315,78 @@ class MdtbbsInvite {
             (json['session'] as Map).cast<String, dynamic>(),
           ),
   );
+}
+
+/// 房主看到的待处理加入申请
+class MdtbbsJoinRequest {
+  const MdtbbsJoinRequest({
+    required this.requestId,
+    this.createdAt,
+    this.expiresAt,
+    this.userId,
+    this.username,
+    this.avatarUrl,
+  });
+
+  final String requestId;
+  final String? createdAt;
+  final String? expiresAt;
+  final String? userId;
+  final String? username;
+  final String? avatarUrl;
+
+  factory MdtbbsJoinRequest.fromJson(Map<String, dynamic> json) {
+    final user = (json['user'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final rawUserId = user['id'];
+    return MdtbbsJoinRequest(
+      requestId: '${json['id'] ?? ''}',
+      createdAt: json['created_at']?.toString(),
+      expiresAt: json['expires_at']?.toString(),
+      userId: rawUserId == null ? '' : mdtbbsUserIdOf(rawUserId),
+      username: user['username'] as String?,
+      avatarUrl: (user['avatar_url'] ?? user['avatar']) as String?,
+    );
+  }
+
+  String get displayName {
+    final name = username?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    final id = userId?.trim();
+    return id == null || id.isEmpty ? '未知用户' : '用户 $id';
+  }
+}
+
+/// 待处理加入申请列表 + 服务端分页摘要
+class MdtbbsJoinRequestPage {
+  const MdtbbsJoinRequestPage({
+    required this.requests,
+    this.page = 1,
+    this.limit = 50,
+    this.total,
+  });
+
+  final List<MdtbbsJoinRequest> requests;
+  final int page;
+  final int limit;
+  final int? total;
+
+  factory MdtbbsJoinRequestPage.fromEnvelope(MdtbbsEnvelope envelope) {
+    final raw = envelope.data;
+    final requests = (raw is List ? raw : const [])
+        .whereType<Map>()
+        .map((item) => MdtbbsJoinRequest.fromJson(item.cast<String, dynamic>()))
+        .where((request) => request.requestId.isNotEmpty)
+        .toList();
+    final pagination = (envelope.meta['pagination'] as Map?)
+        ?.cast<String, dynamic>();
+    int? number(Object? value) => value is num ? value.toInt() : null;
+    return MdtbbsJoinRequestPage(
+      requests: requests,
+      page: number(pagination?['page']) ?? 1,
+      limit: number(pagination?['limit']) ?? 50,
+      total: number(pagination?['total']),
+    );
+  }
 }
 
 /// 网络候选地址（STUN/NAT 探测由客户端负责）

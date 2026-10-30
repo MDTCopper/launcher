@@ -26,6 +26,7 @@ import 'package:copper_launcher/domain/game_instance.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_friends_api.dart';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/format/time_since.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:flutter/material.dart';
@@ -87,9 +88,14 @@ class _OnlinePageState extends State<OnlinePage> {
     _peerTicker = Timer.periodic(const Duration(seconds: 10), (_) {
       if (!mounted) return;
       final state = _mp.state.value;
-      if (!state.inSession || state.refreshingPeers) return;
-      unawaited(_mp.refreshPeers());
-      unawaited(_mp.refreshSessionStatus());
+      if (!state.inSession) return;
+      if (!state.refreshingPeers) {
+        unawaited(_mp.refreshPeers());
+        unawaited(_mp.refreshSessionStatus());
+      }
+      if (state.self?.role == 'owner' && !state.loadingJoinRequests) {
+        unawaited(_mp.refreshJoinRequests());
+      }
     });
   }
 
@@ -140,6 +146,9 @@ class _OnlinePageState extends State<OnlinePage> {
       _setView(
         state.self?.role == 'owner' ? _OnlineView.host : _OnlineView.guest,
       );
+      if (state.self?.role == 'owner') {
+        unawaited(_mp.refreshJoinRequests());
+      }
     }
     // LanLink 的桥在服务层活着，重新进页面要把它那条状态画出来
     setState(() {});
@@ -153,6 +162,9 @@ class _OnlinePageState extends State<OnlinePage> {
       unawaited(_mp.refreshInvites());
     } else {
       _mp.stopInvitePolling();
+      if (view == _OnlineView.host) {
+        unawaited(_mp.refreshJoinRequests());
+      }
     }
   }
 
@@ -1184,7 +1196,10 @@ class _OnlinePageState extends State<OnlinePage> {
         Expanded(
           child: inRoom
               ? ListContentPanel(
-                  items: [_buildRoomStatusPanel(state)],
+                  items: [
+                    _buildRoomStatusPanel(state),
+                    _buildJoinRequestsPanel(state),
+                  ],
                   showBackToTop: false,
                 )
               : LayoutBuilder(
@@ -1377,6 +1392,100 @@ class _OnlinePageState extends State<OnlinePage> {
           icon: Icons.login,
           content: busy ? '正在加入…' : '加入',
           onTap: busy ? null : () => _joinInvite(invite),
+        ),
+      ],
+    );
+  }
+
+  /// 房主看到的待处理加入申请；非房主 / 不在房间时不显示
+  Widget _buildJoinRequestsPanel(MultiplayerState state) {
+    if (!state.inSession || state.self?.role != 'owner') {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final requests = state.joinRequests;
+    return ContentPanelModule(
+      title: '加入申请',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: AppSpacing.related,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  requests.isEmpty ? '还没有待处理的加入申请' : '共 ${requests.length} 条',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.itemSecondary,
+                  ),
+                ),
+              ),
+              IconTextButton(
+                pressedScale: 0.96,
+                icon: Icons.refresh,
+                content: state.loadingJoinRequests ? '正在刷新…' : '刷新',
+                onTap: state.loadingJoinRequests
+                    ? null
+                    : () => _mp.refreshJoinRequests(announce: true),
+              ),
+            ],
+          ),
+          for (final request in requests) _buildJoinRequestRow(state, request),
+          if (requests.isEmpty)
+            Text(
+              '有人申请加入时，这里会出现同意 / 拒绝按钮',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colors.itemHint,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJoinRequestRow(
+    MultiplayerState state,
+    MdtbbsJoinRequest request,
+  ) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final busy = state.busyJoinRequestId == request.requestId;
+    final createdAt = DateTime.tryParse(request.createdAt ?? '')?.toLocal();
+    return Row(
+      spacing: AppSpacing.related,
+      children: [
+        UserAvatar(
+          url: request.avatarUrl,
+          size: 28,
+          fallbackIcon: Icons.person,
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(request.displayName, style: theme.textTheme.bodyMedium),
+              if (createdAt != null)
+                Text(
+                  '${timeSince(createdAt)}申请',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.itemHint,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        IconTextButton(
+          pressedScale: 0.96,
+          icon: Icons.check,
+          content: busy ? '处理中…' : '同意',
+          onTap: busy ? null : () => _mp.approveJoinRequest(request.requestId),
+        ),
+        IconTextButton(
+          pressedScale: 0.96,
+          icon: Icons.close,
+          content: '拒绝',
+          onTap: busy ? null : () => _mp.rejectJoinRequest(request.requestId),
         ),
       ],
     );

@@ -440,6 +440,23 @@ class MdtbbsMultiplayerApi {
     );
   }
 
+  /// 房主读取待处理加入申请；只有房主可读
+  static Future<MdtbbsJoinRequestPage> joinRequests({
+    required String accessToken,
+    required String sessionId,
+    int page = 1,
+    int limit = 50,
+    CancelToken? cancelToken,
+  }) async {
+    final envelope = await MdtbbsClient.getEnvelope(
+      '$_base/sessions/$sessionId/join-requests',
+      accessToken: accessToken,
+      queryParameters: {'page': page, 'limit': limit},
+      cancelToken: cancelToken,
+    );
+    return MdtbbsJoinRequestPage.fromEnvelope(envelope);
+  }
+
   /// 房主批准加入申请 → 返回**绑定申请者 OAuth 客户端**的加入意图（10 分钟有效）
   static Future<MdtbbsJoinIntent> approveJoinRequest({
     required String accessToken,
