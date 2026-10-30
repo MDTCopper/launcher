@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
+import 'package:copper_launcher/domain/game_instance.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
@@ -333,7 +334,7 @@ class LauncherTray extends TrayListener with WindowListener {
     final version = _recentVersion();
     if (version == null || _isGameRunning()) return;
     addLog(.info, '托盘：启动最近游玩 [${version.tag}]', tag: 'Tray');
-    addTask(LaunchMindustryTask(version));
+    await GameInstance.launch(version);
     //窗口本就在托盘隐藏状态，无需再收进；刷新菜单反映运行状态
     await _refreshMenu();
   }

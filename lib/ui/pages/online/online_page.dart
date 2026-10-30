@@ -22,9 +22,8 @@ import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.da
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/domain/game_instance.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_friends_api.dart';
-import 'package:copper_launcher/domain/task_manager.dart';
-import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
@@ -294,7 +293,7 @@ class _OnlinePageState extends State<OnlinePage> {
       );
       return;
     }
-    addTask(LaunchMindustryTask(version));
+    await GameInstance.launch(version);
   }
 
   Future<void> _leaveRoom() async {

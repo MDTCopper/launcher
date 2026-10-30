@@ -4,8 +4,7 @@ import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
 
 import 'package:copper_launcher/data/models.dart';
-import 'package:copper_launcher/domain/task_manager.dart';
-import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
+import 'package:copper_launcher/domain/game_instance.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
@@ -257,8 +256,9 @@ class _LaunchPageState extends State<LaunchPage> {
                   ],
                 ),
                 onTap: () {
-                  if (_selectedVersion == null) return;
-                  addTask(LaunchMindustryTask(_selectedVersion!));
+                  final version = _selectedVersion;
+                  if (version == null) return;
+                  GameInstance.launch(version);
                 },
               ),
             ),
