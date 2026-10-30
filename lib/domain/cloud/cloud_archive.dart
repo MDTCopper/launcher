@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
+import 'package:copper_launcher/domain/mod_install.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:path/path.dart' as p;
 
@@ -313,6 +314,7 @@ class CloudArchiveReader {
       planned[CloudArchive.modBytesName(mod.sha256)] = _PlannedFile(
         sha256: mod.sha256,
         destination: p.join(modsDirIn(dataPath, copper: mod.isCopper), name),
+        modInternalName: mod.internalName,
       );
     }
 
@@ -349,6 +351,14 @@ class CloudArchiveReader {
       final settled = _settleDestination(destination, target.sha256, content);
       if (settled == null) {
         report.unchanged.add(destination);
+        //内容一样没写盘，但本机可能还有同一个 mod 的另一个版本文件，覆盖语义下也要收掉
+        if (mode == CloudImportMode.overwrite) {
+          await _dedupeCarriedMod(
+            target: target,
+            keepPath: destination,
+            dataPath: dataPath,
+          );
+        }
         continue;
       }
 
@@ -397,6 +407,15 @@ class CloudArchiveReader {
         tempDir: p.join(dataPath, 'tmp'),
       );
 
+      //恢复是覆盖语义：这份模组落地后清掉本机同一个 mod 的旧版本文件，
+      //只留包里这一份；留两份 / 跳过的分支不动本机文件
+      if (mode == CloudImportMode.overwrite) {
+        await _dedupeCarriedMod(
+          target: target,
+          keepPath: writeTo,
+          dataPath: dataPath,
+        );
+      }
     }
 
     // 清单里有、包里没有的（导出时被丢掉的那种）
@@ -409,6 +428,23 @@ class CloudArchiveReader {
 
     report.missingMods.addAll(missingMods);
     return report;
+  }
+
+  /// 覆盖语义下，随包带的模组落地后清掉本机同一个 mod 的旧版本文件
+  ///
+  /// 只对带内部名的模组生效；`keepBoth` / `skip` 分支不调用，避免删本机文件
+  Future<void> _dedupeCarriedMod({
+    required _PlannedFile target,
+    required String keepPath,
+    required String dataPath,
+  }) async {
+    final internalName = target.modInternalName;
+    if (internalName == null) return;
+    await removeOtherModFiles(
+      internalName: internalName,
+      modsDirs: allModsDirsIn(dataPath),
+      keepPath: keepPath,
+    );
   }
 
   /// 目的地已经有东西了怎么办：内容一样就跳过，不一样就**留两份**（返回新路径）；
@@ -543,6 +579,7 @@ class _PlannedFile {
     required this.sha256,
     required this.destination,
     this.campaignCritical = false,
+    this.modInternalName,
   });
 
   final String sha256;
@@ -550,6 +587,9 @@ class _PlannedFile {
 
   /// settings.bin 或 sector-*.msav：必须与配套文件一起覆盖
   final bool campaignCritical;
+
+  /// 随包带的模组的内部名：覆盖落地后据此清掉本机同一个 mod 的旧版本
+  final String? modInternalName;
 }
 
 /// settings.bin 装 SectorInfo / 解锁，sector-*.msav 是区块本体
