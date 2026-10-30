@@ -438,6 +438,10 @@ class LaunchOptions {
   @JsonKey(defaultValue: true)
   bool autoWakeSteam;
 
+  /// 允许同时开多个游戏；只允许**数据目录不同**的版本并存（见 `GameInstance`）
+  @JsonKey(defaultValue: false)
+  bool multiGame;
+
   LaunchOptions({
     required this.versionIsolationSet,
     required this.gameWindowSizeSet,
@@ -446,6 +450,7 @@ class LaunchOptions {
     required this.memorySize,
     required this.autoMemory,
     required this.autoWakeSteam,
+    required this.multiGame,
   }) {
     this.customWindowSize = customWindowSize ?? WindowSize.fromJson({});
     this.javaOptions = javaOptions ?? JavaOptions.fromJson({});

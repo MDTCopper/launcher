@@ -117,6 +117,7 @@ LaunchOptions _$LaunchOptionsFromJson(Map<String, dynamic> json) =>
       memorySize: (json['memorySize'] as num?)?.toInt() ?? 1073741824,
       autoMemory: json['autoMemory'] as bool? ?? true,
       autoWakeSteam: json['autoWakeSteam'] as bool? ?? true,
+      multiGame: json['multiGame'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$LaunchOptionsToJson(
@@ -131,6 +132,7 @@ Map<String, dynamic> _$LaunchOptionsToJson(
   'memorySize': instance.memorySize,
   'autoMemory': instance.autoMemory,
   'autoWakeSteam': instance.autoWakeSteam,
+  'multiGame': instance.multiGame,
 };
 
 const _$VersionIsolationEnumMap = {

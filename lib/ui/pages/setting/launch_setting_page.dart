@@ -731,6 +731,18 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
                     });
                   },
                 ),
+              // 桌面才有意义：安卓同一时间只有一个游戏界面
+              if (isDesktop)
+                SwitchSettingBar(
+                  title: '多游戏运行',
+                  value: launchOptions.multiGame,
+                  onChanged: (value) {
+                    setState(() {
+                      launchOptions.multiGame = value;
+                      config.save();
+                    });
+                  },
+                ),
               InputSettingBar(title: 'jvm虚拟机参数'),
               // Android 独有：运行环境（Java / 桥 / 适配层）单独一页，这里只留入口
               if (Platform.isAndroid) _buildMobileRuntimeEntry(),
