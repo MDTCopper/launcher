@@ -15,8 +15,7 @@ import java.util.zip.ZipFile
 /**
  * 桌面快捷方式：一个版本一个「直接启动游戏」的固定快捷方式。
  *
- * 快捷方式带版本 id 回到 [MainActivity]，Dart 侧取到后直接拉起对应版本；
- * 图标优先用版本 jar 里自带的 logo，没有就用应用图标。
+ * 快捷方式带版本 id 回到 [MainActivity]，Dart 侧取到后直接拉起对应版本。
  */
 object GameShortcut {
     const val ACTION_LAUNCH_GAME = "io.github.copper.launcher.LAUNCH_GAME"
@@ -27,8 +26,17 @@ object GameShortcut {
 
     private const val TAG = "GameShortcut"
 
-    /** 版本 jar 里 logo 的候选条目：v9 起是 icon.png，更早只有 64px 那张 */
-    private val iconEntries = listOf("icons/icon.png", "icons/icon_64.png")
+    /** 快捷方式图标最多用这么大，再大只是白占内存（有些 jar 的 icns 有 1024） */
+    private const val ICON_MAX_SIZE = 512
+
+    /**
+     * 图标来源，按清晰度排：
+     * 1. `icons/icon.icns` / `icons/icon.ico` 里最大的 PNG（多数版本有 512、1024）
+     * 2. `icons/icon.png`（v9 起有，256）
+     * 3. `icons/icon_64.png`（更早只有 64px）
+     */
+    private val highResEntries = listOf("icons/icon.icns", "icons/icon.ico")
+    private val pngEntries = listOf("icons/icon.png", "icons/icon_64.png")
 
     fun isSupported(context: Context): Boolean =
         ShortcutManagerCompat.isRequestPinShortcutSupported(context)
@@ -66,26 +74,107 @@ object GameShortcut {
     private fun shortcutId(versionId: String) = "launch-$versionId"
 
     private fun iconOf(activity: Activity, jarPath: String): IconCompat =
-        readJarIcon(jarPath)?.let { IconCompat.createWithBitmap(it) }
+        iconFromJar(jarPath)?.let { IconCompat.createWithBitmap(it) }
             ?: IconCompat.createWithResource(activity, R.mipmap.ic_launcher)
 
     /** 从版本 jar 里读 logo；读不到返回 null */
-    private fun readJarIcon(jarPath: String): Bitmap? {
+    private fun iconFromJar(jarPath: String): Bitmap? {
         val file = File(jarPath)
         if (!file.exists()) return null
         return try {
             ZipFile(file).use { zip ->
-                for (name in iconEntries) {
-                    val entry = zip.getEntry(name) ?: continue
-                    zip.getInputStream(entry).use { stream ->
-                        BitmapFactory.decodeStream(stream)?.let { return it }
-                    }
-                }
+                readHighResIcon(zip) ?: readPngIcon(zip)
             }
-            null
         } catch (error: Exception) {
             Log.w(TAG, "读 jar 图标失败：${error.message}")
             null
         }
+    }
+
+    /** icns / ico 里塞了多张 PNG，挑面积最大的那张 */
+    private fun readHighResIcon(zip: ZipFile): Bitmap? {
+        for (name in highResEntries) {
+            val entry = zip.getEntry(name) ?: continue
+            val bytes = zip.getInputStream(entry).use { it.readBytes() }
+            val best = largestPng(bytes) ?: continue
+            val sized = scaleDown(best)
+            Log.i(TAG, "图标取自 $name（${sized.width}x${sized.height}）")
+            return sized
+        }
+        return null
+    }
+
+    private fun readPngIcon(zip: ZipFile): Bitmap? {
+        for (name in pngEntries) {
+            val entry = zip.getEntry(name) ?: continue
+            zip.getInputStream(entry).use { stream ->
+                BitmapFactory.decodeStream(stream)?.let {
+                    Log.i(TAG, "图标取自 $name（${it.width}x${it.height}）")
+                    return it
+                }
+            }
+        }
+        return null
+    }
+
+    /** 容器里可能塞了多张 PNG，挑面积最大的；不依赖容器格式细节 */
+    private fun largestPng(bytes: ByteArray): Bitmap? {
+        var best: Bitmap? = null
+        var index = 0
+        while (index <= bytes.size - 8) {
+            val looksLikePng = bytes[index] == 0x89.toByte() &&
+                bytes[index + 1] == 'P'.code.toByte() &&
+                bytes[index + 2] == 'N'.code.toByte() &&
+                bytes[index + 3] == 'G'.code.toByte()
+            if (looksLikePng) {
+                val length = pngSize(bytes, index)
+                if (length > 0) {
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, index, length)
+                    val current = best
+                    if (bitmap != null &&
+                        (current == null || bitmap.width * bitmap.height > current.width * current.height)
+                    ) {
+                        current?.recycle()
+                        best = bitmap
+                    } else {
+                        bitmap?.recycle()
+                    }
+                    index += length
+                    continue
+                }
+            }
+            index++
+        }
+        return best
+    }
+
+    /** 一个 PNG 从 [start] 起的字节数；读到 IEND 才知道结尾 */
+    private fun pngSize(bytes: ByteArray, start: Int): Int {
+        var offset = start + 8
+        while (offset + 12 <= bytes.size) {
+            val length = ((bytes[offset].toInt() and 0xFF) shl 24) or
+                ((bytes[offset + 1].toInt() and 0xFF) shl 16) or
+                ((bytes[offset + 2].toInt() and 0xFF) shl 8) or
+                (bytes[offset + 3].toInt() and 0xFF)
+            if (length < 0 || offset + 12 + length > bytes.size) return -1
+            val type = String(bytes, offset + 4, 4, Charsets.US_ASCII)
+            offset += 12 + length
+            if (type == "IEND") return offset - start
+        }
+        return -1
+    }
+
+    /** 快捷方式用不到 1024 那么大，压到 512 省内存 */
+    private fun scaleDown(bitmap: Bitmap): Bitmap {
+        if (bitmap.width <= ICON_MAX_SIZE && bitmap.height <= ICON_MAX_SIZE) return bitmap
+        val ratio = ICON_MAX_SIZE.toFloat() / maxOf(bitmap.width, bitmap.height)
+        val scaled = Bitmap.createScaledBitmap(
+            bitmap,
+            (bitmap.width * ratio).toInt(),
+            (bitmap.height * ratio).toInt(),
+            true,
+        )
+        bitmap.recycle()
+        return scaled
     }
 }
