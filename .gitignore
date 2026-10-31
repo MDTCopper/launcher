@@ -104,4 +104,6 @@ web/
 
 # 启动器运行期数据（桌面端数据根就在仓库目录）
 version_icons/
+# 桌面快捷方式用的 .ico（由版本图标转出，按版本 id 缓存）
+shortcut_icons/
 

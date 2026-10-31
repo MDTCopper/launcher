@@ -177,6 +177,10 @@ abstract class AppPaths {
   /// 玩家给版本换的图标 [*\version_icons\]
   static String get versionIcons => p.join(copperLauncher, 'version_icons');
 
+  /// 桌面快捷方式用的图标 [*\shortcut_icons\]：Windows 的 .lnk 只认 .ico，
+  /// 由版本图标转出来按版本 id 缓存
+  static String get shortcutIcons => p.join(copperLauncher, 'shortcut_icons');
+
   /// 游戏本体库 [*\mindustrys\]：下载与导入的 jar 集中放这里，变体直接引用同一份；
   /// 版本目录只留版本自己的数据
   static String get mindustrys => p.join(copperLauncher, 'mindustrys');

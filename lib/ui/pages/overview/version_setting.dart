@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/domain/desktop_shortcut.dart';
 import 'package:copper_launcher/domain/local_save_import.dart';
 import 'package:copper_launcher/domain/shortcut_launch.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
@@ -350,6 +351,26 @@ pause
     );
   }
 
+  /// Windows：在桌面建一个直达这个版本的 .lnk（图标优先用版本图标）
+  Future<void> _createWindowsDesktopShortcut() async {
+    try {
+      final result = await DesktopShortcut.create(_mindustry);
+      if (!mounted) return;
+      addNotice(
+        icon: Icons.check_circle_outline,
+        title: '已创建桌面快捷方式',
+        content: result.shortcutPath,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      addNotice(
+        icon: Icons.close,
+        title: '创建快捷方式失败',
+        content: removeNewlines('$error'),
+      );
+    }
+  }
+
   /// 换版本图标：复制进数据根，启动器内显示与之后创建的桌面图标都用它
   Future<void> _changeVersionIcon() async {
     final path = await PathSelector.selectFile(
@@ -604,6 +625,13 @@ pause
                   icon: Icons.add_to_home_screen,
                   content: '创建桌面快捷方式',
                   onTap: _createDesktopShortcut,
+                ),
+              //Windows 桌面端：在桌面建一个直达这个版本的 .lnk
+              if (isDesktop && Platform.isWindows)
+                IconTextButton(
+                  icon: Icons.add_to_home_screen,
+                  content: '创建桌面快捷方式',
+                  onTap: _createWindowsDesktopShortcut,
                 ),
               //桌面端（debug）：生成启动脚本
               if (isDesktop && kDebugMode)
