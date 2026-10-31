@@ -101,3 +101,7 @@ web/
 
 # Widget Preview related
 .widget_preview/
+
+# 启动器运行期数据（桌面端数据根就在仓库目录）
+version_icons/
+
