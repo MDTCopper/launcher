@@ -22,8 +22,8 @@ class StartupPage extends StatelessWidget {
       child: Center(
         child: Image.asset(
           _itemAsset,
-          width: 112,
-          height: 112,
+          width: 64,
+          height: 64,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.none,
         ),

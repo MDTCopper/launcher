@@ -37,7 +37,7 @@ class CopperLauncherState extends State<CopperLauncher>
     super.initState();
     _wipeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 550),
+      duration: const Duration(milliseconds: 250),
     );
     if (Platform.isAndroid) {
       unawaited(_startup());
@@ -64,6 +64,8 @@ class CopperLauncherState extends State<CopperLauncher>
     }
     if (!mounted) return;
     setState(() => isRuntimeReady = ready);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
     await _wipeController.forward();
     if (!mounted) return;
     setState(() => _showStartup = false);
@@ -157,16 +159,16 @@ class _StartupGate extends StatelessWidget {
             final value = wipe.value.clamp(0.0, 1.0);
             return ShaderMask(
               blendMode: BlendMode.dstIn,
-              shaderCallback: (rect) => LinearGradient(
-                begin: Alignment.bottomLeft,
-                end: Alignment.topRight,
+              shaderCallback: (rect) => RadialGradient(
+                center: Alignment.center,
+                radius: 3.0,
                 colors: const [
                   Colors.white,
                   Colors.white,
                   Colors.transparent,
                   Colors.transparent,
                 ],
-                stops: [0, value, (value + 0.015).clamp(0.0, 1.0), 1],
+                stops: [0, (value - 0.22).clamp(0.0, 1.0), value, 1],
               ).createShader(rect),
               child: child,
             );
