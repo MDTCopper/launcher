@@ -22,9 +22,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
 
+  // 快捷启动：命令行带 --launch-version 时窗口先不显示，
+  // 由 Dart 侧在需要弹窗 / 唤起启动器时显式 show（见 flutter_window.h）
+  bool suppress_initial_show = false;
+  for (const auto& argument : command_line_arguments) {
+    if (argument == "--launch-version" ||
+        argument.rfind("--launch-version=", 0) == 0) {
+      suppress_initial_show = true;
+      break;
+    }
+  }
+
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
   FlutterWindow window(project);
+  window.SetSuppressInitialShow(suppress_initial_show);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
   if (!window.Create(L"Copper Launcher", origin, size)) {

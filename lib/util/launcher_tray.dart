@@ -146,8 +146,28 @@ class LauncherTray extends TrayListener with WindowListener {
     return null;
   }
 
+  /// 快捷启动的隐藏窗口会话：托盘先不常驻，需要露面时再恢复用户设置
+  bool _quietMode = false;
+
   ///按 config 应用托盘模式
-  Future<void> applyMode() async {
+  ///
+  ///[quiet] 给快捷启动用：不建托盘图标、不接管关窗行为，窗口由 runner 侧保持隐藏；
+  ///之后 [showMainWindow] 会把用户设置恢复回来
+  Future<void> applyMode({bool quiet = false}) async {
+    _quietMode = quiet;
+    if (quiet) {
+      _trayMode = false;
+      _closeToTray = false;
+      _cloudSyncMenuTimer?.cancel();
+      _cloudSyncMenuTimer = null;
+      await _taskSubscription?.cancel();
+      _taskSubscription = null;
+      await windowManager.setPreventClose(false);
+      await trayManager.destroy();
+      addLog(.info, '快捷启动：托盘暂不常驻', tag: 'Tray');
+      return;
+    }
+
     final personalization = config.setting.personalizationOptions;
     final traySupported = await resolveTraySupport();
     //托盘不可用时两个托盘行为都按未开启算，否则关窗会把窗口藏进一个点不到的地方
@@ -320,13 +340,26 @@ class LauncherTray extends TrayListener with WindowListener {
 
   ///把主窗口叫回来：托盘隐藏 / 最小化状态都能拉回前台
   ///
-  ///单实例守护收到第二个实例的通知时调它
+  ///单实例守护收到第二个实例的通知时调它；快捷启动的隐藏会话也靠它露出界面
   Future<void> showMainWindow() async {
     if (!isDesktop) return;
+    if (_quietMode) {
+      // 快捷启动期间没建托盘；现在要显示界面了，按用户设置恢复
+      await applyMode();
+    }
     if (await windowManager.isMinimized()) {
       await windowManager.restore();
     }
     await _showFromTray();
+  }
+
+  /// 需要弹窗 / 出错时保证主窗口可见（快捷启动的隐藏会话专用）
+  ///
+  /// 已经可见时不打扰；隐藏时走 [showMainWindow]（会恢复托盘设置）
+  Future<void> ensureVisibleForPrompt() async {
+    if (!isDesktop) return;
+    if (await windowManager.isVisible()) return;
+    await showMainWindow();
   }
 
   ///从托盘快速启动最近游玩版本

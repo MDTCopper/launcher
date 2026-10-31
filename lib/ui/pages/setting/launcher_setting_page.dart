@@ -131,22 +131,25 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
     );
   }
 
-  /// 安卓：从桌面快捷方式启动的游戏，退出后去哪
+  /// 从桌面快捷方式启动的游戏，退出后去哪（安卓 / 桌面文案不同）
   Widget _buildShortcutLaunchModule() {
+    final isAndroid = Platform.isAndroid;
     return ContentPanelModule(
       title: '快捷方式启动',
       child: OptionSettingBar<ShortcutExitAction>(
         title: '退出游戏后',
-        hintText: '从桌面快捷方式启动的游戏，退出时去哪',
+        hintText: isAndroid
+            ? '从桌面快捷方式启动的游戏，退出时去哪'
+            : '从桌面快捷方式启动的游戏，退出时去哪（云存档上传完才退出）',
         initialValue: personalizationOptions.shortcutExitAction,
-        options: const [
-          DropdownOption(
-            value: ShortcutExitAction.backToLauncher,
-            label: '回到启动器',
-          ),
+        options: [
           DropdownOption(
             value: ShortcutExitAction.backToHome,
-            label: '直接回桌面',
+            label: isAndroid ? '直接回桌面' : '直接退出',
+          ),
+          DropdownOption(
+            value: ShortcutExitAction.backToLauncher,
+            label: isAndroid ? '回到启动器' : '唤起启动器',
           ),
         ],
         onSelect: (value) {
@@ -458,8 +461,9 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
       items: [
         //关窗行为与托盘相关，移动端没有这些概念；托盘不可用的桌面（比如没有状态栏宿主的 Linux）也不显示
         if (LauncherTray.traySupported) _buildLauncherBehaviorModule(),
-        //快捷方式启动是安卓独有的，退出后的去处单独一块
-        if (Platform.isAndroid) _buildShortcutLaunchModule(),
+        //快捷方式启动：安卓与 Windows 有桌面快捷方式，退出后的去处单独一块
+        if (Platform.isAndroid || Platform.isWindows)
+          _buildShortcutLaunchModule(),
         ContentPanelModule(
           title: '主题',
           child: Column(

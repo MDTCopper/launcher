@@ -813,6 +813,18 @@ class VersionOptions {
     return null;
   }
 
+  /// 按版本 id 找记录：快捷启动只带 id，找不到返回 null
+  ///
+  /// 与 [findVersion] 的区别是不用传整个对象，跨进程请求（快捷方式 / 后台服务）只认 id
+  Mindustry? findVersionById(String id) {
+    for (final versionFold in versionFolds) {
+      for (final version in versionFold.versions) {
+        if (version.id == id) return version;
+      }
+    }
+    return null;
+  }
+
   /// 统一删除版本：退出所有折叠中该版本的记录，并把 jarPath 引用数≥2
   /// （同一 jar 被多个版本共享）时保留 jar 本体
   ///

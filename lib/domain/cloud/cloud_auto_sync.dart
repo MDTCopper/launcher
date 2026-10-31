@@ -45,7 +45,12 @@ class CloudAutoSync {
   ///
   /// 返回 **false = 这次别启动**（冲突没选 / 同步超时后选了取消）；出错一律返回 true
   /// （不拦启动）。覆盖前自备份由 [CloudSaveService.restore] 负责（备份做不出来会中止）
-  static Future<bool> beforeLaunch(Mindustry version) async {
+  ///
+  /// [onNeedsUi] 在弹冲突 / 超时窗口前调用：快捷启动的隐藏窗口会话靠它把界面叫出来
+  static Future<bool> beforeLaunch(
+    Mindustry version, {
+    Future<void> Function()? onNeedsUi,
+  }) async {
     try {
       if (!CloudSaveService.isEnabled(version)) return true;
       if (_skipAutoSync.contains(_skipKey(version))) return true;
@@ -65,6 +70,7 @@ class CloudAutoSync {
           '云存档检查超时（${syncTimeout.inSeconds} 秒），问玩家要不要直接启动',
           tag: 'Cloud',
         );
+        await onNeedsUi?.call();
         return await showCloudSyncTimeoutPrompt(versionTag: version.tag);
       }
       final slotId = outcome.slotId;
@@ -89,6 +95,7 @@ class CloudAutoSync {
           return true;
         case CloudSyncStatus.conflicted:
           //两边都改过：让玩家自己选；没选就**不启动**
+          await onNeedsUi?.call();
           final choice = await showCloudConflictPrompt(
             outcome: outcome,
             versionTag: version.tag,

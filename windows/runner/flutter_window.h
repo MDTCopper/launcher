@@ -17,6 +17,10 @@ class FlutterWindow : public Win32Window {
   explicit FlutterWindow(const flutter::DartProject& project);
   virtual ~FlutterWindow();
 
+  // 快捷启动（--launch-version）时不要在第一帧显示窗口：
+  // 窗口留给 Dart 侧在需要弹窗 / 唤起启动器时显式 show
+  void SetSuppressInitialShow(bool suppress) { suppress_initial_show_ = suppress; }
+
  protected:
   // Win32Window:
   bool OnCreate() override;
@@ -27,6 +31,9 @@ class FlutterWindow : public Win32Window {
  private:
   // The project to run.
   flutter::DartProject project_;
+
+  // 快捷启动：跳过首帧显示回调，窗口保持隐藏
+  bool suppress_initial_show_ = false;
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;

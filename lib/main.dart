@@ -3,9 +3,11 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/launch_request.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_presence_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_realtime_service.dart';
+import 'package:copper_launcher/domain/quick_launch.dart';
 import 'package:copper_launcher/domain/shortcut_launch.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
@@ -27,15 +29,18 @@ import 'package:flutter_single_instance/flutter_single_instance.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
-void main() async {
+void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  await _initialize();
+  final launchRequest = LaunchRequest.fromArguments(args);
+  await _initialize(launchRequest);
   runCopperLauncher();
 }
 
 ///必要的基础初始化完成后即进入 app
-Future<void> _initialize() async {
+Future<void> _initialize(LaunchRequest? launchRequest) async {
   _checkPlatform();
+  // 快捷启动：Windows 上先不显示主窗口（runner 侧按参数跳过首帧显示）
+  final quietWindow = Platform.isWindows && launchRequest != null;
   await AppPaths.init();
   await Log.init();
   if (AppPaths.isUsingFallbackDataPath) {
@@ -51,7 +56,7 @@ Future<void> _initialize() async {
   addLog(.info, '数据根目录：${AppPaths.copperLauncher}', tag: 'Startup');
   addLog(.info, '游戏默认数据目录：${AppPaths.defaultGameData}', tag: 'Startup');
 
-  final multipleStartup = !await _initSingleInctance();
+  final multipleStartup = !await _initSingleInctance(launchRequest);
   if (multipleStartup) return;
 
   // 数据根从应用内部搬进外部专属目录（Android）：搬完才读配置，否则会读到空根上的默认值
@@ -80,9 +85,9 @@ Future<void> _initialize() async {
     'GitHub token：${config.setting.githubToken.isEmpty ? '未设置' : '已设置'}',
     tag: 'Startup',
   );
-  await _initPlatformView();
+  await _initPlatformView(quiet: quietWindow);
   //窗口就绪后应用托盘模式（依赖 config + windowManager）
-  await LauncherTray.instance.applyMode();
+  await LauncherTray.instance.applyMode(quiet: quietWindow);
   //后台初始化任务，不阻塞，进任务抽屉自跑
   addTask(StartupBackgroundTask());
   //在线状态：已登录就建连接，好友列表靠它判断「在线」
@@ -104,6 +109,13 @@ Future<void> _initialize() async {
   unawaited(
     ShortcutLaunch.start(waitForShell: Platform.isAndroid ? null : _waitForShell),
   );
+
+  //桌面端快捷启动：冷启动参数与单实例转发的请求都交给现有启动任务
+  if (!Platform.isAndroid) {
+    unawaited(
+      QuickLaunch.start(request: launchRequest, waitForShell: _waitForShell),
+    );
+  }
 }
 
 /// 启动即登录：有落盘的账号就把它恢复出来，再拉一次资料
@@ -164,11 +176,20 @@ void _checkPlatform() {
   if (Platform.isIOS) throw Exception('iOS 平台不支持');
 }
 
-Future<bool> _initSingleInctance() async {
+Future<bool> _initSingleInctance(LaunchRequest? launchRequest) async {
   // 单实例：该包在 Windows / Linux / macOS 都能判定
   if (!await FlutterSingleInstance().isFirstInstance()) {
-    addLogAndPrint(.info, '已有实例在运行，通知它显示窗口后退出', tag: 'Startup');
-    final error = await FlutterSingleInstance().focus();
+    addLogAndPrint(
+      .info,
+      launchRequest == null
+          ? '已有实例在运行，通知它显示窗口后退出'
+          : '已有实例在运行，把快捷启动请求转给它后退出',
+      tag: 'Startup',
+    );
+    final error = launchRequest == null
+        ? await FlutterSingleInstance().focus()
+        // 快捷启动不抢焦点、不弹出启动器窗口
+        : await FlutterSingleInstance().focus(launchRequest.toMetadata(), false);
     if (error != null) {
       addLogAndPrint(
         .warning,
@@ -182,8 +203,14 @@ Future<bool> _initSingleInctance() async {
     if (!Process.killPid(pid)) exit(0);
     return false;
   }
-  // 第二个实例发来的唤醒请求：把窗口从托盘 / 最小化状态拉回来
+  // 第二个实例发来的请求：快捷启动交给 QuickLaunch，普通第二次启动把窗口叫回来
   FlutterSingleInstance.onFocus = (metadata) {
+    final request = LaunchRequest.fromMetadata(metadata);
+    if (request != null) {
+      addLogAndPrint(.info, '收到快捷启动请求：${request.versionId}', tag: 'Startup');
+      QuickLaunch.enqueue(request);
+      return;
+    }
     addLogAndPrint(.info, '收到第二次启动，显示主窗口（参数 $metadata）', tag: 'Startup');
     unawaited(LauncherTray.instance.showMainWindow());
   };
@@ -191,15 +218,15 @@ Future<bool> _initSingleInctance() async {
 }
 
 ///平台视图初始化：桌面端建窗口，移动端设置系统 UI
-Future<void> _initPlatformView() async {
+Future<void> _initPlatformView({required bool quiet}) async {
   if (Platform.isAndroid) {
     await _initAndroidView();
   } else {
-    await _initWindows();
+    await _initWindows(quiet: quiet);
   }
 }
 
-Future<void> _initWindows() async {
+Future<void> _initWindows({required bool quiet}) async {
   await windowManager.ensureInitialized();
 
   const windowOptions = WindowOptions(
@@ -208,6 +235,14 @@ Future<void> _initWindows() async {
     center: true,
     titleBarStyle: TitleBarStyle.hidden,
   );
+
+  if (quiet) {
+    // 只应用窗口参数，不显示；快捷启动的界面由 runner 按参数跳过首帧显示
+    await windowManager.waitUntilReadyToShow(windowOptions, null);
+    await windowManager.setSkipTaskbar(true);
+    addLog(.info, '快捷启动：主窗口保持隐藏', tag: 'Startup');
+    return;
+  }
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();

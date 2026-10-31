@@ -361,6 +361,8 @@ class LaunchMindustryTask extends Task {
       if (javaPath == null) {
         addTaskLog(LogEntry(LogType.error, '未找到可用 Java：无法启动'));
         addLog(.error, '未找到可用 Java：无法启动', tag: 'Launch');
+        // 快捷启动时窗口是隐藏的，先把界面叫出来再弹提示
+        await LauncherTray.instance.ensureVisibleForPrompt();
         showJavaMissingPrompt(releaseInt: releaseInt);
         status = TaskStatus.failed;
         updateDisplay();
@@ -374,7 +376,10 @@ class LaunchMindustryTask extends Task {
         );
 
     // 云存档：启动前按需把云端那份拉下来；**冲突要玩家选，没选就不启动**
-    if (!await CloudAutoSync.beforeLaunch(mindustry)) {
+    if (!await CloudAutoSync.beforeLaunch(
+      mindustry,
+      onNeedsUi: LauncherTray.instance.ensureVisibleForPrompt,
+    )) {
       addTaskLog(LogEntry(LogType.info, '云存档冲突没处理，已停止启动'));
       addLog(.info, '云存档冲突没处理，停止启动 [${mindustry.tag}]', tag: 'Cloud');
       status = TaskStatus.cancel;
@@ -452,6 +457,8 @@ class LaunchMindustryTask extends Task {
       final suggestion = isLoaderMissing ? '到版本设置的模组加载器处补齐' : '详见运行日志';
       addTaskLog(LogEntry(LogType.error, '启动失败：$reason'));
       addLog(.error, '启动失败：$reason', tag: 'Launch');
+      // 快捷启动的隐藏会话：失败原因要让人看见
+      await LauncherTray.instance.ensureVisibleForPrompt();
       NotificationManager.addNotice(
         icon: Icons.error_outline,
         title: '启动失败',
@@ -645,22 +652,40 @@ class LaunchMindustryTask extends Task {
     updateDisplay();
   }
 
-  /// 快捷方式启动失败 / 被取消时撤掉静默启动的黑幕
+  /// 快捷方式启动失败 / 被取消时把静默启动的界面还回来
   void _restoreShortcutOverlay() {
     if (!ShortcutSession.takeLaunchedFromShortcut()) return;
-    unawaited(ShortcutLaunch.showLauncher());
+    if (Platform.isAndroid) {
+      unawaited(ShortcutLaunch.showLauncher());
+    } else {
+      unawaited(LauncherTray.instance.showMainWindow());
+    }
   }
 
-  /// 快捷方式启动的局退出后：先撤掉静默启动的黑幕，再按设置决定是否直接回桌面
+  /// 快捷方式启动的局退出后：按平台与设置决定去哪
   void _handleShortcutExit() {
     if (!ShortcutSession.takeLaunchedFromShortcut()) return;
-    // 撤掉黑幕：不管回启动器还是回桌面，都要先让界面可见
-    unawaited(ShortcutLaunch.showLauncher());
-    if (config.setting.personalizationOptions.shortcutExitAction !=
-        ShortcutExitAction.backToHome) {
+    final action = config.setting.personalizationOptions.shortcutExitAction;
+    if (Platform.isAndroid) {
+      // 安卓：先撤黑幕，再按设置决定是否直接回桌面
+      unawaited(ShortcutLaunch.showLauncher());
+      if (action == ShortcutExitAction.backToHome) unawaited(_backToHome());
       return;
     }
-    unawaited(_backToHome());
+    // 桌面：直接退出（等云存档传完）或唤起启动器
+    if (action == ShortcutExitAction.backToHome) {
+      unawaited(_quitAfterShortcutLaunch());
+    } else {
+      unawaited(LauncherTray.instance.showMainWindow());
+    }
+  }
+
+  /// 快捷启动的桌面会话：等云存档上传完再退出启动器
+  Future<void> _quitAfterShortcutLaunch() async {
+    // 先让任务收尾和自动上传把请求发出去，再等 pending
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await CloudAutoSync.waitForPending();
+    await LauncherTray.instance.quitApp();
   }
 
   /// 把启动器整个退到后台：露出桌面，进程留着收尾（云存档上传等）
