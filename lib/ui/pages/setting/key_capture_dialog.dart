@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:copper_launcher/data/mindustry/settings/key_code.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
@@ -48,6 +50,11 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
+    // 捕获期间不接输入法：先让它把焦点与输入连接放掉，免得上一个输入框
+    // 的输入法还在拦按键（中文输入法拦下来时只送 Process 键，绑不了）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _detachInputMethod();
+    });
   }
 
   @override
@@ -56,9 +63,22 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
     super.dispose();
   }
 
+  /// 摘掉输入法的输入连接；失败无所谓，桌面端本来也可能没有
+  void _detachInputMethod() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    unawaited(
+      SystemChannels.textInput
+          .invokeMethod<void>('TextInput.hide')
+          .catchError((Object _) {}),
+    );
+  }
+
   bool _handleKey(KeyEvent event) {
     if (_closed) return true;
     if (event is! KeyDownEvent) return false;
+
+    // 输入法处理键（中文输入法拦键时送 Process）不当作要绑的键
+    if (event.logicalKey == LogicalKeyboardKey.process) return true;
 
     final code = mindustryKeyCodeNamed(_arcKeyNames[event.logicalKey] ?? '');
     if (code == null) {
