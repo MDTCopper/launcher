@@ -40,6 +40,10 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
   /// 捕获到还不认识的键时给用户的提示
   String? _message;
 
+  /// 是否已经关掉；退出动画还没走完时页面仍然挂着，
+  /// 这期间再按一个键或再点一次取消不能再 pop 一次（会把底下那页也 pop 掉）
+  bool _closed = false;
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +57,7 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
   }
 
   bool _handleKey(KeyEvent event) {
+    if (_closed) return true;
     if (event is! KeyDownEvent) return false;
 
     final code = mindustryKeyCodeNamed(_arcKeyNames[event.logicalKey] ?? '');
@@ -60,22 +65,24 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
       setState(() => _message = '这个键不能绑定，换一个试试');
       return true;
     }
-    _close(code);
+    _finish(code);
     return true;
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    if (_closed) return;
     if (_isOnCancelButton(event.position)) return;
 
     final code = _arcKeyForButtons(event.buttons);
     if (code == null) return;
-    _close(code);
+    _finish(code);
   }
 
   void _handlePointerSignal(PointerSignalEvent event) {
+    if (_closed) return;
     if (event is! PointerScrollEvent) return;
     final code = mindustryKeyCodeNamed('scroll');
-    if (code != null) _close(code);
+    if (code != null) _finish(code);
   }
 
   /// 点在「取消」按钮上时不捕获；按钮自己处理点击
@@ -102,8 +109,11 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
     return null;
   }
 
-  void _close(MindustryKeyCode code) {
-    if (!mounted) return;
+  /// 关弹窗只走这一个出口：先摘掉键盘处理器、记下已关，再 pop；[code] 为空是取消
+  void _finish(MindustryKeyCode? code) {
+    if (_closed || !mounted) return;
+    _closed = true;
+    HardwareKeyboard.instance.removeHandler(_handleKey);
     Navigator.of(context).pop(code);
   }
 
@@ -194,7 +204,7 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
                         borderRadius: BorderRadius.circular(4),
                         backgroundColor: colors.lowBackgroundOnCard,
                         child: Text('取消'),
-                        onTap: () => Navigator.of(context).pop(),
+                        onTap: () => _finish(null),
                       ),
                     ),
                   ],
