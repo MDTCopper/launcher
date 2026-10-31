@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/desktop_shortcut.dart';
+import 'package:copper_launcher/domain/launch_script.dart';
 import 'package:copper_launcher/domain/local_save_import.dart';
 import 'package:copper_launcher/domain/shortcut_launch.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
@@ -240,60 +241,25 @@ class _AboutState extends State<_About> {
     if (mounted) setState(() {});
   }
 
-  /// 内容对齐 [MindustryLauncher.start]：-Xmx 内存 + 隔离数据目录 +
-  /// jvm 参数 + -jar，平台差异：Windows .bat（UTF-8 + chcp 65001），
-  /// Linux/macOS .sh；保存位置由用户选择
+  /// 生成启动脚本：脚本只把「启动这个版本」投递给启动器，不再自己拼 java 命令
+  ///
+  /// 与桌面快捷方式共用 `--launch-version` 入口，启动参数 / Java / 加载器 / 云存档
+  /// 全部由启动器现有启动链决定
   Future<void> _generateLaunchScript() async {
     final target = await PathSelector.selectDirectory(
       confirmButtonText: '生成脚本到此',
     );
     if (target == null || !mounted) return;
 
-    final launchOptions = config.setting.launchOptions;
-
-    // 内存：单版本设置优先（autoMemory null = 跟随全局）
-    final autoMemory = _mindustry.autoMemory ?? launchOptions.autoMemory;
-    final memoryMb = autoMemory
-        ? null
-        : (_mindustry.memory ?? launchOptions.memory).mb;
-
-    // jvm 参数：单版本优先，缺省用全局
-    final jvmParameter =
-        _mindustry.jvmParameter ?? launchOptions.javaOptions.jvmParameter;
-
-    // 脚本内容与 [MindustryLauncher.start] 对齐：走加载器时是
-    // `-jar <loader> -G <游戏本体> -D <数据目录> --`，否则直接 `-jar <游戏本体>`
-    final loaderPath = _mindustry.isViaLoader
-        ? LoaderLibrary.usablePath(_mindustry.resolvedLauncherPath)
-        : null;
-    if (_mindustry.isViaLoader && loaderPath == null) {
-      addNotice(icon: Icons.close, title: '生成失败', content: '这个版本还没有可用的加载器');
-      return;
-    }
-
-    final args = <String>[
-      if (memoryMb != null) '-Xmx${memoryMb}m' else '-Xmx512m',
-      //走加载器时数据目录由加载器接管，不再塞 -Dmindustry.data.dir
-      if (_mindustry.needsDataDirArg)
-        '-Dmindustry.data.dir=${_mindustry.dataPath}',
-      ...jvmParameter.split(' ').where((arg) => arg.isNotEmpty),
-      '-jar',
-      //脚本里要写可用路径，不能用数据根内的相对记录形态
-      if (_mindustry.isViaLoader) loaderPath! else _mindustry.resolvedJarPath,
-      if (_mindustry.isViaLoader) ...[
-        '-G',
-        _mindustry.resolvedJarPath,
-        '-D',
-        _mindustry.dataPath,
-        '--',
-      ],
-    ];
-
     final isWindows = Platform.isWindows;
-    final fileName = isWindows ? '启动游戏.bat' : '启动游戏.sh';
-    final scriptFile = File(p.join(target, fileName));
-
-    final script = isWindows ? _buildBatScript(args) : _buildShScript(args);
+    final scriptFile = File(
+      p.join(target, LaunchScript.fileName(windows: isWindows)),
+    );
+    final script = LaunchScript.build(
+      windows: isWindows,
+      launcherPath: Platform.resolvedExecutable,
+      versionId: _mindustry.id,
+    );
 
     try {
       await scriptFile.writeAsString(script);
@@ -306,27 +272,6 @@ class _AboutState extends State<_About> {
       addNotice(icon: Icons.close, title: '生成失败', content: '无法写入启动脚本');
       debugPrint('生成启动脚本失败：$e');
     }
-  }
-
-  /// Windows .bat：UTF-8 + chcp 65001（兼容路径中文）+ 引号包裹含空格参数
-  String _buildBatScript(List<String> args) {
-    final argLine = args
-        .map((arg) => arg.contains(' ') ? '"$arg"' : arg)
-        .join(' ');
-    return '''
-@echo off
-chcp 65001 >nul
-java $argLine
-pause
-''';
-  }
-
-  /// Linux / macOS .sh
-  String _buildShScript(List<String> args) {
-    final argLine = args
-        .map((arg) => arg.contains(' ') ? '"$arg"' : arg)
-        .join(' ');
-    return '#!/bin/sh\njava $argLine\n';
   }
 
   /// 给这个版本在桌面建一个「点一下直接进游戏」的快捷方式
