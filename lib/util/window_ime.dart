@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 /// 捕获键位期间临时摘掉窗口的输入法（Windows）
@@ -58,5 +59,12 @@ class WindowIme {
       _pending = null;
     }
     return _detached;
+  }
+
+  /// 清掉静态状态：用例之间共享进程，上一次没走完的摘除会漏到下一次
+  @visibleForTesting
+  static void resetForTesting() {
+    _pending = null;
+    _detached = false;
   }
 }
