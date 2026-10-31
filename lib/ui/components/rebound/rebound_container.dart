@@ -99,6 +99,25 @@ class _ReboundContainer extends State<ReboundContainer>
       });
     };
 
+    _syncTapHandlers();
+  }
+
+  @override
+  void didUpdateWidget(covariant ReboundContainer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // onTap / onLongTap 可能从 null 变成有值（禁用 → 可用），
+    // 手势回调只在 initState 装一次的话按钮会一直点不动
+    _syncTapHandlers();
+  }
+
+  /// 按当前 [ReboundContainer.onTap] / [ReboundContainer.onLongTap] 装手势回调；
+  /// 为 null 时清掉，让 InkWell 不注册对应手势
+  void _syncTapHandlers() {
+    onTapDown = null;
+    onTapUp = null;
+    onTapCancel = null;
+    onLongTap = null;
+
     // 按压
     if (widget.onTap != null) {
       onTapDown = (_) {
