@@ -1144,10 +1144,8 @@ class CloudSaveService {
     final paths = <String, String>{};
     final hashes = <String, String>{};
     for (final file in manifest.includedFiles) {
-      final path = CloudCategory.entryNameOf(file.category, file.name);
-      final local = file.category.folder.isEmpty
-          ? p.join(dataPath, file.name)
-          : p.join(dataPath, file.category.folder, file.name);
+      final path = file.entryPath;
+      final local = p.join(dataPath, path);
       files.add(
         CloudSaveManifestFile(
           path: path,
@@ -1615,8 +1613,14 @@ class CloudSaveService {
 
   static bool _isCampaignCriticalPath(String path) {
     final normalized = p.posix.normalize(path);
-    if (normalized == 'settings.bin') return true;
-    return normalized.startsWith('saves/sector-');
+    final name = p.posix.basename(normalized).toLowerCase();
+    if (name == 'settings.bin') return true;
+    final lower = normalized.toLowerCase();
+    final inSaves =
+        lower == 'saves' ||
+        lower.startsWith('saves/') ||
+        lower.contains('/saves/');
+    return inSaves && name.startsWith('sector-');
   }
 
   static String _safeManifestDestination(String dataPath, String relative) {
@@ -1631,7 +1635,7 @@ class CloudSaveService {
         normalized.contains('/../')) {
       throw const MdtbbsException(message: '云端清单里有非法路径');
     }
-    final destination = p.join(dataPath, normalized);
+    final destination = p.joinAll([dataPath, ...p.posix.split(normalized)]);
     if (!p.isWithin(p.normalize(dataPath), p.normalize(destination))) {
       throw const MdtbbsException(message: '云端清单里有非法路径');
     }
@@ -1646,30 +1650,21 @@ class CloudSaveService {
       if (path.startsWith('mods/') || path.startsWith('copper/mods/')) {
         continue;
       }
-      final (category, name) = switch (path) {
-        'settings.bin' => (CloudCategory.settings, 'settings.bin'),
-        _ when path.startsWith('saves/') => (
-          CloudCategory.save,
-          path.substring('saves/'.length),
-        ),
-        _ when path.startsWith('maps/') => (
-          CloudCategory.map,
-          path.substring('maps/'.length),
-        ),
-        _ when path.startsWith('schematics/') => (
-          CloudCategory.schematic,
-          path.substring('schematics/'.length),
-        ),
-        _ when path.startsWith('previews/') => (
-          CloudCategory.preview,
-          path.substring('previews/'.length),
-        ),
-        _ => (CloudCategory.save, path),
-      };
+      final lower = path.toLowerCase();
+      final category = lower.endsWith('/settings.bin') || lower == 'settings.bin'
+          ? CloudCategory.settings
+          : lower.startsWith('saves/') || lower.contains('/saves/')
+          ? CloudCategory.save
+          : lower.startsWith('maps/') || lower.contains('/maps/')
+          ? CloudCategory.map
+          : lower.startsWith('schematics/') || lower.contains('/schematics/')
+          ? CloudCategory.schematic
+          : CloudCategory.preview;
       files.add(
         CloudFileEntry(
           category: category,
-          name: name,
+          name: p.posix.basename(path),
+          relativePath: path,
           size: file.size,
           sha256: file.sha256,
         ),

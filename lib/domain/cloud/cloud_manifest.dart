@@ -176,6 +176,7 @@ class CloudFileEntry {
     required this.name,
     required this.size,
     required this.sha256,
+    this.relativePath,
     this.meta,
     this.included = true,
   });
@@ -183,9 +184,20 @@ class CloudFileEntry {
   final CloudCategory category;
 
   /// 文件名（含扩展名）—— 游戏侧就是拿名字当身份，没有 UUID
+  ///
+  /// 普通文件是分类目录内的相对路径（递归后可能是 `sectors/0.msav`）；
+  /// 嵌套数据根（如 `finalCampaign/`）用 [relativePath] 覆盖完整路径
   final String name;
+
+  /// 数据目录内的完整相对路径；为 null 时等价于 `分类目录/name`
+  final String? relativePath;
+
   final int size;
   final String sha256;
+
+  /// 包内 / 数据目录内的实际相对路径
+  String get entryPath =>
+      relativePath ?? CloudCategory.entryNameOf(category, name);
 
   /// 能解析出来的元数据（存档/地图给 `MapSave.fromJson`，蓝图尽力而为）
   final Map<String, dynamic>? meta;
@@ -214,6 +226,7 @@ class CloudFileEntry {
   Map<String, dynamic> toJson() => {
     'category': category.name,
     'name': name,
+    if (relativePath != null) 'relativePath': relativePath,
     'size': size,
     'sha256': sha256,
     if (meta != null) 'meta': meta,
@@ -226,6 +239,7 @@ class CloudFileEntry {
       orElse: () => CloudCategory.save,
     ),
     name: '${json['name'] ?? ''}',
+    relativePath: json['relativePath'] as String?,
     size: json['size'] is int ? json['size'] as int : 0,
     sha256: '${json['sha256'] ?? ''}',
     meta: (json['meta'] as Map?)?.cast<String, dynamic>(),
@@ -367,7 +381,7 @@ class CloudManifest {
   /// 整包 sha256），所以这份投影只跟**本机自己记的上次同步**比
   Map<String, String> get fileHashes => {
     for (final file in includedFiles)
-      CloudCategory.entryNameOf(file.category, file.name): file.sha256,
+      file.entryPath: file.sha256,
     for (final mod in mods)
       '${mod.isCopper ? 'copper/mods' : 'mods'}/${mod.fileName}': mod.sha256,
   };
@@ -471,6 +485,16 @@ class CloudManifest {
       );
     }
 
+    // 嵌套数据根：旧模组（如 finalCampaign/）会自己再建一套 saves/settings。
+    // 只认「有 saves/ 或 settings.bin」的一层子目录，避免把缓存目录扫进来。
+    files.addAll(
+      await _scanNestedDataRoots(
+        dataPath: dataPath,
+        includePreviews: includePreviews,
+        cache: cache,
+      ),
+    );
+
     final mods = <CloudModEntry>[];
     for (final isCopper in [false, true]) {
       mods.addAll(
@@ -510,11 +534,13 @@ class CloudManifest {
     if (!folder.existsSync()) return const [];
 
     final entries = <CloudFileEntry>[];
-    for (final entity in folder.listSync()) {
+    // 递归：战役 / mod 可能在 saves/ 下再建子目录；相对路径要原样保留
+    for (final entity in folder.listSync(recursive: true)) {
       if (entity is! File) continue;
-      final name = p.basename(entity.path);
+      final relative = p.relative(entity.path, from: directory);
+      final name = p.posix.joinAll(p.split(relative));
       // 游戏自己生成的「上一代」备份不算第二份存档（它自己也从列表里跳过）
-      if (name.contains('backup')) continue;
+      if (p.posix.basename(name).contains('backup')) continue;
 
       Map<String, dynamic>? meta;
       try {
@@ -533,6 +559,83 @@ class CloudManifest {
           meta: meta,
         ),
       );
+    }
+    return entries;
+  }
+
+  /// 扫数据根下嵌套的数据目录（`finalCampaign/saves/...` 这类旧模组遗留）
+  ///
+  /// 只认一层：子目录里有 `saves/` 或 `settings.bin` 才当数据根；
+  /// `mods/` / `cache/` / `tmp/` 等明确跳开，避免把运行时缓存打进去。
+  static Future<List<CloudFileEntry>> _scanNestedDataRoots({
+    required String dataPath,
+    required bool includePreviews,
+    CloudHashCache? cache,
+  }) async {
+    final root = Directory(dataPath);
+    if (!root.existsSync()) return const [];
+    const reserved = {
+      'saves',
+      'maps',
+      'schematics',
+      'previews',
+      'mods',
+      'copper',
+      'tmp',
+      'cache',
+      'crashes',
+      'logs',
+    };
+    final entries = <CloudFileEntry>[];
+    for (final entity in root.listSync()) {
+      if (entity is! Directory) continue;
+      final base = p.basename(entity.path);
+      if (base.startsWith('.') || reserved.contains(base.toLowerCase())) {
+        continue;
+      }
+      final hasSaves = Directory(p.join(entity.path, 'saves')).existsSync();
+      final hasSettings = File(p.join(entity.path, 'settings.bin')).existsSync();
+      if (!hasSaves && !hasSettings) continue;
+
+      for (final category in CloudCategory.values) {
+        if (category == CloudCategory.settings) continue;
+        if (category == CloudCategory.preview && !includePreviews) continue;
+        final scanned = await _scanFolder(
+          directory: p.join(entity.path, category.folder),
+          category: category,
+          cache: cache,
+        );
+        for (final file in scanned) {
+          entries.add(
+            CloudFileEntry(
+              category: file.category,
+              name: file.name,
+              relativePath: p.posix.join(
+                base,
+                category.folder,
+                file.name,
+              ),
+              size: file.size,
+              sha256: file.sha256,
+              meta: file.meta,
+            ),
+          );
+        }
+      }
+      final settingsFile = File(p.join(entity.path, 'settings.bin'));
+      if (settingsFile.existsSync()) {
+        entries.add(
+          CloudFileEntry(
+            category: CloudCategory.settings,
+            name: 'settings.bin',
+            relativePath: p.posix.join(base, 'settings.bin'),
+            size: settingsFile.lengthSync(),
+            sha256:
+                cache?.hashOf(settingsFile.path) ??
+                sha256OfFile(settingsFile.path),
+          ),
+        );
+      }
     }
     return entries;
   }

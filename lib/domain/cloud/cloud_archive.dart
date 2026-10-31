@@ -94,19 +94,17 @@ class CloudArchive {
     );
 
     for (final entry in manifest.includedFiles) {
-      onStatus?.call('打包 ${entry.name}');
-      final source = File(p.join(dataPath, entry.category.folder, entry.name));
+      onStatus?.call('打包 ${entry.entryPath}');
+      final source = File(p.join(dataPath, entry.entryPath));
       final bytes = source.existsSync() ? source.readAsBytesSync() : null;
       if (bytes == null || sha256OfBytes(bytes) != entry.sha256) {
         entry.included = false;
-        dropped.add(CloudCategory.entryNameOf(entry.category, entry.name));
+        dropped.add(entry.entryPath);
         continue;
       }
       archive.add(
-        ArchiveFile.bytes(
-          CloudCategory.entryNameOf(entry.category, entry.name),
-          bytes,
-        )..compression = CompressionType.none,
+        ArchiveFile.bytes(entry.entryPath, bytes)
+          ..compression = CompressionType.none,
       );
     }
 
@@ -143,7 +141,9 @@ class CloudArchive {
       manifest: manifest,
       path: outputPath,
       bytes: zipBytes.length,
-      includedFiles: manifest.includedFiles.map((file) => file.name).toList(),
+      includedFiles: manifest.includedFiles
+          .map((file) => file.entryPath)
+          .toList(),
       includedModBytes: manifest.includedModBytes
           .map((mod) => mod.fileName)
           .toList(),
@@ -289,20 +289,17 @@ class CloudArchiveReader {
     // 清单点名的路径 → 该落哪儿、该是什么哈希
     final planned = <String, _PlannedFile>{};
     for (final entry in manifest.includedFiles) {
-      final name = _safeName(entry.name);
+      final name = _safeEntryName(entry.entryPath);
       if (name == null) {
         report.rejected.add(
-          CloudRejection(
-            CloudCategory.entryNameOf(entry.category, entry.name),
-            '名字不合法',
-          ),
+          CloudRejection(entry.entryPath, '名字不合法'),
         );
         continue;
       }
-      planned[CloudCategory.entryNameOf(entry.category, name)] = _PlannedFile(
+      planned[name] = _PlannedFile(
         sha256: entry.sha256,
-        destination: p.join(dataPath, entry.category.folder, name),
-        campaignCritical: _isCampaignCritical(entry.category, name),
+        destination: p.joinAll([dataPath, ...p.posix.split(name)]),
+        campaignCritical: _isCampaignCriticalPath(name),
       );
     }
     for (final mod in carriedMods) {
@@ -593,10 +590,15 @@ class _PlannedFile {
 }
 
 /// settings.bin 装 SectorInfo / 解锁，sector-*.msav 是区块本体
-bool _isCampaignCritical(CloudCategory category, String name) {
-  if (category == CloudCategory.settings) return true;
-  if (category != CloudCategory.save) return false;
-  return name.toLowerCase().startsWith('sector-');
+bool _isCampaignCriticalPath(String path) {
+  final normalized = p.posix.normalize(path);
+  final name = p.posix.basename(normalized).toLowerCase();
+  if (name == 'settings.bin') return true;
+  final inSaves =
+      normalized.toLowerCase() == 'saves' ||
+      normalized.toLowerCase().startsWith('saves/') ||
+      normalized.toLowerCase().contains('/saves/');
+  return inSaves && name.startsWith('sector-');
 }
 
 /// 覆盖前把本机那份复制到 [backupDir]；没给目录 / 文件不存在时返回 null
