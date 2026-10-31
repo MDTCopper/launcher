@@ -44,7 +44,7 @@ open class MainActivity : FlutterActivity() {    private val shareIntentHandler 
     override fun onCreate(savedInstanceState: Bundle?) {
         // 静默启动：在 super 之前换深色主题并把窗口压透明，别让人看到启动器界面或白屏
         val silentRequest = intent?.action == GameShortcut.ACTION_LAUNCH_GAME &&
-            intent.getBooleanExtra(GameShortcut.EXTRA_SILENT, false)
+            intent.getBooleanExtra(GameShortcut.EXTRA_SILENT, true)
         if (silentRequest) {
             setTheme(R.style.SilentLaunchTheme)
             window.attributes = window.attributes.apply { alpha = 0f }
@@ -140,7 +140,8 @@ open class MainActivity : FlutterActivity() {    private val shareIntentHandler 
     private fun captureLaunchRequest(intent: Intent?): Boolean {
         if (intent?.action != GameShortcut.ACTION_LAUNCH_GAME) return false
         pendingLaunchVersionId = intent.getStringExtra(GameShortcut.EXTRA_VERSION_ID)
-        silentLaunch = intent.getBooleanExtra(GameShortcut.EXTRA_SILENT, false)
+        // 老快捷方式的 intent 里没有 silent 标记，但 LAUNCH_GAME 只可能是快捷方式/小组件来的，默认就当静默
+        silentLaunch = intent.getBooleanExtra(GameShortcut.EXTRA_SILENT, true)
         if (silentLaunch) setSilentWindow(true)
         Log.i(TAG, "收到快捷方式启动请求：$pendingLaunchVersionId 静默=$silentLaunch")
         hostChannel?.invokeMethod("launchRequestAvailable", null)
