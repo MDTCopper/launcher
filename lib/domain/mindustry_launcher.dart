@@ -24,6 +24,9 @@ import '../ui/util/notification.dart';
 
 class MindustryLauncher {
   Process? _jarProcess;
+
+  /// 正在跑的游戏进程 pid；没在跑为 null
+  int? get processId => _jarProcess?.pid;
   StreamController<String>? _logController;
   Stream<String>? get logStream => _logController?.stream;
 

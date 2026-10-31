@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/game_instance.dart';
@@ -362,6 +363,8 @@ class LauncherTray extends TrayListener with WindowListener {
   /// 已经可见时不打扰；隐藏时走 [showMainWindow]（会恢复托盘设置）
   Future<void> ensureVisibleForPrompt() async {
     if (!isDesktop) return;
+    // 无界面服务：窗口不存在，交给 CloudServiceProcess 拉起 UI
+    if (AppRuntime.headless) return;
     if (await windowManager.isVisible()) return;
     await showMainWindow();
   }

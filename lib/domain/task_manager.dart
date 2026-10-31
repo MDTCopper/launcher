@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/foundation.dart';
@@ -65,7 +66,8 @@ class TaskManager {
   void _emit() {
     _totalProgress.value = _computeTotalProcessProgress();
     _taskStreamController.add(List.from(_tasks.values));
-    if (Platform.isWindows) setProgressBar();
+    // 无界面服务进程没有窗口，不碰任务栏进度
+    if (!AppRuntime.headless && Platform.isWindows) setProgressBar();
   }
 
   double? _computeTotalProcessProgress() {

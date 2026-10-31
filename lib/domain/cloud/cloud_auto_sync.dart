@@ -46,10 +46,11 @@ class CloudAutoSync {
   /// 返回 **false = 这次别启动**（冲突没选 / 同步超时后选了取消）；出错一律返回 true
   /// （不拦启动）。覆盖前自备份由 [CloudSaveService.restore] 负责（备份做不出来会中止）
   ///
-  /// [onNeedsUi] 在弹冲突 / 超时窗口前调用：快捷启动的隐藏窗口会话靠它把界面叫出来
+  /// [onNeedsUi] 在弹冲突 / 超时窗口前调用：快捷启动的隐藏窗口会话靠它把界面叫出来；
+  /// 返回值 **false = 当前进程弹不了界面**（无界面服务），冲突直接交回 UI
   static Future<bool> beforeLaunch(
     Mindustry version, {
-    Future<void> Function()? onNeedsUi,
+    Future<bool> Function()? onNeedsUi,
   }) async {
     try {
       if (!CloudSaveService.isEnabled(version)) return true;
@@ -70,7 +71,12 @@ class CloudAutoSync {
           '云存档检查超时（${syncTimeout.inSeconds} 秒），问玩家要不要直接启动',
           tag: 'Cloud',
         );
-        await onNeedsUi?.call();
+        final handled = await onNeedsUi?.call() ?? true;
+        if (!handled) {
+          // 无界面服务：超时按设计跳过同步直接启动，不弹窗
+          addLog(.warning, '无界面服务：云存档检查超时，跳过同步直接启动', tag: 'Cloud');
+          return true;
+        }
         return await showCloudSyncTimeoutPrompt(versionTag: version.tag);
       }
       final slotId = outcome.slotId;
@@ -95,7 +101,12 @@ class CloudAutoSync {
           return true;
         case CloudSyncStatus.conflicted:
           //两边都改过：让玩家自己选；没选就**不启动**
-          await onNeedsUi?.call();
+          final handled = await onNeedsUi?.call() ?? true;
+          if (!handled) {
+            // 无界面服务：冲突必须由人处理，交回 UI 再启动
+            addLog(.info, '无界面服务：云存档冲突，交回界面处理', tag: 'Cloud');
+            return false;
+          }
           final choice = await showCloudConflictPrompt(
             outcome: outcome,
             versionTag: version.tag,

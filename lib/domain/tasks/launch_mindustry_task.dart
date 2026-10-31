@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/be_version.dart';
 import 'package:copper_launcher/domain/bridge_launcher.dart';
@@ -53,6 +54,13 @@ class LaunchMindustryTask extends Task {
   bool _exitHandled = false;
   bool _finished = false;
   bool _cancelled = false;
+
+  /// 本次游玩时长；无界面服务用它写会话，不写 config
+  Duration? _playedDuration;
+  Duration? get playedDuration => _playedDuration;
+
+  /// 正在跑的游戏进程 pid（服务进程用它写会话）
+  int? get gamePid => launcher.processId;
 
   /// 桥侧「取消启动」收尾；和手动结束进程区分开
   bool _launchCanceled = false;
@@ -190,6 +198,12 @@ class LaunchMindustryTask extends Task {
       _restoreShortcutOverlay();
       addTaskLog(LogEntry(LogType.error, '启动失败：${removeNewlines('$e')}'));
       addLog(.error, '启动失败：${removeNewlines('$e')}', tag: 'Launch');
+      if (AppRuntime.headless) {
+        AppRuntime.markNeedsUi('launch_error');
+        status = TaskStatus.failed;
+        updateDisplay();
+        return;
+      }
       NotificationManager.addNotice(
         icon: Icons.error_outline,
         title: '启动失败',
@@ -361,6 +375,13 @@ class LaunchMindustryTask extends Task {
       if (javaPath == null) {
         addTaskLog(LogEntry(LogType.error, '未找到可用 Java：无法启动'));
         addLog(.error, '未找到可用 Java：无法启动', tag: 'Launch');
+        if (AppRuntime.headless) {
+          // 无界面服务：交给 UI 处理，自己收尾
+          AppRuntime.markNeedsUi('java');
+          status = TaskStatus.failed;
+          updateDisplay();
+          return;
+        }
         // 快捷启动时窗口是隐藏的，先把界面叫出来再弹提示
         await LauncherTray.instance.ensureVisibleForPrompt();
         showJavaMissingPrompt(releaseInt: releaseInt);
@@ -378,8 +399,22 @@ class LaunchMindustryTask extends Task {
     // 云存档：启动前按需把云端那份拉下来；**冲突要玩家选，没选就不启动**
     if (!await CloudAutoSync.beforeLaunch(
       mindustry,
-      onNeedsUi: LauncherTray.instance.ensureVisibleForPrompt,
+      onNeedsUi: AppRuntime.headless
+          ? () async => false
+          : () async {
+              await LauncherTray.instance.ensureVisibleForPrompt();
+              return true;
+            },
     )) {
+      if (AppRuntime.headless) {
+        // 无界面服务弹不了冲突窗：标成需要 UI，任务收尾后服务拉起界面
+        AppRuntime.markNeedsUi('cloud');
+        addTaskLog(LogEntry(LogType.info, '云存档冲突需要界面处理，交给启动器'));
+        addLog(.info, '无界面服务：云存档冲突需要界面处理 [${mindustry.tag}]', tag: 'Cloud');
+        status = TaskStatus.cancel;
+        updateDisplay();
+        return;
+      }
       addTaskLog(LogEntry(LogType.info, '云存档冲突没处理，已停止启动'));
       addLog(.info, '云存档冲突没处理，停止启动 [${mindustry.tag}]', tag: 'Cloud');
       status = TaskStatus.cancel;
@@ -457,6 +492,12 @@ class LaunchMindustryTask extends Task {
       final suggestion = isLoaderMissing ? '到版本设置的模组加载器处补齐' : '详见运行日志';
       addTaskLog(LogEntry(LogType.error, '启动失败：$reason'));
       addLog(.error, '启动失败：$reason', tag: 'Launch');
+      if (AppRuntime.headless) {
+        AppRuntime.markNeedsUi('launch_failed');
+        status = TaskStatus.failed;
+        updateDisplay();
+        return;
+      }
       // 快捷启动的隐藏会话：失败原因要让人看见
       await LauncherTray.instance.ensureVisibleForPrompt();
       NotificationManager.addNotice(
@@ -608,23 +649,30 @@ class LaunchMindustryTask extends Task {
     if (_finished) return;
     _finished = true;
 
-    // 回写最近启动时间与累计游玩时长
+    // 回写最近启动时间与累计游玩时长（无界面服务不写 config，由会话记录交给 UI 导入）
     final launchStart = _launchStartTime;
     if (launchStart != null) {
       final now = DateTime.now();
-      mindustry.lastLaunchTime = now;
       final duration = now.difference(launchStart);
-      mindustry.playTime = (mindustry.playTime ?? Duration.zero) + duration;
+      _playedDuration = duration;
+      if (!AppRuntime.headless) {
+        mindustry.lastLaunchTime = now;
+        mindustry.playTime = (mindustry.playTime ?? Duration.zero) + duration;
+        // 退出回调非异步上下文，fire-and-forget 保存
+        config.save();
+      }
       _launchStartTime = null;
-      // 退出回调非异步上下文，fire-and-forget 保存
-      config.save();
     }
     //托盘模式下按恢复窗口选项决定是否弹出主窗口
-    LauncherTray.instance.showIfRestoreOnExit();
+    if (!AppRuntime.headless) {
+      LauncherTray.instance.showIfRestoreOnExit();
+    }
     // 云存档：游戏退出后自动上传（只对启用了云存档的目录；失败只提示）
     unawaited(CloudAutoSync.afterGameExit(mindustry));
     // 快捷方式启动的局：撤黑幕；按设置决定退出后直接回桌面
-    _handleShortcutExit();
+    if (!AppRuntime.headless) {
+      _handleShortcutExit();
+    }
     if (exitLog.contains('0')) {
       NotificationManager.addNotice(
         icon: Icons.info_outline,
@@ -654,6 +702,7 @@ class LaunchMindustryTask extends Task {
 
   /// 快捷方式启动失败 / 被取消时把静默启动的界面还回来
   void _restoreShortcutOverlay() {
+    if (AppRuntime.headless) return;
     if (!ShortcutSession.takeLaunchedFromShortcut()) return;
     if (Platform.isAndroid) {
       unawaited(ShortcutLaunch.showLauncher());

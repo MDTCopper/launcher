@@ -9,14 +9,26 @@ import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:flutter/material.dart' show Icons;
 
+/// 一条待启动的请求
+class QuickLaunchItem {
+  QuickLaunchItem(this.versionId, {required this.markShortcut});
+
+  final String versionId;
+
+  /// true = 真正的快捷启动（退出时按「直接退出 / 唤起启动器」处理）
+  ///
+  /// 服务被阻塞后拉起的 UI 不算：这局结束后 UI 留在界面上
+  final bool markShortcut;
+}
+
 /// 桌面端快捷启动：等界面就绪后按版本 id 交给现有启动任务
 ///
-/// 冷启动（进程带 `--launch-version`）与转发（单实例 metadata）都走这里；
+/// 冷启动（进程带 `--resume-launch`）、UI 在线转发、服务委托的请求都走这里；
 /// 窗口是否可见由启动参数决定，这里只负责启动，不碰窗口。
 class QuickLaunch {
   QuickLaunch._();
 
-  static final List<String> _pendingVersionIds = [];
+  static final List<QuickLaunchItem> _pending = [];
   static Future<bool> Function()? _waitForShell;
   static bool _started = false;
   static bool _handling = false;
@@ -28,17 +40,27 @@ class QuickLaunch {
   static Future<void> start({
     LaunchRequest? request,
     Future<bool> Function()? waitForShell,
+    bool markShortcut = true,
   }) async {
     if (_started) return;
     _started = true;
     _waitForShell = waitForShell;
-    if (request != null) _pendingVersionIds.add(request.versionId);
+    if (request != null) {
+      _pending.add(
+        QuickLaunchItem(request.versionId, markShortcut: markShortcut),
+      );
+    }
     await _drain();
   }
 
-  /// 已运行实例收到快捷启动通知时入队
-  static void enqueue(LaunchRequest request) {
-    _pendingVersionIds.add(request.versionId);
+  /// 已运行实例收到快捷启动通知 / UI 读到 pending 文件时入队
+  static void enqueue(LaunchRequest request, {bool markShortcut = true}) {
+    _pending.add(QuickLaunchItem(request.versionId, markShortcut: markShortcut));
+    if (_started) unawaited(_drain());
+  }
+
+  static void enqueueVersion(String versionId, {bool markShortcut = true}) {
+    _pending.add(QuickLaunchItem(versionId, markShortcut: markShortcut));
     if (_started) unawaited(_drain());
   }
 
@@ -46,25 +68,29 @@ class QuickLaunch {
     if (_handling) return;
     _handling = true;
     try {
-      while (_pendingVersionIds.isNotEmpty) {
-        final versionId = _pendingVersionIds.removeAt(0);
-        await _launch(versionId);
+      while (_pending.isNotEmpty) {
+        final item = _pending.removeAt(0);
+        await _launch(item);
       }
     } finally {
       _handling = false;
     }
   }
 
-  static Future<void> _launch(String versionId) async {
+  static Future<void> _launch(QuickLaunchItem item) async {
     final shellReady = await _waitForShell?.call() ?? true;
     if (!shellReady) {
-      addLog(.warning, '快捷启动：界面没起来，忽略这次请求 [$versionId]', tag: 'QuickLaunch');
+      addLog(
+        .warning,
+        '快捷启动：界面没起来，忽略这次请求 [${item.versionId}]',
+        tag: 'QuickLaunch',
+      );
       return;
     }
 
-    final version = config.versionOptions.findVersionById(versionId);
+    final version = config.versionOptions.findVersionById(item.versionId);
     if (version == null) {
-      addLog(.warning, '快捷启动：找不到版本 $versionId', tag: 'QuickLaunch');
+      addLog(.warning, '快捷启动：找不到版本 ${item.versionId}', tag: 'QuickLaunch');
       await LauncherTray.instance.showMainWindow();
       addNotice(
         icon: Icons.error_outline,
@@ -82,7 +108,7 @@ class QuickLaunch {
       await GameInstance.launch(version);
       return;
     }
-    ShortcutSession.markLaunchedFromShortcut();
+    if (item.markShortcut) ShortcutSession.markLaunchedFromShortcut();
     await GameInstance.launch(version);
   }
 }

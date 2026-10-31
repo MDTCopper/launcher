@@ -106,4 +106,6 @@ web/
 version_icons/
 # 桌面快捷方式用的 .ico（由版本图标转出，按版本 id 缓存）
 shortcut_icons/
+# 云存档后台服务的运行期数据：service.json / sessions / pending / requests
+cloud-service/
 

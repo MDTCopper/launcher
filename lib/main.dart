@@ -2,7 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/cloud_service_process.dart';
+import 'package:copper_launcher/domain/game_session.dart';
+import 'package:copper_launcher/domain/launch_args.dart';
 import 'package:copper_launcher/domain/launch_request.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_presence_service.dart';
@@ -32,8 +36,67 @@ import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  final launchRequest = LaunchRequest.fromArguments(args);
-  await _initialize(launchRequest);
+  final cli = LaunchArgs.parse(args);
+  // 服务 / 快捷启动触发进程不建 UI：先置位，核心初始化里就不会去弹通知 / 碰窗口
+  AppRuntime.headless = cli.service || cli.isQuickLaunch;
+
+  // 基础层：路径 / 日志 / 配置 / 网络，服务与 UI 共用
+  await _initializeCore();
+
+  // 快捷启动触发：UI 在线就把请求交给 UI，否则本进程直接进无界面服务
+  if (cli.isQuickLaunch) {
+    if (await GameSessionStore.isUiRunning()) {
+      addLogAndPrint(
+        .info,
+        '快捷启动：UI 在线，请求交给界面后退出（${cli.launchVersionId}）',
+        tag: 'Startup',
+      );
+      await GameSessionStore.writePending(
+        versionId: cli.launchVersionId!,
+        reason: 'ui_online',
+      );
+      await _quitProcess();
+      return;
+    }
+    // 服务已在跑（上一局游戏还没退 / 服务刚起来）：请求交给服务，别自己再起一局
+    if (await GameSessionStore.isServiceRunning()) {
+      addLogAndPrint(
+        .info,
+        '快捷启动：云服务在线，请求交给服务后退出（${cli.launchVersionId}）',
+        tag: 'Startup',
+      );
+      await GameSessionStore.writeRequest(
+        versionId: cli.launchVersionId!,
+        reason: 'ui_offline',
+      );
+      await _quitProcess();
+      return;
+    }
+    addLog(.info, '快捷启动：没有 UI / 服务，本进程进入云服务模式', tag: 'Startup');
+    await CloudServiceProcess.start(launchVersionId: cli.launchVersionId);
+    return;
+  }
+
+  // 显式服务模式（UI 二次启动发现 / 接管 / 补上传）
+  if (cli.service) {
+    addLog(.info, '云服务：命令行要求进入服务模式', tag: 'Startup');
+    await CloudServiceProcess.start(
+      launchVersionId: cli.launchVersionId,
+      adoptAll: cli.adoptAll,
+      recover: cli.recover,
+    );
+    return;
+  }
+
+  // 普通 UI 启动 / 服务委托的 --resume-launch
+  AppRuntime.headless = false;
+  final launchRequest = cli.uiVersionId == null
+      ? null
+      : LaunchRequest(cli.uiVersionId!);
+  final fromService = cli.resumeVersionId != null;
+  if (!await _initSingleInctance(launchRequest)) return;
+
+  await _initializeUi(launchRequest, fromService: fromService);
   try {
     await precacheStartupItem(config.setting.personalizationOptions.themeColor);
   } catch (_) {
@@ -42,11 +105,9 @@ void main(List<String> args) async {
   runCopperLauncher();
 }
 
-///必要的基础初始化完成后即进入 app
-Future<void> _initialize(LaunchRequest? launchRequest) async {
+/// 路径 / 日志 / 配置 / 网络：所有角色都要，服务模式也走这里
+Future<void> _initializeCore() async {
   _checkPlatform();
-  // 快捷启动：Windows 上先不显示主窗口（runner 侧按参数跳过首帧显示）
-  final quietWindow = Platform.isWindows && launchRequest != null;
   await AppPaths.init();
   await Log.init();
   if (AppPaths.isUsingFallbackDataPath) {
@@ -62,15 +123,12 @@ Future<void> _initialize(LaunchRequest? launchRequest) async {
   addLog(.info, '数据根目录：${AppPaths.copperLauncher}', tag: 'Startup');
   addLog(.info, '游戏默认数据目录：${AppPaths.defaultGameData}', tag: 'Startup');
 
-  final multipleStartup = !await _initSingleInctance(launchRequest);
-  if (multipleStartup) return;
-
   // 数据根从应用内部搬进外部专属目录（Android）：搬完才读配置，否则会读到空根上的默认值
   final migration = await DataRootMigration.runIfNeeded();
   final migrationSummary = migration?.describe();
   if (migrationSummary != null) {
     addLogAndPrint(.info, '数据根迁移：$migrationSummary', tag: 'Startup');
-    if (migration!.failed.isNotEmpty) {
+    if (migration!.failed.isNotEmpty && !AppRuntime.headless) {
       addNotice(
         icon: Icons.warning_amber_outlined,
         title: '旧数据没搬完',
@@ -92,9 +150,16 @@ Future<void> _initialize(LaunchRequest? launchRequest) async {
     'GitHub token：${config.setting.githubToken.isEmpty ? '未设置' : '已设置'}',
     tag: 'Startup',
   );
-  await _initPlatformView(quiet: quietWindow);
+}
+
+///必要的基础初始化完成后即进入 app
+Future<void> _initializeUi(
+  LaunchRequest? launchRequest, {
+  required bool fromService,
+}) async {
+  await _initPlatformView(quiet: false);
   //窗口就绪后应用托盘模式（依赖 config + windowManager）
-  await LauncherTray.instance.applyMode(quiet: quietWindow);
+  await LauncherTray.instance.applyMode();
   //后台初始化任务，不阻塞，进任务抽屉自跑
   addTask(StartupBackgroundTask());
   //在线状态：已登录就建连接，好友列表靠它判断「在线」
@@ -119,11 +184,46 @@ Future<void> _initialize(LaunchRequest? launchRequest) async {
     ),
   );
 
-  //桌面端快捷启动：冷启动参数与单实例转发的请求都交给现有启动任务
+  // UI 在线标记：快捷启动触发进程靠它决定「交给 UI」还是「自己进服务」
+  await GameSessionStore.writeUiPid();
+
+  //桌面端快捷启动：服务委托 / 正常启动都走这一个队列
+  unawaited(QuickLaunch.start(waitForShell: _waitForShell));
+  if (fromService) {
+    // 服务已经写过 pending：以文件为准，避免同一个请求启动两次
+    final tickets = await GameSessionStore.takePending();
+    for (final ticket in tickets) {
+      addLog(.info, '收到界面委托的启动请求 [${ticket.versionId}]（${ticket.reason}）', tag: 'QuickLaunch');
+      QuickLaunch.enqueueVersion(ticket.versionId, markShortcut: false);
+    }
+    if (tickets.isEmpty && launchRequest != null) {
+      QuickLaunch.enqueueVersion(
+        launchRequest.versionId,
+        markShortcut: false,
+      );
+    }
+  } else if (launchRequest != null) {
+    QuickLaunch.enqueue(launchRequest);
+  }
+
+  // UI 一直在线时，服务 / 触发进程把请求写进 pending，这里轮询接
   if (!Platform.isAndroid) {
-    unawaited(
-      QuickLaunch.start(request: launchRequest, waitForShell: _waitForShell),
+    Timer.periodic(const Duration(milliseconds: 700), (_) {
+      unawaited(_pollPending());
+    });
+  }
+}
+
+/// 读取服务 / 触发进程留给 UI 的启动请求
+Future<void> _pollPending() async {
+  final tickets = await GameSessionStore.takePending();
+  for (final ticket in tickets) {
+    addLog(
+      .info,
+      '快捷启动：界面收到待启动请求 [${ticket.versionId}]（${ticket.reason}）',
+      tag: 'QuickLaunch',
     );
+    QuickLaunch.enqueueVersion(ticket.versionId, markShortcut: false);
   }
 }
 
@@ -186,6 +286,7 @@ void _checkPlatform() {
 }
 
 Future<bool> _initSingleInctance(LaunchRequest? launchRequest) async {
+  if (AppRuntime.headless) return true;
   // 单实例：该包在 Windows / Linux / macOS 都能判定
   if (!await FlutterSingleInstance().isFirstInstance()) {
     addLogAndPrint(
@@ -209,8 +310,7 @@ Future<bool> _initSingleInctance(LaunchRequest? launchRequest) async {
     }
     // 留一点时间让上面的日志落盘
     await Future.delayed(const Duration(milliseconds: 200));
-    // 用结束进程而不是 exit(0)：Flutter 引擎里 exit(0) 之后进程会挂着不退
-    if (!Process.killPid(pid)) exit(0);
+    await _quitProcess();
     return false;
   }
   // 第二个实例发来的请求：快捷启动交给 QuickLaunch，普通第二次启动把窗口叫回来
@@ -225,6 +325,12 @@ Future<bool> _initSingleInctance(LaunchRequest? launchRequest) async {
     unawaited(LauncherTray.instance.showMainWindow());
   };
   return true;
+}
+
+/// 结束当前进程：Flutter 引擎里 exit(0) 之后进程会挂着不退
+Future<void> _quitProcess() async {
+  await Future.delayed(const Duration(milliseconds: 200));
+  if (!Process.killPid(pid)) exit(0);
 }
 
 ///平台视图初始化：桌面端建窗口，移动端设置系统 UI

@@ -177,6 +177,16 @@ abstract class AppPaths {
   /// 玩家给版本换的图标 [*\version_icons\]
   static String get versionIcons => p.join(copperLauncher, 'version_icons');
 
+  /// 云存档后台服务的数据 [*\cloud-service\]：服务 pid、会话、待处理请求
+  static String get cloudService => p.join(copperLauncher, 'cloud-service');
+
+  static String get cloudServiceSessions =>
+      p.join(cloudService, 'sessions');
+
+  static String get cloudServicePending => p.join(cloudService, 'pending');
+
+  static String get cloudServiceRequests => p.join(cloudService, 'requests');
+
   /// 桌面快捷方式用的图标 [*\shortcut_icons\]：Windows 的 .lnk 只认 .ico，
   /// 由版本图标转出来按版本 id 缓存
   ///

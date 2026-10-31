@@ -22,12 +22,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
 
-  // 快捷启动：命令行带 --launch-version 时窗口先不显示，
+  // 快捷启动 / 无界面云服务：窗口先不显示，
   // 由 Dart 侧在需要弹窗 / 唤起启动器时显式 show（见 flutter_window.h）
   bool suppress_initial_show = false;
   for (const auto& argument : command_line_arguments) {
     if (argument == "--launch-version" ||
-        argument.rfind("--launch-version=", 0) == 0) {
+        argument.rfind("--launch-version=", 0) == 0 ||
+        argument == "--cloud-service") {
       suppress_initial_show = true;
       break;
     }
