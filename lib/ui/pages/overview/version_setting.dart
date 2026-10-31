@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/local_save_import.dart';
+import 'package:copper_launcher/domain/shortcut_launch.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/vars.dart';
@@ -326,6 +327,28 @@ pause
     return '#!/bin/sh\njava $argLine\n';
   }
 
+  /// 给这个版本在桌面建一个「点一下直接进游戏」的图标
+  ///
+  /// 用 1x1 小组件而不是固定快捷方式：小组件没有桌面的白卡片与来源角标，还能把版本名画进去
+  Future<void> _createDesktopShortcut() async {
+    final requested = await ShortcutLaunch.requestPinWidget(_mindustry);
+    if (!mounted) return;
+    if (requested) {
+      addNotice(
+        icon: Icons.check_circle_outline,
+        title: '已请求添加到桌面',
+        content: '桌面出现「${_mindustry.tag}」后，点它直接启动游戏',
+      );
+      return;
+    }
+    addNotice(
+      icon: Icons.info_outline,
+      title: '这台桌面不支持一键添加',
+      content: '长按桌面空白处 → 原子组件/小组件 → 找到「Mindustry 直接启动」拖到桌面',
+      duration: const Duration(seconds: 10),
+    );
+  }
+
   Future<void> _openFolder(String folderPath) async {
     if (!(await Directory(folderPath).exists())) {
       folderPath = _mindustry.dataPath;
@@ -541,7 +564,14 @@ pause
                 content: _mindustry.like ? '已收藏' : '未收藏',
                 onTap: _toggleLike,
               ),
-              //生成启动脚本
+              //移动端：给这个版本在桌面建一个直达图标
+              if (!isDesktop)
+                IconTextButton(
+                  icon: Icons.add_to_home_screen,
+                  content: '创建桌面快捷方式',
+                  onTap: _createDesktopShortcut,
+                ),
+              //桌面端（debug）：生成启动脚本
               if (isDesktop && kDebugMode)
                 IconTextButton(
                   icon: Icons.build_circle,

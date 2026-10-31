@@ -5,4 +5,6 @@
     <string name="copy_stacktrace">Copy</string>
     <string name="close">Close</string>
     <string name="copied_stacktrace">Copied error message</string>
+    <string name="game_widget_label">Mindustry launch</string>
+    <string name="game_widget_description">Tap to start the game directly</string>
 </resources>

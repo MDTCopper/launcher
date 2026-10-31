@@ -63,8 +63,12 @@ class ShortcutLaunch {
   static Future<String?> _takeLaunchRequest() async {
     try {
       final value = await _channel.invokeMethod<String>('takeLaunchRequest');
-      if (value == null || value.isEmpty) return null;
-      addLog(.info, '快捷方式启动请求：$value', tag: 'Shortcut');
+      if (value == null) return null;
+      addLog(
+        .info,
+        '快捷方式启动请求：${value.isEmpty ? '默认版本' : value}',
+        tag: 'Shortcut',
+      );
       return value;
     } on Object catch (error) {
       addLog(.warning, '取快捷方式启动请求失败：${removeNewlines('$error')}', tag: 'Shortcut');
@@ -85,7 +89,10 @@ class ShortcutLaunch {
       return;
     }
 
-    final version = _findVersion(versionId);
+    // 空 version id 是「默认入口」（比如从小组件面板直接加的小组件），用当前选中版本
+    final version = versionId.isEmpty
+        ? config.versionOptions.selectedVersion
+        : _findVersion(versionId);
     if (version == null) {
       addLog(.warning, '快捷方式启动：找不到版本 $versionId', tag: 'Shortcut');
       addNotice(
@@ -106,6 +113,29 @@ class ShortcutLaunch {
       await _channel.invokeMethod('finishLauncher');
     } on Object catch (error) {
       addLog(.warning, '结束启动器实例失败：${removeNewlines('$error')}', tag: 'Shortcut');
+    }
+  }
+
+  /// 请求给版本建一个桌面小组件（版本设置页「创建桌面快捷方式」用）
+  ///
+  /// 返回 false 表示这台设备的桌面不支持一键添加，需要引导用户去小组件面板
+  static Future<bool> requestPinWidget(Mindustry version) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final result = await _channel.invokeMethod<bool>('requestPinWidget', {
+        'versionId': version.id,
+        'tag': version.tag,
+        'jarPath': version.resolvedJarPath,
+      });
+      addLog(
+        .info,
+        '请求桌面小组件 [${version.tag}]：${result == true ? '已提交' : '桌面不支持'}',
+        tag: 'Shortcut',
+      );
+      return result ?? false;
+    } on Object catch (error) {
+      addLog(.warning, '请求桌面小组件失败：${removeNewlines('$error')}', tag: 'Shortcut');
+      return false;
     }
   }
 

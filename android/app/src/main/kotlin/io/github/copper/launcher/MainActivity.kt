@@ -1,5 +1,6 @@
 package io.github.copper.launcher
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -78,6 +79,7 @@ class MainActivity : FlutterActivity() {
                     pendingLaunchVersionId = null
                 }
                 "requestPinShortcut" -> requestPinShortcut(call, result)
+                "requestPinWidget" -> requestPinWidget(call, result)
                 "finishLauncher" -> {
                     result.success(true)
                     finish()
@@ -187,15 +189,37 @@ class MainActivity : FlutterActivity() {
         }.start()
     }
 
-    /** 分享与登录回调之外的第三种外部 intent：桌面快捷方式（只 debug 包可用 adb 触发） */
+    /** 分享与登录回调之外的第三种外部 intent：桌面快捷方式 / 小组件（只 debug 包可用 adb 触发） */
     private fun handleDebugPin(intent: Intent?) {
-        if (intent?.action != GameShortcut.ACTION_DEBUG_PIN) return
+        val action = intent?.action ?: return
+        if (action != GameShortcut.ACTION_DEBUG_PIN &&
+            action != GameShortcut.ACTION_DEBUG_PIN_WIDGET &&
+            action != GameShortcut.ACTION_DEBUG_BIND_WIDGET
+        ) {
+            return
+        }
         if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) return
         val versionId = intent.getStringExtra("version_id").orEmpty()
         val tag = intent.getStringExtra("tag").orEmpty()
         val jarPath = intent.getStringExtra("jar_path").orEmpty()
-        val requested = GameShortcut.requestPin(this, versionId, tag, jarPath)
-        Log.i(TAG, "调试：请求桌面快捷方式 version=$versionId 提交=$requested")
+        when (action) {
+            GameShortcut.ACTION_DEBUG_PIN -> {
+                val requested = GameShortcut.requestPin(this, versionId, tag, jarPath)
+                Log.i(TAG, "调试：请求桌面快捷方式 version=$versionId 提交=$requested")
+            }
+            GameShortcut.ACTION_DEBUG_PIN_WIDGET -> {
+                val requested = GameWidget.requestPin(this, versionId, tag, jarPath)
+                Log.i(TAG, "调试：请求桌面小组件 version=$versionId 提交=$requested")
+            }
+            GameShortcut.ACTION_DEBUG_BIND_WIDGET -> {
+                val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+                if (appWidgetId >= 0) {
+                    GameWidget.saveBinding(this, appWidgetId, versionId, tag, jarPath)
+                    GameWidget.render(this, appWidgetId)
+                    Log.i(TAG, "调试：绑定小组件 $appWidgetId version=$versionId")
+                }
+            }
+        }
     }
 
     /** Dart 侧请求建快捷方式（以后接版本页面按钮用） */
@@ -205,6 +229,15 @@ class MainActivity : FlutterActivity() {
         val tag = args?.get("tag") as? String ?: ""
         val jarPath = args?.get("jarPath") as? String ?: ""
         result.success(GameShortcut.requestPin(this, versionId, tag, jarPath))
+    }
+
+    /** Dart 侧请求建桌面小组件（版本设置页的「创建桌面快捷方式」用它） */
+    private fun requestPinWidget(call: MethodCall, result: MethodChannel.Result) {
+        val args = call.arguments as? Map<*, *>
+        val versionId = args?.get("versionId") as? String ?: ""
+        val tag = args?.get("tag") as? String ?: ""
+        val jarPath = args?.get("jarPath") as? String ?: ""
+        result.success(GameWidget.requestPin(this, versionId, tag, jarPath))
     }
 
     private companion object {

@@ -126,6 +126,26 @@
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|density|smallestScreenSize">
         </activity>
 
+        <!-- 1x1 桌面小组件：外观自己画，没有桌面白卡片与来源角标，点一下直接启动游戏 -->
+        <receiver
+            android:name=".GameWidgetProvider"
+            android:exported="true"
+            android:label="@string/game_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/game_widget_info" />
+        </receiver>
+
+        <!-- 小组件配置页：只是把「这次要绑哪个版本」写进绑定表，界面透明、随即结束 -->
+        <activity
+            android:name=".GameWidgetConfigActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

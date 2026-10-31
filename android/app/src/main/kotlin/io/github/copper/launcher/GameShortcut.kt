@@ -21,8 +21,18 @@ object GameShortcut {
     const val ACTION_LAUNCH_GAME = "io.github.copper.launcher.LAUNCH_GAME"
     const val EXTRA_VERSION_ID = "version_id"
 
+    /** 小组件 / 快捷方式共用的版本信息：标签与 jar 路径 */
+    const val EXTRA_TAG = "mindustry_tag"
+    const val EXTRA_JAR_PATH = "mindustry_jar_path"
+
     /** 调试入口：`adb shell am start -a ... -n .../.MainActivity --es ...` 触发建快捷方式 */
     const val ACTION_DEBUG_PIN = "io.github.copper.launcher.DEBUG_PIN"
+
+    /** 调试入口：用 adb 触发建 1x1 小组件 */
+    const val ACTION_DEBUG_PIN_WIDGET = "io.github.copper.launcher.DEBUG_PIN_WIDGET"
+
+    /** 调试入口：把某个已存在的小组件绑到指定版本并重画（没有配置页的桌面用它验证） */
+    const val ACTION_DEBUG_BIND_WIDGET = "io.github.copper.launcher.DEBUG_BIND_WIDGET"
 
     private const val TAG = "GameShortcut"
 
@@ -40,6 +50,9 @@ object GameShortcut {
 
     fun isSupported(context: Context): Boolean =
         ShortcutManagerCompat.isRequestPinShortcutSupported(context)
+
+    /** 给小组件用：读版本 jar 里的 logo（读不到返回 null） */
+    fun loadLogo(jarPath: String): Bitmap? = iconFromJar(jarPath)
 
     /**
      * 请求把对应版本的快捷方式固定到桌面；系统不支持固定时返回 false。
