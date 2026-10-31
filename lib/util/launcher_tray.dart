@@ -6,6 +6,7 @@ import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/game_instance.dart';
+import 'package:copper_launcher/domain/session_handoff.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
@@ -150,6 +151,9 @@ class LauncherTray extends TrayListener with WindowListener {
   /// 快捷启动的隐藏窗口会话：托盘先不常驻，需要露面时再恢复用户设置
   bool _quietMode = false;
 
+  /// 关窗 / 退出流程只走一次：先交接给云服务再真正退出
+  bool _closing = false;
+
   ///按 config 应用托盘模式
   ///
   ///[quiet] 给快捷启动用：不建托盘图标、不接管关窗行为，窗口由 runner 侧保持隐藏；
@@ -188,7 +192,9 @@ class LauncherTray extends TrayListener with WindowListener {
       tag: 'Tray',
     );
 
-    await windowManager.setPreventClose(_closeToTray);
+    // 关窗由 onWindowClose 接管：先交接正在跑的游戏给云服务，再决定隐藏还是退出。
+    // 不能只按 _closeToTray 设 preventClose —— 否则关窗时进程会在交接完成前退出
+    await windowManager.setPreventClose(true);
 
     if (_trayMode) {
       await trayManager.setIcon(_iconAsset);
@@ -401,11 +407,51 @@ class LauncherTray extends TrayListener with WindowListener {
 
   /// 退出启动器
   Future<void> quitApp() async {
+    if (_closing) return;
+    _closing = true;
     addLog(.info, '托盘：退出启动器', tag: 'Tray');
+    // 正在跑的游戏先交接给云服务，否则 UI 一退，这局的退出上传就丢了
+    await handoffRunningGamesToService();
     // 有正在跑的云存档自动上传就等它传完（最多 60 秒），别把刚打完的存档丢掉
     await CloudAutoSync.waitForPending();
-    await trayManager.destroy();
-    await windowManager.destroy();
+    await _destroyWindow();
+  }
+
+  /// 关窗（非托盘模式）：交接游戏 → 等上传 → 真正销毁窗口
+  Future<void> _closeAfterHandoff() async {
+    if (_closing) return;
+    _closing = true;
+    addLog(.info, '关闭窗口：退出启动器（先交接运行中的游戏）', tag: 'Tray');
+    try {
+      await handoffRunningGamesToService();
+      await CloudAutoSync.waitForPending();
+    } finally {
+      await _destroyWindow();
+    }
+  }
+
+  Future<void> _destroyWindow() async {
+    addLog(.info, '退出：开始销毁窗口', tag: 'Tray');
+    // preventClose 可能拦住 destroy；销毁前先放开
+    try {
+      await windowManager.setPreventClose(false);
+    } catch (_) {}
+    // 托盘没建时 destroy 可能抛也可能不回调；不能因此把窗口销毁也跳过
+    try {
+      await trayManager.destroy().timeout(const Duration(seconds: 1));
+    } catch (_) {}
+    addLog(.info, '退出：windowManager.destroy', tag: 'Tray');
+    // 兜底：窗口销毁没让引擎退出时，直接结束进程（Flutter 里 exit(0) 会挂住）
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 800), () {
+        if (Process.killPid(pid)) {
+          addLog(.warning, '退出：窗口没关掉，已强制结束进程', tag: 'Tray');
+        }
+      }),
+    );
+    try {
+      await windowManager.destroy().timeout(const Duration(seconds: 2));
+    } catch (_) {}
   }
 
   // TrayListener
@@ -456,8 +502,8 @@ class LauncherTray extends TrayListener with WindowListener {
       windowManager.hide();
       windowManager.setSkipTaskbar(true);
     } else {
-      addLog(.info, '关闭窗口：退出启动器', tag: 'Tray');
-      trayManager.destroy();
+      // 游戏还在跑：先写会话 + 拉起云服务接管，交接完再销毁窗口
+      unawaited(_closeAfterHandoff());
     }
   }
 

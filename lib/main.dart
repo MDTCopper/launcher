@@ -6,6 +6,7 @@ import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud_service_process.dart';
 import 'package:copper_launcher/domain/game_session.dart';
+import 'package:copper_launcher/domain/game_session_monitor.dart';
 import 'package:copper_launcher/domain/launch_args.dart';
 import 'package:copper_launcher/domain/launch_request.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
@@ -186,6 +187,8 @@ Future<void> _initializeUi(
 
   // UI 在线标记：快捷启动触发进程靠它决定「交给 UI」还是「自己进服务」
   await GameSessionStore.writeUiPid();
+  // 发现服务进程正在管的局：接回任务抽屉；服务死了就补接管；done 记录导入游玩时长
+  unawaited(GameSessionMonitor.instance.start());
 
   //桌面端快捷启动：服务委托 / 正常启动都走这一个队列
   unawaited(QuickLaunch.start(waitForShell: _waitForShell));

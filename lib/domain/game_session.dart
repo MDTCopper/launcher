@@ -166,6 +166,16 @@ class GameSessionStore {
   static Future<void> save(GameSession session) =>
       withLock(() => _atomicWrite(_sessionFile(session.id), session.toJson()));
 
+  /// 退出前的同步写：窗口关闭回调没时间等 async，先落盘再拉服务接管
+  static void saveSync(GameSession session) {
+    final file = _sessionFile(session.id);
+    file.parent.createSync(recursive: true);
+    final tmp = File('${file.path}.tmp');
+    tmp.writeAsStringSync(jsonEncode(session.toJson()), flush: true);
+    if (file.existsSync()) file.deleteSync();
+    tmp.renameSync(file.path);
+  }
+
   static File _sessionFile(String id) =>
       File(p.join(sessionsDir.path, '$id.json'));
 

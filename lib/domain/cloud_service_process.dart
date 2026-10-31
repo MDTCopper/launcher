@@ -247,6 +247,10 @@ class CloudServiceProcess {
     await CloudAutoSync.waitForPending();
     session.phase = 'done';
     session.completedAt = DateTime.now();
+    // 接管的会话没有任务对象，用开始时间补一个游玩时长给 UI 导入
+    session.playSeconds ??= session.completedAt!
+        .difference(session.startedAt)
+        .inSeconds;
     await GameSessionStore.save(session);
   }
 
