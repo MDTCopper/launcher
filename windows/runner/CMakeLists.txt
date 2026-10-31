@@ -12,6 +12,7 @@ add_executable(${BINARY_NAME} WIN32
   "main.cpp"
   "utils.cpp"
   "win32_window.cpp"
+  "window_ime.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
   "Runner.rc"
   "runner.exe.manifest"
@@ -38,6 +39,8 @@ target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 # 拖出那套：DoDragDrop / OleInitialize 在 ole32，SHCreateStdEnumFMTETC 在 shell32
 target_link_libraries(${BINARY_NAME} PRIVATE "ole32.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "shell32.lib")
+# 捕获键位时临时摘输入法：ImmAssociateContext 在 imm32
+target_link_libraries(${BINARY_NAME} PRIVATE "imm32.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # 源码里的中文注释与文案：MSVC 默认按系统代码页读，中文 Windows 上会读坏

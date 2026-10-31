@@ -41,6 +41,10 @@ class FlutterWindow : public Win32Window {
   // 「把文件拖出去」的通道（Dart 侧 lib/util/file_drag_out.dart）
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       file_drag_out_channel_;
+
+  // 「临时摘掉输入法」的通道（Dart 侧 lib/util/window_ime.dart）
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      window_ime_channel_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

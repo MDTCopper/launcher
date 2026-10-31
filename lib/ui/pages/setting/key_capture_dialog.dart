@@ -4,6 +4,8 @@ import 'package:copper_launcher/data/mindustry/settings/key_code.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/window_ime.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -59,11 +61,15 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
 
   @override
   void dispose() {
+    _restoreInputMethod();
     HardwareKeyboard.instance.removeHandler(_handleKey);
     super.dispose();
   }
 
-  /// 摘掉输入法的输入连接；失败无所谓，桌面端本来也可能没有
+  /// 摘掉输入法：放焦点 + 收起软键盘，再让 runner 把窗口的 IMM32 上下文摘掉
+  ///
+  /// 桌面端光靠 Dart 侧收不到键：中文输入法会把按键拦成 VK_PROCESSKEY，
+  /// Flutter 直接跳过这些下键事件，只能由窗口线程把输入法摘掉
   void _detachInputMethod() {
     FocusManager.instance.primaryFocus?.unfocus();
     unawaited(
@@ -71,7 +77,18 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
           .invokeMethod<void>('TextInput.hide')
           .catchError((Object _) {}),
     );
+    unawaited(
+      WindowIme.detach().then((detached) {
+        addLog(
+          .info,
+          '[KeyCapture] 窗口输入法上下文：${detached ? '已摘掉' : '未摘（无上下文或非 Windows）'}',
+          tag: 'Version',
+        );
+      }),
+    );
   }
+
+  void _restoreInputMethod() => unawaited(WindowIme.restore());
 
   bool _handleKey(KeyEvent event) {
     if (_closed) return true;
@@ -129,11 +146,12 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
     return null;
   }
 
-  /// 关弹窗只走这一个出口：先摘掉键盘处理器、记下已关，再 pop；[code] 为空是取消
+  /// 关弹窗只走这一个出口：先摘掉键盘处理器、恢复输入法，再 pop；[code] 为空是取消
   void _finish(MindustryKeyCode? code) {
     if (_closed || !mounted) return;
     _closed = true;
     HardwareKeyboard.instance.removeHandler(_handleKey);
+    _restoreInputMethod();
     Navigator.of(context).pop(code);
   }
 

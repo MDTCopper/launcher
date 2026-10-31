@@ -4,6 +4,7 @@
 
 #include "file_drag_out.h"
 #include "flutter/generated_plugin_registrant.h"
+#include "window_ime.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -27,6 +28,8 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   file_drag_out_channel_ = CreateFileDragOutChannel(
+      flutter_controller_->engine()->messenger(), GetHandle());
+  window_ime_channel_ = CreateWindowImeChannel(
       flutter_controller_->engine()->messenger(), GetHandle());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
