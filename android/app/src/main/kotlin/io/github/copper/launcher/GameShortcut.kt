@@ -86,6 +86,8 @@ object GameShortcut {
             // 走带深色启动主题的入口，避免快捷方式点下去先闪白屏
             setClassName(activity.packageName, "${activity.packageName}.SilentLaunchActivity")
             action = ACTION_LAUNCH_GAME
+            // 关掉启动动画：不然系统会从图标位置放大窗口，中间露出桌面
+            addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             putExtra(EXTRA_VERSION_ID, versionId)
             putExtra(EXTRA_SILENT, true)
         }

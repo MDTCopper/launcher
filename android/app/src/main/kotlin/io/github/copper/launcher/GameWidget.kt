@@ -178,6 +178,7 @@ object GameWidget {
         val intent = Intent().apply {
             setClassName(context.packageName, "${context.packageName}.SilentLaunchActivity")
             action = GameShortcut.ACTION_LAUNCH_GAME
+            addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             putExtra(GameShortcut.EXTRA_VERSION_ID, versionId)
             putExtra(GameShortcut.EXTRA_SILENT, true)
         }
