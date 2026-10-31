@@ -29,20 +29,22 @@ class CopperLauncherState extends State<CopperLauncher>
   bool isRuntimeReady = !Platform.isAndroid;
 
   /// Android 启动页：先显示主题物品图标，初始化完再从左下到右上刷入主界面
-  late final AnimationController _wipeController;
+  late final AnimationController _fadeController;
   bool _showStartup = Platform.isAndroid;
 
   @override
   void initState() {
     super.initState();
-    _wipeController = AnimationController(
+    _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 250),
     );
     if (Platform.isAndroid) {
-      unawaited(_startup());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_startup());
+      });
     } else {
-      _wipeController.value = 1;
+      _fadeController.value = 1;
     }
     // 菜单的默认行为接到设置项上；设置页改了立刻生效，这里不用再监听
     ContextMenuHost.relocateOnReopenOf = () =>
@@ -66,14 +68,14 @@ class CopperLauncherState extends State<CopperLauncher>
     setState(() => isRuntimeReady = ready);
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
-    await _wipeController.forward();
+    await _fadeController.forward();
     if (!mounted) return;
     setState(() => _showStartup = false);
   }
 
   @override
   void dispose() {
-    _wipeController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -108,7 +110,7 @@ class CopperLauncherState extends State<CopperLauncher>
         home: Platform.isAndroid
             ? _StartupGate(
                 showSplash: _showStartup,
-                wipe: _wipeController,
+                fade: _fadeController,
                 themeColor: themeColor,
                 child: home,
               )
@@ -132,17 +134,17 @@ class CopperLauncherState extends State<CopperLauncher>
   }
 }
 
-/// 初始化页 → 主界面的斜向刷入（左下 → 右上）
+/// 初始化页 → 主界面的淡出：初始化页盖在上面，淡掉后露出主界面
 class _StartupGate extends StatelessWidget {
   const _StartupGate({
     required this.showSplash,
-    required this.wipe,
+    required this.fade,
     required this.themeColor,
     required this.child,
   });
 
   final bool showSplash;
-  final Animation<double> wipe;
+  final Animation<double> fade;
   final ThemeColor themeColor;
   final Widget child;
 
@@ -151,29 +153,17 @@ class _StartupGate extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (showSplash) StartupPage(themeColor: themeColor),
-        AnimatedBuilder(
-          animation: wipe,
-          child: child,
-          builder: (context, child) {
-            final value = wipe.value.clamp(0.0, 1.0);
-            return ShaderMask(
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (rect) => RadialGradient(
-                center: Alignment.center,
-                radius: 3.0,
-                colors: const [
-                  Colors.white,
-                  Colors.white,
-                  Colors.transparent,
-                  Colors.transparent,
-                ],
-                stops: [0, (value - 0.22).clamp(0.0, 1.0), value, 1],
-              ).createShader(rect),
-              child: child,
-            );
-          },
-        ),
+        child,
+        if (showSplash)
+          AnimatedBuilder(
+            animation: fade,
+            builder: (context, _) => IgnorePointer(
+              child: Opacity(
+                opacity: (1 - fade.value).clamp(0.0, 1.0),
+                child: StartupPage(themeColor: themeColor),
+              ),
+            ),
+          ),
       ],
     );
   }
