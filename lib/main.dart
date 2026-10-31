@@ -247,9 +247,10 @@ Future<void> _initWindows({required bool quiet}) async {
   );
 
   if (quiet) {
-    // 只应用窗口参数，不显示；快捷启动的界面由 runner 按参数跳过首帧显示
+    // 只应用窗口参数，不显示；快捷启动的界面由 runner 按参数跳过首帧显示。
+    // 不要在这里 setSkipTaskbar(true)：窗口从没显示过，任务栏本来就没有按钮，
+    // 删一次反而会让后面 show() 补不回来（表现为回到启动器后任务栏没图标）
     await windowManager.waitUntilReadyToShow(windowOptions, null);
-    await windowManager.setSkipTaskbar(true);
     addLog(.info, '快捷启动：主窗口保持隐藏', tag: 'Startup');
     return;
   }

@@ -179,7 +179,11 @@ abstract class AppPaths {
 
   /// 桌面快捷方式用的图标 [*\shortcut_icons\]：Windows 的 .lnk 只认 .ico，
   /// 由版本图标转出来按版本 id 缓存
-  static String get shortcutIcons => p.join(copperLauncher, 'shortcut_icons');
+  ///
+  /// 放**应用支持目录**而不是数据根：数据根在调试 / 便携 / 受限环境里可能带着
+  /// 低完整性标签或受限 ACL，Explorer 会拒绝从那里加载 .lnk 图标（实测表现为白纸图标）
+  static String get shortcutIcons =>
+      p.join(applicationSupportPath, 'shortcut_icons');
 
   /// 游戏本体库 [*\mindustrys\]：下载与导入的 jar 集中放这里，变体直接引用同一份；
   /// 版本目录只留版本自己的数据

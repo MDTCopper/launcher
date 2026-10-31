@@ -332,8 +332,12 @@ class LauncherTray extends TrayListener with WindowListener {
 
   Future<void> _showFromTray() async {
     isWindowHidden.value = false;
+    // 先补任务栏按钮再显示，ShowWindowAsync 是异步的，显示完再补一次；
+    // 只补一次时偶发「窗口出来了但任务栏没图标」
+    await windowManager.setSkipTaskbar(false);
     await windowManager.show();
     await windowManager.focus();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
     await windowManager.setSkipTaskbar(false);
     await _refreshMenu();
   }
