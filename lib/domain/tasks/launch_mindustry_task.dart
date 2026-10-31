@@ -165,6 +165,7 @@ class LaunchMindustryTask extends Task {
   @override
   void cancel() async {
     _cancelled = true;
+    _restoreShortcutOverlay();
     final adopted = _adoptedPid;
     _adoptedPid = null;
     _adoptedBuild = null;
@@ -186,6 +187,7 @@ class LaunchMindustryTask extends Task {
     try {
       await _launchGame();
     } catch (e) {
+      _restoreShortcutOverlay();
       addTaskLog(LogEntry(LogType.error, '启动失败：${removeNewlines('$e')}'));
       addLog(.error, '启动失败：${removeNewlines('$e')}', tag: 'Launch');
       NotificationManager.addNotice(
@@ -441,6 +443,7 @@ class LaunchMindustryTask extends Task {
     );
 
     if (!isLaunchStarted) {
+      _restoreShortcutOverlay();
       //走加载器时常见原因是 loader jar 不在了
       final isLoaderMissing =
           mindustry.isViaLoader &&
@@ -640,6 +643,12 @@ class LaunchMindustryTask extends Task {
     progress = 1.0;
     status = TaskStatus.completed;
     updateDisplay();
+  }
+
+  /// 快捷方式启动失败 / 被取消时撤掉静默启动的黑幕
+  void _restoreShortcutOverlay() {
+    if (!ShortcutSession.takeLaunchedFromShortcut()) return;
+    unawaited(ShortcutLaunch.showLauncher());
   }
 
   /// 快捷方式启动的局退出后：先撤掉静默启动的黑幕，再按设置决定是否直接回桌面

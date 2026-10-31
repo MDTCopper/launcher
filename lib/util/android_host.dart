@@ -39,6 +39,20 @@ class AndroidHost {
     }
   }
 
+  /// 游戏界面是不是还在（退到后台也算）；判不了时返回 false
+  ///
+  /// 光看桥进程不准：正常退出后 `:mdt_process` 会残留一会儿。快捷方式启动时用它决定
+  /// 「回到正在跑的游戏」还是「启动新一局」
+  static Future<bool> isGameActivityVisible() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await _channel.invokeMethod<bool>('isGameActivityVisible') ?? false;
+    } on Object catch (error) {
+      addLog(.warning, '查询游戏界面失败：${removeNewlines('$error')}', tag: 'Host');
+      return false;
+    }
+  }
+
   /// 游戏进程还在不在；**判不了时返回 null**
   ///
   /// 调用方拿 null 要按「已退出」处理 —— 宁可多报一次退出，也不要永远不报

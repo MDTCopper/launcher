@@ -1,5 +1,6 @@
 package io.github.copper.launcher
 
+import android.app.ActivityManager
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
@@ -117,6 +118,7 @@ open class MainActivity : FlutterActivity() {
                 "moveTaskToBack" -> result.success(moveTaskToBack(true))
                 "killGameProcess" -> killGameProcess(result)
                 "isGameProcessRunning" -> isGameProcessRunning(result)
+                "isGameActivityVisible" -> result.success(isGameActivityVisible())
                 else -> result.notImplemented()
             }
         }
@@ -257,6 +259,20 @@ open class MainActivity : FlutterActivity() {
             val running = io.github.copper.GameProcess.isRunning(applicationContext)
             Handler(Looper.getMainLooper()).post { result.success(running) }
         }.start()
+    }
+
+    /**
+     * 游戏界面是不是还在这个应用的task里（退到后台也算）
+     *
+     * 桥进程正常退出后会残留一会儿，光看进程会把已经退出的游戏当成还在跑；
+     * 看 task 顶上的 Activity 才准：游戏界面还在就直接回游戏，不在就启动新一局
+     */
+    private fun isGameActivityVisible(): Boolean {
+        val manager = getSystemService(ActivityManager::class.java) ?: return false
+        val gameActivity = "io.github.copper.MindustryActivity"
+        return manager.appTasks.any {
+            it.taskInfo?.topActivity?.className == gameActivity
+        }
     }
 
     /** 分享与登录回调之外的第三种外部 intent：桌面快捷方式 / 小组件（只 debug 包可用 adb 触发） */

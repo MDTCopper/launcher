@@ -84,8 +84,8 @@ class ShortcutLaunch {
       await _showLauncher();
       return;
     }
-    if (await AndroidHost.isGameProcessRunning() == true) {
-      addLog(.info, '快捷方式启动：游戏已在运行，回到游戏', tag: 'Shortcut');
+    if (await AndroidHost.isGameActivityVisible()) {
+      addLog(.info, '快捷方式启动：游戏界面还在，回到游戏', tag: 'Shortcut');
       // 快捷方式是显式拉起 MainActivity，会在游戏上再压一个启动器实例；
       // 结束自己就把下面的游戏露出来，别让人看到启动器
       await _finishLauncher();
@@ -111,17 +111,14 @@ class ShortcutLaunch {
     // 打个标记：这一局是快捷方式启动的，退出后按设置决定回桌面还是回启动器
     ShortcutSession.markLaunchedFromShortcut();
     await GameInstance.launch(version);
-    // 静默启动：黑幕先留着，等游戏真的起来；一直没起来就把界面还回来
-    unawaited(_watchGameStarted());
+    // 静默启动：黑幕先留着，等游戏盖上来；兜底 20 秒后撤掉（万一没起来也别一直黑）
+    unawaited(_restoreLauncherAfterLaunch());
   }
 
-  /// 盯着游戏是否起来：起来了黑幕留到游戏退出再收；一直没起来就把界面还回来
-  static Future<void> _watchGameStarted() async {
-    for (var second = 0; second < 20; second++) {
-      await Future<void>.delayed(const Duration(seconds: 1));
-      if (await AndroidHost.isGameProcessRunning() == true) return;
-    }
-    addLog(.warning, '快捷方式启动：20 秒还没拉起游戏，恢复启动器界面', tag: 'Shortcut');
+  /// 兜底：20 秒后把黑幕撤掉。游戏正常起来时它早就盖在上面了，撤不撤都看不见；
+  /// 万一启动失败又没走到失败分支，也不至于一直黑屏
+  static Future<void> _restoreLauncherAfterLaunch() async {
+    await Future<void>.delayed(const Duration(seconds: 20));
     await _showLauncher();
   }
 
