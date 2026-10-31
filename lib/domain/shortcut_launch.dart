@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
@@ -79,6 +80,7 @@ class ShortcutLaunch {
   static Future<void> _launch(String versionId) async {
     if (!BridgeInstaller.isRuntimeReady()) {
       addLog(.warning, '快捷方式启动：桥运行环境还没装好，忽略', tag: 'Shortcut');
+      await _showLauncher();
       return;
     }
     if (await AndroidHost.isGameProcessRunning() == true) {
@@ -95,6 +97,7 @@ class ShortcutLaunch {
         : _findVersion(versionId);
     if (version == null) {
       addLog(.warning, '快捷方式启动：找不到版本 $versionId', tag: 'Shortcut');
+      await _showLauncher();
       addNotice(
         icon: Icons.error_outline,
         title: '快捷方式失效',
@@ -105,6 +108,23 @@ class ShortcutLaunch {
 
     addLog(.info, '快捷方式启动：${version.tag}', tag: 'Shortcut');
     await GameInstance.launch(version);
+    // 静默启动：游戏窗口马上会盖上来，再等几秒把启动器窗口恢复（万一没起来，玩家也能看到界面）
+    unawaited(_showLauncherAfterLaunch());
+  }
+
+  /// 起游戏后稍等一下再恢复窗口：这期间游戏 Activity 会盖上来，玩家看不到启动器
+  static Future<void> _showLauncherAfterLaunch() async {
+    await Future<void>.delayed(const Duration(seconds: 4));
+    await _showLauncher();
+  }
+
+  /// 把启动器窗口恢复可见（静默启动的收尾 / 启动失败时让玩家看到提示）
+  static Future<void> _showLauncher() async {
+    try {
+      await _channel.invokeMethod('setLauncherVisible');
+    } on Object catch (error) {
+      addLog(.warning, '恢复启动器窗口失败：${removeNewlines('$error')}', tag: 'Shortcut');
+    }
   }
 
   /// 结束当前启动器实例（游戏在跑时用），把下面的游戏露出来

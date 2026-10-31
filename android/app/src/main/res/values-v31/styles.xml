@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 静默启动：系统 splash 用深色底、不画图标，避免点快捷方式先闪白屏 -->
+    <style name="SilentLaunchTheme" parent="@style/LaunchTheme">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/silent_splash_icon</item>
+    </style>
+</resources>

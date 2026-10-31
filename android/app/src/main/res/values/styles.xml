@@ -23,4 +23,12 @@
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowFullscreen">true</item>
     </style>
+    <!-- 静默启动用的启动主题：底色压成深色，避免快捷方式点下去先闪一下白屏 -->
+    <style name="SilentLaunchTheme" parent="@style/LaunchTheme">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+    <!-- Flutter 首帧之后窗口背后的底色，同样用深色 -->
+    <style name="SilentNormalTheme" parent="@style/NormalTheme">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

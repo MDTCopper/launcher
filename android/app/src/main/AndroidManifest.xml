@@ -139,6 +139,23 @@
                 android:resource="@xml/game_widget_info" />
         </receiver>
 
+        <!-- 静默启动入口：和 MainActivity 同一套行为，但用深色启动主题、不闪白屏；
+             桌面快捷方式指向这里，普通启动不受影响 -->
+        <activity
+            android:name=".SilentLaunchActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/SilentLaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:screenOrientation="sensorLandscape"
+            android:windowSoftInputMode="adjustNothing">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/SilentNormalTheme" />
+        </activity>
+
         <!-- 小组件配置页：只是把「这次要绑哪个版本」写进绑定表，界面透明、随即结束 -->
         <activity
             android:name=".GameWidgetConfigActivity"

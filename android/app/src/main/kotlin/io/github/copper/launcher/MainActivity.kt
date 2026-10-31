@@ -22,8 +22,7 @@ import io.flutter.plugin.common.MethodChannel
  * （游戏跑在 `:mdt_process` 里，Dart 侧没有 Process 句柄），
  * 以及「系统分享进来」（`content://` 只有宿主读得了）。
  */
-class MainActivity : FlutterActivity() {
-    private val shareIntentHandler by lazy { ShareIntentHandler(applicationContext) }
+open class MainActivity : FlutterActivity() {    private val shareIntentHandler by lazy { ShareIntentHandler(applicationContext) }
     private var shareChannel: MethodChannel? = null
     private var hostChannel: MethodChannel? = null
 
@@ -33,6 +32,9 @@ class MainActivity : FlutterActivity() {
     /** 桌面快捷方式带来的版本 id：同样攒着等 Dart 来取 */
     private var pendingLaunchVersionId: String? = null
 
+    /** 这次是不是从快捷方式静默启动（窗口先透明，别让人看到启动器界面） */
+    private var silentLaunch = false
+
     private var multicastLock: WifiManager.MulticastLock? = null
 
     /**
@@ -40,6 +42,13 @@ class MainActivity : FlutterActivity() {
      * 时 Wi-Fi 芯片会把组播包过滤掉。锁跟随 Activity 生命周期
      */
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 静默启动：在 super 之前换深色主题并把窗口压透明，别让人看到启动器界面或白屏
+        val silentRequest = intent?.action == GameShortcut.ACTION_LAUNCH_GAME &&
+            intent.getBooleanExtra(GameShortcut.EXTRA_SILENT, false)
+        if (silentRequest) {
+            setTheme(R.style.SilentLaunchTheme)
+            window.attributes = window.attributes.apply { alpha = 0f }
+        }
         super.onCreate(savedInstanceState)
         handleDebugPin(intent)
         try {
@@ -84,6 +93,10 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                     finish()
                 }
+                "setLauncherVisible" -> {
+                    setSilentWindow(false)
+                    result.success(true)
+                }
                 "moveTaskToBack" -> result.success(moveTaskToBack(true))
                 "killGameProcess" -> killGameProcess(result)
                 "isGameProcessRunning" -> isGameProcessRunning(result)
@@ -127,9 +140,20 @@ class MainActivity : FlutterActivity() {
     private fun captureLaunchRequest(intent: Intent?): Boolean {
         if (intent?.action != GameShortcut.ACTION_LAUNCH_GAME) return false
         pendingLaunchVersionId = intent.getStringExtra(GameShortcut.EXTRA_VERSION_ID)
-        Log.i(TAG, "收到快捷方式启动请求：$pendingLaunchVersionId")
+        silentLaunch = intent.getBooleanExtra(GameShortcut.EXTRA_SILENT, false)
+        if (silentLaunch) setSilentWindow(true)
+        Log.i(TAG, "收到快捷方式启动请求：$pendingLaunchVersionId 静默=$silentLaunch")
         hostChannel?.invokeMethod("launchRequestAvailable", null)
         return true
+    }
+
+    /** 静默启动时把窗口压成全透明，Dart 那边起完游戏再喊 [setSilentWindow] 恢复 */
+    private fun setSilentWindow(silent: Boolean) {
+        val target = if (silent) 0f else 1f
+        val attributes = window.attributes
+        if (attributes.alpha == target) return
+        attributes.alpha = target
+        window.attributes = attributes
     }
 
     /**

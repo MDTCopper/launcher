@@ -175,9 +175,11 @@ object GameWidget {
     }
 
     private fun launchIntent(context: Context, versionId: String): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
+        val intent = Intent().apply {
+            setClassName(context.packageName, "${context.packageName}.SilentLaunchActivity")
             action = GameShortcut.ACTION_LAUNCH_GAME
             putExtra(GameShortcut.EXTRA_VERSION_ID, versionId)
+            putExtra(GameShortcut.EXTRA_SILENT, true)
         }
         return PendingIntent.getActivity(
             context,

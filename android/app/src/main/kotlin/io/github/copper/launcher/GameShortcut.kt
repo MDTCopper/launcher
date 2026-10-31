@@ -26,6 +26,9 @@ object GameShortcut {
     const val EXTRA_JAR_PATH = "mindustry_jar_path"
     const val EXTRA_ICON_PATH = "mindustry_icon_path"
 
+    /** 静默启动：不显示启动器界面，直接进游戏 */
+    const val EXTRA_SILENT = "mindustry_silent_launch"
+
     /** 调试入口：`adb shell am start -a ... -n .../.MainActivity --es ...` 触发建快捷方式 */
     const val ACTION_DEBUG_PIN = "io.github.copper.launcher.DEBUG_PIN"
 
@@ -79,9 +82,12 @@ object GameShortcut {
         if (versionId.isEmpty()) return false
         if (!isSupported(activity)) return false
 
-        val intent = Intent(activity, MainActivity::class.java).apply {
+        val intent = Intent().apply {
+            // 走带深色启动主题的入口，避免快捷方式点下去先闪白屏
+            setClassName(activity.packageName, "${activity.packageName}.SilentLaunchActivity")
             action = ACTION_LAUNCH_GAME
             putExtra(EXTRA_VERSION_ID, versionId)
+            putExtra(EXTRA_SILENT, true)
         }
 
         val shortcut = ShortcutInfoCompat.Builder(activity, shortcutId(versionId))
