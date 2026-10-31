@@ -13,6 +13,7 @@ import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
 import 'package:copper_launcher/ui/dialog/resource_importer.dart';
+import 'package:copper_launcher/ui/startup/startup_page.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/app_paths.dart';
@@ -33,6 +34,11 @@ void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   final launchRequest = LaunchRequest.fromArguments(args);
   await _initialize(launchRequest);
+  try {
+    await precacheStartupItem(config.setting.personalizationOptions.themeColor);
+  } catch (_) {
+    // 预解码失败不影响启动
+  }
   runCopperLauncher();
 }
 
@@ -68,7 +74,8 @@ Future<void> _initialize(LaunchRequest? launchRequest) async {
       addNotice(
         icon: Icons.warning_amber_outlined,
         title: '旧数据没搬完',
-        content: '有 ${migration.failed.length} 项没搬过去，日志里记了原因；'
+        content:
+            '有 ${migration.failed.length} 项没搬过去，日志里记了原因；'
             '它们还在应用内部目录，没丢',
       );
     }
@@ -107,7 +114,9 @@ Future<void> _initialize(LaunchRequest? launchRequest) async {
   //
   //安卓上不等界面就绪：静默启动本来就不该让人看到界面，等 shell 只会白白多等 1 秒左右
   unawaited(
-    ShortcutLaunch.start(waitForShell: Platform.isAndroid ? null : _waitForShell),
+    ShortcutLaunch.start(
+      waitForShell: Platform.isAndroid ? null : _waitForShell,
+    ),
   );
 
   //桌面端快捷启动：冷启动参数与单实例转发的请求都交给现有启动任务
@@ -181,15 +190,16 @@ Future<bool> _initSingleInctance(LaunchRequest? launchRequest) async {
   if (!await FlutterSingleInstance().isFirstInstance()) {
     addLogAndPrint(
       .info,
-      launchRequest == null
-          ? '已有实例在运行，通知它显示窗口后退出'
-          : '已有实例在运行，把快捷启动请求转给它后退出',
+      launchRequest == null ? '已有实例在运行，通知它显示窗口后退出' : '已有实例在运行，把快捷启动请求转给它后退出',
       tag: 'Startup',
     );
     final error = launchRequest == null
         ? await FlutterSingleInstance().focus()
         // 快捷启动不抢焦点、不弹出启动器窗口
-        : await FlutterSingleInstance().focus(launchRequest.toMetadata(), false);
+        : await FlutterSingleInstance().focus(
+            launchRequest.toMetadata(),
+            false,
+          );
     if (error != null) {
       addLogAndPrint(
         .warning,
