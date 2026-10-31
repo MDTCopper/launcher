@@ -4,11 +4,15 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.graphics.Color
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
@@ -22,7 +26,8 @@ import io.flutter.plugin.common.MethodChannel
  * （游戏跑在 `:mdt_process` 里，Dart 侧没有 Process 句柄），
  * 以及「系统分享进来」（`content://` 只有宿主读得了）。
  */
-open class MainActivity : FlutterActivity() {    private val shareIntentHandler by lazy { ShareIntentHandler(applicationContext) }
+open class MainActivity : FlutterActivity() {
+    private val shareIntentHandler by lazy { ShareIntentHandler(applicationContext) }
     private var shareChannel: MethodChannel? = null
     private var hostChannel: MethodChannel? = null
 
@@ -32,8 +37,11 @@ open class MainActivity : FlutterActivity() {    private val shareIntentHandler 
     /** 桌面快捷方式带来的版本 id：同样攒着等 Dart 来取 */
     private var pendingLaunchVersionId: String? = null
 
-    /** 这次是不是从快捷方式静默启动（窗口先透明，别让人看到启动器界面） */
+    /** 这次是不是从快捷方式静默启动（盖一层黑，别让人看到启动器界面或闪桌面） */
     private var silentLaunch = false
+
+    /** 静默启动时盖在界面上的黑遮罩，游戏起来/启动失败后撤掉 */
+    private var silentOverlay: View? = null
 
     private var multicastLock: WifiManager.MulticastLock? = null
 
@@ -42,14 +50,23 @@ open class MainActivity : FlutterActivity() {    private val shareIntentHandler 
      * 时 Wi-Fi 芯片会把组播包过滤掉。锁跟随 Activity 生命周期
      */
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 静默启动：在 super 之前换深色主题并把窗口压透明，别让人看到启动器界面或白屏
+        // 静默启动：super 之前换深色主题，启动窗口就是黑的（不闪白、不闪桌面）
         val silentRequest = intent?.action == GameShortcut.ACTION_LAUNCH_GAME &&
             intent.getBooleanExtra(GameShortcut.EXTRA_SILENT, true)
         if (silentRequest) {
             setTheme(R.style.SilentLaunchTheme)
-            window.attributes = window.attributes.apply { alpha = 0f }
         }
         super.onCreate(savedInstanceState)
+        if (silentRequest) {
+            setSilentWindow(true)
+            // 关掉 Activity 打开动画：不然会先看到桌面 + 一块黑窗放大（就是「闪一下」）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+            } else {
+                @Suppress("DEPRECATION")
+                overridePendingTransition(0, 0)
+            }
+        }
         handleDebugPin(intent)
         try {
             val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
@@ -148,13 +165,41 @@ open class MainActivity : FlutterActivity() {    private val shareIntentHandler 
         return true
     }
 
-    /** 静默启动时把窗口压成全透明，Dart 那边起完游戏再喊 [setSilentWindow] 恢复 */
+    /**
+     * 静默启动的「黑幕」：在界面上盖一层纯黑，窗口本身保持不透明。
+     *
+     * 之前是把窗口 alpha 压 0，结果启动瞬间会露出桌面（闪一下）；盖黑幕既看不到启动器 UI，
+     * 也不会闪桌面。游戏起来后由 Dart 收起；启动失败 / 退出时同样由 Dart 收起。
+     */
     private fun setSilentWindow(silent: Boolean) {
-        val target = if (silent) 0f else 1f
-        val attributes = window.attributes
-        if (attributes.alpha == target) return
-        attributes.alpha = target
-        window.attributes = attributes
+        if (silent) {
+            attachSilentOverlay()
+        } else {
+            removeSilentOverlay()
+        }
+    }
+
+    private fun attachSilentOverlay() {
+        if (silentOverlay != null) return
+        val overlay = View(this).apply { setBackgroundColor(Color.BLACK) }
+        silentOverlay = overlay
+        window.decorView.post {
+            // 期间可能已经被撤掉（启动失败得很快），那就别再贴上去
+            if (silentOverlay !== overlay) return@post
+            (window.decorView as? ViewGroup)?.addView(
+                overlay,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+    }
+
+    private fun removeSilentOverlay() {
+        val overlay = silentOverlay ?: return
+        silentOverlay = null
+        (overlay.parent as? ViewGroup)?.removeView(overlay)
     }
 
     /**

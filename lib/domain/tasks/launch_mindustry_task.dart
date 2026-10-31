@@ -9,6 +9,7 @@ import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/domain/shortcut_session.dart';
+import 'package:copper_launcher/domain/shortcut_launch.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
@@ -612,8 +613,8 @@ class LaunchMindustryTask extends Task {
     LauncherTray.instance.showIfRestoreOnExit();
     // 云存档：游戏退出后自动上传（只对启用了云存档的目录；失败只提示）
     unawaited(CloudAutoSync.afterGameExit(mindustry));
-    // 快捷方式启动的局：按设置决定退出后直接回桌面
-    _maybeBackToHomeAfterShortcut();
+    // 快捷方式启动的局：撤黑幕；按设置决定退出后直接回桌面
+    _handleShortcutExit();
     if (exitLog.contains('0')) {
       NotificationManager.addNotice(
         icon: Icons.info_outline,
@@ -641,9 +642,11 @@ class LaunchMindustryTask extends Task {
     updateDisplay();
   }
 
-  /// 快捷方式启动的局退出后：按设置决定直接回桌面（默认回启动器）
-  void _maybeBackToHomeAfterShortcut() {
+  /// 快捷方式启动的局退出后：先撤掉静默启动的黑幕，再按设置决定是否直接回桌面
+  void _handleShortcutExit() {
     if (!ShortcutSession.takeLaunchedFromShortcut()) return;
+    // 撤掉黑幕：不管回启动器还是回桌面，都要先让界面可见
+    unawaited(ShortcutLaunch.showLauncher());
     if (config.setting.personalizationOptions.shortcutExitAction !=
         ShortcutExitAction.backToHome) {
       return;

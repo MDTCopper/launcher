@@ -111,15 +111,22 @@ class ShortcutLaunch {
     // 打个标记：这一局是快捷方式启动的，退出后按设置决定回桌面还是回启动器
     ShortcutSession.markLaunchedFromShortcut();
     await GameInstance.launch(version);
-    // 静默启动：游戏窗口马上会盖上来，再等几秒把启动器窗口恢复（万一没起来，玩家也能看到界面）
-    unawaited(_showLauncherAfterLaunch());
+    // 静默启动：黑幕先留着，等游戏真的起来；一直没起来就把界面还回来
+    unawaited(_watchGameStarted());
   }
 
-  /// 起游戏后稍等一下再恢复窗口：这期间游戏 Activity 会盖上来，玩家看不到启动器
-  static Future<void> _showLauncherAfterLaunch() async {
-    await Future<void>.delayed(const Duration(seconds: 4));
+  /// 盯着游戏是否起来：起来了黑幕留到游戏退出再收；一直没起来就把界面还回来
+  static Future<void> _watchGameStarted() async {
+    for (var second = 0; second < 20; second++) {
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (await AndroidHost.isGameProcessRunning() == true) return;
+    }
+    addLog(.warning, '快捷方式启动：20 秒还没拉起游戏，恢复启动器界面', tag: 'Shortcut');
     await _showLauncher();
   }
+
+  /// 游戏退出 / 启动失败时撤掉静默启动的黑幕，把启动器界面还回来
+  static Future<void> showLauncher() => _showLauncher();
 
   /// 把启动器窗口恢复可见（静默启动的收尾 / 启动失败时让玩家看到提示）
   static Future<void> _showLauncher() async {
