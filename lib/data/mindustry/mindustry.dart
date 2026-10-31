@@ -137,6 +137,15 @@ class Mindustry {
   String? get resolvedLauncherPath =>
       launcherPath == null ? null : AppPaths.resolveStoredPath(launcherPath!);
 
+  ///玩家给这个版本换的图标（记录形态）；没换过为 null
+  ///
+  ///桌面快捷方式 / 小组件与启动器内显示都用这张图，没换过时回落到品牌图
+  String? iconPath;
+
+  ///版本图标的可用形态（没换过时为 null）
+  String? get resolvedIconPath =>
+      iconPath == null ? null : AppPaths.resolveStoredPath(iconPath!);
+
   ///是否通过模组加载器启动
   bool get isViaLoader => launcher == LauncherType.copper;
 
@@ -255,6 +264,7 @@ class Mindustry {
     this.launcherPath,
     this.steam = false,
     this.externalDataPath,
+    this.iconPath,
   });
 
   factory Mindustry.fromJson(Map<String, dynamic> json) =>

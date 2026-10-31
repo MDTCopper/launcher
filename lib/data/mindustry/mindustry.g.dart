@@ -32,6 +32,7 @@ Mindustry _$MindustryFromJson(Map<String, dynamic> json) =>
         launcherPath: json['launcherPath'] as String?,
         steam: json['steam'] as bool? ?? false,
         externalDataPath: json['externalDataPath'] as String?,
+        iconPath: json['iconPath'] as String?,
       )
       ..like = json['like'] as bool
       ..autoMemory = json['autoMemory'] as bool?;
@@ -55,6 +56,7 @@ Map<String, dynamic> _$MindustryToJson(Mindustry instance) => <String, dynamic>{
   'launcherPath': instance.launcherPath,
   'steam': instance.steam,
   'externalDataPath': instance.externalDataPath,
+  'iconPath': instance.iconPath,
   'memorySize': instance.memorySize,
   'autoMemory': instance.autoMemory,
   'useBetterGPU': instance.useBetterGPU,

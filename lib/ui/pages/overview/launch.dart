@@ -10,6 +10,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import '../../../core/app_config.dart';
 import '../../feature/images.dart';
+import '../../feature/version_icon.dart';
 
 class LaunchPage extends StatefulWidget {
   const LaunchPage({super.key});
@@ -74,10 +75,9 @@ class _LaunchPageState extends State<LaunchPage> {
         );
       },
       // 选中版本切换时：图标 / 名称 / 版本号 交叠切换（淡入 + 向上位移）
-      leading: Image.asset(
-        selectedVersion.launcher == .copper ? Images.copper : Images.mindustry,
+      leading: VersionIcon(
         key: ValueKey(selectedVersion.id),
-        scale: 0.66,
+        version: selectedVersion,
         height: 64,
       ),
       title: Text(

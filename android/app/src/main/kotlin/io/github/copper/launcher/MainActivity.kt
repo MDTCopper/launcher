@@ -202,19 +202,24 @@ class MainActivity : FlutterActivity() {
         val versionId = intent.getStringExtra("version_id").orEmpty()
         val tag = intent.getStringExtra("tag").orEmpty()
         val jarPath = intent.getStringExtra("jar_path").orEmpty()
+        val iconPath = intent.getStringExtra("icon_path").orEmpty()
         when (action) {
             GameShortcut.ACTION_DEBUG_PIN -> {
-                val requested = GameShortcut.requestPin(this, versionId, tag, jarPath)
+                val requested = GameShortcut.requestPin(this, versionId, tag, jarPath, iconPath)
                 Log.i(TAG, "调试：请求桌面快捷方式 version=$versionId 提交=$requested")
             }
             GameShortcut.ACTION_DEBUG_PIN_WIDGET -> {
-                val requested = GameWidget.requestPin(this, versionId, tag, jarPath)
+                val requested = GameWidget.requestPin(this, versionId, tag, jarPath, iconPath)
                 Log.i(TAG, "调试：请求桌面小组件 version=$versionId 提交=$requested")
             }
             GameShortcut.ACTION_DEBUG_BIND_WIDGET -> {
                 val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
                 if (appWidgetId >= 0) {
-                    GameWidget.saveBinding(this, appWidgetId, versionId, tag, jarPath)
+                    GameWidget.saveBinding(
+                        this,
+                        appWidgetId,
+                        GameWidget.Binding(versionId, tag, jarPath, iconPath),
+                    )
                     GameWidget.render(this, appWidgetId)
                     Log.i(TAG, "调试：绑定小组件 $appWidgetId version=$versionId")
                 }
@@ -228,7 +233,8 @@ class MainActivity : FlutterActivity() {
         val versionId = args?.get("versionId") as? String ?: ""
         val tag = args?.get("tag") as? String ?: ""
         val jarPath = args?.get("jarPath") as? String ?: ""
-        result.success(GameShortcut.requestPin(this, versionId, tag, jarPath))
+        val iconPath = args?.get("iconPath") as? String ?: ""
+        result.success(GameShortcut.requestPin(this, versionId, tag, jarPath, iconPath))
     }
 
     /** Dart 侧请求建桌面小组件（版本设置页的「创建桌面快捷方式」用它） */
@@ -237,7 +243,8 @@ class MainActivity : FlutterActivity() {
         val versionId = args?.get("versionId") as? String ?: ""
         val tag = args?.get("tag") as? String ?: ""
         val jarPath = args?.get("jarPath") as? String ?: ""
-        result.success(GameWidget.requestPin(this, versionId, tag, jarPath))
+        val iconPath = args?.get("iconPath") as? String ?: ""
+        result.success(GameWidget.requestPin(this, versionId, tag, jarPath, iconPath))
     }
 
     private companion object {

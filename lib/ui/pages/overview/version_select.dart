@@ -36,7 +36,7 @@ import 'package:uuid/uuid.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import '../../feature/images.dart';
+import '../../feature/version_icon.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 ////version_select
@@ -458,12 +458,10 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     final tile = ReboundListTile(
       padding: EdgeInsets.all(8),
       borderRadius: BorderRadius.circular(4),
-      leading: Image.asset(
-        version.launcher == LauncherType.copper
-            ? Images.copper
-            : Images.mindustry,
-        scale: 0.8,
+      leading: VersionIcon(
+        version: version,
         height: 48,
+        fallbackScale: 0.8,
       ),
       title: Text(version.tag, style: theme.textTheme.bodyLarge),
       subtitle: isDesktop ? _buildVersionSubtitle(version) : null,

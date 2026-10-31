@@ -24,6 +24,7 @@ object GameShortcut {
     /** 小组件 / 快捷方式共用的版本信息：标签与 jar 路径 */
     const val EXTRA_TAG = "mindustry_tag"
     const val EXTRA_JAR_PATH = "mindustry_jar_path"
+    const val EXTRA_ICON_PATH = "mindustry_icon_path"
 
     /** 调试入口：`adb shell am start -a ... -n .../.MainActivity --es ...` 触发建快捷方式 */
     const val ACTION_DEBUG_PIN = "io.github.copper.launcher.DEBUG_PIN"
@@ -54,6 +55,15 @@ object GameShortcut {
     /** 给小组件用：读版本 jar 里的 logo（读不到返回 null） */
     fun loadLogo(jarPath: String): Bitmap? = iconFromJar(jarPath)
 
+    /** 读玩家给版本换的图标；没换过 / 文件坏了返回 null */
+    fun loadIconFile(path: String?): Bitmap? {
+        if (path.isNullOrEmpty()) return null
+        val file = File(path)
+        if (!file.exists()) return null
+        val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return null
+        return scaleDown(bitmap)
+    }
+
     /**
      * 请求把对应版本的快捷方式固定到桌面；系统不支持固定时返回 false。
      *
@@ -64,6 +74,7 @@ object GameShortcut {
         versionId: String,
         tag: String,
         jarPath: String,
+        iconPath: String = "",
     ): Boolean {
         if (versionId.isEmpty()) return false
         if (!isSupported(activity)) return false
@@ -76,7 +87,7 @@ object GameShortcut {
         val shortcut = ShortcutInfoCompat.Builder(activity, shortcutId(versionId))
             .setShortLabel(tag)
             .setLongLabel("启动 Mindustry $tag")
-            .setIcon(iconOf(activity, jarPath))
+            .setIcon(iconOf(activity, jarPath, iconPath))
             .setIntent(intent)
             .setLongLived(true)
             .build()
@@ -86,8 +97,9 @@ object GameShortcut {
 
     private fun shortcutId(versionId: String) = "launch-$versionId"
 
-    private fun iconOf(activity: Activity, jarPath: String): IconCompat =
-        iconFromJar(jarPath)?.let { IconCompat.createWithBitmap(it) }
+    private fun iconOf(activity: Activity, jarPath: String, iconPath: String): IconCompat =
+        loadIconFile(iconPath)?.let { IconCompat.createWithBitmap(it) }
+            ?: iconFromJar(jarPath)?.let { IconCompat.createWithBitmap(it) }
             ?: IconCompat.createWithResource(activity, R.mipmap.ic_launcher)
 
     /** 从版本 jar 里读 logo；读不到返回 null */

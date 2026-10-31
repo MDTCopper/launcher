@@ -116,7 +116,31 @@ class ShortcutLaunch {
     }
   }
 
-  /// 请求给版本建一个桌面小组件（版本设置页「创建桌面快捷方式」用）
+  /// 请求给版本建一个桌面快捷方式（版本设置页「创建桌面快捷方式」用）
+  ///
+  /// 图标优先用玩家给版本换的那张，没换过用 jar 里的 logo；返回 false 表示桌面不支持固定快捷方式
+  static Future<bool> requestPinShortcut(Mindustry version) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final result = await _channel.invokeMethod<bool>('requestPinShortcut', {
+        'versionId': version.id,
+        'tag': version.tag,
+        'jarPath': version.resolvedJarPath,
+        'iconPath': version.resolvedIconPath ?? '',
+      });
+      addLog(
+        .info,
+        '请求桌面快捷方式 [${version.tag}]：${result == true ? '已提交' : '桌面不支持'}',
+        tag: 'Shortcut',
+      );
+      return result ?? false;
+    } on Object catch (error) {
+      addLog(.warning, '请求桌面快捷方式失败：${removeNewlines('$error')}', tag: 'Shortcut');
+      return false;
+    }
+  }
+
+  /// 请求给版本建一个桌面小组件（目前保留备用，版本设置页走快捷方式）
   ///
   /// 返回 false 表示这台设备的桌面不支持一键添加，需要引导用户去小组件面板
   static Future<bool> requestPinWidget(Mindustry version) async {
@@ -126,6 +150,7 @@ class ShortcutLaunch {
         'versionId': version.id,
         'tag': version.tag,
         'jarPath': version.resolvedJarPath,
+        'iconPath': version.resolvedIconPath ?? '',
       });
       addLog(
         .info,

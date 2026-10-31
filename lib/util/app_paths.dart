@@ -174,6 +174,9 @@ abstract class AppPaths {
     return p.join(copperLauncher, 'versionsFolds');
   }
 
+  /// 玩家给版本换的图标 [*\version_icons\]
+  static String get versionIcons => p.join(copperLauncher, 'version_icons');
+
   /// 游戏本体库 [*\mindustrys\]：下载与导入的 jar 集中放这里，变体直接引用同一份；
   /// 版本目录只留版本自己的数据
   static String get mindustrys => p.join(copperLauncher, 'mindustrys');

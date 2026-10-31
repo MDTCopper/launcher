@@ -8,7 +8,9 @@ import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/local_save_import.dart';
 import 'package:copper_launcher/domain/shortcut_launch.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
+import 'package:copper_launcher/domain/version_icon.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
+import 'package:copper_launcher/ui/feature/version_icon.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
@@ -59,7 +61,6 @@ import '../../../util/format/byte_unit.dart';
 import '../../../util/format/ram_rank_list.dart';
 import '../../../util/system_info.dart';
 import '../../components/rebound/rebound_checkbox.dart';
-import '../../feature/images.dart';
 import '../../page_framwork/sub_navigation_state.dart';
 import '../../components/percent_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/checkbox_setting_bar.dart';
@@ -327,11 +328,11 @@ pause
     return '#!/bin/sh\njava $argLine\n';
   }
 
-  /// 给这个版本在桌面建一个「点一下直接进游戏」的图标
+  /// 给这个版本在桌面建一个「点一下直接进游戏」的快捷方式
   ///
-  /// 用 1x1 小组件而不是固定快捷方式：小组件没有桌面的白卡片与来源角标，还能把版本名画进去
+  /// 图标用玩家给版本换的那张（没换过用 jar 里的 logo）
   Future<void> _createDesktopShortcut() async {
-    final requested = await ShortcutLaunch.requestPinWidget(_mindustry);
+    final requested = await ShortcutLaunch.requestPinShortcut(_mindustry);
     if (!mounted) return;
     if (requested) {
       addNotice(
@@ -343,10 +344,45 @@ pause
     }
     addNotice(
       icon: Icons.info_outline,
-      title: '这台桌面不支持一键添加',
-      content: '长按桌面空白处 → 原子组件/小组件 → 找到「Mindustry 直接启动」拖到桌面',
+      title: '这台桌面不支持创建快捷方式',
+      content: '可以在桌面编辑里手动添加快捷方式，或换一个桌面试试',
       duration: const Duration(seconds: 10),
     );
+  }
+
+  /// 换版本图标：复制进数据根，启动器内显示与之后创建的桌面图标都用它
+  Future<void> _changeVersionIcon() async {
+    final path = await PathSelector.selectFile(
+      confirmButtonText: '使用这张图',
+      acceptedTypeGroups: const [
+        XTypeGroup(label: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp']),
+      ],
+    );
+    if (path == null || !mounted) return;
+    try {
+      await VersionIconStorage.save(_mindustry, path);
+      await config.save();
+    } catch (e) {
+      addNotice(icon: Icons.close, title: '更换图标失败', content: '读不了这张图片，换一张试试');
+      debugPrint('更换版本图标失败：$e');
+      return;
+    }
+    if (!mounted) return;
+    setState(() {});
+    addNotice(
+      icon: Icons.check,
+      title: '版本图标已更新',
+      content: '启动器里会立刻用这张图；桌面图标在下次创建时使用',
+    );
+  }
+
+  /// 恢复默认图标（品牌图）
+  Future<void> _resetVersionIcon() async {
+    await VersionIconStorage.clear(_mindustry);
+    await config.save();
+    if (!mounted) return;
+    setState(() {});
+    addNotice(icon: Icons.check, title: '已恢复默认图标', content: '版本图标回到品牌图');
   }
 
   Future<void> _openFolder(String folderPath) async {
@@ -540,10 +576,8 @@ pause
             child: ReboundListTile(
               borderRadius: BorderRadius.circular(4),
               padding: EdgeInsets.all(4),
-              leading: Image.asset(
-                _mindustry.launcher == LauncherType.copper
-                    ? Images.copper
-                    : Images.mindustry,
+              leading: VersionIcon(
+                version: _mindustry,
                 height: 64,
                 fit: BoxFit.fitHeight,
               ),
@@ -698,6 +732,37 @@ pause
     return ListContentPanel(
       items: [
         _buildVersionInfoPanel(),
+
+        ContentPanelModule(
+          title: '版本图标',
+          child: Column(
+            crossAxisAlignment: .start,
+            children: [
+              Text('启动器内与桌面图标都用这张图；不换时用品牌图', style: theme.textTheme.labelMedium),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: .start,
+                children: [
+                  IconTextButton(
+                    width: 136,
+                    icon: Icons.image_outlined,
+                    content: '更换图标',
+                    onTap: _changeVersionIcon,
+                  ),
+                  if (_mindustry.iconPath != null)
+                    IconTextButton(
+                      width: 136,
+                      icon: Icons.settings_backup_restore,
+                      content: '默认图标',
+                      onTap: _resetVersionIcon,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
 
         ContentPanelModule(
           title: '快捷方式',
