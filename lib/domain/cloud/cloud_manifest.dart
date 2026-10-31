@@ -33,6 +33,93 @@ enum CloudCategory {
       category.folder.isEmpty ? name : '${category.folder}/$name';
 }
 
+/// 服务端 manifest 快照的文件项（数据目录内相对路径）
+class CloudSaveManifestFile {
+  const CloudSaveManifestFile({
+    required this.path,
+    required this.size,
+    required this.sha256,
+  });
+
+  final String path;
+  final int size;
+  final String sha256;
+
+  Map<String, dynamic> toJson() => {
+    'path': path,
+    'size': size,
+    'sha256': sha256,
+  };
+
+  factory CloudSaveManifestFile.fromJson(Map<String, dynamic> json) =>
+      CloudSaveManifestFile(
+        path: '${json['path'] ?? ''}',
+        size: json['size'] is int ? json['size'] as int : 0,
+        sha256: '${json['sha256'] ?? ''}',
+      );
+}
+
+/// 文件级快照的清单；与整包 zip 的 `CloudManifest` 分开，字段按服务端契约来
+class CloudSaveManifestPayload {
+  const CloudSaveManifestPayload({
+    this.format = 'copper-save-manifest-v1',
+    required this.files,
+    this.game,
+    this.save,
+    this.mods = const [],
+    this.snapshotId,
+    this.revision,
+    this.size,
+    this.sha256,
+    this.createdAt,
+  });
+
+  static const formatName = 'copper-save-manifest-v1';
+
+  final String format;
+  final List<CloudSaveManifestFile> files;
+  final Map<String, dynamic>? game;
+  final Map<String, dynamic>? save;
+  final List<Map<String, dynamic>> mods;
+  final String? snapshotId;
+  final int? revision;
+  final int? size;
+  final String? sha256;
+  final DateTime? createdAt;
+
+  int get totalBytes => files.fold(0, (sum, file) => sum + file.size);
+
+  Map<String, dynamic> toJson() => {
+    'format': format,
+    'files': [for (final file in files) file.toJson()],
+    if (game != null) 'game': game,
+    if (save != null) 'save': save,
+    if (mods.isNotEmpty) 'mods': mods,
+  };
+
+  factory CloudSaveManifestPayload.fromJson(Map<String, dynamic> json) {
+    return CloudSaveManifestPayload(
+      format: '${json['format'] ?? formatName}',
+      files: [
+        for (final item in (json['files'] as List? ?? const []))
+          if (item is Map)
+            CloudSaveManifestFile.fromJson(item.cast<String, dynamic>()),
+      ],
+      game: (json['game'] as Map?)?.cast<String, dynamic>(),
+      save: (json['save'] as Map?)?.cast<String, dynamic>(),
+      mods: [
+        for (final item in (json['mods'] as List? ?? const []))
+          if (item is Map) item.cast<String, dynamic>(),
+      ],
+      snapshotId: json['snapshot_id'] as String?,
+      revision: json['revision'] is int ? json['revision'] as int : null,
+      size: json['size'] is int ? json['size'] as int : null,
+      sha256: json['sha256'] as String?,
+      createdAt: DateTime.tryParse('${json['created_at']}'),
+    );
+  }
+}
+
 /// 云端包对应的游戏版本：一个 tag 一个包
 ///
 /// 恢复时靠它判断「本机有没有这个版本」、并做兼容性提示（配合包里的 mod 清单）

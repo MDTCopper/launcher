@@ -1,6 +1,8 @@
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
+import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
+import 'package:uuid/uuid.dart';
 
 /// MDTBBS 云存档接口（Cloud Saves V1）
 ///
@@ -257,6 +259,149 @@ class MdtbbsCloudSaveApi {
       cancelToken: cancelToken,
     );
     return _maybeSnapshot(data);
+  }
+
+  /// 差量上传：批量查本账号已有 / 暂存的文件内容
+  static Future<CloudSaveBlobCheck> checkBlobs({
+    required String accessToken,
+    required List<String> sha256,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await MdtbbsClient.postJson(
+      '$_base/blobs/check',
+      body: {'sha256': sha256},
+      accessToken: accessToken,
+      cancelToken: cancelToken,
+    );
+    return CloudSaveBlobCheck.fromJson(_mapOf(data, 'blob 检查'));
+  }
+
+  /// 差量上传：为单个缺失文件开上传会话
+  static Future<CloudSaveBlobUpload> createBlobUpload({
+    required String accessToken,
+    required String sha256,
+    required int size,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await MdtbbsClient.postJson(
+      '$_base/blobs',
+      body: {'sha256': sha256, 'size': size},
+      accessToken: accessToken,
+      cancelToken: cancelToken,
+    );
+    return CloudSaveBlobUpload.fromJson(_mapOf(data, 'blob 上传会话'));
+  }
+
+  /// 差量上传：把原始字节写到 blob 会话
+  static Future<void> putBlobBytes({
+    required String accessToken,
+    required CloudSaveBlobUpload upload,
+    required List<int> bytes,
+    ProgressCallback? onSendProgress,
+    CancelToken? cancelToken,
+  }) async {
+    final url = (upload.url == null || upload.url!.isEmpty)
+        ? '$_base/blobs/uploads/${upload.uploadId}/file'
+        : upload.url!;
+    await MdtbbsClient.putBytes(
+      url,
+      bytes: bytes,
+      accessToken: accessToken,
+      headers: upload.headers,
+      onSendProgress: onSendProgress,
+      cancelToken: cancelToken,
+    );
+  }
+
+  /// 用文件清单原子创建 manifest 快照
+  static Future<CloudSaveSnapshot?> createManifestSnapshot({
+    required String accessToken,
+    required String slotId,
+    required CloudSaveManifestPayload manifest,
+    String? baseSnapshotId,
+    CloudSaveUploadReason reason = CloudSaveUploadReason.manual,
+    CloudSaveConflictPolicy? conflictPolicy,
+    String? confirmCurrentSnapshotId,
+    CloudSaveGameInfo? game,
+    CloudSaveDisplayInfo? save,
+    List<CloudSaveModInfo> mods = const [],
+    String? deviceId,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await MdtbbsClient.postJson(
+      '$_base/$slotId/snapshots',
+      headers: {'Idempotency-Key': const Uuid().v4()},
+      body: {
+        'manifest': manifest.toJson(),
+        'base_snapshot_id': ?baseSnapshotId,
+        'reason': reason.wire,
+        if (conflictPolicy != null) 'conflict_resolution': conflictPolicy.wire,
+        'confirm_current_snapshot_id': ?confirmCurrentSnapshotId,
+        if (game != null) 'game': game.toJson(),
+        if (save != null) 'save': save.toJson(),
+        if (mods.isNotEmpty)
+          'mods': [for (final mod in mods.take(100)) mod.toJson()],
+        'device_id': ?deviceId,
+      },
+      accessToken: accessToken,
+      cancelToken: cancelToken,
+    );
+    return _maybeSnapshot(data);
+  }
+
+  /// 读取 manifest 快照的文件清单
+  static Future<CloudSaveManifestPayload> manifest({
+    required String accessToken,
+    required String slotId,
+    required String snapshotId,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await MdtbbsClient.getJson(
+      '$_base/$slotId/snapshots/$snapshotId/manifest',
+      accessToken: accessToken,
+      cancelToken: cancelToken,
+    );
+    return CloudSaveManifestPayload.fromJson(_mapOf(data, '快照清单'));
+  }
+
+  /// 取清单里缺失文件的下载地址
+  static Future<List<CloudSaveBlobDownload>> blobDownloads({
+    required String accessToken,
+    required String slotId,
+    required String snapshotId,
+    required List<String> sha256,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await MdtbbsClient.postJson(
+      '$_base/$slotId/snapshots/$snapshotId/blobs/download',
+      body: {'sha256': sha256},
+      accessToken: accessToken,
+      cancelToken: cancelToken,
+    );
+    final map = _mapOf(data, '文件下载地址');
+    return [
+      for (final item in (map['downloads'] as List? ?? const []))
+        if (item is Map)
+          CloudSaveBlobDownload.fromJson(item.cast<String, dynamic>()),
+    ];
+  }
+
+  /// 下载 manifest 里的一个文件到本地临时路径
+  static Future<void> downloadBlobFile({
+    required String accessToken,
+    required CloudSaveBlobDownload download,
+    required String savePath,
+    HttpStatusCallback? onStatus,
+    CancelToken? cancelToken,
+  }) async {
+    await MdtbbsClient.downloadFile(
+      path: download.url,
+      savePath: savePath,
+      accessToken: accessToken,
+      headers: download.headers,
+      onStatus: onStatus,
+      cancelToken: cancelToken,
+    );
   }
 
   /// 取消没用完的上传会话（**释放它占的配额**）

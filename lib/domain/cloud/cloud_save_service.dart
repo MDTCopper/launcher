@@ -780,6 +780,24 @@ class CloudSaveService {
       cancelToken: cancelToken,
     );
 
+    if (await _supportsManifest(accessToken, cancelToken)) {
+      return _uploadManifest(
+        accessToken: accessToken,
+        version: version,
+        slot: slot,
+        deviceName: name,
+        reason: reason,
+        conflictPolicy: conflictPolicy,
+        confirmCurrentSnapshotId: confirmCurrentSnapshotId,
+        includePreviews: includePreviews,
+        includeModBytes: includeModBytes,
+        includeBytesWhen: includeBytesWhen,
+        onStatus: onStatus,
+        onSendProgress: onSendProgress,
+        cancelToken: cancelToken,
+      );
+    }
+
     final directory = Directory(tempDir);
     if (!directory.existsSync()) directory.createSync(recursive: true);
     final archivePath = p.join(
@@ -922,6 +940,247 @@ class CloudSaveService {
     } finally {
       _deleteQuietly(archivePath);
     }
+  }
+
+  /// 服务端是否支持 manifest 快照（判断一次，失败按不支持处理）
+  static Future<bool> _supportsManifest(
+    String accessToken,
+    CancelToken? cancelToken,
+  ) async {
+    try {
+      final quota = await MdtbbsCloudSaveApi.quota(
+        accessToken: accessToken,
+        cancelToken: cancelToken,
+      );
+      return quota.supportsManifest;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// 差量上传：只传服务端缺的文件内容，再用 manifest 建快照
+  static Future<CloudSaveUploadResult> _uploadManifest({
+    required String accessToken,
+    required Mindustry version,
+    required CloudSaveSlot slot,
+    required String deviceName,
+    required CloudSaveUploadReason reason,
+    required CloudSaveConflictPolicy conflictPolicy,
+    required String? confirmCurrentSnapshotId,
+    required bool includePreviews,
+    required bool includeModBytes,
+    required bool Function(CloudModEntry mod)? includeBytesWhen,
+    void Function(String status)? onStatus,
+    ProgressCallback? onSendProgress,
+    CancelToken? cancelToken,
+  }) async {
+    onStatus?.call('扫描本机存档');
+    final manifest = await _scanManifest(
+      version: version,
+      deviceName: deviceName,
+      includePreviews: includePreviews,
+      includeModBytes: includeModBytes,
+      includeBytesWhen: includeBytesWhen,
+    );
+    final built = _manifestPayloadOf(manifest, version);
+    final payload = built.payload;
+    if (payload.files.isEmpty) {
+      throw const MdtbbsException(message: '没有可上传的文件');
+    }
+
+    onStatus?.call('检查云端已有文件');
+    final check = await MdtbbsCloudSaveApi.checkBlobs(
+      accessToken: accessToken,
+      sha256: [for (final file in payload.files) file.sha256].toSet().toList(),
+      cancelToken: cancelToken,
+    );
+    final missing = {
+      for (final file in payload.files)
+        if (check.missing.contains(file.sha256)) file.sha256: file,
+    };
+
+    final guard = await _makeRoomForUpload(
+      accessToken: accessToken,
+      slot: slot,
+      newBytes: missing.values.fold(0, (sum, file) => sum + file.size),
+      onStatus: onStatus,
+      cancelToken: cancelToken,
+    );
+
+    var uploaded = 0;
+    for (final file in missing.values) {
+      if (cancelToken?.isCancelled ?? false) {
+        throw const MdtbbsException(message: '已取消');
+      }
+      final localPath = built.paths[file.sha256];
+      final source = localPath == null ? null : File(localPath);
+      if (source == null || !source.existsSync()) {
+        throw MdtbbsException(message: '本机文件不见了：${file.path}');
+      }
+      final bytes = source.readAsBytesSync();
+      if (bytes.length != file.size ||
+          sha256OfBytes(bytes) != file.sha256) {
+        throw MdtbbsException(message: '文件在上传前发生变化：${file.path}');
+      }
+      onStatus?.call('上传 ${file.path}（${uploaded + 1}/${missing.length}）');
+      final session = await MdtbbsCloudSaveApi.createBlobUpload(
+        accessToken: accessToken,
+        sha256: file.sha256,
+        size: file.size,
+        cancelToken: cancelToken,
+      );
+      if (!session.noUploadRequired) {
+        await MdtbbsCloudSaveApi.putBlobBytes(
+          accessToken: accessToken,
+          upload: session,
+          bytes: bytes,
+          onSendProgress: onSendProgress,
+          cancelToken: cancelToken,
+        );
+      }
+      uploaded++;
+    }
+
+    onStatus?.call('创建云端快照');
+    CloudSaveSnapshot? snapshot;
+    try {
+      snapshot = await MdtbbsCloudSaveApi.createManifestSnapshot(
+        accessToken: accessToken,
+        slotId: slot.id,
+        manifest: payload,
+        baseSnapshotId: slot.currentSnapshotId,
+        reason: reason,
+        conflictPolicy: conflictPolicy,
+        confirmCurrentSnapshotId: confirmCurrentSnapshotId,
+        game: CloudSaveGameInfo(
+          version: version.release,
+          build: version.versionNumber ?? version.releaseInt,
+        ),
+        save: _displayInfoOf(_newestSave(manifest)?.meta),
+        mods: _modsOf(manifest),
+        deviceId: deviceName,
+        cancelToken: cancelToken,
+      );
+    } on MdtbbsException catch (error) {
+      if (!error.isConflict) rethrow;
+      final head = await MdtbbsCloudSaveApi.slot(
+        accessToken: accessToken,
+        slotId: slot.id,
+        cancelToken: cancelToken,
+      );
+      throw CloudSaveConflictException(
+        cause: error,
+        outcome: outcomeOf(
+          slot: head,
+          state: localState(version),
+          manifest: manifest,
+        ),
+      );
+    }
+
+    final headId = snapshot?.id ??
+        (await MdtbbsCloudSaveApi.slot(
+          accessToken: accessToken,
+          slotId: slot.id,
+          cancelToken: cancelToken,
+        )).currentSnapshotId;
+    _rememberSynced(
+      version,
+      slotId: slot.id,
+      snapshotId: headId,
+      files: built.hashes,
+    );
+    return CloudSaveUploadResult(
+      slot: slot,
+      snapshot: snapshot,
+      archiveBytes: payload.totalBytes,
+      dropped: const [],
+      quotaGuard: guard,
+      alreadyUpToDate: snapshot?.raw['no_changes'] == true,
+    );
+  }
+
+  /// 扫描本机并复用哈希缓存
+  static Future<CloudManifest> _scanManifest({
+    required Mindustry version,
+    required String deviceName,
+    bool includePreviews = false,
+    bool includeModBytes = false,
+    bool Function(CloudModEntry mod)? includeBytesWhen,
+  }) async {
+    final cache = CloudHashCache.load(hashCachePath);
+    try {
+      return await CloudManifest.scan(
+        version: version,
+        deviceName: deviceName,
+        account: currentAccountId,
+        includePreviews: includePreviews,
+        includeModBytes: includeModBytes,
+        includeBytesWhen: includeBytesWhen,
+        cache: cache,
+      );
+    } finally {
+      cache.save();
+    }
+  }
+
+  /// 把本机清单映射成服务端 manifest + 本地路径 / 哈希
+  static ({
+    CloudSaveManifestPayload payload,
+    Map<String, String> paths,
+    Map<String, String> hashes,
+  }) _manifestPayloadOf(CloudManifest manifest, Mindustry version) {
+    final dataPath = version.dataPath;
+    final files = <CloudSaveManifestFile>[];
+    final paths = <String, String>{};
+    final hashes = <String, String>{};
+    for (final file in manifest.includedFiles) {
+      final path = CloudCategory.entryNameOf(file.category, file.name);
+      final local = file.category.folder.isEmpty
+          ? p.join(dataPath, file.name)
+          : p.join(dataPath, file.category.folder, file.name);
+      files.add(
+        CloudSaveManifestFile(
+          path: path,
+          size: file.size,
+          sha256: file.sha256,
+        ),
+      );
+      paths.putIfAbsent(file.sha256, () => local);
+      hashes[path] = file.sha256;
+    }
+    for (final mod in manifest.includedModBytes) {
+      final folder = mod.isCopper ? 'copper/mods' : 'mods';
+      final path = p.posix.join(folder, mod.fileName);
+      files.add(
+        CloudSaveManifestFile(
+          path: path,
+          size: mod.size,
+          sha256: mod.sha256,
+        ),
+      );
+      paths.putIfAbsent(
+        mod.sha256,
+        () => p.join(modsDirIn(dataPath, copper: mod.isCopper), mod.fileName),
+      );
+      hashes[path] = mod.sha256;
+    }
+    final display = _displayInfoOf(_newestSave(manifest)?.meta);
+    return (
+      payload: CloudSaveManifestPayload(
+        files: files,
+        game: {
+          'version': manifest.game.release,
+          if (manifest.game.build != null) 'build': manifest.game.build,
+        },
+        save: display?.toJson(),
+        mods: [
+          for (final mod in _modsOf(manifest)) mod.toJson(),
+        ],
+      ),
+      paths: paths,
+      hashes: hashes,
+    );
   }
 
   /// 把没用完的上传会话交回去（服务端据此释放它占的配额）
@@ -1154,6 +1413,37 @@ class CloudSaveService {
     onStatus?.call('备份本机存档');
     final backup = await _backupForRestore(version);
 
+    onStatus?.call('读取云端清单');
+    CloudSaveManifestPayload? remoteManifest;
+    try {
+      remoteManifest = await MdtbbsCloudSaveApi.manifest(
+        accessToken: accessToken,
+        slotId: slotId,
+        snapshotId: snapshotId,
+        cancelToken: cancelToken,
+      );
+    } on MdtbbsException catch (error) {
+      // 整包快照会明确回格式不匹配；旧服务端没这个接口时也会 404
+      if (error.code != 'SAVE_SNAPSHOT_FORMAT_MISMATCH' &&
+          error.statusCode != 404) {
+        rethrow;
+      }
+    }
+    if (remoteManifest != null) {
+      return _restoreManifest(
+        accessToken: accessToken,
+        version: version,
+        slotId: slotId,
+        snapshotId: snapshotId,
+        remote: remoteManifest,
+        backupPath: backup.path,
+        backupBytes: backup.bytes,
+        onStatus: onStatus,
+        onProgress: onProgress,
+        cancelToken: cancelToken,
+      );
+    }
+
     onStatus?.call('下载云端快照');
     final tempPath = await _fetchSnapshot(
       accessToken: accessToken,
@@ -1190,6 +1480,194 @@ class CloudSaveService {
     } finally {
       _deleteQuietly(tempPath);
     }
+  }
+
+  /// manifest 快照：按缺失的 blob 下载，逐文件覆盖本机
+  static Future<CloudSaveRestoreResult> _restoreManifest({
+    required String accessToken,
+    required Mindustry version,
+    required String slotId,
+    required String snapshotId,
+    required CloudSaveManifestPayload remote,
+    required String backupPath,
+    required int backupBytes,
+    void Function(String status)? onStatus,
+    HttpStatusCallback? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    final dataPath = version.dataPath;
+    final changed = <CloudSaveManifestFile>[];
+    final unchanged = <String>[];
+    final paths = <String, String>{};
+    final hashes = <String, String>{};
+    for (final file in remote.files) {
+      if (file.path.isEmpty || file.sha256.isEmpty) continue;
+      final destination = _safeManifestDestination(dataPath, file.path);
+      paths[file.path] = destination;
+      hashes[file.path] = file.sha256;
+      final local = File(destination);
+      if (local.existsSync() &&
+          sha256OfFile(destination) == file.sha256) {
+        unchanged.add(destination);
+      } else {
+        changed.add(file);
+      }
+    }
+
+    final tempRoot = Directory(
+      p.join(tempDir, 'manifest-${DateTime.now().millisecondsSinceEpoch}'),
+    )..createSync(recursive: true);
+    try {
+      final changedBySha = {
+        for (final file in changed) file.sha256: file,
+      };
+      final tempFiles = <String, String>{};
+      if (changedBySha.isNotEmpty) {
+        onStatus?.call('获取缺失文件地址');
+        final downloads = await MdtbbsCloudSaveApi.blobDownloads(
+          accessToken: accessToken,
+          slotId: slotId,
+          snapshotId: snapshotId,
+          sha256: changedBySha.keys.toList(),
+          cancelToken: cancelToken,
+        );
+        final grantBySha = {
+          for (final download in downloads) download.sha256: download,
+        };
+        var index = 0;
+        for (final entry in changedBySha.entries) {
+          final grant = grantBySha[entry.key];
+          if (grant == null) {
+            throw MdtbbsException(message: '云端没有这份文件：${entry.value.path}');
+          }
+          onStatus?.call(
+            '下载 ${entry.value.path}（${index + 1}/${changedBySha.length}）',
+          );
+          final tempPath = p.join(tempRoot.path, entry.key);
+          await MdtbbsCloudSaveApi.downloadBlobFile(
+            accessToken: accessToken,
+            download: grant,
+            savePath: tempPath,
+            onStatus: onProgress,
+            cancelToken: cancelToken,
+          );
+          final downloaded = File(tempPath);
+          if (!downloaded.existsSync() ||
+              downloaded.lengthSync() != entry.value.size ||
+              sha256OfFile(tempPath) != entry.key) {
+            throw MdtbbsException(message: '下载校验失败：${entry.value.path}');
+          }
+          tempFiles[entry.key] = tempPath;
+          index++;
+        }
+      }
+
+      onStatus?.call('覆盖本机存档');
+      final report = CloudImportReport(manifest: _manifestOfRemote(remote));
+      report.unchanged.addAll(unchanged);
+      for (final file in changed) {
+        final destination = paths[file.path]!;
+        final target = File(destination);
+        target.parent.createSync(recursive: true);
+        final existed = target.existsSync();
+        File(tempFiles[file.sha256]!).copySync(destination);
+        report.written.add(destination);
+        if (existed) {
+          report.overwritten.add(destination);
+          if (_isCampaignCriticalPath(file.path)) {
+            report.campaignOverwritten.add(destination);
+          }
+        }
+      }
+      _pruneBackups();
+      _rememberSynced(
+        version,
+        slotId: slotId,
+        snapshotId: snapshotId,
+        files: hashes,
+      );
+      return CloudSaveRestoreResult(
+        report: report,
+        backupPath: backupPath,
+        backupBytes: backupBytes,
+      );
+    } finally {
+      if (tempRoot.existsSync()) tempRoot.deleteSync(recursive: true);
+    }
+  }
+
+  static bool _isCampaignCriticalPath(String path) {
+    final normalized = p.posix.normalize(path);
+    if (normalized == 'settings.bin') return true;
+    return normalized.startsWith('saves/sector-');
+  }
+
+  static String _safeManifestDestination(String dataPath, String relative) {
+    if (p.isAbsolute(relative) ||
+        relative.contains('\\') ||
+        relative.contains(':')) {
+      throw const MdtbbsException(message: '云端清单里有非法路径');
+    }
+    final normalized = p.posix.normalize(relative);
+    if (normalized == '..' ||
+        normalized.startsWith('../') ||
+        normalized.contains('/../')) {
+      throw const MdtbbsException(message: '云端清单里有非法路径');
+    }
+    final destination = p.join(dataPath, normalized);
+    if (!p.isWithin(p.normalize(dataPath), p.normalize(destination))) {
+      throw const MdtbbsException(message: '云端清单里有非法路径');
+    }
+    return destination;
+  }
+
+  static CloudManifest _manifestOfRemote(CloudSaveManifestPayload remote) {
+    final game = remote.game ?? const {};
+    final files = <CloudFileEntry>[];
+    for (final file in remote.files) {
+      final path = p.posix.normalize(file.path);
+      if (path.startsWith('mods/') || path.startsWith('copper/mods/')) {
+        continue;
+      }
+      final (category, name) = switch (path) {
+        'settings.bin' => (CloudCategory.settings, 'settings.bin'),
+        _ when path.startsWith('saves/') => (
+          CloudCategory.save,
+          path.substring('saves/'.length),
+        ),
+        _ when path.startsWith('maps/') => (
+          CloudCategory.map,
+          path.substring('maps/'.length),
+        ),
+        _ when path.startsWith('schematics/') => (
+          CloudCategory.schematic,
+          path.substring('schematics/'.length),
+        ),
+        _ when path.startsWith('previews/') => (
+          CloudCategory.preview,
+          path.substring('previews/'.length),
+        ),
+        _ => (CloudCategory.save, path),
+      };
+      files.add(
+        CloudFileEntry(
+          category: category,
+          name: name,
+          size: file.size,
+          sha256: file.sha256,
+        ),
+      );
+    }
+    return CloudManifest(
+      game: CloudGameInfo(
+        tag: '',
+        release: '${game['version'] ?? ''}',
+        build: game['build'] is int ? game['build'] as int : null,
+      ),
+      exportedAt: DateTime.now(),
+      deviceName: '',
+      files: files,
+    );
   }
 
   /// 这次上传大概多大（清单合计、未压缩）与有几份文件 / 几个模组

@@ -124,8 +124,12 @@ class MdtbbsTokens {
 class CloudSaveQuota {
   const CloudSaveQuota({
     this.usedBytes,
+    this.logicalBytes,
     this.limitBytes,
     this.maxFileSizeBytes,
+    this.formats = const ['zip'],
+    this.manifestMaxFiles,
+    this.manifestMaxBytes,
     this.slotsUsed,
     this.slotsLimit,
     this.maxUnpinnedVersionsPerSlot,
@@ -135,11 +139,21 @@ class CloudSaveQuota {
 
   final int? usedBytes;
 
+  /// 所有存活快照的逻辑大小之和（与 unique blob 计费口径不同）
+  final int? logicalBytes;
+
   /// 账号总配额（实测 200 MiB）
   final int? limitBytes;
 
   /// **单文件上限（实测 50 MiB）** —— 带模组字节的云包很容易超，打包前拿它挡一下
   final int? maxFileSizeBytes;
+
+  /// 服务端支持的快照格式；含 `manifest` 才能走差量上传
+  final List<String> formats;
+  final int? manifestMaxFiles;
+  final int? manifestMaxBytes;
+
+  bool get supportsManifest => formats.contains('manifest');
 
   final int? slotsUsed;
 
@@ -171,10 +185,21 @@ class CloudSaveQuota {
   factory CloudSaveQuota.fromJson(Map<String, dynamic> json) {
     final slots = (json['slots'] as Map?)?.cast<String, dynamic>();
     final retention = (json['retention'] as Map?)?.cast<String, dynamic>();
+    final limits = (json['manifest_limits'] as Map?)?.cast<String, dynamic>();
+    final formats = json['formats'];
     return CloudSaveQuota(
       usedBytes: _intOf(json['used_bytes']),
+      logicalBytes: _intOf(json['logical_bytes']),
       limitBytes: _intOf(json['limit_bytes']),
       maxFileSizeBytes: _intOf(json['max_file_size_bytes']),
+      formats: formats is List
+          ? [
+              for (final item in formats)
+                if (item is String) item,
+            ]
+          : const ['zip'],
+      manifestMaxFiles: _intOf(limits?['max_files']),
+      manifestMaxBytes: _intOf(limits?['max_manifest_bytes']),
       slotsUsed: _intOf(slots?['used']),
       slotsLimit: _intOf(slots?['limit']),
       maxUnpinnedVersionsPerSlot: _intOf(
@@ -305,6 +330,8 @@ class CloudSaveSnapshot {
     this.sha256,
     this.createdAt,
     this.reason,
+    this.format = 'zip',
+    this.fileCount,
     this.pinned = false,
     this.source,
     this.game,
@@ -325,6 +352,12 @@ class CloudSaveSnapshot {
   final String? sha256;
   final DateTime? createdAt;
   final String? reason;
+
+  /// `zip` 整包快照 / `manifest` 文件级快照
+  final String format;
+  final int? fileCount;
+
+  bool get isManifest => format == 'manifest';
 
   /// 固定后不会被保留策略自动清理
   final bool pinned;
@@ -352,6 +385,8 @@ class CloudSaveSnapshot {
       sha256: json['sha256'] as String?,
       createdAt: _timeOf(json['created_at'] ?? json['createdAt']),
       reason: json['reason'] as String?,
+      format: '${json['format'] ?? 'zip'}',
+      fileCount: _intOf(json['file_count']),
       pinned: json['pinned'] == true,
       source: source is Map
           ? CloudSaveSource.fromJson(source.cast<String, dynamic>())
@@ -379,6 +414,8 @@ class CloudSaveSnapshot {
     if (sha256 != null) 'sha256': sha256,
     if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
     if (reason != null) 'reason': reason,
+    'format': format,
+    if (fileCount != null) 'file_count': fileCount,
     'pinned': pinned,
     if (source != null)
       'source': {
@@ -491,6 +528,85 @@ class CloudSaveUploadSession {
       method: '${upload['method'] ?? 'PUT'}',
       headers: headers.map((key, value) => MapEntry('$key', '$value')),
       expiresAt: _timeOf(upload['expires_at']),
+    );
+  }
+}
+
+/// 差量上传：blob 存在性检查结果
+class CloudSaveBlobCheck {
+  const CloudSaveBlobCheck({this.exists = const {}, this.missing = const {}});
+
+  final Set<String> exists;
+  final Set<String> missing;
+
+  factory CloudSaveBlobCheck.fromJson(Map<String, dynamic> json) =>
+      CloudSaveBlobCheck(
+        exists: {
+          for (final item in (json['exists'] as List? ?? const []))
+            if (item is String) item,
+        },
+        missing: {
+          for (final item in (json['missing'] as List? ?? const []))
+            if (item is String) item,
+        },
+      );
+}
+
+/// 差量上传：单个 blob 的上传会话；[noUploadRequired] 时不需要 PUT
+class CloudSaveBlobUpload {
+  const CloudSaveBlobUpload({
+    required this.uploadId,
+    this.url,
+    this.method = 'PUT',
+    this.headers = const {},
+    this.noUploadRequired = false,
+  });
+
+  final String uploadId;
+  final String? url;
+  final String method;
+  final Map<String, String> headers;
+  final bool noUploadRequired;
+
+  factory CloudSaveBlobUpload.fromJson(Map<String, dynamic> json) {
+    final upload = (json['upload'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final headers = (upload['headers'] as Map?) ?? const {};
+    return CloudSaveBlobUpload(
+      uploadId: '${json['upload_id'] ?? ''}',
+      url: upload['url'] as String?,
+      method: '${upload['method'] ?? 'PUT'}',
+      headers: headers.map((key, value) => MapEntry('$key', '$value')),
+      noUploadRequired: json['no_upload_required'] == true,
+    );
+  }
+}
+
+/// 差量下载：清单里一个文件的下载地址
+class CloudSaveBlobDownload {
+  const CloudSaveBlobDownload({
+    required this.path,
+    required this.sha256,
+    required this.size,
+    required this.url,
+    this.headers = const {},
+  });
+
+  final String path;
+  final String sha256;
+  final int size;
+  final String url;
+  final Map<String, String> headers;
+
+  factory CloudSaveBlobDownload.fromJson(Map<String, dynamic> json) {
+    final download =
+        (json['download'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final headers = (download['headers'] as Map?) ?? const {};
+    return CloudSaveBlobDownload(
+      path: '${json['path'] ?? ''}',
+      sha256: '${json['sha256'] ?? ''}',
+      size: _intOf(json['size']) ?? 0,
+      url: '${download['url'] ?? ''}',
+      headers: headers.map((key, value) => MapEntry('$key', '$value')),
     );
   }
 }
