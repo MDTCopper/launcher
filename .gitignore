@@ -58,34 +58,16 @@ opencode.json
 .npm-cache/
 
 # copperlauncher
-versions/
-mindustrys/
-logs/
+# 启动器运行时数据：checkout 内数据根是 data/，绿色版是 exe 目录
+/data/
+# 会话临时区：调试截图 / 日志 / 构建中间产物
+tmp/
 .test/
 tool/build_release_state.json
-config.*
-# 运行时产物：云存档的临时目录与「恢复前备份」、启动器配置的备份、清单哈希缓存。
-# debug 下数据根就是仓库根，这几个目录 / 文件会落在仓库里，别提交
-tmp/
-cache/
-cloud-backups/
-config-backups/
-cloud-manifest-cache.json
-# 云存档的账号态（含 refresh token）与「数据目录 → 云端槽位」的绑定；
-# debug 运行时数据根就是仓库根，这两个文件会落在仓库里，绝不能提交
-mdtbbs_account.json
-mdtbbs_cloud_slots.json
-# 云存档的「哪些数据目录开了云存档」开关
-cloud-enabled.json
 /lib/abandon_mystery_code/
 /lib/test/
 analyze_out.txt
-remote_data/
-# 只忽略数据根里的 JDK 目录：写成 `java/` 会连 lib/util/io/java 与安卓的 java 源码目录一起忽略，
-# 以后往那两处加新源码会被静默漏掉
-/java/
 .project_status/
-copper_loader/
 
 promo/
 
@@ -102,10 +84,6 @@ web/
 # Widget Preview related
 .widget_preview/
 
-# 启动器运行期数据（桌面端数据根就在仓库目录）
-version_icons/
-# 桌面快捷方式用的 .ico（由版本图标转出，按版本 id 缓存）
+# 旧布局的快捷方式图标缓存：现有 .lnk 的图标路径还指着这里，先留着
 shortcut_icons/
-# 云存档后台服务的运行期数据：service.json / sessions / pending / requests
-cloud-service/
 
