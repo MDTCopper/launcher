@@ -1645,9 +1645,11 @@ class CloudSaveService {
   static CloudManifest _manifestOfRemote(CloudSaveManifestPayload remote) {
     final game = remote.game ?? const {};
     final files = <CloudFileEntry>[];
+    final modPathsBySha = <String, String>{};
     for (final file in remote.files) {
       final path = p.posix.normalize(file.path);
       if (path.startsWith('mods/') || path.startsWith('copper/mods/')) {
+        modPathsBySha[file.sha256] = path;
         continue;
       }
       final lower = path.toLowerCase();
@@ -1670,6 +1672,30 @@ class CloudSaveService {
         ),
       );
     }
+    final mods = <CloudModEntry>[];
+    for (final raw in remote.mods) {
+      final id = '${raw['id'] ?? ''}'.trim();
+      final sha256 = '${raw['sha256'] ?? ''}'.trim();
+      if (id.isEmpty && sha256.isEmpty) continue;
+      final path = sha256.isEmpty ? null : modPathsBySha[sha256];
+      // 服务端 mod 元数据不带文件名 / 来源：有随包字节就从路径取文件名，
+      // 否则按内部名猜 `id.jar`；补全时再按内部名回官方列表找仓库
+      final fileName = path != null
+          ? p.posix.basename(path)
+          : '${id.isEmpty ? sha256.substring(0, 8) : id}.jar';
+      mods.add(
+        CloudModEntry(
+          fileName: fileName,
+          size: 0,
+          sha256: sha256,
+          isCopper: path?.startsWith('copper/mods/') ?? false,
+          internalName: id.isEmpty ? null : id,
+          displayName: raw['name'] as String?,
+          version: raw['version'] as String?,
+          includeBytes: path != null,
+        ),
+      );
+    }
     return CloudManifest(
       game: CloudGameInfo(
         tag: '',
@@ -1679,6 +1705,7 @@ class CloudSaveService {
       exportedAt: DateTime.now(),
       deviceName: '',
       files: files,
+      mods: mods,
     );
   }
 
