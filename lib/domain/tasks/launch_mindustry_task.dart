@@ -8,11 +8,13 @@ import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
+import 'package:copper_launcher/domain/shortcut_session.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/dialog/java_missing_prompt.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/util/android_host.dart';
 import 'package:copper_launcher/util/app_paths.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/format/date_time_format.dart';
@@ -610,6 +612,8 @@ class LaunchMindustryTask extends Task {
     LauncherTray.instance.showIfRestoreOnExit();
     // 云存档：游戏退出后自动上传（只对启用了云存档的目录；失败只提示）
     unawaited(CloudAutoSync.afterGameExit(mindustry));
+    // 快捷方式启动的局：按设置决定退出后直接回桌面
+    _maybeBackToHomeAfterShortcut();
     if (exitLog.contains('0')) {
       NotificationManager.addNotice(
         icon: Icons.info_outline,
@@ -635,6 +639,23 @@ class LaunchMindustryTask extends Task {
     progress = 1.0;
     status = TaskStatus.completed;
     updateDisplay();
+  }
+
+  /// 快捷方式启动的局退出后：按设置决定直接回桌面（默认回启动器）
+  void _maybeBackToHomeAfterShortcut() {
+    if (!ShortcutSession.takeLaunchedFromShortcut()) return;
+    if (config.setting.personalizationOptions.shortcutExitAction !=
+        ShortcutExitAction.backToHome) {
+      return;
+    }
+    unawaited(_backToHome());
+  }
+
+  /// 把启动器整个退到后台：露出桌面，进程留着收尾（云存档上传等）
+  Future<void> _backToHome() async {
+    // 云存档上传是后台任务，先给它两秒把请求发出去，再把窗口退到后台
+    await Future<void>.delayed(const Duration(seconds: 2));
+    await AndroidHost.moveTaskToBack();
   }
 
   /// 自动选择 Java：按 [target]（游戏版本推荐值，走加载器时会抬到 17+）

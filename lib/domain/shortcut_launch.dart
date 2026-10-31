@@ -5,6 +5,7 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/mindustry/mindustry.dart';
 import 'package:copper_launcher/domain/bridge_installer.dart';
 import 'package:copper_launcher/domain/game_instance.dart';
+import 'package:copper_launcher/domain/shortcut_session.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/android_host.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -107,6 +108,8 @@ class ShortcutLaunch {
     }
 
     addLog(.info, '快捷方式启动：${version.tag}', tag: 'Shortcut');
+    // 打个标记：这一局是快捷方式启动的，退出后按设置决定回桌面还是回启动器
+    ShortcutSession.markLaunchedFromShortcut();
     await GameInstance.launch(version);
     // 静默启动：游戏窗口马上会盖上来，再等几秒把启动器窗口恢复（万一没起来，玩家也能看到界面）
     unawaited(_showLauncherAfterLaunch());

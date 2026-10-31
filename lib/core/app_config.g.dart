@@ -205,6 +205,12 @@ PersonalizationOptions _$PersonalizationOptionsFromJson(
   restoreWindowOnGameExit: json['restoreWindowOnGameExit'] as bool? ?? true,
   colorfulBackground: json['colorfulBackground'] as bool? ?? true,
   menuRelocate: json['menuRelocate'] as bool? ?? true,
+  shortcutExitAction:
+      $enumDecodeNullable(
+        _$ShortcutExitActionEnumMap,
+        json['shortcutExitAction'],
+      ) ??
+      ShortcutExitAction.backToLauncher,
 );
 
 Map<String, dynamic> _$PersonalizationOptionsToJson(
@@ -220,11 +226,18 @@ Map<String, dynamic> _$PersonalizationOptionsToJson(
   'colorfulBackground': instance.colorfulBackground,
   'menuRelocate': instance.menuRelocate,
   'windowCloseAction': _$WindowCloseActionEnumMap[instance.windowCloseAction]!,
+  'shortcutExitAction':
+      _$ShortcutExitActionEnumMap[instance.shortcutExitAction]!,
 };
 
 const _$WindowCloseActionEnumMap = {
   WindowCloseAction.exit: 'exit',
   WindowCloseAction.minimizeToTray: 'minimizeToTray',
+};
+
+const _$ShortcutExitActionEnumMap = {
+  ShortcutExitAction.backToLauncher: 'backToLauncher',
+  ShortcutExitAction.backToHome: 'backToHome',
 };
 
 const _$ThemeModeEnumMap = {

@@ -131,8 +131,35 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
     );
   }
 
-  Widget _buildThemeColorOptions() {
-    final style = Theme.of(context).textTheme.bodyLarge;
+  /// 安卓：从桌面快捷方式启动的游戏，退出后去哪
+  Widget _buildShortcutLaunchModule() {
+    return ContentPanelModule(
+      title: '快捷方式启动',
+      child: OptionSettingBar<ShortcutExitAction>(
+        title: '退出游戏后',
+        hintText: '从桌面快捷方式启动的游戏，退出时去哪',
+        initialValue: personalizationOptions.shortcutExitAction,
+        options: const [
+          DropdownOption(
+            value: ShortcutExitAction.backToLauncher,
+            label: '回到启动器',
+          ),
+          DropdownOption(
+            value: ShortcutExitAction.backToHome,
+            label: '直接回桌面',
+          ),
+        ],
+        onSelect: (value) {
+          setState(() {
+            personalizationOptions.shortcutExitAction = value;
+          });
+          config.save();
+        },
+      ),
+    );
+  }
+
+  Widget _buildThemeColorOptions() {    final style = Theme.of(context).textTheme.bodyLarge;
     return Row(
       children: [
         Expanded(
@@ -431,6 +458,8 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
       items: [
         //关窗行为与托盘相关，移动端没有这些概念；托盘不可用的桌面（比如没有状态栏宿主的 Linux）也不显示
         if (LauncherTray.traySupported) _buildLauncherBehaviorModule(),
+        //快捷方式启动是安卓独有的，退出后的去处单独一块
+        if (Platform.isAndroid) _buildShortcutLaunchModule(),
         ContentPanelModule(
           title: '主题',
           child: Column(

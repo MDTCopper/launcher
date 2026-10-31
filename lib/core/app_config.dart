@@ -553,6 +553,15 @@ enum ThemeColor { copper, titanium, thorium, plastanium }
 ///游戏启动后 Launcher 的行为（桌面端）
 enum LauncherPostLaunchBehavior { none, tray }
 
+///通过桌面快捷方式启动的游戏，退出后去哪
+enum ShortcutExitAction {
+  ///回到启动器（能看到任务列表 / 云存档收尾）
+  backToLauncher,
+
+  ///直接回桌面（更像普通 App）
+  backToHome,
+}
+
 @JsonSerializable()
 class PersonalizationOptions {
   @JsonKey(defaultValue: false)
@@ -586,6 +595,10 @@ class PersonalizationOptions {
   @JsonKey(defaultValue: WindowCloseAction.exit)
   WindowCloseAction windowCloseAction;
 
+  ///通过桌面快捷方式启动的游戏，退出后回启动器还是直接回桌面
+  @JsonKey(defaultValue: ShortcutExitAction.backToLauncher)
+  ShortcutExitAction shortcutExitAction;
+
   PersonalizationOptions({
     this.windowCloseAction = WindowCloseAction.exit,
     required this.themeMode,
@@ -596,6 +609,7 @@ class PersonalizationOptions {
     required this.restoreWindowOnGameExit,
     this.colorfulBackground = true,
     this.menuRelocate = true,
+    this.shortcutExitAction = ShortcutExitAction.backToLauncher,
   });
 
   factory PersonalizationOptions.fromJson(Map<String, dynamic> json) =>

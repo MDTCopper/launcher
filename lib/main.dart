@@ -99,7 +99,11 @@ Future<void> _initialize() async {
   ShareIn.onFiles((files) => unawaited(_importSharedFiles(files)));
   await ShareIn.start();
   //桌面快捷方式「直接启动」：把冷启动那次请求取回来，启动器起来后拉起对应版本
-  unawaited(ShortcutLaunch.start(waitForShell: _waitForShell));
+  //
+  //安卓上不等界面就绪：静默启动本来就不该让人看到界面，等 shell 只会白白多等 1 秒左右
+  unawaited(
+    ShortcutLaunch.start(waitForShell: Platform.isAndroid ? null : _waitForShell),
+  );
 }
 
 /// 启动即登录：有落盘的账号就把它恢复出来，再拉一次资料
