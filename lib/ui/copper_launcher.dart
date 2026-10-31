@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
@@ -6,6 +7,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context
 import 'package:copper_launcher/ui/pages/bridge_install_page.dart';
 import 'package:copper_launcher/ui/shell/app_shell.dart';
 import 'package:copper_launcher/ui/shell/parts/auxiliary_input_bar.dart';
+import 'package:copper_launcher/ui/startup/startup_page.dart';
 import 'package:copper_launcher/ui/theme/app_theme.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:flutter/material.dart';
@@ -21,19 +23,56 @@ class CopperLauncher extends StatefulWidget {
   State<StatefulWidget> createState() => CopperLauncherState();
 }
 
-class CopperLauncherState extends State<CopperLauncher> {
+class CopperLauncherState extends State<CopperLauncher>
+    with SingleTickerProviderStateMixin {
   /// 桥的运行环境装好了没：桌面端不需要这份载荷，Android 上要装完才进主页
-  ///
-  /// **这里就要同步判一次**：交给安装页判的话，它必然先建一帧、再在 post-frame
-  /// 回调里发现「其实早装好了」⇒ 每次启动都闪过那一页
-  bool isRuntimeReady = !Platform.isAndroid || BridgeInstaller.isRuntimeReady();
+  bool isRuntimeReady = !Platform.isAndroid;
+
+  /// Android 启动页：先显示主题物品图标，初始化完再从左下到右上刷入主界面
+  late final AnimationController _wipeController;
+  bool _showStartup = Platform.isAndroid;
 
   @override
   void initState() {
     super.initState();
+    _wipeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    );
+    if (Platform.isAndroid) {
+      unawaited(_startup());
+    } else {
+      _wipeController.value = 1;
+    }
     // 菜单的默认行为接到设置项上；设置页改了立刻生效，这里不用再监听
     ContextMenuHost.relocateOnReopenOf = () =>
         config.setting.personalizationOptions.menuRelocate;
+  }
+
+  Future<void> _startup() async {
+    final started = DateTime.now();
+    var ready = false;
+    try {
+      ready = await Future<bool>.microtask(BridgeInstaller.isRuntimeReady);
+    } catch (_) {
+      // 读失败按没装好处理，交给安装页
+    }
+    const minimum = Duration(milliseconds: 500);
+    final elapsed = DateTime.now().difference(started);
+    if (elapsed < minimum) {
+      await Future<void>.delayed(minimum - elapsed);
+    }
+    if (!mounted) return;
+    setState(() => isRuntimeReady = ready);
+    await _wipeController.forward();
+    if (!mounted) return;
+    setState(() => _showStartup = false);
+  }
+
+  @override
+  void dispose() {
+    _wipeController.dispose();
+    super.dispose();
   }
 
   void updateTheme() => setState(() {
@@ -47,6 +86,12 @@ class CopperLauncherState extends State<CopperLauncher> {
 
   @override
   Widget build(BuildContext context) {
+    final home = isRuntimeReady
+        ? AppShell(key: PageKeyProvider.shellKey)
+        : BridgeInstallPage(
+            onReady: () => setState(() => isRuntimeReady = true),
+          );
+
     // 启动器不需要无障碍：整棵语义树排除，规避 Windows UIA 客户端在线时
     // engine 序列化 AXTree 的框架级 bug
     return ExcludeSemantics(
@@ -58,11 +103,14 @@ class CopperLauncherState extends State<CopperLauncher> {
         themeMode: themeMode,
         debugShowCheckedModeBanner: false,
         builder: _buildPlatformOverlay,
-        home: isRuntimeReady
-            ? AppShell(key: PageKeyProvider.shellKey)
-            : BridgeInstallPage(
-                onReady: () => setState(() => isRuntimeReady = true),
-              ),
+        home: Platform.isAndroid
+            ? _StartupGate(
+                showSplash: _showStartup,
+                wipe: _wipeController,
+                themeColor: themeColor,
+                child: home,
+              )
+            : home,
       ),
     );
   }
@@ -79,5 +127,52 @@ class CopperLauncherState extends State<CopperLauncher> {
     );
     // 条挂在 navigator 之上，弹窗里的输入框聚焦时也接管得到
     return AuxiliaryInputBar(child: content);
+  }
+}
+
+/// 初始化页 → 主界面的斜向刷入（左下 → 右上）
+class _StartupGate extends StatelessWidget {
+  const _StartupGate({
+    required this.showSplash,
+    required this.wipe,
+    required this.themeColor,
+    required this.child,
+  });
+
+  final bool showSplash;
+  final Animation<double> wipe;
+  final ThemeColor themeColor;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (showSplash) StartupPage(themeColor: themeColor),
+        AnimatedBuilder(
+          animation: wipe,
+          child: child,
+          builder: (context, child) {
+            final value = wipe.value.clamp(0.0, 1.0);
+            return ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (rect) => LinearGradient(
+                begin: Alignment.bottomLeft,
+                end: Alignment.topRight,
+                colors: const [
+                  Colors.white,
+                  Colors.white,
+                  Colors.transparent,
+                  Colors.transparent,
+                ],
+                stops: [0, value, (value + 0.015).clamp(0.0, 1.0), 1],
+              ).createShader(rect),
+              child: child,
+            );
+          },
+        ),
+      ],
+    );
   }
 }
