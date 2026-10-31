@@ -991,7 +991,7 @@ class CloudSaveService {
     onStatus?.call('检查云端已有文件');
     final check = await MdtbbsCloudSaveApi.checkBlobs(
       accessToken: accessToken,
-      sha256: [for (final file in payload.files) file.sha256].toSet().toList(),
+      sha256: {for (final file in payload.files) file.sha256}.toList(),
       cancelToken: cancelToken,
     );
     final missing = {
@@ -1008,6 +1008,7 @@ class CloudSaveService {
     );
 
     var uploaded = 0;
+    var uploadedBytes = 0;
     for (final file in missing.values) {
       if (cancelToken?.isCancelled ?? false) {
         throw const MdtbbsException(message: '已取消');
@@ -1039,7 +1040,15 @@ class CloudSaveService {
         );
       }
       uploaded++;
+      uploadedBytes += file.size;
     }
+    addLog(
+      .info,
+      '差量上传：清单 ${payload.files.length} 个文件，已有 '
+      '${payload.files.length - missing.length}，上传 $uploaded 个'
+      '（${formatBytes(uploadedBytes)}）',
+      tag: 'Cloud',
+    );
 
     onStatus?.call('创建云端快照');
     CloudSaveSnapshot? snapshot;
@@ -1093,7 +1102,7 @@ class CloudSaveService {
     return CloudSaveUploadResult(
       slot: slot,
       snapshot: snapshot,
-      archiveBytes: payload.totalBytes,
+      archiveBytes: uploadedBytes,
       dropped: const [],
       quotaGuard: guard,
       alreadyUpToDate: snapshot?.raw['no_changes'] == true,
@@ -1522,6 +1531,7 @@ class CloudSaveService {
         for (final file in changed) file.sha256: file,
       };
       final tempFiles = <String, String>{};
+      var downloadedBytes = 0;
       if (changedBySha.isNotEmpty) {
         onStatus?.call('获取缺失文件地址');
         final downloads = await MdtbbsCloudSaveApi.blobDownloads(
@@ -1571,6 +1581,7 @@ class CloudSaveService {
         target.parent.createSync(recursive: true);
         final existed = target.existsSync();
         File(tempFiles[file.sha256]!).copySync(destination);
+        downloadedBytes += file.size;
         report.written.add(destination);
         if (existed) {
           report.overwritten.add(destination);
@@ -1585,6 +1596,12 @@ class CloudSaveService {
         slotId: slotId,
         snapshotId: snapshotId,
         files: hashes,
+      );
+      addLog(
+        .info,
+        '差量恢复：清单 ${remote.files.length} 个文件，跳过 ${unchanged.length}，'
+        '下载 ${changed.length} 个（${formatBytes(downloadedBytes)}）',
+        tag: 'Cloud',
       );
       return CloudSaveRestoreResult(
         report: report,
