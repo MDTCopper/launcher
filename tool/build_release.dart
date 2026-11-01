@@ -1272,6 +1272,9 @@ String _appDisplayName(Directory appBundle) {
 
 /// 启动器运行时数据的名字（见 AppPaths 的数据根：绿色版下这些数据生成在 exe 旁边）
 ///
+/// **别把 `data` 加进来**：checkout 内的数据根叫 `data/`，但 Flutter bundle 里也有
+/// `data/`（flutter_assets），按名字排除会把整个 assets 目录从发布包里剔掉
+///
 /// 构建目录里这些是本机调试残留，`flutter build` 不会清理目录。打进发布包后，
 /// 解压出来的启动器会发现 exe 旁边有 config → 数据根跟着落到解压目录，
 /// 版本路径还指向构建机的 versions 目录；构建目标不同机器时就是一串错路径

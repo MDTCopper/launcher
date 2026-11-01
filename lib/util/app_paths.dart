@@ -9,7 +9,7 @@ abstract class AppPaths {
   static late String applicationSupportPath;
 
   /// 数据根目录：桌面端优先用 exe 所在目录（绿色版，配置跟着 exe 走），
-  /// 在 checkout 里跑的产物回项目根下的 [devDataDirName]，
+  /// 在 checkout 里跑的产物回项目根下的 [_devDataDirName]，
   /// 系统目录或 exe 目录不可写时退回 [applicationSupportPath]；
   /// **Android 上优先用外部应用专属目录**（见 [_resolveAndroidExternalRoot]），
   /// 未 [init] 时为 null（测试环境按工作目录算）
@@ -57,7 +57,7 @@ abstract class AppPaths {
   /// - exe 在系统目录（Program Files / Windows）下 → 用 [applicationSupportPath]，
   ///   那里的可写性随提权变化，不能当稳定依据
   /// - exe 是 Flutter 项目里的产物（向上能找到 pubspec.yaml）→ 用项目根下的
-  ///   [devDataDirName]，这样 flutter clean 删掉 build/ 也不影响数据，
+  ///   [_devDataDirName]，这样 flutter clean 删掉 build/ 也不影响数据，
   ///   仓库根也不会被版本 / 本体 / 日志这些运行时数据堆满
   /// - 其余（绿色版装在普通目录）→ 跟着 exe 走；目录不可写（只读盘等）时
   ///   仍退回 [applicationSupportPath]，避免双击后进程秒退
@@ -70,9 +70,13 @@ abstract class AppPaths {
 
     final projectRoot = await findProjectRoot(exeDir);
     if (projectRoot != null) {
-      // 数据根目录首次运行时可能还不存在，先建出来再交给上层写配置
+      // 目录可能还不存在，先建出来；建不出来只记一行，别在解析路径这一步把进程打死
       final dataRoot = p.join(projectRoot, _devDataDirName);
-      await Directory(dataRoot).create(recursive: true);
+      try {
+        await Directory(dataRoot).create(recursive: true);
+      } on FileSystemException catch (error) {
+        debugPrint('数据根目录建不出来[$dataRoot]：$error');
+      }
       return dataRoot;
     }
 
@@ -165,7 +169,7 @@ abstract class AppPaths {
     if (_defaultGameDataPath == null) throw ('无法获取默认游戏数据存储位置');
   }
 
-  /// 桌面端为 exe 所在目录（可写时）、checkout 内为项目根下的 [devDataDirName]，
+  /// 桌面端为 exe 所在目录（可写时）、checkout 内为项目根下的 [_devDataDirName]，
   /// 或应用支持目录，见 [_resolveCopperLauncherPath]
   ///
   /// android 优先外部应用专属目录，拿不到才回应用内部

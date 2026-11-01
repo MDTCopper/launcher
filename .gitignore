@@ -60,8 +60,27 @@ opencode.json
 # copperlauncher
 # 启动器运行时数据：checkout 内数据根是 data/，绿色版是 exe 目录
 /data/
-# 会话临时区：调试截图 / 日志 / 构建中间产物
+# 会话临时区：调试截图 / 日志 / 构建中间产物（也覆盖数据根里的 tmp）
 tmp/
+# 过渡兜底：未 init 时数据根仍回落仓库根（用例 / 老 checkout），这些还可能出现根上；
+# 一律带前导斜杠只匹配仓库根，免得连 lib/util/io/java、android 的 java 源码目录一起忽略
+/config.json
+/config.bin
+/config-backups/
+/cloud-backups/
+/cloud-manifest-cache.json
+/cloud-enabled.json
+/mdtbbs_account.json
+/mdtbbs_cloud_slots.json
+/mindustrys/
+/versions/
+/java/
+/logs/
+/cache/
+/remote_data/
+/copper_loader/
+/version_icons/
+/cloud-service/
 .test/
 tool/build_release_state.json
 /lib/abandon_mystery_code/
