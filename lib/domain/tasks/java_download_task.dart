@@ -36,7 +36,7 @@ class JavaDownloadTask extends Task {
 
     final javaExe = await JavaDownloader.downloadAndInstall(
       version: version,
-      installDir: AppPaths.java,
+      installDirPath: AppPaths.java,
       cancelToken: cancelToken,
       onProgress: (p) {
         progress = p;

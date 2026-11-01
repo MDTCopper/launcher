@@ -81,23 +81,23 @@ Future<List<InstalledModFile>> scanInstalledMods(
   return found;
 }
 
-/// 装一份本地 mod 文件到 [targetDir]
+/// 装一份本地 mod 文件到 [targetDirPath]
 ///
 /// 规则：同一个 mod（内部名相同）只留这一份新文件，旧版本文件全部删掉——
 /// **不比版本号**，新文件总是赢；旧文件是禁用态（文件名后缀或 settings.bin 关着）
 /// 时新文件也落成禁用态。
 ///
 /// [modsDirs] 是这个数据目录下全部模组目录（用于找回旧版本，含 copper/mods）；
-/// [targetDir] 是这份新文件该落的目录（按它是不是 Copper 原生模组决定）；
-/// [tempDir] 放拷贝中的临时文件，别落在 mods 目录里（Steam 云会把 mods 下所有文件传上去）；
+/// [targetDirPath] 是这份新文件该落的目录（按它是不是 Copper 原生模组决定）；
+/// [tempDirPath] 放拷贝中的临时文件，别落在 mods 目录里（Steam 云会把 mods 下所有文件传上去）；
 /// [known] 是批量导入时复用的一次扫描结果，会在装完后更新，避免每个文件都重扫目录；
 /// [modStates] 是 `settings.bin` 里的启用态，传了才能识别「游戏内禁用但文件名没改」的旧版本
 Future<ModInstallOutcome> installModFile({
   required String sourcePath,
   required Mod mod,
-  required String targetDir,
+  required String targetDirPath,
   required Iterable<String> modsDirs,
-  required String tempDir,
+  required String tempDirPath,
   List<InstalledModFile>? known,
   Map<String, bool>? modStates,
 }) async {
@@ -109,7 +109,7 @@ Future<ModInstallOutcome> installModFile({
       modStates?[mod.internalName] == false;
 
   var destination = p.join(
-    targetDir,
+    targetDirPath,
     _installedFileName(p.basename(sourcePath), disabled: disabled),
   );
   //目标文件名被另一个 mod 占着（GitHub 资产的 `mod.jar` / `release.jar` 常撞名）：
@@ -127,8 +127,8 @@ Future<ModInstallOutcome> installModFile({
   }
 
   //先拷到临时位置：源文件完全读完再动目标目录
-  final temporary = await _copyToTemp(sourcePath, tempDir, destination);
-  await Directory(targetDir).create(recursive: true);
+  final temporary = await _copyToTemp(sourcePath, tempDirPath, destination);
+  await Directory(targetDirPath).create(recursive: true);
 
   //同名的旧目标先挪开、新文件 rename 成功后再删：rename 失败时能还原，
   //不会出现「旧的删了、新的没落」把 mod 弄丢
@@ -324,13 +324,13 @@ String _backupPathOf(String destination) =>
 
 Future<String> _copyToTemp(
   String sourcePath,
-  String tempDir,
+  String tempDirPath,
   String destination,
 ) async {
-  await Directory(tempDir).create(recursive: true);
+  await Directory(tempDirPath).create(recursive: true);
   final fileName = p.basename(destination);
   final temporary = p.join(
-    tempDir,
+    tempDirPath,
     '.mod-install-${DateTime.now().microsecondsSinceEpoch}-$fileName',
   );
   await File(sourcePath).copy(temporary);

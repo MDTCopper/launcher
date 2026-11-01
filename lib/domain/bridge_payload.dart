@@ -189,7 +189,7 @@ class BridgePayload {
       isMergedArcRef(arcRef) ? mergedArcRevision(arcRef) : arcRef;
 
   /// 仓库里的目录：v9 在 `arc/natives/` 下，老版本在根部的 `natives/` 下
-  static String _arcNativeDir(String arcRef, String abi, String module) =>
+  static String _arcNativeDirPath(String arcRef, String abi, String module) =>
       isMergedArcRef(arcRef)
       ? 'arc/natives/$module/libs/$abi'
       : 'natives/$module/libs/$abi';
@@ -210,7 +210,7 @@ class BridgePayload {
     String module = 'natives-android',
   }) =>
       'https://api.github.com/repos/${_arcRepo(arcRef)}/contents/'
-      '${_arcNativeDir(arcRef, abi, module)}?ref=${_arcUrlRef(arcRef)}';
+      '${_arcNativeDirPath(arcRef, abi, module)}?ref=${_arcUrlRef(arcRef)}';
 
   /// 单个原生库的下载地址（raw，按 ref 钉死）
   static String arcNativeLibUrl(
@@ -220,7 +220,7 @@ class BridgePayload {
     String module = 'natives-android',
   }) =>
       'https://raw.githubusercontent.com/${_arcRepo(arcRef)}/'
-      '${_arcUrlRef(arcRef)}/${_arcNativeDir(arcRef, abi, module)}/$fileName';
+      '${_arcUrlRef(arcRef)}/${_arcNativeDirPath(arcRef, abi, module)}/$fileName';
 
   /// 查某个游戏版本的 `gradle.properties`
   ///
@@ -322,8 +322,8 @@ class BridgePayload {
   }) {
     final jarName = bridgeJarFileName(bridgeTag ?? bridgeSnapshot);
     return BridgePayloadPaths(
-      jreDir: AppPaths.bridgeJre,
-      arcDir: AppPaths.bridgeArcDir(arcRef, abi),
+      jreDirPath: AppPaths.bridgeJre,
+      arcDirPath: AppPaths.bridgeArcDirPath(arcRef, abi),
       bridgeJar: AppPaths.bridgeJarFile(jarName),
       arcLibNames: arcLibNames,
     );
@@ -333,26 +333,26 @@ class BridgePayload {
 /// 载荷在磁盘上的落点 + 「齐没齐」的检查
 class BridgePayloadPaths {
   const BridgePayloadPaths({
-    required this.jreDir,
-    required this.arcDir,
+    required this.jreDirPath,
+    required this.arcDirPath,
     required this.bridgeJar,
     required this.arcLibNames,
   });
 
   /// JRE 根（`universal` 与 `bin-<abi>` 两个包叠加解压到这里）
-  final String jreDir;
+  final String jreDirPath;
 
   /// 该 arc ref / ABI 的原生库目录（要给桥，且**必须可写**）
-  final String arcDir;
+  final String arcDirPath;
 
   /// 桥自己的 jar
   final String bridgeJar;
 
-  /// 这次要摆进 [arcDir] 的原生库文件名
+  /// 这次要摆进 [arcDirPath] 的原生库文件名
   final List<String> arcLibNames;
 
   /// `--java` 要的是 `<jre>/bin/java`
-  String get javaExe => p.join(jreDir, 'bin', 'java');
+  String get javaExe => p.join(jreDirPath, 'bin', 'java');
 
   /// 缺哪些文件（空列表 = 齐了）
   ///
@@ -360,10 +360,10 @@ class BridgePayloadPaths {
   /// 才能验出「只解了一个包」这种半成品
   List<String> missingFiles() => [
     if (!File(javaExe).existsSync()) javaExe,
-    if (!File(p.join(jreDir, 'lib', 'modules')).existsSync())
-      p.join(jreDir, 'lib', 'modules'),
+    if (!File(p.join(jreDirPath, 'lib', 'modules')).existsSync())
+      p.join(jreDirPath, 'lib', 'modules'),
     if (!File(bridgeJar).existsSync()) bridgeJar,
     for (final name in arcLibNames)
-      if (!File(p.join(arcDir, name)).existsSync()) p.join(arcDir, name),
+      if (!File(p.join(arcDirPath, name)).existsSync()) p.join(arcDirPath, name),
   ];
 }

@@ -318,7 +318,7 @@ class MindustryLauncher {
         tag: 'Launch',
       );
     } else {
-      arcDir = AppPaths.bridgeArcDir(arcRef, abi);
+      arcDir = AppPaths.bridgeArcDirPath(arcRef, abi);
       final arcFolder = Directory(arcDir);
       if (!arcFolder.existsSync() || arcFolder.listSync().isEmpty) {
         try {
@@ -349,8 +349,8 @@ class MindustryLauncher {
     final args = BridgeLauncher.buildArguments(
       gameJar: mindustry.resolvedJarPath,
       dataPath: mindustry.dataPath,
-      cacheDir: BridgeLauncher.cacheDirFor(mindustry),
-      jreDir: AppPaths.bridgeJre,
+      cacheDirPath: BridgeLauncher.cacheDirFor(mindustry),
+      jreDirPath: AppPaths.bridgeJre,
       arcDir: arcDir,
       jvmArgs: jvmArgs,
       loaderJars: loaderJars,

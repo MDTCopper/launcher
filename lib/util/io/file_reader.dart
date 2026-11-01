@@ -201,17 +201,17 @@ class FileReader {
   // ── 导入操作 ──
 
   /// 将文件复制到目标目录；
-  /// [destDir] 目标目录路径；
+  /// [destDirPath] 目标目录路径；
   /// [overwrite] 是否覆盖同名文件，默认 false；
   /// 返回复制后的完整路径，若不成功返回 null
-  Future<String?> importTo(String destDir, {bool overwrite = false}) async {
+  Future<String?> importTo(String destDirPath, {bool overwrite = false}) async {
     try {
-      final dir = Directory(destDir);
+      final dir = Directory(destDirPath);
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
 
-      final destPath = p.join(destDir, fileName);
+      final destPath = p.join(destDirPath, fileName);
       final destFile = File(destPath);
 
       if (await destFile.exists()) {

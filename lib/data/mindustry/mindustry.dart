@@ -278,8 +278,8 @@ class Mindustry {
   }
 }
 
-///[child] 是否落在 [root] 目录内（Windows 路径大小写不敏感，统一小写后再比）
-bool _isPathWithin(String root, String child) => p.isWithin(
-  p.normalize(root).toLowerCase(),
-  p.normalize(child).toLowerCase(),
+///[childPath] 是否落在 [rootPath] 目录内（Windows 路径大小写不敏感，统一小写后再比）
+bool _isPathWithin(String rootPath, String childPath) => p.isWithin(
+  p.normalize(rootPath).toLowerCase(),
+  p.normalize(childPath).toLowerCase(),
 );

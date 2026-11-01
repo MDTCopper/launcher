@@ -72,7 +72,7 @@ class LocalSaveImport {
               from: kind.pathIn(from),
               to: kind.pathIn(to),
               modsDirs: modsDirs,
-              tempDir: p.join(to, 'tmp'),
+              tempDirPath: p.join(to, 'tmp'),
               known: knownMods!,
               modStates: modStates,
             )
@@ -105,7 +105,7 @@ class LocalSaveImport {
     required String from,
     required String to,
     required List<String> modsDirs,
-    required String tempDir,
+    required String tempDirPath,
     required List<InstalledModFile> known,
     required Map<String, bool>? modStates,
   }) async {
@@ -142,9 +142,9 @@ class LocalSaveImport {
             mod: mod,
             //模组一律平铺到该类模组目录：扫描与去重都只看目录第一层，
             //落进子目录的话既不参与去重、游戏 / 加载器也未必扫得到
-            targetDir: to,
+            targetDirPath: to,
             modsDirs: modsDirs,
-            tempDir: tempDir,
+            tempDirPath: tempDirPath,
             known: known,
             modStates: modStates,
           );

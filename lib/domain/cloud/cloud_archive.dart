@@ -401,7 +401,7 @@ class CloudArchiveReader {
       _writeAtomicallySync(
         File(writeTo),
         content,
-        tempDir: p.join(dataPath, 'tmp'),
+        tempDirPath: p.join(dataPath, 'tmp'),
       );
 
       //恢复是覆盖语义：这份模组落地后清掉本机同一个 mod 的旧版本文件，
@@ -647,9 +647,9 @@ Future<void> _writeAtomically(File target, List<int> bytes) async {
   await temporary.rename(target.path);
 }
 
-void _writeAtomicallySync(File target, List<int> bytes, {String? tempDir}) {
+void _writeAtomicallySync(File target, List<int> bytes, {String? tempDirPath}) {
   target.parent.createSync(recursive: true);
-  final directory = tempDir ?? target.parent.path;
+  final directory = tempDirPath ?? target.parent.path;
   Directory(directory).createSync(recursive: true);
   final temporary = File(
     p.join(directory, '${p.basename(target.path)}.importing'),

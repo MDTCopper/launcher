@@ -6,7 +6,7 @@ import 'package:archive/archive.dart';
 ///
 /// 解出来的条目权限位一律不带（桥会自己把 `.so` 改成可执行 + 只读；
 /// 桥 0.1.3 及更早的构建要宿主管，见《android-bridge 使用文档》§3.7）
-Future<void> extractArchive(String archivePath, String extractDir) async {
+Future<void> extractArchive(String archivePath, String extractDirPath) async {
   final bytes = await File(archivePath).readAsBytes();
   final lower = archivePath.toLowerCase();
 
@@ -21,13 +21,13 @@ Future<void> extractArchive(String archivePath, String extractDir) async {
     throw ArgumentError('不认识的压缩包：$archivePath');
   }
 
-  await _extractToDisk(archive, extractDir);
+  await _extractToDisk(archive, extractDirPath);
 }
 
-Future<void> _extractToDisk(Archive archive, String extractDir) async {
+Future<void> _extractToDisk(Archive archive, String extractDirPath) async {
   for (final file in archive.files) {
     if (!file.isFile) continue;
-    final outputFile = File('$extractDir${Platform.pathSeparator}${file.name}');
+    final outputFile = File('$extractDirPath${Platform.pathSeparator}${file.name}');
     if (!await outputFile.parent.exists()) {
       await outputFile.parent.create(recursive: true);
     }

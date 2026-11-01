@@ -23,7 +23,7 @@ class ConfigBackups {
   /// 只留最近这么多份
   static const keep = 5;
 
-  static String dirOf(String root) => p.join(root, dirName);
+  static String dirOf(String rootPath) => p.join(rootPath, dirName);
 
   /// 留一份底，返回写出的文件；**任何失败都只记日志、不往外抛**（备份不许拦启动）
   static File? write({
@@ -71,9 +71,9 @@ class ConfigBackups {
   }
 
   /// 只留最近 [keep] 份（文件名带时刻，倒序即最新在前）
-  static void prune(String root) {
+  static void prune(String rootPath) {
     try {
-      for (final file in _filesNewestFirst(root).skip(keep)) {
+      for (final file in _filesNewestFirst(rootPath).skip(keep)) {
         file.deleteSync();
       }
     } catch (error) {
@@ -81,8 +81,8 @@ class ConfigBackups {
     }
   }
 
-  static List<File> _filesNewestFirst(String root) {
-    final directory = Directory(dirOf(root));
+  static List<File> _filesNewestFirst(String rootPath) {
+    final directory = Directory(dirOf(rootPath));
     if (!directory.existsSync()) return const [];
     final files = <File>[];
     try {

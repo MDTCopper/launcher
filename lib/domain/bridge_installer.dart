@@ -351,14 +351,14 @@ class BridgeInstaller {
   ///
   /// 不联网、只读本地；[bridgeDir] 只为用例注入，正常走 [AppPaths.bridge]
   static Future<BridgeRuntimeStatus> readRuntimeStatus({String? bridgeDir}) async {
-    final root = bridgeDir ?? AppPaths.bridge;
+    final rootPath = bridgeDir ?? AppPaths.bridge;
 
-    final jreDir = Directory(p.join(root, 'jre'));
+    final jreDir = Directory(p.join(rootPath, 'jre'));
     final bridgeJar = bridgeDir == null
         ? BridgePayload.installedBridgeJar()
-        : BridgePayload.installedBridgeJar(directory: root);
+        : BridgePayload.installedBridgeJar(directory: rootPath);
     final wrapperJar = File(
-      p.join(root, BridgePayload.loaderWrapperJarFileName(
+      p.join(rootPath, BridgePayload.loaderWrapperJarFileName(
         BridgePayload.loaderWrapperVersion,
       )),
     );
@@ -388,13 +388,13 @@ class BridgeInstaller {
   /// 桥会把载荷里的文件改成只读，Android 上删只读文件没问题（看目录写权限），
   /// 单个删不掉只记一条日志，不让整次清理失败
   static Future<void> clearRuntime({String? bridgeDir}) async {
-    final root = bridgeDir ?? AppPaths.bridge;
+    final rootPath = bridgeDir ?? AppPaths.bridge;
 
-    _deleteQuietly(Directory(p.join(root, 'jre')));
-    _deleteQuietly(Directory(p.join(root, 'tmp')));
-    _deleteQuietly(File(p.join(root, 'jre-version')));
+    _deleteQuietly(Directory(p.join(rootPath, 'jre')));
+    _deleteQuietly(Directory(p.join(rootPath, 'tmp')));
+    _deleteQuietly(File(p.join(rootPath, 'jre-version')));
 
-    final dir = Directory(root);
+    final dir = Directory(rootPath);
     if (!dir.existsSync()) return;
     for (final entity in dir.listSync()) {
       if (entity is! File) continue;
@@ -536,7 +536,7 @@ class BridgeInstaller {
     CancelToken? cancelToken,
     void Function(String status)? onStatus,
   }) async {
-    final arcDir = Directory(AppPaths.bridgeArcDir(arcRef, abi));
+    final arcDir = Directory(AppPaths.bridgeArcDirPath(arcRef, abi));
     await arcDir.create(recursive: true);
 
     final names = <String>[];

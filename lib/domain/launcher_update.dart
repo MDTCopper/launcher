@@ -249,8 +249,8 @@ class LauncherUpdate {
 
   /// Inno Setup 会在程序目录里留 `unins000.exe`，用它区分「安装版」与「解压版」
   @visibleForTesting
-  static bool isInstalledBuildIn(String exeDir) =>
-      File(p.join(exeDir, 'unins000.exe')).existsSync();
+  static bool isInstalledBuildIn(String exeDirPath) =>
+      File(p.join(exeDirPath, 'unins000.exe')).existsSync();
 
   /// 更新包下载目录：临时目录（更新包是一次性文件，不往数据根里塞）
   static Directory get downloadDir =>
@@ -302,13 +302,13 @@ class LauncherUpdate {
     required String zipPath,
     required String toVersion,
   }) async {
-    final installDir = File(Platform.resolvedExecutable).parent.path;
+    final installDirPath = File(Platform.resolvedExecutable).parent.path;
     final command = File(p.join(downloadDir.path, 'apply_update.cmd'));
     final launcher = File(p.join(downloadDir.path, 'apply_update.vbs'));
     await command.writeAsString(
       buildPortableUpdateScript(
         zipPath: zipPath,
-        installDir: installDir,
+        installDirPath: installDirPath,
         toVersion: toVersion,
         fromVersion: currentVersion?.tag ?? '',
         processId: pid,
@@ -319,12 +319,12 @@ class LauncherUpdate {
       buildPortableUpdateLauncher(
         commandPath: command.path,
         exePath: Platform.resolvedExecutable,
-        installDir: installDir,
+        installDirPath: installDirPath,
       ),
       flush: true,
     );
 
-    addLogAndPrint(.info, '解压版更新：退出后覆盖 $installDir', tag: 'Update');
+    addLogAndPrint(.info, '解压版更新：退出后覆盖 $installDirPath', tag: 'Update');
     try {
       await Process.start(
         'wscript.exe',
@@ -359,14 +359,14 @@ class LauncherUpdate {
   static String buildPortableUpdateLauncher({
     required String commandPath,
     required String exePath,
-    required String installDir,
+    required String installDirPath,
   }) {
     // VBS 里两个引号代表一个引号：下面拼出来的命令行是
     //   cmd.exe /c ""C:\...\apply_update.cmd""   —— 外层再包一层引号，
     //   路径带空格也不会被拆开
     final command = 'cmd.exe /c ""$commandPath""'.replaceAll('"', '""');
     final exe = '"$exePath"'.replaceAll('"', '""');
-    final directory = installDir.replaceAll('"', '""');
+    final directory = installDirPath.replaceAll('"', '""');
     return [
       'Set sh = CreateObject("WScript.Shell")',
       'sh.CurrentDirectory = "$directory"',
@@ -387,7 +387,7 @@ class LauncherUpdate {
   @visibleForTesting
   static String buildPortableUpdateScript({
     required String zipPath,
-    required String installDir,
+    required String installDirPath,
     required String toVersion,
     required String fromVersion,
     required int processId,
@@ -398,7 +398,7 @@ class LauncherUpdate {
       '@echo off',
       'rem Overwrite the portable copy after Copper Launcher (pid $processId) exits.',
       'set "ZIP=$zipPath"',
-      'set "TARGET=$installDir"',
+      'set "TARGET=$installDirPath"',
       'set "TO=$toVersion"',
       'set "FROM=$fromVersion"',
       'set "PIDFILE=%~dp0pid_check.txt"',

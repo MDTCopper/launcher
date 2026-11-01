@@ -328,9 +328,9 @@ class ResourceImporterState extends State<ResourceImporter> {
           await installModFile(
             sourcePath: modPath,
             mod: mod,
-            targetDir: modsDirIn(gameData, copper: mod.copper),
+            targetDirPath: modsDirIn(gameData, copper: mod.copper),
             modsDirs: _targetModsDirs,
-            tempDir: p.join(gameData, 'tmp'),
+            tempDirPath: p.join(gameData, 'tmp'),
             known: knownMods,
             modStates: modStates,
           );

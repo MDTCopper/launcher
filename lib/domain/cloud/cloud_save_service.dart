@@ -1350,7 +1350,7 @@ class CloudSaveService {
       final report = await reader.extractTo(
         dataPath: version.dataPath,
         mode: mode,
-        backupDir: _campaignBackupDir(),
+        backupDir: _campaignBackupDirPath(),
       );
       await _applyModStatesQuietly(version, reader.manifest);
       if (report.rejected.isEmpty) {
@@ -1927,7 +1927,7 @@ class CloudSaveService {
   }
 
   /// keepBoth 下战役关键文件被覆盖前的本机副本目录
-  static String _campaignBackupDir() {
+  static String _campaignBackupDirPath() {
     final stamp = DateTime.now()
         .toIso8601String()
         .substring(0, 19)

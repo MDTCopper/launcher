@@ -111,13 +111,13 @@ class JavaDownloader {
   /// 下载并解压 Java，返回 java 可执行文件的路径
   static Future<String?> downloadAndInstall({
     required int version,
-    required String installDir,
+    required String installDirPath,
     CancelToken? cancelToken,
     void Function(double progress)? onProgress,
     void Function(String status)? onStatus,
   }) async {
     //已安装则直接复用，跳过下载解压
-    final existingJava = _findJavaExecutable(path.join(installDir, 'jdk-$version'));
+    final existingJava = _findJavaExecutable(path.join(installDirPath, 'jdk-$version'));
     if (existingJava != null) {
       onStatus?.call('Java $version 已安装');
       onProgress?.call(1.0);
@@ -136,10 +136,10 @@ class JavaDownloader {
     final archiveName = Platform.isWindows
         ? 'java-$version-temp.zip'
         : 'java-$version-temp.tar.gz';
-    final archivePath = path.join(installDir, archiveName);
-    final extractDir = path.join(installDir, 'jdk-$version');
+    final archivePath = path.join(installDirPath, archiveName);
+    final extractDirPath = path.join(installDirPath, 'jdk-$version');
 
-    await Directory(installDir).create(recursive: true);
+    await Directory(installDirPath).create(recursive: true);
 
     try {
       await cio.download(
@@ -152,11 +152,11 @@ class JavaDownloader {
       );
 
       onStatus?.call('正在解压Java...');
-      await extractArchive(archivePath, extractDir);
+      await extractArchive(archivePath, extractDirPath);
 
       await File(archivePath).delete();
 
-      final javaExe = _findJavaExecutable(extractDir);
+      final javaExe = _findJavaExecutable(extractDirPath);
       if (javaExe == null) {
         onStatus?.call('解压完成但未找到Java可执行文件');
         return null;
@@ -169,8 +169,8 @@ class JavaDownloader {
       if (await File(archivePath).exists()) {
         await File(archivePath).delete();
       }
-      if (await Directory(extractDir).exists()) {
-        await Directory(extractDir).delete(recursive: true);
+      if (await Directory(extractDirPath).exists()) {
+        await Directory(extractDirPath).delete(recursive: true);
       }
       return null;
     }
@@ -182,8 +182,8 @@ class JavaDownloader {
   @visibleForTesting
   static Future<void> extractArchive(
     String archivePath,
-    String extractDir,
-  ) => archive_extract.extractArchive(archivePath, extractDir);
+    String extractDirPath,
+  ) => archive_extract.extractArchive(archivePath, extractDirPath);
 
   /// 在解压目录中查找 java 可执行文件
   static String? _findJavaExecutable(String dir) {

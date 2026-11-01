@@ -28,7 +28,7 @@ abstract class AppPaths {
   static bool _initialized = false;
 
   /// 未 [init] 时的占位值：用例里按工作目录算，[init] / [overrideForTesting] 会重算
-  static String _underWorkingDir(String name) => p.join(p.current, name);
+  static String _underWorkingDirPath(String name) => p.join(p.current, name);
 
   /// 是否没有把数据放在 exe 旁边（系统目录 / exe 目录不可写，回退了应用支持目录）
   static bool get isUsingFallbackDataPath =>
@@ -204,17 +204,17 @@ abstract class AppPaths {
   }
 
   /// 默认版本文件夹路径 [*\versions\]，[init] 时按数据根算好
-  static String versions = _underWorkingDir('versions');
+  static String versions = _underWorkingDirPath('versions');
 
   /// 默认移动端版本文件分类 [*\versionsFolds]，创建的文件分类只会存储在这里
   static String versionsFolds =
-      isDesktop ? versions : _underWorkingDir('versionsFolds');
+      isDesktop ? versions : _underWorkingDirPath('versionsFolds');
 
   /// 玩家给版本换的图标 [*\version_icons\]
-  static String versionIcons = _underWorkingDir('version_icons');
+  static String versionIcons = _underWorkingDirPath('version_icons');
 
   /// 云存档后台服务的数据 [*\cloud-service\]：服务 pid、会话、待处理请求
-  static String cloudService = _underWorkingDir('cloud-service');
+  static String cloudService = _underWorkingDirPath('cloud-service');
 
   static String cloudServiceSessions = p.join(cloudService, 'sessions');
 
@@ -232,10 +232,10 @@ abstract class AppPaths {
 
   /// 游戏本体库 [*\mindustrys\]：下载与导入的 jar 集中放这里，变体直接引用同一份；
   /// 版本目录只留版本自己的数据
-  static String mindustrys = _underWorkingDir('mindustrys');
+  static String mindustrys = _underWorkingDirPath('mindustrys');
 
   /// 模组加载器库 [*\copper_loader\]：loader jar 集中放这里，多版本复用同一份
-  static String copperLoader = _underWorkingDir('copper_loader');
+  static String copperLoader = _underWorkingDirPath('copper_loader');
 
   /// 桥载荷的根：**Android 上固定在应用内部目录**，桌面端仍跟着数据根
   ///
@@ -256,7 +256,7 @@ abstract class AppPaths {
 
   /// arc 原生库目录 [*\bridge\arc\<arcRef>\<abi>\]：必须按 arc ref 分（不同游戏版本
   /// 可能用不同 arc），按 ABI 分目录（平铺布局只能放一个 ABI 的库）
-  static String bridgeArcDir(String arcRef, String abi) =>
+  static String bridgeArcDirPath(String arcRef, String abi) =>
       p.join(bridge, 'arc', arcRef, abi);
 
   /// 把绝对路径转成**记录形态**：落在数据根里的记相对路径（数据根搬家 / 换盘后
@@ -283,19 +283,19 @@ abstract class AppPaths {
   }
 
   /// [*\logs\]
-  static String logs = _underWorkingDir('logs');
+  static String logs = _underWorkingDirPath('logs');
 
   /// [*\java\]，启动器管理的 JDK 安装目录
-  static String java = _underWorkingDir('java');
+  static String java = _underWorkingDirPath('java');
 
   /// 远程数据源缓存（remote/ 的本地副本：启动拉取覆盖，离线用缓存/内置 assets 兜底）
-  static String remoteData = _underWorkingDir('remote_data');
+  static String remoteData = _underWorkingDirPath('remote_data');
 
   /// [*\config.json]
-  static String configJson = _underWorkingDir('config.json');
+  static String configJson = _underWorkingDirPath('config.json');
 
   /// [*\config.bin]
-  static String configBin = _underWorkingDir('config.bin');
+  static String configBin = _underWorkingDirPath('config.bin');
 
   /// win => [C:\Users\{username}\AppData\Roaming\Mindustry\]
   static String? get defaultGameData => _defaultGameDataPath;
