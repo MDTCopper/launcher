@@ -15,6 +15,7 @@ class GameSession {
     required this.phase,
     required this.startedAt,
     required this.servicePid,
+    this.owner = 'service',
     this.gamePid,
     this.completedAt,
     this.playSeconds,
@@ -28,6 +29,10 @@ class GameSession {
 
   /// launching / running / uploading / done / failed / delegated
   String phase;
+
+  /// 谁负责这一局的退出上传与收尾：`service` = 无界面服务，`ui` = 启动器 UI
+  String owner;
+
   final DateTime startedAt;
   final int servicePid;
   int? gamePid;
@@ -46,6 +51,7 @@ class GameSession {
     'phase': phase,
     'startedAt': startedAt.toIso8601String(),
     'servicePid': servicePid,
+    'owner': owner,
     'gamePid': gamePid,
     'completedAt': completedAt?.toIso8601String(),
     'playSeconds': playSeconds,
@@ -61,6 +67,7 @@ class GameSession {
     startedAt:
         DateTime.tryParse(json['startedAt'] as String? ?? '') ?? DateTime.now(),
     servicePid: json['servicePid'] as int? ?? 0,
+    owner: json['owner'] as String? ?? 'service',
     gamePid: json['gamePid'] as int?,
     completedAt: DateTime.tryParse(json['completedAt'] as String? ?? ''),
     playSeconds: json['playSeconds'] as int?,
@@ -70,6 +77,7 @@ class GameSession {
 
   GameSession copyWith({
     String? phase,
+    String? owner,
     int? gamePid,
     DateTime? completedAt,
     int? playSeconds,
@@ -79,6 +87,7 @@ class GameSession {
     versionId: versionId,
     tag: tag,
     phase: phase ?? this.phase,
+    owner: owner ?? this.owner,
     startedAt: startedAt,
     servicePid: servicePid,
     gamePid: gamePid ?? this.gamePid,
@@ -257,6 +266,47 @@ class GameSessionStore {
       if (json is Map && json['pid'] is int) return json['pid'] as int;
     } catch (_) {}
     return null;
+  }
+
+  // ---------- 会话所有权移交（UI 完全接管） ----------
+
+  static Directory get takeoverDir =>
+      Directory(p.join(AppPaths.cloudService, 'takeover'));
+
+  /// UI 请求把某一局的所有权从服务移交给 UI
+  static Future<void> requestTakeover(String sessionId) async {
+    await ensureDirs();
+    await takeoverDir.create(recursive: true);
+    await _atomicWrite(File(p.join(takeoverDir.path, '$sessionId.json')), {
+      'sessionId': sessionId,
+      'requestedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// 服务取走移交请求（读完即删）
+  static Future<List<String>> takeTakeoverRequests() async {
+    await ensureDirs();
+    await takeoverDir.create(recursive: true);
+    final ids = <String>[];
+    for (final entity in await takeoverDir.list().toList()) {
+      if (entity is! File || !entity.path.endsWith('.json')) continue;
+      try {
+        final json = jsonDecode(await entity.readAsString());
+        final id = (json is Map ? json['sessionId'] : null) as String?;
+        if (id != null && id.isNotEmpty) ids.add(id);
+        await entity.delete();
+      } catch (_) {
+        // 坏文件留着不处理
+      }
+    }
+    return ids;
+  }
+
+  static Future<void> clearTakeover(String sessionId) async {
+    try {
+      final file = File(p.join(takeoverDir.path, '$sessionId.json'));
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
   }
 
   // ---------- 待处理启动请求 ----------

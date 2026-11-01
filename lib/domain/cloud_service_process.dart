@@ -62,6 +62,10 @@ class CloudServiceProcess {
   Future<void> _tick() async {
     if (_exiting) return;
     try {
+      // UI 请求完全接管：把会话所有权交给 UI，本服务退位（游戏进程不动）
+      for (final sessionId in await GameSessionStore.takeTakeoverRequests()) {
+        await _transferToUi(sessionId);
+      }
       for (final ticket in await GameSessionStore.takeRequests()) {
         await _launch(ticket.versionId, ticket.reason);
       }
@@ -219,8 +223,45 @@ class CloudServiceProcess {
     _lastActive = DateTime.now();
   }
 
-  Future<void> _syncRunningSessions() async {
-    for (final entry in _sessions.entries.toList()) {
+  /// UI 后开请求完全接管：把这一局交给 UI，服务不再监听 / 上传
+  ///
+  /// 游戏进程不动；UI 侧会建自己的接管任务，退出上传 / 游玩时长 / 退出行为都由 UI 负责。
+  /// 交出去之后服务不再管这一局，若没有别的会话就直接退出，避免两个 owner 同时收尾。
+  Future<void> _transferToUi(String sessionId) async {
+    final session = await GameSessionStore.find(sessionId);
+    if (session == null || !session.isActive) {
+      addLog(.warning, '云服务：接管请求对应的会话不在了 [$sessionId]', tag: 'CloudService');
+      return;
+    }
+    final gameAlive =
+        session.gamePid != null && GameProcessWatch.isAlive(session.gamePid!);
+    if (!gameAlive) {
+      addLog(.info, '云服务：接管时游戏已结束，先补上传 [${session.tag}]', tag: 'CloudService');
+      await _recoverSession(session);
+      return;
+    }
+
+    final task = _tasks.remove(session.versionId);
+    _sessions.remove(session.versionId);
+    // 先摘掉服务任务的退出副作用：游戏真退出时 UI 才是 owner
+    task?.transferOwnership();
+    session
+      ..owner = 'ui'
+      ..phase = 'running';
+    await GameSessionStore.save(session);
+    addLog(
+      .info,
+      '云服务：已把游戏完全移交给 UI [${session.tag}] pid=${session.gamePid}',
+      tag: 'CloudService',
+    );
+
+    if (_tasks.isEmpty && _sessions.values.every((s) => !s.isActive)) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await _exit();
+    }
+  }
+
+  Future<void> _syncRunningSessions() async {    for (final entry in _sessions.entries.toList()) {
       final session = entry.value;
       final task = _tasks[entry.key];
       if (task == null) continue;
@@ -244,6 +285,8 @@ class CloudServiceProcess {
       if (session.phase == 'running' &&
           session.gamePid != null &&
           GameProcessWatch.isAlive(session.gamePid!)) {
+        session.owner = 'service';
+        await GameSessionStore.save(session);
         _sessions[session.versionId] = session;
         addLog(
           .info,

@@ -56,6 +56,14 @@ class LaunchMindustryTask extends Task {
   bool _finished = false;
   bool _cancelled = false;
 
+  /// 这一局的所有权已移交给 UI：退出时不再由本任务上传 / 写 config / 走快捷启动收尾
+  bool _ownershipTransferred = false;
+
+  /// 服务把运行中的游戏完全交给 UI 时调用（游戏进程不动）
+  void transferOwnership() {
+    _ownershipTransferred = true;
+  }
+
   /// 本次游玩时长；无界面服务用它写会话，不写 config
   Duration? _playedDuration;
   Duration? get playedDuration => _playedDuration;
@@ -650,6 +658,12 @@ class LaunchMindustryTask extends Task {
   void _finishRun(String exitLog) {
     if (_finished) return;
     _finished = true;
+
+    // 所有权已交给 UI：退出上传 / 游玩时长 / 快捷启动行为都由 UI 的接管任务做
+    if (_ownershipTransferred) {
+      addLog(.info, '启动任务：所有权已移交 UI，跳过服务侧收尾', tag: 'Launch');
+      return;
+    }
 
     // 回写最近启动时间与累计游玩时长（无界面服务不写 config，由会话记录交给 UI 导入）
     final launchStart = _launchStartTime;
