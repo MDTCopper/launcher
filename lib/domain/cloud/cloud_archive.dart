@@ -398,6 +398,8 @@ class CloudArchiveReader {
       final writeTo = campaignOverwrite || mode == CloudImportMode.overwrite
           ? destination
           : settled;
+      // 覆盖也是落地：界面上的「写入 N 份」按 written 数，纯覆盖时不能记成 0
+      if (writeTo == destination) report.written.add(destination);
       _writeAtomicallySync(
         File(writeTo),
         content,
