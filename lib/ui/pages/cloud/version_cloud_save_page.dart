@@ -12,6 +12,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
+import 'package:copper_launcher/domain/cloud/cloud_gap_fill.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
 import 'package:copper_launcher/domain/cloud/cloud_notes.dart';
@@ -407,12 +408,19 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       context: context,
       type: ConfirmationType.warning,
       title: '用云端这份覆盖本机？',
-      content:
-          '把云端第 ${snapshot.revision ?? '?'} 版**整份覆盖**到本机数据目录；'
-          '覆盖前会先自备份（云包覆盖到的那些文件），出问题可还原。\n'
-          'settings.bin、键位、UI、身份也会按云端整份落地；'
-          '游戏内身份由启动前覆写在启动时恢复。\n\n'
-          '${CloudNotes.gameRunningHint}',
+      content: snapshot.isManifest
+          // 差量快照按清单落地：本机其它文件不碰
+          ? '把云端第 ${snapshot.revision ?? '?'} 版**按文件清单覆盖**到本机数据目录：'
+                '只覆盖清单里的文件，其它本机文件不动；'
+                '覆盖前会先自备份（清单里那些文件），出问题可还原。\n'
+                'settings.bin、键位、UI 只要在清单里也会按云端落地；'
+                '游戏内身份由启动前覆写在启动时恢复。\n\n'
+                '${CloudNotes.gameRunningHint}'
+          : '把云端第 ${snapshot.revision ?? '?'} 版**整份覆盖**到本机数据目录；'
+                '覆盖前会先自备份（云包覆盖到的那些文件），出问题可还原。\n'
+                'settings.bin、键位、UI、身份也会按云端整份落地；'
+                '游戏内身份由启动前覆写在启动时恢复。\n\n'
+                '${CloudNotes.gameRunningHint}',
       action: () => _runRestore(version: version, snapshot: snapshot),
     );
   }
@@ -495,6 +503,96 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       addNotice(
         icon: Icons.error_outline,
         title: '恢复失败',
+        content: removeNewlines('$error'),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
+  }
+
+  /// 一键补全：按云端当前版的清单算本机缺口，能补的直接下载
+  ///
+  /// 整包快照读不到清单，提示先恢复一次；不排任何任务
+  Future<void> _fillLocalGap() async {
+    final version = _selectedVersion;
+    final slot = _slot;
+    final head = slot?.currentSnapshot;
+    if (version == null || slot == null || head == null) return;
+
+    setState(() => _busy = '读取云端清单…');
+    try {
+      final token = await _accounts.ensureAccessToken();
+      if (token == null) {
+        throw const MdtbbsException(message: '登录已失效，请重新登录');
+      }
+      final manifest = await CloudSaveService.manifestOfSnapshot(
+        accessToken: token,
+        slotId: slot.id,
+        snapshotId: head.id,
+      );
+      if (!mounted) return;
+      if (manifest == null) {
+        addNotice(
+          icon: Icons.info_outline,
+          title: '这份快照是整包',
+          content: '整包快照没有文件清单，先恢复一次再补全',
+        );
+        return;
+      }
+
+      final gap = computeRestoreGap(
+        dataPath: version.dataPath,
+        manifest: manifest,
+        installedGameTags: installedGameIdentifiers(),
+      );
+      if (gap.isEmpty) {
+        addNotice(icon: Icons.check, title: '本机什么都不缺');
+        return;
+      }
+      if (gap.downloadableMods.isEmpty) {
+        // 缺的都不是能自动下的，只把结论说出来
+        addNotice(
+          icon: Icons.info_outline,
+          title: '缺的东西补不了',
+          content: describeRestoreGap(gap),
+        );
+        return;
+      }
+
+      final task = CloudGapFillTask(
+        version: version,
+        gap: gap,
+        idSuffix: 'version_page_${version.tag}',
+      );
+      addTask(task);
+      if (mounted) setState(() => _busy = '补全模组中（任务列表可取消）');
+      await task.done;
+      if (!mounted) return;
+      if (task.status == TaskStatus.cancel) {
+        addNotice(icon: Icons.close, title: '已取消补全');
+        return;
+      }
+      if (task.error != null) {
+        addNotice(
+          icon: Icons.error_outline,
+          title: '补全失败',
+          content: removeNewlines('${task.error}'),
+        );
+        return;
+      }
+      addNotice(
+        icon: Icons.extension_outlined,
+        title: '补全完成',
+        content: task.result ?? '',
+      );
+      if (task.missingMods.isNotEmpty) {
+        await showMissingModsDialog(context, task.missingMods);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      addNotice(
+        icon: Icons.error_outline,
+        title: '补全失败',
         content: removeNewlines('$error'),
       );
     } finally {
@@ -585,32 +683,28 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     );
     task.addQueueItem(placeholder);
     task.setPhase('补全模组…');
-    final outcomes = await fillMissingMods(
+    // 第一个模组开始排时占位项就让位，后面按模组逐个列
+    var placeholderRemoved = false;
+    final missing = await fillGapMods(
       gap: gap,
       version: version,
-      queueTasks: false,
       onStatus: task.setPhase,
+      isCancelled: () => task.cancelToken.isCancelled,
+      enqueue: (outcome) async {
+        if (!placeholderRemoved) {
+          placeholderRemoved = true;
+          task.removeQueueItem(placeholder);
+        }
+        final item = CloudTaskItem(title: outcome.displayName);
+        task.addQueueItem(item);
+        final subtask = buildFillTask(outcome.plan!, version);
+        task.bindQueueSubTask(item, subtask);
+        await subtask.startAsync();
+        return subtask.status == TaskStatus.completed;
+      },
     );
-    task.removeQueueItem(placeholder);
-
-    for (final outcome in outcomes) {
-      if (task.cancelToken.isCancelled) return;
-      if (!outcome.isQueued) {
-        _restoreMissingMods.add((
-          name: outcome.displayName,
-          reason: outcome.detail ?? modFillReason(outcome.status),
-        ));
-        continue;
-      }
-      final item = CloudTaskItem(title: outcome.displayName);
-      task.addQueueItem(item);
-      final subtask = buildFillTask(outcome.plan!, version);
-      task.bindQueueSubTask(item, subtask);
-      await subtask.startAsync();
-      if (subtask.status != TaskStatus.completed) {
-        _restoreMissingMods.add((name: outcome.displayName, reason: '下载失败'));
-      }
-    }
+    if (!placeholderRemoved) task.removeQueueItem(placeholder);
+    _restoreMissingMods.addAll(missing);
   }
 
   /// 恢复报告压成一句话：落地几份、留了几份、拒了几份
@@ -1352,7 +1446,33 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 8,
               children: [
+                // 补全按云端当前版的清单算；整包快照会提示先恢复一次
+                Row(
+                  spacing: 8,
+                  children: [
+                    IconTextButton(
+                      icon: Icons.extension_outlined,
+                      content: '补全本机缺的',
+                      onTap:
+                          (_busy == null &&
+                              _accounts.isLoggedIn &&
+                              !_loading &&
+                              _slot?.currentSnapshot != null)
+                          ? () => unawaited(_fillLocalGap())
+                          : null,
+                    ),
+                    Expanded(
+                      child: Text(
+                        '比对云端当前版的清单：本机缺的模组直接补回来',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.itemSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 for (final snapshot in _snapshots)
                   _SnapshotTile(
                     snapshot: snapshot,
@@ -1421,7 +1541,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   }
 }
 
-/// 一条云端快照：版本号 / 时间 / 体积 / 哪台设备传的
+/// 一条云端快照：版本号 / 时间 / 格式 / 体积 / 哪台设备传的
 class _SnapshotTile extends StatelessWidget {
   const _SnapshotTile({
     required this.snapshot,
@@ -1456,6 +1576,9 @@ class _SnapshotTile extends StatelessWidget {
         [
           if (snapshot.createdAt != null)
             snapshot.createdAt!.toLocal().format('yyyy-MM-dd HH:mm'),
+          // 差量快照只带清单里的文件；整包是整份覆盖
+          snapshot.isManifest ? '差量' : '整包',
+          if (snapshot.fileCount != null) '${snapshot.fileCount} 个文件',
           if (snapshot.size != null) formatBytes(snapshot.size!),
           if (device != null && device.isNotEmpty) device,
         ].join(' · '),
