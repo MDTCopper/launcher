@@ -79,9 +79,14 @@ class _KeyCapturePageState extends State<_KeyCapturePage> {
     );
     unawaited(
       WindowIme.detach().then((detached) {
+        const targets = ['无上下文或非 Windows', '有焦点的窗口', 'Flutter 视图', '顶层窗口'];
+        final target = WindowIme.lastTarget;
+        final where = target >= 0 && target < targets.length
+            ? targets[target]
+            : '未知窗口';
         addLog(
           .info,
-          '[KeyCapture] 窗口输入法上下文：${detached ? '已摘掉' : '未摘（无上下文或非 Windows）'}',
+          '[KeyCapture] 窗口输入法上下文：${detached ? '已摘掉（$where）' : '未摘（$where）'}',
           tag: 'Version',
         );
       }),

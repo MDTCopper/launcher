@@ -22,7 +22,12 @@ class WindowIme {
 
   static bool _detached = false;
 
-  /// 摘掉主窗口的输入法上下文；返回是否真的摘了
+  /// 上次摘的是哪一类窗口：0 没摘 / 1 有焦点的窗口 / 2 Flutter 视图 / 3 顶层窗口
+  ///
+  /// 只给日志用：真机上要判断「摘没摘对窗口」靠它
+  static int lastTarget = 0;
+
+  /// 摘掉窗口的输入法上下文；返回是否真的摘了
   ///
   /// 重复调用共用同一个请求，[restore] 会等它完成再挂回去
   static Future<bool> detach() {
@@ -52,9 +57,19 @@ class WindowIme {
 
   static Future<bool> _requestDetach() async {
     try {
-      _detached = await _channel.invokeMethod<bool>('detach') ?? false;
+      final result = await _channel.invokeMethod<Object?>('detach');
+      if (result is int) {
+        // 原生端报的是摘到了哪一类窗口：>0 就算摘上了
+        lastTarget = result;
+        _detached = result > 0;
+      } else {
+        // 兼容旧原生端 / 用例里的 bool
+        lastTarget = 0;
+        _detached = result == true;
+      }
     } catch (_) {
       _detached = false;
+      lastTarget = 0;
     } finally {
       _pending = null;
     }
@@ -66,5 +81,6 @@ class WindowIme {
   static void resetForTesting() {
     _pending = null;
     _detached = false;
+    lastTarget = 0;
   }
 }
