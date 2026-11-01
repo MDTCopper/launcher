@@ -61,24 +61,24 @@ abstract class AppPaths {
   }
 
   /// 数据根定下来之后，把从它派生的路径一次算好：[init] 与 [overrideForTesting] 都走这里
-  static void _applyDataRoot(String root) {
-    copperLauncher = root;
-    versions = p.join(root, 'versions');
-    versionsFolds = isDesktop ? versions : p.join(root, 'versionsFolds');
-    versionIcons = p.join(root, 'version_icons');
-    cloudService = p.join(root, 'cloud-service');
+  static void _applyDataRoot(String rootPath) {
+    copperLauncher = rootPath;
+    versions = p.join(rootPath, 'versions');
+    versionsFolds = isDesktop ? versions : p.join(rootPath, 'versionsFolds');
+    versionIcons = p.join(rootPath, 'version_icons');
+    cloudService = p.join(rootPath, 'cloud-service');
     cloudServiceSessions = p.join(cloudService, 'sessions');
     cloudServicePending = p.join(cloudService, 'pending');
     cloudServiceRequests = p.join(cloudService, 'requests');
-    mindustrys = p.join(root, 'mindustrys');
-    copperLoader = p.join(root, 'copper_loader');
-    logs = p.join(root, 'logs');
-    java = p.join(root, 'java');
-    remoteData = p.join(root, 'remote_data');
-    configJson = p.join(root, 'config.json');
-    configBin = p.join(root, 'config.bin');
+    mindustrys = p.join(rootPath, 'mindustrys');
+    copperLoader = p.join(rootPath, 'copper_loader');
+    logs = p.join(rootPath, 'logs');
+    java = p.join(rootPath, 'java');
+    remoteData = p.join(rootPath, 'remote_data');
+    configJson = p.join(rootPath, 'config.json');
+    configBin = p.join(rootPath, 'config.bin');
     // 桥载荷在 Android 上固定在应用内部目录，桌面端仍跟着数据根
-    bridgeRoot = Platform.isAndroid ? internalRoot : root;
+    bridgeRoot = Platform.isAndroid ? internalRoot : rootPath;
     bridge = p.join(bridgeRoot, 'bridge');
     bridgeJre = p.join(bridge, 'jre');
   }
@@ -99,24 +99,24 @@ abstract class AppPaths {
     if (Platform.isAndroid) return _androidExternalRoot ?? applicationSupportPath;
     if (!isDesktop) return applicationSupportPath;
 
-    final exeDir = File(Platform.resolvedExecutable).parent.path;
-    if (isProtectedDir(exeDir)) return applicationSupportPath;
+    final exeDirPath = File(Platform.resolvedExecutable).parent.path;
+    if (isProtectedDir(exeDirPath)) return applicationSupportPath;
 
-    final projectRoot = await findProjectRoot(exeDir);
+    final projectRoot = await findProjectRoot(exeDirPath);
     if (projectRoot != null) {
       // 目录可能还不存在，先建出来；建不出来只记一行，别在解析路径这一步把进程打死
-      final dataRoot = p.join(projectRoot, _devDataDirName);
+      final dataRootPath = p.join(projectRoot, _devDataDirName);
       try {
-        await Directory(dataRoot).create(recursive: true);
+        await Directory(dataRootPath).create(recursive: true);
       } on FileSystemException catch (error) {
-        debugPrint('数据根目录建不出来[$dataRoot]：$error');
+        debugPrint('数据根目录建不出来[$dataRootPath]：$error');
       }
-      return dataRoot;
+      return dataRootPath;
     }
 
-    if (await _isWritable(exeDir)) return exeDir;
+    if (await _isWritable(exeDirPath)) return exeDirPath;
 
-    debugPrint('数据目录不可写[$exeDir]，改用[$applicationSupportPath]');
+    debugPrint('数据目录不可写[$exeDirPath]，改用[$applicationSupportPath]');
     return applicationSupportPath;
   }
 
@@ -138,8 +138,8 @@ abstract class AppPaths {
   ///
   /// 受保护目录的可写性随提权变化，不能作为数据目录的稳定依据
   @visibleForTesting
-  static bool isProtectedDir(String dir) {
-    final normalized = _normalizeDir(dir);
+  static bool isProtectedDir(String dirPath) {
+    final normalizedPath = _normalizeDirPath(dirPath);
     const protectedRootEnvNames = [
       'ProgramFiles',
       'ProgramFiles(x86)',
@@ -147,31 +147,31 @@ abstract class AppPaths {
       'WinDir',
     ];
     for (final name in protectedRootEnvNames) {
-      final root = Platform.environment[name];
-      if (root == null || root.isEmpty) continue;
-      if (normalized.startsWith(_normalizeDir(root))) return true;
+      final rootPath = Platform.environment[name];
+      if (rootPath == null || rootPath.isEmpty) continue;
+      if (normalizedPath.startsWith(_normalizeDirPath(rootPath))) return true;
     }
     return false;
   }
 
   /// 从 [startDir] 一路向上找含 pubspec.yaml 的目录（Flutter 项目根）
   @visibleForTesting
-  static Future<String?> findProjectRoot(String startDir) async {
-    var dir = p.normalize(startDir);
+  static Future<String?> findProjectRoot(String startDirPath) async {
+    var dirPath = p.normalize(startDirPath);
     while (true) {
-      if (await File(p.join(dir, 'pubspec.yaml')).exists()) return dir;
-      final parent = p.dirname(dir);
-      if (parent == dir) return null;
-      dir = parent;
+      if (await File(p.join(dirPath, 'pubspec.yaml')).exists()) return dirPath;
+      final parentPath = p.dirname(dirPath);
+      if (parentPath == dirPath) return null;
+      dirPath = parentPath;
     }
   }
 
-  static String _normalizeDir(String dir) =>
-      '${p.normalize(dir).toLowerCase()}\\';
+  static String _normalizeDirPath(String dirPath) =>
+      '${p.normalize(dirPath).toLowerCase()}\\';
 
   /// 目录可写性靠直接写一个探针文件再删掉来判，比看权限位可靠
-  static Future<bool> _isWritable(String dir) async {
-    final probe = File(p.join(dir, '.copper_write_probe'));
+  static Future<bool> _isWritable(String dirPath) async {
+    final probe = File(p.join(dirPath, '.copper_write_probe'));
     try {
       await probe.writeAsString('probe', flush: true);
       await probe.delete();
@@ -183,17 +183,17 @@ abstract class AppPaths {
 
   static Future<void> initDefaultDataPath() async {
     if (Platform.isWindows) {
-      final roaming = Platform.environment['APPDATA'];
-      if (roaming != null) {
-        _defaultGameDataPath = p.join(roaming, 'Mindustry');
+      final roamingPath = Platform.environment['APPDATA'];
+      if (roamingPath != null) {
+        _defaultGameDataPath = p.join(roamingPath, 'Mindustry');
       }
     } else if (Platform.isAndroid) {
       _defaultGameDataPath = p.join(copperLauncher, '.mindustry');
     } else if (Platform.isLinux) {
-      final home = Platform.environment['HOME'];
-      if (home != null) {
+      final homePath = Platform.environment['HOME'];
+      if (homePath != null) {
         _defaultGameDataPath = p.join(
-          Platform.environment['HOME']!,
+          homePath,
           '.local',
           'share',
           'Mindustry',
@@ -262,10 +262,10 @@ abstract class AppPaths {
   /// 把绝对路径转成**记录形态**：落在数据根里的记相对路径（数据根搬家 / 换盘后
   /// 配置仍然可用），数据根之外的用户文件（「添加目录」扫来的本体）保持绝对路径
   static String toStoredPath(String path) {
-    final root = p.normalize(copperLauncher);
-    final normalized = p.normalize(path);
-    if (!_isInside(root, normalized)) return normalized;
-    return p.relative(normalized, from: root);
+    final rootPath = p.normalize(copperLauncher);
+    final normalizedPath = p.normalize(path);
+    if (!_isInside(rootPath, normalizedPath)) return normalizedPath;
+    return p.relative(normalizedPath, from: rootPath);
   }
 
   /// 把记录形态还原成可用路径：绝对路径（含老配置）原样返回，相对路径按数据根拼回
@@ -276,9 +276,9 @@ abstract class AppPaths {
 
   /// [child] 是否落在 [root] **里面**（Windows 路径大小写不敏感，统一小写后再比）；
   /// 根目录自身不算「根内文件」—— 那样会算出空字符串
-  static bool _isInside(String root, String child) {
-    final rootLower = p.normalize(root).toLowerCase();
-    final childLower = p.normalize(child).toLowerCase();
+  static bool _isInside(String rootPath, String childPath) {
+    final rootLower = p.normalize(rootPath).toLowerCase();
+    final childLower = p.normalize(childPath).toLowerCase();
     return p.isWithin(rootLower, childLower);
   }
 
