@@ -1153,6 +1153,10 @@ class MdtbbsMultiplayerService {
 
   static const _inviteCooldown = Duration(seconds: 30);
 
+  /// 清掉冷却：用例之间共享同一个单例，上一次发过的冷却会漏到下一次
+  @visibleForTesting
+  void clearInviteCooldownsForTesting() => _inviteSentAt.clear();
+
   /// 距离下次可邀请还有几秒（0 表示现在就能发）
   int inviteCooldownLeft(int targetUserId) {
     final at = _inviteSentAt[targetUserId];
