@@ -13,6 +13,7 @@ import 'package:copper_launcher/domain/mdtbbs/mdtbbs_notification_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_presence_service.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_realtime_service.dart';
 import 'package:copper_launcher/domain/quick_launch.dart';
+import 'package:copper_launcher/domain/quick_launch_entry.dart';
 import 'package:copper_launcher/domain/shortcut_launch.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
@@ -41,43 +42,49 @@ void main(List<String> args) async {
   final cli = LaunchArgs.parse(args);
   // 服务 / 快捷启动触发进程不建 UI：先置位，核心初始化里就不会去弹通知 / 碰窗口
   AppRuntime.headless = cli.service || cli.isQuickLaunch;
+  _checkPlatform();
 
-  // 基础层：路径 / 日志 / 配置 / 网络，服务与 UI 共用
-  await _initializeCore();
-
-  // 快捷启动触发：UI 在线就把请求交给 UI，否则本进程直接进无界面服务
+  // 快捷启动：先只初始化路径 / 日志，UI 或服务在线就直接投递后退出，
+  // 不读配置 / 账号 / 云存档（转发路径的冷启动开销主要省在这里）
   if (cli.isQuickLaunch) {
-    if (await GameSessionStore.isUiRunning()) {
-      addLogAndPrint(
-        .info,
-        '快捷启动：UI 在线，请求交给界面后退出（${cli.launchVersionId}）',
-        tag: 'Startup',
-      );
-      await GameSessionStore.writePending(
-        versionId: cli.launchVersionId!,
-        reason: 'ui_online',
-      );
-      await _quitProcess();
-      return;
+    await AppPaths.init();
+    await Log.init();
+    addLog(.info, '时间线：快捷启动预检 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
+    final route = await QuickLaunchEntry.dispatch(
+      LaunchRequest(cli.launchVersionId!),
+    );
+    switch (route) {
+      case LaunchRoute.uiOnline:
+        addLogAndPrint(
+          .info,
+          '快捷启动：UI 在线，请求交给界面后退出（${cli.launchVersionId}）',
+          tag: 'Startup',
+        );
+        await _quitProcess();
+        return;
+      case LaunchRoute.serviceOnline:
+        addLogAndPrint(
+          .info,
+          '快捷启动：云服务在线，请求交给服务后退出（${cli.launchVersionId}）',
+          tag: 'Startup',
+        );
+        await _quitProcess();
+        return;
+      case LaunchRoute.android:
+        // --launch-version 只在桌面出现；Android 走 ShortcutLaunch 宿主通道
+        return;
+      case LaunchRoute.startService:
+        // 需要本进程接手：补完配置 / 网络初始化再进服务
+        break;
     }
-    // 服务已在跑（上一局游戏还没退 / 服务刚起来）：请求交给服务，别自己再起一局
-    if (await GameSessionStore.isServiceRunning()) {
-      addLogAndPrint(
-        .info,
-        '快捷启动：云服务在线，请求交给服务后退出（${cli.launchVersionId}）',
-        tag: 'Startup',
-      );
-      await GameSessionStore.writeRequest(
-        versionId: cli.launchVersionId!,
-        reason: 'ui_offline',
-      );
-      await _quitProcess();
-      return;
-    }
+    await _initializeCore(pathsReady: true, logReady: true);
     addLog(.info, '快捷启动：没有 UI / 服务，本进程进入云服务模式', tag: 'Startup');
     await CloudServiceProcess.start(launchVersionId: cli.launchVersionId);
     return;
   }
+
+  // 基础层：路径 / 日志 / 配置 / 网络，服务与 UI 共用
+  await _initializeCore();
 
   // 显式服务模式（UI 二次启动发现 / 接管 / 补上传）
   if (cli.service) {
@@ -108,11 +115,20 @@ void main(List<String> args) async {
 }
 
 /// 路径 / 日志 / 配置 / 网络：所有角色都要，服务模式也走这里
-Future<void> _initializeCore() async {
-  _checkPlatform();
-  await AppPaths.init();
-  await Log.init();
-  addLog(.info, '时间线：日志就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
+///
+/// [pathsReady] / [logReady]：快捷启动预检已经初始化过路径与日志，别重复 init
+Future<void> _initializeCore({
+  bool pathsReady = false,
+  bool logReady = false,
+}) async {
+  if (!pathsReady) {
+    _checkPlatform();
+    await AppPaths.init();
+  }
+  if (!logReady) await Log.init();
+  if (!logReady) {
+    addLog(.info, '时间线：日志就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
+  }
   if (AppPaths.isUsingFallbackDataPath) {
     addLogAndPrint(
       .warning,

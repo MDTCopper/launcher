@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/data/models.dart';
@@ -46,10 +47,40 @@ class MindustryLauncher {
   bool _reportedModMismatch = false;
 
   // 校验 Java 环境是否可用
+  //
+  // `java -version` 每次要 80~100ms；路径与 mtime 没变时直接用上次的成功结果。
+  // 真坏了还有后面的启动失败兜底，不会把人挡在「明明能玩」的门外。
   Future<bool> _checkJavaEnv({String? javaExecutable}) async {
+    final javaCmd = javaExecutable ?? 'java';
+    String? cacheKey;
+    if (javaExecutable != null) {
+      final javaFile = File(javaExecutable);
+      if (await javaFile.exists()) {
+        final mtime = (await javaFile.lastModified()).millisecondsSinceEpoch;
+        cacheKey = '$javaExecutable|$mtime';
+      }
+    }
+    final cacheFile = cacheKey == null
+        ? null
+        : File(p.join(AppPaths.copperLauncher, 'java_check_cache.json'));
+    if (cacheFile != null && await cacheFile.exists()) {
+      try {
+        final cached = jsonDecode(await cacheFile.readAsString());
+        if (cached is Map &&
+            cached['key'] == cacheKey &&
+            DateTime.now().difference(
+                  DateTime.tryParse(cached['checkedAt'] as String? ?? '') ??
+                      DateTime.fromMillisecondsSinceEpoch(0),
+                ) <
+                const Duration(days: 7)) {
+          addLog(.debug, 'Java 环境校验命中缓存：$javaExecutable', tag: 'Launch');
+          return true;
+        }
+      } catch (_) {
+        // 缓存坏了就重跑
+      }
+    }
     try {
-      final javaCmd = javaExecutable ?? 'java';
-
       // 执行 java -version 命令，验证 Java 是否可调用
       final process = await Process.start(javaCmd, ['-version']);
 
@@ -60,8 +91,22 @@ class MindustryLauncher {
       await process.exitCode;
 
       // 若输出含 "java version" 或 "openjdk version"，说明 Java 可用
-      return errorOutput.contains('java version') ||
+      final available =
+          errorOutput.contains('java version') ||
           errorOutput.contains('openjdk version');
+      if (available && cacheKey != null && cacheFile != null) {
+        try {
+          await cacheFile.writeAsString(
+            jsonEncode({
+              'key': cacheKey,
+              'checkedAt': DateTime.now().toIso8601String(),
+            }),
+          );
+        } catch (_) {
+          // 缓存写不了不影响启动
+        }
+      }
+      return available;
     } catch (e) {
       addLogAndPrint(
         .warning,

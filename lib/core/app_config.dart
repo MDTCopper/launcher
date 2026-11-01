@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -58,6 +59,8 @@ Future<void> initAppConfig() async {
   if (config.normalizeStoredPaths()) {
     addLogAndPrint(.info, '配置里的路径已归一化为记录形态', tag: 'Path');
   }
+  // 无界面服务不写 config / 备份：UI 会负责持久化；这里省掉一次 60KB 写盘
+  if (AppRuntime.headless) return;
   // 拿到一份能用的配置之后再留底：一次运行最多一份，与 config.save 的调用频率无关
   ConfigBackups.write(rootPath: AppPaths.copperLauncher, json: config.toJson());
   await config.save();

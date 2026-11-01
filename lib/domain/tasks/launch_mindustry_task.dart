@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
@@ -273,7 +274,7 @@ class LaunchMindustryTask extends Task {
         );
         if (major != null) {
           mindustry.versionNumber = major;
-          config.save();
+          if (!AppRuntime.headless) config.save();
         }
       } catch (_) {
         // 读取失败仅影响后续降级判定，不阻塞启动
@@ -287,6 +288,8 @@ class LaunchMindustryTask extends Task {
 
     final settingPath = mindustry.settingPath;
     final setting = MindustrySettings.fromFile(settingPath);
+    // 覆写前后对比：没变就不写盘（每局无条件写 12KB + 两份备份，纯浪费）
+    final settingsBeforeWrite = jsonEncode(setting.data);
 
     // 文件在但解不开时整段覆写都要跳过：空实例写回去会清掉玩家的键位与存档标题
     // （游戏把标题记在 settings 的 `save-<文件名>-name` 里）
@@ -452,7 +455,8 @@ class LaunchMindustryTask extends Task {
 
     if (supportsSettingsOverride &&
         settingsReadable &&
-        setting.data.isNotEmpty) {
+        setting.data.isNotEmpty &&
+        jsonEncode(setting.data) != settingsBeforeWrite) {
       await setting.saveAsync();
     }
     //启动前的决策（Java / 内存 / 数据目录 / 覆写）是"改了没生效"的第一现场，记一条
