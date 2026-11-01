@@ -18,7 +18,7 @@ import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
-import 'package:copper_launcher/util/android_host.dart';
+import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/os.dart';
@@ -128,7 +128,7 @@ class AppShellState extends State<AppShell> {
   /// 安卓返回键与全面屏手势都走这里
   ///
   /// 子路由先返回一层；到了底层路由要**连按两下**：第一下只提醒，免得误触把启动器关掉。
-  /// 第二下也不结束进程，只是退到后台（见 [AndroidHost.moveTaskToBack]）
+  /// 第二下也不结束进程，只是退到后台（宿主通道的 `moveTaskToBack`）
   void _handleSystemBack(bool didPop, Object? result) {
     if (didPop) return;
 
@@ -151,7 +151,15 @@ class AppShellState extends State<AppShell> {
     }
 
     _lastBackPressedAt = null;
-    unawaited(AndroidHost.moveTaskToBack());
+    unawaited(_moveTaskToBack());
+  }
+
+  static Future<void> _moveTaskToBack() async {
+    try {
+      await AndroidCall.moveTaskToBack();
+    } on Object catch (error) {
+      addLog(.warning, '退到后台失败：$error', tag: 'Host');
+    }
   }
 
   // ── 路由监听 更新导航栏高亮和面包屑 ──

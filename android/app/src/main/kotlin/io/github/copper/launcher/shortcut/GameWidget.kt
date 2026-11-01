@@ -1,4 +1,4 @@
-package io.github.copper.launcher
+package io.github.copper.launcher.shortcut
 
 import android.app.Activity
 import android.app.PendingIntent
@@ -14,6 +14,8 @@ import android.graphics.Paint
 import android.os.Bundle
 import android.util.Log
 import android.widget.RemoteViews
+import io.github.copper.launcher.R
+import io.github.copper.launcher.channel.DartCall
 
 /**
  * 1x1 桌面小组件：一个版本一个，点一下直接启动游戏。
@@ -38,16 +40,17 @@ object GameWidget {
         AppWidgetManager.getInstance(context).isRequestPinAppWidgetSupported
 
     /** 请求把小组件固定到桌面；桌面不支持时返回 false（只能引导用户去小组件面板自己加） */
-    fun requestPin(
-        activity: Activity,
+    @DartCall
+    fun requestPinWidget(
+        activityContext: Activity,
         versionId: String,
         tag: String,
         jarPath: String,
         iconPath: String,
     ): Boolean {
-        val manager = AppWidgetManager.getInstance(activity)
+        val manager = AppWidgetManager.getInstance(activityContext)
         if (!manager.isRequestPinAppWidgetSupported) return false
-        savePending(activity, versionId, tag, jarPath, iconPath)
+        savePending(activityContext, versionId, tag, jarPath, iconPath)
 
         val extras = Bundle().apply {
             putString(GameShortcut.EXTRA_VERSION_ID, versionId)
@@ -57,9 +60,9 @@ object GameWidget {
         }
         // 回调里能拿到这次新建的组件 id，作为配置页之外的兜底
         val successCallback = PendingIntent.getBroadcast(
-            activity,
+            activityContext,
             versionId.hashCode(),
-            Intent(activity, GameWidgetProvider::class.java).apply {
+            Intent(activityContext, GameWidgetProvider::class.java).apply {
                 action = ACTION_WIDGET_PINNED
                 putExtra(GameShortcut.EXTRA_VERSION_ID, versionId)
                 putExtra(GameShortcut.EXTRA_TAG, tag)
@@ -69,7 +72,7 @@ object GameWidget {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         return manager.requestPinAppWidget(
-            ComponentName(activity, GameWidgetProvider::class.java),
+            ComponentName(activityContext, GameWidgetProvider::class.java),
             extras,
             successCallback,
         )

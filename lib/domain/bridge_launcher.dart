@@ -1,16 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' show PlatformDispatcher;
 
 import 'package:archive/archive.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/core/app_paths.dart';
-import 'package:copper_launcher/util/art_binding.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
-import 'package:jni/jni.dart';
-import 'package:jni_flutter/jni_flutter.dart';
 import 'package:path/path.dart' as p;
 
 import '../core/app_config.dart';
@@ -19,7 +15,7 @@ import 'bridge_payload.dart';
 /// Android 桥（android-bridge）的载荷位置与启动参数
 ///
 /// 桥在 Android 上起一个**真 JVM** 跑桌面版游戏 jar：Flutter 侧只做两件事 ——
-/// 准备载荷、把参数交给 `Bridge.launch`（绑定在 `lib/util/art_binding.dart`）。
+/// 准备载荷、把参数交给生成的宿主通道（见 `lib/generated/android_call.g.dart`）。
 /// 参数口径对齐《android-bridge 使用文档》§4.3 / §5 / §7，三条硬规则：
 /// `--bridge-jar` 由组件工厂追加（别自己传）、`--abi` 不用传（桥按设备认）、
 /// `--arc-lib` / `--angle-path` 的目录必须可写（桥要在里面把 `.so` 改成可执行 + 只读）
@@ -263,38 +259,4 @@ class BridgeLauncher {
     'version.properties',
     'wrapper-version.properties',
   ];
-
-  /// 把参数交给桥（`Bridge.launch`，绑定见 `lib/util/art_binding.dart`）
-  ///
-  /// **Activity 必须同步取、同步用**：`jni_flutter` 给的引用是易失的（旋转、切后台
-  /// 都可能失效），中间不许 `await`；也不能退回 ApplicationContext —— 桥内部
-  /// `startActivity` 没加 `FLAG_ACTIVITY_NEW_TASK`，传应用上下文会抛
-  /// `AndroidRuntimeException`（文档 §4.2）。参数错 / jar 不存在会同步抛回调用方，
-  /// 之后的失败发生在游戏进程里（只能看 `last_log.txt` 或占位 activity 的堆栈）
-  static void launchWithBridge({
-    required String bridgeJar,
-    required List<String> args,
-  }) {
-    final engineId = PlatformDispatcher.instance.engineId;
-    if (engineId == null) {
-      throw StateError('拿不到 FlutterEngine id，取不到 Activity');
-    }
-    final activity = androidActivity(engineId);
-    if (activity == null) {
-      throw StateError('拿不到 Activity（应用在后台？）：桥要 Activity 才能起游戏');
-    }
-
-    final context = activity.as(Context.type, releaseOriginal: true);
-    final jArgs = JArray.withLength(JString.type, args.length);
-    for (var i = 0; i < args.length; i++) {
-      jArgs[i] = args[i].toJString();
-    }
-
-    try {
-      Bridge.launch(bridgeJar.toJString(), context, jArgs);
-    } finally {
-      jArgs.release();
-      context.release();
-    }
-  }
 }

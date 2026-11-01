@@ -16,7 +16,7 @@ import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/dialog/java_missing_prompt.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/util/android_host.dart';
+import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/format/date_time_format.dart';
@@ -739,7 +739,11 @@ class LaunchMindustryTask extends Task {
   Future<void> _backToHome() async {
     // 云存档上传是后台任务，先给它两秒把请求发出去，再把窗口退到后台
     await Future<void>.delayed(const Duration(seconds: 2));
-    await AndroidHost.moveTaskToBack();
+    try {
+      await AndroidCall.moveTaskToBack();
+    } on Object catch (error) {
+      addLog(.warning, '退到后台失败：$error', tag: 'Launch');
+    }
   }
 
   /// 自动选择 Java：按 [target]（游戏版本推荐值，走加载器时会抬到 17+）

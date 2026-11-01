@@ -8,8 +8,8 @@ import 'package:copper_launcher/domain/bridge_payload.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/domain/steam_client.dart';
 import 'package:copper_launcher/domain/steam_library.dart';
-import 'package:copper_launcher/util/android_host.dart';
 import 'package:copper_launcher/core/app_paths.dart';
+import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/gpu_preference.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -362,7 +362,7 @@ class MindustryLauncher {
     );
 
     try {
-      BridgeLauncher.launchWithBridge(bridgeJar: bridgeJar.path, args: args);
+      await AndroidCall.launchBridge(bridgeJar.path, args);
     } catch (error) {
       addLogAndPrint(
         .error,
@@ -393,7 +393,7 @@ class MindustryLauncher {
     _bridgeExitWatcher = BridgeGameExitWatcher(
       onGameExit: _reportBridgeGameExit,
       isGameProcessRunning: Platform.isAndroid
-          ? AndroidHost.isGameProcessRunning
+          ? AndroidCall.isGameProcessRunning
           : null,
     )..start();
   }
@@ -449,7 +449,11 @@ class MindustryLauncher {
   Future<bool> stopMindustryJar() async {
     if (Platform.isAndroid) {
       addLogAndPrint(.info, '请求结束游戏进程', tag: 'Launch');
-      await AndroidHost.killGameProcess();
+      try {
+        await AndroidCall.killGameProcess();
+      } on Object catch (error) {
+        addLog(.warning, '结束游戏进程失败：${removeNewlines('$error')}', tag: 'Launch');
+      }
       return true;
     }
 

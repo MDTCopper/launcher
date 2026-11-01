@@ -3,19 +3,18 @@ import 'dart:io';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
-import 'package:jni_flutter/jni_flutter.dart';
+import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:system_info2/system_info2.dart' as s;
 import 'package:win32/win32.dart';
 
-import '../util/art_binding.dart';
 import 'cgroup_memory.dart';
 
 /// 系统信息查询
 ///
 /// 各平台取内存的方式：
 /// - Windows：[GlobalMemoryStatusEx] 原生 API，一次取总 / 可用内存
-/// - Android：Copper 的 [SystemInfo.getMemoryInfo]（ActivityManager 语义，
-///   应用可用内存）；失败回退 `/proc/meminfo`（物理内存全局值）
+/// - Android：宿主通道 `getMemoryInfo`（ActivityManager 语义，应用可用内存）；
+///   失败回退 `/proc/meminfo`（物理内存全局值）
 /// - Linux：直接读 `/proc/meminfo`
 /// - macOS：system_info2（`vm_stat` / `sysctl`，轻量，用 isolate 防阻塞）
 ///
@@ -26,31 +25,13 @@ class SysInfo {
   /// Windows 总物理内存缓存
   static int? _totalMemoryCache;
 
-  /// Android：Copper loader 的 App 上下文（单例，引用转让后缓存复用）
-  static Context? _androidContext;
-
-  /// 获取 Android 上下文：把 jni_flutter 的全局 [androidApplicationContext]
-  /// 转成绑定类型。`releaseOriginal: true` 是引用转让——原 JObject 的 JNI
-  /// 引用交给新的 [Context]，只转一次并缓存，避免重复转换 / 双释放
-  static Context? _getAndroidContext() {
-    if (_androidContext != null) return _androidContext;
-    try {
-      final context =
-          androidApplicationContext.as(Context.type, releaseOriginal: true);
-      _androidContext = context;
-      return context;
-    } catch (e) {
-      return null;
-    }
-  }
-
   /// 总物理内存
   static Future<int> getTotalPhysicalMemory() async {
     if (Platform.isWindows) {
       return _totalMemoryCache ??= _windowsMemory().ullTotalPhys;
     }
     if (Platform.isAndroid) {
-      final total = _androidTotalMemory();
+      final total = (await _androidMemoryInfo())?.totalMem;
       if (total != null) return CgroupMemory.cap(total);
     }
     if (Platform.isLinux || Platform.isAndroid) {
@@ -66,7 +47,7 @@ class SysInfo {
       return _windowsMemory().ullAvailPhys;
     }
     if (Platform.isAndroid) {
-      final available = _androidAvailableMemory();
+      final available = (await _androidMemoryInfo())?.availMem;
       if (available != null) return available;
     }
     if (Platform.isLinux || Platform.isAndroid) {
@@ -103,29 +84,14 @@ class SysInfo {
     return _systemInfo2InIsolate(() => s.SysInfo.getAvailablePhysicalMemory());
   }
 
-  /// Android：Copper loader 查询总内存（ActivityManager 语义），失败返回 null
-  static int? _androidTotalMemory() {
-    final info = _androidMemoryInfo();
-    if (info == null) return null;
-    final total = info.totalMem;
-    info.release(); // 返回的 Java 对象用后即释放，避免 JNI 引用累积
-    return total;
-  }
-
-  /// Android：Copper loader 查询可用内存，失败返回 null
-  static int? _androidAvailableMemory() {
-    final info = _androidMemoryInfo();
-    if (info == null) return null;
-    final available = info.availMem;
-    info.release();
-    return available;
-  }
-
-  /// Android：调 [SystemInfo.getMemoryInfo] 拿内存信息对象（调用方负责 release）
-  static SystemInfo$MemoryInfo? _androidMemoryInfo() {
-    final context = _getAndroidContext();
-    if (context == null) return null;
-    return SystemInfo.getMemoryInfo(context);
+  /// Android：ActivityManager 口径的内存信息；宿主异常时返回 null，
+  /// 让调用方回退 `/proc/meminfo`
+  static Future<MemorySnapshot?> _androidMemoryInfo() async {
+    try {
+      return await AndroidCall.getMemoryInfo();
+    } on Object {
+      return null;
+    }
   }
 
   /// Linux / Android：读取 /proc/meminfo，一次解析总 / 可用 / 空闲内存

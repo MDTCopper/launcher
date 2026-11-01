@@ -1,4 +1,4 @@
-package io.github.copper.launcher
+package io.github.copper.launcher.shortcut
 
 import android.app.Activity
 import android.content.Context
@@ -9,6 +9,9 @@ import android.util.Log
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import io.github.copper.launcher.MainActivity
+import io.github.copper.launcher.R
+import io.github.copper.launcher.channel.DartCall
 import java.io.File
 import java.util.zip.ZipFile
 
@@ -72,19 +75,20 @@ object GameShortcut {
      *
      * 必须在有前台 Activity 时调用（系统接口的限制）。
      */
-    fun requestPin(
-        activity: Activity,
+    @DartCall
+    fun requestPinShortcut(
+        activityContext: Activity,
         versionId: String,
         tag: String,
         jarPath: String,
         iconPath: String = "",
     ): Boolean {
         if (versionId.isEmpty()) return false
-        if (!isSupported(activity)) return false
+        if (!isSupported(activityContext)) return false
 
         val intent = Intent().apply {
             // 走带深色启动主题的入口，避免快捷方式点下去先闪白屏
-            setClassName(activity.packageName, "${activity.packageName}.SilentLaunchActivity")
+            setClassName(activityContext.packageName, "${activityContext.packageName}.SilentLaunchActivity")
             action = ACTION_LAUNCH_GAME
             // 关掉启动动画：不然系统会从图标位置放大窗口，中间露出桌面
             addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
@@ -92,15 +96,15 @@ object GameShortcut {
             putExtra(EXTRA_SILENT, true)
         }
 
-        val shortcut = ShortcutInfoCompat.Builder(activity, shortcutId(versionId))
+        val shortcut = ShortcutInfoCompat.Builder(activityContext, shortcutId(versionId))
             .setShortLabel(tag)
             .setLongLabel("启动 Mindustry $tag")
-            .setIcon(iconOf(activity, jarPath, iconPath))
+            .setIcon(iconOf(activityContext, jarPath, iconPath))
             .setIntent(intent)
             .setLongLived(true)
             .build()
 
-        return ShortcutManagerCompat.requestPinShortcut(activity, shortcut, null)
+        return ShortcutManagerCompat.requestPinShortcut(activityContext, shortcut, null)
     }
 
     private fun shortcutId(versionId: String) = "launch-$versionId"

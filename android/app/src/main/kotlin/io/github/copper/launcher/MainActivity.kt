@@ -1,341 +1,108 @@
 package io.github.copper.launcher
 
-import android.app.ActivityManager
-import android.appwidget.AppWidgetManager
-import android.content.Context
+import android.app.Activity
 import android.content.Intent
-import android.content.pm.ApplicationInfo
-import android.graphics.Color
-import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
-import android.view.View
-import android.view.ViewGroup
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.MethodCall
-import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.BinaryMessenger
+import io.github.copper.launcher.generated.AndroidCall
+import io.github.copper.launcher.generated.AndroidEvent
+import io.github.copper.launcher.intent.Incoming
+import io.github.copper.launcher.intent.IncomingIntake
+import io.github.copper.launcher.shortcut.DebugPinHandler
+import io.github.copper.launcher.shortcut.GameShortcut
+import io.github.copper.launcher.system.LanDiscoveryLock
+import io.github.copper.launcher.ui.SilentLaunchOverlay
 
 /**
- * 启动器宿主。
+ * 启动器宿主：只负责 Activity 生命周期、Flutter 引擎接线和外部 intent 分流。
  *
- * 系统返回键归 Dart 侧（`AppShell` 的 PopScope）管；这里只补 Dart 够不着的事 ——
- * 「退到后台」（moveTaskToBack 是 Activity 的方法）、「结束游戏进程」
- * （游戏跑在 `:mdt_process` 里，Dart 侧没有 Process 句柄），
- * 以及「系统分享进来」（`content://` 只有宿主读得了）。
+ * 「退到后台」「启动桥」「系统内存」这些能力由生成的 [AndroidCall] 暴露给 Dart，
+ * 具体实现就在各自的 object 上（注解标在原方法上，见 channel/DartCall.kt）。
+ * 外部 intent 的解析与暂存、静默黑幕、组播锁、调试入口都各自成类，这里不再堆业务细节。
  */
 open class MainActivity : FlutterActivity() {
-    private val shareIntentHandler by lazy { ShareIntentHandler(applicationContext) }
-    private var shareChannel: MethodChannel? = null
-    private var hostChannel: MethodChannel? = null
+    // 引擎可能比 Activity 活得久：onDestroy 要用它把通道 handler 摘掉
+    private var androidMessenger: BinaryMessenger? = null
 
-    /** 登录回调（copperlauncher://oauth/...）：攒着等 Dart 来取，冷启动也丢不了 */
-    private var pendingAuthUri: String? = null
+    // configureFlutterEngine 可能在 super.onCreate 里就被调用，这里用 lazy 避免初始化顺序问题
+    private val lanLock by lazy { LanDiscoveryLock(applicationContext) }
+    private val debugPin by lazy { DebugPinHandler(this) }
 
-    /** 桌面快捷方式带来的版本 id：同样攒着等 Dart 来取 */
-    private var pendingLaunchVersionId: String? = null
-
-    /** 这次是不是从快捷方式静默启动（盖一层黑，别让人看到启动器界面或闪桌面） */
-    private var silentLaunch = false
-
-    /** 静默启动时盖在界面上的黑遮罩，游戏起来/启动失败后撤掉 */
-    private var silentOverlay: View? = null
-
-    private var multicastLock: WifiManager.MulticastLock? = null
-
-    /**
-     * 伪局域网房间要靠组播收游戏发出的探测；Android 上不拿 MulticastLock
-     * 时 Wi-Fi 芯片会把组播包过滤掉。锁跟随 Activity 生命周期
-     */
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 静默启动：super 之前换深色主题，启动窗口就是黑的（不闪白、不闪桌面）
         val silentRequest = intent?.action == GameShortcut.ACTION_LAUNCH_GAME &&
             intent.getBooleanExtra(GameShortcut.EXTRA_SILENT, true)
-        if (silentRequest) {
-            setTheme(R.style.SilentLaunchTheme)
-        }
+        // 静默启动：super 之前换深色主题，启动窗口就是黑的（不闪白、不闪桌面）
+        if (silentRequest) setTheme(R.style.SilentLaunchTheme)
+
+        // configureFlutterEngine 在 super.onCreate 里就会分流冷启动 intent，所以解析器要先拿到上下文；
+        // 顺序反过来会把冷启动那次分享丢掉（文件还没复制到缓存）
+        IncomingIntake.attach(applicationContext)
+
         super.onCreate(savedInstanceState)
+
         if (silentRequest) {
-            setSilentWindow(true)
+            SilentLaunchOverlay.show(this)
             // 关掉 Activity 打开动画：不然会先看到桌面 + 一块黑窗放大（就是「闪一下」）
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+                overrideActivityTransition(Activity.OVERRIDE_TRANSITION_OPEN, 0, 0)
             } else {
                 @Suppress("DEPRECATION")
                 overridePendingTransition(0, 0)
             }
         }
-        handleDebugPin(intent)
-        try {
-            val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            multicastLock = wifi?.createMulticastLock("copper-lan-discovery")?.apply {
-                setReferenceCounted(false)
-                acquire()
-            }
-            if (multicastLock?.isHeld == true) {
-                Log.i(TAG, "已获取组播锁（伪局域网房间）")
-            }
-        } catch (error: Exception) {
-            Log.w(TAG, "获取组播锁失败：${error.message}")
-        }
+
+        debugPin.handle(intent)
+        lanLock.acquire()
     }
 
     override fun onDestroy() {
-        multicastLock?.let { lock ->
-            if (lock.isHeld) lock.release()
+        // 两条通道都挂在引擎的 BinaryMessenger 上，并且都持有 Activity 侧的对象：
+        // 引擎比 Activity 活得久时（缓存引擎 / add-to-app）必须先摘掉，否则旧实例留在内存里
+        androidMessenger?.let {
+            AndroidCall.clear(it)
+            AndroidEvent.detach(it)
         }
-        multicastLock = null
+        androidMessenger = null
+        // 黑幕是静态状态，里面存着旧 Activity 的 View，不释放同样会泄漏
+        SilentLaunchOverlay.release()
+        lanLock.release()
         super.onDestroy()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        hostChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-        hostChannel?.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "takeAuthUri" -> {
-                    result.success(pendingAuthUri)
-                    pendingAuthUri = null
-                }
-                "takeLaunchRequest" -> {
-                    result.success(pendingLaunchVersionId)
-                    pendingLaunchVersionId = null
-                }
-                "requestPinShortcut" -> requestPinShortcut(call, result)
-                "requestPinWidget" -> requestPinWidget(call, result)
-                "finishLauncher" -> {
-                    result.success(true)
-                    finish()
-                }
-                "setLauncherVisible" -> {
-                    setSilentWindow(false)
-                    result.success(true)
-                }
-                "moveTaskToBack" -> result.success(moveTaskToBack(true))
-                "killGameProcess" -> killGameProcess(result)
-                "isGameProcessRunning" -> isGameProcessRunning(result)
-                "isGameActivityVisible" -> result.success(isGameActivityVisible())
-                else -> result.notImplemented()
-            }
-        }
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        androidMessenger = messenger
+        AndroidCall.register(messenger, this)
+        // 事件通道只建一次：send* 不再每次传 messenger，也就不用每次 new MethodChannel
+        AndroidEvent.attach(messenger)
 
-        shareChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
-            .apply {
-                setMethodCallHandler { call, result ->
-                    when (call.method) {
-                        "takeSharedFiles" -> result.success(shareIntentHandler.takePending())
-                        else -> result.notImplemented()
-                    }
-                }
-            }
-
-        // 冷启动那次分享：先复制好攒着，Dart 起来后会自己来取
+        // 冷启动那次 intent：数据已经攒下，Dart 起来后会自己来取；事件这里先推一次
         dispatchIncoming(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleDebugPin(intent)
+        debugPin.handle(intent)
         dispatchIncoming(intent)
     }
 
-    /** 分享、登录回调与桌面快捷方式走同一个入口：先认快捷方式，再认登录回调，最后当分享处理 */
+    /** 外部 intent 分流：数据由 [IncomingIntake] 收下，这里只做界面动作和通知 Dart。 */
     private fun dispatchIncoming(intent: Intent?) {
-        if (captureLaunchRequest(intent)) return
-        if (captureAuthUri(intent)) return
-        dispatchShare(intent)
-    }
-
-    /**
-     * 收桌面快捷方式带来的版本 id：`action=io.github.copper.launcher.LAUNCH_GAME`
-     *
-     * 收到就先攒着并通知 Dart 来取；Dart 在启动器起来后取一次，直接拉起对应版本
-     */
-    private fun captureLaunchRequest(intent: Intent?): Boolean {
-        if (intent?.action != GameShortcut.ACTION_LAUNCH_GAME) return false
-        pendingLaunchVersionId = intent.getStringExtra(GameShortcut.EXTRA_VERSION_ID)
-        // 老快捷方式的 intent 里没有 silent 标记，但 LAUNCH_GAME 只可能是快捷方式/小组件来的，默认就当静默
-        silentLaunch = intent.getBooleanExtra(GameShortcut.EXTRA_SILENT, true)
-        if (silentLaunch) setSilentWindow(true)
-        Log.i(TAG, "收到快捷方式启动请求：$pendingLaunchVersionId 静默=$silentLaunch")
-        hostChannel?.invokeMethod("launchRequestAvailable", null)
-        return true
-    }
-
-    /**
-     * 静默启动的「黑幕」：在界面上盖一层纯黑，窗口本身保持不透明。
-     *
-     * 之前是把窗口 alpha 压 0，结果启动瞬间会露出桌面（闪一下）；盖黑幕既看不到启动器 UI，
-     * 也不会闪桌面。游戏起来后由 Dart 收起；启动失败 / 退出时同样由 Dart 收起。
-     */
-    private fun setSilentWindow(silent: Boolean) {
-        if (silent) {
-            attachSilentOverlay()
-        } else {
-            removeSilentOverlay()
-        }
-    }
-
-    private fun attachSilentOverlay() {
-        if (silentOverlay != null) return
-        val overlay = View(this).apply { setBackgroundColor(Color.BLACK) }
-        silentOverlay = overlay
-        window.decorView.post {
-            // 期间可能已经被撤掉（启动失败得很快），那就别再贴上去
-            if (silentOverlay !== overlay) return@post
-            (window.decorView as? ViewGroup)?.addView(
-                overlay,
-                ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                ),
-            )
-        }
-    }
-
-    private fun removeSilentOverlay() {
-        val overlay = silentOverlay ?: return
-        silentOverlay = null
-        (overlay.parent as? ViewGroup)?.removeView(overlay)
-    }
-
-    /**
-     * 收登录回调：`copperlauncher://oauth/callback?code=...&state=...`
-     *
-     * 收到就先攒着并通知 Dart 来取；Dart 那边登录流程会轮询 `takeAuthUri`
-     */
-    private fun captureAuthUri(intent: Intent?): Boolean {
-        if (intent?.action != Intent.ACTION_VIEW) return false
-        val data = intent.data ?: return false
-        if (data.scheme != "copperlauncher" || data.host != "oauth") return false
-        pendingAuthUri = data.toString()
-        Log.i(TAG, "收到登录回调")
-        hostChannel?.invokeMethod("authCallbackAvailable", null)
-        return true
-    }
-
-    /**
-     * 收下这次分享并通知 Dart。
-     *
-     * 只通知、不把文件塞在通知里：Dart 收到后自己来取一次，
-     * 这样冷启动（通知早于 Dart 接线，会丢）与热启动走的是同一条路。
-     */
-    private fun dispatchShare(intent: Intent?) {
-        val files = shareIntentHandler.accept(intent)
-        if (files.isEmpty()) return
-        Log.i(TAG, "收到系统分享：${files.size} 个文件")
-        shareChannel?.invokeMethod("sharedFilesAvailable", null)
-    }
-
-    /**
-     * 结束游戏进程（`:mdt_process`）。
-     *
-     * pid 查找与「等它真的没了」那段在 `io.github.copper.GameProcess` 里 ——
-     * 桥自己每次启动前清上一局用的也是同一份，口径保持一致。
-     *
-     * 它会阻塞（最多 1 秒，等进程退出），所以放到工作线程上跑，完了再回主线程答复。
-     */
-    private fun killGameProcess(result: MethodChannel.Result) {
-        Thread {
-            io.github.copper.GameProcess.kill(applicationContext)
-            Handler(Looper.getMainLooper()).post { result.success(null) }
-        }.start()
-    }
-
-    /**
-     * 游戏还在不在。
-     *
-     * 游戏正常退出后桥会把 `:mdt_process` 留着，所以这里要等游戏进程写的退出标记，
-     * 最长约 1 秒。[io.github.copper.GameProcess.isRunning] 会阻塞，放到工作线程上跑，
-     * 完了再回主线程答复。
-     */
-    private fun isGameProcessRunning(result: MethodChannel.Result) {
-        Thread {
-            val running = io.github.copper.GameProcess.isRunning(applicationContext)
-            Handler(Looper.getMainLooper()).post { result.success(running) }
-        }.start()
-    }
-
-    /**
-     * 游戏界面是不是还在这个应用的task里（退到后台也算）
-     *
-     * 桥进程正常退出后会残留一会儿，光看进程会把已经退出的游戏当成还在跑；
-     * 看 task 顶上的 Activity 才准：游戏界面还在就直接回游戏，不在就启动新一局
-     */
-    private fun isGameActivityVisible(): Boolean {
-        val manager = getSystemService(ActivityManager::class.java) ?: return false
-        val gameActivity = "io.github.copper.MindustryActivity"
-        return manager.appTasks.any {
-            it.taskInfo?.topActivity?.className == gameActivity
-        }
-    }
-
-    /** 分享与登录回调之外的第三种外部 intent：桌面快捷方式 / 小组件（只 debug 包可用 adb 触发） */
-    private fun handleDebugPin(intent: Intent?) {
-        val action = intent?.action ?: return
-        if (action != GameShortcut.ACTION_DEBUG_PIN &&
-            action != GameShortcut.ACTION_DEBUG_PIN_WIDGET &&
-            action != GameShortcut.ACTION_DEBUG_BIND_WIDGET
-        ) {
-            return
-        }
-        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) return
-        val versionId = intent.getStringExtra("version_id").orEmpty()
-        val tag = intent.getStringExtra("tag").orEmpty()
-        val jarPath = intent.getStringExtra("jar_path").orEmpty()
-        val iconPath = intent.getStringExtra("icon_path").orEmpty()
-        when (action) {
-            GameShortcut.ACTION_DEBUG_PIN -> {
-                val requested = GameShortcut.requestPin(this, versionId, tag, jarPath, iconPath)
-                Log.i(TAG, "调试：请求桌面快捷方式 version=$versionId 提交=$requested")
+        when (val incoming = IncomingIntake.handle(intent)) {
+            Incoming.None -> Unit
+            is Incoming.Launch -> {
+                if (incoming.silent) SilentLaunchOverlay.show(this)
+                AndroidEvent.sendShortcutLaunch(incoming.versionId, incoming.silent)
             }
-            GameShortcut.ACTION_DEBUG_PIN_WIDGET -> {
-                val requested = GameWidget.requestPin(this, versionId, tag, jarPath, iconPath)
-                Log.i(TAG, "调试：请求桌面小组件 version=$versionId 提交=$requested")
-            }
-            GameShortcut.ACTION_DEBUG_BIND_WIDGET -> {
-                val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
-                if (appWidgetId >= 0) {
-                    GameWidget.saveBinding(
-                        this,
-                        appWidgetId,
-                        GameWidget.Binding(versionId, tag, jarPath, iconPath),
-                    )
-                    GameWidget.render(this, appWidgetId)
-                    Log.i(TAG, "调试：绑定小组件 $appWidgetId version=$versionId")
-                }
-            }
+            // 登录回调：URI 由 [IncomingIntake] 攒着，事件只当敲门声；Dart 收到后自己去取
+            Incoming.Auth -> AndroidEvent.sendAuthCallback()
+            is Incoming.Share -> AndroidEvent.sendSharedFiles(incoming.files)
         }
-    }
-
-    /** Dart 侧请求建快捷方式（以后接版本页面按钮用） */
-    private fun requestPinShortcut(call: MethodCall, result: MethodChannel.Result) {
-        val args = call.arguments as? Map<*, *>
-        val versionId = args?.get("versionId") as? String ?: ""
-        val tag = args?.get("tag") as? String ?: ""
-        val jarPath = args?.get("jarPath") as? String ?: ""
-        val iconPath = args?.get("iconPath") as? String ?: ""
-        result.success(GameShortcut.requestPin(this, versionId, tag, jarPath, iconPath))
-    }
-
-    /** Dart 侧请求建桌面小组件（版本设置页的「创建桌面快捷方式」用它） */
-    private fun requestPinWidget(call: MethodCall, result: MethodChannel.Result) {
-        val args = call.arguments as? Map<*, *>
-        val versionId = args?.get("versionId") as? String ?: ""
-        val tag = args?.get("tag") as? String ?: ""
-        val jarPath = args?.get("jarPath") as? String ?: ""
-        val iconPath = args?.get("iconPath") as? String ?: ""
-        result.success(GameWidget.requestPin(this, versionId, tag, jarPath, iconPath))
-    }
-
-    private companion object {
-        const val TAG = "MainActivity"
-        const val CHANNEL = "io.github.copper.launcher/host"
-        const val SHARE_CHANNEL = "io.github.copper.launcher/share"
     }
 }

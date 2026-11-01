@@ -1,4 +1,4 @@
-package io.github.copper.launcher
+package io.github.copper.launcher.intent
 
 import android.content.Context
 import android.content.Intent
