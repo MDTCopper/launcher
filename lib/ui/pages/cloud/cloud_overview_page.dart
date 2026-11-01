@@ -226,24 +226,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
                   ),
                 ];
               },
-              child: Row(
-                spacing: AppSpacing.related,
-                children: [
-                  Expanded(
-                    child: Text(
-                      _cloudSlotLabel(slot),
-                      style: theme.textTheme.bodyMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconTextButton(
-                    pressedScale: 0.96,
-                    icon: Icons.download,
-                    content: '拉取',
-                    onTap: () => unawaited(_pullSlot(slot)),
-                  ),
-                ],
-              ),
+              child: _buildSlotRow(slot),
             ),
         ],
       ),
@@ -278,6 +261,44 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
 
   String _shortTag(String tag, {int max = 28}) =>
       tag.length <= max ? tag : '${tag.substring(0, max - 1)}…';
+
+  /// 槽位行：槽位名 + 当前快照格式（差量 / 整包，有文件数一并标）+ 拉取
+  Widget _buildSlotRow(CloudSaveSlot slot) {
+    final theme = Theme.of(context);
+    final colors = AppColors.of(context);
+    final snapshot = slot.currentSnapshot;
+    final formatHint = snapshot == null
+        ? null
+        : [
+            snapshot.isManifest ? '差量' : '整包',
+            if (snapshot.fileCount != null) '${snapshot.fileCount} 个文件',
+          ].join(' · ');
+    return Row(
+      spacing: AppSpacing.related,
+      children: [
+        Expanded(
+          child: Text(
+            _cloudSlotLabel(slot),
+            style: theme.textTheme.bodyMedium,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (formatHint != null)
+          Text(
+            formatHint,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colors.itemHint,
+            ),
+          ),
+        IconTextButton(
+          pressedScale: 0.96,
+          icon: Icons.download,
+          content: '拉取',
+          onTap: () => unawaited(_pullSlot(slot)),
+        ),
+      ],
+    );
+  }
 
   void _unbindSlot(CloudSaveSlot slot) {
     final profile = _boundProfileOfSlot(slot);
@@ -552,6 +573,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     final quota = _quota;
+    final logicalBytes = quota?.logicalBytes;
     return ContentPanelModule(
       title: '云端容量',
       child: quota == null
@@ -571,9 +593,11 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
                     PercentBarData(value: (quota.usedBytes ?? 0).toDouble()),
                   ],
                 ),
+                // 逻辑大小是所有存活快照之和，可能大于计费口径；没有就不显示
                 Text(
                   '${formatBytes(quota.usedBytes ?? 0)} / '
                   '${formatBytes(quota.limitBytes ?? 0)}'
+                  '${logicalBytes == null ? '' : ' · 快照合计 ${formatBytes(logicalBytes)}'}'
                   '　槽位 ${quota.slotsUsed ?? 0}/${quota.slotsLimit ?? 0}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colors.itemSecondary,
