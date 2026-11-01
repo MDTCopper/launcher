@@ -30,7 +30,8 @@ bool FlutterWindow::OnCreate() {
   file_drag_out_channel_ = CreateFileDragOutChannel(
       flutter_controller_->engine()->messenger(), GetHandle());
   window_ime_channel_ = CreateWindowImeChannel(
-      flutter_controller_->engine()->messenger(), GetHandle());
+      flutter_controller_->engine()->messenger(),
+      flutter_controller_->view()->GetNativeWindow());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   if (!suppress_initial_show_) {

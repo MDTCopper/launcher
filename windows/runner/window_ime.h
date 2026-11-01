@@ -16,7 +16,9 @@
 // （跨线程关联是未定义行为）；而且 Flutter 的 Windows 端即使没有文本框
 // 也挂着窗口的输入法上下文，中文输入法会把按键拦成 VK_PROCESSKEY，
 // Flutter 又会跳过这些下键事件 ⇒ Dart 侧一个键都收不到
+// 为什么要拿视图窗口：输入法上下文挂在「有焦点的那个窗口」上，也就是 Flutter
+// 视图这个子窗口，不是顶层窗口；拿不到焦点时才退回它
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
-CreateWindowImeChannel(flutter::BinaryMessenger* messenger, HWND window);
+CreateWindowImeChannel(flutter::BinaryMessenger* messenger, HWND view_window);
 
 #endif  // RUNNER_WINDOW_IME_H_
