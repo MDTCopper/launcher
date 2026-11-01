@@ -5,18 +5,125 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+/// 启动器的路径表
+///
+/// 所有路径都**只赋值一次**：[init] / [overrideForTesting] 走 [_applyDataRoot]，
+/// 其余地方只读。未 [init] 就访问会在那处抛 `LateInitializationError`，
+/// 用例记得先 `AppPaths.overrideForTesting(临时目录)`。
+///
+/// 下面「路径」一节里的 `<数据根>` 都指 [copperLauncher]。
 abstract class AppPaths {
-  static late String applicationSupportPath;
+  // ---------------------------------------------------------------------------
+  // 路径（看这一节就够）
+  // ---------------------------------------------------------------------------
 
-  /// 数据根目录：桌面端优先用 exe 所在目录（绿色版，配置跟着 exe 走），
-  /// 在 checkout 里跑的产物回项目根下的 [_devDataDirName]，
-  /// 系统目录或 exe 目录不可写时退回 [applicationSupportPath]；
-  /// **Android 上优先用外部应用专属目录**（见 [_resolveAndroidExternalRoot]），
-  /// 未 [init] 时按工作目录算（测试环境）
-  static String copperLauncher = p.current;
+  /// 数据根：桌面端跟着 exe（绿色版）、checkout 内是 `<仓库>/data`、受限环境回退应用支持目录；
+  /// Android 是外部应用专属目录
+  /// 例：`D:\Games\Copper`、`<仓库>\data`、`C:\Users\<用户>\AppData\Roaming\io.github.copper\Copper`
+  static late String copperLauncher;
 
-  /// 在 checkout 里跑时的数据根子目录名：运行时数据集中放这儿，不散落在仓库根
-  static const String _devDataDirName = 'data';
+  /// 应用内部目录（path_provider 的应用支持目录）：Android 桥载荷住这儿、桌面端当回退位置
+  /// 例：`C:\Users\<用户>\AppData\Roaming\io.github.copper\Copper`、`/data/user/0/io.github.copper/files`
+  static String get applicationSupportPath => _applicationSupportPath!;
+
+  /// 应用内部目录的别名：Android 上桥载荷住这儿，将来做旧数据迁移也靠它找
+  /// 例：同 [applicationSupportPath]
+  static String get internalRoot => applicationSupportPath;
+
+  /// Android 的外部应用专属目录；桌面端、或拿不到外部目录时是 null
+  /// 例：`/storage/emulated/0/Android/data/io.github.copper/files`
+  static String? get androidExternalRoot => _androidExternalRoot;
+
+  /// 默认版本文件夹：每个版本一个子目录，里面放该版本的数据
+  /// 例：`<数据根>\versions\v160.7\data`
+  static late String versions;
+
+  /// 默认版本文件夹（移动端专用）：版本记录在这里另存一份，不和数据根下的 versions 混
+  /// 例：`<数据根>\versionsFolds`
+  static late String versionsFolds;
+
+  /// 玩家给版本换的图标
+  /// 例：`<数据根>\version_icons\f7078a96-d701-4593-a7b9-17d5946773ea.jpg`
+  static late String versionIcons;
+
+  /// 游戏本体库：下载 / 导入的 jar 集中放这里，变体共用同一份
+  /// 例：`<数据根>\mindustrys\mindustry-v160.7-314baa30.jar`
+  static late String mindustrys;
+
+  /// 模组加载器库：loader jar 集中放这里，多版本复用同一份
+  /// 例：`<数据根>\copper_loader\desktop-0.2.0.jar`
+  static late String copperLoader;
+
+  /// 日志目录：每次启动一个文件
+  /// 例：`<数据根>\logs\11-01T10-44-36.919.log`
+  static late String logs;
+
+  /// 启动器管理的 JDK 安装目录
+  /// 例：`<数据根>\java\jdk-17\jdk-17.0.20.1+1\bin\java.exe`
+  static late String java;
+
+  /// 远程数据源缓存（`remote/` 的本地副本：启动拉取覆盖，离线用缓存 / 内置 assets 兜底）
+  /// 例：`<数据根>\remote_data\mindustry_versions.json`
+  static late String remoteData;
+
+  /// 启动器配置（人可读的 JSON）
+  /// 例：`<数据根>\config.json`
+  static late String configJson;
+
+  /// 启动器配置（二进制缓存）
+  /// 例：`<数据根>\config.bin`
+  static late String configBin;
+
+  /// 云存档后台服务的数据：服务 pid、会话、待处理请求
+  /// 例：`<数据根>\cloud-service\service.json`
+  static late String cloudService;
+
+  /// 云存档后台服务的会话目录
+  /// 例：`<数据根>\cloud-service\sessions`
+  static late String cloudServiceSessions;
+
+  /// 云存档后台服务的待处理请求目录
+  /// 例：`<数据根>\cloud-service\pending`
+  static late String cloudServicePending;
+
+  /// 云存档后台服务的请求目录
+  /// 例：`<数据根>\cloud-service\requests`
+  static late String cloudServiceRequests;
+
+  /// 桥载荷的根：Android 固定在应用内部目录（exec / dlopen 只允许内部目录），桌面端跟着数据根
+  /// 例：`/data/user/0/io.github.copper/files`
+  static late String bridgeRoot;
+
+  /// 桥的共享库（JRE / arc 原生库 / bridge.jar），多版本共用
+  /// 例：`<桥载荷根>\bridge\bridge-snapshot.jar`
+  static late String bridge;
+
+  /// 桥用的 Android JRE 根：`--java` 传它下面的 `bin/java`
+  /// 例：`<桥载荷根>\bridge\jre\bin\java`
+  static late String bridgeJre;
+
+  /// 桌面快捷方式用的 .ico 缓存
+  ///
+  /// 放应用支持目录而不是数据根：数据根在调试 / 便携 / 受限环境里可能带低完整性标签或受限 ACL，
+  /// Explorer 会拒绝从那里加载 `.lnk` 图标（实测白纸图标）
+  /// 例：`C:\Users\<用户>\AppData\Roaming\io.github.copper\Copper\shortcut_icons\f7078a96-….ico`
+  static late String shortcutIcons;
+
+  /// 游戏默认数据目录（Windows 是 `%APPDATA%\Mindustry`）
+  /// 例：`C:\Users\<用户>\AppData\Roaming\Mindustry`
+  static String? get defaultGameData => _defaultGameDataPath;
+
+  /// 游戏默认模组目录
+  /// 例：`C:\Users\<用户>\AppData\Roaming\Mindustry\mods`
+  static String? get defaultMods =>
+      defaultGameData == null ? null : p.join(defaultGameData!, 'mods');
+
+  // ---------------------------------------------------------------------------
+  // 解析与赋值
+  // ---------------------------------------------------------------------------
+
+  /// 应用支持目录的真实值：可空，供 [_applyDataRoot] 判断「有没有算过」
+  static String? _applicationSupportPath;
 
   /// Android 的外部应用专属目录（`/sdcard/Android/data/<包名>/files`）；
   /// 拿不到时为 null，数据根退回 [applicationSupportPath]
@@ -27,49 +134,42 @@ abstract class AppPaths {
   /// [init] 跑过没有；[isUsingFallbackDataPath] 靠它区分「真的回退了」与「还没算」
   static bool _initialized = false;
 
-  /// 未 [init] 时的占位值：用例里按工作目录算，[init] / [overrideForTesting] 会重算
-  static String _underWorkingDirPath(String name) => p.join(p.current, name);
+  /// 在 checkout 里跑时的数据根子目录名：运行时数据集中放这儿，不散落在仓库根
+  static const String _devDataDirName = 'data';
 
   /// 是否没有把数据放在 exe 旁边（系统目录 / exe 目录不可写，回退了应用支持目录）
   static bool get isUsingFallbackDataPath =>
       _initialized && copperLauncher == applicationSupportPath;
 
-  /// 应用内部目录：Android 上桥载荷住这儿，将来做旧数据迁移也靠它找
-  static String get internalRoot => applicationSupportPath;
-
-  /// Android 的外部应用专属目录；桌面端、或拿不到外部目录时是 null
-  static String? get androidExternalRoot => _androidExternalRoot;
-
   static Future<void> init() async {
-    final appSupportDir = await getApplicationSupportDirectory();
-    applicationSupportPath = appSupportDir.path;
+    _applicationSupportPath = (await getApplicationSupportDirectory()).path;
     _androidExternalRoot = await _resolveAndroidExternalRoot();
     _applyDataRoot(await _resolveCopperLauncherPath());
     _initialized = true;
     await initDefaultDataPath();
   }
 
-  /// 用例把数据根指到临时目录；传 null 恢复默认
+  /// 用例把数据根指到临时目录；传 null 恢复默认（工作目录）
   ///
   /// `init()` 要平台插件（`flutter test` 里没有），而没 init 时数据根是工作目录
   /// （仓库根）—— 直接跑 `initAppConfig()` 之类会动到真实配置，所以留这个口子；
-  /// 从数据根派生的那些路径在这一起重算
+  /// 从数据根派生的那些路径也在这里一起重算
   @visibleForTesting
   static void overrideForTesting(String? root) {
     _applyDataRoot(root ?? p.current);
     _initialized = false;
   }
 
-  /// 数据根定下来之后，把从它派生的路径一次算好：[init] 与 [overrideForTesting] 都走这里
+  /// 数据根定下来之后，把路径表一次填好：[init] 与 [overrideForTesting] 都只走这里
   static void _applyDataRoot(String rootPath) {
     copperLauncher = rootPath;
+    final appSupportPath = _applicationSupportPath;
+    if (appSupportPath != null) {
+      shortcutIcons = p.join(appSupportPath, 'shortcut_icons');
+    }
     versions = p.join(rootPath, 'versions');
     versionsFolds = isDesktop ? versions : p.join(rootPath, 'versionsFolds');
     versionIcons = p.join(rootPath, 'version_icons');
-    cloudService = p.join(rootPath, 'cloud-service');
-    cloudServiceSessions = p.join(cloudService, 'sessions');
-    cloudServicePending = p.join(cloudService, 'pending');
-    cloudServiceRequests = p.join(cloudService, 'requests');
     mindustrys = p.join(rootPath, 'mindustrys');
     copperLoader = p.join(rootPath, 'copper_loader');
     logs = p.join(rootPath, 'logs');
@@ -77,6 +177,10 @@ abstract class AppPaths {
     remoteData = p.join(rootPath, 'remote_data');
     configJson = p.join(rootPath, 'config.json');
     configBin = p.join(rootPath, 'config.bin');
+    cloudService = p.join(rootPath, 'cloud-service');
+    cloudServiceSessions = p.join(cloudService, 'sessions');
+    cloudServicePending = p.join(cloudService, 'pending');
+    cloudServiceRequests = p.join(cloudService, 'requests');
     // 桥载荷在 Android 上固定在应用内部目录，桌面端仍跟着数据根
     bridgeRoot = Platform.isAndroid ? internalRoot : rootPath;
     bridge = p.join(bridgeRoot, 'bridge');
@@ -134,7 +238,7 @@ abstract class AppPaths {
     }
   }
 
-  /// 判断 [dir] 是否在系统受保护目录（Program Files / Windows）之下
+  /// 判断 [dirPath] 是否在系统受保护目录（Program Files / Windows）之下
   ///
   /// 受保护目录的可写性随提权变化，不能作为数据目录的稳定依据
   @visibleForTesting
@@ -154,7 +258,7 @@ abstract class AppPaths {
     return false;
   }
 
-  /// 从 [startDir] 一路向上找含 pubspec.yaml 的目录（Flutter 项目根）
+  /// 从 [startDirPath] 一路向上找含 pubspec.yaml 的目录（Flutter 项目根）
   @visibleForTesting
   static Future<String?> findProjectRoot(String startDirPath) async {
     var dirPath = p.normalize(startDirPath);
@@ -171,10 +275,10 @@ abstract class AppPaths {
 
   /// 目录可写性靠直接写一个探针文件再删掉来判，比看权限位可靠
   static Future<bool> _isWritable(String dirPath) async {
-    final probe = File(p.join(dirPath, '.copper_write_probe'));
+    final probeFile = File(p.join(dirPath, '.copper_write_probe'));
     try {
-      await probe.writeAsString('probe', flush: true);
-      await probe.delete();
+      await probeFile.writeAsString('probe', flush: true);
+      await probeFile.delete();
       return true;
     } catch (_) {
       return false;
@@ -203,61 +307,23 @@ abstract class AppPaths {
     if (_defaultGameDataPath == null) throw ('无法获取默认游戏数据存储位置');
   }
 
-  /// 默认版本文件夹路径 [*\versions\]，[init] 时按数据根算好
-  static String versions = _underWorkingDirPath('versions');
-
-  /// 默认移动端版本文件分类 [*\versionsFolds]，创建的文件分类只会存储在这里
-  static String versionsFolds =
-      isDesktop ? versions : _underWorkingDirPath('versionsFolds');
-
-  /// 玩家给版本换的图标 [*\version_icons\]
-  static String versionIcons = _underWorkingDirPath('version_icons');
-
-  /// 云存档后台服务的数据 [*\cloud-service\]：服务 pid、会话、待处理请求
-  static String cloudService = _underWorkingDirPath('cloud-service');
-
-  static String cloudServiceSessions = p.join(cloudService, 'sessions');
-
-  static String cloudServicePending = p.join(cloudService, 'pending');
-
-  static String cloudServiceRequests = p.join(cloudService, 'requests');
-
-  /// 桌面快捷方式用的图标 [*\shortcut_icons\]：Windows 的 .lnk 只认 .ico，
-  /// 由版本图标转出来按版本 id 缓存
-  ///
-  /// 放**应用支持目录**而不是数据根：数据根在调试 / 便携 / 受限环境里可能带着
-  /// 低完整性标签或受限 ACL，Explorer 会拒绝从那里加载 .lnk 图标（实测表现为白纸图标）
-  static String get shortcutIcons =>
-      p.join(applicationSupportPath, 'shortcut_icons');
-
-  /// 游戏本体库 [*\mindustrys\]：下载与导入的 jar 集中放这里，变体直接引用同一份；
-  /// 版本目录只留版本自己的数据
-  static String mindustrys = _underWorkingDirPath('mindustrys');
-
-  /// 模组加载器库 [*\copper_loader\]：loader jar 集中放这里，多版本复用同一份
-  static String copperLoader = _underWorkingDirPath('copper_loader');
-
-  /// 桥载荷的根：**Android 上固定在应用内部目录**，桌面端仍跟着数据根
-  ///
-  /// 两条理由缺一不可：① **exec / dlopen 只允许应用内部目录** —— 外部存储上的
-  /// JRE 与 arc 原生库起不来 ② 它们是不可变二进制，不该被文件管理器或别的应用改到
-  static String bridgeRoot = p.current;
-
-  /// Android 桥的共享库 [<桥载荷根>/bridge]：JRE / arc 原生库 / bridge.jar，都是不可变二进制，
-  /// 多版本共用（每版本只单独存一份运行期目录，见 `BridgeLauncher.cacheDirFor`）
-  static String bridge = p.join(bridgeRoot, 'bridge');
-
-  /// 桥用的 Android JRE 根 [*\bridge\jre\]：`universal` 与 `bin-<abi>` 两个包叠加解压到这里，
-  /// `--java` 传它下面的 `bin/java`
-  static String bridgeJre = p.join(bridge, 'jre');
+  // ---------------------------------------------------------------------------
+  // 桥载荷里的具体文件 / 目录
+  // ---------------------------------------------------------------------------
 
   /// 桥自己的 jar [*\bridge\<文件名>\]：`bridge-<版本>.jar` / `bridge-snapshot.jar` 可共存
+  /// 例：`<桥载荷根>\bridge\bridge-0.2.0.jar`
   static String bridgeJarFile(String fileName) => p.join(bridge, fileName);
 
   /// arc 原生库目录 [*\bridge\arc\<arcRef>\<abi>\]：必须按 arc ref 分（不同游戏版本
   /// 可能用不同 arc），按 ABI 分目录（平铺布局只能放一个 ABI 的库）
+  /// 例：`<桥载荷根>\bridge\arc\93033a05\arm64-v8a`
   static String bridgeArcDirPath(String arcRef, String abi) =>
       p.join(bridge, 'arc', arcRef, abi);
+
+  // ---------------------------------------------------------------------------
+  // 记录形态 ↔ 绝对路径
+  // ---------------------------------------------------------------------------
 
   /// 把绝对路径转成**记录形态**：落在数据根里的记相对路径（数据根搬家 / 换盘后
   /// 配置仍然可用），数据根之外的用户文件（「添加目录」扫来的本体）保持绝对路径
@@ -274,33 +340,11 @@ abstract class AppPaths {
     return p.normalize(p.join(copperLauncher, storedPath));
   }
 
-  /// [child] 是否落在 [root] **里面**（Windows 路径大小写不敏感，统一小写后再比）；
+  /// [childPath] 是否落在 [rootPath] **里面**（Windows 路径大小写不敏感，统一小写后再比）；
   /// 根目录自身不算「根内文件」—— 那样会算出空字符串
   static bool _isInside(String rootPath, String childPath) {
     final rootLower = p.normalize(rootPath).toLowerCase();
     final childLower = p.normalize(childPath).toLowerCase();
     return p.isWithin(rootLower, childLower);
   }
-
-  /// [*\logs\]
-  static String logs = _underWorkingDirPath('logs');
-
-  /// [*\java\]，启动器管理的 JDK 安装目录
-  static String java = _underWorkingDirPath('java');
-
-  /// 远程数据源缓存（remote/ 的本地副本：启动拉取覆盖，离线用缓存/内置 assets 兜底）
-  static String remoteData = _underWorkingDirPath('remote_data');
-
-  /// [*\config.json]
-  static String configJson = _underWorkingDirPath('config.json');
-
-  /// [*\config.bin]
-  static String configBin = _underWorkingDirPath('config.bin');
-
-  /// win => [C:\Users\{username}\AppData\Roaming\Mindustry\]
-  static String? get defaultGameData => _defaultGameDataPath;
-
-  /// win => [C:\Users\{username}\AppData\Roaming\Mindustry\mods\]
-  static String? get defaultMods =>
-      defaultGameData == null ? null : p.join(defaultGameData!, 'mods');
 }
