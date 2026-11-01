@@ -1585,32 +1585,16 @@ class CloudSaveService {
         final grantBySha = {
           for (final download in downloads) download.sha256: download,
         };
-        var index = 0;
-        for (final entry in changedBySha.entries) {
-          final grant = grantBySha[entry.key];
-          if (grant == null) {
-            throw MdtbbsException(message: '云端没有这份文件：${entry.value.path}');
-          }
-          onStatus?.call(
-            '下载 ${entry.value.path}（${index + 1}/${changedBySha.length}）',
-          );
-          final tempPath = p.join(tempRoot.path, entry.key);
-          await MdtbbsCloudSaveApi.downloadBlobFile(
-            accessToken: accessToken,
-            download: grant,
-            savePath: tempPath,
-            onStatus: onProgress,
-            cancelToken: cancelToken,
-          );
-          final downloaded = File(tempPath);
-          if (!downloaded.existsSync() ||
-              downloaded.lengthSync() != entry.value.size ||
-              sha256OfFile(tempPath) != entry.key) {
-            throw MdtbbsException(message: '下载校验失败：${entry.value.path}');
-          }
-          tempFiles[entry.key] = tempPath;
-          index++;
-        }
+        downloadedBytes = await _downloadBlobFiles(
+          accessToken: accessToken,
+          entries: changedBySha.entries.toList(),
+          grantBySha: grantBySha,
+          tempRootPath: tempRoot.path,
+          tempFiles: tempFiles,
+          onStatus: onStatus,
+          onProgress: onProgress,
+          cancelToken: cancelToken,
+        );
       }
 
       onStatus?.call('覆盖本机存档');
@@ -1623,7 +1607,6 @@ class CloudSaveService {
         target.parent.createSync(recursive: true);
         final existed = target.existsSync();
         File(tempFiles[file.sha256]!).copySync(destination);
-        downloadedBytes += file.size;
         report.written.add(destination);
         if (existed) {
           report.overwritten.add(destination);
@@ -1664,6 +1647,135 @@ class CloudSaveService {
     } finally {
       if (tempRoot.existsSync()) tempRoot.deleteSync(recursive: true);
     }
+  }
+
+  /// 小文件并发下载的阈值：清单里地图 / 蓝图 / 预览图这类基本都在它下面
+  static const _smallFileBytes = 4 * 1024 * 1024;
+
+  /// 并发下载小文件的条数上限
+  ///
+  /// 存档与模组这种大文件一个一个来：它们的单文件下载内部本来就有分块并发，
+  /// 再叠加多条会互相抢带宽
+  static const _smallFileParallel = 4;
+
+  /// 按文件大小分成「并发组」与「顺序组」
+  @visibleForTesting
+  static bool isSmallCloudFile({required int size}) =>
+      size > 0 && size <= _smallFileBytes;
+
+  /// 下载清单里缺的文件；返回实际下载的字节数
+  ///
+  /// 小文件先并发跑（地图 / 蓝图 / 预览图通常几十上百个，串行时每个都要一次
+  /// 建连，慢在握手不在带宽），大文件再逐个下。进度按「已下完 + 在途」聚合，
+  /// 多路并发时进度条也不会来回跳
+  static Future<int> _downloadBlobFiles({
+    required String accessToken,
+    required List<MapEntry<String, CloudSaveManifestFile>> entries,
+    required Map<String, CloudSaveBlobDownload> grantBySha,
+    required String tempRootPath,
+    required Map<String, String> tempFiles,
+    void Function(String status)? onStatus,
+    HttpStatusCallback? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    final small = [
+      for (final entry in entries)
+        if (isSmallCloudFile(size: entry.value.size)) entry,
+    ];
+    final large = [
+      for (final entry in entries)
+        if (!isSmallCloudFile(size: entry.value.size)) entry,
+    ];
+
+    final totalBytes = entries.fold(0, (sum, entry) => sum + entry.value.size);
+    final inFlightBytes = <String, int>{};
+    var finishedBytes = 0;
+    var finishedCount = 0;
+
+    void reportProgress() {
+      final inFlight = inFlightBytes.values.fold(0, (sum, bytes) => sum + bytes);
+      final done = (finishedBytes + inFlight).clamp(0, totalBytes);
+      onProgress?.call(
+        HttpDownloadState(
+          downloaded: done,
+          total: totalBytes,
+          speed: 0,
+          progress: totalBytes <= 0 ? 1 : done / totalBytes,
+          status: HttpDownloadStatus.downloading,
+        ),
+      );
+    }
+
+    var stopped = false;
+
+    Future<void> downloadOne(
+      MapEntry<String, CloudSaveManifestFile> entry,
+    ) async {
+      if (stopped || (cancelToken?.isCancelled ?? false)) {
+        throw const MdtbbsException(message: '已取消');
+      }
+      final grant = grantBySha[entry.key];
+      if (grant == null) {
+        throw MdtbbsException(message: '云端没有这份文件：${entry.value.path}');
+      }
+      final tempPath = p.join(tempRootPath, entry.key);
+      inFlightBytes[entry.key] = 0;
+      try {
+        await MdtbbsCloudSaveApi.downloadBlobFile(
+          accessToken: accessToken,
+          download: grant,
+          savePath: tempPath,
+          onStatus: (state) {
+            inFlightBytes[entry.key] = state.downloaded;
+            reportProgress();
+          },
+          cancelToken: cancelToken,
+        );
+      } finally {
+        inFlightBytes.remove(entry.key);
+      }
+      final downloaded = File(tempPath);
+      if (!downloaded.existsSync() ||
+          downloaded.lengthSync() != entry.value.size ||
+          sha256OfFile(tempPath) != entry.key) {
+        throw MdtbbsException(message: '下载校验失败：${entry.value.path}');
+      }
+      tempFiles[entry.key] = tempPath;
+      finishedBytes += entry.value.size;
+      finishedCount++;
+      reportProgress();
+      onStatus?.call('已下载 $finishedCount/${entries.length} 个文件');
+    }
+
+    onStatus?.call(
+      '下载 ${entries.length} 个文件'
+      '${small.length > 1 ? '（小文件 ${small.length} 个并发）' : ''}',
+    );
+
+    if (small.isNotEmpty) {
+      try {
+        var next = 0;
+        Future<void> worker() async {
+          while (!stopped) {
+            if (next >= small.length) return;
+            final entry = small[next++];
+            await downloadOne(entry);
+          }
+        }
+
+        await Future.wait([
+          for (var index = 0; index < _smallFileParallel; index++)
+            if (index < small.length) worker(),
+        ]);
+      } on Object {
+        stopped = true;
+        rethrow;
+      }
+    }
+    for (final entry in large) {
+      await downloadOne(entry);
+    }
+    return finishedBytes;
   }
 
   /// 差量恢复落地后，把同一个模组的其它版本文件删掉
