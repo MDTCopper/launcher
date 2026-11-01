@@ -1,6 +1,7 @@
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
+import 'package:copper_launcher/domain/cloud/cloud_gap_fill.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
@@ -154,31 +155,22 @@ class CloudPullTask extends CloudSyncTask {
     );
     if (gap.downloadableMods.isEmpty) return;
 
-    setPhase('补全 ${version.tag} 的模组');
-    final outcomes = await fillMissingMods(
-      gap: gap,
-      version: version,
-      queueTasks: false,
-      onStatus: setPhase,
+    missingMods.addAll(
+      await fillGapMods(
+        gap: gap,
+        version: version,
+        onStatus: setPhase,
+        isCancelled: () => cancelToken.isCancelled,
+        enqueue: (outcome) async {
+          final item = CloudTaskItem(title: outcome.displayName);
+          addQueueItem(item);
+          final subtask = buildFillTask(outcome.plan!, version);
+          bindQueueSubTask(item, subtask);
+          await subtask.startAsync();
+          return subtask.status == TaskStatus.completed;
+        },
+      ),
     );
-    for (final outcome in outcomes) {
-      if (cancelToken.isCancelled) return;
-      if (!outcome.isQueued) {
-        missingMods.add((
-          name: outcome.displayName,
-          reason: outcome.detail ?? modFillReason(outcome.status),
-        ));
-        continue;
-      }
-      final item = CloudTaskItem(title: outcome.displayName);
-      addQueueItem(item);
-      final subtask = buildFillTask(outcome.plan!, version);
-      bindQueueSubTask(item, subtask);
-      await subtask.startAsync();
-      if (subtask.status != TaskStatus.completed) {
-        missingMods.add((name: outcome.displayName, reason: '下载失败'));
-      }
-    }
   }
 
 }

@@ -227,7 +227,9 @@ class CloudAutoSync {
     addNotice(
       icon: Icons.extension_outlined,
       title: '云端包里有本机没有的东西',
-      content: '${describeRestoreGap(gap)}；去「云存档」页可以一键补全',
+      content:
+          '${describeRestoreGap(gap)}；'
+          '去「云存档 → 版本云存档管理 → 云端历史版本」点「补全本机缺的」',
     );
   }
 
