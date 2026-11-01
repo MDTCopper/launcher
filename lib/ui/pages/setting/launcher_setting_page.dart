@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 
@@ -43,23 +42,15 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   ThemeMode get themeMode => personalizationOptions.themeMode;
   ThemeColor get themeColor => personalizationOptions.themeColor;
 
-  void _setPostLaunchBehavior(LauncherPostLaunchBehavior behavior) {
-    setState(() {
-      personalizationOptions.launcherPostLaunchBehavior = behavior;
-    });
+  /// 保存并立即应用启动器行为：托盘常驻与关窗拦截会跟着变
+  void _saveLauncherBehavior(void Function() update) {
+    setState(update);
     config.save();
-    //实时应用托盘模式（创建/销毁托盘、开关「关闭进托盘」）
     LauncherTray.instance.applyMode();
   }
 
-  /// 启动器行为：主窗口关窗后做什么 + 游戏启动后启动器自己做什么
-  ///
-  /// 关窗行为原先混在「主题」板块里（它跟主题无关），游戏启动后原先单独一块，
-  /// 两者都是「启动器自己的行为」，归到一块
+  /// 启动器行为：关窗 / 游戏运行时关窗 / 游戏启动后
   Widget _buildLauncherBehaviorModule() {
-    final behavior = personalizationOptions.launcherPostLaunchBehavior;
-    final isTray = behavior == LauncherPostLaunchBehavior.tray;
-
     return ContentPanelModule(
       title: '启动器行为',
       child: Column(
@@ -67,52 +58,60 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
         children: [
           OptionSettingBar<WindowCloseAction>(
             title: '关闭窗口时',
-            hintText: '点击主窗口关闭按钮的行为',
+            hintText: '没有游戏运行时，点击主窗口关闭按钮的行为',
             initialValue: personalizationOptions.windowCloseAction,
             options: const [
-              DropdownOption(value: WindowCloseAction.exit, label: '直接退出'),
+              DropdownOption(value: WindowCloseAction.exit, label: '关闭启动器'),
               DropdownOption(
                 value: WindowCloseAction.minimizeToTray,
                 label: '最小化到托盘',
               ),
             ],
-            onSelect: (value) {
-              setState(() {
-                personalizationOptions.windowCloseAction = value;
-              });
-              config.save();
-              //立即重应用托盘模式（图标常驻 / 关窗拦截）
-              LauncherTray.instance.applyMode();
-            },
+            onSelect: (value) => _saveLauncherBehavior(() {
+              personalizationOptions.windowCloseAction = value;
+            }),
           ),
           const SizedBox(),
-          SwitchSettingBar(
-            title: '游戏启动后最小化至托盘',
-            wide: 200,
-            value: isTray,
-            onChanged: (v) {
-              if (v) {
-                _setPostLaunchBehavior(.tray);
-              } else {
-                _setPostLaunchBehavior(.none);
-              }
-            },
+          OptionSettingBar<GameRunningCloseAction>(
+            title: '游戏运行时关闭窗口',
+            hintText: '运行中的游戏会先交接给云服务，再按这里的选择处理启动器',
+            initialValue: personalizationOptions.gameRunningCloseAction,
+            options: const [
+              DropdownOption(
+                value: GameRunningCloseAction.closeKeepService,
+                label: '关闭启动器（保留云服务）',
+              ),
+              DropdownOption(
+                value: GameRunningCloseAction.minimizeToTray,
+                label: '最小化到托盘',
+              ),
+            ],
+            onSelect: (value) => _saveLauncherBehavior(() {
+              personalizationOptions.gameRunningCloseAction = value;
+            }),
           ),
           const SizedBox(),
-          AnimatedOpacitySize(
-            alignment: Alignment.topCenter,
-            child: isTray
-                ? SwitchSettingBar(
-                    title: '游戏退出后恢复窗口',
-                    value: personalizationOptions.restoreWindowOnGameExit,
-                    onChanged: (value) {
-                      setState(() {
-                        personalizationOptions.restoreWindowOnGameExit = value;
-                      });
-                      config.save();
-                    },
-                  )
-                : const SizedBox.shrink(),
+          OptionSettingBar<LauncherPostLaunchBehavior>(
+            title: '游戏启动后',
+            hintText: '游戏启动成功后，启动器自己做什么',
+            initialValue: personalizationOptions.launcherPostLaunchBehavior,
+            options: const [
+              DropdownOption(
+                value: LauncherPostLaunchBehavior.closeKeepService,
+                label: '关闭启动器（保留云服务）',
+              ),
+              DropdownOption(
+                value: LauncherPostLaunchBehavior.minimizeToTray,
+                label: '最小化到托盘（游戏退出后恢复窗口）',
+              ),
+              DropdownOption(
+                value: LauncherPostLaunchBehavior.none,
+                label: '无行为',
+              ),
+            ],
+            onSelect: (value) => _saveLauncherBehavior(() {
+              personalizationOptions.launcherPostLaunchBehavior = value;
+            }),
           ),
           const SizedBox(),
           SwitchSettingBar(

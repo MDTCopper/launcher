@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../../core/app_constant.dart';
 import '../../core/app_paths.dart';
+import '../../core/app_runtime.dart';
 
 ///日志内容里的时间只写到秒（日期靠跨天时插的那行区分），形如 `21:46:12`
 final DateFormat _logTimeFormat = DateFormat('HH:mm:ss');
@@ -95,6 +96,7 @@ abstract class Log {
       'Platform : $platform ($version)\n'
       'Version : $appVersion (Build $appBuildNumber)\n'
       'Mode: ${kDebugMode ? 'Debug' : 'Release'}\n'
+      'Form: ${AppRuntime.form.label}\n'
       '------------------\n',
     );
     // 全部就绪后再挂上，避免中途失败留下半初始化的日志文件

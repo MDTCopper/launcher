@@ -554,7 +554,16 @@ class JavaOptions {
 enum ThemeColor { copper, titanium, thorium, plastanium }
 
 ///游戏启动后 Launcher 的行为（桌面端）
-enum LauncherPostLaunchBehavior { none, tray }
+enum LauncherPostLaunchBehavior {
+  ///无行为：启动器保持现状
+  none,
+
+  ///关闭启动器，运行中的游戏交接给云服务
+  closeKeepService,
+
+  ///收进系统托盘，游戏退出后恢复窗口
+  minimizeToTray,
+}
 
 ///通过桌面快捷方式启动的游戏，退出后去哪
 enum ShortcutExitAction {
@@ -563,6 +572,15 @@ enum ShortcutExitAction {
 
   ///直接回桌面（更像普通 App）
   backToHome,
+}
+
+///游戏运行时点击主窗口关闭按钮的行为（桌面端）
+enum GameRunningCloseAction {
+  ///关闭启动器，运行中的游戏交接给云服务
+  closeKeepService,
+
+  ///点击关闭 → 隐藏主窗口收进托盘
+  minimizeToTray,
 }
 
 @JsonSerializable()
@@ -578,13 +596,19 @@ class PersonalizationOptions {
   @JsonKey(defaultValue: ThemeColor.copper)
   ThemeColor themeColor;
 
-  ///游戏启动后 Launcher 的行为：无行为 / 收进系统托盘
+  ///游戏启动后 Launcher 的行为：无行为 / 关闭并保留云服务 / 收进系统托盘
   @JsonKey(defaultValue: LauncherPostLaunchBehavior.none)
   LauncherPostLaunchBehavior launcherPostLaunchBehavior;
 
-  ///托盘模式下，游戏退出后是否自动恢复主窗口（默认恢复）
+  ///托盘模式下，游戏退出后是否自动恢复主窗口
+  ///
+  ///恢复窗口已并入 [LauncherPostLaunchBehavior.minimizeToTray]；字段只为读老配置保留
   @JsonKey(defaultValue: true)
   bool restoreWindowOnGameExit;
+
+  ///游戏运行时点击主窗口关闭按钮的行为：关闭并保留云服务 / 收进系统托盘
+  @JsonKey(defaultValue: GameRunningCloseAction.closeKeepService)
+  GameRunningCloseAction gameRunningCloseAction;
 
   ///多彩背景（流光层）：关闭后不渲染流光层，只留底色（低配 / 大窗口省性能）
   @JsonKey(defaultValue: true)
@@ -604,6 +628,7 @@ class PersonalizationOptions {
 
   PersonalizationOptions({
     this.windowCloseAction = WindowCloseAction.exit,
+    this.gameRunningCloseAction = GameRunningCloseAction.closeKeepService,
     required this.themeMode,
     required this.themeColor,
     required this.navigationCollapse,
@@ -615,8 +640,31 @@ class PersonalizationOptions {
     this.shortcutExitAction = ShortcutExitAction.backToLauncher,
   });
 
-  factory PersonalizationOptions.fromJson(Map<String, dynamic> json) =>
-      _$PersonalizationOptionsFromJson(json);
+  factory PersonalizationOptions.fromJson(Map<String, dynamic> json) {
+    // 认不出的枚举值回退默认；老配置里的 `tray` 按「最小化到托盘」处理
+    final normalized = Map<String, dynamic>.of(json);
+    normalized['launcherPostLaunchBehavior'] = _decodePostLaunchBehavior(
+      json['launcherPostLaunchBehavior'],
+    ).name;
+    normalized['gameRunningCloseAction'] = _decodeGameRunningCloseAction(
+      json['gameRunningCloseAction'],
+    ).name;
+    return _$PersonalizationOptionsFromJson(normalized);
+  }
+
+  static LauncherPostLaunchBehavior _decodePostLaunchBehavior(Object? raw) {
+    if (raw == 'tray') return LauncherPostLaunchBehavior.minimizeToTray;
+    return LauncherPostLaunchBehavior.values.firstWhere(
+      (behavior) => behavior.name == raw,
+      orElse: () => LauncherPostLaunchBehavior.none,
+    );
+  }
+
+  static GameRunningCloseAction _decodeGameRunningCloseAction(Object? raw) =>
+      GameRunningCloseAction.values.firstWhere(
+        (action) => action.name == raw,
+        orElse: () => GameRunningCloseAction.closeKeepService,
+      );
 
   Map<String, dynamic> toJson() => _$PersonalizationOptionsToJson(this);
 }
@@ -705,7 +753,7 @@ class ProxyOptions {
   Map<String, dynamic> toJson() => _$ProxyOptionsToJson(this);
 }
 
-///主窗口关闭按钮的行为
+///主窗口关闭按钮的行为（没有游戏运行时）
 enum WindowCloseAction {
   ///直接退出应用
   exit,

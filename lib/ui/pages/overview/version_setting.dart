@@ -6,7 +6,6 @@ import 'dart:math';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/desktop_shortcut.dart';
-import 'package:copper_launcher/domain/launch_script.dart';
 import 'package:copper_launcher/domain/local_save_import.dart';
 import 'package:copper_launcher/domain/shortcut_launch.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
@@ -239,39 +238,6 @@ class _AboutState extends State<_About> {
           : 'Copper Loader $version',
     );
     if (mounted) setState(() {});
-  }
-
-  /// 生成启动脚本：脚本只把「启动这个版本」投递给启动器，不再自己拼 java 命令
-  ///
-  /// 与桌面快捷方式共用 `--launch-version` 入口，启动参数 / Java / 加载器 / 云存档
-  /// 全部由启动器现有启动链决定
-  Future<void> _generateLaunchScript() async {
-    final target = await PathSelector.selectDirectory(
-      confirmButtonText: '生成脚本到此',
-    );
-    if (target == null || !mounted) return;
-
-    final isWindows = Platform.isWindows;
-    final scriptFile = File(
-      p.join(target, LaunchScript.fileName(windows: isWindows)),
-    );
-    final script = LaunchScript.build(
-      windows: isWindows,
-      launcherPath: Platform.resolvedExecutable,
-      versionId: _mindustry.id,
-    );
-
-    try {
-      await scriptFile.writeAsString(script);
-      addNotice(
-        icon: Icons.check_circle_outline,
-        title: '脚本已生成',
-        content: scriptFile.path,
-      );
-    } catch (e) {
-      addNotice(icon: Icons.close, title: '生成失败', content: '无法写入启动脚本');
-      debugPrint('生成启动脚本失败：$e');
-    }
   }
 
   /// 给这个版本在桌面建一个「点一下直接进游戏」的快捷方式
@@ -577,13 +543,6 @@ class _AboutState extends State<_About> {
                   icon: Icons.add_to_home_screen,
                   content: '创建桌面快捷方式',
                   onTap: _createWindowsDesktopShortcut,
-                ),
-              //桌面端（debug）：生成启动脚本
-              if (isDesktop && kDebugMode)
-                IconTextButton(
-                  icon: Icons.build_circle,
-                  content: '生成启动脚本',
-                  onTap: _generateLaunchScript,
                 ),
               //加载器文件不在了：给条路补回来，否则这版只能删了重建
               if (_isLoaderMissing)

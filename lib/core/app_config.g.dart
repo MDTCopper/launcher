@@ -188,6 +188,12 @@ PersonalizationOptions _$PersonalizationOptionsFromJson(
         json['windowCloseAction'],
       ) ??
       WindowCloseAction.exit,
+  gameRunningCloseAction:
+      $enumDecodeNullable(
+        _$GameRunningCloseActionEnumMap,
+        json['gameRunningCloseAction'],
+      ) ??
+      GameRunningCloseAction.closeKeepService,
   themeMode:
       $enumDecodeNullable(_$ThemeModeEnumMap, json['themeMode']) ??
       ThemeMode.system,
@@ -223,6 +229,8 @@ Map<String, dynamic> _$PersonalizationOptionsToJson(
   'launcherPostLaunchBehavior':
       _$LauncherPostLaunchBehaviorEnumMap[instance.launcherPostLaunchBehavior]!,
   'restoreWindowOnGameExit': instance.restoreWindowOnGameExit,
+  'gameRunningCloseAction':
+      _$GameRunningCloseActionEnumMap[instance.gameRunningCloseAction]!,
   'colorfulBackground': instance.colorfulBackground,
   'menuRelocate': instance.menuRelocate,
   'windowCloseAction': _$WindowCloseActionEnumMap[instance.windowCloseAction]!,
@@ -255,7 +263,13 @@ const _$ThemeColorEnumMap = {
 
 const _$LauncherPostLaunchBehaviorEnumMap = {
   LauncherPostLaunchBehavior.none: 'none',
-  LauncherPostLaunchBehavior.tray: 'tray',
+  LauncherPostLaunchBehavior.closeKeepService: 'closeKeepService',
+  LauncherPostLaunchBehavior.minimizeToTray: 'minimizeToTray',
+};
+
+const _$GameRunningCloseActionEnumMap = {
+  GameRunningCloseAction.closeKeepService: 'closeKeepService',
+  GameRunningCloseAction.minimizeToTray: 'minimizeToTray',
 };
 
 DownloadOptions _$DownloadOptionsFromJson(Map<String, dynamic> json) =>

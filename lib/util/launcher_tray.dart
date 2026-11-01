@@ -19,10 +19,11 @@ import 'package:window_manager/window_manager.dart';
 
 ///Launcher 托盘管理，仅桌面端
 ///
-///按 config 的游戏启动后行为决定：
-///- none：无行为，游戏照常，关闭窗口即退出
-///- tray：启动游戏成功后把 Launcher 收进系统托盘（进程存活以监听游戏退出），
-///  托盘菜单可恢复窗口 / 快速启动最近游玩 / 停止当前游戏（两步确认）/ 退出
+///按 config 的启动器行为决定：
+///- 关闭窗口：没有游戏运行时按 [WindowCloseAction]，有游戏运行时按
+///  [GameRunningCloseAction]；要退出的那档先把运行中的游戏交接给云服务
+///- 游戏启动后：none 无行为、closeKeepService 退出并保留云服务、
+///  minimizeToTray 收进系统托盘（游戏退出后恢复窗口）
 ///
 ///托盘是原生系统元素，只能自定义图标、tooltip 与原生菜单
 class LauncherTray extends TrayListener with WindowListener {
@@ -48,8 +49,14 @@ class LauncherTray extends TrayListener with WindowListener {
   /// 窗口是否收起了（托盘 / 最小化）：shell 据此停掉动画，别在后台白耗 GPU
   final ValueNotifier<bool> isWindowHidden = ValueNotifier(false);
 
-  ///关窗行为：收进托盘
+  ///关窗行为：没有游戏运行时收进托盘
   bool _closeToTray = false;
+
+  ///关窗行为：游戏运行时收进托盘
+  bool _gameRunningCloseToTray = false;
+
+  ///游戏启动后收进托盘（游戏退出后恢复窗口）
+  bool _postLaunchToTray = false;
 
   ///托盘图标资源：Windows 的 `LoadImage` 只认 .ico，macOS/Linux 用 png
   String get _iconAsset => Platform.isWindows
@@ -163,6 +170,8 @@ class LauncherTray extends TrayListener with WindowListener {
     if (quiet) {
       _trayMode = false;
       _closeToTray = false;
+      _gameRunningCloseToTray = false;
+      _postLaunchToTray = false;
       _cloudSyncMenuTimer?.cancel();
       _cloudSyncMenuTimer = null;
       await _taskSubscription?.cancel();
@@ -175,20 +184,28 @@ class LauncherTray extends TrayListener with WindowListener {
 
     final personalization = config.setting.personalizationOptions;
     final traySupported = await resolveTraySupport();
-    //托盘不可用时两个托盘行为都按未开启算，否则关窗会把窗口藏进一个点不到的地方
+    //托盘不可用时所有托盘行为都按未开启算，否则关窗会把窗口藏进一个点不到的地方
     _closeToTray =
         traySupported &&
         personalization.windowCloseAction == WindowCloseAction.minimizeToTray;
+    _gameRunningCloseToTray =
+        traySupported &&
+        personalization.gameRunningCloseAction ==
+            GameRunningCloseAction.minimizeToTray;
+    _postLaunchToTray =
+        traySupported &&
+        personalization.launcherPostLaunchBehavior ==
+            LauncherPostLaunchBehavior.minimizeToTray;
     _trayMode =
         traySupported &&
-        (_closeToTray ||
-            personalization.launcherPostLaunchBehavior ==
-                LauncherPostLaunchBehavior.tray);
+        (_closeToTray || _gameRunningCloseToTray || _postLaunchToTray);
     if (!isDesktop) return;
 
     addLog(
       .info,
-      '托盘：图标${_trayMode ? '常驻' : '不常驻'}（关窗行为：${_closeToTray ? '收进托盘' : '退出程序'}）',
+      '托盘：图标${_trayMode ? '常驻' : '不常驻'}'
+      '（关窗：${_closeToTray ? '收进托盘' : '退出程序'}，'
+      '游戏运行中关窗：${_gameRunningCloseToTray ? '收进托盘' : '退出并保留云服务'}）',
       tag: 'Tray',
     );
 
@@ -275,13 +292,6 @@ class LauncherTray extends TrayListener with WindowListener {
             label: _confirmStopArmed ? '再次点击确认停止游戏' : '停止当前游戏',
           ),
         MenuItem.separator(),
-        MenuItem.checkbox(
-          key: 'restore',
-          label: '游戏退出后恢复窗口',
-          checked:
-              config.setting.personalizationOptions.restoreWindowOnGameExit,
-        ),
-        MenuItem.separator(),
         // 云存档在传时给一行进度（只读）—— 托盘里以前什么都看不到
         if (_cloudSyncLabel() case final cloudSync?) ...[
           MenuItem(key: 'cloudSync', label: cloudSync, disabled: true),
@@ -315,26 +325,38 @@ class LauncherTray extends TrayListener with WindowListener {
     return recent ?? config.versionOptions.selectedVersion;
   }
 
-  ///启动游戏成功后调用：托盘模式下收进托盘，其它模式无操作
+  ///游戏启动成功后调用：按「游戏启动后」的行为处理启动器
   Future<void> hideIfTrayMode() async {
-    if (!_trayMode) return;
-    addLog(.info, '游戏已启动，启动器收进托盘', tag: 'Tray');
-    isWindowHidden.value = true;
-    await windowManager.hide();
-    await windowManager.setSkipTaskbar(true);
-    await _refreshMenu(); //游戏运行中，菜单切到「停止当前游戏」
+    //无界面服务与移动端没有窗口 / 托盘；快捷启动的隐藏会话由 ShortcutExitAction 收尾
+    if (!isDesktop || AppRuntime.headless || _quietMode) return;
+    switch (config.setting.personalizationOptions.launcherPostLaunchBehavior) {
+      case LauncherPostLaunchBehavior.none:
+        return;
+      case LauncherPostLaunchBehavior.closeKeepService:
+        addLog(.info, '游戏已启动，启动器退出并保留云服务', tag: 'Tray');
+        await _closeAfterHandoff();
+      case LauncherPostLaunchBehavior.minimizeToTray:
+        if (!_postLaunchToTray) return;
+        addLog(.info, '游戏已启动，启动器收进托盘', tag: 'Tray');
+        await _hideToTray();
+    }
   }
 
-  ///游戏退出后调用：托盘模式下若开启「恢复窗口」且窗口确已被收纳，则弹出主窗口
+  ///游戏退出后调用：游戏启动后收进托盘的那档把主窗口恢复回来
   Future<void> showIfRestoreOnExit() async {
-    if (!_trayMode) return;
-    final restore =
-        config.setting.personalizationOptions.restoreWindowOnGameExit;
-    if (!restore) return;
+    if (!_postLaunchToTray) return;
     //窗口仍可见则不再弹出，避免重复
     if (await windowManager.isVisible()) return;
     addLog(.info, '游戏已退出，恢复启动器窗口', tag: 'Tray');
     await _showFromTray();
+  }
+
+  ///收进系统托盘，菜单切到「游戏运行中」状态
+  Future<void> _hideToTray() async {
+    isWindowHidden.value = true;
+    await windowManager.hide();
+    await windowManager.setSkipTaskbar(true);
+    await _refreshMenu();
   }
 
   Future<void> _showFromTray() async {
@@ -417,11 +439,11 @@ class LauncherTray extends TrayListener with WindowListener {
     await _destroyWindow();
   }
 
-  /// 关窗（非托盘模式）：交接游戏 → 等上传 → 真正销毁窗口
+  /// 关窗 / 游戏启动后关闭启动器：交接游戏 → 等上传 → 真正销毁窗口
   Future<void> _closeAfterHandoff() async {
     if (_closing) return;
     _closing = true;
-    addLog(.info, '关闭窗口：退出启动器（先交接运行中的游戏）', tag: 'Tray');
+    addLog(.info, '退出启动器：先交接运行中的游戏', tag: 'Tray');
     try {
       await handoffRunningGamesToService();
       await CloudAutoSync.waitForPending();
@@ -477,17 +499,6 @@ class LauncherTray extends TrayListener with WindowListener {
         _quickLaunchRecent();
       case 'stop':
         _stopCurrentGame();
-      case 'restore':
-        final personalization = config.setting.personalizationOptions;
-        personalization.restoreWindowOnGameExit =
-            !personalization.restoreWindowOnGameExit;
-        config.save();
-        addLog(
-          .info,
-          '托盘：游戏退出后恢复窗口 → ${personalization.restoreWindowOnGameExit ? '开' : '关'}',
-          tag: 'Tray',
-        );
-        _refreshMenu();
       case 'quit':
         quitApp();
     }
@@ -496,11 +507,12 @@ class LauncherTray extends TrayListener with WindowListener {
   // WindowListener
   @override
   void onWindowClose() {
-    if (_closeToTray) {
+    if (_closing) return;
+    //有游戏在跑时按「游戏运行时关闭窗口」的行为，否则按普通关窗行为
+    final toTray = _isGameRunning() ? _gameRunningCloseToTray : _closeToTray;
+    if (toTray) {
       addLog(.info, '关闭窗口：收进托盘（进程保留，继续监听游戏退出）', tag: 'Tray');
-      isWindowHidden.value = true;
-      windowManager.hide();
-      windowManager.setSkipTaskbar(true);
+      unawaited(_hideToTray());
     } else {
       // 游戏还在跑：先写会话 + 拉起云服务接管，交接完再销毁窗口
       unawaited(_closeAfterHandoff());

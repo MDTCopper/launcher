@@ -7,6 +7,7 @@ import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
+import 'package:copper_launcher/domain/sync_proxy.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
 import 'package:copper_launcher/ui/dialog/cloud_conflict_prompt.dart';
@@ -15,6 +16,9 @@ import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
+
+/// 启动前同步里查询玩家是否要求取消；true = 在安全检查点停下本次同步
+typedef SyncCancelCheck = Future<bool> Function();
 
 /// 云存档自动同步：**启动前拉、游戏退出后传、关启动器前等它传完**
 ///
@@ -48,9 +52,13 @@ class CloudAutoSync {
   ///
   /// [onNeedsUi] 在弹冲突 / 超时窗口前调用：快捷启动的隐藏窗口会话靠它把界面叫出来；
   /// 返回值 **false = 当前进程弹不了界面**（无界面服务），冲突直接交回 UI
+  ///
+  /// [isCancelled] 在检查 / 下载的安全点查询玩家取消：true = 跳过本次同步直接启动；
+  /// 写存档阶段不硬停，由无界面服务的代理窗口把状态切成「正在收尾」，当前步骤结束后照常启动
   static Future<bool> beforeLaunch(
     Mindustry version, {
     Future<bool> Function()? onNeedsUi,
+    SyncCancelCheck? isCancelled,
   }) async {
     try {
       if (!CloudSaveService.isEnabled(version)) return true;
@@ -58,72 +66,158 @@ class CloudAutoSync {
       final token = await _token();
       if (token == null) return true;
 
-      final CloudSyncOutcome outcome;
+      // 无界面服务：启动前同步超过 3 秒才拉起代理窗口；UI 进程这里返回 null
+      final gate = await SyncProxyGate.startForHeadlessService(
+        versionId: version.id,
+        tag: version.tag,
+      );
       try {
-        outcome = await CloudSaveService.syncStatus(
-          accessToken: token,
-          version: version,
-        ).timeout(syncTimeout);
-      } on TimeoutException {
-        //超时：问玩家要不要直接启动（与 Steam 云一致）
-        addLog(
-          .warning,
-          '云存档检查超时（${syncTimeout.inSeconds} 秒），问玩家要不要直接启动',
-          tag: 'Cloud',
+        return await _syncBeforeLaunch(
+          version,
+          token: token,
+          onNeedsUi: onNeedsUi,
+          isCancelled: isCancelled ?? gate?.shouldStopSyncing,
+          gate: gate,
         );
-        final handled = await onNeedsUi?.call() ?? true;
-        if (!handled) {
-          // 无界面服务：超时按设计跳过同步直接启动，不弹窗
-          addLog(.warning, '无界面服务：云存档检查超时，跳过同步直接启动', tag: 'Cloud');
-          return true;
-        }
-        return await showCloudSyncTimeoutPrompt(versionTag: version.tag);
-      }
-      final slotId = outcome.slotId;
-      final snapshotId = outcome.remote?.snapshotId;
-
-      switch (outcome.status) {
-        case CloudSyncStatus.pendingDownload:
-          if (slotId == null || snapshotId == null) return true;
-          addLog(.info, '云存档：启动前发现云端更新，先恢复 [${version.tag}]', tag: 'Cloud');
-          final result = await _restoreWithCard(
-            version: version,
-            token: token,
-            slotId: slotId,
-            snapshotId: snapshotId,
-          );
-          addNotice(
-            icon: Icons.cloud_download_outlined,
-            title: '已自动恢复云端存档',
-            content: '写入 ${result.report.written.length} 份（覆盖前已备份）',
-          );
-          _notifyRestoreGap(version, result.report);
-          return true;
-        case CloudSyncStatus.conflicted:
-          //两边都改过：让玩家自己选；没选就**不启动**
-          final handled = await onNeedsUi?.call() ?? true;
-          if (!handled) {
-            // 无界面服务：冲突必须由人处理，交回 UI 再启动
-            addLog(.info, '无界面服务：云存档冲突，交回界面处理', tag: 'Cloud');
-            return false;
-          }
-          final choice = await showCloudConflictPrompt(
-            outcome: outcome,
-            versionTag: version.tag,
-          );
-          return await _resolveConflict(
-            choice: choice,
-            version: version,
-            token: token,
-            slotId: slotId,
-            snapshotId: snapshotId,
-          );
-        default:
-          return true;
+      } finally {
+        // 成功 / 取消 / 出错都要让代理窗口收尾，不能把它留在屏幕上
+        await gate?.finishLaunching();
       }
     } catch (error) {
       addLog(.warning, '云存档自动拉取失败：${removeNewlines('$error')}', tag: 'Cloud');
       return true;
+    }
+  }
+
+  /// 启动前同步的主体：[beforeLaunch] 扣掉「开关 / 令牌」两道判断后
+  static Future<bool> _syncBeforeLaunch(
+    Mindustry version, {
+    required String token,
+    required Future<bool> Function()? onNeedsUi,
+    required SyncCancelCheck? isCancelled,
+    required SyncProxyGate? gate,
+  }) async {
+    await gate?.reportPhase(SyncProxyPhase.checking, message: '检查云端存档');
+    if (await isCancelled?.call() ?? false) return true;
+
+    final CloudSyncOutcome outcome;
+    try {
+      final syncResult = await _awaitCancelable(
+        CloudSaveService.syncStatus(
+          accessToken: token,
+          version: version,
+        ).timeout(syncTimeout),
+        isCancelled,
+      );
+      // 取消就别再等云端返回了：直接跳过本次同步
+      if (syncResult.cancelled) return true;
+      outcome = syncResult.value!;
+    } on TimeoutException {
+      //超时：问玩家要不要直接启动（与 Steam 云一致）
+      addLog(
+        .warning,
+        '云存档检查超时（${syncTimeout.inSeconds} 秒），问玩家要不要直接启动',
+        tag: 'Cloud',
+      );
+      final handled = await onNeedsUi?.call() ?? true;
+      if (!handled) {
+        // 无界面服务：超时按设计跳过同步直接启动，不弹窗
+        addLog(.warning, '无界面服务：云存档检查超时，跳过同步直接启动', tag: 'Cloud');
+        return true;
+      }
+      return await showCloudSyncTimeoutPrompt(versionTag: version.tag);
+    }
+    if (await isCancelled?.call() ?? false) return true;
+
+    final slotId = outcome.slotId;
+    final snapshotId = outcome.remote?.snapshotId;
+
+    switch (outcome.status) {
+      case CloudSyncStatus.pendingDownload:
+        if (slotId == null || snapshotId == null) return true;
+        await gate?.reportPhase(SyncProxyPhase.downloading, message: '下载云端存档');
+        addLog(.info, '云存档：启动前发现云端更新，先恢复 [${version.tag}]', tag: 'Cloud');
+        final result = await _restoreWithCard(
+          version: version,
+          token: token,
+          slotId: slotId,
+          snapshotId: snapshotId,
+          gate: gate,
+        );
+        addNotice(
+          icon: Icons.cloud_download_outlined,
+          title: '已自动恢复云端存档',
+          content: '写入 ${result.report.written.length} 份（覆盖前已备份）',
+        );
+        _notifyRestoreGap(version, result.report);
+        return true;
+      case CloudSyncStatus.conflicted:
+        //两边都改过：让玩家自己选；没选就**不启动**
+        final handled = await onNeedsUi?.call() ?? true;
+        if (!handled) {
+          // 无界面服务：冲突必须由人处理，交回 UI 再启动
+          addLog(.info, '无界面服务：云存档冲突，交回界面处理', tag: 'Cloud');
+          await gate?.markNeedsUi(message: '云存档冲突，需要到启动器里处理');
+          return false;
+        }
+        final choice = await showCloudConflictPrompt(
+          outcome: outcome,
+          versionTag: version.tag,
+        );
+        return await _resolveConflict(
+          choice: choice,
+          version: version,
+          token: token,
+          slotId: slotId,
+          snapshotId: snapshotId,
+        );
+      default:
+        return true;
+    }
+  }
+
+  /// 等云端返回，但玩家按了取消就不等了：请求本身继续跑完，我们直接放行启动
+  ///
+  /// 超时 / 网络异常原样抛给调用方；取消返回 `cancelled = true`
+  static Future<({bool cancelled, T? value})> _awaitCancelable<T>(
+    Future<T> future,
+    SyncCancelCheck? isCancelled,
+  ) async {
+    if (isCancelled == null) {
+      return (cancelled: false, value: await future);
+    }
+    final result = Completer<({bool cancelled, T? value})>();
+    unawaited(
+      future.then<void>(
+        (value) {
+          if (!result.isCompleted) {
+            result.complete((cancelled: false, value: value));
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (!result.isCompleted) result.completeError(error, stackTrace);
+        },
+      ),
+    );
+    var asking = false;
+    final watcher = Timer.periodic(const Duration(milliseconds: 300), (_) async {
+      if (result.isCompleted || asking) return;
+      asking = true;
+      try {
+        final cancelled = await isCancelled();
+        if (cancelled && !result.isCompleted) {
+          result.complete((cancelled: true, value: null));
+        }
+      } catch (_) {
+        // 取消查询自己出错不该改变同步结果
+      } finally {
+        asking = false;
+      }
+    });
+    try {
+      return await result.future;
+    } finally {
+      watcher.cancel();
     }
   }
 
@@ -180,11 +274,15 @@ class CloudAutoSync {
   /// 恢复一次，并且**让任务抽屉里看得见**（启动前那两条路以前只有日志）
   ///
   /// 失败时把任务里那次捕获的原始异常抛回去 —— 调用方按类型分支（冲突 / 网络）不用改
+  ///
+  /// [gate] 只用于把恢复内部的阶段文字同步给代理窗口；恢复本身不可中断，
+  /// 取消到这一步已经推迟到「当前步骤结束」
   static Future<CloudSaveRestoreResult> _restoreWithCard({
     required Mindustry version,
     required String token,
     required String slotId,
     required String snapshotId,
+    SyncProxyGate? gate,
   }) async {
     CloudSaveRestoreResult? outcome;
     final syncTask = CloudSyncTask(
@@ -196,7 +294,10 @@ class CloudAutoSync {
           version: version,
           slotId: slotId,
           snapshotId: snapshotId,
-          onStatus: task.setPhase,
+          onStatus: (status) {
+            task.setPhase(status);
+            gate?.reportRestoreStatus(status);
+          },
           onProgress: task.acceptProgress,
           cancelToken: task.cancelToken,
         );

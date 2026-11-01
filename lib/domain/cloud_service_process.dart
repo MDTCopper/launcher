@@ -7,6 +7,7 @@ import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
 import 'package:copper_launcher/domain/game_instance.dart';
 import 'package:copper_launcher/domain/game_session.dart';
+import 'package:copper_launcher/domain/sync_proxy.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
@@ -37,6 +38,8 @@ class CloudServiceProcess {
     bool recover = false,
   }) async {
     await GameSessionStore.ensureDirs();
+    // 上一次进程崩溃可能留下同步状态 / 取消标记：先清掉，否则这次同步会被秒取消
+    await SyncProxyGate.resetStale();
     await GameSessionStore.writeServicePid();
     addLog(
       .info,
@@ -330,6 +333,7 @@ class CloudServiceProcess {
     _exiting = true;
     _timer?.cancel();
     addLog(.info, '云服务：空闲退出', tag: 'CloudService');
+    await SyncProxyGate.resetStale();
     await GameSessionStore.clearServicePid();
     await Future<void>.delayed(const Duration(milliseconds: 200));
     // Flutter 引擎里 exit(0) 不会退，直接结束进程

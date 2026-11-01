@@ -15,6 +15,7 @@ import 'package:copper_launcher/domain/mdtbbs/mdtbbs_realtime_service.dart';
 import 'package:copper_launcher/domain/quick_launch.dart';
 import 'package:copper_launcher/domain/quick_launch_entry.dart';
 import 'package:copper_launcher/domain/shortcut_launch.dart';
+import 'package:copper_launcher/domain/sync_proxy.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
@@ -41,65 +42,95 @@ void main(List<String> args) async {
   AppRuntime.startedAt = DateTime.now();
   WidgetsFlutterBinding.ensureInitialized();
   final cli = LaunchArgs.parse(args);
-  // 服务 / 快捷启动触发进程不建 UI：先置位，核心初始化里就不会去弹通知 / 碰窗口
-  AppRuntime.headless = cli.service || cli.isQuickLaunch;
   _checkPlatform();
 
-  // 快捷启动：先只初始化路径 / 日志，UI 或服务在线就直接投递后退出，
-  // 不读配置 / 账号 / 云存档（转发路径的冷启动开销主要省在这里）
+  // 云同步代理：服务在启动前同步超过 3 秒才会拉起它；判在快捷启动之前，
+  // 因为参数里也带 --launch-version，否则会被当成普通快捷启动
+  if (args.contains('--sync-proxy')) {
+    AppRuntime.form = AppForm.syncProxy;
+    AppRuntime.headless = true;
+    await _initializeCore();
+    addLog(.info, '启动器形态：${AppRuntime.form.label}', tag: 'Startup');
+    await runSyncProxy(versionId: cli.launchVersionId);
+    return;
+  }
+
+  // 角色判定只做一次，具体执行分到三个 _run*，入口内不再混着读配置 / 建窗口
   if (cli.isQuickLaunch) {
-    await AppPaths.init();
-    await Log.init();
-    addLog(.info, '时间线：快捷启动预检 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
-    final route = await QuickLaunchEntry.dispatch(
-      LaunchRequest(cli.launchVersionId!),
-    );
-    switch (route) {
-      case LaunchRoute.uiOnline:
-        addLogAndPrint(
-          .info,
-          '快捷启动：UI 在线，请求交给界面后退出（${cli.launchVersionId}）',
-          tag: 'Startup',
-        );
-        await _quitProcess();
-        return;
-      case LaunchRoute.serviceOnline:
-        addLogAndPrint(
-          .info,
-          '快捷启动：云服务在线，请求交给服务后退出（${cli.launchVersionId}）',
-          tag: 'Startup',
-        );
-        await _quitProcess();
-        return;
-      case LaunchRoute.android:
-        // --launch-version 只在桌面出现；Android 走 ShortcutLaunch 宿主通道
-        return;
-      case LaunchRoute.startService:
-        // 需要本进程接手：补完配置 / 网络初始化再进服务
-        break;
-    }
-    await _initializeCore(pathsReady: true, logReady: true);
-    addLog(.info, '快捷启动：没有 UI / 服务，本进程进入云服务模式', tag: 'Startup');
-    await CloudServiceProcess.start(launchVersionId: cli.launchVersionId);
+    AppRuntime.form = AppForm.quickTrigger;
+    AppRuntime.headless = true;
+    await _runQuickLaunch(cli);
     return;
   }
-
-  // 基础层：路径 / 日志 / 配置 / 网络，服务与 UI 共用
-  await _initializeCore();
-
-  // 显式服务模式（UI 二次启动发现 / 接管 / 补上传）
   if (cli.service) {
-    addLog(.info, '云服务：命令行要求进入服务模式', tag: 'Startup');
-    await CloudServiceProcess.start(
-      launchVersionId: cli.launchVersionId,
-      adoptAll: cli.adoptAll,
-      recover: cli.recover,
-    );
+    AppRuntime.form = AppForm.cloudService;
+    AppRuntime.headless = true;
+    await _runCloudService(cli);
     return;
   }
-
-  // 普通 UI 启动 / 服务委托的 --resume-launch
+  AppRuntime.form = AppForm.launcherUi;
   AppRuntime.headless = false;
+  await _runLauncherUi(cli);
+}
+
+/// 形态一：桌面快捷方式 / 启动脚本的触发进程
+///
+/// 只初始化路径 + 日志，判 UI / 服务是否在线；都不在才补完配置、本进程转为云服务。
+Future<void> _runQuickLaunch(LaunchArgs cli) async {
+  await AppPaths.init();
+  await Log.init();
+  addLog(
+    .info,
+    '时间线：快捷启动预检 +${AppRuntime.elapsedMs}ms（${AppRuntime.form.label}）',
+    tag: 'Timeline',
+  );
+  final route = await QuickLaunchEntry.dispatch(
+    LaunchRequest(cli.launchVersionId!),
+  );
+  switch (route) {
+    case LaunchRoute.uiOnline:
+      addLogAndPrint(
+        .info,
+        '快捷启动：UI 在线，请求交给界面后退出（${cli.launchVersionId}）',
+        tag: 'Startup',
+      );
+      await _quitProcess();
+      return;
+    case LaunchRoute.serviceOnline:
+      addLogAndPrint(
+        .info,
+        '快捷启动：云服务在线，请求交给服务后退出（${cli.launchVersionId}）',
+        tag: 'Startup',
+      );
+      await _quitProcess();
+      return;
+    case LaunchRoute.android:
+      // --launch-version 只在桌面出现；Android 走 ShortcutLaunch 宿主通道
+      return;
+    case LaunchRoute.startService:
+      // 需要本进程接手：补完配置 / 网络初始化再进服务
+      break;
+  }
+  await _initializeCore(pathsReady: true, logReady: true);
+  AppRuntime.form = AppForm.cloudService;
+  addLog(.info, '形态切换：触发进程转为无界面云服务', tag: 'Startup');
+  await CloudServiceProcess.start(launchVersionId: cli.launchVersionId);
+}
+
+/// 形态二：无界面云存档服务（UI 二次启动 / 接管 / 补上传）
+Future<void> _runCloudService(LaunchArgs cli) async {
+  await _initializeCore();
+  addLog(.info, '云服务：命令行要求进入服务模式', tag: 'Startup');
+  await CloudServiceProcess.start(
+    launchVersionId: cli.launchVersionId,
+    adoptAll: cli.adoptAll,
+    recover: cli.recover,
+  );
+}
+
+/// 形态三：完整启动器 UI（含服务委托的 --resume-launch）
+Future<void> _runLauncherUi(LaunchArgs cli) async {
+  await _initializeCore();
   final launchRequest = cli.uiVersionId == null
       ? null
       : LaunchRequest(cli.uiVersionId!);
@@ -129,6 +160,7 @@ Future<void> _initializeCore({
   if (!logReady) await Log.init();
   if (!logReady) {
     addLog(.info, '时间线：日志就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
+    addLog(.info, '启动器形态：${AppRuntime.form.label}', tag: 'Startup');
   }
   if (AppPaths.isUsingFallbackDataPath) {
     addLogAndPrint(
