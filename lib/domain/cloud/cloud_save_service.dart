@@ -1015,6 +1015,12 @@ class CloudSaveService {
 
     var uploaded = 0;
     var uploadedBytes = 0;
+    // 差量是一次一个文件地传：进度要按「已传完的 + 这个文件已传的」累计，
+    // 否则界面每换一个文件就把进度条打回 0
+    final missingBytes = missing.values.fold(
+      0,
+      (sum, file) => sum + file.size,
+    );
     for (final file in missing.values) {
       if (cancelToken?.isCancelled ?? false) {
         throw const MdtbbsException(message: '已取消');
@@ -1036,11 +1042,14 @@ class CloudSaveService {
         cancelToken: cancelToken,
       );
       if (!session.noUploadRequired) {
+        final sentBefore = uploadedBytes;
         await MdtbbsCloudSaveApi.putBlobBytes(
           accessToken: accessToken,
           upload: session,
           bytes: bytes,
-          onSendProgress: onSendProgress,
+          onSendProgress: onSendProgress == null
+              ? null
+              : (sent, _) => onSendProgress(sentBefore + sent, missingBytes),
           cancelToken: cancelToken,
         );
       }
@@ -1384,6 +1393,33 @@ class CloudSaveService {
     }
   }
 
+  /// 读一份快照的文件清单，用来算「本机还缺什么」
+  ///
+  /// 只有 `format = manifest` 的快照能读；整包快照返回 null（那种要下整个包才拿得到
+  /// 清单，界面上直接提示「先恢复一次」更划算）
+  static Future<CloudManifest?> manifestOfSnapshot({
+    required String accessToken,
+    required String slotId,
+    required String snapshotId,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final remote = await MdtbbsCloudSaveApi.manifest(
+        accessToken: accessToken,
+        slotId: slotId,
+        snapshotId: snapshotId,
+        cancelToken: cancelToken,
+      );
+      return _manifestOfRemote(remote);
+    } on MdtbbsException catch (error) {
+      if (error.code == 'SAVE_SNAPSHOT_FORMAT_MISMATCH' ||
+          error.statusCode == 404) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
   /// 用云端快照**覆盖本机**这份数据目录（页面上那个「恢复」）
   ///
   /// 覆盖前先把本机这份导出成 zip 存进 [backupDirPath]；**备份失败就中止** ——
@@ -1578,6 +1614,8 @@ class CloudSaveService {
           }
         }
       }
+      // 同一个模组的旧版本文件收掉：差量恢复只按清单写文件，不会自动删旧的
+      await _dedupeRestoredMods(version: version, manifest: manifest);
       // 与整包恢复同一套口径：模组启用态要按清单写回，否则会出现装好但没生效
       final modStates = await readInstalledModStates(
         p.join(version.dataPath, 'settings.bin'),
@@ -1607,6 +1645,41 @@ class CloudSaveService {
       );
     } finally {
       if (tempRoot.existsSync()) tempRoot.deleteSync(recursive: true);
+    }
+  }
+
+  /// 差量恢复落地后，把同一个模组的其它版本文件删掉
+  ///
+  /// 整包恢复在 `CloudArchiveReader` 里做过同样的事；差量恢复是逐文件写，
+  /// 不清的话新旧两版会一起被游戏加载。只处理随包带了字节的模组：没带字节的
+  /// 本机本来就没有新文件，删旧版等于把模组弄丢
+  static Future<void> _dedupeRestoredMods({
+    required Mindustry version,
+    required CloudManifest manifest,
+  }) async {
+    final modsDirs = allModsDirPathsIn(version.dataPath);
+    for (final mod in manifest.mods) {
+      final internalName = (mod.internalName ?? '').trim();
+      if (internalName.isEmpty || !mod.includeBytes) continue;
+      final keepPath = p.join(
+        modsDirPathIn(version.dataPath, copper: mod.isCopper),
+        mod.fileName,
+      );
+      if (!File(keepPath).existsSync()) continue;
+      try {
+        await removeOtherModFiles(
+          internalName: internalName,
+          modsDirs: modsDirs,
+          keepPath: keepPath,
+        );
+      } on Object catch (error) {
+        addLog(
+          .warning,
+          '差量恢复后清理模组旧版本失败（$internalName）：'
+          '${removeNewlines('$error')}',
+          tag: 'Cloud',
+        );
+      }
     }
   }
 
