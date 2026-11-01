@@ -282,10 +282,10 @@ class CloudSaveService {
   ///
   /// **不能放进游戏数据目录**：Steam 云对 `saves/`、`maps/`、`mods` 等的规则是 `*`，
   /// 临时文件也会被传上去占配额
-  static String get tempDir => p.join(_root, 'tmp');
+  static String get tempDirPath => p.join(_root, 'tmp');
 
   /// 「恢复」前的本机备份放这里，同样**不在游戏数据目录里**
-  static String get backupDir => p.join(_root, 'cloud-backups');
+  static String get backupDirPath => p.join(_root, 'cloud-backups');
 
   /// 清单哈希缓存（按大小与修改时间复用 sha256，见 `CloudHashCache`）
   static String get hashCachePath => p.join(_root, 'cloud-manifest-cache.json');
@@ -803,10 +803,10 @@ class CloudSaveService {
       );
     }
 
-    final directory = Directory(tempDir);
+    final directory = Directory(tempDirPath);
     if (!directory.existsSync()) directory.createSync(recursive: true);
     final archivePath = p.join(
-      tempDir,
+      tempDirPath,
       'cloud-upload-${DateTime.now().millisecondsSinceEpoch}.zip',
     );
 
@@ -1166,7 +1166,7 @@ class CloudSaveService {
       );
       paths.putIfAbsent(
         mod.sha256,
-        () => p.join(modsDirIn(dataPath, copper: mod.isCopper), mod.fileName),
+        () => p.join(modsDirPathIn(dataPath, copper: mod.isCopper), mod.fileName),
       );
       hashes[path] = mod.sha256;
     }
@@ -1342,7 +1342,7 @@ class CloudSaveService {
       final report = await reader.extractTo(
         dataPath: version.dataPath,
         mode: mode,
-        backupDir: _campaignBackupDirPath(),
+        backupDirPath: _campaignBackupDirPath(),
       );
       await _applyModStatesQuietly(version, reader.manifest);
       if (report.rejected.isEmpty) {
@@ -1385,7 +1385,7 @@ class CloudSaveService {
 
   /// 用云端快照**覆盖本机**这份数据目录（页面上那个「恢复」）
   ///
-  /// 覆盖前先把本机这份导出成 zip 存进 [backupDir]；**备份失败就中止** ——
+  /// 覆盖前先把本机这份导出成 zip 存进 [backupDirPath]；**备份失败就中止** ——
   /// 不能在没有退路的情况下盖掉玩家的存档。
   /// `settings.bin` 与存档一样**逐字节落地**（含键位 / UI / 存档标题），
   /// 我们不再自己解码改写它
@@ -1512,7 +1512,7 @@ class CloudSaveService {
     }
 
     final tempRoot = Directory(
-      p.join(tempDir, 'manifest-${DateTime.now().millisecondsSinceEpoch}'),
+      p.join(tempDirPath, 'manifest-${DateTime.now().millisecondsSinceEpoch}'),
     )..createSync(recursive: true);
     try {
       final changedBySha = {for (final file in changed) file.sha256: file};
@@ -1736,13 +1736,13 @@ class CloudSaveService {
   ///
   /// 文件名里就是时间戳（`cloud-backup-2026-10-15T19-30-00.zip`），所以按名字倒序
   /// 就是时间倒序 —— 与 [_pruneBackups] 的清理顺序同一套口径
-  static String get _accountBackupDir {
+  static String get _accountBackupDirPath {
     final account = currentAccountId;
-    return account == null ? backupDir : p.join(backupDir, account);
+    return account == null ? backupDirPath : p.join(backupDirPath, account);
   }
 
   static List<CloudBackupFile> backups() {
-    final directory = Directory(_accountBackupDir);
+    final directory = Directory(_accountBackupDirPath);
     if (!directory.existsSync()) return const [];
     final files = [
       for (final entity in directory.listSync())
@@ -1838,9 +1838,9 @@ class CloudSaveService {
       cancelToken: cancelToken,
     );
 
-    final directory = Directory(tempDir);
+    final directory = Directory(tempDirPath);
     if (!directory.existsSync()) directory.createSync(recursive: true);
-    final tempPath = p.join(tempDir, 'cloud-download-$snapshotId.zip');
+    final tempPath = p.join(tempDirPath, 'cloud-download-$snapshotId.zip');
 
     // 校验不过（或下载中断）就把半截文件删掉，别留下一个「看着像下好了」的包
     var verified = false;
@@ -1898,13 +1898,13 @@ class CloudSaveService {
     String archivePath, {
     required Mindustry version,
     required CloudImportMode mode,
-    String? backupDir,
+    String? backupDirPath,
   }) async {
     final reader = await CloudArchiveReader.open(archivePath);
     final report = await reader.extractTo(
       dataPath: version.dataPath,
       mode: mode,
-      backupDir: backupDir,
+      backupDirPath: backupDirPath,
     );
     return (report: report, manifest: reader.manifest);
   }
@@ -1915,12 +1915,12 @@ class CloudSaveService {
         .toIso8601String()
         .substring(0, 19)
         .replaceAll(RegExp('[:.]'), '-');
-    return p.join(_accountBackupDir, 'local-$stamp');
+    return p.join(_accountBackupDirPath, 'local-$stamp');
   }
 
   /// 「恢复」前留的底：把本机这份按云包格式导出到账号自己的备份目录
   static Future<CloudArchiveExport> _backupForRestore(Mindustry version) async {
-    final directory = Directory(_accountBackupDir);
+    final directory = Directory(_accountBackupDirPath);
     if (!directory.existsSync()) directory.createSync(recursive: true);
     // 文件名带时间戳，清理时按名字倒序就是「最新在前」
     final stamp = DateTime.now()
@@ -1930,7 +1930,7 @@ class CloudSaveService {
     try {
       return await _exportWithCache(
         version: version,
-        outputPath: p.join(_accountBackupDir, '$backupFilePrefix$stamp.zip'),
+        outputPath: p.join(_accountBackupDirPath, '$backupFilePrefix$stamp.zip'),
         deviceName: deviceName,
       );
     } catch (error) {
@@ -1985,7 +1985,7 @@ class CloudSaveService {
   /// 备份只留最近 [backupKeep] 份：每次恢复留一份会一直涨
   static void _pruneBackups() {
     try {
-      final directory = Directory(_accountBackupDir);
+      final directory = Directory(_accountBackupDirPath);
       if (!directory.existsSync()) return;
       final files = [
         for (final entity in directory.listSync())

@@ -59,7 +59,7 @@ Future<void> initAppConfig() async {
     addLogAndPrint(.info, '配置里的路径已归一化为记录形态', tag: 'Path');
   }
   // 拿到一份能用的配置之后再留底：一次运行最多一份，与 config.save 的调用频率无关
-  ConfigBackups.write(root: AppPaths.copperLauncher, json: config.toJson());
+  ConfigBackups.write(rootPath: AppPaths.copperLauncher, json: config.toJson());
   await config.save();
 }
 

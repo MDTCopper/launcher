@@ -119,7 +119,7 @@ class CloudArchive {
     for (final mod in manifest.includedModBytes) {
       onStatus?.call('打包 ${mod.fileName}');
       final source = File(
-        p.join(modsDirIn(dataPath, copper: mod.isCopper), mod.fileName),
+        p.join(modsDirPathIn(dataPath, copper: mod.isCopper), mod.fileName),
       );
       final bytes = source.existsSync() ? source.readAsBytesSync() : null;
       if (bytes == null || sha256OfBytes(bytes) != mod.sha256) {
@@ -278,7 +278,7 @@ class CloudArchiveReader {
   Future<CloudImportReport> extractTo({
     required String dataPath,
     CloudImportMode mode = CloudImportMode.overwrite,
-    String? backupDir,
+    String? backupDirPath,
   }) async {
     final report = CloudImportReport(manifest: manifest);
 
@@ -310,7 +310,7 @@ class CloudArchiveReader {
       }
       planned[CloudArchive.modBytesName(mod.sha256)] = _PlannedFile(
         sha256: mod.sha256,
-        destination: p.join(modsDirIn(dataPath, copper: mod.isCopper), name),
+        destination: p.join(modsDirPathIn(dataPath, copper: mod.isCopper), name),
         modInternalName: mod.internalName,
       );
     }
@@ -370,7 +370,7 @@ class CloudArchiveReader {
           final backup = _backupLocalFile(
             destination: destination,
             dataPath: dataPath,
-            backupDir: backupDir,
+            backupDirPath: backupDirPath,
           );
           if (backup != null) {
             report.campaignBackups.add(backup);
@@ -439,7 +439,7 @@ class CloudArchiveReader {
     if (internalName == null) return;
     await removeOtherModFiles(
       internalName: internalName,
-      modsDirs: allModsDirsIn(dataPath),
+      modsDirs: allModsDirPathsIn(dataPath),
       keepPath: keepPath,
     );
   }
@@ -601,18 +601,18 @@ bool _isCampaignCriticalPath(String path) {
   return inSaves && name.startsWith('sector-');
 }
 
-/// 覆盖前把本机那份复制到 [backupDir]；没给目录 / 文件不存在时返回 null
+/// 覆盖前把本机那份复制到 [backupDirPath]；没给目录 / 文件不存在时返回 null
 String? _backupLocalFile({
   required String destination,
   required String dataPath,
-  String? backupDir,
+  String? backupDirPath,
 }) {
-  if (backupDir == null || backupDir.isEmpty) return null;
+  if (backupDirPath == null || backupDirPath.isEmpty) return null;
   final source = File(destination);
   if (!source.existsSync()) return null;
   try {
     final relative = p.relative(destination, from: dataPath);
-    final target = File(p.join(backupDir, relative));
+    final target = File(p.join(backupDirPath, relative));
     target.parent.createSync(recursive: true);
     source.copySync(target.path);
     return target.path;

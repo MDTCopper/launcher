@@ -154,8 +154,8 @@ abstract class AppPaths {
   /// （仓库根）—— 直接跑 `initAppConfig()` 之类会动到真实配置，所以留这个口子；
   /// 从数据根派生的那些路径也在这里一起重算
   @visibleForTesting
-  static void overrideForTesting(String? root) {
-    _applyDataRoot(root ?? p.current);
+  static void overrideForTesting(String? rootPath) {
+    _applyDataRoot(rootPath ?? p.current);
     _initialized = false;
   }
 

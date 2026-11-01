@@ -44,7 +44,7 @@ Future<CloudModStateReport> applyModEnabledStates({
   //按内部名兜底查找要解析目录里的模组元数据：整个清单只扫一次
   List<InstalledModFile>? installedMods;
   Future<List<File>> findFiles(CloudModEntry mod) async {
-    final directory = Directory(modsDirIn(dataPath, copper: mod.isCopper));
+    final directory = Directory(modsDirPathIn(dataPath, copper: mod.isCopper));
     if (directory.existsSync()) {
       final wanted = normalizedModFileName(mod.fileName);
       final matches = [
@@ -58,7 +58,7 @@ Future<CloudModStateReport> applyModEnabledStates({
 
     final internalName = mod.internalName;
     if (internalName == null) return const [];
-    installedMods ??= await scanInstalledMods(allModsDirsIn(dataPath));
+    installedMods ??= await scanInstalledMods(allModsDirPathsIn(dataPath));
     return [
       for (final file in installedMods!)
         if (file.internalName == internalName) File(file.path),

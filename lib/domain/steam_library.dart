@@ -121,8 +121,8 @@ class SteamLibrary {
   }
 
   /// 所有 Steam 库根（Steam 自己那份 + `libraryfolders.vdf` 里记的其它盘）
-  static List<String> libraryRoots({String? root}) {
-    final steam = root ?? steamRoot();
+  static List<String> libraryRoots({String? rootPath}) {
+    final steam = rootPath ?? steamRoot();
     final roots = <String>[];
     void add(String? path) {
       if (path == null || path.trim().isEmpty) return;
@@ -187,14 +187,14 @@ class SteamLibrary {
       value.replaceAll(r'\\', r'\').replaceAll(r'\"', '"').trim();
 
   /// 扫一遍所有 Steam 库，列出装着的 Steam 版 Mindustry
-  static Future<List<SteamInstall>> detect({String? root}) async {
+  static Future<List<SteamInstall>> detect({String? rootPath}) async {
     if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
       return const [];
     }
 
     final installs = <SteamInstall>[];
     final seen = <String>{};
-    for (final library in libraryRoots(root: root)) {
+    for (final library in libraryRoots(rootPath: rootPath)) {
       final steamApps = Directory(p.join(library, 'steamapps'));
       if (!steamApps.existsSync()) continue;
 

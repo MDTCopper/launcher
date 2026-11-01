@@ -56,7 +56,7 @@ class LocalSaveImport {
     }
 
     //模组要去重：先扫一遍目标已装的模组，批量搬的时候复用
-    final modsDirs = allModsDirsIn(to);
+    final modsDirs = allModsDirPathsIn(to);
     final knownMods = kinds.any(_isModsKind)
         ? await scanInstalledMods(modsDirs)
         : null;

@@ -395,7 +395,7 @@ Future<List<ModFillOutcome>> fillMissingMods({
 /// 云存档把它挂成子任务：不进任务抽屉、不发通知、进度由主卡的队列项接
 Task buildFillTask(ModFillPlan plan, Mindustry version) {
   final savePath = version.modsPath;
-  final modsDirs = allModsDirsIn(version.dataPath);
+  final modsDirs = allModsDirPathsIn(version.dataPath);
   final settingsPath = version.settingPath;
   switch (plan.kind) {
     case ModFillKind.java:
@@ -459,7 +459,7 @@ Future<String?> _resolveRepoFullName(
 void _queue(ModFillPlan plan, Mindustry version) {
   final entry = plan.entry;
   final savePath = version.modsPath;
-  final modsDirs = allModsDirsIn(version.dataPath);
+  final modsDirs = allModsDirPathsIn(version.dataPath);
   final settingsPath = version.settingPath;
   switch (plan.kind) {
     case ModFillKind.java:

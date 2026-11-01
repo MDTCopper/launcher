@@ -499,7 +499,7 @@ class CloudManifest {
     for (final isCopper in [false, true]) {
       mods.addAll(
         await _scanMods(
-          directory: modsDirIn(dataPath, copper: isCopper),
+          directory: modsDirPathIn(dataPath, copper: isCopper),
           isCopper: isCopper,
           states: settings,
           includeBytes: includeModBytes,

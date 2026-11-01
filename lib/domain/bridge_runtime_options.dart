@@ -18,12 +18,12 @@ class BridgeRuntimeOptions {
   String? jreBuild;
   String? bridgeTag;
 
-  static String filePath({String? bridgeDir}) =>
-      p.join(bridgeDir ?? AppPaths.bridge, 'runtime.json');
+  static String filePath({String? bridgeDirPath}) =>
+      p.join(bridgeDirPath ?? AppPaths.bridge, 'runtime.json');
 
   /// 读本地设置；文件不在 / 坏了都当「跟随最新」，不抛
-  static BridgeRuntimeOptions load({String? bridgeDir}) {
-    final file = File(filePath(bridgeDir: bridgeDir));
+  static BridgeRuntimeOptions load({String? bridgeDirPath}) {
+    final file = File(filePath(bridgeDirPath: bridgeDirPath));
     if (!file.existsSync()) return BridgeRuntimeOptions();
     try {
       final decoded = jsonDecode(file.readAsStringSync());
@@ -42,8 +42,8 @@ class BridgeRuntimeOptions {
     }
   }
 
-  Future<void> save({String? bridgeDir}) async {
-    final file = File(filePath(bridgeDir: bridgeDir));
+  Future<void> save({String? bridgeDirPath}) async {
+    final file = File(filePath(bridgeDirPath: bridgeDirPath));
     await file.parent.create(recursive: true);
     final data = <String, dynamic>{
       if (jreBuild != null) 'jreBuild': jreBuild,

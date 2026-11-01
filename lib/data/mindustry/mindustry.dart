@@ -224,7 +224,7 @@ class Mindustry {
 
   /// 某类模组该放哪个目录（Copper 原生的进 `<数据目录>/copper/mods`）
   String modsPathFor({required bool copper}) =>
-      modsDirIn(dataPath, copper: copper);
+      modsDirPathIn(dataPath, copper: copper);
 
   /// 模组目录（可能不止一个）：走加载器时 Copper 原生模组在
   /// `<数据目录>/copper/mods`，原版模组仍在 `<数据目录>/mods`，加载器两个目录都扫；

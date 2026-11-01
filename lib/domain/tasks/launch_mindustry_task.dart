@@ -530,7 +530,7 @@ class LaunchMindustryTask extends Task {
 
   /// 游戏退出：BE 自更新重启的话把新进程接回来，否则按正常结束收尾
   File _launchCanceledMarkerFile() =>
-      File('${BridgeLauncher.cacheDirFor(mindustry)}/launch-canceled');
+      File('${BridgeLauncher.cacheDirPathFor(mindustry)}/launch-canceled');
 
   /// 桥侧「取消启动」的标记；读到就删掉，按取消收尾
   bool _takeLaunchCanceledMarker() {

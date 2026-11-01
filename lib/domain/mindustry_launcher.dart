@@ -310,7 +310,7 @@ class MindustryLauncher {
     }
 
     final arcRef = await BridgeLauncher.arcRefOf(mindustry);
-    String? arcDir;
+    String? arcDirPath;
     if (arcRef == null) {
       addLogAndPrint(
         .warning,
@@ -318,8 +318,8 @@ class MindustryLauncher {
         tag: 'Launch',
       );
     } else {
-      arcDir = AppPaths.bridgeArcDirPath(arcRef, abi);
-      final arcFolder = Directory(arcDir);
+      arcDirPath = AppPaths.bridgeArcDirPath(arcRef, abi);
+      final arcFolder = Directory(arcDirPath);
       if (!arcFolder.existsSync() || arcFolder.listSync().isEmpty) {
         try {
           await BridgeInstaller.installArcNatives(
@@ -349,9 +349,9 @@ class MindustryLauncher {
     final args = BridgeLauncher.buildArguments(
       gameJar: mindustry.resolvedJarPath,
       dataPath: mindustry.dataPath,
-      cacheDirPath: BridgeLauncher.cacheDirFor(mindustry),
+      cacheDirPath: BridgeLauncher.cacheDirPathFor(mindustry),
       jreDirPath: AppPaths.bridgeJre,
-      arcDir: arcDir,
+      arcDirPath: arcDirPath,
       jvmArgs: jvmArgs,
       loaderJars: loaderJars,
       loaderMainClass: loaderMainClass,

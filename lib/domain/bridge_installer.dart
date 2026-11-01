@@ -196,17 +196,17 @@ class BridgeInstaller {
 
   /// 首次运行的「装没装完」检查（**不联网**）：JRE 两个包都在 + 桥 jar 在
   ///
-  /// [bridgeDir] 只为用例注入，正常走 [AppPaths.bridge]
-  static bool isRuntimeReady({String? bridgeDir}) {
+  /// [bridgeDirPath] 只为用例注入，正常走 [AppPaths.bridge]
+  static bool isRuntimeReady({String? bridgeDirPath}) {
     final jreDir = Directory(
-      bridgeDir == null ? AppPaths.bridgeJre : p.join(bridgeDir, 'jre'),
+      bridgeDirPath == null ? AppPaths.bridgeJre : p.join(bridgeDirPath, 'jre'),
     );
     final hasJre =
         File(p.join(jreDir.path, 'bin', 'java')).existsSync() &&
         File(p.join(jreDir.path, 'lib', 'modules')).existsSync();
-    final bridgeJar = bridgeDir == null
+    final bridgeJar = bridgeDirPath == null
         ? BridgePayload.installedBridgeJar()
-        : BridgePayload.installedBridgeJar(directory: bridgeDir);
+        : BridgePayload.installedBridgeJar(directory: bridgeDirPath);
     return hasJre && bridgeJar != null;
   }
 
@@ -349,14 +349,14 @@ class BridgeInstaller {
 
   /// 读一遍运行环境的现状（给设置页看）：各项版本与占用空间
   ///
-  /// 不联网、只读本地；[bridgeDir] 只为用例注入，正常走 [AppPaths.bridge]
+  /// 不联网、只读本地；[bridgeDirPath] 只为用例注入，正常走 [AppPaths.bridge]
   static Future<BridgeRuntimeStatus> readRuntimeStatus({
-    String? bridgeDir,
+    String? bridgeDirPath,
   }) async {
-    final rootPath = bridgeDir ?? AppPaths.bridge;
+    final rootPath = bridgeDirPath ?? AppPaths.bridge;
 
     final jreDir = Directory(p.join(rootPath, 'jre'));
-    final bridgeJar = bridgeDir == null
+    final bridgeJar = bridgeDirPath == null
         ? BridgePayload.installedBridgeJar()
         : BridgePayload.installedBridgeJar(directory: rootPath);
     final wrapperJar = File(
@@ -370,7 +370,7 @@ class BridgeInstaller {
     final markerFile = File(p.join(jreDir.path, '.installed-version'));
 
     return BridgeRuntimeStatus(
-      isReady: isRuntimeReady(bridgeDir: bridgeDir),
+      isReady: isRuntimeReady(bridgeDirPath: bridgeDirPath),
       jreVersion: markerFile.existsSync()
           ? markerFile.readAsStringSync().trim()
           : null,
@@ -392,8 +392,8 @@ class BridgeInstaller {
   /// 清完 [isRuntimeReady] 会变 false，下次启动会重新走安装页。
   /// 桥会把载荷里的文件改成只读，Android 上删只读文件没问题（看目录写权限），
   /// 单个删不掉只记一条日志，不让整次清理失败
-  static Future<void> clearRuntime({String? bridgeDir}) async {
-    final rootPath = bridgeDir ?? AppPaths.bridge;
+  static Future<void> clearRuntime({String? bridgeDirPath}) async {
+    final rootPath = bridgeDirPath ?? AppPaths.bridge;
 
     _deleteQuietly(Directory(p.join(rootPath, 'jre')));
     _deleteQuietly(Directory(p.join(rootPath, 'tmp')));

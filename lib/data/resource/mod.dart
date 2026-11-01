@@ -45,15 +45,15 @@ enum ModState {
 /// 原版模组进 `<数据目录>/mods`
 ///
 /// 导入、扫描、估算都从这里取路径，别各写各的
-String modsDirIn(String dataPath, {required bool copper}) =>
+String modsDirPathIn(String dataPath, {required bool copper}) =>
     copper ? p.joinAll([dataPath, 'copper', 'mods']) : p.join(dataPath, 'mods');
 
 /// 该数据目录下所有可能放模组的目录（原版 + Copper 原生）
 ///
 /// 模组去重要跨这两个目录找同一个 mod：加载器两个目录都会扫，重复的只该留一份
-List<String> allModsDirsIn(String dataPath) => [
-  modsDirIn(dataPath, copper: true),
-  modsDirIn(dataPath, copper: false),
+List<String> allModsDirPathsIn(String dataPath) => [
+  modsDirPathIn(dataPath, copper: true),
+  modsDirPathIn(dataPath, copper: false),
 ];
 
 /// 禁用态的文件名后缀：Mindustry 自己用 `.disable`，云端清单与历史数据里也见过 `.disabled`

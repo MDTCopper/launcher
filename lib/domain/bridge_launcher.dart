@@ -30,7 +30,7 @@ class BridgeLauncher {
   ///
   /// Android 上必须放**应用内部目录**：外部存储（`/storage/emulated/0/...`）里的 `.so`
   /// 会被 `classloader-namespace` 拒绝 dlopen
-  static String cacheDirFor(Mindustry version) {
+  static String cacheDirPathFor(Mindustry version) {
     if (Platform.isAndroid) {
       return p.join(AppPaths.bridgeRoot, 'bridge-cache', version.id);
     }
@@ -42,15 +42,15 @@ class BridgeLauncher {
   /// 桥自己的选项必须写在**第一个 `--` 之前**；位置参数先给桥，注入 loader 时由
   /// loader 再吃掉一层 `--`，剩下的才轮到游戏。
   ///
-  /// [arcDir] 给 null 就不带 `--arc-lib`（查不到该版本的 arc 时按「性能下降」照起，
+  /// [arcDirPath] 给 null 就不带 `--arc-lib`（查不到该版本的 arc 时按「性能下降」照起，
   /// 别把「起不来」变成「点一下没反应」）
   static List<String> buildArguments({
     required String gameJar,
     required String dataPath,
     required String cacheDirPath,
     required String jreDirPath,
-    String? arcDir,
-    String? angleDir,
+    String? arcDirPath,
+    String? angleDirPath,
     bool gl3 = true,
     bool logcat = true,
     List<String> jvmArgs = const [],
@@ -68,8 +68,8 @@ class BridgeLauncher {
       cacheDirPath,
       '--java',
       p.join(jreDirPath, 'bin', 'java'),
-      if (arcDir != null) ...['--arc-lib', arcDir],
-      if (angleDir != null) ...['--angle-path', angleDir],
+      if (arcDirPath != null) ...['--arc-lib', arcDirPath],
+      if (angleDirPath != null) ...['--angle-path', angleDirPath],
       gl3 ? '--gl3' : '--gl2',
       for (final arg in jvmArgs) ...['-J', arg],
       if (logcat) '--logcat',
@@ -118,12 +118,12 @@ class BridgeLauncher {
       arg.startsWith('-Dmindustry.data.dir');
 
   /// 这个版本自己的桥目录：`-C` 在里面，也放「这个版本用了哪份 arc」的记录
-  static String bridgeDirFor(Mindustry version) =>
+  static String bridgeDirPathFor(Mindustry version) =>
       p.join(version.foldPath, 'bridge');
 
   /// 记「这个版本用哪份 arc」的文件（查一次落盘，之后启动不再联网）
   static String arcRefFileFor(Mindustry version) =>
-      p.join(bridgeDirFor(version), 'arc-ref');
+      p.join(bridgeDirPathFor(version), 'arc-ref');
 
   /// 这个版本该用哪份 arc
   ///
