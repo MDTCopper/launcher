@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:path/path.dart' as p;
 
@@ -93,6 +94,7 @@ abstract class Log {
       'Launch Time : ${_logTimestamp()}\n'
       'Platform : $platform ($version)\n'
       'Version : $appVersion (Build $appBuildNumber)\n'
+      'Mode: ${kDebugMode ? 'Debug' : 'Release'}\n'
       '------------------\n',
     );
     // 全部就绪后再挂上，避免中途失败留下半初始化的日志文件
