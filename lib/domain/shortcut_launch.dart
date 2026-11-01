@@ -5,6 +5,8 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/mindustry/mindustry.dart';
 import 'package:copper_launcher/domain/bridge_installer.dart';
 import 'package:copper_launcher/domain/game_instance.dart';
+import 'package:copper_launcher/domain/launch_request.dart';
+import 'package:copper_launcher/domain/quick_launch_entry.dart';
 import 'package:copper_launcher/domain/shortcut_session.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/android_host.dart';
@@ -56,7 +58,12 @@ class ShortcutLaunch {
         addLog(.warning, '快捷方式启动：界面没起来，忽略这次请求', tag: 'Shortcut');
         return;
       }
-      await _launch(versionId);
+      // 统一入口：Android 分支只做路由，真正的启动执行器仍留在本类
+      await QuickLaunchEntry.dispatch(
+        LaunchRequest(versionId),
+        source: LaunchSource.androidShortcut,
+        androidLauncher: _launch,
+      );
     } finally {
       _handling = false;
     }

@@ -55,14 +55,18 @@ typedef LaunchTicketWriter =
 /// 探测某个角色是否在线：返回 true 表示那个进程还活着
 typedef LaunchProbe = Future<bool> Function();
 
+/// Android 真正启动游戏的执行器：由 `ShortcutLaunch` 传入，入口只负责路由与调用
+typedef AndroidLauncher = Future<void> Function(String versionId);
+
 /// 统一快速启动入口：**唯一**决定「这次快捷启动交给谁」的地方
 ///
 /// 分两层，都是为了能直接替换 `main` 里那段 if 分流：
 /// - [routeFor] 是纯函数，不碰 IO，来源 + 两个在线探针就能算出路由；
 /// - [dispatch] 在桌面来源上读 [GameSessionStore] 的 pid 探针，并把请求写进
-///   `pending/`（给 UI）或 `requests/`（给服务）。Android 只返回
-///   [LaunchRoute.android]，**不在这里启动游戏**：宿主通道、等 shell、校验桥、
-///   `ShortcutSession.mark`、`GameInstance.launch` 都还留在现有 `ShortcutLaunch`。
+///   `pending/`（给 UI）或 `requests/`（给服务）。Android 来源只返回
+///   [LaunchRoute.android] 并调用 [AndroidLauncher] 回调：宿主通道、等 shell、校验桥、
+///   `ShortcutSession.mark`、`GameInstance.launch` 都还留在现有 `ShortcutLaunch`，
+///   入口只做路由与调用，不把 UI 依赖搬进来。
 ///
 /// 本类不弹 UI、不退出进程、不启动服务进程，这三件事由 `main` 按返回值做。
 class QuickLaunchEntry {
@@ -99,6 +103,10 @@ class QuickLaunchEntry {
   /// Android 来源：直接返回 [LaunchRoute.android]，探针与写入器都不会被调用
   /// （游戏启动由 `ShortcutLaunch` 走宿主通道完成）。
   ///
+  /// Android 来源：返回 [LaunchRoute.android] 并调用 [androidLauncher] 执行真正的启动
+  /// （宿主通道、等 shell、校验桥、`ShortcutSession.mark`、`GameInstance.launch` 仍在
+  /// `ShortcutLaunch` 里；入口只做路由与调用，不把 UI 依赖搬进来）。
+  ///
   /// 探针与写入器都可注入，单测不必碰真实文件系统；不传就用 [GameSessionStore]。
   static Future<LaunchRoute> dispatch(
     LaunchRequest request, {
@@ -107,8 +115,12 @@ class QuickLaunchEntry {
     LaunchProbe? serviceProbe,
     LaunchTicketWriter? pendingWriter,
     LaunchTicketWriter? requestWriter,
+    AndroidLauncher? androidLauncher,
   }) async {
-    if (source.isAndroid) return LaunchRoute.android;
+    if (source.isAndroid) {
+      await androidLauncher?.call(request.versionId);
+      return LaunchRoute.android;
+    }
 
     final route = routeFor(
       source: source,
