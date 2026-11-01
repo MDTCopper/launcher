@@ -15,14 +15,16 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
-    <style name="ArcTheme" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@android:color/transparent</item>
+    <!-- 游戏 / 桥活动的窗口：底色与铜色遮罩一致，切过去的那一刻不该先闪白 -->
+    <style name="ArcThemeBase" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/copper_launch_bg</item>
         <item name="android:colorBackgroundCacheHint">@null</item>
         <item name="android:windowAnimationStyle">@android:style/Animation</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowFullscreen">true</item>
     </style>
+    <style name="ArcTheme" parent="ArcThemeBase" />
     <!-- 静默启动：关掉窗口切换动画，别让桌面/图标露一下 -->
     <style name="SilentWindowAnimation">
         <item name="android:activityOpenEnterAnimation">@null</item>

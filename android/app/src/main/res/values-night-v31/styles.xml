@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 夜间模式下 values-night 的 ArcTheme 会盖掉 values-v31 那份（night 限定符优先级更高），
+         所以 31+ 的启动屏属性在这里再给一遍：铜色底、不画图标 -->
+    <style name="ArcTheme" parent="ArcThemeBase">
+        <item name="android:windowSplashScreenBackground">@color/copper_launch_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/silent_splash_icon</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
+    </style>
+</resources>
