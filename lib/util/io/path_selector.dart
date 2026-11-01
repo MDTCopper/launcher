@@ -170,11 +170,12 @@ class PathSelector {
   /// 存储权限（READ / WRITE_EXTERNAL_STORAGE，maxSdk 32）
   static Future<bool> _requestAndroidFilePermission(String path) async {
     // 免权限的两个根：避免 Android 13+ 传统存储权限已失效却仍弹申请
-    for (final root in <String?>[
+    for (final rootPath in <String?>[
       AppPaths.applicationSupportPath,
       AppPaths.androidExternalRoot,
     ].whereType<String>()) {
-      if (path == root || path.startsWith('$root${Platform.pathSeparator}')) {
+      if (path == rootPath ||
+          path.startsWith('$rootPath${Platform.pathSeparator}')) {
         return true;
       }
     }

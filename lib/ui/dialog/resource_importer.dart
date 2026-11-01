@@ -7,7 +7,7 @@ import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/data/models.dart'
-    show Mindustry, allModsDirsIn, modsDirIn;
+    show Mindustry, allModsDirPathsIn, modsDirPathIn;
 import 'package:copper_launcher/domain/local_game_importer.dart';
 import 'package:copper_launcher/domain/mod_install.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
@@ -265,7 +265,7 @@ class ResourceImporterState extends State<ResourceImporter> {
   List<String> get _targetModsDirs {
     final dataPath = widget.mindustry?.dataPath ?? AppPaths.defaultGameData;
     if (dataPath == null || dataPath.isEmpty) return const [];
-    return allModsDirsIn(dataPath);
+    return allModsDirPathsIn(dataPath);
   }
 
   ///目标数据目录的 settings.bin：判断旧版本是不是「游戏内禁用但文件名没改」
@@ -275,11 +275,11 @@ class ResourceImporterState extends State<ResourceImporter> {
     return p.join(dataPath, 'settings.bin');
   }
 
-  ///把 [source] 复制到 [dir]，同名文件自动加序号，不覆盖已有内容；
+  ///把 [source] 复制到 [dirPath]，同名文件自动加序号，不覆盖已有内容；
   ///返回 null 表示复制成功，否则为失败原因（与 [_importOne] 的返回值契约一致）
-  Future<String?> _copyInto(String dir, String source) async {
+  Future<String?> _copyInto(String dirPath, String source) async {
     try {
-      final target = Directory(dir);
+      final target = Directory(dirPath);
       if (!target.existsSync()) target.createSync(recursive: true);
 
       final name = source.split(Platform.pathSeparator).last;
@@ -287,10 +287,10 @@ class ResourceImporterState extends State<ResourceImporter> {
       final stem = dot < 0 ? name : name.substring(0, dot);
       final ext = dot < 0 ? '' : name.substring(dot);
 
-      var dest = '$dir${Platform.pathSeparator}$name';
+      var dest = '$dirPath${Platform.pathSeparator}$name';
       var index = 1;
       while (File(dest).existsSync()) {
-        dest = '$dir${Platform.pathSeparator}$stem ($index)$ext';
+        dest = '$dirPath${Platform.pathSeparator}$stem ($index)$ext';
         index++;
       }
       await File(source).copy(dest);
@@ -331,7 +331,7 @@ class ResourceImporterState extends State<ResourceImporter> {
           await installModFile(
             sourcePath: modPath,
             mod: mod,
-            targetDirPath: modsDirIn(gameData, copper: mod.copper),
+            targetDirPath: modsDirPathIn(gameData, copper: mod.copper),
             modsDirs: _targetModsDirs,
             tempDirPath: p.join(gameData, 'tmp'),
             known: knownMods,

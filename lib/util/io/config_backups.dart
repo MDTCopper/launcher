@@ -27,11 +27,11 @@ class ConfigBackups {
 
   /// 留一份底，返回写出的文件；**任何失败都只记日志、不往外抛**（备份不许拦启动）
   static File? write({
-    required String root,
+    required String rootPath,
     required Map<String, dynamic> json,
     DateTime? now,
   }) {
-    final directory = Directory(dirOf(root));
+    final directory = Directory(dirOf(rootPath));
     final file = File(
       p.join(
         directory.path,
@@ -48,13 +48,13 @@ class ConfigBackups {
       addLog(.warning, '配置备份写入失败：${removeNewlines('$error')}', tag: 'Config');
       return null;
     }
-    prune(root);
+    prune(rootPath);
     return file;
   }
 
   /// 最新的那份**能解析**的备份；一份都没有 / 全都解不开时给 null
-  static ({File file, Map<String, dynamic> json})? newestReadable(String root) {
-    for (final file in _filesNewestFirst(root)) {
+  static ({File file, Map<String, dynamic> json})? newestReadable(String rootPath) {
+    for (final file in _filesNewestFirst(rootPath)) {
       try {
         final decoded = jsonDecode(file.readAsStringSync());
         if (decoded is! Map) continue;

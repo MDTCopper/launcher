@@ -186,13 +186,13 @@ class JavaDownloader {
   ) => archive_extract.extractArchive(archivePath, extractDirPath);
 
   /// 在解压目录中查找 java 可执行文件
-  static String? _findJavaExecutable(String dir) {
+  static String? _findJavaExecutable(String dirPath) {
     final javaExeName = Platform.isWindows ? 'java.exe' : 'java';
-    final directory = Directory(dir);
+    final directory = Directory(dirPath);
     if (!directory.existsSync()) return null;
 
     // 检查目录本身
-    final directPath = path.join(dir, 'bin', javaExeName);
+    final directPath = path.join(dirPath, 'bin', javaExeName);
     if (File(directPath).existsSync()) return directPath;
 
     // 检查一层子目录（解压后通常有一层顶层文件夹）

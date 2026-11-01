@@ -365,7 +365,7 @@ class JavaFinder {
         final rootDir = Directory('$drive\\');
         if (!rootDir.existsSync()) continue;
 
-        final potentialDirs = [
+        final potentialDirPaths = [
           '$drive\\Program Files',
           '$drive\\Program Files (x86)',
           '$drive\\Tools',
@@ -373,7 +373,7 @@ class JavaFinder {
           '$drive\\Java',
         ];
 
-        for (final dirPath in potentialDirs) {
+        for (final dirPath in potentialDirPaths) {
           final dir = Directory(dirPath);
           if (!dir.existsSync()) continue;
 
@@ -413,7 +413,7 @@ class JavaFinder {
         final rootDir = Directory('$drive\\');
         if (!rootDir.existsSync()) continue;
 
-        final potentialDirs = [
+        final potentialDirPaths = [
           '$drive\\Program Files',
           '$drive\\Program Files (x86)',
           '$drive\\Tools',
@@ -421,7 +421,7 @@ class JavaFinder {
           '$drive\\Java',
         ];
 
-        for (final dirPath in potentialDirs) {
+        for (final dirPath in potentialDirPaths) {
           final dir = Directory(dirPath);
           if (dir.existsSync()) {
             foundPaths.addAll(await _searchRecursive(dir, 3));

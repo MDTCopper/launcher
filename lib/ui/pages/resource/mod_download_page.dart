@@ -971,7 +971,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
     //下载到当前版本时，去重要跨原版 / Copper 两个模组目录找旧版本；
     //自定义存储路径没有版本上下文，只在该目录内去重
     final modsDirs = otherSavePath == null && version != null
-        ? allModsDirsIn(version!.dataPath)
+        ? allModsDirPathsIn(version!.dataPath)
         : null;
     final settingsPath = modsDirs == null ? null : version!.settingPath;
 

@@ -13,7 +13,8 @@ import 'package:path/path.dart' as p;
 class AvatarCache {
   AvatarCache._();
 
-  static String get dir => p.join(AppPaths.copperLauncher, 'cache', 'avatars');
+  static String get dirPath =>
+      p.join(AppPaths.copperLauncher, 'cache', 'avatars');
 
   /// 同一个 URL 同时被多个头像请求时只下载一次
   static final Map<String, Future<File?>> _inflight = {};
@@ -30,7 +31,7 @@ class AvatarCache {
 
   /// 已经缓存过就直接给文件（同步，首帧不闪）
   static File? cached(String url) {
-    final file = File(p.join(dir, _fileNameOf(url)));
+    final file = File(p.join(dirPath, _fileNameOf(url)));
     return file.existsSync() ? file : null;
   }
 
@@ -54,7 +55,7 @@ class AvatarCache {
       );
       final bytes = response.data;
       if (bytes == null || bytes.isEmpty) return null;
-      final file = File(p.join(dir, _fileNameOf(url)));
+      final file = File(p.join(dirPath, _fileNameOf(url)));
       await file.parent.create(recursive: true);
       await file.writeAsBytes(bytes, flush: true);
       return file;

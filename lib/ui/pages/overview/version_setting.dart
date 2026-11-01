@@ -1618,7 +1618,7 @@ class _ModsState extends State<_Mods> {
 
     final file = File(entry.filePath);
     // 模组可能在两个目录里（copper/mods 与 mods），按它自己所在的目录改名
-    final modsDir = p.dirname(entry.filePath);
+    final modsDirPath = p.dirname(entry.filePath);
     final baseName = p.basename(entry.filePath);
 
     final rawName = baseName.endsWith('.disable')
@@ -1627,7 +1627,7 @@ class _ModsState extends State<_Mods> {
 
     // 目标文件名：启用 = 原始名；禁用 = 原始名 + .disable
     final targetName = enabled ? rawName : '$rawName.disable';
-    final targetPath = p.join(modsDir, targetName);
+    final targetPath = p.join(modsDirPath, targetName);
 
     if (entry.filePath != targetPath && await file.exists()) {
       try {
