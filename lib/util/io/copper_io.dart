@@ -1216,8 +1216,10 @@ class CopperIO {
       //重试之间 state 一直留着：不来回切 failed / connecting，界面不闪
       for (var attempt = 0; ; attempt++) {
         IOSink? sink;
+        //这一趟开始时的已收字节：判断「这趟到底收到过数据没有」
+        final attemptStartDownloaded = state.downloaded;
         try {
-          final resumeFrom = state.downloaded;
+          final resumeFrom = attemptStartDownloaded;
           final response = await _dio!.get(
             url,
             options: Options(
@@ -1326,11 +1328,15 @@ class CopperIO {
 
           //读到一半被掐断时 dio 把原始错误直接抛给流，不是 DioException
           final isTransport = e is! DioException || isTransportFailure(e);
-          // 断网时不再空转多轮：连接类失败只再试一次；其它错误（服务端抖动等）按上限重试；
-          // 写盘失败（磁盘满 / 路径不可写）一次都别重试 —— 退避几轮也一样满
+          // 连接类失败按场景分预算（收到过数据⇒断流，没收到⇒建连失败）；
+          // 其它错误（服务端抖动等）按上限重试；写盘失败（磁盘满 / 路径不可写）
+          // 一次都别重试 —— 退避几轮也一样满
+          final delivered = state.downloaded - attemptStartDownloaded;
           final limit = e is FileSystemException
               ? 0
-              : (isTransport ? 1 : retryLimit);
+              : (isTransport
+                    ? (delivered > 0 ? _abortedRetryLimit : _connectRetryLimit)
+                    : retryLimit);
           if (attempt < limit) {
             final reason = e is DioException
                 ? e.type.name
