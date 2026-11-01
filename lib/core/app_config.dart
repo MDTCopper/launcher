@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
 
-import '../util/app_paths.dart';
+import 'app_paths.dart';
 import '../util/io/config_backups.dart';
 import '../util/io/token_encryptor.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
