@@ -2,7 +2,7 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:path/path.dart' as p;
 
-import '../../util/app_paths.dart';
+import '../../core/app_paths.dart';
 import '../../util/mindustry_version_era.dart';
 import '../resource/mod.dart';
 

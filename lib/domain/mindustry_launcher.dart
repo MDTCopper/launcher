@@ -9,7 +9,7 @@ import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/domain/steam_client.dart';
 import 'package:copper_launcher/domain/steam_library.dart';
 import 'package:copper_launcher/util/android_host.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/gpu_preference.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;

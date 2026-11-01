@@ -21,7 +21,7 @@ import 'package:copper_launcher/ui/dialog/resource_importer.dart';
 import 'package:copper_launcher/ui/startup/startup_page.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/data_root_migration.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -36,6 +36,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 void main(List<String> args) async {
+  AppRuntime.startedAt = DateTime.now();
   WidgetsFlutterBinding.ensureInitialized();
   final cli = LaunchArgs.parse(args);
   // 服务 / 快捷启动触发进程不建 UI：先置位，核心初始化里就不会去弹通知 / 碰窗口
@@ -111,6 +112,7 @@ Future<void> _initializeCore() async {
   _checkPlatform();
   await AppPaths.init();
   await Log.init();
+  addLog(.info, '时间线：日志就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
   if (AppPaths.isUsingFallbackDataPath) {
     addLogAndPrint(
       .warning,
@@ -123,6 +125,7 @@ Future<void> _initializeCore() async {
   //数据目录是排查「东西写到哪去了」的第一现场，每次启动都记下来
   addLog(.info, '数据根目录：${AppPaths.copperLauncher}', tag: 'Startup');
   addLog(.info, '游戏默认数据目录：${AppPaths.defaultGameData}', tag: 'Startup');
+  addLog(.info, '时间线：基础路径就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
 
   // 数据根从应用内部搬进外部专属目录（Android）：搬完才读配置，否则会读到空根上的默认值
   final migration = await DataRootMigration.runIfNeeded();
@@ -142,6 +145,7 @@ Future<void> _initializeCore() async {
 
   await TokenEncryptor.init();
   await initAppConfig();
+  addLog(.info, '时间线：配置就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
   //config 就绪后同步网络设置（代理/token/限速/线程/镜像），此后新建请求即生效
   cio.applySettings(config.setting);
   addLog(
@@ -196,14 +200,15 @@ Future<void> _initializeUi(
     // 服务已经写过 pending：以文件为准，避免同一个请求启动两次
     final tickets = await GameSessionStore.takePending();
     for (final ticket in tickets) {
-      addLog(.info, '收到界面委托的启动请求 [${ticket.versionId}]（${ticket.reason}）', tag: 'QuickLaunch');
+      addLog(
+        .info,
+        '收到界面委托的启动请求 [${ticket.versionId}]（${ticket.reason}）',
+        tag: 'QuickLaunch',
+      );
       QuickLaunch.enqueueVersion(ticket.versionId, markShortcut: false);
     }
     if (tickets.isEmpty && launchRequest != null) {
-      QuickLaunch.enqueueVersion(
-        launchRequest.versionId,
-        markShortcut: false,
-      );
+      QuickLaunch.enqueueVersion(launchRequest.versionId, markShortcut: false);
     }
   } else if (launchRequest != null) {
     QuickLaunch.enqueue(launchRequest);

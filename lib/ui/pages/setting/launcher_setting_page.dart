@@ -19,7 +19,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart'
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/vars.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:copper_launcher/util/share_out.dart';
@@ -162,7 +162,8 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
     );
   }
 
-  Widget _buildThemeColorOptions() {    final style = Theme.of(context).textTheme.bodyLarge;
+  Widget _buildThemeColorOptions() {
+    final style = Theme.of(context).textTheme.bodyLarge;
     return Row(
       children: [
         Expanded(
@@ -291,11 +292,7 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   void _viewLog() {
     final logFile = _latestLogFile();
     if (logFile == null) {
-      addNotice(
-        icon: Icons.info_outline,
-        title: '暂无日志',
-        content: '启动器还没有写过日志',
-      );
+      addNotice(icon: Icons.info_outline, title: '暂无日志', content: '启动器还没有写过日志');
       return;
     }
     showLogFileDialog(
@@ -313,11 +310,7 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
     }
     final logDir = Directory(AppPaths.logs);
     if (!logDir.existsSync()) {
-      addNotice(
-        icon: Icons.info_outline,
-        title: '暂无日志',
-        content: '启动器还没有写过日志',
-      );
+      addNotice(icon: Icons.info_outline, title: '暂无日志', content: '启动器还没有写过日志');
       return;
     }
 
@@ -385,7 +378,9 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
 
     final archive = Archive();
     for (final file in files) {
-      archive.add(ArchiveFile.bytes(p.basename(file.path), file.readAsBytesSync()));
+      archive.add(
+        ArchiveFile.bytes(p.basename(file.path), file.readAsBytesSync()),
+      );
     }
     final bytes = ZipEncoder().encodeBytes(archive);
 
@@ -398,19 +393,23 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
     if (!await targetDir.exists()) {
       await targetDir.create(recursive: true);
     }
-    final stamp = DateTime.now()
-        .toIso8601String()
-        .replaceAll(RegExp(r'[:.]'), '-');
+    final stamp = DateTime.now().toIso8601String().replaceAll(
+      RegExp(r'[:.]'),
+      '-',
+    );
     final zip = File(p.join(targetDir.path, 'copper-logs-$stamp.zip'));
     await zip.writeAsBytes(bytes, flush: true);
 
     // 只留最近 5 份，别把用户空间堆满
-    final old = targetDir
-        .listSync()
-        .whereType<File>()
-        .where((file) => p.basename(file.path).startsWith('copper-logs-'))
-        .toList()
-      ..sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    final old =
+        targetDir
+            .listSync()
+            .whereType<File>()
+            .where((file) => p.basename(file.path).startsWith('copper-logs-'))
+            .toList()
+          ..sort(
+            (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
+          );
     for (final file in old.skip(5)) {
       try {
         file.deleteSync();
@@ -425,11 +424,7 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
   Future<void> _shareLatestLog() async {
     final latest = _latestLogFile();
     if (latest == null) {
-      addNotice(
-        icon: Icons.info_outline,
-        title: '暂无日志',
-        content: '启动器还没有写过日志',
-      );
+      addNotice(icon: Icons.info_outline, title: '暂无日志', content: '启动器还没有写过日志');
       return;
     }
     try {

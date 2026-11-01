@@ -7,7 +7,7 @@ import 'package:copper_launcher/domain/steam_library.dart';
 import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
@@ -458,11 +458,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     final tile = ReboundListTile(
       padding: EdgeInsets.all(8),
       borderRadius: BorderRadius.circular(4),
-      leading: VersionIcon(
-        version: version,
-        height: 48,
-        fallbackScale: 0.8,
-      ),
+      leading: VersionIcon(version: version, height: 48, fallbackScale: 0.8),
       title: Text(version.tag, style: theme.textTheme.bodyLarge),
       subtitle: isDesktop ? _buildVersionSubtitle(version) : null,
       onTap: () => _select(version),

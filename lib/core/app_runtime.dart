@@ -5,6 +5,12 @@
 class AppRuntime {
   AppRuntime._();
 
+  /// 本次进程启动时刻：冷启动时间线统一从它算
+  static DateTime startedAt = DateTime.now();
+
+  /// 距进程入口的毫秒数
+  static int get elapsedMs => DateTime.now().difference(startedAt).inMilliseconds;
+
   /// 无界面服务进程：不 `runApp`、不建窗口、不建托盘、不放在线服务
   static bool headless = false;
 

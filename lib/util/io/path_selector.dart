@@ -5,7 +5,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../app_paths.dart';
+import '../../core/app_paths.dart';
 import 'explorer_helper.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
@@ -144,12 +144,20 @@ class PathSelector {
       if (result.type != ResultType.done) {
         //兜底
         await OpenFilex.open(folderPath, type: "folder");
-        addLogAndPrint(.warning, "Android 文件管理器不支持定位，已打开所在文件夹：$folderPath", tag: 'Path');
+        addLogAndPrint(
+          .warning,
+          "Android 文件管理器不支持定位，已打开所在文件夹：$folderPath",
+          tag: 'Path',
+        );
       }
     } catch (e) {
       // 最终兜底：打开文件夹
       await OpenFilex.open(folderPath, type: "folder");
-      addLogAndPrint(.warning, "Android 文件定位异常，已打开所在文件夹：${removeNewlines('$e')}", tag: 'Path');
+      addLogAndPrint(
+        .warning,
+        "Android 文件定位异常，已打开所在文件夹：${removeNewlines('$e')}",
+        tag: 'Path',
+      );
     }
   }
 
@@ -166,8 +174,7 @@ class PathSelector {
       AppPaths.applicationSupportPath,
       AppPaths.androidExternalRoot,
     ].whereType<String>()) {
-      if (path == root ||
-          path.startsWith('$root${Platform.pathSeparator}')) {
+      if (path == root || path.startsWith('$root${Platform.pathSeparator}')) {
         return true;
       }
     }

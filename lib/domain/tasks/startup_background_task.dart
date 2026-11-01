@@ -10,7 +10,7 @@ import 'package:copper_launcher/ui/components/animation/eased_progress_bar.dart'
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/io/github_mirror.dart';
 import 'package:copper_launcher/util/io/java/java_finder.dart';
 import 'package:copper_launcher/util/io/log.dart';

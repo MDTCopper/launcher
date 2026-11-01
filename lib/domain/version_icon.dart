@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:copper_launcher/data/models.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:path/path.dart' as p;
 
 /// 版本图标（玩家自己换的那张）的落盘与清理
@@ -16,9 +16,13 @@ class VersionIconStorage {
     await directory.create(recursive: true);
     await _deleteFilesOf(version);
     final extension = p.extension(sourcePath).toLowerCase();
-    final fileName = '${_safeName(version.id)}${extension.isEmpty ? '.png' : extension}';
+    final fileName =
+        '${_safeName(version.id)}${extension.isEmpty ? '.png' : extension}';
     final target = File(p.join(directory.path, fileName));
-    await target.writeAsBytes(await File(sourcePath).readAsBytes(), flush: true);
+    await target.writeAsBytes(
+      await File(sourcePath).readAsBytes(),
+      flush: true,
+    );
     version.iconPath = AppPaths.toStoredPath(target.path);
   }
 
@@ -33,7 +37,8 @@ class VersionIconStorage {
     if (!await directory.exists()) return;
     final baseName = _safeName(version.id);
     await for (final entity in directory.list()) {
-      if (entity is! File || p.basenameWithoutExtension(entity.path) != baseName) {
+      if (entity is! File ||
+          p.basenameWithoutExtension(entity.path) != baseName) {
         continue;
       }
       try {

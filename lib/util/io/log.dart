@@ -5,7 +5,7 @@ import 'package:intl/intl.dart' show DateFormat;
 import 'package:path/path.dart' as p;
 
 import '../../core/app_constant.dart';
-import '../app_paths.dart';
+import '../../core/app_paths.dart';
 
 ///日志内容里的时间只写到秒（日期靠跨天时插的那行区分），形如 `21:46:12`
 final DateFormat _logTimeFormat = DateFormat('HH:mm:ss');

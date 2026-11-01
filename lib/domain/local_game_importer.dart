@@ -6,7 +6,7 @@ import 'package:copper_launcher/domain/mindustry_body.dart';
 import 'package:copper_launcher/ui/components/input/tag_input_dialog.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/os.dart';
@@ -37,7 +37,11 @@ Future<Mindustry?> importLocalGame({
       title: '类型错误',
       content: '该文件不是有效的 Mindustry 游戏文件，请确认文件存在',
     );
-    addLog(.warning, '类型错误：文件 [${reader.path}] 不是有效的 Mindustry 游戏文件', tag: 'Import');
+    addLog(
+      .warning,
+      '类型错误：文件 [${reader.path}] 不是有效的 Mindustry 游戏文件',
+      tag: 'Import',
+    );
     return null;
   }
 

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/game_process_watch.dart';
 import 'package:path/path.dart' as p;
 
@@ -59,8 +59,7 @@ class GameSession {
     tag: json['tag'] as String? ?? '',
     phase: json['phase'] as String? ?? 'launching',
     startedAt:
-        DateTime.tryParse(json['startedAt'] as String? ?? '') ??
-        DateTime.now(),
+        DateTime.tryParse(json['startedAt'] as String? ?? '') ?? DateTime.now(),
     servicePid: json['servicePid'] as int? ?? 0,
     gamePid: json['gamePid'] as int?,
     completedAt: DateTime.tryParse(json['completedAt'] as String? ?? ''),

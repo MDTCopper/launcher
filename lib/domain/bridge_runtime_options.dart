@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:path/path.dart' as p;
 
 /// 运行环境的「钉版本」设置：留空就是跟随最新

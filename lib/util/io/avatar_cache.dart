@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:path/path.dart' as p;
@@ -38,7 +38,9 @@ class AvatarCache {
   static Future<File?> load(String url) {
     final hit = cached(url);
     if (hit != null) return Future.value(hit);
-    return _inflight[url] ??= _fetch(url).whenComplete(() => _inflight.remove(url));
+    return _inflight[url] ??= _fetch(
+      url,
+    ).whenComplete(() => _inflight.remove(url));
   }
 
   static Future<File?> _fetch(String url) async {

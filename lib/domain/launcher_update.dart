@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../core/app_constant.dart';
-import '../util/app_paths.dart';
+import '../core/app_paths.dart';
 import '../util/format/string_cleaner.dart';
 import '../util/io/copper_io.dart';
 import '../util/io/log.dart';
@@ -61,7 +61,8 @@ class LauncherVersion implements Comparable<LauncherVersion> {
 
   /// tag 形态（`v0.0.1-alpha5` / `v0.0.2`）：与 release tag、产物名同一套写法，
   /// 传给更新引导脚本的版本号也用这个形态
-  String get tag => build == null ? 'v$number' : 'v$number-${channel.name}$build';
+  String get tag =>
+      build == null ? 'v$number' : 'v$number-${channel.name}$build';
 
   @override
   String toString() =>
@@ -326,11 +327,9 @@ class LauncherUpdate {
 
     addLogAndPrint(.info, '解压版更新：退出后覆盖 $installDirPath', tag: 'Update');
     try {
-      await Process.start(
-        'wscript.exe',
-        [launcher.path],
-        mode: ProcessStartMode.detached,
-      );
+      await Process.start('wscript.exe', [
+        launcher.path,
+      ], mode: ProcessStartMode.detached);
     } catch (e) {
       // 极少数环境不让跑 wscript：退回直接拉 cmd（会闪一下窗口，但更新照做）
       addLogAndPrint(

@@ -10,7 +10,7 @@ import 'package:copper_launcher/domain/game_session.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/game_process_watch.dart';
 import 'package:copper_launcher/util/io/log.dart';
 
@@ -44,6 +44,7 @@ class CloudServiceProcess {
       tag: 'CloudService',
     );
     final service = CloudServiceProcess._();
+    addLog(.info, '时间线：云服务就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
     if (launchVersionId != null) {
       await service._launch(launchVersionId, 'service_launch');
     }
@@ -87,7 +88,11 @@ class CloudServiceProcess {
       return;
     }
     if (GameInstance.blockReason(version) != GameLaunchBlock.none) {
-      addLog(.info, '云服务：启动被单实例规则拦住，交回界面 [${version.tag}]', tag: 'CloudService');
+      addLog(
+        .info,
+        '云服务：启动被单实例规则拦住，交回界面 [${version.tag}]',
+        tag: 'CloudService',
+      );
       await _delegate(versionId, 'blocked');
       return;
     }
@@ -95,12 +100,20 @@ class CloudServiceProcess {
     for (final active in await GameSessionStore.active()) {
       final other = config.versionOptions.findVersionById(active.versionId);
       if (active.versionId == version.id) {
-        addLog(.info, '云服务：这个版本已有一局在跑，交回界面 [${version.tag}]', tag: 'CloudService');
+        addLog(
+          .info,
+          '云服务：这个版本已有一局在跑，交回界面 [${version.tag}]',
+          tag: 'CloudService',
+        );
         await _delegate(versionId, 'already_running');
         return;
       }
       if (other != null && GameInstance.sameDataPath(other, version)) {
-        addLog(.info, '云服务：数据目录已被另一局占用，交回界面 [${version.tag}]', tag: 'CloudService');
+        addLog(
+          .info,
+          '云服务：数据目录已被另一局占用，交回界面 [${version.tag}]',
+          tag: 'CloudService',
+        );
         await _delegate(versionId, 'same_data');
         return;
       }
@@ -124,7 +137,11 @@ class CloudServiceProcess {
 
     final task = _findTask(version.id);
     if (task == null) {
-      addLog(.warning, '云服务：启动任务没建起来，交回界面 [${version.tag}]', tag: 'CloudService');
+      addLog(
+        .warning,
+        '云服务：启动任务没建起来，交回界面 [${version.tag}]',
+        tag: 'CloudService',
+      );
       session.phase = 'delegated';
       session.error = 'no_task';
       await GameSessionStore.save(session);
@@ -136,7 +153,8 @@ class CloudServiceProcess {
   }
 
   LaunchMindustryTask? _findTask(String versionId) {
-    for (final task in taskManager.currentTasks.whereType<LaunchMindustryTask>()) {
+    for (final task
+        in taskManager.currentTasks.whereType<LaunchMindustryTask>()) {
       if (task.mindustry.id == versionId) return task;
     }
     return null;
@@ -190,7 +208,11 @@ class CloudServiceProcess {
     session.error = 'launch_${task.status.name}';
     session.completedAt = DateTime.now();
     await GameSessionStore.save(session);
-    addLog(.warning, '云服务：启动任务结束（${task.status.name}）[${version.tag}]', tag: 'CloudService');
+    addLog(
+      .warning,
+      '云服务：启动任务结束（${task.status.name}）[${version.tag}]',
+      tag: 'CloudService',
+    );
     _lastActive = DateTime.now();
   }
 
@@ -220,7 +242,11 @@ class CloudServiceProcess {
           session.gamePid != null &&
           GameProcessWatch.isAlive(session.gamePid!)) {
         _sessions[session.versionId] = session;
-        addLog(.info, '云服务：接管运行中的游戏 [${session.tag}] pid=${session.gamePid}', tag: 'CloudService');
+        addLog(
+          .info,
+          '云服务：接管运行中的游戏 [${session.tag}] pid=${session.gamePid}',
+          tag: 'CloudService',
+        );
       } else {
         await _recoverSession(session);
       }
@@ -278,9 +304,17 @@ class CloudServiceProcess {
           mode: ProcessStartMode.detached,
           workingDirectory: File(Platform.resolvedExecutable).parent.path,
         );
-        addLog(.info, '云服务：已拉起启动器处理 [$versionId]（$reason）', tag: 'CloudService');
+        addLog(
+          .info,
+          '云服务：已拉起启动器处理 [$versionId]（$reason）',
+          tag: 'CloudService',
+        );
       } catch (error) {
-        addLog(.warning, '云服务：拉起启动器失败 ${error.toString()}', tag: 'CloudService');
+        addLog(
+          .warning,
+          '云服务：拉起启动器失败 ${error.toString()}',
+          tag: 'CloudService',
+        );
       }
     }
     _lastActive = DateTime.now();

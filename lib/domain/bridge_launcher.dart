@@ -4,7 +4,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:archive/archive.dart';
 import 'package:copper_launcher/data/models.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/art_binding.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';

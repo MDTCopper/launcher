@@ -11,7 +11,7 @@ import 'package:copper_launcher/data/models.dart'
 import 'package:copper_launcher/domain/local_game_importer.dart';
 import 'package:copper_launcher/domain/mod_install.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
@@ -75,8 +75,7 @@ Future<bool> showResourceImporter(
     addNotice(
       icon: Icons.error_outline,
       title: '不支持导入资源',
-      content:
-          '[${mindustry.tag}] 是 v126 之前的版本，无法指定游戏数据目录，资源导入后游戏读不到',
+      content: '[${mindustry.tag}] 是 v126 之前的版本，无法指定游戏数据目录，资源导入后游戏读不到',
       duration: const Duration(seconds: 6),
     );
     return false;
@@ -299,7 +298,11 @@ class ResourceImporterState extends State<ResourceImporter> {
       addLog(.info, '导入资源：$source → $dest', tag: 'Import');
       return null;
     } catch (error) {
-      addLog(.error, '导入资源失败：$source，${removeNewlines('$error')}', tag: 'Import');
+      addLog(
+        .error,
+        '导入资源失败：$source，${removeNewlines('$error')}',
+        tag: 'Import',
+      );
       return '复制失败：$error';
     }
   }
@@ -374,7 +377,11 @@ class ResourceImporterState extends State<ResourceImporter> {
     _importing = true;
     setState(() {});
 
-    addLog(.info, '开始导入 ${_selected.length} 个资源，目标目录：$_targetDataPath', tag: 'Import');
+    addLog(
+      .info,
+      '开始导入 ${_selected.length} 个资源，目标目录：$_targetDataPath',
+      tag: 'Import',
+    );
 
     //模组要跨两个目录去重，一批里可能导入多个模组：扫一次复用，别每个文件都重扫
     final knownMods =

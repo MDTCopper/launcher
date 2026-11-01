@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/mirror_node.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
@@ -453,7 +453,10 @@ class GithubMirror {
 
     // 下载优先支持 Range 的节点：哪怕稍慢，分块并发也比单流快
     final preferFirst = preferRange
-        ? {for (final node in _presetNodes) if (node.range) node.url}
+        ? {
+            for (final node in _presetNodes)
+              if (node.range) node.url,
+          }
         : const <String>{};
 
     var ranked = await _rankWorking(
@@ -540,13 +543,14 @@ class GithubMirror {
         return (node: node, ms: ms, preferred: preferFirst.contains(node));
       }),
     );
-    final working = [
-      for (final result in results)
-        if (result.ms != null) result,
-    ]..sort((a, b) {
-      if (a.preferred != b.preferred) return a.preferred ? -1 : 1;
-      return a.ms!.compareTo(b.ms!);
-    });
+    final working =
+        [
+          for (final result in results)
+            if (result.ms != null) result,
+        ]..sort((a, b) {
+          if (a.preferred != b.preferred) return a.preferred ? -1 : 1;
+          return a.ms!.compareTo(b.ms!);
+        });
     return [for (final result in working) result.node];
   }
 

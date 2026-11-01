@@ -18,7 +18,7 @@ import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/loader_download_task.dart';
 import 'package:copper_launcher/ui/dialog/loader_picker_dialog.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/file_reader.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -711,7 +711,10 @@ class _AboutState extends State<_About> {
           child: Column(
             crossAxisAlignment: .start,
             children: [
-              Text('启动器内与桌面图标都用这张图；不换时用品牌图', style: theme.textTheme.labelMedium),
+              Text(
+                '启动器内与桌面图标都用这张图；不换时用品牌图',
+                style: theme.textTheme.labelMedium,
+              ),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 8,

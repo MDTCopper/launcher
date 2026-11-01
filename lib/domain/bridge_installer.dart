@@ -6,7 +6,7 @@ import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/bridge_payload.dart';
 import 'package:copper_launcher/domain/bridge_runtime_options.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/archive_extract.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
@@ -350,7 +350,9 @@ class BridgeInstaller {
   /// 读一遍运行环境的现状（给设置页看）：各项版本与占用空间
   ///
   /// 不联网、只读本地；[bridgeDir] 只为用例注入，正常走 [AppPaths.bridge]
-  static Future<BridgeRuntimeStatus> readRuntimeStatus({String? bridgeDir}) async {
+  static Future<BridgeRuntimeStatus> readRuntimeStatus({
+    String? bridgeDir,
+  }) async {
     final rootPath = bridgeDir ?? AppPaths.bridge;
 
     final jreDir = Directory(p.join(rootPath, 'jre'));
@@ -358,9 +360,12 @@ class BridgeInstaller {
         ? BridgePayload.installedBridgeJar()
         : BridgePayload.installedBridgeJar(directory: rootPath);
     final wrapperJar = File(
-      p.join(rootPath, BridgePayload.loaderWrapperJarFileName(
-        BridgePayload.loaderWrapperVersion,
-      )),
+      p.join(
+        rootPath,
+        BridgePayload.loaderWrapperJarFileName(
+          BridgePayload.loaderWrapperVersion,
+        ),
+      ),
     );
     final markerFile = File(p.join(jreDir.path, '.installed-version'));
 
@@ -600,7 +605,10 @@ class BridgeInstaller {
     final target = File(BridgePayload.loaderWrapperJarFilePath());
     if (!target.existsSync()) {
       try {
-        await installLoaderWrapper(cancelToken: cancelToken, onStatus: onStatus);
+        await installLoaderWrapper(
+          cancelToken: cancelToken,
+          onStatus: onStatus,
+        );
       } catch (error) {
         // 下不到就按「不注入 loader」处理（调用方会按原版起），别把启动直接掀了
         addLogAndPrint(

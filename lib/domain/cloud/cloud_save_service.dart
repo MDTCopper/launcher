@@ -11,7 +11,7 @@ import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_binding_store.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
@@ -460,7 +460,11 @@ class CloudSaveService {
     final store = _loadStore();
     final owner = store.ownerOf(profile);
     if (owner != null && owner != account) {
-      addLog(.info, '云存档 [${version.tag}] 被账号 $owner 占用，当前账号不能操作', tag: 'Cloud');
+      addLog(
+        .info,
+        '云存档 [${version.tag}] 被账号 $owner 占用，当前账号不能操作',
+        tag: 'Cloud',
+      );
       return null;
     }
     final state = store.stateOf(account, profile);
@@ -645,7 +649,8 @@ class CloudSaveService {
     CancelToken? cancelToken,
   }) async {
     final account = await _resolveAccountId();
-    if (account == null) throw const CloudBindingRequiredException('未登录 BBS，无法操作云存档');
+    if (account == null)
+      throw const CloudBindingRequiredException('未登录 BBS，无法操作云存档');
     final profile = profileIdOf(version);
     final store = _loadStore();
     final owner = store.ownerOf(profile);
@@ -1019,8 +1024,7 @@ class CloudSaveService {
         throw MdtbbsException(message: '本机文件不见了：${file.path}');
       }
       final bytes = source.readAsBytesSync();
-      if (bytes.length != file.size ||
-          sha256OfBytes(bytes) != file.sha256) {
+      if (bytes.length != file.size || sha256OfBytes(bytes) != file.sha256) {
         throw MdtbbsException(message: '文件在上传前发生变化：${file.path}');
       }
       onStatus?.call('上传 ${file.path}（${uploaded + 1}/${missing.length}）');
@@ -1087,7 +1091,8 @@ class CloudSaveService {
       );
     }
 
-    final headId = snapshot?.id ??
+    final headId =
+        snapshot?.id ??
         (await MdtbbsCloudSaveApi.slot(
           accessToken: accessToken,
           slotId: slot.id,
@@ -1138,7 +1143,8 @@ class CloudSaveService {
     CloudSaveManifestPayload payload,
     Map<String, String> paths,
     Map<String, String> hashes,
-  }) _manifestPayloadOf(CloudManifest manifest, Mindustry version) {
+  })
+  _manifestPayloadOf(CloudManifest manifest, Mindustry version) {
     final dataPath = version.dataPath;
     final files = <CloudSaveManifestFile>[];
     final paths = <String, String>{};
@@ -1147,11 +1153,7 @@ class CloudSaveService {
       final path = file.entryPath;
       final local = p.join(dataPath, path);
       files.add(
-        CloudSaveManifestFile(
-          path: path,
-          size: file.size,
-          sha256: file.sha256,
-        ),
+        CloudSaveManifestFile(path: path, size: file.size, sha256: file.sha256),
       );
       paths.putIfAbsent(file.sha256, () => local);
       hashes[path] = file.sha256;
@@ -1160,11 +1162,7 @@ class CloudSaveService {
       final folder = mod.isCopper ? 'copper/mods' : 'mods';
       final path = p.posix.join(folder, mod.fileName);
       files.add(
-        CloudSaveManifestFile(
-          path: path,
-          size: mod.size,
-          sha256: mod.sha256,
-        ),
+        CloudSaveManifestFile(path: path, size: mod.size, sha256: mod.sha256),
       );
       paths.putIfAbsent(
         mod.sha256,
@@ -1181,9 +1179,7 @@ class CloudSaveService {
           if (manifest.game.build != null) 'build': manifest.game.build,
         },
         save: display?.toJson(),
-        mods: [
-          for (final mod in _modsOf(manifest)) mod.toJson(),
-        ],
+        mods: [for (final mod in _modsOf(manifest)) mod.toJson()],
       ),
       paths: paths,
       hashes: hashes,
@@ -1342,11 +1338,7 @@ class CloudSaveService {
     );
     try {
       final reader = await CloudArchiveReader.open(tempPath);
-      _validateCloudManifest(
-        reader.manifest,
-        version: version,
-        slotId: slotId,
-      );
+      _validateCloudManifest(reader.manifest, version: version, slotId: slotId);
       final report = await reader.extractTo(
         dataPath: version.dataPath,
         mode: mode,
@@ -1381,11 +1373,10 @@ class CloudSaveService {
     if (manifestAccount != null &&
         manifestAccount.isNotEmpty &&
         manifestAccount != account) {
-      throw MdtbbsException(
-        message: '这份云存档属于账号 $manifestAccount，不是当前账号',
-      );
+      throw MdtbbsException(message: '这份云存档属于账号 $manifestAccount，不是当前账号');
     }
-    final expected = localState(version)?.signature ?? cloudSignatureForSlot(slotId);
+    final expected =
+        localState(version)?.signature ?? cloudSignatureForSlot(slotId);
     final actual = manifest.cloudSignature?.trim();
     if (actual != null && actual.isNotEmpty && actual != expected) {
       throw const MdtbbsException(message: '这是另一份云存档，不能覆盖当前绑定');
@@ -1513,8 +1504,7 @@ class CloudSaveService {
       paths[file.path] = destination;
       hashes[file.path] = file.sha256;
       final local = File(destination);
-      if (local.existsSync() &&
-          sha256OfFile(destination) == file.sha256) {
+      if (local.existsSync() && sha256OfFile(destination) == file.sha256) {
         unchanged.add(destination);
       } else {
         changed.add(file);
@@ -1525,9 +1515,7 @@ class CloudSaveService {
       p.join(tempDir, 'manifest-${DateTime.now().millisecondsSinceEpoch}'),
     )..createSync(recursive: true);
     try {
-      final changedBySha = {
-        for (final file in changed) file.sha256: file,
-      };
+      final changedBySha = {for (final file in changed) file.sha256: file};
       final tempFiles = <String, String>{};
       var downloadedBytes = 0;
       if (changedBySha.isNotEmpty) {
@@ -1653,7 +1641,8 @@ class CloudSaveService {
         continue;
       }
       final lower = path.toLowerCase();
-      final category = lower.endsWith('/settings.bin') || lower == 'settings.bin'
+      final category =
+          lower.endsWith('/settings.bin') || lower == 'settings.bin'
           ? CloudCategory.settings
           : lower.startsWith('saves/') || lower.contains('/saves/')
           ? CloudCategory.save
@@ -1755,13 +1744,12 @@ class CloudSaveService {
   static List<CloudBackupFile> backups() {
     final directory = Directory(_accountBackupDir);
     if (!directory.existsSync()) return const [];
-    final files =
-        [
-          for (final entity in directory.listSync())
-            if (entity is File &&
-                p.basename(entity.path).startsWith(backupFilePrefix))
-              entity,
-        ]..sort((a, b) => b.path.compareTo(a.path));
+    final files = [
+      for (final entity in directory.listSync())
+        if (entity is File &&
+            p.basename(entity.path).startsWith(backupFilePrefix))
+          entity,
+    ]..sort((a, b) => b.path.compareTo(a.path));
     return [
       for (final file in files)
         CloudBackupFile(
@@ -1792,11 +1780,7 @@ class CloudSaveService {
       mode: CloudImportMode.overwrite,
     );
     _pruneBackups();
-    addLogAndPrint(
-      .info,
-      '用本机自备份还原：${p.basename(backupPath)}',
-      tag: 'Cloud',
-    );
+    addLogAndPrint(.info, '用本机自备份还原：${p.basename(backupPath)}', tag: 'Cloud');
     return CloudSaveRestoreResult(
       report: extracted.report,
       backupPath: safety.path,
@@ -1901,13 +1885,12 @@ class CloudSaveService {
     CloudManifest manifest,
   ) async {
     try {
-      await applyModEnabledStates(dataPath: version.dataPath, manifest: manifest);
-    } on Object catch (error) {
-      addLog(
-        .warning,
-        '调整模组启用态失败：${removeNewlines('$error')}',
-        tag: 'Cloud',
+      await applyModEnabledStates(
+        dataPath: version.dataPath,
+        manifest: manifest,
       );
+    } on Object catch (error) {
+      addLog(.warning, '调整模组启用态失败：${removeNewlines('$error')}', tag: 'Cloud');
     }
   }
 
@@ -2032,7 +2015,9 @@ class CloudSaveService {
     final account = currentAccountId;
     if (account == null) return;
     final store = _loadStore();
-    final profiles = Map<String, CloudSyncState>.from(store.profilesOf(account));
+    final profiles = Map<String, CloudSyncState>.from(
+      store.profilesOf(account),
+    );
     for (final entry in profiles.entries) {
       if (entry.value.slotId != slotId) continue;
       store.removeState(account, entry.key);
@@ -2323,10 +2308,9 @@ class CloudSaveService {
     try {
       final directory = Directory(p.dirname(enabledPath));
       if (!directory.existsSync()) directory.createSync(recursive: true);
-      File(enabledPath).writeAsStringSync(
-        jsonEncode(store.toJson()),
-        flush: true,
-      );
+      File(
+        enabledPath,
+      ).writeAsStringSync(jsonEncode(store.toJson()), flush: true);
     } catch (error) {
       addLog(.warning, '云存档开关写入失败：${removeNewlines('$error')}', tag: 'Cloud');
     }
@@ -2440,10 +2424,7 @@ class _EnabledStore {
   Map<String, dynamic> toJson() => {
     'version': 2,
     'accounts': {
-      for (final account in {
-        ...globals.keys,
-        ...profiles.keys,
-      })
+      for (final account in {...globals.keys, ...profiles.keys})
         account: {
           'global': globalOf(account),
           'profiles': profilesOf(account).toList(),

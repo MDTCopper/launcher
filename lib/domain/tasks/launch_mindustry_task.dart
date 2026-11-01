@@ -17,7 +17,7 @@ import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/dialog/java_missing_prompt.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/util/android_host.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/auto_memory.dart';
 import 'package:copper_launcher/util/format/date_time_format.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -447,11 +447,7 @@ class LaunchMindustryTask extends Task {
     final multiplayer = MdtbbsMultiplayerService.instance.state.value;
     if (supportsSettingsOverride && settingsReadable && multiplayer.inSession) {
       setting.backgroundPause = false;
-      addLog(
-        .info,
-        '联机：关闭游戏失焦暂停（backgroundpause=false）',
-        tag: 'Multiplayer',
-      );
+      addLog(.info, '联机：关闭游戏失焦暂停（backgroundpause=false）', tag: 'Multiplayer');
     }
 
     if (supportsSettingsOverride &&
@@ -511,8 +507,10 @@ class LaunchMindustryTask extends Task {
     }
 
     //监听游戏状态
+    addLog(.info, '时间线：游戏进程已创建 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
     launcher.logStream!.listen((log) {
       if (log.contains('Total time to load')) {
+        addLog(.info, '时间线：游戏可交互 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
         final index = log.indexOf(':');
         final time = log.substring(index);
         NotificationManager.addNotice(

@@ -9,7 +9,7 @@ import '../../data/models.dart';
 import '../mindustry_body.dart';
 import '../../ui/shell/drawer/log_list.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
-import '../../util/app_paths.dart';
+import '../../core/app_paths.dart';
 import '../../util/format/byte_unit.dart';
 import '../../util/io/file_reader.dart';
 import '../loader_library.dart';
@@ -123,11 +123,7 @@ class MindustryDownloadTask extends Task {
   }
 
   Future<void> _download() async {
-    notice(
-      icon: Icons.download,
-      title: '下载',
-      content: '正在下载游戏[$tag]',
-    );
+    notice(icon: Icons.download, title: '下载', content: '正在下载游戏[$tag]');
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载游戏[$tag]'));
 
     try {

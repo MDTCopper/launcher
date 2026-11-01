@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_constant.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/print_on_debug.dart';
@@ -70,10 +70,18 @@ class RemoteData {
           }
         }
       } catch (e) {
-        addLogAndPrint(.warning, '解析 remote setting_adapter 索引失败：${removeNewlines('$e')}', tag: 'RemoteData');
+        addLogAndPrint(
+          .warning,
+          '解析 remote setting_adapter 索引失败：${removeNewlines('$e')}',
+          tag: 'RemoteData',
+        );
       }
     } catch (e) {
-      addLogAndPrint(.info, 'remote 数据拉取失败，使用本地数据：${removeNewlines('$e')}', tag: 'RemoteData');
+      addLogAndPrint(
+        .info,
+        'remote 数据拉取失败，使用本地数据：${removeNewlines('$e')}',
+        tag: 'RemoteData',
+      );
     }
   }
 
@@ -106,10 +114,7 @@ class RemoteData {
   }
 
   static Future<String?> _fetch(String url) async {
-    final res = await cio.get<String>(
-      url,
-      responseType: ResponseType.plain,
-    );
+    final res = await cio.get<String>(url, responseType: ResponseType.plain);
     return res.statusCode == 200 ? res.data : null;
   }
 

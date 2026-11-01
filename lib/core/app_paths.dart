@@ -11,10 +11,9 @@ import 'package:path_provider/path_provider.dart';
 /// 其余地方只读。未 [init] 就访问会在那处抛 `LateInitializationError`，
 /// 用例记得先 `AppPaths.overrideForTesting(临时目录)`。
 ///
-/// 下面「路径」一节里的 `<数据根>` 都指 [copperLauncher]。
 abstract class AppPaths {
   // ---------------------------------------------------------------------------
-  // 路径（看这一节就够）
+  // 路径
   // ---------------------------------------------------------------------------
 
   /// 数据根：桌面端跟着 exe（绿色版）、checkout 内是 `<仓库>/data`、受限环境回退应用支持目录；
@@ -200,7 +199,9 @@ abstract class AppPaths {
   /// - 其余（绿色版装在普通目录）→ 跟着 exe 走；目录不可写（只读盘等）时
   ///   仍退回 [applicationSupportPath]，避免双击后进程秒退
   static Future<String> _resolveCopperLauncherPath() async {
-    if (Platform.isAndroid) return _androidExternalRoot ?? applicationSupportPath;
+    if (Platform.isAndroid) {
+      return _androidExternalRoot ?? applicationSupportPath;
+    }
     if (!isDesktop) return applicationSupportPath;
 
     final exeDirPath = File(Platform.resolvedExecutable).parent.path;
@@ -208,7 +209,7 @@ abstract class AppPaths {
 
     final projectRoot = await findProjectRoot(exeDirPath);
     if (projectRoot != null) {
-      // 目录可能还不存在，先建出来；建不出来只记一行，别在解析路径这一步把进程打死
+      // 目录可能还不存在，先建出来；建不出来只记一行
       final dataRootPath = p.join(projectRoot, _devDataDirName);
       try {
         await Directory(dataRootPath).create(recursive: true);
@@ -296,12 +297,7 @@ abstract class AppPaths {
     } else if (Platform.isLinux) {
       final homePath = Platform.environment['HOME'];
       if (homePath != null) {
-        _defaultGameDataPath = p.join(
-          homePath,
-          '.local',
-          'share',
-          'Mindustry',
-        );
+        _defaultGameDataPath = p.join(homePath, '.local', 'share', 'Mindustry');
       }
     }
     if (_defaultGameDataPath == null) throw ('无法获取默认游戏数据存储位置');

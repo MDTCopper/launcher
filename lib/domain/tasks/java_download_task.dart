@@ -2,7 +2,7 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/shell/drawer/log_list.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/java/java_downloader.dart';
 import 'package:flutter/material.dart';
@@ -71,7 +71,9 @@ class JavaDownloadTask extends Task {
     final storedJavaPath = AppPaths.toStoredPath(javaExe);
     final javas = config.setting.launchOptions.javaOptions.javas;
     javas.removeWhere(
-      (it) => AppPaths.resolveStoredPath(it.path) == AppPaths.resolveStoredPath(storedJavaPath),
+      (it) =>
+          AppPaths.resolveStoredPath(it.path) ==
+          AppPaths.resolveStoredPath(storedJavaPath),
     );
     javas.add(JavaInfo(path: storedJavaPath, version: version));
     await config.save();
@@ -110,7 +112,8 @@ class JavaDownloadTask extends Task {
             Expanded(child: SizedBox()),
             if (statusLabel != null)
               Text(statusLabel!, style: theme.textTheme.bodySmall),
-            if (canCancel) ReboundButton(onTap: cancel, child: Icon(Icons.close)),
+            if (canCancel)
+              ReboundButton(onTap: cancel, child: Icon(Icons.close)),
           ],
         ),
         LinearProgressIndicator(value: progress),

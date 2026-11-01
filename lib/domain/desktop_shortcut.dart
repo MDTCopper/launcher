@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:copper_launcher/data/mindustry/mindustry.dart';
 import 'package:copper_launcher/domain/launch_request.dart';
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -51,7 +51,10 @@ class DesktopShortcut {
       ),
     );
 
-    return DesktopShortcutResult(shortcutPath: shortcutPath, iconPath: iconPath);
+    return DesktopShortcutResult(
+      shortcutPath: shortcutPath,
+      iconPath: iconPath,
+    );
   }
 
   /// 桌面目录：路径按 UTF-16LE + Base64 传回，绕开控制台代码页的编码差异
@@ -74,9 +77,7 @@ class DesktopShortcut {
     try {
       final directory = Directory(AppPaths.shortcutIcons);
       await directory.create(recursive: true);
-      final target = File(
-        p.join(directory.path, '${_safeId(version.id)}.ico'),
-      );
+      final target = File(p.join(directory.path, '${_safeId(version.id)}.ico'));
 
       // 已经是 ico：直接复制，不用再转
       if (p.extension(source).toLowerCase() == '.ico') {
@@ -128,9 +129,7 @@ class DesktopShortcut {
       throw Exception('无法运行 PowerShell：${removeNewlines('$error')}');
     }
     if (result.exitCode != 0) {
-      throw Exception(
-        'PowerShell 执行失败：${removeNewlines('${result.stderr}')}',
-      );
+      throw Exception('PowerShell 执行失败：${removeNewlines('${result.stderr}')}');
     }
     return '${result.stdout}';
   }
@@ -245,7 +244,8 @@ const _pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 /// UTF-16LE 字节转字符串（PowerShell 传路径用，避免控制台编码）
 String _decodeUtf16Le(Uint8List bytes) {
   final units = <int>[
-    for (var i = 0; i + 1 < bytes.length; i += 2) bytes[i] | (bytes[i + 1] << 8),
+    for (var i = 0; i + 1 < bytes.length; i += 2)
+      bytes[i] | (bytes[i + 1] << 8),
   ];
   return String.fromCharCodes(units);
 }

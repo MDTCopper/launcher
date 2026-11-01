@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:copper_launcher/util/app_paths.dart';
+import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/version_strings.dart' as version_strings;
 import 'package:path/path.dart' as p;
 
@@ -364,6 +364,7 @@ class BridgePayloadPaths {
       p.join(jreDirPath, 'lib', 'modules'),
     if (!File(bridgeJar).existsSync()) bridgeJar,
     for (final name in arcLibNames)
-      if (!File(p.join(arcDirPath, name)).existsSync()) p.join(arcDirPath, name),
+      if (!File(p.join(arcDirPath, name)).existsSync())
+        p.join(arcDirPath, name),
   ];
 }

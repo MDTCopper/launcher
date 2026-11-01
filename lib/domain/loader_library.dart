@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../core/app_constant.dart';
-import '../util/app_paths.dart';
+import '../core/app_paths.dart';
 import '../util/format/string_cleaner.dart';
 import '../util/io/copper_io.dart';
 import '../util/io/git_refs.dart';
@@ -136,7 +136,8 @@ class LoaderLibrary {
   }) {
     final versionTags = [
       for (final tag in tags)
-        if (_versionTagPattern.hasMatch(tag.trim()) || tag == 'snapshot') tag.trim(),
+        if (_versionTagPattern.hasMatch(tag.trim()) || tag == 'snapshot')
+          tag.trim(),
     ]..sort((a, b) => compareVersion(b, a));
 
     return [
