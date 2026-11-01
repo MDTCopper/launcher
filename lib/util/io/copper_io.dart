@@ -253,6 +253,21 @@ class CopperIO {
   ///扩容的最小增益：低于它说明带宽池已饱和，多加连接只是多开销
   static const double _scaleMinGain = 0.10;
 
+  ///饱和后盲目复查的间隔：饱和不是永久结论，但也不能每几秒白开一条连接
+  ///
+  ///链路真变宽时速率会明显抬头，那条路走 [_saturatedRate] 判据立刻复查；
+  ///这里的定时复查只兜「变宽但速率没马上体现」的情况，失败一次就翻倍
+  static const Duration _saturationRecheckBase = Duration(seconds: 6);
+
+  ///复查间隔的上限：一直没变宽时，别每几秒就白开一条连接
+  static const Duration _saturationRecheckMax = Duration(seconds: 30);
+
+  ///「速率自己抬头」触发复查的门槛：比扩容增益高得多
+  ///
+  ///平滑速率只有 1 秒的量，真实链路上±10% 的抖动很常见；门槛放这么高是
+  ///只认真变宽（切网 / 代理换路 / CDN 换节点），不吃噪声
+  static const double _recheckRateGain = 0.35;
+
   ///慢块判定：平均速率低于「其它块的中位数」这个比例，且连续这么多个采样窗口
   ///
   ///比的是**长跑平均速率**而不是窗口速率，所以不需要多攒几个窗口压抖，2 个（约 1 秒）就够
@@ -1546,6 +1561,11 @@ class CopperIO {
     var scaleSaturated = !dynamicScale;
     var lastScaleRate = 0.0;
     var scaleCooldownUntil = DateTime.fromMillisecondsSinceEpoch(0);
+    //饱和后什么时候再试一条连接；间隔在反复失败时翻倍
+    DateTime? scaleRecheckAt;
+    var recheckInterval = _saturationRecheckBase;
+    //判饱和时的速率：速率自己抬头就说明链路变宽了，不必等定时复查
+    var saturatedRate = 0.0;
     final recentRates = <double>[];
     var lastSampleBytes = 0;
     var lastSampleAt = DateTime.now();
@@ -1874,32 +1894,60 @@ class CopperIO {
     ///1.5MB/s 的阈值永远碰不到；本项目真实链路上单连接就有 ~2MB/s（实测），
     ///同一个阈值会直接停在 1 条连接 —— 而那条链路 3 条连接能给 5.9MB/s。
     ///「一条够不够」本来就取决于链路，只能靠增益试出来
+    ///
+    ///饱和**不是永久结论**：链路中途可能变宽（切网 / 代理换路 / CDN 换节点），
+    ///所以隔一段冷却期直接放一条连接试一次；复查失败就把间隔翻倍
     void scaleIfNeeded(double smoothedRate) {
-      if (scaleSaturated || activeWorkers >= maxWorkers) return;
+      if (activeWorkers >= maxWorkers) return;
       //刚扩过就先等平滑窗口换过一批：否则「上一轮的增益」里还混着扩容前的
       //低速率（启动期尤其明显），会被假增益一路推着把连接开满
-      if (DateTime.now().isBefore(scaleCooldownUntil)) return;
+      final now = DateTime.now();
+      if (now.isBefore(scaleCooldownUntil)) return;
 
-      if (lastScaleRate == 0 ||
-          smoothedRate >= lastScaleRate * (1 + _scaleMinGain)) {
-        lastScaleRate = smoothedRate;
-        scaleCooldownUntil = DateTime.now().add(_scaleSampleWindow * 2);
-        spawnWorker();
-        addLog(
-          .debug,
-          '扩到 $activeWorkers 个连接（平滑速率 '
-          '${(smoothedRate / MB).toStringAsFixed(1)}MB/s）',
-          tag: 'Download',
-        );
-      } else {
+      final recheckAt = scaleRecheckAt;
+      //两种复查时机：定时到了（盲目试一条），或速率自己明显抬头（链路变宽了）
+      final improved = scaleSaturated &&
+          saturatedRate > 0 &&
+          smoothedRate >= saturatedRate * (1 + _recheckRateGain);
+      final isRecheckDue = scaleSaturated &&
+          (improved || (recheckAt != null && !now.isBefore(recheckAt)));
+      if (scaleSaturated && !isRecheckDue) return;
+
+      //复查时不比增益：新连接还没跑起来，现在量到的必然和上一轮一样
+      final hasGain = lastScaleRate == 0 ||
+          smoothedRate >= lastScaleRate * (1 + _scaleMinGain);
+      if (!isRecheckDue && !hasGain) {
         scaleSaturated = true;
+        saturatedRate = smoothedRate;
+        scaleRecheckAt = now.add(recheckInterval);
         addLog(
           .debug,
           '扩容增益不足（${(smoothedRate / MB).toStringAsFixed(1)}MB/s），'
-          '判定带宽池饱和，停在 $activeWorkers 个连接',
+          '判定带宽池饱和，停在 $activeWorkers 个连接'
+          '（${recheckInterval.inSeconds} 秒后再试一条）',
           tag: 'Download',
         );
+        //复查失败就把间隔翻倍：真饱和的链路上别每几秒白开一条连接
+        final doubled = recheckInterval * 2;
+        recheckInterval = doubled > _saturationRecheckMax
+            ? _saturationRecheckMax
+            : doubled;
+        return;
       }
+
+      scaleSaturated = false;
+      lastScaleRate = smoothedRate;
+      scaleCooldownUntil = now.add(_scaleSampleWindow * 2);
+      scaleRecheckAt = null;
+      //正常扩容成功就把复查间隔复位；复查这条不算，免得反复白试
+      if (!isRecheckDue) recheckInterval = _saturationRecheckBase;
+      spawnWorker();
+      addLog(
+        .debug,
+        '${isRecheckDue ? '饱和复查：' : ''}扩到 $activeWorkers 个连接'
+        '（平滑速率 ${(smoothedRate / MB).toStringAsFixed(1)}MB/s）',
+        tag: 'Download',
+      );
     }
 
     final sampleTimer = Timer.periodic(_scaleSampleWindow, (_) {
