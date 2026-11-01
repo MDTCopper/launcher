@@ -3,9 +3,11 @@ package io.github.copper.launcher
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
+import android.util.Log
 import androidx.core.app.CoreComponentFactory
 import io.github.copper.launcher.game.ContainerClassLoader
 import io.github.copper.launcher.game.MindustryActivity
+import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 
@@ -63,16 +65,17 @@ class CopperComponentFactory : CoreComponentFactory() {
     }
 
     /**
-     * JVM 路径：把参数交给桥，返回桥建好的 Activity。
+     * JVM 路径：参数交给桥的 `main`，活动由桥的加载器造 —— 启动器的启动画面是 [ACTIVITY] 这个子类。
      *
-     * bridge 不是一个 app，它的 ART 侧只有 jar 里的 `copper.bridge.art.Main`。
-     * `main` 解析参数并加载原生库，`launch` 返回系统要的 Activity；所以这个 Activity
-     * 既不可能、也没必要写进清单。
+     * <p>子类必须由同一个加载器定义：父类只在 bridge.jar 里，所以 dex 路径同时给 bridge.jar 和宿主 APK。
+     * 子类不在（或造不出来）就退回桥自己的 [BASE_ACTIVITY]。</p>
      */
     private fun launchBridge(cl: ClassLoader, className: String, intent: Intent?): Activity {
         val bridgeJar = intent?.getStringExtra("copper_bridge_jar")
+        val apkPath = intent?.getStringExtra("copper_bridge_apk")
         val args = intent?.getStringArrayExtra("copper_bridge_args")
         intent?.removeExtra("copper_bridge_jar")
+        intent?.removeExtra("copper_bridge_apk")
         intent?.removeExtra("copper_bridge_args")
 
         // 桥要靠 jar 位置拼 JVM classpath；这个选项必须插在调用方第一个 `--` 之前，
@@ -81,13 +84,33 @@ class CopperComponentFactory : CoreComponentFactory() {
 
         return try {
             // 与 ART 路径同一个子优先加载器；bridge.jar 既是类来源，也是原生库/版本资源来源
-            val bridge = ContainerClassLoader(bridgeJar.orEmpty(), cl)
-            val entry = bridge.loadClass("copper.bridge.art.Main")
-            entry.getDeclaredMethod("main", Array<String>::class.java).invoke(null, bridgeArgs as Any)
-            entry.getDeclaredMethod("launch").invoke(null) as Activity
+            val bridge = ContainerClassLoader(dexPath(bridgeJar, apkPath), cl)
+            bridge.loadClass(ENTRY).getDeclaredMethod("main", Array<String>::class.java)
+                .invoke(null, bridgeArgs as Any)
+            instantiate(bridge, ACTIVITY)
+                ?: instantiate(bridge, BASE_ACTIVITY)
+                ?: throw IllegalStateException("bridge jar carries no $BASE_ACTIVITY")
         } catch (error: Throwable) {
             failure(cl, className, error)
         }
+    }
+
+    /** 桥的加载器看两处：自己的 jar 在前，宿主 APK 在后（只为启动器自己的子类）。 */
+    private fun dexPath(bridgeJar: String?, apkPath: String?): String = when {
+        bridgeJar.isNullOrEmpty() -> apkPath.orEmpty()
+        apkPath.isNullOrEmpty() -> bridgeJar
+        else -> bridgeJar + File.pathSeparator + apkPath
+    }
+
+    /** 由 [loader] 定义并造出这个 Activity；这个类不在（或造不出来）就交给调用方换下一个。 */
+    private fun instantiate(loader: ClassLoader, name: String): Activity? = try {
+        loader.loadClass(name).getDeclaredConstructor().newInstance() as Activity
+    } catch (missing: ClassNotFoundException) {
+        null
+    } catch (error: Throwable) {
+        // 能造出来却坏了是另一回事：记下来，退回桥自己的活动，别让一次显示问题毁掉整局
+        Log.w(TAG, "cannot build $name; falling back", error)
+        null
     }
 
     /** 在调用方第一个 `--` 前插入 `--bridge-jar <jar>`；没有就追加到末尾。 */
@@ -124,5 +147,16 @@ class CopperComponentFactory : CoreComponentFactory() {
          * 它什么都不说就把自己关掉。
          */
         const val PLACEHOLDER = "io.github.copper.launcher.game.MindustryActivity"
+
+        /** 桥的 ART 入口：解析参数、加载原生库。 */
+        const val ENTRY = "copper.bridge.art.Main"
+
+        /** 桥自己的活动：没有子类、或子类造不出来时用它，游戏照样能起来（只是没有启动画面）。 */
+        const val BASE_ACTIVITY = "copper.bridge.art.BridgeActivity"
+
+        /** 启动器的桥活动子类：铜色启动画面。由桥的加载器定义，见 [launchBridge]。 */
+        const val ACTIVITY = "io.github.copper.launcher.game.CopperGameActivity"
+
+        const val TAG = "CopperComponentFactory"
     }
 }

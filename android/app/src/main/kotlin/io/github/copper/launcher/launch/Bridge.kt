@@ -32,6 +32,9 @@ object Bridge {
         GameProcess.killGameProcess(activityContext.applicationContext)
         val intent = Intent(activityContext, MindustryActivity::class.java)
         intent.putExtra("copper_bridge_jar", jar.absolutePath)
+        // 宿主的 APK 也要给组件工厂：桥的加载器要把启动器自己的桥活动子类（铜色启动画面）
+        // 也定义在自己名下，否则子类的父类在宿主加载器里找不到
+        intent.putExtra("copper_bridge_apk", activityContext.applicationInfo.sourceDir)
         intent.putExtra("copper_bridge_args", args)
         activityContext.startActivity(intent)
         // 启动器已经用主题色罩住自己：淡入淡出比系统默认滑动更稳，不会滑到一半停住
