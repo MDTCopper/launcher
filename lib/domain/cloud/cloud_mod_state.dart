@@ -38,6 +38,7 @@ class CloudModStateReport {
 Future<CloudModStateReport> applyModEnabledStates({
   required String dataPath,
   required CloudManifest manifest,
+  Map<String, bool>? modStates,
 }) async {
   final report = CloudModStateReport();
 
@@ -65,8 +66,9 @@ Future<CloudModStateReport> applyModEnabledStates({
     ];
   }
 
+  final states = modStates ?? manifest.modStates;
   for (final mod in manifest.mods) {
-    final desired = mod.enabled ?? manifest.modStates[mod.internalName ?? ''];
+    final desired = mod.enabled ?? states[mod.internalName ?? ''];
     if (desired == null) continue;
 
     final matches = await findFiles(mod);

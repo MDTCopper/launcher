@@ -11,6 +11,7 @@ import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_binding_store.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
+import 'package:copper_launcher/domain/mod_install.dart';
 import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -1559,7 +1560,8 @@ class CloudSaveService {
       }
 
       onStatus?.call('覆盖本机存档');
-      final report = CloudImportReport(manifest: _manifestOfRemote(remote));
+      final manifest = _manifestOfRemote(remote);
+      final report = CloudImportReport(manifest: manifest);
       report.unchanged.addAll(unchanged);
       for (final file in changed) {
         final destination = paths[file.path]!;
@@ -1576,6 +1578,15 @@ class CloudSaveService {
           }
         }
       }
+      // 与整包恢复同一套口径：模组启用态要按清单写回，否则会出现装好但没生效
+      final modStates = await readInstalledModStates(
+        p.join(version.dataPath, 'settings.bin'),
+      );
+      await _applyModStatesQuietly(
+        version,
+        manifest,
+        modStates: modStates,
+      );
       _pruneBackups();
       _rememberSynced(
         version,
@@ -1880,14 +1891,19 @@ class CloudSaveService {
   }
 
   /// 按云清单把模组的启用态落回本机；失败只记日志（别把整个恢复搞挂）
+  ///
+  /// [modStates] 给 manifest 快照用：服务端 mod 元数据不带启用态，
+  /// 而启用态就在刚恢复的 `settings.bin` 里，重新读一遍比清单可靠
   static Future<void> _applyModStatesQuietly(
     Mindustry version,
-    CloudManifest manifest,
-  ) async {
+    CloudManifest manifest, {
+    Map<String, bool>? modStates,
+  }) async {
     try {
       await applyModEnabledStates(
         dataPath: version.dataPath,
         manifest: manifest,
+        modStates: modStates,
       );
     } on Object catch (error) {
       addLog(.warning, '调整模组启用态失败：${removeNewlines('$error')}', tag: 'Cloud');
