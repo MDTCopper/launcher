@@ -1,4 +1,4 @@
-﻿import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_gap_fill.dart';
@@ -63,20 +63,25 @@ class CloudPullTask extends CloudSyncTask {
         : CloudSaveService.versionOfProfile(targetProfile);
     var needBind = targetProfile == null;
     var installedNow = false;
+    String? staleProfile;
     if (version == null) {
       if (isDefaultSlot) {
         // 默认存档的槽位名里没有发布号，装不出游戏版本
         updateQueueItem(item, failed: true);
         return '默认存档没有对应的本机版本：先在主页选好一个游戏版本再拉取';
       }
-      // 绑定在但实例已经不在了：旧 profile 作废，按「没有实例」新建一个
-      if (boundProfile != null && boundProfile != 'default') {
+      // 绑定在但实例已经不在了：先记下旧 profile，装好新实例再作废它
+      // （装失败时不能把玩家原来的绑定弄丢）
+      final stale = (boundProfile != null && boundProfile != 'default')
+          ? boundProfile
+          : null;
+      staleProfile = stale;
+      if (stale != null) {
         addLog(
           .warning,
-          '拉取 [$slot.name]：绑定 $boundProfile 对应的实例已不在，按新实例处理',
+          '拉取 [$slot.name]：绑定 $stale 对应的实例已不在，按新实例处理',
           tag: 'Cloud',
         );
-        CloudSaveService.discardProfileBinding(boundProfile);
       }
       final prep = await _prepareVersion(release, isolation: !isDefaultSlot);
       if (prep.task == null) {
@@ -126,6 +131,10 @@ class CloudPullTask extends CloudSyncTask {
     }
 
     if (needBind) CloudSaveService.bindSlot(version, slot.id);
+    // 新实例绑好了才作废旧 profile：中途失败时玩家的原绑定还在
+    if (needBind && staleProfile != null) {
+      CloudSaveService.discardProfileBinding(staleProfile);
+    }
     final head = slot.currentSnapshotId;
     if (head == null) {
       updateQueueItem(item, done: true);
