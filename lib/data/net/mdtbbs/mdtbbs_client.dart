@@ -319,6 +319,7 @@ class MdtbbsClient {
     Map<String, String>? headers,
     CancelToken? cancelToken,
     HttpStatusCallback? onStatus,
+    int? chunkCount,
   }) async {
     try {
       await cio.download(
@@ -327,6 +328,7 @@ class MdtbbsClient {
         headers: {...?headers, ...?_authHeader(accessToken)},
         cancelToken: cancelToken,
         onStatus: onStatus,
+        chunkCount: chunkCount,
       );
     } on DioException catch (error) {
       throw _asMdtbbsException(error);

@@ -387,10 +387,14 @@ class MdtbbsCloudSaveApi {
   }
 
   /// 下载 manifest 里的一个文件到本地临时路径
+  ///
+  /// [singleStream] 为 true 时走单流（不给 cio 分块）：小文件本来就没多少分块收益，
+  /// 并发下载时再叠 8 路分块会白开一堆连接
   static Future<void> downloadBlobFile({
     required String accessToken,
     required CloudSaveBlobDownload download,
     required String savePath,
+    bool singleStream = false,
     HttpStatusCallback? onStatus,
     CancelToken? cancelToken,
   }) async {
@@ -400,6 +404,7 @@ class MdtbbsCloudSaveApi {
       accessToken: accessToken,
       headers: download.headers,
       onStatus: onStatus,
+      chunkCount: singleStream ? 1 : null,
       cancelToken: cancelToken,
     );
   }

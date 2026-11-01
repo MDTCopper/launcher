@@ -1709,8 +1709,9 @@ class CloudSaveService {
     var stopped = false;
 
     Future<void> downloadOne(
-      MapEntry<String, CloudSaveManifestFile> entry,
-    ) async {
+      MapEntry<String, CloudSaveManifestFile> entry, {
+      required bool singleStream,
+    }) async {
       if (stopped || (cancelToken?.isCancelled ?? false)) {
         throw const MdtbbsException(message: '已取消');
       }
@@ -1725,6 +1726,7 @@ class CloudSaveService {
           accessToken: accessToken,
           download: grant,
           savePath: tempPath,
+          singleStream: singleStream,
           onStatus: (state) {
             inFlightBytes[entry.key] = state.downloaded;
             reportProgress();
@@ -1759,7 +1761,7 @@ class CloudSaveService {
           while (!stopped) {
             if (next >= small.length) return;
             final entry = small[next++];
-            await downloadOne(entry);
+            await downloadOne(entry, singleStream: true);
           }
         }
 
@@ -1773,7 +1775,7 @@ class CloudSaveService {
       }
     }
     for (final entry in large) {
-      await downloadOne(entry);
+      await downloadOne(entry, singleStream: false);
     }
     return finishedBytes;
   }
