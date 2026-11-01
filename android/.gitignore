@@ -9,6 +9,8 @@ GeneratedPluginRegistrant.java
 gradle-daemon-jvm.properties
 /build/
 /.kotlin/
+# 编译期用的桥 jar 缓存（app/build.gradle.kts 从 release 拉下来的那份）
+/.bridge/
 
 # Remember to never publicly share your keystore.
 # See https://flutter.dev/to/reference-keystore

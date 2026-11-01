@@ -1,3 +1,6 @@
+import java.net.URI
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.Properties
 
 plugins {
@@ -5,6 +8,74 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     // 不再显式声明 kotlin-android：AGP 9 内置 Kotlin，Flutter 插件在 builtInKotlin=false 下自动代为 apply KGP
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+/**
+ * 编译期要的那份桥：`CopperGameActivity` 继承 `copper.bridge.art.BridgeActivity`，App 只用到这里和
+ * `copper.bridge.Bridge` 两个门面。运行时那份来自载荷（`lib/domain/bridge_payload.dart`），所以是
+ * compileOnly，不进 APK。
+ *
+ * 来源二选一：
+ * - `-Pcopper.bridge.jar=<jar>`（也认环境变量 `COPPER_BRIDGE_JAR`、`local.properties` 的同名键）：
+ *   本地构建直接指向 `android-bridge` 的产物；
+ * - 否则从 GitHub release 下载并缓存：默认 `snapshot`，`-Pcopper.bridge.tag=0.1.3` 换版本，
+ *   `-Pcopper.bridge.refresh=true` 强制重下。缓存放在 `android/.bridge/`，同一个 tag 只下一次。
+ */
+val bridgeTag: String = providers.gradleProperty("copper.bridge.tag").getOrElse("snapshot")
+
+/** 显式给的本地桥 jar，优先于下载。 */
+val localBridgeJar: File? = run {
+    val local = Properties().apply {
+        rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }
+    listOfNotNull(
+        providers.gradleProperty("copper.bridge.jar").orNull,
+        System.getenv("COPPER_BRIDGE_JAR"),
+        local.getProperty("copper.bridge.jar"),
+    ).map { file(it) }.firstOrNull { it.isFile }
+}
+
+/** 资产地址与文件名：`releases/download/<tag>/bridge-<tag>.jar`，与载荷那边同一条约定。 */
+val bridgeJarUrl =
+    "https://github.com/MDTCopper/android-bridge/releases/download/$bridgeTag/bridge-$bridgeTag.jar"
+
+val bridgeJarCache: File =
+    rootProject.layout.projectDirectory.dir(".bridge").file("bridge-$bridgeTag.jar").asFile
+
+val fetchBridgeJar by tasks.registering {
+    group = "build"
+    description = "下载编译期用的桥 jar（tag=$bridgeTag）到 android/.bridge，已缓存则跳过"
+    val target = bridgeJarCache
+    val url = bridgeJarUrl
+    val refresh = providers.gradleProperty("copper.bridge.refresh").isPresent
+    outputs.file(target)
+    onlyIf { refresh || !target.isFile || target.length() == 0L }
+    doLast {
+        target.parentFile.mkdirs()
+        val partial = File(target.parentFile, target.name + ".part")
+        logger.lifecycle("copper.bridge: 下载 $url")
+        try {
+            URI(url).toURL().openConnection().apply {
+                connectTimeout = 15_000
+                readTimeout = 120_000
+                setRequestProperty("User-Agent", "copper-launcher-gradle")
+            }.getInputStream().use { input ->
+                partial.outputStream().use { output -> input.copyTo(output) }
+            }
+        } catch (error: Exception) {
+            partial.delete()
+            throw GradleException(
+                "下载桥 jar 失败：$url\n${error.message}\n" +
+                    "给 -Pcopper.bridge.jar=<android-bridge 构建出的 bridge.jar> 可跳过下载",
+                error,
+            )
+        }
+        Files.move(
+            partial.toPath(),
+            target.toPath(),
+            StandardCopyOption.REPLACE_EXISTING,
+        )
+    }
 }
 
 android {
@@ -74,6 +145,11 @@ kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
+}
+
+dependencies {
+    // 桥的类只在编译期用到（CopperGameActivity 继承 BridgeActivity），运行期由载荷里的 bridge.jar 提供
+    if (localBridgeJar != null) compileOnly(files(localBridgeJar)) else compileOnly(files(fetchBridgeJar))
 }
 
 // Android 桥的生成物（AndroidCall / AndroidEvent）随源码提交：每次构建前仍用 Dart
