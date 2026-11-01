@@ -8,43 +8,50 @@ import 'package:copper_launcher/domain/game_instance.dart';
 import 'package:copper_launcher/domain/launch_request.dart';
 import 'package:copper_launcher/domain/quick_launch_entry.dart';
 import 'package:copper_launcher/domain/shortcut_session.dart';
+import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
-import 'package:copper_launcher/util/android_host.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/host_annotations.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart' show Icons;
-import 'package:flutter/services.dart';
 
 /// 桌面快捷方式「直接启动游戏」的 Dart 侧入口
 ///
-/// 快捷方式带 `version_id` 回到宿主（`MainActivity` 先攒着），这里在启动器起来后
-/// 取一次并直接拉起对应版本；取走即清空，连点不会重复建启动任务
+/// 快捷方式带 `version_id` 回到宿主（`IncomingIntake` 先攒着），这里在启动器起来后
+/// 取一次并直接拉起对应版本；取走即清空，连点不会重复建启动任务。
+/// 宿主的新请求通过生成的 [AndroidEvent] 直接调 [onShortcutLaunch] 推过来；
+/// 冷启动时引擎会把平台消息排到 Dart 起来之后再送，所以事件和 `takeLaunchRequest`
+/// 可能各触发一次同一份请求，由 [_launch] 按版本 id 去重。
 class ShortcutLaunch {
   ShortcutLaunch._();
 
-  static const _channel = MethodChannel('io.github.copper.launcher/host');
-  static const _available = 'launchRequestAvailable';
-
   static bool _started = false;
   static bool _handling = false;
+
+  /// 正在处理的版本 id：同一次快捷方式的事件 + 冷启动 take 只处理一份
+  static String? _lastVersionId;
+  static DateTime? _lastLaunchedAt;
   static Future<bool> Function()? _waitForShell;
 
-  /// 启动时调一次：接管后续请求，并把冷启动那次取回来
+  /// 启动时调一次：把冷启动那次请求取回来
   ///
+  /// 通道接线（`AndroidEvent.start()`）由启动流程统一做，这里只管取数据；
   /// [waitForShell] 给界面就绪信号：启动前可能还有冲突弹窗之类的界面动作，
   /// 拿不到界面时这次请求只记日志、不启动
   static Future<void> start({Future<bool> Function()? waitForShell}) async {
     if (!Platform.isAndroid || _started) return;
     _started = true;
     _waitForShell = waitForShell;
-    _channel.setMethodCallHandler(_handleCall);
     await _consume();
   }
 
-  /// 宿主通知有新请求；本体要自己取一次（冷启动时通知会早于这里接线）
-  static Future<void> _handleCall(MethodCall call) async {
-    if (call.method != _available) return;
-    await _consume();
+  /// 宿主推来的新请求：热启动事件自带版本 id，不用再取一次
+  ///
+  /// 冷启动时宿主那次事件不会被丢（引擎会把平台消息排到 Dart 起来之后再送），
+  /// 会和 [start] 里的 `takeLaunchRequest` 各触发一次同一份请求，所以 [_launch] 里要去重。
+  @KotlinEvent()
+  static void onShortcutLaunch(String versionId, bool silent) {
+    unawaited(_launch(versionId));
   }
 
   static Future<void> _consume() async {
@@ -71,7 +78,7 @@ class ShortcutLaunch {
 
   static Future<String?> _takeLaunchRequest() async {
     try {
-      final value = await _channel.invokeMethod<String>('takeLaunchRequest');
+      final value = await AndroidCall.takeLaunchRequest();
       if (value == null) return null;
       addLog(
         .info,
@@ -80,18 +87,39 @@ class ShortcutLaunch {
       );
       return value;
     } on Object catch (error) {
-      addLog(.warning, '取快捷方式启动请求失败：${removeNewlines('$error')}', tag: 'Shortcut');
+      addLog(
+        .warning,
+        '取快捷方式启动请求失败：${removeNewlines('$error')}',
+        tag: 'Shortcut',
+      );
       return null;
     }
   }
 
+  /// 同一次快捷方式会从「事件」和「冷启动 take」前后脚各来一次
+  ///
+  /// 只按「并发」去重不够：先到的那次很快就把请求交给启动任务（事件回调先跑），
+  /// 后到的 take 已经在另一个回合，会再走一遍并撞上 GameInstance 的「已有游戏在运行」，
+  /// 给玩家弹一条无意义的提示。这里按版本 id + 短时间窗去重。
   static Future<void> _launch(String versionId) async {
+    final now = DateTime.now();
+    final lastAt = _lastLaunchedAt;
+    final duplicate = _lastVersionId == versionId &&
+        lastAt != null &&
+        now.difference(lastAt) < const Duration(seconds: 5);
+    if (duplicate) return;
+    _lastVersionId = versionId;
+    _lastLaunchedAt = now;
+    await _launchOnce(versionId);
+  }
+
+  static Future<void> _launchOnce(String versionId) async {
     if (!BridgeInstaller.isRuntimeReady()) {
       addLog(.warning, '快捷方式启动：桥运行环境还没装好，忽略', tag: 'Shortcut');
       await _showLauncher();
       return;
     }
-    if (await AndroidHost.isGameActivityVisible()) {
+    if (await _isGameActivityVisible()) {
       addLog(.info, '快捷方式启动：游戏界面还在，回到游戏', tag: 'Shortcut');
       // 快捷方式是显式拉起 MainActivity，会在游戏上再压一个启动器实例；
       // 结束自己就把下面的游戏露出来，别让人看到启动器
@@ -132,21 +160,38 @@ class ShortcutLaunch {
   /// 游戏退出 / 启动失败时撤掉静默启动的黑幕，把启动器界面还回来
   static Future<void> showLauncher() => _showLauncher();
 
+  static Future<bool> _isGameActivityVisible() async {
+    try {
+      return await AndroidCall.isGameActivityVisible();
+    } on Object catch (error) {
+      addLog(.warning, '查询游戏界面失败：${removeNewlines('$error')}', tag: 'Shortcut');
+      return false;
+    }
+  }
+
   /// 把启动器窗口恢复可见（静默启动的收尾 / 启动失败时让玩家看到提示）
   static Future<void> _showLauncher() async {
     try {
-      await _channel.invokeMethod('setLauncherVisible');
+      await AndroidCall.hide();
     } on Object catch (error) {
-      addLog(.warning, '恢复启动器窗口失败：${removeNewlines('$error')}', tag: 'Shortcut');
+      addLog(
+        .warning,
+        '恢复启动器窗口失败：${removeNewlines('$error')}',
+        tag: 'Shortcut',
+      );
     }
   }
 
   /// 结束当前启动器实例（游戏在跑时用），把下面的游戏露出来
   static Future<void> _finishLauncher() async {
     try {
-      await _channel.invokeMethod('finishLauncher');
+      await AndroidCall.finishLauncher();
     } on Object catch (error) {
-      addLog(.warning, '结束启动器实例失败：${removeNewlines('$error')}', tag: 'Shortcut');
+      addLog(
+        .warning,
+        '结束启动器实例失败：${removeNewlines('$error')}',
+        tag: 'Shortcut',
+      );
     }
   }
 
@@ -154,22 +199,25 @@ class ShortcutLaunch {
   ///
   /// 图标优先用玩家给版本换的那张，没换过用 jar 里的 logo；返回 false 表示桌面不支持固定快捷方式
   static Future<bool> requestPinShortcut(Mindustry version) async {
-    if (!Platform.isAndroid) return false;
     try {
-      final result = await _channel.invokeMethod<bool>('requestPinShortcut', {
-        'versionId': version.id,
-        'tag': version.tag,
-        'jarPath': version.resolvedJarPath,
-        'iconPath': version.resolvedIconPath ?? '',
-      });
+      final result = await AndroidCall.requestPinShortcut(
+        version.id,
+        version.tag,
+        version.resolvedJarPath,
+        version.resolvedIconPath ?? '',
+      );
       addLog(
         .info,
-        '请求桌面快捷方式 [${version.tag}]：${result == true ? '已提交' : '桌面不支持'}',
+        '请求桌面快捷方式 [${version.tag}]：${result ? '已提交' : '桌面不支持'}',
         tag: 'Shortcut',
       );
-      return result ?? false;
+      return result;
     } on Object catch (error) {
-      addLog(.warning, '请求桌面快捷方式失败：${removeNewlines('$error')}', tag: 'Shortcut');
+      addLog(
+        .warning,
+        '请求桌面快捷方式失败：${removeNewlines('$error')}',
+        tag: 'Shortcut',
+      );
       return false;
     }
   }
@@ -178,22 +226,25 @@ class ShortcutLaunch {
   ///
   /// 返回 false 表示这台设备的桌面不支持一键添加，需要引导用户去小组件面板
   static Future<bool> requestPinWidget(Mindustry version) async {
-    if (!Platform.isAndroid) return false;
     try {
-      final result = await _channel.invokeMethod<bool>('requestPinWidget', {
-        'versionId': version.id,
-        'tag': version.tag,
-        'jarPath': version.resolvedJarPath,
-        'iconPath': version.resolvedIconPath ?? '',
-      });
+      final result = await AndroidCall.requestPinWidget(
+        version.id,
+        version.tag,
+        version.resolvedJarPath,
+        version.resolvedIconPath ?? '',
+      );
       addLog(
         .info,
-        '请求桌面小组件 [${version.tag}]：${result == true ? '已提交' : '桌面不支持'}',
+        '请求桌面小组件 [${version.tag}]：${result ? '已提交' : '桌面不支持'}',
         tag: 'Shortcut',
       );
-      return result ?? false;
+      return result;
     } on Object catch (error) {
-      addLog(.warning, '请求桌面小组件失败：${removeNewlines('$error')}', tag: 'Shortcut');
+      addLog(
+        .warning,
+        '请求桌面小组件失败：${removeNewlines('$error')}',
+        tag: 'Shortcut',
+      );
       return false;
     }
   }

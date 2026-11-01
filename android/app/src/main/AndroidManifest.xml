@@ -25,12 +25,12 @@
          (BridgeActivity.onKeyDown), and Flutter keeps handling it through onBackPressed. -->
     <application
         android:label="Copper Launcher"
-        android:name="io.github.copper.CopperApplication"
+        android:name="io.github.copper.launcher.CopperApplication"
         android:icon="@mipmap/ic_launcher"
         android:largeHeap="true"
         android:isGame="true"
         android:appCategory="game"
-        android:appComponentFactory="io.github.copper.CopperComponentFactory"
+        android:appComponentFactory="io.github.copper.launcher.CopperComponentFactory"
         tools:replace="android:appComponentFactory"
         android:resizeableActivity="true"
         android:enableOnBackInvokedCallback="false">
@@ -116,7 +116,7 @@
              moveTaskToBack has to move the whole app. configChanges covers everything that would
              recreate an activity holding a running JVM. -->
         <activity
-            android:name="io.github.copper.MindustryActivity"
+            android:name="io.github.copper.launcher.game.MindustryActivity"
             android:exported="false"
             android:label="@string/mdt_title"
             android:theme="@style/ArcTheme"
@@ -128,7 +128,7 @@
 
         <!-- 1x1 桌面小组件：外观自己画，没有桌面白卡片与来源角标，点一下直接启动游戏 -->
         <receiver
-            android:name=".GameWidgetProvider"
+            android:name="io.github.copper.launcher.shortcut.GameWidgetProvider"
             android:exported="true"
             android:label="@string/game_widget_label">
             <intent-filter>
@@ -158,7 +158,7 @@
 
         <!-- 小组件配置页：只是把「这次要绑哪个版本」写进绑定表，界面透明、随即结束 -->
         <activity
-            android:name=".GameWidgetConfigActivity"
+            android:name="io.github.copper.launcher.shortcut.GameWidgetConfigActivity"
             android:exported="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:excludeFromRecents="true" />

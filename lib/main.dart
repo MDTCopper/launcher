@@ -23,6 +23,7 @@ import 'package:copper_launcher/ui/startup/startup_page.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/core/app_paths.dart';
+import 'package:copper_launcher/generated/android_event.g.dart';
 import 'package:copper_launcher/util/data_root_migration.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -192,8 +193,10 @@ Future<void> _initializeUi(
   //启动即登录：读盘 → 拉一次资料（头像 / 用户名给顶栏与好友用），失败不打扰
   unawaited(_warmUpAccount());
 
+  //宿主 → Dart 事件：先装通道 handler（非安卓平台它自己短路），之后各自取冷启动数据
+  AndroidEvent.start();
   //系统分享进来的文件（安卓）：宿主已经把它们复制到缓存目录，
-  //接线后与桌面拖入走同一条导入路；冷启动那次分享也在这里被取回来
+  //与桌面拖入走同一条导入路；冷启动那次分享也在这里被取回来
   ShareIn.onFiles((files) => unawaited(_importSharedFiles(files)));
   await ShareIn.start();
   //桌面快捷方式「直接启动」：把冷启动那次请求取回来，启动器起来后拉起对应版本

@@ -54,8 +54,6 @@ dependencies:
   flutter_secure_storage: ^10.3.1
   go_router: ^17.3.0
   material_symbols_icons: ^4.2960.0
-  jni: ^1.0.3
-  jni_flutter: ^1.0.3
   permission_handler: ^13.0.2
   tray_manager: ^0.2.3
   flutter_single_instance: ^1.7.0
@@ -66,7 +64,6 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.10.0
   json_serializable: ^6.11.1
-  jnigen: ^0.17.0
 
 dependency_overrides:
   permission_handler_windows:
