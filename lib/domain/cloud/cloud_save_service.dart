@@ -633,11 +633,29 @@ class CloudSaveService {
     return null;
   }
 
-  /// 槽位名里的发布号：`设备名 · v160.5`，设备名自带分隔时取最后一段
+  /// 槽位名里的发布号
+  ///
+  /// 名字是 `设备名 · release[ · boundTag] #短码`（默认存档是 `设备名 · 默认存档 #短码`）。
+  /// 不能直接取最后一段：v3 起末尾多了 boundTag 与短码，取最后一段会拿到标签。
+  /// 设备名本身也可能带分隔符，所以在第 1 段之后找第一个像发布号的
   static String releaseFromSlotName(String name) {
-    final index = name.lastIndexOf(' · ');
-    return (index < 0 ? name : name.substring(index + 3)).trim();
+    final withoutShort = name
+        .replaceFirst(RegExp(r' #[0-9a-fA-F]{8}$'), '')
+        .trim();
+    final parts = [
+      for (final part in withoutShort.split(' · '))
+        if (part.trim().isNotEmpty) part.trim(),
+    ];
+    if (parts.length <= 1) return withoutShort;
+    for (var index = 1; index < parts.length; index++) {
+      if (_looksLikeRelease(parts[index])) return parts[index];
+    }
+    return parts[1];
   }
+
+  /// `v160.5` / `160.5` / BE 的 `27898` 这类发布号
+  static bool _looksLikeRelease(String text) =>
+      RegExp(r'^v?\d+(\.\d+)*$').hasMatch(text.toLowerCase());
 
   /// 取当前绑定槽位；没有绑定时只有 [allowCreate] 才建新槽
   ///

@@ -1,4 +1,4 @@
-import 'package:copper_launcher/data/models.dart';
+﻿import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_gap_fill.dart';
@@ -51,6 +51,12 @@ class CloudPullTask extends CloudSyncTask {
         slot.name.contains('默认存档') ||
         CloudSaveService.profileIdBoundToSlot(slot.id) == 'default';
     final boundProfile = CloudSaveService.profileIdBoundToSlot(slot.id);
+    addLog(
+      .info,
+      '从云拉取 [$slot.name]：槽位 ${slot.id}，绑定 ${boundProfile ?? '无'}，'
+      '发布号 $release',
+      tag: 'Cloud',
+    );
     final targetProfile = boundProfile ?? (isDefaultSlot ? 'default' : null);
     var version = targetProfile == null
         ? null
@@ -58,30 +64,49 @@ class CloudPullTask extends CloudSyncTask {
     var needBind = targetProfile == null;
     var installedNow = false;
     if (version == null) {
+      if (isDefaultSlot) {
+        // 默认存档的槽位名里没有发布号，装不出游戏版本
+        updateQueueItem(item, failed: true);
+        return '默认存档没有对应的本机版本：先在主页选好一个游戏版本再拉取';
+      }
       // 绑定在但实例已经不在了：旧 profile 作废，按「没有实例」新建一个
       if (boundProfile != null && boundProfile != 'default') {
+        addLog(
+          .warning,
+          '拉取 [$slot.name]：绑定 $boundProfile 对应的实例已不在，按新实例处理',
+          tag: 'Cloud',
+        );
         CloudSaveService.discardProfileBinding(boundProfile);
       }
-      final install = await _prepareVersion(
-        release,
-        isolation: !isDefaultSlot,
-      );
-      if (install == null) {
+      final prep = await _prepareVersion(release, isolation: !isDefaultSlot);
+      if (prep.task == null) {
         updateQueueItem(item, failed: true);
-        return '版本装不上：$release';
+        final reason = prep.failure ?? '未知原因';
+        addLog(
+          .warning,
+          '拉取 [$slot.name]：游戏版本 $release 装不上（$reason）',
+          tag: 'Cloud',
+        );
+        return '版本装不上：$release（$reason）';
       }
-      bindQueueSubTask(item, install);
-      await install.startAsync();
+      bindQueueSubTask(item, prep.task!);
+      await prep.task!.startAsync();
       version = isDefaultSlot
           ? (CloudSaveService.versionOfProfile('default') ??
                 CloudSaveService.findInstalledVersion(release))
           : CloudSaveService.findInstalledVersion(release);
       if (version == null) {
         updateQueueItem(item, failed: true);
+        addLog(
+          .warning,
+          '拉取 [$slot.name]：游戏版本装完却没找到 $release',
+          tag: 'Cloud',
+        );
         return '版本装完没找到：$release';
       }
       installedNow = true;
       needBind = !isDefaultSlot;
+      addLog(.info, '拉取 [$slot.name]：新装版本 ${version.tag}', tag: 'Cloud');
       // 新实例优先采用云端 boundTag，保证本地绑定与云端槽位名一致
       final cloudTag = CloudSaveService.boundTagOfSlotName(slot.name);
       if (!isDefaultSlot &&
@@ -132,15 +157,17 @@ class CloudPullTask extends CloudSyncTask {
     return parts.join('，');
   }
 
-  Future<Task?> _prepareVersion(String release, {required bool isolation}) async {
+  Future<GameVersionPrep> _prepareVersion(
+    String release, {
+    required bool isolation,
+  }) async {
     setPhase('查找游戏版本 $release');
-    final prep = await prepareGameVersion(
+    return prepareGameVersion(
       // 新实例 tag 用游戏版本号；不再用槽位名，避免实例 tag 被设备 / 云端名污染
       game: CloudGameInfo(tag: release, release: release),
       // 非默认云存档新建隔离实例；默认存档用默认数据目录
       isolation: isolation,
     );
-    return prep.task;
   }
 
   /// 静默补这一份存档缺的模组；补不回来的记进 [missingMods]
