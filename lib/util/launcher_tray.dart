@@ -431,10 +431,20 @@ class LauncherTray extends TrayListener with WindowListener {
   Future<void> quitApp() async {
     if (_closing) return;
     _closing = true;
+    _armCloseWatchdog(const Duration(seconds: 2));
     addLog(.info, '托盘：退出启动器', tag: 'Tray');
     await _handoffBounded();
     await _waitPendingBounded();
     await _destroyWindow();
+  }
+
+  /// 关窗回调里可能卡在某个 await 上；这个看门狗保证进程一定退出
+  void _armCloseWatchdog(Duration delay) {
+    Timer(delay, () {
+      if (Process.killPid(pid)) {
+        addLog(.warning, '退出看门狗：${delay.inMilliseconds}ms 后强制结束进程', tag: 'Tray');
+      }
+    });
   }
 
   /// 关窗 / 游戏启动后关闭启动器：交接游戏 → 等上传 → 真正销毁窗口
@@ -475,22 +485,22 @@ class LauncherTray extends TrayListener with WindowListener {
   }
 
   Future<void> _destroyWindow() async {
-    addLog(.info, '退出：开始销毁窗口', tag: 'Tray');
-    // preventClose 可能拦住 destroy；销毁前先放开
+    addLog(.info, '退出：销毁窗口（直接结束进程）', tag: 'Tray');
+    // windowManager.destroy() 在 Windows 上会卡在引擎 teardown（实测 10s+），
+    // 交接与上传已经做完，这里直接结束进程，窗口随进程一起消失
+    if (Process.killPid(pid)) return;
+
     try {
-      await windowManager.setPreventClose(false);
+      await windowManager.setPreventClose(false).timeout(
+        const Duration(seconds: 1),
+      );
     } catch (_) {}
-    // 托盘没建时 destroy 可能抛也可能不回调；不能因此把窗口销毁也跳过
     try {
       await trayManager.destroy().timeout(const Duration(seconds: 1));
     } catch (_) {}
-    addLog(.info, '退出：windowManager.destroy', tag: 'Tray');
-    // 兜底：窗口销毁没让引擎退出时，直接结束进程（Flutter 里 exit(0) 会挂住）
     unawaited(
       Future<void>.delayed(const Duration(milliseconds: 800), () {
-        if (Process.killPid(pid)) {
-          addLog(.warning, '退出：窗口没关掉，已强制结束进程', tag: 'Tray');
-        }
+        Process.killPid(pid);
       }),
     );
     try {
@@ -537,6 +547,11 @@ class LauncherTray extends TrayListener with WindowListener {
       unawaited(_hideToTray());
     } else {
       // 游戏还在跑：先写会话 + 拉起云服务接管，交接完再销毁窗口
+      _armCloseWatchdog(
+        _isGameRunning()
+            ? const Duration(seconds: 2)
+            : const Duration(milliseconds: 700),
+      );
       unawaited(_closeAfterHandoff());
     }
   }

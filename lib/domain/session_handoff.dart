@@ -14,6 +14,7 @@ import 'package:copper_launcher/util/io/log.dart';
 /// [TakeoverSessionTask]。做法：写/改 `sessions/` 记录（带 gamePid，owner 改回 service），
 /// 再拉起 `--cloud-service --adopt-all` 接管。
 Future<bool> handoffRunningGamesToService() async {
+  addLog(.info, '交接：开始检查运行中的游戏', tag: 'CloudService');
   final launches = taskManager.currentTasks
       .whereType<LaunchMindustryTask>()
       .where((task) => task.status == TaskStatus.process)
@@ -24,6 +25,11 @@ Future<bool> handoffRunningGamesToService() async {
       .where((task) => task.status == TaskStatus.process)
       .where((task) => task.session.gamePid != null)
       .toList();
+  addLog(
+    .info,
+    '交接：LaunchTask=${launches.length} TakeoverTask=${takeovers.length}',
+    tag: 'CloudService',
+  );
   if (launches.isEmpty && takeovers.isEmpty) return false;
 
   for (final task in launches) {
