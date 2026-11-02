@@ -8,6 +8,13 @@
         <item name="android:windowSplashScreenAnimationDuration">0</item>
     </style>
 
+    <!-- 游戏 / 桥活动的系统 splash：铜色底、不画图标，和遮罩接上 -->
+    <style name="ArcTheme" parent="ArcThemeBase">
+        <item name="android:windowSplashScreenBackground">@color/copper_launch_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/silent_splash_icon</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
+    </style>
+
     <!-- 静默启动：系统 splash 用深色底、不画图标，避免点快捷方式先闪白屏 -->
     <style name="SilentLaunchTheme" parent="@style/LaunchTheme">
         <item name="android:windowBackground">@android:color/black</item>
