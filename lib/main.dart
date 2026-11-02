@@ -346,6 +346,9 @@ void _checkPlatform() {
 
 Future<bool> _initSingleInctance(LaunchRequest? launchRequest) async {
   if (AppRuntime.headless) return true;
+  // 插件默认 debugMode = kDebugMode，Debug 下会故意放行多实例；
+  // 启动器必须单实例，否则两个 shell 会抢托盘/配置/会话
+  FlutterSingleInstance.debugMode = false;
   // 单实例：该包在 Windows / Linux / macOS 都能判定
   if (!await FlutterSingleInstance().isFirstInstance()) {
     addLogAndPrint(
@@ -421,7 +424,9 @@ Future<void> _initWindows({required bool quiet}) async {
   }
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
+    // 不要在这里 show：Windows runner 会在 Flutter 第一帧渲染完后才 Show；
+    // 提前 show 会先露出窗口默认白底，Debug 下第一帧偏慢就会闪一道白光。
+    // 这里只补一次焦点，窗口本身交给 runner 的首帧回调显示。
     await windowManager.focus();
   });
 }
