@@ -135,7 +135,7 @@ Future<void> _runLauncherUi(LaunchArgs cli) async {
   // 先判单实例再读配置：第二个实例只写日志就退，不能并发改写 config
   await AppPaths.init();
   await Log.init();
-  if (!await _initSingleInctance(launchRequest)) return;
+  if (!await _initSingleInstance(launchRequest)) return;
 
   await _initializeCore(pathsReady: true, logReady: true);
   await _initializeUi(launchRequest, fromService: fromService);
@@ -243,6 +243,11 @@ Future<void> _initializeUi(
 
   // UI 在线标记：快捷启动触发进程靠它决定「交给 UI」还是「自己进服务」
   await GameSessionStore.writeUiPid();
+  // 心跳：崩溃/强杀后 pid 文件可能残留，时间戳用来判定 UI 是否真活着
+  Timer.periodic(
+    const Duration(seconds: 10),
+    (_) => unawaited(GameSessionStore.writeUiPid()),
+  );
   // 代理窗口可能正压在屏幕上：UI 已经起来就不需要它了
   await SyncProxyStore.closeIfRunning();
   // 发现服务进程正在管的局：接回任务抽屉；服务死了就补接管；done 记录导入游玩时长
@@ -347,7 +352,7 @@ void _checkPlatform() {
   if (Platform.isIOS) throw Exception('iOS 平台不支持');
 }
 
-Future<bool> _initSingleInctance(LaunchRequest? launchRequest) async {
+Future<bool> _initSingleInstance(LaunchRequest? launchRequest) async {
   if (AppRuntime.headless) return true;
   // 插件默认 debugMode = kDebugMode，Debug 下会故意放行多实例；
   // 启动器必须单实例，否则两个 shell 会抢托盘/配置/会话

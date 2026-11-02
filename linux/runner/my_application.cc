@@ -10,6 +10,7 @@
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  gboolean suppress_initial_show;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -48,7 +49,11 @@ static void my_application_activate(GApplication* application) {
   }
 
   gtk_window_set_default_size(window, 1280, 720);
-  gtk_widget_show(GTK_WIDGET(window));
+  // 快捷启动 / 无界面服务 / 云同步代理由 Dart 决定何时显示窗口；
+  // 提前显示会闪窗，无界面形态还会留下一个空窗口。
+  if (!self->suppress_initial_show) {
+    gtk_widget_show(GTK_WIDGET(window));
+  }
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(project, self->dart_entrypoint_arguments);
@@ -62,11 +67,24 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
+static gboolean has_headless_argument(gchar** arguments) {
+  for (gchar** arg = arguments; *arg != nullptr; ++arg) {
+    if (g_strcmp0(*arg, "--launch-version") == 0 ||
+        g_strcmp0(*arg, "--cloud-service") == 0 ||
+        g_strcmp0(*arg, "--sync-proxy") == 0 ||
+        g_str_has_prefix(*arg, "--launch-version=") == 0) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
 // Implements GApplication::local_command_line.
 static gboolean my_application_local_command_line(GApplication* application, gchar*** arguments, int* exit_status) {
   MyApplication* self = MY_APPLICATION(application);
   // Strip out the first argument as it is the binary name.
   self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
+  self->suppress_initial_show = has_headless_argument(*arguments);
 
   g_autoptr(GError) error = nullptr;
   if (!g_application_register(application, nullptr, &error)) {

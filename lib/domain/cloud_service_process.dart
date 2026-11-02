@@ -265,7 +265,8 @@ class CloudServiceProcess {
     }
   }
 
-  Future<void> _syncRunningSessions() async {    for (final entry in _sessions.entries.toList()) {
+  Future<void> _syncRunningSessions() async {
+    for (final entry in _sessions.entries.toList()) {
       final session = entry.value;
       final task = _tasks[entry.key];
       if (task == null) continue;

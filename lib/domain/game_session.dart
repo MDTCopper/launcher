@@ -167,7 +167,8 @@ class GameSessionStore {
     await file.parent.create(recursive: true);
     final tmp = File('${file.path}.tmp');
     await tmp.writeAsString(jsonEncode(json), flush: true);
-    if (await file.exists()) await file.delete();
+    // Dart 在 Windows 上的 rename 是替换语义；不要再先 delete 旧文件，
+    // 否则强杀会留下「旧文件已删、新文件没改名」的窗口
     await tmp.rename(file.path);
   }
 
@@ -180,7 +181,6 @@ class GameSessionStore {
     file.parent.createSync(recursive: true);
     final tmp = File('${file.path}.tmp');
     tmp.writeAsStringSync(jsonEncode(session.toJson()), flush: true);
-    if (file.existsSync()) file.deleteSync();
     tmp.renameSync(file.path);
   }
 
@@ -262,7 +262,17 @@ class GameSessionStore {
 
   static Future<bool> isUiRunning() async {
     final value = await uiPid();
-    return value != null && GameProcessWatch.isAlive(value);
+    if (value == null || !GameProcessWatch.isAlive(value)) return false;
+    // ui.json 由 UI 定期刷新；崩溃/强杀后文件还在，但时间戳会过期，避免 pid 复用误判
+    try {
+      final modified = (await _uiFile.stat()).modified;
+      if (DateTime.now().difference(modified) > const Duration(seconds: 25)) {
+        return false;
+      }
+    } catch (_) {
+      return false;
+    }
+    return true;
   }
 
   static Future<int?> _readPid(File file) async {
