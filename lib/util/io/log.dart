@@ -91,12 +91,12 @@ abstract class Log {
     final platform = Platform.operatingSystem;
     final version = Platform.operatingSystemVersion;
     await logFile.writeAsString(
-      'Copper Launcher Run Time Log\n\n'
-      'Launch Time : ${_logTimestamp()}\n'
-      'Platform : $platform ($version)\n'
-      'Version : $appVersion (Build $appBuildNumber)\n'
-      'Mode: ${kDebugMode ? 'Debug' : 'Release'}\n'
-      'Form: ${AppRuntime.form.label}\n'
+      'Copper Launcher 运行时日志\n\n'
+      '启动时间 : ${_logTimestamp()}\n'
+      '平台 : $platform ($version)\n'
+      '启动器版本 : $appVersion (Build $appBuildNumber)\n'
+      '构建模式 : ${kDebugMode ? 'Debug' : 'Release'}\n'
+      '启动形态 : ${AppRuntime.form.label}\n'
       '------------------\n',
     );
     // 全部就绪后再挂上，避免中途失败留下半初始化的日志文件
