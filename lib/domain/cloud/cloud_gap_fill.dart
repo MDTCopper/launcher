@@ -27,7 +27,19 @@ Future<List<CloudMissingMod>> fillGapMods({
   void Function(String status)? onStatus,
   bool Function()? isCancelled,
 }) async {
-  if (gap.downloadableMods.isEmpty) return const [];
+  // 一个能自动补的都没有时也要把「补不回来的是哪些」交出去，
+  // 否则调用方只能沉默，玩家不知道缺了什么
+  if (gap.downloadableMods.isEmpty) {
+    return [
+      for (final mod in gap.undownloadableMods)
+        (
+          name: CloudRestoreGap.displayNameOf(mod),
+          reason: mod.includeBytes
+              ? '随包带了字节但没落地，重新下载云端快照'
+              : '找不到来源，只能自己装',
+        ),
+    ];
+  }
   final missing = <CloudMissingMod>[];
 
   onStatus?.call('补全 ${version.tag} 的模组');

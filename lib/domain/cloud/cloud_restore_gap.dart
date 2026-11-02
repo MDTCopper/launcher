@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/data/resource/mod.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
+import 'package:copper_launcher/domain/mod_install.dart';
 import 'package:path/path.dart' as p;
 
 /// 恢复完本机还缺什么：**缺哪些模组、缺哪个游戏版本**
@@ -72,15 +74,32 @@ String describeRestoreGap(CloudRestoreGap gap) {
 ///
 /// 纯计算：不联网、不写盘；[installedGameTags] 传本机装着的版本标识
 /// （tag 与发布号都认，见 [installedGameIdentifiers]）
+///
+/// [installedModInternalNames] 传本机已装模组的内部名（小写）：manifest 快照只记
+/// mod 的内部名与哈希，文件名是猜的，只比文件名会把已装的模组判成缺
 CloudRestoreGap computeRestoreGap({
   required String dataPath,
   required CloudManifest manifest,
   required Iterable<String> installedGameTags,
+  Iterable<String> installedModInternalNames = const [],
 }) {
   final localModFiles = _localModFileNames(dataPath);
+  // 内部名优先：manifest 快照没记文件名，补全落地的名字也常与清单不同
+  final localInternalNames = {
+    for (final name in installedModInternalNames)
+      if (name.trim().isNotEmpty) name.trim().toLowerCase(),
+  };
+  bool isInstalled(CloudModEntry mod) {
+    if (localModFiles.contains(normalizedModFileName(mod.fileName))) {
+      return true;
+    }
+    final internal = (mod.internalName ?? '').trim().toLowerCase();
+    return internal.isNotEmpty && localInternalNames.contains(internal);
+  }
+
   final missingMods = [
     for (final mod in manifest.mods)
-      if (!localModFiles.contains(normalizedModFileName(mod.fileName))) mod,
+      if (!isInstalled(mod)) mod,
   ];
 
   final installed = {
@@ -108,6 +127,17 @@ Iterable<String> installedGameIdentifiers() sync* {
       yield version.release;
     }
   }
+}
+
+/// 本机已装模组的内部名（小写），喂给 [computeRestoreGap]
+///
+/// 读模组元数据比只列文件名慢，调用方算缺口时调一次即可
+Future<Set<String>> installedModInternalNamesAt(String dataPath) async {
+  final installed = await scanInstalledMods(allModsDirPathsIn(dataPath));
+  return {
+    for (final mod in installed)
+      if (mod.internalName.trim().isNotEmpty) mod.internalName.trim().toLowerCase(),
+  };
 }
 
 /// 比较用的模组文件名：小写、去掉禁用后缀

@@ -512,7 +512,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
 
   /// 一键补全：按云端当前版的清单算本机缺口，能补的直接下载
   ///
-  /// 整包快照读不到清单，提示先恢复一次；不排任何任务
+  /// 整包快照读不到清单：恢复流程本来就会补，直接告诉玩家点恢复
   Future<void> _fillLocalGap() async {
     final version = _selectedVersion;
     final slot = _slot;
@@ -534,8 +534,10 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       if (manifest == null) {
         addNotice(
           icon: Icons.info_outline,
-          title: '这份快照是整包',
-          content: '整包快照没有文件清单，先恢复一次再补全',
+          title: head.isManifest ? '读不到这份快照的清单' : '这份快照是整包',
+          content: head.isManifest
+              ? '快照可能已被删除，刷新后重试'
+              : '整包快照的缺口会在「恢复」时自动补，直接点恢复即可',
         );
         return;
       }
@@ -544,18 +546,12 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         dataPath: version.dataPath,
         manifest: manifest,
         installedGameTags: installedGameIdentifiers(),
+        installedModInternalNames: await installedModInternalNamesAt(
+          version.dataPath,
+        ),
       );
       if (gap.isEmpty) {
         addNotice(icon: Icons.check, title: '本机什么都不缺');
-        return;
-      }
-      if (gap.downloadableMods.isEmpty) {
-        // 缺的都不是能自动下的，只把结论说出来
-        addNotice(
-          icon: Icons.info_outline,
-          title: '缺的东西补不了',
-          content: describeRestoreGap(gap),
-        );
         return;
       }
 
@@ -620,8 +616,12 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       dataPath: version.dataPath,
       manifest: report.manifest,
       installedGameTags: installedGameIdentifiers(),
+      installedModInternalNames: await installedModInternalNamesAt(
+        version.dataPath,
+      ),
     );
-    if (gap.isEmpty || !mounted) return '';
+    // 补全不依赖界面：玩家这时候切走页面，模组也要照样补
+    if (gap.isEmpty) return '';
 
     final notes = <String>[];
     await _fillModsSilently(gap: gap, version: version, task: task);
@@ -654,12 +654,15 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           task.bindQueueSubTask(placeholder, installTask);
           await installTask.startAsync();
           if (installTask.status != TaskStatus.completed) {
-            throw StateError(
-              '本体没下完：${installTask.statusLabel ?? installTask.status.name}',
+            // 存档已经落地了：本体没装上只算补注，别把整条恢复判成失败
+            notes.add(
+              '游戏版本没装上：'
+              '${installTask.statusLabel ?? installTask.status.name}',
             );
+          } else {
+            task.updateQueueItem(placeholder, done: true);
+            notes.add('已装游戏版本 ${missingGame.release}');
           }
-          task.updateQueueItem(placeholder, done: true);
-          notes.add('已装游戏版本 ${missingGame.release}');
         }
       } else {
         task.removeQueueItem(placeholder);
@@ -674,12 +677,14 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     required Mindustry version,
     required CloudSyncTask task,
   }) async {
-    if (gap.downloadableMods.isEmpty) return;
+    if (gap.missingMods.isEmpty) return;
 
     // 先占位，避免恢复跑满 100% 后等列表那几秒停在 100%
     final placeholder = CloudTaskItem(
       title: '补全模组（读取列表…）',
-      weight: gap.downloadableMods.length.toDouble(),
+      weight: gap.downloadableMods.isEmpty
+          ? 1
+          : gap.downloadableMods.length.toDouble(),
     );
     task.addQueueItem(placeholder);
     task.setPhase('补全模组…');

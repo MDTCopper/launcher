@@ -1519,11 +1519,10 @@ class CloudSaveService {
       _pruneBackups();
       // 落干净了才记「同步到这个快照」；有拒收说明本机与云上并不一致，别谎报
       if (report.rejected.isEmpty) {
-        _rememberSynced(
+        await _rememberCurrentState(
           version,
           slotId: slotId,
           snapshotId: snapshotId,
-          files: reader.manifest.fileHashes,
         );
       }
       return CloudSaveRestoreResult(
@@ -1628,11 +1627,12 @@ class CloudSaveService {
         modStates: modStates,
       );
       _pruneBackups();
-      _rememberSynced(
+      // 基线按恢复后的本机重扫：包里的模组名可能已被启用态改名、也可能有本机多出来的
+      // 文件，直接抄清单会让状态一直显示「本机已改」
+      await _rememberCurrentState(
         version,
         slotId: slotId,
         snapshotId: snapshotId,
-        files: hashes,
       );
       addLog(
         .info,
@@ -1776,6 +1776,30 @@ class CloudSaveService {
       await downloadOne(entry, singleStream: false);
     }
     return finishedBytes;
+  }
+
+  /// 把「本机现状」记成同步基线（恢复后调；上传侧直接用扫描结果）
+  static Future<void> _rememberCurrentState(
+    Mindustry version, {
+    required String slotId,
+    required String? snapshotId,
+  }) async {
+    final cache = CloudHashCache.load(hashCachePath);
+    try {
+      final manifest = await CloudManifest.scan(
+        version: version,
+        deviceName: deviceName,
+        cache: cache,
+      );
+      _rememberSynced(
+        version,
+        slotId: slotId,
+        snapshotId: snapshotId,
+        files: manifest.fileHashes,
+      );
+    } finally {
+      cache.save();
+    }
   }
 
   /// 差量恢复落地后删掉同一个模组的其它版本文件

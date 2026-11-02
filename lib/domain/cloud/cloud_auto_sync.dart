@@ -149,7 +149,7 @@ class CloudAutoSync {
           title: '已自动恢复云端存档',
           content: '写入 ${result.report.written.length} 份（覆盖前已备份）',
         );
-        _notifyRestoreGap(version, result.report);
+        await _notifyRestoreGap(version, result.report);
         return true;
       case CloudSyncStatus.conflicted:
         //两边都改过：让玩家自己选；没选就**不启动**
@@ -244,7 +244,7 @@ class CloudAutoSync {
           title: '已用云端覆盖本机',
           content: '写入 ${result.report.written.length} 份（覆盖前已备份）',
         );
-        _notifyRestoreGap(version, result.report);
+        await _notifyRestoreGap(version, result.report);
         return true;
       case CloudConflictChoice.useLocal:
         addLog(.info, '云存档冲突：玩家选择用本机覆盖云端 [${version.tag}]', tag: 'Cloud');
@@ -318,11 +318,17 @@ class CloudAutoSync {
   ///
   /// **只提示、不弹窗、不拦启动**：补全要往数据目录写模组，而这时候游戏马上要起 ——
   /// 与其跟启动抢着写，不如让用户自己在「云存档」页点
-  static void _notifyRestoreGap(Mindustry version, CloudImportReport report) {
+  static Future<void> _notifyRestoreGap(
+    Mindustry version,
+    CloudImportReport report,
+  ) async {
     final gap = computeRestoreGap(
       dataPath: version.dataPath,
       manifest: report.manifest,
       installedGameTags: installedGameIdentifiers(),
+      installedModInternalNames: await installedModInternalNamesAt(
+        version.dataPath,
+      ),
     );
     if (gap.isEmpty) return;
     addNotice(
