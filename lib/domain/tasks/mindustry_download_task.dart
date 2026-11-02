@@ -80,6 +80,11 @@ class MindustryDownloadTask extends Task {
   final CancelToken cancelToken = CancelToken();
   late File file;
 
+  /// 下载完成后建好的版本记录；版本没建出来时为 null
+  ///
+  /// 调用方要拿「刚建的那一条」而不是按 release 回查：本机可能有同 release 的旧版本
+  Mindustry? createdVersion;
+
   ///本次是否真下了新文件：出错只清自己下的那份，本体库里复用来的绝不删
   bool isFreshDownload = false;
   int totalSize = 0;
@@ -350,6 +355,7 @@ class MindustryDownloadTask extends Task {
     if (foldIndex != -1) {
       config.versionOptions.versionFolds[foldIndex].versions.add(mindustry);
       config.saveAsJson();
+      createdVersion = mindustry;
       //版本建在哪、用什么启动、隔离开没开——后续「导入/存档跑到别处去了」都要靠这条对账
       addLog(
         .info,

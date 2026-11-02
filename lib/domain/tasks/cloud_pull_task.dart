@@ -93,20 +93,40 @@ class CloudPullTask extends CloudSyncTask {
         );
         return '版本装不上：$release（$reason）';
       }
-      bindQueueSubTask(item, prep.task!);
-      await prep.task!.startAsync();
-      version = isDefaultSlot
-          ? (CloudSaveService.versionOfProfile('default') ??
-                CloudSaveService.findInstalledVersion(release))
-          : CloudSaveService.findInstalledVersion(release);
+      final installTask = prep.task!;
+      bindQueueSubTask(item, installTask);
+      await installTask.startAsync();
+      if (installTask.status != TaskStatus.completed) {
+        updateQueueItem(item, failed: true);
+        addLog(
+          .warning,
+          '拉取 [$slot.name]：游戏版本没装成'
+          '（${installTask.statusLabel ?? installTask.status.name}），中止',
+          tag: 'Cloud',
+        );
+        return '游戏版本没装成，拉取中止';
+      }
+      // 用刚建好的那条版本记录，不按 release 回查：本机可能有同 release 的旧版本，
+      // 回查到旧版本会把存档写进别人的数据目录
+      version = installTask.createdVersion;
       if (version == null) {
         updateQueueItem(item, failed: true);
         addLog(
           .warning,
-          '拉取 [$slot.name]：游戏版本装完却没找到 $release',
+          '拉取 [$slot.name]：游戏版本装完但没建出版本记录，中止',
           tag: 'Cloud',
         );
-        return '版本装完没找到：$release';
+        return '版本装完没建出记录：$release';
+      }
+      // 非默认云存档只能进隔离实例：未隔离会落到默认存档的 profile 与数据目录
+      if (!isDefaultSlot && !version.isolation) {
+        updateQueueItem(item, failed: true);
+        addLog(
+          .warning,
+          '拉取 [$slot.name]：新版本不是隔离实例（${version.dataPath}），中止',
+          tag: 'Cloud',
+        );
+        return '这个版本没有开隔离数据目录，不能作为云存档的实例';
       }
       installedNow = true;
       needBind = !isDefaultSlot;
@@ -187,8 +207,11 @@ class CloudPullTask extends CloudSyncTask {
       dataPath: version.dataPath,
       manifest: report.manifest,
       installedGameTags: installedGameIdentifiers(),
+      installedModInternalNames: await installedModInternalNamesAt(
+        version.dataPath,
+      ),
     );
-    if (gap.downloadableMods.isEmpty) return;
+    if (gap.missingMods.isEmpty) return;
 
     missingMods.addAll(
       await fillGapMods(
