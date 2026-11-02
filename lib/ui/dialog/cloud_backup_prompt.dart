@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 
 /// 列本机「覆盖前自备份」，玩家点哪份就把本机覆盖回哪份
 ///
-/// 返回选中的那份备份；关掉弹窗给 null。**覆盖动作由调用方做**（它要联网不成，
+/// 返回选中的那份备份；关掉弹窗给 null；**覆盖动作由调用方做**（它要联网不成，
 /// 但要起备份、写数据目录，不适合塞在弹窗里）
 Future<CloudBackupFile?> showCloudBackupPrompt({
   required List<CloudBackupFile> backups,

@@ -266,7 +266,7 @@ Future<List<ModFillOutcome>> planModFills({
 
     final plan = decision.plan!;
     if (_compatible(plan.entry, version) == false) {
-      // 官方列表的 minGameVersion 是**最新那版**的要求；清单记的是当时装的那一版。
+      // 官方列表的 minGameVersion 是**最新那版**的要求；清单记的是当时装的那一版
       // 版本对得上时按当时的版本装（那版本来就在这个游戏版本上跑过），只提示一句；
       // 只有「拿不准是不是同一版」才拦下
       if (!plan.versionMatched) {
@@ -427,10 +427,10 @@ Task buildFillTask(ModFillPlan plan, Mindustry version) {
   }
 }
 
-/// 查仓库现在的全名：GitHub 会把改名前的旧仓库名重定向到新名字。
+/// 查仓库现在的全名：GitHub 会把改名前的旧仓库名重定向到新名字
 ///
 /// 云清单里记的可能是旧名（模组自己的 `mod.hjson` 写的），而官方列表用新名；
-/// 这条查询把两者对上。查不到就返回 null，调用方按「不在官方列表」处理
+/// 这条查询把两者对上；查不到就返回 null，调用方按「不在官方列表」处理
 Future<String?> _resolveRepoFullName(
   String repo,
   Map<String, String> headers,

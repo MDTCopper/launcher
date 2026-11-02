@@ -70,10 +70,10 @@ class ModFillDecision {
 
 /// 解析云清单里这个模组的仓库
 ///
-/// 优先用模组自己写的 `repo`；没有就按内部名去官方列表里查（列表现在带 `internalName`）。
+/// 优先用模组自己写的 `repo`；没有就按内部名去官方列表里查（列表现在带 `internalName`）
 /// 两边都有时以**官方列表里真有的那个为准** —— 模组里记的仓库可能是改名前的旧名字
 /// （Aquarion 记的 `Twcash/Tantros-test` 会被 GitHub 重定向到 `Twcash/Aquarion`），
-/// 按官方列表的写法走最稳。内部名仍对不上就返回空串 —— 官方列表里有好几对同名不同仓库的
+/// 按官方列表的写法走最稳；内部名仍对不上就返回空串 —— 官方列表里有好几对同名不同仓库的
 /// 模组，不按显示名猜
 String resolveModRepo(
   CloudModEntry mod,
@@ -97,15 +97,14 @@ String resolveModRepo(
 
 /// 决定一个缺的模组怎么补回来
 ///
-/// **纯决策**：不联网、不起任务、不看门禁 —— 只按「云清单记的来源」去官方列表里
-/// 按 `repo` 精确匹配（**不按显示名猜**：官方列表里有 6 对同名不同仓库的模组），
-/// 再用与模组页同一套规则挑产物（`hasJava` → `.jar`，否则 `.zip`，按体积取最大的那个；
-/// 都没有就回落源码）。
+/// 纯决策：不联网、不起任务、不看门禁，只按云清单记的来源去官方列表里
+/// 按 `repo` 精确匹配，不按显示名猜；再用与模组页同一套规则挑产物，
+/// `hasJava` 取 `.jar`、否则 `.zip`、按体积取最大的，都没有就回落源码
 ///
-/// [internalNameToRepo] 给「没写 `repo` 的模组」留一条按内部名查仓库的路。
-/// [repoOverride] 是调用方已经解析好的仓库（比如查过 GitHub 的重定向之后），给了就不再自己解析。
+/// [internalNameToRepo] 给没写 `repo` 的模组留一条按内部名查仓库的路
+/// [repoOverride] 是调用方已解析好的仓库，给了就不再自己解析
 ///
-/// [releases] 由调用方给（该仓库的 release，**按新到旧**）。云清单只记了模组的
+/// [releases] 由调用方给（该仓库的 release，**按新到旧**）；云清单只记了模组的
 /// 版本号、没记 release tag，所以这里先找 tag / 名字里带这个版本号的那条，
 /// 找不到再用最新的一条 —— 尽量把「当时那个版本」装回来
 ModFillDecision decideModFill({
@@ -218,7 +217,7 @@ ModFillPlan? _planFor({
 ///
 /// mod.hjson 里的 `version` 和 GitHub 的 tag 经常不是同一个写法（`3.0` vs `v3.0`、
 /// `3.0.1`、`Aquarion-3.0-beta`），所以不直接比字符串：
-/// 先看「去不区分大小写的完全相同（允许前面多个 `v`）」，再比数字版本核的前缀。
+/// 先看「去不区分大小写的完全相同（允许前面多个 `v`）」，再比数字版本核的前缀
 /// 数字核比较能避开 `3.0` 命中 `13.0.2` 这种字面包含误判
 int _versionMatchRank(ModRelease release, String wanted) {
   final target = wanted.trim().toLowerCase();

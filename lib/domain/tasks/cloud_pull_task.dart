@@ -70,8 +70,7 @@ class CloudPullTask extends CloudSyncTask {
         updateQueueItem(item, failed: true);
         return '默认存档没有对应的本机版本：先在主页选好一个游戏版本再拉取';
       }
-      // 绑定在但实例已经不在了：先记下旧 profile，装好新实例再作废它
-      // （装失败时不能把玩家原来的绑定弄丢）
+      // 实例已不在：先记下旧 profile，装好新实例再作废，装失败不弄丢原绑定
       final stale = (boundProfile != null && boundProfile != 'default')
           ? boundProfile
           : null;
@@ -131,7 +130,7 @@ class CloudPullTask extends CloudSyncTask {
     }
 
     if (needBind) CloudSaveService.bindSlot(version, slot.id);
-    // 新实例绑好了才作废旧 profile：中途失败时玩家的原绑定还在
+    // 新实例绑好才作废旧 profile，中途失败原绑定还在
     if (needBind && staleProfile != null) {
       CloudSaveService.discardProfileBinding(staleProfile);
     }
@@ -172,7 +171,7 @@ class CloudPullTask extends CloudSyncTask {
   }) async {
     setPhase('查找游戏版本 $release');
     return prepareGameVersion(
-      // 新实例 tag 用游戏版本号；不再用槽位名，避免实例 tag 被设备 / 云端名污染
+      // 新实例 tag 用游戏版本号，避免被设备名 / 云端名污染
       game: CloudGameInfo(tag: release, release: release),
       // 非默认云存档新建隔离实例；默认存档用默认数据目录
       isolation: isolation,

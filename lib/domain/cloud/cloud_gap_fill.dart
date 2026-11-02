@@ -10,16 +10,16 @@ import 'package:flutter/material.dart';
 /// 补不回来的模组：名字 + 原因，界面拼一句话用
 typedef CloudMissingMod = ({String name, String reason});
 
-/// 排一个补全项；返回 false 表示这一项没排上（调用方按失败算）
+/// 排一个补全项；返回 false 表示没排上，按失败算
 typedef CloudGapEnqueue = Future<bool> Function(ModFillOutcome outcome);
 
 /// 按「本机还缺什么」把能补的模组补上
 ///
-/// 拉取、历史恢复、一键补全三条路共用这一份：读官方列表、逐个定计划、交给
-/// [enqueue] 排下载，最后把补不回来的收成一张表。**不碰任务卡**，怎么排由调用方定。
+/// 拉取 / 历史恢复 / 一键补全共用这一份：读官方列表、逐个定计划、交给
+/// [enqueue] 排下载，补不回来的收成一张表；不碰任务卡，怎么排由调用方定
 ///
-/// [enqueue] 收到`isQueued` 的结果；返回 false 或抛错都记成「下载失败」。
-/// [isCancelled] 返回 true 时立刻收手（已排上的不动，剩下的不再排）。
+/// [enqueue] 收到 `isQueued` 的结果，返回 false 或抛错都记成下载失败
+/// [isCancelled] 返回 true 时收手，已排上的不动
 Future<List<CloudMissingMod>> fillGapMods({
   required CloudRestoreGap gap,
   required Mindustry version,
@@ -64,8 +64,8 @@ Future<List<CloudMissingMod>> fillGapMods({
 
 /// 「补全本机缺的模组」任务卡
 ///
-/// 云存档页的一键补全用它：把缺口算好传进来，卡片按模组个数加权推进度，
-/// 每个模组挂成子任务（不进任务抽屉、不单独发通知）。
+/// 缺口算好传进来，按模组个数加权推进度；每个模组挂成子任务，
+/// 不进任务抽屉、不单独发通知
 class CloudGapFillTask extends CloudSyncTask {
   CloudGapFillTask({
     required this.version,
@@ -81,7 +81,7 @@ class CloudGapFillTask extends CloudSyncTask {
   final Mindustry version;
   final CloudRestoreGap gap;
 
-  /// 同一个版本可能有多个入口（云存档页 / 版本管理页），给不同 id 免得互相顶掉
+  /// 同一个版本可能有多个入口，给不同 id 免得互相顶掉
   final String? idSuffix;
 
   /// 补不回来的模组

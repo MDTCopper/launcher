@@ -21,7 +21,7 @@ import 'package:path/path.dart' as p;
 /// ```
 ///
 /// `owners` 是机器级归属：同一个本机数据目录同一时间只有一个账号 active，
-/// 防止换账号后把 A 的本机数据传进 B 的云存档。
+/// 防止换账号后把 A 的本机数据传进 B 的云存档
 class CloudBindingStore {
   CloudBindingStore({
     Map<String, String>? owners,

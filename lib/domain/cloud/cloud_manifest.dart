@@ -284,7 +284,7 @@ class CloudModEntry {
   /// 模组自己的来源（jar 内 `mod.hjson` 的 `repo` 字段，形如 `作者/仓库`）
   ///
   /// 恢复后「一键补全缺的模组」要靠它才知道去哪儿下 —— 光有显示名对不上：
-  /// 官方列表里同名不同仓库的有 6 对。模组没写 `repo` 时是 null，
+  /// 官方列表里同名不同仓库的有 6 对；模组没写 `repo` 时是 null，
   /// 那种只能提示用户自己装（或按名字去官方列表里碰运气）
   final String? source;
 
@@ -485,8 +485,8 @@ class CloudManifest {
       );
     }
 
-    // 嵌套数据根：旧模组（如 finalCampaign/）会自己再建一套 saves/settings。
-    // 只认「有 saves/ 或 settings.bin」的一层子目录，避免把缓存目录扫进来。
+    // 嵌套数据根：模组会自己再建一套 saves / settings，如 finalCampaign/；
+    // 只认一层，避免把缓存目录扫进来
     files.addAll(
       await _scanNestedDataRoots(
         dataPath: dataPath,
@@ -563,10 +563,10 @@ class CloudManifest {
     return entries;
   }
 
-  /// 扫数据根下嵌套的数据目录（`finalCampaign/saves/...` 这类旧模组遗留）
+  /// 扫数据根下嵌套的数据目录，如 finalCampaign/saves/
   ///
   /// 只认一层：子目录里有 `saves/` 或 `settings.bin` 才当数据根；
-  /// `mods/` / `cache/` / `tmp/` 等明确跳开，避免把运行时缓存打进去。
+  /// `mods/` / `cache/` / `tmp/` 等跳过，避免把运行时缓存打进去
   static Future<List<CloudFileEntry>> _scanNestedDataRoots({
     required String dataPath,
     required bool includePreviews,
@@ -663,7 +663,7 @@ class CloudManifest {
           lowerName.endsWith('.disable') || lowerName.endsWith('.disabled');
 
       Mod? mod;
-      // 模组自己的仓库：`mod.hjson` 里那个 `repo`（形如 `作者/仓库`）。
+      // 模组自己的仓库：`mod.hjson` 里那个 `repo`（形如 `作者/仓库`）
       // 不往 `Mod` 上加字段 —— 那是 json_serializable 生成的类，加字段就要重跑
       // build_runner，这里直接从解析出来的原始 map 取
       var source = '';
@@ -768,7 +768,7 @@ String sha256OfBytes(List<int> bytes) => sha256.convert(bytes).toString();
 /// 文件哈希缓存：按 `(大小, 修改时间)` 判断上次算出来的 sha256 还能不能复用
 ///
 /// 一次扫描要给真数据里 **248 MiB 的模组 jar** 逐份算指纹（清单必须记内容），
-/// 而扫描在上传前、备份前、将来的自动同步判断里都会跑 ⇒ 没变过的文件只 `stat` 一次。
+/// 而扫描在上传前、备份前、将来的自动同步判断里都会跑 ⇒ 没变过的文件只 `stat` 一次
 ///
 /// 任何读 / 写失败都当**没有缓存**处理，绝不因为缓存把上传搞挂；
 /// 「大小与修改时间都没变」是唯一判据 —— 同秒内改成长度相同的字节会拿到旧哈希，

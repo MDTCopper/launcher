@@ -23,7 +23,7 @@ enum CloudConflictChoice {
 /// 启动前发现「本机与云端都改过」时弹这个：**让玩家自己选**
 ///
 /// 没选（点取消或关掉弹窗）返回 [CloudConflictChoice.cancel]：调用方据此停止启动，
-/// **绝不替玩家挑一边**。启动任务没有自己的 context，所以这里不要求传
+/// **绝不替玩家挑一边**；启动任务没有自己的 context，所以这里不要求传
 Future<CloudConflictChoice> showCloudConflictPrompt({
   required CloudSyncOutcome outcome,
   String? versionTag,

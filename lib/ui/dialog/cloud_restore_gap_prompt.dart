@@ -21,7 +21,7 @@ enum CloudRestoreGapChoice {
 /// 恢复完弹一次：**本机还缺什么**，能补的一键补
 ///
 /// 只负责说清与收选择 —— 拉列表 / 排队下载由调用方去做（那条链要联网、会起任务，
-/// 不适合塞在弹窗里）。没得补时调用方**别弹**这个（用 [CloudRestoreGap.isEmpty] 判）。
+/// 不适合塞在弹窗里）；没得补时调用方**别弹**这个（用 [CloudRestoreGap.isEmpty] 判）
 /// [offerModFill] / [offerGameInstall] 控制这一次露哪几个按钮：
 /// 两件都缺时调用方**逐件问**，办完一件再把另一个藏掉
 Future<CloudRestoreGapChoice> showRestoreGapPrompt({

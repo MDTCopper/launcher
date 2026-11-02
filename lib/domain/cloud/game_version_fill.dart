@@ -16,7 +16,7 @@ const _defaultHeaders = {'User-Agent': 'MindustryDownloader'};
 /// 从一页官方 release 里挑出云包记的那个游戏版本
 ///
 /// 云包里记的是**发布号**（`v160.5`）与启动器内部的 tag（`v8 Build 160.5`）——
-/// 前者才是 GitHub 的 tag，所以先按发布号对，顺手也认一下 tag。
+/// 前者才是 GitHub 的 tag，所以先按发布号对，顺手也认一下 tag
 /// 比较时忽略大小写与开头那个 `v`（`160.5` / `V160.5` 都算）
 MindustryRelease? pickGameRelease(
   Iterable<MindustryRelease> releases,
@@ -138,7 +138,7 @@ Future<List<MindustryRelease>?> _fetchGithub(
 
 /// 把云包里那个游戏版本装回来：拉一页官方 release → 按发布号找 → 起下载任务
 ///
-/// **返回 null = 已经排进下载队列**；返回字符串 = 没排上，内容是给人看的原因。
+/// **返回 null = 已经排进下载队列**；返回字符串 = 没排上，内容是给人看的原因
 /// 只装**本体**：云包里的 `loaderVersion` 不在这条路上处理（加载器在版本设置里换 / 补）
 Future<String?> installGameVersion({
   required CloudGameInfo game,

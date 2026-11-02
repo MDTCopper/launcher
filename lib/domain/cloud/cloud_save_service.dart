@@ -224,7 +224,7 @@ class CloudSaveRestoreResult {
 
 /// 上传前的体积预估：**清单合计（未压缩）**
 ///
-/// 页面拿它显示「这次约 X MB」，好与云端剩余配额对照。**别拿它当上传字节数**：
+/// 页面拿它显示「这次约 X MB」，好与云端剩余配额对照；**别拿它当上传字节数**：
 /// `.msav` / `.msch` 在包里原样存（本来就 zlib 过），只有模组 jar 会压 ⇒ 真实包更小
 class CloudUploadEstimate {
   const CloudUploadEstimate({
@@ -242,10 +242,10 @@ class CloudUploadEstimate {
   bool get isEmpty => bytes == 0;
 }
 
-/// 一份「覆盖前自备份」（`<数据根>/cloud-backups/cloud-backup-<时间戳>.zip`）
+/// 一份覆盖前自备份（`<数据根>/cloud-backups/cloud-backup-<时间戳>.zip`）
 ///
-/// 每次覆盖性恢复都会留一份，只保留最近 [CloudSaveService.backupKeep] 份 ——
-/// 但在这之前**没有任何入口能看见 / 还原它们**，等于存了却拿不出来
+/// 每次覆盖性恢复都会留一份，只保留最近 [CloudSaveService.backupKeep] 份，
+/// 毁档时可以从这里还原
 class CloudBackupFile {
   const CloudBackupFile({
     required this.path,
@@ -264,7 +264,7 @@ class CloudBackupFile {
 
 /// 云存档的编排层：本地云包（`CloudArchive`）↔ MDTBBS 云存档接口
 ///
-/// 同步单元是**数据目录**：一个数据目录一个槽位，槽位名默认「设备名 · 游戏版本」。
+/// 同步单元是**数据目录**：一个数据目录一个槽位，槽位名默认「设备名 · 游戏版本」
 /// 槽位 id 会在本地按数据目录记一份，用户改了槽位名也不会走丢、不会重复建
 class CloudSaveService {
   CloudSaveService._();
@@ -379,7 +379,7 @@ class CloudSaveService {
 
   /// 采用云端标签：把本机隔离实例的 tag / 文件夹改成云端 `boundTag`
   ///
-  /// 云槽位名、云签名、slotId 都不动；失败抛 [StateError]，调用方不要继续拉取。
+  /// 云槽位名、云签名、slotId 都不动；失败抛 [StateError]，调用方不要继续拉取
   static Future<void> adoptCloudTag(Mindustry version, String cloudTag) async {
     final tag = cloudTag.trim();
     if (tag.isEmpty || tag == version.tag) return;
@@ -635,9 +635,9 @@ class CloudSaveService {
 
   /// 槽位名里的发布号
   ///
-  /// 名字是 `设备名 · release[ · boundTag] #短码`（默认存档是 `设备名 · 默认存档 #短码`）。
-  /// 不能直接取最后一段：v3 起末尾多了 boundTag 与短码，取最后一段会拿到标签。
-  /// 设备名本身也可能带分隔符，所以在第 1 段之后找第一个像发布号的
+  /// 名字是 `设备名 · release[ · boundTag] #短码`，默认存档是 `设备名 · 默认存档 #短码`；
+  /// 末尾是标签不是发布号，设备名本身也可能带分隔符，
+  /// 所以在第 1 段之后找第一个像发布号的
   static String releaseFromSlotName(String name) {
     final withoutShort = name
         .replaceFirst(RegExp(r' #[0-9a-fA-F]{8}$'), '')
@@ -659,7 +659,7 @@ class CloudSaveService {
 
   /// 取当前绑定槽位；没有绑定时只有 [allowCreate] 才建新槽
   ///
-  /// 自动同步不允许建槽；手动上传 / 显式新建才允许。
+  /// 自动同步不允许建槽；手动上传 / 显式新建才允许
   static Future<CloudSaveSlot> resolveSlot({
     required String accessToken,
     required Mindustry version,
@@ -776,7 +776,7 @@ class CloudSaveService {
 
   /// 把这个版本的数据目录打包上传
   ///
-  /// 上传的就是 `CloudArchive` 打的 zip（服务端只当不可变 blob 存）。冲突靠
+  /// 上传的就是 `CloudArchive` 打的 zip（服务端只当不可变 blob 存）；冲突靠
   /// [CloudSaveConflictPolicy] 决定：默认 `normal`（不匹配就报错让上层处理），
   /// 由上层拿着当前 head 再决定重试还是强制覆盖
   static Future<CloudSaveUploadResult> upload({
@@ -912,7 +912,7 @@ class CloudSaveService {
       }
 
       onStatus?.call('上传云包');
-      // 会话一建好，服务端就替我们占着配额 ⇒ 取消 / 失败都必须把它交回去。
+      // 会话一建好，服务端就替我们占着配额 ⇒ 取消 / 失败都必须把它交回去
       // 不交的话那笔额度要等它自己过期，用户看到的是「刚传失败了，怎么又传不了」
       final CloudSaveSnapshot? snapshot;
       try {
@@ -1033,8 +1033,7 @@ class CloudSaveService {
 
     var uploaded = 0;
     var uploadedBytes = 0;
-    // 差量是一次一个文件地传：进度要按「已传完的 + 这个文件已传的」累计，
-    // 否则界面每换一个文件就把进度条打回 0
+    // 进度按「已传完的 + 当前文件已传的」累计，否则每换一个文件进度条会打回 0
     final missingBytes = missing.values.fold(
       0,
       (sum, file) => sum + file.size,
@@ -1216,8 +1215,8 @@ class CloudSaveService {
 
   /// 把没用完的上传会话交回去（服务端据此释放它占的配额）
   ///
-  /// 收尾动作，尽力而为：**不带原来那个 cancelToken** —— 用户取消时它已经取消了，
-  /// 拿它发请求会立刻再被取消；失败也只记日志，别盖住真正的错
+  /// 收尾动作，尽力而为：不带用户那个 cancelToken，取消后拿它发请求会立刻再被取消；
+  /// 失败也只记日志，别盖住真正的错
   static Future<void> _releaseUploadQuietly({
     required String accessToken,
     required String uploadId,
@@ -1236,7 +1235,7 @@ class CloudSaveService {
   /// 上传前看额度够不够；不够就删**最旧的未固定快照**腾地方
   ///
   /// 服务端的保留策略按版本数清（每槽位 20 个未固定 / 90 天），**不按容量** ⇒
-  /// 存档一大就会顶满 200 MiB。这里只做两件事：
+  /// 存档一大就会顶满 200 MiB；这里只做两件事：
   /// - 额度够 / 读不到额度（服务端没给、请求失败）⇒ 直接放行，交给服务端判
   /// - 额度不够 ⇒ 从最旧的未固定快照开始删（**固定的与当前 head 不碰**），
   ///   删完还差就抛 [MdtbbsException]（码 `QUOTA_INSUFFICIENT`），**不上传**
@@ -1337,7 +1336,7 @@ class CloudSaveService {
   /// 把某个快照拉下来并解进本机数据目录
   ///
   /// 严格按官方要求：**先落临时文件 → 校验字节数与 sha256 → 才交给解包**；
-  /// 解包按 [mode] 处理同名文件；**默认整份覆盖**，不留 `-cloud-` 副本。
+  /// 解包按 [mode] 处理同名文件；**默认整份覆盖**，不留 `-cloud-` 副本
   /// `settings.bin` 也在这条路上当普通文件同步（含键位 / UI / 存档标题）
   static Future<CloudImportReport> download({
     required String accessToken,
@@ -1411,10 +1410,9 @@ class CloudSaveService {
     }
   }
 
-  /// 读一份快照的文件清单，用来算「本机还缺什么」
+  /// 读一份快照的文件清单，用来算本机还缺什么
   ///
-  /// 只有 `format = manifest` 的快照能读；整包快照返回 null（那种要下整个包才拿得到
-  /// 清单，界面上直接提示「先恢复一次」更划算）
+  /// 只有 `format = manifest` 的快照能读，整包快照返回 null
   static Future<CloudManifest?> manifestOfSnapshot({
     required String accessToken,
     required String slotId,
@@ -1438,12 +1436,10 @@ class CloudSaveService {
     }
   }
 
-  /// 用云端快照**覆盖本机**这份数据目录（页面上那个「恢复」）
+  /// 用云端快照覆盖本机这份数据目录
   ///
-  /// 覆盖前先把本机这份导出成 zip 存进 [backupDirPath]；**备份失败就中止** ——
-  /// 不能在没有退路的情况下盖掉玩家的存档。
-  /// `settings.bin` 与存档一样**逐字节落地**（含键位 / UI / 存档标题），
-  /// 我们不再自己解码改写它
+  /// 覆盖前先把本机这份导出成 zip 存进 [backupDirPath]，备份失败就中止，
+  /// 不能在没有退路的情况下盖掉玩家的存档；`settings.bin` 与存档一样逐字节落地
   static Future<CloudSaveRestoreResult> restore({
     required String accessToken,
     required Mindustry version,
@@ -1615,9 +1611,9 @@ class CloudSaveService {
           }
         }
       }
-      // 同一个模组的旧版本文件收掉：差量恢复只按清单写文件，不会自动删旧的
+      // 差量只按清单写文件，同一个模组的旧版本要自己收掉
       await _dedupeRestoredMods(version: version, manifest: manifest);
-      // 与整包恢复同一套口径：模组启用态要按清单写回，否则会出现装好但没生效
+      // 与整包恢复同一套口径：启用态要写回，否则装好却没生效
       final modStates = await readInstalledModStates(
         p.join(version.dataPath, 'settings.bin'),
       );
@@ -1649,25 +1645,22 @@ class CloudSaveService {
     }
   }
 
-  /// 小文件并发下载的阈值：清单里地图 / 蓝图 / 预览图这类基本都在它下面
+  /// 小文件阈值：地图 / 蓝图 / 预览图基本都在它下面
   static const _smallFileBytes = 4 * 1024 * 1024;
 
   /// 并发下载小文件的条数上限
   ///
-  /// 存档与模组这种大文件一个一个来：它们的单文件下载内部本来就有分块并发，
-  /// 再叠加多条会互相抢带宽
+  /// 大文件的单文件下载内部已有分块并发，外面再叠加会互相抢带宽
   static const _smallFileParallel = 4;
 
-  /// 按文件大小分成「并发组」与「顺序组」
+  /// 按文件大小分成并发组与顺序组
   @visibleForTesting
   static bool isSmallCloudFile({required int size}) =>
       size > 0 && size <= _smallFileBytes;
 
-  /// 下载清单里缺的文件；返回实际下载的字节数
+  /// 下载清单里缺的文件，返回实际下载的字节数
   ///
-  /// 小文件先并发跑（地图 / 蓝图 / 预览图通常几十上百个，串行时每个都要一次
-  /// 建连，慢在握手不在带宽），大文件再逐个下。进度按「已下完 + 在途」聚合，
-  /// 多路并发时进度条也不会来回跳
+  /// 小文件先并发、大文件逐个下；进度按「已下完 + 在途」聚合，多路并发时不来回跳
   static Future<int> _downloadBlobFiles({
     required String accessToken,
     required List<MapEntry<String, CloudSaveManifestFile>> entries,
@@ -1780,11 +1773,10 @@ class CloudSaveService {
     return finishedBytes;
   }
 
-  /// 差量恢复落地后，把同一个模组的其它版本文件删掉
+  /// 差量恢复落地后删掉同一个模组的其它版本文件
   ///
-  /// 整包恢复在 `CloudArchiveReader` 里做过同样的事；差量恢复是逐文件写，
-  /// 不清的话新旧两版会一起被游戏加载。只处理随包带了字节的模组：没带字节的
-  /// 本机本来就没有新文件，删旧版等于把模组弄丢
+  /// 差量是逐文件写，不清的话新旧两版会一起被游戏加载；只处理随包带了字节的模组，
+  /// 没带字节的本机没有新文件，删旧版等于把模组弄丢
   static Future<void> _dedupeRestoredMods({
     required Mindustry version,
     required CloudManifest manifest,
@@ -1916,7 +1908,7 @@ class CloudSaveService {
 
   /// 这次上传大概多大（清单合计、未压缩）与有几份文件 / 几个模组
   ///
-  /// 给页面显示「这次约 X MB」用。走哈希缓存（真数据热扫约 0.67 s）；
+  /// 给页面显示「这次约 X MB」用；走哈希缓存（真数据热扫约 0.67 s）；
   /// 真上传时还会再扫一次 —— 那次要的就是哈希，这里只为显示
   static Future<CloudUploadEstimate> estimateUpload(
     Mindustry version, {
@@ -1980,7 +1972,7 @@ class CloudSaveService {
   /// 用某份自备份**覆盖**本机数据目录
   ///
   /// 与云端恢复同一条规矩：**覆盖前先留底**（那份新的自备份就是这次的后路，
-  /// 所以「还原」本身也能再退回去）。**不动本地同步记录** —— 本机内容已经与云端 head
+  /// 所以「还原」本身也能再退回去）；**不动本地同步记录** —— 本机内容已经与云端 head
   /// 不一致了，之后该判成待上传 / 冲突由状态机去说，别在这里谎报已同步
   static Future<CloudSaveRestoreResult> restoreBackup({
     required Mindustry version,
@@ -2095,10 +2087,9 @@ class CloudSaveService {
     }
   }
 
-  /// 按云清单把模组的启用态落回本机；失败只记日志（别把整个恢复搞挂）
+  /// 按云清单把模组的启用态落回本机；失败只记日志，别把整个恢复搞挂
   ///
-  /// [modStates] 给 manifest 快照用：服务端 mod 元数据不带启用态，
-  /// 而启用态就在刚恢复的 `settings.bin` 里，重新读一遍比清单可靠
+  /// [modStates] 给 manifest 快照用：启用态在刚恢复的 `settings.bin` 里，重读比清单可靠
   static Future<void> _applyModStatesQuietly(
     Mindustry version,
     CloudManifest manifest, {
@@ -2164,7 +2155,7 @@ class CloudSaveService {
   /// 导出云包，顺带用上哈希缓存
   ///
   /// 一次扫描要给真数据里 248 MiB 的模组 jar 逐份算指纹（约 4-6 秒），而缓存让
-  /// **没变过的文件只 stat 一次**。缓存读写失败都不影响导出（见 [CloudHashCache]）
+  /// **没变过的文件只 stat 一次**；缓存读写失败都不影响导出（见 [CloudHashCache]）
   static Future<CloudArchiveExport> _exportWithCache({
     required Mindustry version,
     required String outputPath,
@@ -2269,7 +2260,7 @@ class CloudSaveService {
 
   /// 这个版本当前使用的数据目录开没开云存档
   ///
-  /// 总开关是前置条件；profile 按账号记，换账号不继承。
+  /// 总开关是前置条件；profile 按账号记，换账号不继承
   static bool isEnabled(Mindustry version) {
     final account = currentAccountId;
     if (account == null || !globallyEnabled) return false;

@@ -8,7 +8,7 @@ import 'package:path/path.dart' as p;
 ///
 /// 「恢复」是覆盖式的，云端包里只带**我们自己打包时收进去的东西** ——
 /// 模组字节默认不进包（一份配额连 11 个真模组都放不下），所以恢复完经常是
-/// 「存档回来了、模组没回来」，进游戏才发现开不了。这里把缺口算出来，
+/// 「存档回来了、模组没回来」，进游戏才发现开不了；这里把缺口算出来，
 /// 交给界面提示 + 一键补全
 class CloudRestoreGap {
   const CloudRestoreGap({
@@ -70,7 +70,7 @@ String describeRestoreGap(CloudRestoreGap gap) {
 
 /// 比对「包里的清单」与「本机现状」
 ///
-/// 纯计算：不联网、不写盘。[installedGameTags] 传本机装着的版本标识
+/// 纯计算：不联网、不写盘；[installedGameTags] 传本机装着的版本标识
 /// （tag 与发布号都认，见 [installedGameIdentifiers]）
 CloudRestoreGap computeRestoreGap({
   required String dataPath,
@@ -126,7 +126,7 @@ String normalizedModFileName(String name) {
 
 /// 本机数据目录里现有的模组文件名（归一后的小写名）
 ///
-/// 两个地方都要看：原版模组在 `mods/`、Copper 原生模组在 `copper/mods/`。
+/// 两个地方都要看：原版模组在 `mods/`、Copper 原生模组在 `copper/mods/`
 /// Mindustry 禁用模组会把文件后缀改掉（`<名字>.jar.disable`），那也算装了
 Set<String> _localModFileNames(String dataPath) {
   final names = <String>{};

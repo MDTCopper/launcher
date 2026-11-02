@@ -1250,10 +1250,10 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     );
   }
 
-  /// 「这次约 X MB · 云端还剩 Y MB」—— 传之前就把话说清（完全没有预算时返回 null）
+  /// 「这次约 X MB · 云端还剩 Y MB」，传之前就把话说清；完全没有预算时返回 null
   ///
-  /// 估的是**清单合计（未压缩）**：`.msav` / `.msch` 在包里原样存（本来就 zlib 过），
-  /// 只有模组 jar 会压 ⇒ 真实包会小一点，所以说「约」
+  /// 估的是清单合计（未压缩）：`.msav` / `.msch` 在包里原样存，只有模组 jar 会压，
+  /// 真实包会小一点，所以说「约」
   Widget? _buildBudgetLine(BuildContext context) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
@@ -1612,7 +1612,7 @@ class _SnapshotTile extends StatelessWidget {
 /// 调试用：往数据目录写一份**游戏那套读法能认**的假存档（zlib + MSAV + meta 区）
 ///
 /// 名字固定（`copper-debug.msav`）、波次每次不同 ⇒ 反复点就能造出「本机改了」，
-/// 配合上传就能造出冲突。只在 debug 下由「调试」模块调用
+/// 配合上传就能造出冲突；只在 debug 下由「调试」模块调用
 void _writeDebugSave(String dataPath) {
   final metaBytes = BytesBuilder();
   void u16(BytesBuilder builder, int value) =>

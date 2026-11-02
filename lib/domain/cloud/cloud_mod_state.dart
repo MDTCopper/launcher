@@ -32,7 +32,7 @@ class CloudModStateReport {
 /// 把云清单里的模组启用态落回本机
 ///
 /// **只改文件名后缀**（禁用 → `.disable`，启用 → 去掉后缀），不碰 `settings.bin`：
-/// 那份已经按云包逐字节覆盖过了，游戏真正跳过禁用模组靠的是后缀。
+/// 那份已经按云包逐字节覆盖过了，游戏真正跳过禁用模组靠的是后缀
 /// 同一个模组在 `mods/` 与 `copper/mods/` 都可能有一份：先按清单里的 `isCopper` 与文件名找，
 /// 找不到再按内部名两边找（补全 / 下载装的版本文件名可能与清单记的不一致）
 Future<CloudModStateReport> applyModEnabledStates({

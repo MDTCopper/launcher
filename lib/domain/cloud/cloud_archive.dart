@@ -24,7 +24,7 @@ import 'package:path/path.dart' as p;
 /// ```
 ///
 /// 存档 / 地图 / 蓝图本身已经是 zlib 压缩过的，zip 里**原样存**（不二次压缩）；
-/// 模组 jar 是普通 zip，用 deflate 再压一次还有收益。
+/// 模组 jar 是普通 zip，用 deflate 再压一次还有收益
 class CloudArchive {
   CloudArchive._();
 
@@ -44,9 +44,9 @@ class CloudArchive {
   ///
   /// [outputPath] 先写 `<outputPath>.importing` 再改名（中途出错不留半个包）；
   /// **别把云包存进游戏数据目录** —— Steam 云对 `saves/`、`maps`、`mods` 等的规则是
-  /// `*`，临时文件也会被传上去占配额。
+  /// `*`，临时文件也会被传上去占配额
   /// 扫完到打包之间文件被改过（哈希对不上）就**宁可不打包**，记进
-  /// [CloudArchiveExport.dropped]。
+  /// [CloudArchiveExport.dropped]
   static Future<CloudArchiveExport> export({
     required Mindustry version,
     required String outputPath,
@@ -268,13 +268,13 @@ class CloudArchiveReader {
 
   /// 解到本机数据目录
   ///
-  /// - 逐份校验 sha256，对不上的一律不落地（记进 [CloudImportReport.rejected]）；
-  /// - 只写清单里点过名的东西，包里多出来的条目当没看见（也会记一笔）；
-  /// - 同名文件按 [mode] 处理，默认 [CloudImportMode.overwrite]；云存档恢复 / 拉取由调用方
-  ///   先做整目录备份；[CloudImportMode.keepBoth] 只保留给底层测试；
-  /// - 战役关键文件（settings.bin + sector-*.msav）必须成对落地；keepBoth 下也覆盖，
-  ///   避免出现「区块存档在、SectorInfo 没在」的假重置；
-  /// - 模组字节按 `isCopper` 落回 `mods/` 或 `copper/mods/`，**不认识的模组不代装**。
+  /// - 逐份校验 sha256，对不上的一律不落地（记进 [CloudImportReport.rejected]）
+  /// - 只写清单里点过名的东西，包里多出来的条目当没看见（也会记一笔）
+  /// - 同名文件按 [mode] 处理，默认 [CloudImportMode.overwrite]；恢复 / 拉取由调用方
+  ///   先做整目录备份，[CloudImportMode.keepBoth] 只给底层测试用
+  /// - 战役关键文件（settings.bin + sector-*.msav）必须成对落地，keepBoth 下也覆盖，
+  ///   避免出现「区块存档在、SectorInfo 没在」的假重置
+  /// - 模组字节按 `isCopper` 落回 `mods/` 或 `copper/mods/`，不认识的模组不代装
   Future<CloudImportReport> extractTo({
     required String dataPath,
     CloudImportMode mode = CloudImportMode.overwrite,
@@ -359,8 +359,8 @@ class CloudArchiveReader {
         continue;
       }
 
-      // 战役关键文件必须成对覆盖：settings.bin 装 SectorInfo / 解锁，sector-*.msav
-      // 是区块本体。若其中一个被留成 -cloud- 副本，游戏只会读到半套，表现就是进度重置。
+      // 战役关键文件要成对覆盖：settings.bin 装 SectorInfo / 解锁，sector-*.msav 是
+      // 区块本体，留成 -cloud- 副本会让游戏读到半套
       final campaignOverwrite =
           target.campaignCritical &&
           settled != destination &&
@@ -494,8 +494,8 @@ class CloudArchiveReader {
 
 /// 同名但内容不同时怎么办（`extractTo` 的 [CloudImportMode]）
 ///
-/// 云存档的恢复 / 拉取一律用 [overwrite]，覆盖前由调用方做整目录备份；
-/// [keepBoth] 只保留给底层测试，不再出现在玩家可选的冲突流程里。
+/// 恢复 / 拉取一律用 [overwrite]，覆盖前由调用方做整目录备份；
+/// [keepBoth] 只给底层测试用
 enum CloudImportMode {
   /// 另存一份 `<名字>-cloud-<哈希前 8 位>.<扩展名>`，本机那份不动
   keepBoth,
