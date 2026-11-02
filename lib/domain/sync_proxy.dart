@@ -4,7 +4,9 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/core/app_runtime.dart';
+import 'package:copper_launcher/domain/game_session.dart';
 import 'package:copper_launcher/ui/sync_proxy/sync_proxy_app.dart';
+import 'package:copper_launcher/util/game_process_watch.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -121,6 +123,46 @@ abstract class SyncProxyStore {
 
   static String get cancelPath =>
       p.join(AppPaths.cloudService, syncCancelFileName);
+
+  /// 代理进程 pid：UI 启动时据此关掉可能还挂着的代理窗口
+  static String get proxyPidPath =>
+      p.join(AppPaths.cloudService, 'sync-proxy.json');
+
+  static Future<void> writeProxyPid() async {
+    final file = File(proxyPidPath);
+    await file.parent.create(recursive: true);
+    await file.writeAsString(
+      jsonEncode({'pid': pid, 'at': DateTime.now().toIso8601String()}),
+      flush: true,
+    );
+  }
+
+  static Future<int?> readProxyPid() async {
+    try {
+      final json = jsonDecode(await File(proxyPidPath).readAsString());
+      if (json is Map && json['pid'] is int) return json['pid'] as int;
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<void> clearProxyPid() async {
+    try {
+      final file = File(proxyPidPath);
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
+  }
+
+  /// UI 已经起来了：代理没有存在意义，直接关掉，别压在 UI 上
+  static Future<void> closeIfRunning() async {
+    final proxyPid = await readProxyPid();
+    if (proxyPid != null &&
+        proxyPid != pid &&
+        GameProcessWatch.isAlive(proxyPid)) {
+      Process.killPid(proxyPid);
+      addLog(.info, '云同步代理：UI 已启动，关闭残留代理进程 $proxyPid', tag: 'CloudService');
+    }
+    await clearProxyPid();
+  }
 
   static Future<SyncProxyStatus?> readStatus() async {
     try {
@@ -359,6 +401,11 @@ class SyncProxyGate {
   Future<void> _spawnProxyWindow() async {
     if (_closed || _proxySpawned) return;
     _proxySpawned = true;
+    // UI 已经在线就没必要再弹代理；服务继续把这次同步跑完
+    if (await GameSessionStore.isUiRunning()) {
+      addLog(.info, '云同步代理：UI 已在线，跳过代理窗口', tag: 'CloudService');
+      return;
+    }
     await SyncProxyLauncher.spawn(versionId: versionId);
   }
 
@@ -540,5 +587,6 @@ Future<void> runSyncProxy({String? versionId}) async {
         ' dpr=$dpr 物理=${physicalSize.width.toInt()}x${physicalSize.height.toInt()}',
     tag: 'CloudService',
   );
+  await SyncProxyStore.writeProxyPid();
   runApp(SyncProxyApp(versionId: versionId));
 }

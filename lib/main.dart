@@ -15,6 +15,7 @@ import 'package:copper_launcher/domain/mdtbbs/mdtbbs_realtime_service.dart';
 import 'package:copper_launcher/domain/quick_launch.dart';
 import 'package:copper_launcher/domain/quick_launch_entry.dart';
 import 'package:copper_launcher/domain/shortcut_launch.dart';
+import 'package:copper_launcher/domain/sync_proxy.dart';
 import 'package:copper_launcher/domain/sync_proxy_process.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
@@ -238,6 +239,8 @@ Future<void> _initializeUi(
 
   // UI 在线标记：快捷启动触发进程靠它决定「交给 UI」还是「自己进服务」
   await GameSessionStore.writeUiPid();
+  // 代理窗口可能正压在屏幕上：UI 已经起来就不需要它了
+  await SyncProxyStore.closeIfRunning();
   // 发现服务进程正在管的局：接回任务抽屉；服务死了就补接管；done 记录导入游玩时长
   unawaited(GameSessionMonitor.instance.start());
 

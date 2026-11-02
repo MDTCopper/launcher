@@ -140,7 +140,7 @@ class CloudServiceProcess {
     _sessions[version.id] = session;
 
     addLog(.info, '云服务：启动 [${version.tag}]（$reason）', tag: 'CloudService');
-    await GameInstance.launch(version);
+    await GameInstance.launch(version, serviceOwned: true);
 
     final task = _findTask(version.id);
     if (task == null) {

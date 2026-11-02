@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/domain/game_session.dart';
 import 'package:copper_launcher/domain/sync_proxy.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
@@ -56,6 +57,11 @@ class _SyncProxyAppState extends State<SyncProxyApp> {
 
   Future<void> _refresh() async {
     if (_quitting) return;
+    // UI 已经起来：代理窗口没必要继续压在界面上，服务端的同步会继续
+    if (await GameSessionStore.isUiRunning()) {
+      await _quit();
+      return;
+    }
     final status = await SyncProxyStore.readStatus();
     if (!mounted || _quitting) return;
     if (status == null) {
@@ -92,6 +98,7 @@ class _SyncProxyAppState extends State<SyncProxyApp> {
     if (_quitting) return;
     _quitting = true;
     _pollTimer?.cancel();
+    await SyncProxyStore.clearProxyPid();
     try {
       await windowManager.destroy();
     } catch (_) {}

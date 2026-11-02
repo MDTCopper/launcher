@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/mindustry/mindustry.dart';
+import 'package:copper_launcher/domain/game_session.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
@@ -59,11 +60,31 @@ class GameInstance {
   }
 
   /// 启动游戏：与启动器正在管的游戏冲突时只提示，不会起第二个
-  static Future<void> launch(Mindustry version) async {
+  ///
+  /// [serviceOwned] 只给云服务自己用：服务先写 session 再启动，不能把自己拦下来
+  static Future<void> launch(
+    Mindustry version, {
+    bool serviceOwned = false,
+  }) async {
     final reason = blockReason(version);
     if (reason != GameLaunchBlock.none) {
       _notifyBlocked(reason);
       return;
+    }
+    // 跨进程：服务可能正在同步/启动同一个版本，UI 看到 session 就不能再拉一局
+    if (!serviceOwned) {
+      final active = await GameSessionStore.active();
+      if (active.any(
+        (session) => session.versionId == version.id && session.isActive,
+      )) {
+        addLog(
+          .info,
+          '启动被拦：服务正在处理这个版本 [${version.tag}]',
+          tag: 'Launch',
+        );
+        _notifyBlocked(GameLaunchBlock.anotherGameRunning);
+        return;
+      }
     }
     (debugLaunchOverride ?? _addLaunchTask)(version);
   }
