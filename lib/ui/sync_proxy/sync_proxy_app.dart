@@ -9,7 +9,7 @@ import 'package:copper_launcher/ui/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
-/// 代理窗口的固定尺寸：只够显示版本 / 阶段 / 耗时 / 取消按钮
+/// 代理窗口的固定尺寸：标题 36 + 阶段/说明/进度，取消按钮放在标题栏右侧，不会被裁
 const Size syncProxyWindowSize = Size(420, 180);
 
 /// 临时云同步代理窗口：启动前同步超过 3 秒时由服务拉起，同步收尾就自己关
@@ -162,8 +162,10 @@ class _SyncProxyAppState extends State<SyncProxyApp> {
         theme: buildTheme(Brightness.light, _themeColor),
         darkTheme: buildTheme(Brightness.dark, _themeColor),
         themeMode: _themeMode,
-        home: Scaffold(
-          body: _buildPanel(context),
+        // 必须用 MaterialApp 下面的 Builder context：直接用外层 context 取
+        // Theme.of(context).extension<AppColors>() 会拿到 null（MaterialApp 之上没有主题）
+        home: Builder(
+          builder: (context) => Scaffold(body: _buildPanel(context)),
         ),
       ),
     );
@@ -177,7 +179,6 @@ class _SyncProxyAppState extends State<SyncProxyApp> {
         children: [
           _buildTitleBar(context),
           Expanded(child: _buildBody(context)),
-          _buildFooter(context),
         ],
       ),
     );
@@ -211,8 +212,15 @@ class _SyncProxyAppState extends State<SyncProxyApp> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const Spacer(),
-            Text(_versionLabel(_status), style: theme.textTheme.bodySmall),
+            const SizedBox(width: 8),
+            // 取消按钮放标题栏左侧：不依赖右对齐，窗口再窄也不会被裁掉
+            ReboundButton(
+              onTap: _cancelRequested
+                  ? null
+                  : () => unawaited(_requestCancel()),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Text(_cancelLabel(_status)),
+            ),
           ],
         ),
       ),
@@ -236,7 +244,7 @@ class _SyncProxyAppState extends State<SyncProxyApp> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 10),
               Text(
                 '已耗时 ${_elapsedLabel(_status)}',
                 style: theme.textTheme.bodySmall,
@@ -245,42 +253,13 @@ class _SyncProxyAppState extends State<SyncProxyApp> {
           ),
           const SizedBox(height: 6),
           Text(
-            _messageLabel(_status),
+            '${_versionLabel(_status)} · ${_messageLabel(_status)}',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(value: progress, minHeight: 4),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFooter(BuildContext context) {
-    final theme = Theme.of(context);
-    // 写存档阶段也允许点：服务不会硬停，只会把状态切到「正在收尾」
-    final canCancel = !_cancelRequested && !(_status?.phase.isTerminal ?? false);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '同步完成后会自动启动游戏',
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-          ReboundButton(
-            onTap: canCancel ? () => unawaited(_requestCancel()) : null,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Text(
-              _cancelLabel(_status),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: canCancel ? null : theme.disabledColor,
-              ),
-            ),
-          ),
         ],
       ),
     );

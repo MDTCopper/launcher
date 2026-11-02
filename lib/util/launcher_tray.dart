@@ -432,10 +432,8 @@ class LauncherTray extends TrayListener with WindowListener {
     if (_closing) return;
     _closing = true;
     addLog(.info, '托盘：退出启动器', tag: 'Tray');
-    // 正在跑的游戏先交接给云服务，否则 UI 一退，这局的退出上传就丢了
-    await handoffRunningGamesToService();
-    // 有正在跑的云存档自动上传就等它传完（最多 60 秒），别把刚打完的存档丢掉
-    await CloudAutoSync.waitForPending();
+    await _handoffBounded();
+    await _waitPendingBounded();
     await _destroyWindow();
   }
 
@@ -445,10 +443,34 @@ class LauncherTray extends TrayListener with WindowListener {
     _closing = true;
     addLog(.info, '退出启动器：先交接运行中的游戏', tag: 'Tray');
     try {
-      await handoffRunningGamesToService();
-      await CloudAutoSync.waitForPending();
+      await _handoffBounded();
+      await _waitPendingBounded();
     } finally {
       await _destroyWindow();
+    }
+  }
+
+  /// 交接必须有上限：服务/文件 IO 卡住时不能让 UI 一直无响应
+  Future<void> _handoffBounded() async {
+    try {
+      await handoffRunningGamesToService().timeout(
+        const Duration(seconds: 4),
+      );
+      addLog(.info, '退出：游戏交接完成', tag: 'Tray');
+    } catch (error) {
+      addLog(.warning, '退出：游戏交接超时/失败（继续关窗）：$error', tag: 'Tray');
+    }
+  }
+
+  /// 等云存档自动上传完成，但最多等 4 秒；超时先关窗，服务侧继续收尾
+  Future<void> _waitPendingBounded() async {
+    try {
+      await CloudAutoSync.waitForPending().timeout(
+        const Duration(seconds: 4),
+      );
+      addLog(.info, '退出：存档上传等待完成', tag: 'Tray');
+    } catch (error) {
+      addLog(.warning, '退出：等存档上传超时（继续关窗）：$error', tag: 'Tray');
     }
   }
 

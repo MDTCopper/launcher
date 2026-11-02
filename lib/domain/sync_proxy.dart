@@ -514,9 +514,30 @@ Future<void> runSyncProxy({String? versionId}) async {
     await windowManager.show();
     await windowManager.focus();
   });
+  // WindowOptions 的 size 在 Windows 上按物理像素落，而 Flutter 布局用的是
+  // 逻辑像素；125% 缩放下 420x180 会变成 336x144，底部/右侧内容被裁。
+  // 按 DPR 反算一次物理尺寸，保证逻辑区域仍是 420x180。
+  final dpr = WidgetsBinding
+      .instance
+      .platformDispatcher
+      .views
+      .first
+      .devicePixelRatio;
+  final logicalSize = syncProxyWindowSize;
+  final physicalSize = Size(
+    (logicalSize.width * dpr).roundToDouble(),
+    (logicalSize.height * dpr).roundToDouble(),
+  );
+  try {
+    await windowManager.setMinimumSize(physicalSize);
+    await windowManager.setMaximumSize(physicalSize);
+    await windowManager.setSize(physicalSize);
+    await windowManager.center();
+  } catch (_) {}
   addLog(
     .info,
-    '云同步代理：窗口就绪${versionId == null ? '' : '（$versionId）'}',
+    '云同步代理：窗口就绪${versionId == null ? '' : '（$versionId）'}'
+        ' dpr=$dpr 物理=${physicalSize.width.toInt()}x${physicalSize.height.toInt()}',
     tag: 'CloudService',
   );
   runApp(SyncProxyApp(versionId: versionId));

@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/data/mindustry/mindustry.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/game_session.dart';
 import 'package:copper_launcher/domain/task.dart';
+import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/game_process_watch.dart';
@@ -12,20 +12,19 @@ import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:flutter/material.dart';
 
-/// UI 完全接管的一局：服务把所有权交出来后，退出上传 / 游玩时长 / 退出行为都在 UI 做
-///
-/// 与 [RemoteSessionTask] 的区别：这是**真任务**，拥有一条完整的收尾链；
-/// 服务已经退位，不会再重复上传。
-class TakeoverSessionTask extends Task {
-  TakeoverSessionTask(this.session, this.version)
-    : super(id: 'takeover-${session.id}');
+/// UI 完全接管的一局：**继承 [LaunchMindustryTask]**，保证任务抽屉 / 托盘 / 单实例
+/// 判断都把它当普通启动任务；只是 `runTask()` 不再去起游戏，而是监听已存在的游戏进程。
+class TakeoverSessionTask extends LaunchMindustryTask {
+  TakeoverSessionTask(this.session, super.mindustry);
 
   GameSession session;
-  final Mindustry version;
 
   bool _cancelled = false;
   bool _finishing = false;
   bool _finished = false;
+
+  @override
+  int? get gamePid => session.gamePid;
 
   @override
   IconData get displayIcon => Icons.videogame_asset;
@@ -60,7 +59,7 @@ class TakeoverSessionTask extends Task {
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                version.tag,
+                mindustry.tag,
                 style: theme.textTheme.bodySmall,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -84,13 +83,13 @@ class TakeoverSessionTask extends Task {
 
   @override
   Future<void> runTask() async {
-    final gamePid = session.gamePid;
-    if (gamePid == null) {
+    final pid = session.gamePid;
+    if (pid == null) {
       await _finishRun(0);
       return;
     }
     while (true) {
-      if (!GameProcessWatch.isAlive(gamePid)) break;
+      if (!GameProcessWatch.isAlive(pid)) break;
       await Future<void>.delayed(const Duration(milliseconds: 800));
     }
     await _finishRun(DateTime.now().difference(session.startedAt).inSeconds);
@@ -100,12 +99,12 @@ class TakeoverSessionTask extends Task {
   void cancel() {
     if (_cancelled) return;
     _cancelled = true;
-    final gamePid = session.gamePid;
-    if (gamePid != null) {
-      final killed = GameProcessWatch.kill(gamePid);
+    final pid = session.gamePid;
+    if (pid != null) {
+      final killed = GameProcessWatch.kill(pid);
       addLog(
         killed ? .info : .warning,
-        '接管任务：结束游戏进程 $gamePid（${killed ? '已发出结束' : '失败'}）',
+        '接管任务：结束游戏进程 $pid（${killed ? '已发出结束' : '失败'}）',
         tag: 'CloudService',
       );
     }
@@ -122,13 +121,13 @@ class TakeoverSessionTask extends Task {
       ..playSeconds = playSeconds;
     await GameSessionStore.save(session);
 
-    await CloudAutoSync.afterGameExit(version);
+    await CloudAutoSync.afterGameExit(mindustry);
     await CloudAutoSync.waitForPending();
 
     final now = DateTime.now();
-    version.lastLaunchTime = now;
-    version.playTime = (version.playTime ?? Duration.zero) +
-        Duration(seconds: playSeconds);
+    mindustry.lastLaunchTime = now;
+    mindustry.playTime =
+        (mindustry.playTime ?? Duration.zero) + Duration(seconds: playSeconds);
     await config.save();
 
     session
@@ -137,11 +136,15 @@ class TakeoverSessionTask extends Task {
     await GameSessionStore.save(session);
     await GameSessionStore.remove(session.id);
 
-    addLog(.info, '接管任务：游戏退出，已上传并记录 [${version.tag}]', tag: 'CloudService');
+    addLog(
+      .info,
+      '接管任务：游戏退出，已上传并记录 [${mindustry.tag}]',
+      tag: 'CloudService',
+    );
     NotificationManager.addNotice(
       icon: Icons.check,
       title: '已接管并收尾',
-      content: '${version.tag} 已退出，云存档已上传',
+      content: '${mindustry.tag} 已退出，云存档已上传',
     );
 
     // 快捷方式启动的局（无主 UI 时服务接的）退出后按设置去哪
