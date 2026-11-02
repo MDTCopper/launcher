@@ -15,7 +15,7 @@ import 'package:copper_launcher/domain/mdtbbs/mdtbbs_realtime_service.dart';
 import 'package:copper_launcher/domain/quick_launch.dart';
 import 'package:copper_launcher/domain/quick_launch_entry.dart';
 import 'package:copper_launcher/domain/shortcut_launch.dart';
-import 'package:copper_launcher/domain/sync_proxy.dart';
+import 'package:copper_launcher/domain/sync_proxy_process.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
@@ -47,11 +47,7 @@ void main(List<String> args) async {
   // 云同步代理：服务在启动前同步超过 3 秒才会拉起它；判在快捷启动之前，
   // 因为参数里也带 --launch-version，否则会被当成普通快捷启动
   if (args.contains('--sync-proxy')) {
-    AppRuntime.form = AppForm.syncProxy;
-    AppRuntime.headless = true;
-    await _initializeCore();
-    addLog(.info, '启动器形态：${AppRuntime.form.label}', tag: 'Startup');
-    await runSyncProxy(versionId: cli.launchVersionId);
+    await SyncProxyProcess.start(versionId: cli.launchVersionId);
     return;
   }
 
