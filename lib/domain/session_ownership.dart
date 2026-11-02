@@ -6,6 +6,7 @@ import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/domain/tasks/takeover_session_task.dart';
+import 'package:copper_launcher/util/game_process_watch.dart';
 import 'package:copper_launcher/util/io/log.dart';
 
 /// UI 与服务之间**唯一**的会话所有权迁移入口
@@ -33,19 +34,33 @@ class SessionOwnership {
         .whereType<LaunchMindustryTask>()
         .where((task) => task.status == TaskStatus.process)
         .where((task) => task.gamePid != null)
+        .where((task) => !task.isExiting)
+        .where((task) => GameProcessWatch.isAlive(task.gamePid!))
         .toList();
     final takeovers = taskManager.currentTasks
         .whereType<TakeoverSessionTask>()
         .where((task) => task.status == TaskStatus.process)
         .where((task) => task.session.gamePid != null)
+        .where((task) => !task.isExiting)
+        .where((task) => GameProcessWatch.isAlive(task.session.gamePid!))
         .toList();
+    final skippedExiting = taskManager.currentTasks
+            .whereType<LaunchMindustryTask>()
+            .where((task) => task.isExiting)
+            .length +
+        taskManager.currentTasks
+            .whereType<TakeoverSessionTask>()
+            .where((task) => task.isExiting)
+            .length;
     addLog(
       .info,
-      '交接：LaunchTask=${launches.length} TakeoverTask=${takeovers.length}',
+      '交接：可交 LaunchTask=${launches.length} TakeoverTask=${takeovers.length} '
+          '正在退出/已结束=$skippedExiting',
       tag: 'CloudService',
     );
     if (launches.isEmpty && takeovers.isEmpty) return false;
 
+    final handoffSessions = <GameSession>[];
     for (final task in launches) {
       final version = task.mindustry;
       final session = GameSession(
@@ -59,6 +74,7 @@ class SessionOwnership {
         cloudEnabled: CloudSaveService.isEnabled(version),
       );
       GameSessionStore.saveSync(session);
+      handoffSessions.add(session);
       addLog(
         .info,
         '交接：把运行中的游戏交给云服务 [${version.tag}] pid=${task.gamePid}',
@@ -78,7 +94,23 @@ class SessionOwnership {
       );
     }
 
-    return ensureService(adoptAll: true, force: true);
+    final started = await ensureService(adoptAll: true, force: true);
+    if (!started) {
+      // 服务没起来：撤掉刚写的 session，让 UI 任务自己按正常退出收尾
+      for (final session in handoffSessions) {
+        await GameSessionStore.remove(session.id);
+      }
+      addLog(.warning, '交接：服务没起来，保留 UI 任务收尾', tag: 'CloudService');
+      return false;
+    }
+    // 服务已经接手：UI 侧任务退出时不要再上传/写 config，否则两套收尾会重复
+    for (final task in launches) {
+      task.transferOwnership();
+    }
+    for (final task in takeovers) {
+      task.transferOwnership();
+    }
+    return true;
   }
 
   /// 需要云服务时统一从这里拉起，带冷却避免重复进程

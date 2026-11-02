@@ -59,6 +59,9 @@ class LaunchMindustryTask extends Task {
   /// 这一局的所有权已移交给 UI：退出时不再由本任务上传 / 写 config / 走快捷启动收尾
   bool _ownershipTransferred = false;
 
+  /// 这一局正在退出/已被接管：交接时不要再写 session，交给本任务或新 owner 收尾
+  bool get isExiting => _exitHandled || _finished || _ownershipTransferred;
+
   /// 服务把运行中的游戏完全交给 UI 时调用（游戏进程不动）
   void transferOwnership() {
     _ownershipTransferred = true;
