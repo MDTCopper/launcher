@@ -1,0 +1,121 @@
+import 'dart:io';
+
+import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
+import 'package:copper_launcher/domain/game_session.dart';
+import 'package:copper_launcher/domain/task.dart';
+import 'package:copper_launcher/domain/task_manager.dart';
+import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
+import 'package:copper_launcher/domain/tasks/takeover_session_task.dart';
+import 'package:copper_launcher/util/io/log.dart';
+
+/// UI 与服务之间**唯一**的会话所有权迁移入口
+///
+/// 所有权只有两种迁移，其它路径都不该直接改 `GameSession.owner`：
+/// - `service → ui`：UI 后开时请求接管；服务消费请求并退出，游戏进程不动
+/// - `ui → service`：UI 退出/关窗时交接；写 session 后拉起 `--cloud-service --adopt-all`
+///
+/// 服务进程内部的 `_transferToUi`、`_adoptAll` 是这两条迁移的另一半，
+/// 但外部调用方只认这里，避免 UI/托盘/监控各写一套。
+class SessionOwnership {
+  SessionOwnership._();
+
+  /// 两个实例同时拉起服务没有意义；5 秒内只尝试一次
+  static const _spawnCooldown = Duration(seconds: 5);
+  static DateTime? _lastSpawn;
+
+  /// UI 退出/关窗：把当前 UI 正在管的游戏交给云服务
+  ///
+  /// 包括启动器自己拉起的 [LaunchMindustryTask] 和已接管过来的
+  /// [TakeoverSessionTask]；没有运行中的游戏时直接返回 false，不拉服务。
+  static Future<bool> handoffToService() async {
+    addLog(.info, '交接：开始检查运行中的游戏', tag: 'CloudService');
+    final launches = taskManager.currentTasks
+        .whereType<LaunchMindustryTask>()
+        .where((task) => task.status == TaskStatus.process)
+        .where((task) => task.gamePid != null)
+        .toList();
+    final takeovers = taskManager.currentTasks
+        .whereType<TakeoverSessionTask>()
+        .where((task) => task.status == TaskStatus.process)
+        .where((task) => task.session.gamePid != null)
+        .toList();
+    addLog(
+      .info,
+      '交接：LaunchTask=${launches.length} TakeoverTask=${takeovers.length}',
+      tag: 'CloudService',
+    );
+    if (launches.isEmpty && takeovers.isEmpty) return false;
+
+    for (final task in launches) {
+      final version = task.mindustry;
+      final session = GameSession(
+        id: GameSessionStore.newId(),
+        versionId: version.id,
+        tag: version.tag,
+        phase: 'running',
+        startedAt: task.createTime,
+        servicePid: 0,
+        gamePid: task.gamePid,
+        cloudEnabled: CloudSaveService.isEnabled(version),
+      );
+      GameSessionStore.saveSync(session);
+      addLog(
+        .info,
+        '交接：把运行中的游戏交给云服务 [${version.tag}] pid=${task.gamePid}',
+        tag: 'CloudService',
+      );
+    }
+
+    for (final task in takeovers) {
+      final session = task.session
+        ..owner = 'service'
+        ..phase = 'running';
+      GameSessionStore.saveSync(session);
+      addLog(
+        .info,
+        '交接：把已接管的游戏交还云服务 [${session.tag}] pid=${session.gamePid}',
+        tag: 'CloudService',
+      );
+    }
+
+    return ensureService(adoptAll: true, force: true);
+  }
+
+  /// 需要云服务时统一从这里拉起，带冷却避免重复进程
+  static Future<bool> ensureService({
+    bool adoptAll = false,
+    bool recover = false,
+    bool force = false,
+  }) async {
+    if (!force && await GameSessionStore.isServiceRunning()) return false;
+    final last = _lastSpawn;
+    if (!force &&
+        last != null &&
+        DateTime.now().difference(last) < _spawnCooldown) {
+      return false;
+    }
+    _lastSpawn = DateTime.now();
+    final args = <String>[
+      '--cloud-service',
+      if (adoptAll) '--adopt-all',
+      if (recover) '--recover',
+    ];
+    try {
+      await Process.start(
+        Platform.resolvedExecutable,
+        args,
+        mode: ProcessStartMode.detached,
+        workingDirectory: File(Platform.resolvedExecutable).parent.path,
+      );
+      addLog(.info, '会话：拉起云服务 ${args.skip(1).join(' ')}', tag: 'CloudService');
+      return true;
+    } catch (error) {
+      addLog(.warning, '会话：拉起云服务失败 $error', tag: 'CloudService');
+      return false;
+    }
+  }
+
+  /// UI 后开：请求服务把某一局的所有权交给 UI
+  static Future<void> requestTakeover(String sessionId) =>
+      GameSessionStore.requestTakeover(sessionId);
+}

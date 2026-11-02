@@ -3,14 +3,11 @@ import 'package:copper_launcher/domain/launch_request.dart';
 
 /// 一次快捷启动从哪里来
 ///
-/// 桌面快捷方式与启动脚本都只投 `--launch-version <id>`，来源本身不改变桌面路由；
+/// 桌面快捷方式只投 `--launch-version <id>`，来源本身不改变桌面路由；
 /// 留这个枚举是为了日志与平台分流——只有 [androidShortcut] 走宿主通道。
 enum LaunchSource {
   /// Windows 桌面 `.lnk`
   desktopShortcut,
-
-  /// 启动脚本 / 其它外部程序
-  desktopScript,
 
   /// Android 桌面快捷方式（宿主持有 versionId，经 `ShortcutLaunch` 取回）
   androidShortcut,

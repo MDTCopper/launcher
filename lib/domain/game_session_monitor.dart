@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/domain/game_session.dart';
+import 'package:copper_launcher/domain/session_ownership.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/session_task.dart';
@@ -32,7 +32,6 @@ class GameSessionMonitor {
 
   bool _started = false;
   bool _ticking = false;
-  DateTime? _lastServiceSpawn;
 
   Future<void> start() async {
     if (_started) return;
@@ -112,7 +111,7 @@ class GameSessionMonitor {
       if (last == null ||
           DateTime.now().difference(last) > _takeoverRequestInterval) {
         _lastTakeoverRequest[session.id] = DateTime.now();
-        await GameSessionStore.requestTakeover(session.id);
+        await SessionOwnership.requestTakeover(session.id);
         addLog(.info, '会话接管：请求服务移交 [${session.tag}]', tag: 'CloudService');
       }
       return;
@@ -162,24 +161,9 @@ class GameSessionMonitor {
   }
 
   Future<void> _ensureServiceFor(GameSession session) async {
-    if (await GameSessionStore.isServiceRunning()) return;
-    final last = _lastServiceSpawn;
-    if (last != null &&
-        DateTime.now().difference(last) < const Duration(seconds: 5)) {
-      return;
-    }
-    _lastServiceSpawn = DateTime.now();
-    try {
-      await Process.start(
-        Platform.resolvedExecutable,
-        ['--cloud-service', '--recover'],
-        mode: ProcessStartMode.detached,
-        workingDirectory: File(Platform.resolvedExecutable).parent.path,
-      );
-      addLog(.info, '会话发现：拉起云服务补上传', tag: 'CloudService');
-    } catch (error) {
-      addLog(.warning, '会话发现：拉起云服务失败 $error', tag: 'CloudService');
-    }
+    // 游戏已结束但服务不在：让服务补一次退出上传
+    addLog(.info, '会话发现：拉起云服务补上传 [${session.tag}]', tag: 'CloudService');
+    await SessionOwnership.ensureService(recover: true);
   }
 
   /// done 会话：服务模式不写 config，这里补写最近启动时间与累计时长

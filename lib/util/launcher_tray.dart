@@ -6,7 +6,7 @@ import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/game_instance.dart';
-import 'package:copper_launcher/domain/session_handoff.dart';
+import 'package:copper_launcher/domain/session_ownership.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
@@ -463,7 +463,7 @@ class LauncherTray extends TrayListener with WindowListener {
   /// 交接必须有上限：服务/文件 IO 卡住时不能让 UI 一直无响应
   Future<void> _handoffBounded() async {
     try {
-      await handoffRunningGamesToService().timeout(
+      await SessionOwnership.handoffToService().timeout(
         const Duration(seconds: 4),
       );
       addLog(.info, '退出：游戏交接完成', tag: 'Tray');
