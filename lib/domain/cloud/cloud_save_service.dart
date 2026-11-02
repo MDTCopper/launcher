@@ -1195,7 +1195,12 @@ class CloudSaveService {
         mod.sha256,
         () => p.join(modsDirPathIn(dataPath, copper: mod.isCopper), mod.fileName),
       );
-      hashes[path] = mod.sha256;
+    }
+    // 基线要跟本机清单同一套键：模组不分是否随包带字节都记，
+    // 否则同步状态永远觉得「本机变了」，每次退出都会白传一遍
+    for (final mod in manifest.mods) {
+      final folder = mod.isCopper ? 'copper/mods' : 'mods';
+      hashes[p.posix.join(folder, mod.fileName)] = mod.sha256;
     }
     final display = _displayInfoOf(_newestSave(manifest)?.meta);
     return (
