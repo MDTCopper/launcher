@@ -35,6 +35,12 @@ class TakeoverSessionTask extends LaunchMindustryTask {
   }
 
   @override
+  void completeHandoff({required bool transferred}) {
+    _ownershipTransferred = transferred;
+    super.completeHandoff(transferred: transferred);
+  }
+
+  @override
   int? get gamePid => session.gamePid;
 
   @override
@@ -125,6 +131,10 @@ class TakeoverSessionTask extends LaunchMindustryTask {
   /// 游戏结束：上传 → 写游玩时长 → 按快捷启动退出设置收尾
   Future<void> _finishRun(int playSeconds) async {
     if (_finishing || _finished) return;
+    if (await waitHandoffDecision()) {
+      _finished = true;
+      return;
+    }
     if (_ownershipTransferred) {
       _finished = true;
       return;

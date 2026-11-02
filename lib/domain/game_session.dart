@@ -128,8 +128,8 @@ class LaunchTicket {
 
 /// 云存档服务的文件协议：`service.json` / `ui.json` / `sessions/*.json` / `pending/` / `requests/`
 ///
-/// 全部用文件而不是平台单实例：调试构建里 `flutter_single_instance.debugMode = kDebugMode`
-/// 会绕过锁，文件 pid 探测才是所有构建一致的行为
+/// 用文件而不是平台单实例：UI 与无界面云服务是两个进程，需要跨进程的会话/presence/票据；
+/// 文件 pid 探测在 Debug/Release 下行为一致
 class GameSessionStore {
   GameSessionStore._();
 
@@ -250,6 +250,12 @@ class GameSessionStore {
       'pid': pid,
       'startedAt': DateTime.now().toIso8601String(),
     });
+  }
+
+  static Future<void> clearUiPid() async {
+    try {
+      if (await _uiFile.exists()) await _uiFile.delete();
+    } catch (_) {}
   }
 
   static Future<int?> uiPid() => _readPid(_uiFile);

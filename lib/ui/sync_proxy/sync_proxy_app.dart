@@ -10,7 +10,7 @@ import 'package:copper_launcher/ui/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
-/// 代理窗口的固定尺寸：标题 36 + 阶段/说明/进度，取消按钮放在标题栏右侧，不会被裁
+/// 代理窗口的固定尺寸：标题 36 + 阶段/说明/进度，取消按钮放在标题栏左侧
 const Size syncProxyWindowSize = Size(420, 180);
 
 /// 临时云同步代理窗口：启动前同步超过 3 秒时由服务拉起，同步收尾就自己关
@@ -99,9 +99,8 @@ class _SyncProxyAppState extends State<SyncProxyApp> {
     _quitting = true;
     _pollTimer?.cancel();
     await SyncProxyStore.clearProxyPid();
-    try {
-      await windowManager.destroy();
-    } catch (_) {}
+    // 与主窗口一致：Windows 上 destroy() 可能卡引擎 teardown，代理短命进程直接结束
+    if (Process.killPid(pid)) return;
     exit(0);
   }
 

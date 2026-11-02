@@ -62,6 +62,30 @@ class LaunchMindustryTask extends Task {
   /// 这一局正在退出/已被接管：交接时不要再写 session，交给本任务或新 owner 收尾
   bool get isExiting => _exitHandled || _finished || _ownershipTransferred;
 
+  /// 交接进行中：退出收尾要等所有权结果，避免 UI 和服务同时上传
+  Completer<bool>? _handoffDecision;
+
+  /// 交接前先挂起收尾；等服务拉起成功/失败后再决定谁收尾
+  void prepareHandoff() {
+    _handoffDecision ??= Completer<bool>();
+  }
+
+  /// 服务已确认接手（transferred=true）或拉起失败（false）
+  void completeHandoff({required bool transferred}) {
+    _ownershipTransferred = transferred;
+    final decision = _handoffDecision;
+    _handoffDecision = null;
+    if (decision != null && !decision.isCompleted) {
+      decision.complete(transferred);
+    }
+  }
+
+  Future<bool> waitHandoffDecision() async {
+    final decision = _handoffDecision;
+    if (decision == null) return _ownershipTransferred;
+    return decision.future;
+  }
+
   /// 服务把运行中的游戏完全交给 UI 时调用（游戏进程不动）
   void transferOwnership() {
     _ownershipTransferred = true;
@@ -593,7 +617,7 @@ class LaunchMindustryTask extends Task {
         !Platform.isAndroid) {
       if (await _tryAdoptRestartedGame()) return;
     }
-    _finishRun(exitLog);
+    unawaited(_finishRun(exitLog));
   }
 
   /// 返回 false 表示不是自更新重启、或者没接上新进程
@@ -642,7 +666,7 @@ class LaunchMindustryTask extends Task {
     _adoptedPid = null;
     _adoptedBuild = null;
     // 被启动器停掉时不会再有 exit 事件，收尾只能在这儿做
-    _finishRun(stopped ? 'exit -1' : 'exit 0');
+    unawaited(_finishRun(stopped ? 'exit -1' : 'exit 0'));
   }
 
   /// 接管的进程不归 [MindustryLauncher] 管，强杀后要自己清启动哨兵
@@ -658,11 +682,17 @@ class LaunchMindustryTask extends Task {
   }
 
   /// 一局真正结束：结算时长、恢复托盘、云存档上传、报退出
-  void _finishRun(String exitLog) {
+  Future<void> _finishRun(String exitLog) async {
     if (_finished) return;
     _finished = true;
 
-    // 所有权已交给 UI：退出上传 / 游玩时长 / 快捷启动行为都由 UI 的接管任务做
+    // 交接中：等服务拉起结果；服务接手就跳过，拉起失败则自己收尾
+    if (await waitHandoffDecision()) {
+      addLog(.info, '启动任务：服务已接手，跳过 UI 侧收尾', tag: 'Launch');
+      return;
+    }
+
+    // 所有权已经交给 UI：退出上传 / 游玩时长 / 快捷启动行为都由 UI 的接管任务做
     if (_ownershipTransferred) {
       addLog(.info, '启动任务：所有权已移交 UI，跳过服务侧收尾', tag: 'Launch');
       return;

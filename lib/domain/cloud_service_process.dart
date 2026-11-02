@@ -236,6 +236,10 @@ class CloudServiceProcess {
     final gameAlive =
         session.gamePid != null && GameProcessWatch.isAlive(session.gamePid!);
     if (!gameAlive) {
+      // 游戏已经结束：先摘掉服务侧任务/监听，避免它和补上传同时收尾
+      final task = _tasks.remove(session.versionId);
+      _sessions.remove(session.versionId);
+      task?.transferOwnership();
       addLog(.info, '云服务：接管时游戏已结束，先补上传 [${session.tag}]', tag: 'CloudService');
       await _recoverSession(session);
       return;

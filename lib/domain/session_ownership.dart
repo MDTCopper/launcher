@@ -9,14 +9,15 @@ import 'package:copper_launcher/domain/tasks/takeover_session_task.dart';
 import 'package:copper_launcher/util/game_process_watch.dart';
 import 'package:copper_launcher/util/io/log.dart';
 
-/// UI 与服务之间**唯一**的会话所有权迁移入口
+/// UI 与服务之间**唯一**的会话交接入口
 ///
 /// 所有权只有两种迁移，其它路径都不该直接改 `GameSession.owner`：
 /// - `service → ui`：UI 后开时请求接管；服务消费请求并退出，游戏进程不动
 /// - `ui → service`：UI 退出/关窗时交接；写 session 后拉起 `--cloud-service --adopt-all`
 ///
-/// 服务进程内部的 `_transferToUi`、`_adoptAll` 是这两条迁移的另一半，
-/// 但外部调用方只认这里，避免 UI/托盘/监控各写一套。
+/// 服务进程内部的 `_transferToUi` 是第一条迁移的另一半；`_adoptAll` 是服务启动时
+/// 把已写好的 owner=service 会话接回内存，不改变 owner。UI 的 monitor 只在
+/// 「服务已死」时直接把 owner 改成 ui，这个兜底不在正常交接路径上。
 class SessionOwnership {
   SessionOwnership._();
 
@@ -52,13 +53,47 @@ class SessionOwnership {
             .whereType<TakeoverSessionTask>()
             .where((task) => task.isExiting)
             .length;
+    // UI 后开接管但还没建出任务时，只有 owner=ui 的 session；这类也要交接
+    final knownVersions = <String>{
+      ...launches.map((task) => task.mindustry.id),
+      ...takeovers.map((task) => task.session.versionId),
+    };
+    final orphanSessions = <GameSession>[];
+    for (final session in await GameSessionStore.active()) {
+      if (session.owner != 'ui' ||
+          knownVersions.contains(session.versionId) ||
+          session.gamePid == null ||
+          !GameProcessWatch.isAlive(session.gamePid!)) {
+        continue;
+      }
+      session
+        ..owner = 'service'
+        ..phase = 'running';
+      GameSessionStore.saveSync(session);
+      orphanSessions.add(session);
+      addLog(
+        .info,
+        '交接：把 owner=ui 的会话交还云服务 [${session.tag}] pid=${session.gamePid}',
+        tag: 'CloudService',
+      );
+    }
     addLog(
       .info,
       '交接：可交 LaunchTask=${launches.length} TakeoverTask=${takeovers.length} '
-          '正在退出/已结束=$skippedExiting',
+          'OrphanSession=${orphanSessions.length} 正在退出/已结束=$skippedExiting',
       tag: 'CloudService',
     );
-    if (launches.isEmpty && takeovers.isEmpty) return false;
+    if (launches.isEmpty && takeovers.isEmpty && orphanSessions.isEmpty) {
+      return false;
+    }
+
+    // 先挂起 UI 任务的退出收尾：服务拉起期间游戏退出也不能两边同时处理
+    for (final task in launches) {
+      task.prepareHandoff();
+    }
+    for (final task in takeovers) {
+      task.prepareHandoff();
+    }
 
     final handoffSessions = <GameSession>[];
     for (final task in launches) {
@@ -97,18 +132,30 @@ class SessionOwnership {
     final started = await ensureService(adoptAll: true, force: true);
     if (!started) {
       // 服务没起来：撤掉刚写的 session，让 UI 任务自己按正常退出收尾
+      for (final task in launches) {
+        task.completeHandoff(transferred: false);
+      }
+      for (final task in takeovers) {
+        task.completeHandoff(transferred: false);
+      }
       for (final session in handoffSessions) {
         await GameSessionStore.remove(session.id);
+      }
+      for (final session in orphanSessions) {
+        session
+          ..owner = 'ui'
+          ..phase = 'running';
+        GameSessionStore.saveSync(session);
       }
       addLog(.warning, '交接：服务没起来，保留 UI 任务收尾', tag: 'CloudService');
       return false;
     }
     // 服务已经接手：UI 侧任务退出时不要再上传/写 config，否则两套收尾会重复
     for (final task in launches) {
-      task.transferOwnership();
+      task.completeHandoff(transferred: true);
     }
     for (final task in takeovers) {
-      task.transferOwnership();
+      task.completeHandoff(transferred: true);
     }
     return true;
   }

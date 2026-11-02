@@ -72,7 +72,7 @@ class GameInstance {
       return;
     }
     // 跨进程：服务可能正在同步/启动同一个版本，UI 看到 session 就不能再拉一局
-    if (!serviceOwned) {
+    if (!serviceOwned && !Platform.isAndroid) {
       final active = await GameSessionStore.active();
       if (active.any(
         (session) => session.versionId == version.id && session.isActive,

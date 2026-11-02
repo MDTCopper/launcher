@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/core/app_runtime.dart';
@@ -35,6 +36,8 @@ class GameSessionMonitor {
 
   Future<void> start() async {
     if (_started) return;
+    // 会话/服务进程是桌面形态；Android 的游戏在同进程内，没有 session 可发现
+    if (Platform.isAndroid) return;
     _started = true;
     await _tick();
     Timer.periodic(_pollInterval, (_) => unawaited(_tick()));

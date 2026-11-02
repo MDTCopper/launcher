@@ -127,13 +127,17 @@ Future<void> _runCloudService(LaunchArgs cli) async {
 
 /// 形态三：完整启动器 UI（含服务委托的 --resume-launch）
 Future<void> _runLauncherUi(LaunchArgs cli) async {
-  await _initializeCore();
   final launchRequest = cli.uiVersionId == null
       ? null
       : LaunchRequest(cli.uiVersionId!);
   final fromService = cli.resumeVersionId != null;
+
+  // 先判单实例再读配置：第二个实例只写日志就退，不能并发改写 config
+  await AppPaths.init();
+  await Log.init();
   if (!await _initSingleInctance(launchRequest)) return;
 
+  await _initializeCore(pathsReady: true, logReady: true);
   await _initializeUi(launchRequest, fromService: fromService);
   try {
     await precacheStartupItem(config.setting.personalizationOptions.themeColor);

@@ -6,6 +6,7 @@ import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/game_instance.dart';
+import 'package:copper_launcher/domain/game_session.dart';
 import 'package:copper_launcher/domain/session_ownership.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
@@ -486,6 +487,10 @@ class LauncherTray extends TrayListener with WindowListener {
 
   Future<void> _destroyWindow() async {
     addLog(.info, '退出：销毁窗口（直接结束进程）', tag: 'Tray');
+    // 先清掉 UI 在线标记，避免 pid 复用让下一次快捷启动误判 UI 还在
+    try {
+      await GameSessionStore.clearUiPid();
+    } catch (_) {}
     // windowManager.destroy() 在 Windows 上会卡在引擎 teardown（实测 10s+），
     // 交接与上传已经做完，这里直接结束进程，窗口随进程一起消失
     if (Process.killPid(pid)) return;
@@ -547,11 +552,8 @@ class LauncherTray extends TrayListener with WindowListener {
       unawaited(_hideToTray());
     } else {
       // 游戏还在跑：先写会话 + 拉起云服务接管，交接完再销毁窗口
-      _armCloseWatchdog(
-        _isGameRunning()
-            ? const Duration(seconds: 2)
-            : const Duration(milliseconds: 700),
-      );
+      // 看门狗要晚于交接（4s）+ 等上传（4s）完成；正常路径几百毫秒就退了
+      _armCloseWatchdog(const Duration(seconds: 10));
       unawaited(_closeAfterHandoff());
     }
   }
