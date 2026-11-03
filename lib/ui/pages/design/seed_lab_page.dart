@@ -184,9 +184,9 @@ class _SeedLabPageState extends State<SeedLabPage> {
                   onChanged: (value) => setState(() => _neutralChroma = value),
                 ),
                 slider(
-                  label: '实心偏移（亮色加亮 / 暗色压暗）',
+                  label: '实心偏移（负 = 反向：亮更暗 / 暗更亮）',
                   value: _accentShift,
-                  min: 0,
+                  min: -10,
                   max: 14,
                   onChanged: (value) => setState(() => _accentShift = value),
                 ),
