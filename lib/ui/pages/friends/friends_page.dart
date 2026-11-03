@@ -49,9 +49,12 @@ class _FriendsPageState extends State<FriendsPage> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_accounts.isLoggedIn) unawaited(_friends.load());
-      if (_accounts.isLoggedIn) unawaited(_mp.refreshLobby());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // 先恢复账号再判登录态：冷启动直接进这页时账号还没读盘
+      await _accounts.ensureRestored();
+      if (!mounted || !_accounts.isLoggedIn) return;
+      unawaited(_friends.load());
+      unawaited(_mp.refreshLobby());
     });
     _coolTick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
