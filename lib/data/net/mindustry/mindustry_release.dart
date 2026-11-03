@@ -86,7 +86,8 @@ class MindustryRelease {
 
     return MindustryRelease(
       tag: tag,
-      name: json['name']?.toString() ?? '',
+      // release 名会带尾随空格，原样当默认版本名会带进版本目录名
+      name: (json['name']?.toString() ?? '').trim(),
       releaseDate: json['published_at']?.toString() ?? '',
       describe: json['body']?.toString() ?? '',
       // GitHub 的 release 带 reactions，BE（MindustryBuilds）那份不带
@@ -100,7 +101,9 @@ class MindustryRelease {
   /// 国内 manifest 里的一项
   factory MindustryRelease.fromManifestJson(Map<String, dynamic> json) {
     final tag = json['tag']?.toString() ?? '';
-    final buildName = json['build_name']?.toString() ?? '';
+    final rawBuildName = json['build_name']?.toString() ?? '';
+    // 外部数据会带首尾空格，先清掉再判空
+    final buildName = rawBuildName.trim();
     final rawAssets = json['assets'];
 
     return MindustryRelease(
