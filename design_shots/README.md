@@ -32,7 +32,9 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/18-switch-mode` | 开关开态轨道按模式取色——亮色更亮、暗色更暗，滑块反色（读数偏「轨道是主题色」） |
 | `catalog/19-switch-tinted` | 开关改成**主题色的底**——亮色浅铜底、暗色深铜底，铜色落在滑块上（读数偏「开关本体跟主题明暗」） |
 | `catalog/20-user-tune` | 按用户调的种子 #D89148（chroma 41.1、表面色度 2、实心偏移 −5）渲染；实心字色按明暗（亮字 / 暗字）、开关槽=实色圆球亮/暗、滑条换 24 版竖杆、选中底加重到 0.20 / 0.18 |
-| `catalog/21-thumb-soft` | **当前**：暗色开关圆球不再用页底（太黑），改取凹槽面；滑条竖杆同步 |
+| `catalog/21-thumb-soft` | 暗色开关圆球不再用页底（太黑），改取凹槽面；滑条竖杆同步 |
+| `catalog/22-more-theme` | **当前**：再加一点点主题色——选中底 0.26 / 0.23、表面色度 2.6；调定版固化成 `TemplateSkin.tuned`（种子 #D89148） |
+| `catalog/23-switch-icons` | 开关圆球里加图标：开 = 勾（铜色）、关 = 叉（取反差色） |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`）、实心偏移 −6 / 0 / +6 对照（`accent_shift.png`） |
