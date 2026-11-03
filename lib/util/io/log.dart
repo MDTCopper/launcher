@@ -56,6 +56,13 @@ final RegExp _credentialFieldPattern = RegExp(
 );
 final RegExp _longHexPattern = RegExp(r'\b[0-9a-fA-F]{64,}\b');
 
+/// 本机路径里的用户名也抹掉：日志常被贴到群里 / issue 里
+final RegExp _winHomePattern = RegExp(
+  r'([A-Za-z]:\\Users\\)[^\\/\r\n"]+',
+  caseSensitive: false,
+);
+final RegExp _posixHomePattern = RegExp(r'(/home/|/Users/)[^/\r\n"]+');
+
 String _applyRedactions(String message) {
   var text = message;
   text = text.replaceAllMapped(_bearerPattern, (match) => '${match[1]}***');
@@ -64,6 +71,8 @@ String _applyRedactions(String message) {
     (match) => '${match[1]}***"',
   );
   text = text.replaceAll(_longHexPattern, '***');
+  text = text.replaceAllMapped(_winHomePattern, (match) => '${match[1]}***');
+  text = text.replaceAllMapped(_posixHomePattern, (match) => '${match[1]}***');
   return text;
 }
 
