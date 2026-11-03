@@ -71,6 +71,13 @@ object AndroidCall {
                         result.error("call_failed", error.message, null)
                     }
                 }
+                "getSupportedAbis" -> {
+                    try {
+                        result.success(SystemInfo.getSupportedAbis())
+                    } catch (error: Throwable) {
+                        result.error("call_failed", error.message, null)
+                    }
+                }
                 "hide" -> {
                     try {
                         SilentLaunchOverlay.hide()

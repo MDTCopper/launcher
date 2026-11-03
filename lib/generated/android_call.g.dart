@@ -45,6 +45,12 @@ class AndroidCall {
     return map == null ? null : MemorySnapshot.fromMap(map);
   }
 
+  static Future<List<String>> getSupportedAbis() async {
+    if (!_isAndroid) return const <String>[];
+    return (await _channel.invokeMethod<List<Object?>>('getSupportedAbis'))?.cast<String>() ??
+        const <String>[];
+  }
+
   static Future<void> hide() async {
     if (!_isAndroid) return;
     await _channel.invokeMethod<void>('hide');

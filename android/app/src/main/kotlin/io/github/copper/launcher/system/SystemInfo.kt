@@ -2,6 +2,7 @@ package io.github.copper.launcher.system
 
 import android.app.ActivityManager
 import android.content.Context
+import android.os.Build
 import io.github.copper.launcher.channel.DartCall
 import io.github.copper.launcher.channel.DartData
 
@@ -15,6 +16,10 @@ import io.github.copper.launcher.channel.DartData
  * 安卓上这里始终有值。
  */
 object SystemInfo {
+    /** 设备支持的 ABI（主 ABI 在前）；桥的 JRE 要按它选分包 */
+    @DartCall
+    fun getSupportedAbis(): List<String> = Build.SUPPORTED_ABIS.toList()
+
     @DartCall
     fun getMemoryInfo(applicationContext: Context): MemorySnapshot? {
         val manager = applicationContext.getSystemService(ActivityManager::class.java)

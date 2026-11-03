@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/bridge_payload.dart';
 import 'package:copper_launcher/domain/bridge_runtime_options.dart';
@@ -25,6 +26,31 @@ class BridgeInstaller {
   /// 本地记的 JRE 版本（远端 `version` 文件变没变，用来判断要不要重装）
   static String get jreVersionMarker =>
       p.join(AppPaths.bridgeJre, '.installed-version');
+
+  /// 上次装桥时的启动器构建号：APK 更新后宿主类的编译期桥可能已变，
+  /// 旧运行期 bridge.jar 必须重装，否则会出现 NoSuchFieldError
+  static String get bridgeBuildMarkerPath =>
+      p.join(AppPaths.bridge, '.launcher-build');
+
+  static bool bridgeBuildMatches() {
+    try {
+      final marker = File(bridgeBuildMarkerPath);
+      return marker.existsSync() &&
+          marker.readAsStringSync().trim() == '$appBuildNumber';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool needsRuntimeRefresh() => !bridgeBuildMatches();
+
+  static void _writeBridgeBuildMarker() {
+    try {
+      File(bridgeBuildMarkerPath).writeAsStringSync('$appBuildNumber');
+    } catch (_) {
+      // 写不进去下次会再装一次，不影响本次启动
+    }
+  }
 
   /// 查桥的最新版本（**版本号形态的 tag**，不要 snapshot：快照每次 push 都会变）
   ///
@@ -185,11 +211,12 @@ class BridgeInstaller {
     );
     await installBridgeJar(
       tag: tag,
-      force: force,
+      force: force || needsRuntimeRefresh(),
       cancelToken: cancelToken,
       onStatus: onStatus,
       onProgress: onProgress,
     );
+    _writeBridgeBuildMarker();
 
     return tag;
   }
@@ -207,7 +234,10 @@ class BridgeInstaller {
     final bridgeJar = bridgeDirPath == null
         ? BridgePayload.installedBridgeJar()
         : BridgePayload.installedBridgeJar(directory: bridgeDirPath);
-    return hasJre && bridgeJar != null;
+    if (!hasJre || bridgeJar == null) return false;
+    // 用例注入目录不依赖启动器构建号；真机要保证运行期桥与本 APK 编译期桥匹配
+    if (bridgeDirPath != null) return true;
+    return bridgeBuildMatches();
   }
 
   /// 只装 Java 运行环境（设置页那一行用；门禁与一键走 [installRuntime]）
@@ -259,6 +289,7 @@ class BridgeInstaller {
       onStatus: onStatus,
       onProgress: onProgress,
     );
+    _writeBridgeBuildMarker();
     return target;
   }
 
@@ -331,6 +362,13 @@ class BridgeInstaller {
   /// 走 `getprop`：`ro.product.cpu.abi` 是主 ABI，拿不到再读 `abilist` 挑一个支持的。
   /// 都问不出来返回 null（调用方报错让用户反馈，别瞎猜）
   static Future<String?> detectDeviceAbi() async {
+    // 原生 Build.SUPPORTED_ABIS 最可靠；拿不到再退回 getprop
+    try {
+      final native = BridgePayload.pickSupportedAbi(
+        await AndroidCall.getSupportedAbis(),
+      );
+      if (native != null) return native;
+    } catch (_) {}
     const keys = ['ro.product.cpu.abi', 'ro.product.cpu.abilist'];
     for (final key in keys) {
       try {
@@ -398,6 +436,7 @@ class BridgeInstaller {
     _deleteQuietly(Directory(p.join(rootPath, 'jre')));
     _deleteQuietly(Directory(p.join(rootPath, 'tmp')));
     _deleteQuietly(File(p.join(rootPath, 'jre-version')));
+    _deleteQuietly(File(p.join(rootPath, '.launcher-build')));
 
     final dir = Directory(rootPath);
     if (!dir.existsSync()) return;
