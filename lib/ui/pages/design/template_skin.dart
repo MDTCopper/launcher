@@ -1,3 +1,4 @@
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 import 'template_tones.dart';
@@ -36,6 +37,7 @@ class TemplateSkin {
   const TemplateSkin({
     required this.dark,
     required ToneRamp neutral,
+    this.toneMap,
     required this.page,
     required this.surface,
     required this.raised,
@@ -61,6 +63,52 @@ class TemplateSkin {
     required this.selected,
     required this.shadow,
   }) : _neutral = neutral;
+
+  /// 直接从 Copper **现在的** [AppColors] 拼一套皮肤（对照用：看换成现配色长什么样）
+  ///
+  /// 中性色阶不在 AppColors 里，这里按「凹槽 → 卡面 → 抬升」插值出一条：
+  /// 分段选中格的渐变取它，所以位置关系仍对得上
+  factory TemplateSkin.fromAppColors({
+    required AppColors colors,
+    required bool dark,
+  }) {
+    final toneLow = colors.lowBackgroundOnCard;
+    final toneHigh = colors.highBackgroundOnCard;
+    return TemplateSkin(
+      dark: dark,
+      neutral: ToneRamp(TemplateHues.copper, 3),
+      toneMap: (tone) {
+        final t = ((tone - 90) / 8).clamp(0.0, 1.0);
+        return Color.lerp(toneLow, toneHigh, t)!;
+      },
+      page: colors.pageBackground,
+      surface: colors.cardBackground,
+      raised: colors.highBackgroundOnCard,
+      sunken: colors.lowBackgroundOnCard,
+      border: colors.border,
+      borderStrong: colors.contentBorderHover,
+      controlBorder: colors.contentBorder,
+      textPrimary: colors.itemPrimary,
+      textSecondary: colors.itemSecondary,
+      textTertiary: colors.itemHint,
+      accent: colors.interactive,
+      accentText: colors.interactiveHigh,
+      onAccent: colors.itemOnInteractive,
+      accentTint: colors.contentBackgroundFocus,
+      onAccentTint: colors.itemPrimary,
+      danger: colors.error,
+      dangerText: colors.error,
+      onDanger: colors.itemOnInteractive,
+      success: colors.success,
+      warning: colors.warning,
+      hover: dark ? const Color(0x14FFFFFF) : const Color(0x0F000000),
+      pressed: dark ? const Color(0x1FFFFFFF) : const Color(0x1A000000),
+      selected: colors.interactive.withAlpha(
+        ((dark ? 0.10 : 0.12) * 255).round(),
+      ),
+      shadow: colors.shadow,
+    );
+  }
 
   /// 从一个主题种子（色相 + 自带的色度）生成整套皮肤
   factory TemplateSkin.of({required double hue, required bool dark}) {
@@ -146,8 +194,12 @@ class TemplateSkin {
   /// 中性色阶：需要「取某一档」的控件（分段的渐变、细描边）用它，别自己写色值
   final ToneRamp _neutral;
 
+  /// 用 AppColors 拼皮肤时替代 HCT 色阶的映射（tone 0~100 → 颜色）
+  final Color Function(double tone)? toneMap;
+
   /// 取中性色阶的任意一档 tone（0 黑 ~ 100 白）
-  Color neutralTone(double tone) => Color(_neutral.at(tone));
+  Color neutralTone(double tone) =>
+      toneMap?.call(tone) ?? Color(_neutral.at(tone));
 
   /// 禁用态前景：正文的 38%（Fluent 与 M3 的禁用字口径）
   ///
