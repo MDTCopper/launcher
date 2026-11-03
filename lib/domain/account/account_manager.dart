@@ -90,9 +90,30 @@ class AccountManager {
 
   /// 读写都走这两个漏斗：任何一处赋值都会广播一次快照，
   /// 省得在每个改账号态的方法里各写一遍通知（漏一处界面就不同步）
-  StoredAccount? get _stored => _storedField;
+  StoredAccount? get _stored {
+    // 无界面进程（云服务 / 快捷启动）根本没人调 restore()：第一次问登录态时
+    // 同步读一次盘，否则账号恒为 null，开关与同步会被静默跳过
+    if (!_restored) _loadFromDiskSync();
+    return _storedField;
+  }
+
   set _stored(StoredAccount? value) {
     _storedField = value;
+    _publish();
+  }
+
+  /// 同步读盘（只在还没 restore 过时走）：与 [restore] 同一套校验，只是不 await
+  void _loadFromDiskSync() {
+    _restored = true;
+    final stored = AccountStore.load();
+    _diskStamp = AccountStore.lastModified();
+    if (stored == null) return;
+    if (!MdtbbsConfig.isConfigured ||
+        !stored.matchesClient(MdtbbsConfig.clientId)) {
+      AccountStore.clear();
+      return;
+    }
+    _storedField = stored;
     _publish();
   }
 
@@ -310,7 +331,7 @@ class AccountManager {
         clientId: MdtbbsConfig.clientId,
         refreshToken: refresh,
       );
-      if (!AccountStore.save(_stored!)) {
+      if (!AccountStore.save(_stored!, tokenOwner: true)) {
         throw const MdtbbsException(message: '登录凭证没写进盘，请检查磁盘权限后重试');
       }
       _restored = true;
@@ -451,7 +472,7 @@ class AccountManager {
     );
     // 幂等键没落盘就别发请求：超时后重试会变成「新 key + 旧 token」，
     // 服务端可能按重放处理，撤掉这个账号在该客户端的全部 refresh token
-    if (!AccountStore.save(_stored!)) {
+    if (!AccountStore.save(_stored!, tokenOwner: true)) {
       addLogAndPrint(
         .warning,
         '幂等键没写进盘，这次不刷新（避免重放）：稍后重试',
@@ -507,7 +528,7 @@ class AccountManager {
       refreshToken: tokens.refreshToken ?? refreshToken,
       clearPendingRefresh: true,
     );
-    if (!AccountStore.save(_stored!)) {
+    if (!AccountStore.save(_stored!, tokenOwner: true)) {
       // 服务端已经轮换、盘上还是旧的：重启就得重登，不如现在就说清
       addLogAndPrint(
         .warning,

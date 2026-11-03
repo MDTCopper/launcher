@@ -296,25 +296,47 @@ class AccountStore {
   }
 
   /// 写账号态；返回 false 表示没写进盘（调用方要按失败处理，不能假装成功）
-  static bool save(StoredAccount account) {
+  ///
+  /// [tokenOwner] 只有「刚刷新完、手里就是最新 refresh token」的调用方才传 true。
+  /// 其它调用方（存联机令牌 / 会话）拿的可能是过期内存快照：写之前先看盘上是否
+  /// 已被另一个进程轮换过，轮换过就采用盘上的凭证，只改自己那一项，别把别人刚换的盖回去
+  static bool save(StoredAccount account, {bool tokenOwner = false}) {
     final target = File(filePath);
     try {
+      var payload = account;
+      if (!tokenOwner) {
+        final disk = load();
+        if (disk != null && disk.isLoggedIn && disk.refreshToken != account.refreshToken) {
+          addLog(
+            .info,
+            '盘上的登录凭证更新过（另一个进程刷新的），这次写回采用盘上那份',
+            tag: 'Account',
+          );
+          payload = account.copyWith(
+            refreshToken: disk.refreshToken,
+            pendingRefreshKey: disk.pendingRefreshKey,
+            pendingRefreshToken: disk.pendingRefreshToken,
+            pendingRefreshAt: disk.pendingRefreshAt,
+            clearPendingRefresh: !disk.hasPendingRefresh,
+          );
+        }
+      }
       final directory = Directory(p.dirname(filePath));
       if (!directory.existsSync()) directory.createSync(recursive: true);
 
-      final refresh = _protect(account.refreshToken);
-      final pending = _protect(account.pendingRefreshToken);
-      final lanlink = _protect(account.lanlinkToken);
-      final session = account.multiplayerSession;
+      final refresh = _protect(payload.refreshToken);
+      final pending = _protect(payload.pendingRefreshToken);
+      final lanlink = _protect(payload.lanlinkToken);
+      final session = payload.multiplayerSession;
       final resume = _protect(session?.resumeToken);
-      final payload = account.copyWith(
+      final stored = payload.copyWith(
         refreshToken: refresh.value,
         pendingRefreshToken: pending.value,
         lanlinkToken: lanlink.value,
         multiplayerSession: session?.copyWith(resumeToken: resume.value),
       );
 
-      final json = payload.toJson()
+      final json = stored.toJson()
         ..['refreshTokenEncrypted'] = refresh.encrypted
         ..['pendingRefreshTokenEncrypted'] = pending.encrypted
         ..['lanlinkTokenEncrypted'] = lanlink.encrypted
