@@ -65,6 +65,23 @@ class TemplateSkin {
     required this.shadow,
   }) : _neutral = neutral;
 
+  /// 用户在「种子配色」页里调出来的那一组，固化成默认皮肤（2026-11-03）
+  ///
+  /// 种子 #D89148（hue 63.2 / chroma 41.1）、表面色度 2.6、实心偏移 −5——
+  /// 比第 21 代多一点点主题色：页面底色的铜调加了一档、选中底也加重
+  factory TemplateSkin.tuned({required bool dark}) {
+    final seed = Hct.fromInt(0xFFD89148);
+    return TemplateSkin.of(
+      hue: seed.hue,
+      chroma: seed.chroma,
+      dark: dark,
+      neutralChroma: 2.6,
+      accentTone: seed.tone,
+      accentCardContrast: 2,
+      accentModeShift: -5,
+    );
+  }
+
   /// 以 Copper **现在的主题色**为种子，按 **A 路线**（第 6 版那套）重新生成整套皮肤
   ///
   /// 用户 2026-11-03 的口径：「回到第 6 版配色种子算法，整体亮一点（接近现在配色）」，
@@ -193,9 +210,8 @@ class TemplateSkin {
       // ── 叠层：手写（业界也如此），方向按主题 ──
       hover: dark ? const Color(0x14FFFFFF) : const Color(0x0F000000),
       pressed: dark ? const Color(0x1FFFFFFF) : const Color(0x1A000000),
-      // 选中态就是强调色的一层底；用户 2026-11-03「选中色主题色更明显一点」——
-      // 亮色 0.20 / 暗色 0.18（比早先的 0.12 / 0.10 明显，暗色仍略低）
-      selected: accent.withAlpha(((dark ? 0.18 : 0.20) * 255).round()),
+      // 选中态就是强调色的一层底；用户 2026-11-03「再加入一点点主题色」→ 亮 0.26 / 暗 0.23
+      selected: accent.withAlpha(((dark ? 0.23 : 0.26) * 255).round()),
       shadow: dark
           ? const Color(0x66000000)
           : Color(shadowRamp.at(25)).withAlpha((0.10 * 255).round()),

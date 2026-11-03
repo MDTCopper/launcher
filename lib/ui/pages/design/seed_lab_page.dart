@@ -19,11 +19,12 @@ class SeedLabPage extends StatefulWidget {
 }
 
 class _SeedLabPageState extends State<SeedLabPage> {
-  Color _seed = AppColors.light.interactive;
+  // 默认值 = 用户调定的那套（TemplateSkin.tuned），从这里继续微调
+  Color _seed = const Color(0xFFD89148);
   double _hueOffset = 0;
   double _chromaScale = 1;
-  double _neutralChroma = 3;
-  double _accentShift = 6;
+  double _neutralChroma = 2.6;
+  double _accentShift = -5;
   bool _dark = false;
 
   // 预览里的演示状态
