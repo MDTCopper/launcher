@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,6 +18,7 @@ import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/io/process_lock.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -331,6 +333,21 @@ class CloudSaveService {
 
   static void _saveStore(CloudBindingStore store) => store.save(_bindingPath);
 
+  static String get _bindingLockPath => '$_bindingPath.lock';
+
+  /// 绑定文件的读-改-写事务：拿进程锁 → 读最新的盘上状态 → 改 → 写回
+  ///
+  /// UI 与无界面云服务都会写这份文件；不锁的话两边各自「读一次、改、整份覆盖」
+  /// 会互相丢掉对方的绑定与 owner
+  static Future<T> _withStore<T>(
+    FutureOr<T> Function(CloudBindingStore store) action,
+  ) => ProcessFileLock.run(_bindingLockPath, () async {
+    final store = _loadStore();
+    final result = await action(store);
+    _saveStore(store);
+    return result;
+  });
+
   /// 本机同步单元：默认 / 隔离实例 / 外置目录
   static String profileIdOf(Mindustry version) => localProfileIdOf(version);
 
@@ -516,20 +533,28 @@ class CloudSaveService {
       );
       // 顺手刷新缓存里的 dataPath（tag 改名 / 数据目录搬迁后仍能显示对）
       if (state.dataPath != version.dataPath) {
-        store.putState(
-          account,
-          profile,
-          state.copyWith(dataPath: version.dataPath),
-        );
-        _saveStore(store);
+        await _withStore((fresh) {
+          final current = fresh.stateOf(account, profile);
+          if (current != null) {
+            fresh.putState(
+              account,
+              profile,
+              current.copyWith(dataPath: version.dataPath),
+            );
+          }
+        });
       }
       return slot;
     } on MdtbbsException catch (error) {
       if (error.statusCode == 404 || error.statusCode == 403) {
         // 不删、不按名字认领；只标 stale，等用户选
         if (!state.stale) {
-          store.putState(account, profile, state.copyWith(stale: true));
-          _saveStore(store);
+          await _withStore((fresh) {
+            final current = fresh.stateOf(account, profile);
+            if (current != null) {
+              fresh.putState(account, profile, current.copyWith(stale: true));
+            }
+          });
         }
         addLog(.warning, '云存档绑定已失效（${error.statusCode}），等待用户处理', tag: 'Cloud');
         return null;
@@ -561,16 +586,15 @@ class CloudSaveService {
   ///
   /// [slotName] 给了就能拦住「默认存档绑到实例槽位」：默认存档只对应默认槽位，
   /// 绑错会让两份存档共用同一个 profile
-  static void bindSlot(Mindustry version, String slotId, {String? slotName}) {
+  static Future<void> bindSlot(
+    Mindustry version,
+    String slotId, {
+    String? slotName,
+  }) async {
     final account = currentAccountId;
     if (account == null) return;
     final profile = profileIdOf(version);
-    final store = _loadStore();
-    final owner = store.ownerOf(profile);
-    if (owner != null && owner != account) {
-      throw CloudProfileLockedException(owner, localProfileId: profile);
-    }
-    final isDefault = profile == 'default';
+    // 先算一次（事务里还会用最新的盘上状态再校验一次）
     final conflict = conflictingProfileOf(account, profile, version.dataPath);
     if (conflict != null) {
       throw MdtbbsException(
@@ -579,13 +603,19 @@ class CloudSaveService {
             '先解绑那个版本，或给这个版本打开隔离数据目录',
       );
     }
+    final isDefault = profile == 'default';
     if (isDefault && slotName != null && !isDefaultSlotName(slotName)) {
       throw const MdtbbsException(
         message: '默认存档只能绑默认存档槽位；这个槽位属于某个隔离实例',
       );
     }
     final signature = cloudSignatureForSlot(slotId);
-    store.putState(
+    await _withStore((store) {
+      final owner = store.ownerOf(profile);
+      if (owner != null && owner != account) {
+        throw CloudProfileLockedException(owner, localProfileId: profile);
+      }
+      store.putState(
       account,
       profile,
       CloudSyncState(
@@ -606,40 +636,40 @@ class CloudSaveService {
         build: version.versionNumber ?? version.releaseInt,
         isBe: version.isBe,
         dataPath: version.dataPath,
-      ),
-    );
-    store.setOwner(profile, account);
-    _saveStore(store);
+        ),
+      );
+      store.setOwner(profile, account);
+    });
   }
 
   /// 解绑当前数据目录（只删本机绑定，不动云端 / 本机存档）
-  static void unbind(Mindustry version) {
+  static Future<void> unbind(Mindustry version) async {
     final account = currentAccountId;
     if (account == null) return;
     final profile = profileIdOf(version);
-    final store = _loadStore();
-    final owner = store.ownerOf(profile);
-    if (owner != null && owner != account) {
-      throw CloudProfileLockedException(owner, localProfileId: profile);
-    }
-    store.removeState(account, profile);
-    store.clearOwner(profile);
-    _saveStore(store);
+    await _withStore((store) {
+      final owner = store.ownerOf(profile);
+      if (owner != null && owner != account) {
+        throw CloudProfileLockedException(owner, localProfileId: profile);
+      }
+      store.removeState(account, profile);
+      store.clearOwner(profile);
+    });
   }
 
   /// 把当前数据目录的 active owner 覆盖为当前账号
-  static void takeover(Mindustry version) {
+  static Future<void> takeover(Mindustry version) async {
     final account = currentAccountId;
     if (account == null) return;
     final profile = profileIdOf(version);
-    final store = _loadStore();
-    final owner = store.ownerOf(profile);
-    if (owner != null && owner != account) {
-      // 原 owner 的绑定保留为 dormant；只改归属
-      store.setOwner(profile, account);
-      _saveStore(store);
-      addLog(.info, '云存档归属改为账号 $account（原 $owner）', tag: 'Cloud');
-    }
+    await _withStore((store) {
+      final owner = store.ownerOf(profile);
+      if (owner != null && owner != account) {
+        // 原 owner 的绑定保留为 dormant；只改归属
+        store.setOwner(profile, account);
+        addLog(.info, '云存档归属改为账号 $account（原 $owner）', tag: 'Cloud');
+      }
+    });
   }
 
   /// 这份云存档在本机绑到了哪个 profile；没绑返回 null
@@ -663,13 +693,13 @@ class CloudSaveService {
   }
 
   /// 丢弃一个失效 profile 的绑定（实例已经不在了）
-  static void discardProfileBinding(String profileId) {
+  static Future<void> discardProfileBinding(String profileId) async {
     final account = currentAccountId;
     if (account == null) return;
-    final store = _loadStore();
-    store.removeState(account, profileId);
-    store.clearOwner(profileId);
-    _saveStore(store);
+    await _withStore((store) {
+      store.removeState(account, profileId);
+      store.clearOwner(profileId);
+    });
   }
 
   /// 按发布号或 tag 找本机已有的版本
@@ -740,8 +770,12 @@ class CloudSaveService {
         );
       } on MdtbbsException catch (error) {
         if (error.statusCode == 404 || error.statusCode == 403) {
-          store.putState(account, profile, state.copyWith(stale: true));
-          _saveStore(store);
+          await _withStore((fresh) {
+            final current = fresh.stateOf(account, profile);
+            if (current != null) {
+              fresh.putState(account, profile, current.copyWith(stale: true));
+            }
+          });
           throw const CloudBindingRequiredException('云存档绑定已失效，先重新选择槽位');
         }
         rethrow;
@@ -787,25 +821,26 @@ class CloudSaveService {
       addLog(.warning, '槽位名补短码失败：${removeNewlines('$error')}', tag: 'Cloud');
     }
 
-    store.putState(
-      account,
-      profile,
-      CloudSyncState(
-        slotId: created.id,
-        cloudSignature: signature,
-        boundTag: isDefault ? null : version.tag,
-        cloudTag: isDefault ? null : version.tag,
-        slotName: slotName,
-        baseline: false,
-        profileKind: profileKindOf(profile),
-        release: version.release,
-        build: version.versionNumber ?? version.releaseInt,
-        isBe: version.isBe,
-        dataPath: version.dataPath,
-      ),
-    );
-    store.setOwner(profile, account);
-    _saveStore(store);
+    await _withStore((fresh) {
+      fresh.putState(
+        account,
+        profile,
+        CloudSyncState(
+          slotId: created.id,
+          cloudSignature: signature,
+          boundTag: isDefault ? null : version.tag,
+          cloudTag: isDefault ? null : version.tag,
+          slotName: slotName,
+          baseline: false,
+          profileKind: profileKindOf(profile),
+          release: version.release,
+          build: version.versionNumber ?? version.releaseInt,
+          isBe: version.isBe,
+          dataPath: version.dataPath,
+        ),
+      );
+      fresh.setOwner(profile, account);
+    });
     return created;
   }
 
@@ -968,7 +1003,7 @@ class CloudSaveService {
         }
 
         addLog(.info, '云端 head 与本机这份内容相同，按已同步处理', tag: 'Cloud');
-        _rememberSynced(
+        await _rememberSynced(
           version,
           account: account,
           slotId: slot.id,
@@ -1020,7 +1055,7 @@ class CloudSaveService {
             slotId: slot.id,
             cancelToken: cancelToken,
           )).currentSnapshotId;
-      _rememberSynced(
+      await _rememberSynced(
         version,
         account: account,
         slotId: slot.id,
@@ -1296,7 +1331,7 @@ class CloudSaveService {
           slotId: slot.id,
           cancelToken: cancelToken,
         )).currentSnapshotId;
-    _rememberSynced(
+    await _rememberSynced(
       version,
       account: account,
       slotId: slot.id,
@@ -1570,7 +1605,7 @@ class CloudSaveService {
       );
       await _applyModStatesQuietly(version, reader.manifest);
       if (report.rejected.isEmpty) {
-        _rememberSynced(
+        await _rememberSynced(
           version,
           account: account,
           slotId: slotId,
@@ -2001,7 +2036,7 @@ class CloudSaveService {
         deviceName: deviceName,
         cache: cache,
       );
-      _rememberSynced(
+      await _rememberSynced(
         version,
         account: account,
         slotId: slotId,
@@ -2518,16 +2553,16 @@ class CloudSaveService {
     );
     final account = currentAccountId;
     if (account == null) return;
-    final store = _loadStore();
-    final profiles = Map<String, CloudSyncState>.from(
-      store.profilesOf(account),
-    );
-    for (final entry in profiles.entries) {
-      if (entry.value.slotId != slotId) continue;
-      store.removeState(account, entry.key);
-      store.clearOwner(entry.key);
-    }
-    _saveStore(store);
+    await _withStore((store) {
+      final profiles = Map<String, CloudSyncState>.from(
+        store.profilesOf(account),
+      );
+      for (final entry in profiles.entries) {
+        if (entry.value.slotId != slotId) continue;
+        store.removeState(account, entry.key);
+        store.clearOwner(entry.key);
+      }
+    });
   }
 
   static List<CloudSaveModInfo> _modsOf(CloudManifest manifest) => [
@@ -2569,28 +2604,35 @@ class CloudSaveService {
     return _loadEnabled().globalOf(account);
   }
 
+  /// 开关文件的读-改-写也要拿锁：UI 与无界面服务都会改它
+  static String get _enabledLockPath => '$enabledPath.lock';
+
   /// 打开 / 关掉总开关（按当前账号）
-  static void setGlobalEnabled(bool enabled) {
+  static Future<void> setGlobalEnabled(bool enabled) async {
     final account = currentAccountId;
     if (account == null) return;
-    final store = _loadEnabled();
-    store.setGlobal(account, enabled);
-    if (!enabled) store.clearProfiles(account);
-    _saveEnabled(store);
+    await ProcessFileLock.run(_enabledLockPath, () {
+      final store = _loadEnabled();
+      store.setGlobal(account, enabled);
+      if (!enabled) store.clearProfiles(account);
+      _saveEnabled(store);
+    });
   }
 
   /// 开关：按当前账号 + profile 记；总开关关着时开不了
-  static bool setEnabled(Mindustry version, bool enabled) {
+  static Future<bool> setEnabled(Mindustry version, bool enabled) async {
     final account = currentAccountId;
     if (account == null) return false;
     if (enabled && !globallyEnabled) return false;
     final profile = profileIdOf(version);
     final owner = ownerOf(version);
     if (enabled && owner != null && owner != account) return false;
-    final store = _loadEnabled();
-    final changed = store.setProfile(account, profile, enabled);
-    if (changed) _saveEnabled(store);
-    return true;
+    return ProcessFileLock.run<bool>(_enabledLockPath, () {
+      final store = _loadEnabled();
+      final changed = store.setProfile(account, profile, enabled);
+      if (changed) _saveEnabled(store);
+      return true;
+    });
   }
 
   /// 有多少个版本共用这份数据目录（含自己）
@@ -2821,15 +2863,15 @@ class CloudSaveService {
   }
 
   /// 记下「这个数据目录同步到哪个槽位 / 哪个快照 / 哪些文件」
-  static void _rememberSynced(
+  /// 记下「同步到这个快照」的基线；绑定的读改写走文件锁，避免两个进程互相覆盖
+  static Future<void> _rememberSynced(
     Mindustry version, {
     required String account,
     required String slotId,
     required String? snapshotId,
     required Map<String, String> files,
-  }) {
+  }) => _withStore((store) {
     final profile = profileIdOf(version);
-    final store = _loadStore();
     final existing = store.stateOf(account, profile);
     final isDefault = profile == 'default';
     final signature = existing?.signature ?? cloudSignatureForSlot(slotId);
@@ -2854,8 +2896,7 @@ class CloudSaveService {
       ),
     );
     store.setOwner(profile, account);
-    _saveStore(store);
-  }
+  });
 
   /// 路径大小写不敏感的平台上要归一，否则同一个目录会记成两条绑定
   static String _normalize(String path) {

@@ -164,11 +164,11 @@ class CloudPullTask extends CloudSyncTask {
       return '账号已切换，这次拉取中止';
     }
     if (needBind) {
-        CloudSaveService.bindSlot(version, slot.id, slotName: slot.name);
+        await CloudSaveService.bindSlot(version, slot.id, slotName: slot.name);
       }
     // 新实例绑好才作废旧 profile，中途失败原绑定还在
     if (needBind && staleProfile != null) {
-      CloudSaveService.discardProfileBinding(staleProfile);
+      await CloudSaveService.discardProfileBinding(staleProfile);
     }
     final head = slot.currentSnapshotId;
     if (head == null) {

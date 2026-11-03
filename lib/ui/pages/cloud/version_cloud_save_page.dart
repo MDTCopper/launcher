@@ -948,9 +948,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       content:
           '只删本机绑定；云端槽位 / 快照与本机存档都不动。\n'
           '解绑后要重新选槽位或上传才能继续同步。',
-      action: () {
+      action: () async {
         try {
-          CloudSaveService.unbind(version);
+          await CloudSaveService.unbind(version);
           addNotice(icon: Icons.link_off, title: '已解绑云存档');
           unawaited(_reload());
         } catch (error) {
@@ -1012,8 +1012,8 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             title: '这个版本启用云存档',
             value: enabled,
             onChanged: globalOn
-                ? (value) {
-                    final ok = CloudSaveService.setEnabled(version, value);
+                ? (value) async {
+                    final ok = await CloudSaveService.setEnabled(version, value);
                     if (!ok) {
                       addNotice(
                         icon: Icons.info_outline,
@@ -1270,9 +1270,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
                 IconTextButton(
                   icon: Icons.swap_horiz,
                   content: '覆盖归属',
-                  onTap: () {
+                  onTap: () async {
                     try {
-                      CloudSaveService.takeover(version);
+                      await CloudSaveService.takeover(version);
                       addNotice(icon: Icons.swap_horiz, title: '已覆盖归属到当前账号');
                       unawaited(_reload());
                     } catch (error) {

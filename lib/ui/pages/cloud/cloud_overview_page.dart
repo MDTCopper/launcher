@@ -336,12 +336,12 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
       content:
           '只删本机绑定；云端槽位 / 快照与本机存档都不动。\n'
           '解绑后这份云存档会显示「未绑定本地版本」。',
-      action: () {
+      action: () async {
         try {
           if (version != null) {
-            CloudSaveService.unbind(version);
+            await CloudSaveService.unbind(version);
           } else {
-            CloudSaveService.discardProfileBinding(profile);
+            await CloudSaveService.discardProfileBinding(profile);
           }
           addNotice(icon: Icons.link_off, title: '已解绑云存档');
           setState(() {});
@@ -498,9 +498,9 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
   }) async {
     try {
       if (replacedProfile != null) {
-        CloudSaveService.discardProfileBinding(replacedProfile);
+        await CloudSaveService.discardProfileBinding(replacedProfile);
       }
-      CloudSaveService.bindSlot(version, slot.id, slotName: slot.name);
+      await CloudSaveService.bindSlot(version, slot.id, slotName: slot.name);
       if (!mounted) return;
       addNotice(
         icon: Icons.link,
@@ -566,7 +566,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
             title: '启用云存档',
             value: enabled,
             onChanged: (value) {
-              CloudSaveService.setGlobalEnabled(value);
+              unawaited(CloudSaveService.setGlobalEnabled(value));
               setState(() {});
             },
           ),
