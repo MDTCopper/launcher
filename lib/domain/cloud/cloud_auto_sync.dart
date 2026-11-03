@@ -62,11 +62,11 @@ class CloudAutoSync {
   }) async {
     try {
       if (_skipAutoSync.contains(_skipKey(version))) return true;
-      // 先拿令牌（顺带恢复账号）：无界面进程启动时账号还没恢复，
-      // 这时问 isEnabled 会恒为 false，同步被静默跳过
+      // 先恢复账号再看开关：关闭云存档的版本不该为了一个 token 等十几秒
+      await AccountManager.instance.ensureRestored();
+      if (!CloudSaveService.isEnabled(version)) return true;
       final token = await _token();
       if (token == null) return true;
-      if (!CloudSaveService.isEnabled(version)) return true;
 
       // 无界面服务：启动前同步超过 3 秒才拉起代理窗口；UI 进程这里返回 null
       final gate = await SyncProxyGate.startForHeadlessService(
