@@ -28,7 +28,7 @@ class CopperLauncherState extends State<CopperLauncher>
   /// 桥的运行环境装好了没：桌面端不需要这份载荷，Android 上要装完才进主页
   bool isRuntimeReady = !Platform.isAndroid;
 
-  /// Android 启动页：先显示主题物品图标，初始化完再从左下到右上刷入主界面
+  /// Android 启动页：先铺空白白底，初始化完再淡入主界面
   late final AnimationController _fadeController;
   bool _showStartup = Platform.isAndroid;
 
@@ -111,7 +111,6 @@ class CopperLauncherState extends State<CopperLauncher>
             ? _StartupGate(
                 showSplash: _showStartup,
                 fade: _fadeController,
-                themeColor: themeColor,
                 child: home,
               )
             : home,
@@ -139,13 +138,11 @@ class _StartupGate extends StatelessWidget {
   const _StartupGate({
     required this.showSplash,
     required this.fade,
-    required this.themeColor,
     required this.child,
   });
 
   final bool showSplash;
   final Animation<double> fade;
-  final ThemeColor themeColor;
   final Widget child;
 
   @override
@@ -160,7 +157,7 @@ class _StartupGate extends StatelessWidget {
             builder: (context, _) => IgnorePointer(
               child: Opacity(
                 opacity: (1 - fade.value).clamp(0.0, 1.0),
-                child: StartupPage(themeColor: themeColor),
+                child: const StartupPage(),
               ),
             ),
           ),

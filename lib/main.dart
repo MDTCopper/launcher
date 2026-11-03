@@ -22,7 +22,6 @@ import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
 import 'package:copper_launcher/ui/dialog/resource_importer.dart';
-import 'package:copper_launcher/ui/startup/startup_page.dart';
 import 'package:copper_launcher/ui/sync_proxy/android_sync_proxy_page.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
@@ -204,11 +203,6 @@ Future<void> _runLauncherUi(LaunchArgs cli) async {
 
   await _initializeCore(pathsReady: true, logReady: true);
   await _initializeUi(launchRequest, fromService: fromService);
-  try {
-    await precacheStartupItem(config.setting.personalizationOptions.themeColor);
-  } catch (_) {
-    // 预解码失败不影响启动
-  }
   runCopperLauncher();
 }
 

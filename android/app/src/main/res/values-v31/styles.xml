@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 普通启动的系统 splash 只铺白底，不画图标；Copper 由 Flutter StartupPage 绘制 -->
+    <!-- 普通启动的系统 splash 只铺白底，不画图标 -->
     <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>
         <item name="android:windowSplashScreenBackground">@android:color/white</item>

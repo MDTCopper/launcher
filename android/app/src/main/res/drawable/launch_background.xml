@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 普通启动的系统窗口只铺白底，不画任何系统图标；白底 Copper 由 Flutter StartupPage 绘制 -->
+<!-- 普通启动的系统窗口只铺白底，不画任何图标 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@android:color/white" />
 </layer-list>
