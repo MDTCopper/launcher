@@ -1326,7 +1326,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
                     ? () => _upload()
                     : null,
               ),
-              if ((slot != null && version.isolation) || staleBound)
+              // 外置数据目录（Steam）也是独立 profile，同样要能解绑；
+              // 默认存档不提供解绑（它是共用那份，解绑没有意义）
+              if ((slot != null || staleBound) && !isDefaultProfile)
                 IconTextButton(
                   icon: Icons.link_off,
                   content: '解绑',
