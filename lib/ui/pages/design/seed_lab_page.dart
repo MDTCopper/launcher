@@ -2,7 +2,6 @@ import 'package:copper_launcher/ui/components/copper_card.dart';
 import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
-import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

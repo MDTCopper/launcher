@@ -382,10 +382,21 @@ class TemplateSwitch extends StatelessWidget {
       if (disabled) return skin.textDisabled;
       return value ? onThumb : skin.textTertiary;
     });
+    // 圆球里加图标：开 = 勾（铜色，压在做亮/做暗的球上），关 = 叉（取跟球反差的那支）
+    final thumbIcons = WidgetStateProperty.resolveWith<Icon?>((states) {
+      if (states.contains(WidgetState.disabled)) return null;
+      final on = states.contains(WidgetState.selected);
+      return Icon(
+        on ? Icons.check_rounded : Icons.close_rounded,
+        size: 13,
+        color: on ? skin.accent : (skin.dark ? skin.page : skin.surface),
+      );
+    });
     return Switch(
       value: value,
       onChanged: enabled ? (_) => onTap() : null,
       thumbColor: thumbColors,
+      thumbIcon: thumbIcons,
       trackColor: colors,
       trackOutlineColor: WidgetStateProperty.resolveWith((states) {
         // 开态描边跟着轨道一起消失（M3 原生就是这样）：原来一律给常态边界色，
