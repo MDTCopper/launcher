@@ -44,7 +44,16 @@ class CloudBindingStore {
       }
       return _fromJson(decoded.cast<String, dynamic>());
     } catch (_) {
-      // 坏文件按“没有绑定”处理；不要拿空 store 覆盖原文件
+      // 坏文件按「没有绑定」处理；先留个副本，下一次保存会整份覆盖
+      try {
+        final stamp = DateTime.now()
+            .toIso8601String()
+            .substring(0, 19)
+            .replaceAll(RegExp('[:.]'), '-');
+        file.copySync('$path.broken-$stamp');
+      } catch (_) {
+        // 副本都留不下来就只能放弃，别影响启动
+      }
       return CloudBindingStore();
     }
   }
@@ -125,8 +134,20 @@ class CloudBindingStore {
       }),
       flush: true,
     );
-    if (file.existsSync()) file.deleteSync();
-    temporary.renameSync(path);
+    // 直接改名替换：先删原文件会留一个「文件没了」的窗口，删到一半被杀就全丢
+    try {
+      temporary.renameSync(path);
+    } on FileSystemException {
+      // 目标被占用时才退回「删了再改名」，并把坏掉的原文件留个副本
+      if (file.existsSync()) {
+        final stamp = DateTime.now()
+            .toIso8601String()
+            .substring(0, 19)
+            .replaceAll(RegExp('[:.]'), '-');
+        file.renameSync('$path.broken-$stamp');
+      }
+      temporary.renameSync(path);
+    }
   }
 }
 

@@ -48,7 +48,7 @@ class CloudPullTask extends CloudSyncTask {
 
     final release = CloudSaveService.releaseFromSlotName(slot.name);
     final isDefaultSlot =
-        slot.name.contains('默认存档') ||
+        CloudSaveService.isDefaultSlotName(slot.name) ||
         CloudSaveService.profileIdBoundToSlot(slot.id) == 'default';
     final boundProfile = CloudSaveService.profileIdBoundToSlot(slot.id);
     addLog(
@@ -149,7 +149,9 @@ class CloudPullTask extends CloudSyncTask {
       }
     }
 
-    if (needBind) CloudSaveService.bindSlot(version, slot.id);
+    if (needBind) {
+        CloudSaveService.bindSlot(version, slot.id, slotName: slot.name);
+      }
     // 新实例绑好才作废旧 profile，中途失败原绑定还在
     if (needBind && staleProfile != null) {
       CloudSaveService.discardProfileBinding(staleProfile);

@@ -167,7 +167,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
                 final boundTag = _boundTagOfSlot(slot);
                 final isBound = boundTag != null;
                 final isDefaultSlot =
-                    slot.name.contains('默认存档') || profile == 'default';
+                    CloudSaveService.isDefaultSlotName(slot.name) || profile == 'default';
                 final currentVersion = config.versionOptions.selectedVersion;
                 final boundToCurrent =
                     currentVersion != null &&
@@ -252,7 +252,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
 
   /// 云槽位名是「设备 · release · tag #短码」，列表里只留 tag，避免一行塞满
   String _cloudSlotLabel(CloudSaveSlot slot) {
-    if (slot.name.contains('默认存档')) return '默认存档';
+    if (CloudSaveService.isDefaultSlotName(slot.name)) return '默认存档';
     final tag =
         CloudSaveService.boundTagOfSlotName(slot.name) ??
         CloudSaveService.releaseFromSlotName(slot.name);
@@ -474,7 +474,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
       if (replacedProfile != null) {
         CloudSaveService.discardProfileBinding(replacedProfile);
       }
-      CloudSaveService.bindSlot(version, slot.id);
+      CloudSaveService.bindSlot(version, slot.id, slotName: slot.name);
       if (!mounted) return;
       addNotice(
         icon: Icons.link,
