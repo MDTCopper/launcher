@@ -123,6 +123,29 @@ class MdtbbsClient {
     return '${MdtbbsConfig.apiBase}$path';
   }
 
+  /// 只给同源请求带账号凭证
+  ///
+  /// 服务端可能把上传 / 下载地址换成外部（对象存储 / CDN）的预签名绝对 URL，
+  /// 那些地址不该看到本账号的 Bearer 与 CSRF
+  static bool _sameOrigin(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return false;
+    for (final base in [MdtbbsConfig.origin, MdtbbsConfig.apiBase]) {
+      final origin = Uri.tryParse(base);
+      if (origin == null || origin.host.isEmpty) continue;
+      if (uri.scheme == origin.scheme && uri.host == origin.host) return true;
+    }
+    return false;
+  }
+
+  static Map<String, String>? _authHeaderIfSameOrigin(
+    String? accessToken,
+    String url,
+  ) => _sameOrigin(url) ? _authHeader(accessToken) : null;
+
+  static Map<String, String>? _csrfHeadersIfSameOrigin(String url) =>
+      _sameOrigin(url) ? _csrfHeaders() : null;
+
   /// 写请求要的 CSRF 令牌（实测 2026-10-03：**不带就一个写操作都做不了**）
   ///
   /// 论坛对写操作做**双提交式**校验：`Cookie: csrf_token=<值>` 与
@@ -274,16 +297,17 @@ class MdtbbsClient {
     CancelToken? cancelToken,
     bool retriedCsrf = false,
   }) async {
-    await _ensureCsrf(accessToken, cancelToken);
+    final url = urlOf(path);
+    if (_sameOrigin(url)) await _ensureCsrf(accessToken, cancelToken);
     final merged = <String, String>{
       'Content-Type': 'application/octet-stream',
       ...?headers,
-      ...?_authHeader(accessToken),
-      ...?_csrfHeaders(),
+      ...?_authHeaderIfSameOrigin(accessToken, url),
+      ...?_csrfHeadersIfSameOrigin(url),
     };
     try {
       final response = await cio.put(
-        urlOf(path),
+        url,
         data: bytes,
         headers: merged,
         onSendProgress: onSendProgress,
@@ -321,11 +345,12 @@ class MdtbbsClient {
     HttpStatusCallback? onStatus,
     int? chunkCount,
   }) async {
+    final url = urlOf(path);
     try {
       await cio.download(
-        url: urlOf(path),
+        url: url,
         savePath: savePath,
-        headers: {...?headers, ...?_authHeader(accessToken)},
+        headers: {...?headers, ...?_authHeaderIfSameOrigin(accessToken, url)},
         cancelToken: cancelToken,
         onStatus: onStatus,
         chunkCount: chunkCount,
@@ -412,8 +437,8 @@ class MdtbbsClient {
 
     final mergedHeaders = <String, String>{
       ...?headers,
-      ...?_authHeader(accessToken),
-      ...?_csrfHeaders(),
+      ...?_authHeaderIfSameOrigin(accessToken, url),
+      ...?_csrfHeadersIfSameOrigin(url),
     };
     try {
       final Response<Object?> response;
