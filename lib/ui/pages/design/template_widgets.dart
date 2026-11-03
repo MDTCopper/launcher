@@ -341,7 +341,9 @@ class TemplateButton extends StatelessWidget {
   }
 }
 
-/// 开关：轨道带描边（关着的时候也要认得出来，1.4.11 那条 3:1）
+/// 开关：**直接用 Flutter 原生的 [Switch]**（用户 2026-11-03：原生的挺好看，别再自己画）
+///
+/// 尺寸也沿用原生的一套：默认点按热区 48 高 ⇒ 单行设置 tile 的高度就取它
 class TemplateSwitch extends StatelessWidget {
   const TemplateSwitch({
     super.key,
@@ -351,6 +353,9 @@ class TemplateSwitch extends StatelessWidget {
     this.enabled = true,
   });
 
+  /// 原生开关的默认高度（含点按热区），单行设置 tile 也按它对齐
+  static const double height = kMinInteractiveDimension;
+
   final TemplateSkin skin;
   final bool value;
   final VoidCallback onTap;
@@ -358,41 +363,72 @@ class TemplateSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final track = enabled && value ? skin.accent : skin.sunken;
-    return ReboundContainer(
-      onTap: enabled ? onTap : null,
-      pressedScale: 0.94,
-      borderRadius: BorderRadius.circular(TemplateRadius.pill),
-      backgroundColor: track,
-      hoverColor: enabled ? skin.hoverOn(track) : Colors.transparent,
-      highlightColor: enabled ? skin.pressedOn(track) : Colors.transparent,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
-        width: 40,
-        height: 22,
-        padding: const EdgeInsets.all(3),
-        // 禁用时仍按值摆滑块：位置本身就是开关的状态，不能因为不可用把它抹掉
-        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(TemplateRadius.pill),
-          border: enabled && value
-              ? null
-              : Border.all(
-                  color: enabled
-                      ? skin.controlBorder
-                      : skin.controlBorderDisabled,
-                ),
-        ),
-        child: Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: enabled
-                ? (value ? skin.onAccent : skin.textTertiary)
-                : skin.textDisabled,
-            shape: BoxShape.circle,
-          ),
+    // 禁用时轨道与滑块都要退掉：原来直接给 activeTrackColor，禁用态照样是一条铜色轨道，
+    // 看着像「还点得动」（MD3 的禁用选中也是中性底，不保留强调色）
+    final colors = WidgetStateProperty.resolveWith<Color?>((states) {
+      final disabled = states.contains(WidgetState.disabled);
+      return disabled
+          ? skin.sunken
+          : value
+          ? skin.accent
+          : skin.sunken;
+    });
+    final thumbColors = WidgetStateProperty.resolveWith<Color?>((states) {
+      final disabled = states.contains(WidgetState.disabled);
+      if (disabled) return skin.textDisabled;
+      return value ? skin.onAccent : skin.textTertiary;
+    });
+    return Switch(
+      value: value,
+      onChanged: enabled ? (_) => onTap() : null,
+      thumbColor: thumbColors,
+      trackColor: colors,
+      trackOutlineColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.disabled)
+            ? skin.controlBorderDisabled
+            : skin.controlBorder,
+      ),
+    );
+  }
+}
+
+/// 一条独立设置：单行标题 + 右侧控件，**高度取原生开关的默认高度**
+///
+/// 这样「一个开关 = 一条设置」在一列里高度一致，接下去设置页都按这个规格排
+class TemplateSettingTile extends StatelessWidget {
+  const TemplateSettingTile({
+    super.key,
+    required this.skin,
+    required this.title,
+    this.trailing,
+    this.onTap,
+  });
+
+  final TemplateSkin skin;
+  final String title;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return TemplateRow(
+      skin: skin,
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.md),
+      child: SizedBox(
+        height: TemplateSwitch.height,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TemplateType.item.copyWith(color: skin.textPrimary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (trailing != null) trailing!,
+          ],
         ),
       ),
     );
@@ -476,14 +512,14 @@ class _SegmentPill extends StatefulWidget {
 class _SegmentPillState extends State<_SegmentPill> {
   bool _hover = false;
 
-  /// 选中格的底色（tone）：改成纯色，不再用上亮下暗的渐变
+  /// 选中格的渐变两端（tone）：静止 / 悬停
   ///
-  /// 渐变那套「小立体」会让同一格在不同高度取到不同色值（取色器一看就变），
-  /// 现在只要一个稳定值；取值的边界没变——**最暗的一档不能碰到凹槽底**
-  /// （亮色底 tone 90 / 暗色底 20），悬停时各挪一档即可
-  double get _selectedTone {
-    if (widget.skin.dark) return _hover ? 31 : 28;
-    return _hover ? 96 : 97;
+  /// 用户 2026-11-03：**要这层「小立体」**——不明显，但质感提升很多（别做成纯色）。
+  /// 取值的边界没变：**最暗的一档不能碰到凹槽底**（亮色底 tone 90 / 暗色底 20），
+  /// 悬停时整体挪一档；按下不改底色，只留回弹缩放
+  (double, double) get _stops {
+    if (widget.skin.dark) return _hover ? (32, 27) : (29, 25);
+    return _hover ? (97, 95) : (98, 96);
   }
 
   @override
@@ -492,13 +528,7 @@ class _SegmentPillState extends State<_SegmentPill> {
     final selected = widget.selected;
     final enabled = widget.enabled;
 
-    final fill = selected
-        ? skin.neutralTone(_selectedTone)
-        : enabled && _hover
-        ? skin.hoverOn(Colors.transparent)
-        : Colors.transparent;
-
-    // 需要按悬停换色，而 rebound 的悬停是它自己的内部状态（没有回调可用）
+    // 需要按悬停换渐变，而 rebound 的悬停是它自己的内部状态（没有回调可用）
     // ⇒ 这里自己监听指针：MouseRegion 是被动观察，不抢点击与回弹
     return MouseRegion(
       onEnter: (_) {
@@ -512,11 +542,13 @@ class _SegmentPillState extends State<_SegmentPill> {
         pressedScale: 0.96,
         borderRadius: BorderRadius.circular(TemplateRadius.control),
         backgroundColor: Colors.transparent,
-        // 状态由底色表达，这里不再叠色（叠色正是「融合」的来源）；
+        // 状态由渐变表达，这里不再叠色（叠色正是「融合」的来源）；
         // 主题的水波（splash）也关掉，不然点击瞬间会闪过一层旧强调色
         hoverColor: Colors.transparent,
         highlightColor: Colors.transparent,
         splashColor: Colors.transparent,
+        // 一律用渐变（未选中＝两端同色的透明/薄底）：同类型之间才插值得平滑，
+        // 底色与渐变互换时会硬切
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 130),
           curve: Curves.easeOut,
@@ -525,8 +557,21 @@ class _SegmentPillState extends State<_SegmentPill> {
             horizontal: TemplateSpace.md,
           ),
           decoration: BoxDecoration(
-            color: fill,
             borderRadius: BorderRadius.circular(TemplateRadius.control),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: selected
+                  ? [skin.neutralTone(_stops.$1), skin.neutralTone(_stops.$2)]
+                  : [
+                      enabled && _hover
+                          ? skin.hoverOn(Colors.transparent)
+                          : Colors.transparent,
+                      enabled && _hover
+                          ? skin.hoverOn(Colors.transparent)
+                          : Colors.transparent,
+                    ],
+            ),
           ),
           child: Text(
             widget.label,
@@ -718,12 +763,14 @@ class TemplateSelectRow extends StatelessWidget {
 }
 
 /// 进度条：细轨 + 实心填充（列表行内与内存占用都用它）
+///
+/// 默认高度 12（用户 2026-11-03 定：不同位置可以各自覆盖，但全项目默认 12）
 class TemplateProgressBar extends StatelessWidget {
   const TemplateProgressBar({
     super.key,
     required this.skin,
     required this.value,
-    this.height = 4,
+    this.height = 12,
     this.enabled = true,
   });
 
