@@ -413,6 +413,9 @@ class CloudArchiveReader {
           target: target,
           keepPath: writeTo,
           dataPath: dataPath,
+          rescueDir: backupDirPath == null
+              ? null
+              : p.join(backupDirPath, 'mods-old'),
         );
       }
     }
@@ -436,6 +439,7 @@ class CloudArchiveReader {
     required _PlannedFile target,
     required String keepPath,
     required String dataPath,
+    String? rescueDir,
   }) async {
     final internalName = target.modInternalName;
     if (internalName == null) return;
@@ -443,6 +447,7 @@ class CloudArchiveReader {
       internalName: internalName,
       modsDirs: allModsDirPathsIn(dataPath),
       keepPath: keepPath,
+      rescueDir: rescueDir,
     );
   }
 

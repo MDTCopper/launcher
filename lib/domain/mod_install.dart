@@ -250,11 +250,17 @@ Future<List<String>> removeOtherModFiles({
   required String internalName,
   required Iterable<String> modsDirs,
   required String keepPath,
+  String? rescueDir,
 }) async {
   final installed = await scanInstalledMods(modsDirs);
   final removed = <String>[];
   for (final file in _filesOf(installed, internalName)) {
     if (_samePath(file.path, keepPath)) continue;
+    // 给了救援目录就移过去而不是删：云存档恢复删掉的旧模组要能从备份找回来
+    if (rescueDir != null && await _moveToRescue(file.path, rescueDir)) {
+      removed.add(file.path);
+      continue;
+    }
     if (await _deleteQuietly(file.path)) removed.add(file.path);
   }
   if (removed.isNotEmpty) {
@@ -265,6 +271,31 @@ Future<List<String>> removeOtherModFiles({
     );
   }
   return removed;
+}
+
+/// 把要删的模组文件移进救援目录（同名时加序号），返回是否成功
+Future<bool> _moveToRescue(String path, String rescueDir) async {
+  try {
+    final directory = Directory(rescueDir);
+    if (!directory.existsSync()) directory.createSync(recursive: true);
+    final name = p.basename(path);
+    var target = p.join(rescueDir, name);
+    var index = 1;
+    while (File(target).existsSync()) {
+      target = p.join(rescueDir, '$index-$name');
+      index++;
+    }
+    await File(path).rename(target);
+    addLog(.info, '模组旧版本移进备份：$name', tag: 'ModInstall');
+    return true;
+  } catch (error) {
+    addLog(
+      .warning,
+      '模组旧版本移进备份失败（改成删除）：$error',
+      tag: 'ModInstall',
+    );
+    return false;
+  }
 }
 
 List<InstalledModFile> _filesOf(
