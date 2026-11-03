@@ -429,15 +429,30 @@ class LaunchMindustryTask extends Task {
         );
 
     // 云存档：启动前按需把云端那份拉下来；**冲突要玩家选，没选就不启动**
-    if (!await CloudAutoSync.beforeLaunch(
-      mindustry,
-      onNeedsUi: AppRuntime.headless
-          ? () async => false
-          : () async {
-              await LauncherTray.instance.ensureVisibleForPrompt();
-              return true;
-            },
-    )) {
+    var cloudReady = true;
+    if (AppRuntime.headless && Platform.isAndroid) {
+      // 安卓无界面快捷启动：断网时不要等云同步超时，先把游戏拉起来
+      final online = await AndroidCall.isNetworkAvailable();
+      if (online) {
+        cloudReady = await CloudAutoSync.beforeLaunch(
+          mindustry,
+          onNeedsUi: () async => false,
+        );
+      } else {
+        addLog(.info, '无网络：跳过启动前云同步，先启动 [${mindustry.tag}]', tag: 'Cloud');
+      }
+    } else {
+      cloudReady = await CloudAutoSync.beforeLaunch(
+        mindustry,
+        onNeedsUi: AppRuntime.headless
+            ? () async => false
+            : () async {
+                await LauncherTray.instance.ensureVisibleForPrompt();
+                return true;
+              },
+      );
+    }
+    if (!cloudReady) {
       if (AppRuntime.headless) {
         // 无界面服务弹不了冲突窗：标成需要 UI，任务收尾后服务拉起界面
         AppRuntime.markNeedsUi('cloud');

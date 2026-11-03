@@ -66,6 +66,11 @@ class AndroidCall {
     return await _channel.invokeMethod<bool>('isGameProcessRunning');
   }
 
+  static Future<bool> isNetworkAvailable() async {
+    if (!_isAndroid) return false;
+    return await _channel.invokeMethod<bool>('isNetworkAvailable') ?? false;
+  }
+
   static Future<bool> isSilentLaunch() async {
     if (!_isAndroid) return false;
     return await _channel.invokeMethod<bool>('isSilentLaunch') ?? false;

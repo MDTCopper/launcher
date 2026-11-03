@@ -105,6 +105,13 @@ object AndroidCall {
                         }
                     }.start()
                 }
+                "isNetworkAvailable" -> {
+                    try {
+                        result.success(SystemInfo.isNetworkAvailable(activity.applicationContext))
+                    } catch (error: Throwable) {
+                        result.error("call_failed", error.message, null)
+                    }
+                }
                 "isSilentLaunch" -> {
                     try {
                         result.success(SilentLaunchOverlay.isSilentLaunch())

@@ -2,6 +2,8 @@ package io.github.copper.launcher.system
 
 import android.app.ActivityManager
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import io.github.copper.launcher.channel.DartCall
 import io.github.copper.launcher.channel.DartData
@@ -19,6 +21,16 @@ object SystemInfo {
     /** 设备支持的 ABI（主 ABI 在前）；桥的 JRE 要按它选分包 */
     @DartCall
     fun getSupportedAbis(): List<String> = Build.SUPPORTED_ABIS.toList()
+
+    /** 有没有可用的互联网连接；无网络时快捷启动不等云同步 */
+    @DartCall
+    fun isNetworkAvailable(applicationContext: Context): Boolean {
+        val manager = applicationContext.getSystemService(ConnectivityManager::class.java)
+            ?: return false
+        val network = manager.activeNetwork ?: return false
+        val capabilities = manager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
 
     @DartCall
     fun getMemoryInfo(applicationContext: Context): MemorySnapshot? {
