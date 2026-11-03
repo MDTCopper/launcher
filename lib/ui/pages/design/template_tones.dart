@@ -138,8 +138,8 @@ class TemplateTones {
   /// 调小它就允许高亮色（亮黄 / 亮青）在亮色下保持更亮，代价是按钮边缘更弱；
   /// 这条只在种子给了 tone 时生效
   ///
-  /// [ambience] 是整体氛围（tone 偏移）：**正数 = 亮色更亮、暗色更暗**，
-  /// 两边反向挪，用来做「亮暗拉开一点」的实验（用户 2026-11-03）
+  /// [accentModeShift] 是**实心**按模式挪的档数：亮色 +N（更亮）、暗色 −N（更暗），
+  /// 用户 2026-11-03 的实验口径——注意这和「表面氛围」不是一回事
   factory TemplateTones.of({
     required double hue,
     required double chroma,
@@ -147,7 +147,7 @@ class TemplateTones {
     double neutralChroma = 3,
     double? accentTone,
     double accentCardContrast = 3,
-    double ambience = 0,
+    double accentModeShift = 6,
   }) {
     // 中性色：色度压到几乎不带色（3），只留一点色温；描边/强描边给 6
     final neutral = ToneRamp(hue, neutralChroma);
@@ -169,24 +169,16 @@ class TemplateTones {
     // **tone 最高只到 98**：material_color_utilities 自己注明 tone > 98 时色度会受
     // 已知问题影响（issue 140），实测 tone 99 的铜翻成 `#FFFBFF` 这种发粉的白，
     // 98 才是正常的暖白 `#FFF8F4`
-    // ambience：亮色往上挪、暗色往下挪；卡面卡在 98（更高会触发色度 bug），暗色卡面不贴到纯黑
-    final page = neutral.at(dark ? 7 - ambience : 95 + ambience);
-    final surface = neutral.at(
-      dark ? (12 - ambience * 0.5).clamp(6.0, 18.0) : 98,
-    );
+    // tone 最高只到 98（更高会触发色度 bug）；暗色卡面不贴到纯黑
+    final page = neutral.at(dark ? 7 : 95);
+    final surface = neutral.at(dark ? 12 : 98);
     // 抬升（普通按钮的底）与控件面（凹槽那一档）都**比卡面亮** —— 与 Windows 的暗色
     // 模型一致（暗色下 elevation 是提亮，不是压暗；Fluent 的 TextBox 在暗色里也比
     // 背景亮）。之前在暗色把它们压到卡面**之下**（tone 5），于是悬停叠一层白就正好
     // 撞上卡面，只能压到 2% 才不越界 ⇒ 悬停几乎看不出（用户 2026-10-05 指出）
-    final raised = neutral.at(
-      dark ? (27 - ambience * 0.5).clamp(20.0, 32.0) : 98,
-    );
-    final sunken = neutral.at(
-      dark ? (20 - ambience * 0.5).clamp(12.0, 26.0) : 90 + ambience * 0.5,
-    );
-    final border = neutral.at(
-      dark ? (24 - ambience * 0.5).clamp(16.0, 30.0) : 88 + ambience * 0.5,
-    );
+    final raised = neutral.at(dark ? 27 : 98);
+    final sunken = neutral.at(dark ? 20 : 90);
+    final border = neutral.at(dark ? 24 : 88);
     final borderStrong = strong.at(dark ? 33 : 75);
     final onAccentWhite = neutral.at(98);
     final accentTint = dark ? tintRamp.at(22) : strong.at(89);
@@ -199,15 +191,16 @@ class TemplateTones {
     // 实心：种子给了 tone 就以种子明度为基准，再**按模式各挪一档**——
     // 亮色统一压暗 6、暗色统一提亮 6（保证两种模式下实心不是同一支色），
     // 然后再满足「与卡面 ≥3」：不然亮黄 / 亮青在亮色下按钮边缘认不出（用户 2026-11-03）
-    const modeShift = 6.0;
     final int accent;
     final int onAccent;
     if (accentTone != null) {
       final seedTone = accentTone.clamp(0.0, 100.0);
-      final shiftedTone = (seedTone + (dark ? modeShift : -modeShift)).clamp(
-        0.0,
-        100.0,
-      );
+      // 亮色往上（更亮）、暗色往下（更暗）；再夹到「与卡面 ≥ 目标对比度」的范围内
+      final shiftedTone =
+          (seedTone + (dark ? -accentModeShift : accentModeShift)).clamp(
+            0.0,
+            100.0,
+          );
       final requiredTone = Hct.fromInt(
         accentRamp.solveOn(surface, accentCardContrast, lighter: dark),
       ).tone;

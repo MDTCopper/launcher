@@ -23,7 +23,7 @@ class _SeedLabPageState extends State<SeedLabPage> {
   double _hueOffset = 0;
   double _chromaScale = 1;
   double _neutralChroma = 3;
-  double _ambience = 1.5;
+  double _accentShift = 6;
   bool _dark = false;
 
   // 预览里的演示状态
@@ -49,8 +49,8 @@ class _SeedLabPageState extends State<SeedLabPage> {
       accentTone: seeded.tone,
       // 实心与卡面的最小对比度：2 才保得住亮黄那种金色（3 会压成琥珀）
       accentCardContrast: 2,
-      // 正数 = 亮色更亮、暗色更暗
-      ambience: _ambience,
+      // 实心：亮色加亮 N 档、暗色压暗 N 档
+      accentModeShift: _accentShift,
     );
   }
 
@@ -67,7 +67,7 @@ class _SeedLabPageState extends State<SeedLabPage> {
         '${_hueOffset >= 0 ? '+' : ''}${_hueOffset.toStringAsFixed(0)} · '
         'chroma ${seeded.chroma.toStringAsFixed(1)} × ${_chromaScale.toStringAsFixed(2)} · '
         '表面色度 ${_neutralChroma.toStringAsFixed(1)} · '
-        '氛围 ${_ambience.toStringAsFixed(1)} · ${_dark ? '暗色' : '亮色'}';
+        '实心偏移 ±${_accentShift.toStringAsFixed(0)} · ${_dark ? '暗色' : '亮色'}';
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -184,11 +184,11 @@ class _SeedLabPageState extends State<SeedLabPage> {
                   onChanged: (value) => setState(() => _neutralChroma = value),
                 ),
                 slider(
-                  label: '氛围（+亮更亮 / 暗更暗）',
-                  value: _ambience,
-                  min: -2,
-                  max: 4,
-                  onChanged: (value) => setState(() => _ambience = value),
+                  label: '实心偏移（亮色加亮 / 暗色压暗）',
+                  value: _accentShift,
+                  min: 0,
+                  max: 14,
+                  onChanged: (value) => setState(() => _accentShift = value),
                 ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
