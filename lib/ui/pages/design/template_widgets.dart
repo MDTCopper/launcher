@@ -363,14 +363,9 @@ class TemplateSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 开态：**开关本体跟着主题走**——亮色模式是浅铜底（亮的），暗色模式是深铜底（暗的），
-    // 铜色只在滑块上（用户 2026-11-03「亮色开关是亮色的，暗色是暗色的」）
-    final onTrack = Color.lerp(
-      skin.surface,
-      skin.accent,
-      skin.dark ? 0.38 : 0.30,
-    )!;
-    final onThumb = skin.accent;
+    // 用户 2026-11-03 定：**槽 = 实色，圆球 = 亮色（亮色模式）/ 暗色（暗色模式）**
+    final onTrack = skin.accent;
+    final onThumb = skin.dark ? skin.page : skin.surface;
     // 禁用时轨道与滑块都要退掉：原来直接给 activeTrackColor，禁用态照样是一条铜色轨道，
     // 看着像「还点得动」（MD3 的禁用选中也是中性底，不保留强调色）
     final colors = WidgetStateProperty.resolveWith<Color?>((states) {
@@ -884,7 +879,6 @@ class TemplateSliderRow extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        const thumb = 24.0;
 
         void update(double dx) {
           if (!enabled || onChanged == null || width <= 0) return;
@@ -905,35 +899,62 @@ class TemplateSliderRow extends StatelessWidget {
               : null,
           child: SizedBox(
             height: 40,
-            child: Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                // 轨道比线性条默认再厚一档（16），滑块 24 才压得住（用户 2026-11-03 定的粗细）
-                TemplateProgressBar(
-                  skin: skin,
-                  value: value,
-                  height: 16,
-                  enabled: enabled,
-                ),
-                // 滑块：位置跟着值走
-                Positioned(
-                  left: (width - thumb) * value.clamp(0.0, 1.0),
-                  child: Container(
-                    width: thumb,
-                    height: thumb,
-                    decoration: BoxDecoration(
-                      color: skin.surface,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: enabled
-                            ? skin.accent
-                            : skin.controlBorderDisabled,
-                        width: 2,
+            child: LayoutBuilder(
+              builder: (context, inner) {
+                // 「24 版」：粗实心轨道 + 一根细长竖杆当把手（比轨道略高），
+                // 杆两侧留缝把轨道断开；杆色亮色模式取亮、暗色模式取暗（用户 2026-11-03）
+                const trackHeight = 12.0;
+                const handleWidth = 4.0;
+                const handleHeight = 18.0;
+                const gap = 3.0;
+                final trackWidth = inner.maxWidth;
+                final x = trackWidth * value.clamp(0.0, 1.0);
+                final handleColor = enabled
+                    ? (skin.dark ? skin.page : skin.surface)
+                    : skin.controlBorderDisabled;
+
+                Widget segment(double left, double right, Color color) {
+                  final segWidth = (right - left).clamp(0.0, trackWidth);
+                  return Positioned(
+                    left: left,
+                    width: segWidth,
+                    top: (40 - trackHeight) / 2,
+                    height: trackHeight,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(trackHeight / 2),
                       ),
                     ),
-                  ),
-                ),
-              ],
+                  );
+                }
+
+                return Stack(
+                  children: [
+                    segment(0, x - gap, enabled ? skin.accent : skin.sunken),
+                    segment(
+                      (x + gap).clamp(0.0, trackWidth),
+                      trackWidth,
+                      skin.sunken,
+                    ),
+                    Positioned(
+                      left: (x - handleWidth / 2).clamp(
+                        0.0,
+                        (trackWidth - handleWidth).clamp(0.0, trackWidth),
+                      ),
+                      top: (40 - handleHeight) / 2,
+                      width: handleWidth,
+                      height: handleHeight,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: handleColor,
+                          borderRadius: BorderRadius.circular(handleWidth / 2),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         );

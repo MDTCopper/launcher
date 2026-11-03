@@ -208,9 +208,9 @@ class TemplateTones {
           ? math.max(shiftedTone, requiredTone)
           : math.min(shiftedTone, requiredTone);
       accent = accentRamp.at(effectiveTone);
-      onAccent = toneContrast(onAccentWhite, accent) >= 4.5
-          ? onAccentWhite
-          : neutral.solveOn(accent, 4.5, lighter: false);
+      // 实心上的字：**亮色模式用亮字、暗色模式用暗字**（用户 2026-11-03 定的口径，
+      // 不再按对比度自动切——他要的就是这个观感）
+      onAccent = dark ? neutral.at(12) : onAccentWhite;
     } else {
       accent = accentRamp.solveOn(onAccentWhite, 4.8, lighter: false);
       onAccent = onAccentWhite;
