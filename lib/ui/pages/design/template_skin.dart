@@ -96,8 +96,9 @@ class TemplateSkin {
       // ── 叠层：手写（业界也如此），方向按主题 ──
       hover: dark ? const Color(0x14FFFFFF) : const Color(0x0F000000),
       pressed: dark ? const Color(0x1FFFFFFF) : const Color(0x1A000000),
-      // 选中态就是强调色的一层薄底（原来写的是 HSL 半饱和色，现在是解出来的强调色）
-      selected: accent.withAlpha(((dark ? 0.18 : 0.16) * 255).round()),
+      // 选中态就是强调色的一层薄底；**暗色要压得更低**——深底上的同一点彩度
+      // 比亮色显眼得多（用户 2026-11-03：暗色下主题色感过重）
+      selected: accent.withAlpha(((dark ? 0.10 : 0.12) * 255).round()),
       shadow: dark
           ? const Color(0x66000000)
           : Color(shadowRamp.at(25)).withAlpha((0.10 * 255).round()),
