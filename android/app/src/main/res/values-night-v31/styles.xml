@@ -4,7 +4,7 @@
          所以 31+ 的启动屏属性在这里再给一遍：铜色底、不画图标 -->
     <style name="ArcTheme" parent="ArcThemeBase">
         <item name="android:windowSplashScreenBackground">@color/copper_launch_bg</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/silent_splash_icon</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@null</item>
         <item name="android:windowSplashScreenAnimationDuration">0</item>
     </style>
 
@@ -13,10 +13,11 @@
         <item name="android:windowDisablePreview">true</item>
         <item name="android:windowAnimationStyle">@style/SilentWindowAnimation</item>
         <item name="android:windowSplashScreenBackground">@android:color/black</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/silent_splash_icon</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@null</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@android:color/black</item>
         <item name="android:windowSplashScreenAnimationDuration">0</item>
     </style>
 </resources>
+
 
 

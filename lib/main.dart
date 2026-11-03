@@ -153,6 +153,7 @@ Future<void> _runAndroidSilentShortcut(LaunchArgs cli) async {
   await AndroidCall.setHeadlessSilent();
   AndroidEvent.start();
   unawaited(ShortcutLaunch.start());
+  unawaited(ShortcutLaunch.watchHeadless());
 }
 
 /// 形态二：无界面云存档服务（UI 二次启动 / 接管 / 补上传）

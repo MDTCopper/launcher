@@ -186,6 +186,42 @@ class ShortcutLaunch {
     exit(0);
   }
 
+  /// 无界面快捷启动的兜底看门狗：先等游戏界面出现，消失后立刻后台收尾。
+  /// 任务监听因网络 / 标记竞态没触发时，也能避免停在黑屏。
+  static Future<void> watchHeadless() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 90));
+    var seenGame = false;
+    while (!_headlessFinishing) {
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (_headlessFinishing) return;
+      final visible = await _isGameActivityVisible();
+      if (visible) {
+        seenGame = true;
+        continue;
+      }
+      if (seenGame) {
+        await finishHeadlessExit();
+        return;
+      }
+      if (DateTime.now().isAfter(deadline)) {
+        addLog(.warning, '快捷方式启动：等不到游戏界面，退到后台并结束', tag: 'Shortcut');
+        await _forceFinishHeadless();
+        return;
+      }
+    }
+  }
+
+  static Future<void> _forceFinishHeadless() async {
+    _headlessFinishing = true;
+    ShortcutSession.takeLaunchedFromShortcut();
+    try {
+      await AndroidCall.moveTaskToBack();
+      await AndroidCall.finishLauncher();
+    } on Object catch (_) {}
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    exit(0);
+  }
+
   /// 游戏退出 / 启动失败时撤掉静默启动的黑幕，把启动器界面还回来
   static Future<void> showLauncher() => _showLauncher();
 
