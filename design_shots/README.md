@@ -26,9 +26,11 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/12-mode-accent` | 过渡版：只为满足「实心与卡面 ≥3」而按模式调整明度（黄青会变） |
 | `catalog/13-mode-accent` | 实心按模式分色——亮色统一压暗 6、暗色统一提亮 6，再保证与卡面 3:1，字自动挑 |
 | `catalog/14-loose-contrast` | **当前**：实心与卡面的最小对比度放宽到 **2**（3 会把亮黄压成琥珀），高亮色保住饱和度 |
+| `catalog/15-radix` | 换 **Radix Colors** 的现成 12 档色阶（`SKIN=radix`）：sand 中性 + amber 实心，字色按 11 / 12 档 |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`） |
+| `candidates/radix` | Radix 强调色候选：amber / yellow / bronze / gold × 亮暗（`accents.png`） |
 
 更早的两代（禁用态整层、按钮面几轮）只在 `tmp/design_shots/` 里出现过，没搬进来。
 
