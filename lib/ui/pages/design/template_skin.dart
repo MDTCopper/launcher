@@ -68,7 +68,9 @@ class TemplateSkin {
   ///
   /// 只让种子决定**铜色**：表面保持纯灰（`neutralChroma: 0`）——现在是「灰面配铜色」，
   /// 表面跟着种子色相走会整页发土黄（用户 2026-11-03「看着像屎色」）；
-  /// 色相 / 色度 / 明度一律照种子走（`accentTone` 传种子的 tone），调色在「种子配色」页里当场调
+  /// 色相 / 色度 / 明度一律照种子走（`accentTone` 传种子的 tone），调色在「种子配色」页里当场调。
+  /// 实心与卡面的最小对比度取 2（用户 2026-11-03：3 会把亮黄压成琥珀，2 还能保住金色；
+  /// 按钮本身有文字可认，1.4.11 的 3:1 这里只当软约束）
   factory TemplateSkin.fromAppColors({
     required AppColors colors,
     required bool dark,
@@ -80,19 +82,22 @@ class TemplateSkin {
       chroma: seed.chroma,
       neutralChroma: 0,
       accentTone: seed.tone,
+      accentCardContrast: 2,
     );
   }
 
   /// 从一个主题种子（色相 + 色度）生成整套皮肤；不给色度就按命名色相查表
   ///
   /// [neutralChroma] 传 0 只影响表面：表面变纯灰，铜色仍由种子决定；
-  /// [accentTone] 是种子自己的明度，给了实心就照原样渲染（不再压暗），其上文字自动换深色
+  /// [accentTone] 是种子自己的明度，给了实心就照原样渲染（不再压暗），其上文字自动换深色；
+  /// [accentCardContrast] 是实心与卡面的最小对比度（默认 3，调小让高亮色保持更亮）
   factory TemplateSkin.of({
     required double hue,
     required bool dark,
     double? chroma,
     double neutralChroma = 3,
     double? accentTone,
+    double accentCardContrast = 3,
   }) {
     final seedChroma = chroma ?? TemplateHues.chromaOf(hue);
     final tones = TemplateTones.of(
@@ -101,6 +106,7 @@ class TemplateSkin {
       dark: dark,
       neutralChroma: neutralChroma,
       accentTone: accentTone,
+      accentCardContrast: accentCardContrast,
     );
     // 阴影与选中态要一点色度：用一个低色度的色阶，别用主题色的满色度
     final shadowRamp = ToneRamp(hue, 12);

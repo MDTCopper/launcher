@@ -46,6 +46,8 @@ class _SeedLabPageState extends State<SeedLabPage> {
       neutralChroma: _neutralChroma,
       // 实心照种子本身的明度出，不再为白字压暗
       accentTone: seeded.tone,
+      // 实心与卡面的最小对比度：2 才保得住亮黄那种金色（3 会压成琥珀）
+      accentCardContrast: 2,
     );
   }
 

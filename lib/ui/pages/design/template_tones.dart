@@ -133,12 +133,17 @@ class TemplateTones {
   /// [accentTone] 是种子自身的明度：**给了就照它原样当实心**，不再按「白字 4.8」去压暗。
   /// 按白字反解会把黄色 / 青色这类高亮色压成暗橄榄（用户 2026-11-03 反馈），
   /// 那种情况改成深色字更合适
+  ///
+  /// [accentCardContrast] 是实心与卡面之间的最小对比度（WCAG 1.4.11 要求 3）。
+  /// 调小它就允许高亮色（亮黄 / 亮青）在亮色下保持更亮，代价是按钮边缘更弱；
+  /// 这条只在种子给了 tone 时生效
   factory TemplateTones.of({
     required double hue,
     required double chroma,
     required bool dark,
     double neutralChroma = 3,
     double? accentTone,
+    double accentCardContrast = 3,
   }) {
     // 中性色：色度压到几乎不带色（3），只留一点色温；描边/强描边给 6
     final neutral = ToneRamp(hue, neutralChroma);
@@ -191,7 +196,7 @@ class TemplateTones {
         100.0,
       );
       final requiredTone = Hct.fromInt(
-        accentRamp.solveOn(surface, 3, lighter: dark),
+        accentRamp.solveOn(surface, accentCardContrast, lighter: dark),
       ).tone;
       final effectiveTone = dark
           ? math.max(shiftedTone, requiredTone)
