@@ -76,9 +76,14 @@ open class MainActivity : FlutterActivity() {
         // 不在黑屏上等 Dart 收尾；上传由后台进程继续
         if (SilentLaunchOverlay.isHeadlessSilent() && leftForHeadlessGame) {
             leftForHeadlessGame = false
-            if (!GameProcess.isGameActivityVisible(applicationContext)) {
-                moveTaskToBack(true)
-            }
+            // 退出标记可能比 Activity 恢复晚几十毫秒，稍后再确认一次
+            window.decorView.postDelayed({
+                if (SilentLaunchOverlay.isHeadlessSilent() &&
+                    !GameProcess.isGameActivityVisible(applicationContext)
+                ) {
+                    moveTaskToBack(true)
+                }
+            }, 600)
         }
     }
 
