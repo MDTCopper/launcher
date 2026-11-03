@@ -52,6 +52,18 @@ class AccountManager {
 
   static final AccountManager instance = AccountManager._();
 
+  /// 登出前钩子：需要先和服务端断开的东西（多人房间、联机会话）在这里收尾，
+  /// 跑在 revoke 之前 —— 否则 token 一撤，服务端那边就没法正常退了
+  static final List<Future<void> Function()> _beforeLogoutHooks = [];
+
+  static void registerBeforeLogout(Future<void> Function() hook) {
+    if (_beforeLogoutHooks.contains(hook)) return;
+    _beforeLogoutHooks.add(hook);
+  }
+
+  /// 钩子最多等这么久，别让退出按钮卡住
+  static const _logoutHookTimeout = Duration(seconds: 3);
+
   /// 401 后强制续期：丢掉内存里的 access token 再刷一次
   Future<String?> _renewAccessToken() async {
     _accessToken = null;
@@ -513,6 +525,17 @@ class AccountManager {
   Future<void> logout({CancelToken? cancelToken}) async {
     final token = _stored?.refreshToken ?? _stored?.pendingRefreshToken;
     final epoch = _epoch;
+    for (final hook in _beforeLogoutHooks) {
+      try {
+        await hook().timeout(_logoutHookTimeout);
+      } catch (error) {
+        addLog(
+          .warning,
+          '登出前收尾失败（继续退出）：${removeNewlines('$error')}',
+          tag: 'Account',
+        );
+      }
+    }
     if (token != null && token.isNotEmpty && isConfigured) {
       try {
         await MdtbbsAccountApi.revoke(token: token, cancelToken: cancelToken);

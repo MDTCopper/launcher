@@ -27,8 +27,27 @@ class MdtbbsMultiplayerService {
     _accountLoggedIn = snapshot.loggedIn;
     _lastAccountSubject = snapshot.subject;
     _accounts.snapshot.addListener(_onAccountSnapshotChanged);
+    // 退出账号前先把房间退掉：等 token 撤销之后再退，服务端那边就清不掉了
+    AccountManager.registerBeforeLogout(_leaveBeforeLogout);
     // 服务端推「房间没了」时立刻收拾，不用等心跳失败
     MdtbbsRealtimeService.instance.onSessionEvent = _onRealtimeSessionEvent;
+  }
+
+  /// 登出前的收尾：还在房间里就先正常退房（失败也继续退出）
+  Future<void> _leaveBeforeLogout() async {
+    if (_current.session == null) return;
+    final epoch = _accountEpoch;
+    try {
+      await leave();
+    } on Object catch (error) {
+      addLog(
+        .warning,
+        '登出前退房失败：$error',
+        tag: 'Multiplayer',
+      );
+    }
+    // 退房请求期间账号可能已经变了，别把后续重置重复跑一遍
+    if (epoch != _accountEpoch) return;
   }
 
   /// 实时通道来的会话事件：只有「房间结束」这一类需要动作
