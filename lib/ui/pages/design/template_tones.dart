@@ -178,12 +178,25 @@ class TemplateTones {
     final textPrimary = text.solveOn(surface, 13, lighter: dark);
     final textSecondary = text.solveOn(surface, 7, lighter: dark);
     final textTertiary = microText.solveOn(surface, 5.5, lighter: dark);
-    // 实心：种子给了 tone 就用种子自己的明度（颜色不被压暗），其上文字按对比度挑；
-    // 没给才走老逻辑「白字刚好压得住的那档」
+    // 实心：种子给了 tone 就以种子明度为基准，再**按模式各挪一档**——
+    // 亮色统一压暗 6、暗色统一提亮 6（保证两种模式下实心不是同一支色），
+    // 然后再满足「与卡面 ≥3」：不然亮黄 / 亮青在亮色下按钮边缘认不出（用户 2026-11-03）
+    const modeShift = 6.0;
     final int accent;
     final int onAccent;
     if (accentTone != null) {
-      accent = accentRamp.at(accentTone.clamp(0.0, 100.0));
+      final seedTone = accentTone.clamp(0.0, 100.0);
+      final shiftedTone = (seedTone + (dark ? modeShift : -modeShift)).clamp(
+        0.0,
+        100.0,
+      );
+      final requiredTone = Hct.fromInt(
+        accentRamp.solveOn(surface, 3, lighter: dark),
+      ).tone;
+      final effectiveTone = dark
+          ? math.max(shiftedTone, requiredTone)
+          : math.min(shiftedTone, requiredTone);
+      accent = accentRamp.at(effectiveTone);
       onAccent = toneContrast(onAccentWhite, accent) >= 4.5
           ? onAccentWhite
           : neutral.solveOn(accent, 4.5, lighter: false);
