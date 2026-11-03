@@ -876,6 +876,7 @@ class TemplateSliderRow extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        const thumb = 20.0;
 
         void update(double dx) {
           if (!enabled || onChanged == null || width <= 0) return;
@@ -895,22 +896,22 @@ class TemplateSliderRow extends StatelessWidget {
               ? (detail) => update(detail.localPosition.dx)
               : null,
           child: SizedBox(
-            height: 24,
+            height: 32,
             child: Stack(
               alignment: Alignment.centerLeft,
               children: [
+                // 轨道跟着线性条的默认粗细走（12），滑块比轨道大一档才看得出来
                 TemplateProgressBar(
                   skin: skin,
                   value: value,
-                  height: 6,
                   enabled: enabled,
                 ),
                 // 滑块：位置跟着值走
                 Positioned(
-                  left: (width - 16) * value.clamp(0.0, 1.0),
+                  left: (width - thumb) * value.clamp(0.0, 1.0),
                   child: Container(
-                    width: 16,
-                    height: 16,
+                    width: thumb,
+                    height: thumb,
                     decoration: BoxDecoration(
                       color: skin.surface,
                       shape: BoxShape.circle,
