@@ -436,7 +436,8 @@ class _TemplateSwitchState extends State<TemplateSwitch>
                         decoration: BoxDecoration(
                           color: trackColor,
                           borderRadius: BorderRadius.circular(trackHeight / 2),
-                          border: Border.all(color: borderColor),
+                          // 自研就把边缘加厚：常态 2px（原生是 1px），开态一起淡出
+                          border: Border.all(color: borderColor, width: 2),
                         ),
                       ),
                       Positioned(
