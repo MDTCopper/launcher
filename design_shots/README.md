@@ -28,7 +28,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/14-loose-contrast` | 实心与卡面的最小对比度放宽到 **2**（3 会把亮黄压成琥珀），高亮色保住饱和度 |
 | `catalog/15-radix` | 换 **Radix Colors** 的现成 12 档色阶（`SKIN=radix`）：sand 中性 + amber 实心，字色按 11 / 12 档 |
 | `catalog/16-warm-bright` | 回到第 6 版算法（暖中性 + 现配色明度），`ambience` 误作用在**表面**上（亮色更亮、暗色更暗）；顺带把演示里堆着的主题色块减掉 |
-| `catalog/17-accent-shift` | **当前**：偏移改回只作用于**实心**——亮色加亮 6 档、暗色压暗 6 档；表面回到第 6 版 |
+| `catalog/17-accent-shift` | 偏移只作用于**实心**——亮色加亮 6 档、暗色压暗 6 档；表面回到第 6 版 |
+| `catalog/18-switch-mode` | **当前**：开关开态轨道也按模式取色——亮色更亮、暗色更暗，滑块反色 |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`）、实心偏移 −6 / 0 / +6 对照（`accent_shift.png`） |
