@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/bridge_installer.dart';
 import 'package:copper_launcher/domain/cloud_service_process.dart';
 import 'package:copper_launcher/domain/game_session.dart';
 import 'package:copper_launcher/domain/game_session_monitor.dart';
@@ -25,6 +26,7 @@ import 'package:copper_launcher/ui/startup/startup_page.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/core/app_paths.dart';
+import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:copper_launcher/generated/android_event.g.dart';
 import 'package:copper_launcher/util/data_root_migration.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
@@ -49,6 +51,12 @@ void main(List<String> args) async {
   // 因为参数里也带 --launch-version，否则会被当成普通快捷启动
   if (args.contains('--sync-proxy')) {
     await SyncProxyProcess.start(versionId: cli.launchVersionId);
+    return;
+  }
+
+  // 安卓桌面快捷方式：按出去方式决定要不要建 UI；不建 UI 时启动器只做宿主
+  if (Platform.isAndroid && await AndroidCall.isSilentLaunch()) {
+    await _runAndroidSilentShortcut(cli);
     return;
   }
 
@@ -112,6 +120,35 @@ Future<void> _runQuickLaunch(LaunchArgs cli) async {
   AppRuntime.form = AppForm.cloudService;
   addLog(.info, '形态切换：触发进程转为无界面云服务', tag: 'Startup');
   await CloudServiceProcess.start(launchVersionId: cli.launchVersionId);
+}
+
+/// 安卓桌面快捷方式：桥已就绪且设置为「直接回桌面」时不建启动器 UI，
+/// 只留宿主 Activity 把游戏拉起来；游戏退出后由 [ShortcutLaunch] 在后台传完再退出。
+/// 需要回到启动器或还要装桥时仍走隐藏 UI 的旧路径。
+Future<void> _runAndroidSilentShortcut(LaunchArgs cli) async {
+  AppRuntime.form = AppForm.quickTrigger;
+  AppRuntime.headless = true;
+  await AppPaths.init();
+  await Log.init();
+  await _initializeCore(pathsReady: true, logReady: true);
+
+  final action = config.setting.personalizationOptions.shortcutExitAction;
+  if (action != ShortcutExitAction.backToHome ||
+      !BridgeInstaller.isRuntimeReady()) {
+    AppRuntime.form = AppForm.launcherUi;
+    AppRuntime.headless = false;
+    await _initializeUi(null, fromService: false);
+    runCopperLauncher();
+    return;
+  }
+
+  addLog(
+    .info,
+    '时间线：安卓静默快捷启动无界面模式 +${AppRuntime.elapsedMs}ms',
+    tag: 'Timeline',
+  );
+  AndroidEvent.start();
+  unawaited(ShortcutLaunch.start());
 }
 
 /// 形态二：无界面云存档服务（UI 二次启动 / 接管 / 补上传）

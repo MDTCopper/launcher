@@ -712,8 +712,10 @@ class LaunchMindustryTask extends Task {
     }
     // 云存档：游戏退出后自动上传（只对启用了云存档的目录；失败只提示）
     unawaited(CloudAutoSync.afterGameExit(mindustry));
-    // 快捷方式启动的局：撤黑幕；按设置决定退出后直接回桌面
-    if (!AppRuntime.headless) {
+    // 快捷方式启动的局：无界面模式后台收尾后退出；有界面模式按设置撤黑幕 / 回桌面
+    if (AppRuntime.headless && Platform.isAndroid) {
+      unawaited(ShortcutLaunch.finishHeadlessExit());
+    } else if (!AppRuntime.headless) {
       _handleShortcutExit();
     }
     if (exitLog.contains('0')) {

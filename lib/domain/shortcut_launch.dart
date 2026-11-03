@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/data/mindustry/mindustry.dart';
 import 'package:copper_launcher/domain/bridge_installer.dart';
+import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
 import 'package:copper_launcher/domain/game_instance.dart';
 import 'package:copper_launcher/domain/launch_request.dart';
 import 'package:copper_launcher/domain/quick_launch_entry.dart';
@@ -27,6 +29,7 @@ class ShortcutLaunch {
 
   static bool _started = false;
   static bool _handling = false;
+  static bool _headlessFinishing = false;
 
   /// 正在处理的版本 id：同一次快捷方式的事件 + 冷启动 take 只处理一份
   static String? _lastVersionId;
@@ -150,11 +153,37 @@ class ShortcutLaunch {
     unawaited(_restoreLauncherAfterLaunch());
   }
 
-  /// 兜底：20 秒后把黑幕撤掉。游戏正常起来时它早就盖在上面了，撤不撤都看不见；
-  /// 万一启动失败又没走到失败分支，也不至于一直黑屏
+  /// 兜底：20 秒后撤黑幕。无界面模式不能撤，否则游戏若已退出会露出空 Activity
   static Future<void> _restoreLauncherAfterLaunch() async {
     await Future<void>.delayed(const Duration(seconds: 20));
+    if (AppRuntime.headless) return;
     await _showLauncher();
+  }
+
+  /// 无界面快捷启动：游戏退出后不打开启动器；先把 task 退到后台，
+  /// 等云存档传完再结束 Activity / 进程。
+  static Future<void> finishHeadlessExit() async {
+    if (_headlessFinishing) return;
+    _headlessFinishing = true;
+    if (!ShortcutSession.takeLaunchedFromShortcut()) {
+      _headlessFinishing = false;
+      return;
+    }
+    addLog(.info, '快捷方式启动：游戏已退出，后台收尾后结束进程', tag: 'Shortcut');
+    try {
+      await AndroidCall.moveTaskToBack();
+    } on Object catch (error) {
+      addLog(.warning, '快捷方式启动：退到后台失败：$error', tag: 'Shortcut');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await CloudAutoSync.waitForPending();
+    try {
+      await AndroidCall.finishLauncher();
+    } on Object catch (error) {
+      addLog(.warning, '快捷方式启动：结束启动器失败：$error', tag: 'Shortcut');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    exit(0);
   }
 
   /// 游戏退出 / 启动失败时撤掉静默启动的黑幕，把启动器界面还回来

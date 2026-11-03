@@ -36,6 +36,11 @@ open class MainActivity : FlutterActivity() {
             intent.getBooleanExtra(GameShortcut.EXTRA_SILENT, true)
         // 静默启动：super 之前换深色主题，启动窗口就是黑的（不闪白、不闪桌面）
         if (silentRequest) setTheme(R.style.SilentLaunchTheme)
+        if (silentRequest) {
+            SilentLaunchOverlay.markSilentLaunch()
+        } else {
+            SilentLaunchOverlay.clearSilentLaunch()
+        }
 
         // configureFlutterEngine 在 super.onCreate 里就会分流冷启动 intent，所以解析器要先拿到上下文；
         // 顺序反过来会把冷启动那次分享丢掉（文件还没复制到缓存）

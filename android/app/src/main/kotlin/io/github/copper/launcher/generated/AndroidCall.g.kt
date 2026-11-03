@@ -105,6 +105,13 @@ object AndroidCall {
                         }
                     }.start()
                 }
+                "isSilentLaunch" -> {
+                    try {
+                        result.success(SilentLaunchOverlay.isSilentLaunch())
+                    } catch (error: Throwable) {
+                        result.error("call_failed", error.message, null)
+                    }
+                }
                 "killGameProcess" -> {
                     Thread {
                         try {
