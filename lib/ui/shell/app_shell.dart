@@ -99,6 +99,12 @@ class AppShellState extends State<AppShell> {
         ),
         if (kDebugMode)
           RailItem(label: '神秘小工具', icon: Icons.auto_fix_high, route: '/tools'),
+        if (kDebugMode)
+          RailItem(
+            label: '种子配色',
+            icon: Icons.palette_outlined,
+            route: '/seed_lab',
+          ),
       ],
     ),
   ];
@@ -430,8 +436,6 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-
-
   /// 左侧账户抽屉：顶部是抽屉内的导航，四个页签的内容直接渲染在抽屉里
   Widget _buildAccountDrawer() {
     final colors = AppColors.of(context);
@@ -481,9 +485,7 @@ class AppShellState extends State<AppShell> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              account.loggedIn
-                                  ? '社区账号'
-                                  : '登录后可加好友、同步云存档',
+                              account.loggedIn ? '社区账号' : '登录后可加好友、同步云存档',
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: colors.itemHint,
                               ),
@@ -540,9 +542,21 @@ class AppShellState extends State<AppShell> {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             children: [
-              _buildAccountNavItem(_AccountTab.profile, Icons.person_outline, '账户'),
-              _buildAccountNavItem(_AccountTab.friends, Icons.people_outline, '好友'),
-              _buildAccountNavItem(_AccountTab.cloud, Icons.cloud_outlined, '云存档'),
+              _buildAccountNavItem(
+                _AccountTab.profile,
+                Icons.person_outline,
+                '账户',
+              ),
+              _buildAccountNavItem(
+                _AccountTab.friends,
+                Icons.people_outline,
+                '好友',
+              ),
+              _buildAccountNavItem(
+                _AccountTab.cloud,
+                Icons.cloud_outlined,
+                '云存档',
+              ),
               _buildAccountNavItem(
                 _AccountTab.notices,
                 Icons.notifications_none,
@@ -616,7 +630,6 @@ class AppShellState extends State<AppShell> {
       ),
     );
   }
-
 
   /// 抽屉里那一块内容：四个页签各自就是一个现成的页面
   Widget _buildAccountTabContent() => switch (_accountTab) {

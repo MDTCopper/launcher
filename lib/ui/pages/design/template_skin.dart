@@ -67,15 +67,15 @@ class TemplateSkin {
   /// 以 Copper **现在的主题色**为种子，重新生成一整套皮肤
   ///
   /// 只让种子决定**铜色**：表面保持纯灰（`neutralChroma: 0`）——现在是「灰面配铜色」，
-  /// 表面跟着铜色相走会整页发土黄（用户 2026-11-03「看着像屎色」）；
-  /// 色相收到 66~70，直接取种子的 73 会偏芥末黄
+  /// 表面跟着种子色相走会整页发土黄（用户 2026-11-03「看着像屎色」）；
+  /// 色相 / 色度一律照种子走，调色在「种子配色」页里当场调
   factory TemplateSkin.fromAppColors({
     required AppColors colors,
     required bool dark,
   }) {
     final seed = Hct.fromInt(colors.interactive.toARGB32());
     return TemplateSkin.of(
-      hue: seed.hue.clamp(66.0, 70.0),
+      hue: seed.hue,
       dark: dark,
       chroma: seed.chroma,
       neutralChroma: 0,
