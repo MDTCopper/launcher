@@ -33,7 +33,7 @@ String _withLogPrefix(String header, String message) {
   final isNewDay = day != _lastLogDay;
   _lastLogDay = day;
 
-  final lines = message.split('\n');
+  final lines = redactSecrets(message).split('\n');
   final buffer = StringBuffer();
   if (isNewDay) buffer.writeln('[$day]');
   buffer.write('$header ${lines.first}');
@@ -41,6 +41,30 @@ String _withLogPrefix(String header, String message) {
     buffer.write('\n    $line');
   }
   return buffer.toString();
+}
+
+/// 日志脱敏：凭证类内容不落盘
+///
+/// 日志会被用户导出 / 分享，服务端下发的 URL 与响应体偶尔会把 token 带进来
+String redactSecrets(String message) => _applyRedactions(message);
+
+final RegExp _bearerPattern = RegExp(
+  r'(Bearer\s+)[A-Za-z0-9\-._~+/=]{8,}',
+);
+final RegExp _credentialFieldPattern = RegExp(
+  r'("(?:access_token|refresh_token|id_token|resume_token|ticket|lanlink_?token)"\s*:\s*")[^"]{4,}"',
+);
+final RegExp _longHexPattern = RegExp(r'\b[0-9a-fA-F]{64,}\b');
+
+String _applyRedactions(String message) {
+  var text = message;
+  text = text.replaceAllMapped(_bearerPattern, (match) => '${match[1]}***');
+  text = text.replaceAllMapped(
+    _credentialFieldPattern,
+    (match) => '${match[1]}***"',
+  );
+  text = text.replaceAll(_longHexPattern, '***');
+  return text;
 }
 
 ///一条日志的固定格式：`[时间]-[级别]-[模块] 内容`（模块可缺省）
