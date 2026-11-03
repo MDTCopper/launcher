@@ -14,7 +14,29 @@ import 'package:copper_launcher/util/io/log.dart';
 /// **凭据不在这里**：联机令牌与 BBS 同属一个论坛账号，存在 [AccountManager] 里
 /// （同一份账号文件、同一套加密），这里只取用
 class LanLinkService {
-  LanLinkService._();
+  LanLinkService._() {
+    // 账号没了就把联机会话也拆掉：否则登出后还留着上一个账号的房间与桥
+    _accounts.snapshot.addListener(_onAccountChanged);
+  }
+
+  void _onAccountChanged() {
+    if (_accounts.isLoggedIn) return;
+    _profile = null;
+    unawaited(_tearDownSessions());
+  }
+
+  Future<void> _tearDownSessions() async {
+    try {
+      await leave();
+    } catch (error) {
+      addLog(.warning, '登出后断开联机失败：$error', tag: 'LanLink');
+    }
+    try {
+      await stopHosting();
+    } catch (error) {
+      addLog(.warning, '登出后关闭房间失败：$error', tag: 'LanLink');
+    }
+  }
 
   static final LanLinkService instance = LanLinkService._();
 

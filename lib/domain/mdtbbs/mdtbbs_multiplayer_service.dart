@@ -1168,7 +1168,11 @@ class MdtbbsMultiplayerService {
   ///
   /// 服务端文档里没有「已有邀请 / 重复邀请」这类错误码（只有 INVITE_ALREADY_ACCEPTED），
   /// 所以去重和冷却只能客户端自己保证
-  final Map<int, DateTime> _inviteSentAt = {};
+  /// 键是「账号 subject|目标用户」：换号后不该继承上一个账号的冷却
+  final Map<String, DateTime> _inviteSentAt = {};
+
+  String _inviteKey(int targetUserId) =>
+      '${_accounts.subject ?? ''}|$targetUserId';
 
   static const _inviteCooldown = Duration(seconds: 30);
 
@@ -1178,7 +1182,7 @@ class MdtbbsMultiplayerService {
 
   /// 距离下次可邀请还有几秒（0 表示现在就能发）
   int inviteCooldownLeft(int targetUserId) {
-    final at = _inviteSentAt[targetUserId];
+    final at = _inviteSentAt[_inviteKey(targetUserId)];
     if (at == null) return 0;
     final left = _inviteCooldown - DateTime.now().difference(at);
     return left.inSeconds <= 0 ? 0 : left.inSeconds;
@@ -1222,7 +1226,7 @@ class MdtbbsMultiplayerService {
           _current.session?.id != session.id) {
         return;
       }
-      _inviteSentAt[targetUserId] = DateTime.now();
+      _inviteSentAt[_inviteKey(targetUserId)] = DateTime.now();
       _set(
         _current.copyWith(
           sentInvites: [
