@@ -1,10 +1,10 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12+ 系统 splash：深色底，不画系统图标（系统会把图标放大，和窗口/Flutter 的 64dp 图标跳一下） -->
+    <!-- Android 12+ 系统 splash：普通启动显示 Copper 物品图；快捷启动走 SilentLaunchTheme 不画图 -->
     <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>
         <item name="android:windowSplashScreenBackground">@color/copper_launch_bg</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@null</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/copper_launch_icon</item>
         <item name="android:windowSplashScreenAnimationDuration">0</item>
     </style>
 
