@@ -383,11 +383,15 @@ class TemplateSwitch extends StatelessWidget {
       onChanged: enabled ? (_) => onTap() : null,
       thumbColor: thumbColors,
       trackColor: colors,
-      trackOutlineColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.disabled)
-            ? skin.controlBorderDisabled
-            : skin.controlBorder,
-      ),
+      trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+        // 开态描边跟着轨道一起消失（M3 原生就是这样）：原来一律给常态边界色，
+        // 铜色轨道外面还箍着一圈灰边（用户 2026-11-03 指出）
+        if (states.contains(WidgetState.selected)) return Colors.transparent;
+        if (states.contains(WidgetState.disabled)) {
+          return skin.controlBorderDisabled;
+        }
+        return skin.controlBorder;
+      }),
     );
   }
 }
