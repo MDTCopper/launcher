@@ -2,6 +2,7 @@ import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:material_color_utilities/hct/hct.dart';
 
+import 'radix_colors.dart';
 import 'template_tones.dart';
 
 /// Copper 四个主题色：**换一个种子，整套皮肤重算**
@@ -83,6 +84,57 @@ class TemplateSkin {
       neutralChroma: 0,
       accentTone: seed.tone,
       accentCardContrast: 2,
+    );
+  }
+
+  /// 直接用 **Radix Colors** 的 12 档色阶拼一套（2026-11-03 用户要求试试 Radix）
+  ///
+  /// 不做解色：中性走 sand，实心 / 浅底走 accent 那支（默认 amber，可传 bronze / yellow 等），
+  /// 危险 red、成功 green、警告 yellow；字色按 Radix 语义取 11（次要）/ 12（正文）档，
+  /// 实心上的字白字够 4.5 就用白字，否则用该色阶的 12 档（Radix 给高对比字用的深色）
+  factory TemplateSkin.radix({required bool dark, List<int>? accent}) {
+    final accentScale = accent ?? (dark ? amberDark : amberLight);
+    final sand = dark ? sandDark : sandLight;
+    final red = dark ? redDark : redLight;
+    final green = dark ? greenDark : greenLight;
+    final yellow = dark ? yellowDark : yellowLight;
+    const white = 0xFFFFFFFF;
+
+    Color pick(List<int> scale, int step) => Color(scale[step - 1]);
+    int onSolid(List<int> scale) =>
+        toneContrast(white, scale[8]) >= 4.5 ? white : scale[11];
+
+    return TemplateSkin(
+      dark: dark,
+      // 分段渐变只要一条中性档：Radix 的沙色没有 tone 曲线，用同位相的纯灰色阶顶着
+      neutral: ToneRamp(Hct.fromInt(accentScale[8]).hue, 0),
+      page: pick(sand, 1),
+      surface: pick(sand, 2),
+      raised: pick(sand, dark ? 3 : 1),
+      sunken: pick(sand, 3),
+      border: pick(sand, 6),
+      borderStrong: pick(sand, 7),
+      controlBorder: pick(sand, 7),
+      textPrimary: pick(sand, 12),
+      textSecondary: pick(sand, 11),
+      textTertiary: pick(sand, 11),
+      accent: pick(accentScale, 9),
+      accentText: pick(accentScale, 11),
+      onAccent: Color(onSolid(accentScale)),
+      accentTint: pick(accentScale, 3),
+      onAccentTint: pick(accentScale, 12),
+      danger: pick(red, 9),
+      dangerText: pick(red, 11),
+      onDanger: Color(onSolid(red)),
+      success: pick(green, dark ? 11 : 9),
+      warning: pick(yellow, dark ? 11 : 9),
+      hover: dark ? const Color(0x14FFFFFF) : const Color(0x0F000000),
+      pressed: dark ? const Color(0x1FFFFFFF) : const Color(0x1A000000),
+      selected: pick(
+        accentScale,
+        9,
+      ).withAlpha(((dark ? 0.10 : 0.12) * 255).round()),
+      shadow: dark ? const Color(0x66000000) : const Color(0x22000000),
     );
   }
 
