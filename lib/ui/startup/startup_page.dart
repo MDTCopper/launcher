@@ -38,8 +38,8 @@ class StartupPage extends StatelessWidget {
 
   final ThemeColor themeColor;
 
-  /// 和原生启动窗口的 #121212 保持一致，避免原生 → Flutter 时背景闪一下
-  static const _background = Color(0xFF121212);
+  /// 普通启动的系统 splash 是白底，这里保持一致，避免原生 → Flutter 时背景闪一下
+  static const _background = Color(0xFFFFFFFF);
 
   @override
   Widget build(BuildContext context) {

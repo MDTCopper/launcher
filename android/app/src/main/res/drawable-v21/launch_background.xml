@@ -1,5 +1,13 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 系统启动窗口只铺底色；主题图标由 Flutter StartupPage 按当前主题绘制 -->
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- 普通启动：白底 + Copper 物品图；快捷启动走 SilentLaunchTheme，保持黑底无图 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/copper_launch_bg" />
+    <item android:drawable="@android:color/white" />
+
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/copper_launch_icon_288" />
+    </item>
 </layer-list>
+
+
