@@ -61,10 +61,12 @@ class CloudAutoSync {
     SyncCancelCheck? isCancelled,
   }) async {
     try {
-      if (!CloudSaveService.isEnabled(version)) return true;
       if (_skipAutoSync.contains(_skipKey(version))) return true;
+      // 先拿令牌（顺带恢复账号）：无界面进程启动时账号还没恢复，
+      // 这时问 isEnabled 会恒为 false，同步被静默跳过
       final token = await _token();
       if (token == null) return true;
+      if (!CloudSaveService.isEnabled(version)) return true;
 
       // 无界面服务：启动前同步超过 3 秒才拉起代理窗口；UI 进程这里返回 null
       final gate = await SyncProxyGate.startForHeadlessService(
@@ -415,14 +417,15 @@ class CloudAutoSync {
 
   static Future<void> _uploadAfterExit(Mindustry version) async {
     try {
+      // 同上：先恢复账号再问开关，否则无界面进程永远判成「没开」
+      final token = await _token();
+      if (token == null) return;
       if (!CloudSaveService.isEnabled(version)) return;
       final state = CloudSaveService.localState(version);
       if (state == null || !state.hasBaseline) {
         addLog(.info, '云存档还没有同步基线，跳过退出后上传 [${version.tag}]', tag: 'Cloud');
         return;
       }
-      final token = await _token();
-      if (token == null) return;
 
       // 挂成任务：抽屉 / 托盘 / 任务栏都看得见进度，也能当场取消
       final syncTask = CloudSyncTask(

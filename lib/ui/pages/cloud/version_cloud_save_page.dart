@@ -330,7 +330,21 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       if (task.error != null) {
         final error = task.error;
         if (error is MdtbbsException && error.isConflict) {
-          _askForceReplace(error.conflictCurrentSnapshotId);
+          // 拿不到 head id 就退化成普通失败：否则每次重试都撞同一个 409，
+          // 用户点多少次都过不去
+          final headId = error.conflictCurrentSnapshotId ??
+              (error is CloudSaveConflictException
+                  ? error.outcome.remote?.snapshotId
+                  : null);
+          if (headId == null) {
+            addNotice(
+              icon: Icons.error_outline,
+              title: '云端已有更新的版本',
+              content: '没读到云端当前版本号，刷新后再试一次',
+            );
+            return;
+          }
+          _askForceReplace(headId);
         } else {
           addNotice(
             icon: Icons.error_outline,
