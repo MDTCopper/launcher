@@ -45,6 +45,9 @@ class CloudPullTask extends CloudSyncTask {
     final item = CloudTaskItem(title: slot.name);
     addQueueItem(item);
     setPhase('同步 ${slot.name}');
+    // 拉取可能装版本 + 下几百 MB，中途玩家可能登出 / 换号：
+    // 记下发起时的账号，落绑定与恢复前都要还是同一个人
+    final accountAtStart = CloudSaveService.currentAccountId;
 
     final release = CloudSaveService.releaseFromSlotName(slot.name);
     final isDefaultSlot =
@@ -149,6 +152,17 @@ class CloudPullTask extends CloudSyncTask {
       }
     }
 
+    // 中途换号就别落地：否则会把这份云存档绑到 / 写进另一个账号名下
+    if (accountAtStart == null ||
+        CloudSaveService.currentAccountId != accountAtStart) {
+      updateQueueItem(item, failed: true);
+      addLog(
+        .warning,
+        '拉取 [$slot.name]：账号已切换，中止（已装好的版本保留）',
+        tag: 'Cloud',
+      );
+      return '账号已切换，这次拉取中止';
+    }
     if (needBind) {
         CloudSaveService.bindSlot(version, slot.id, slotName: slot.name);
       }

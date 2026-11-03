@@ -814,6 +814,11 @@ class CloudSaveService {
     CancelToken? cancelToken,
   }) async {
     final name = deviceName ?? CloudSaveService.deviceName;
+    // 记住这次是谁的账号：中途换号时基线仍要记在发起时的账号名下，不能串到新账号
+    final account = await _resolveAccountId();
+    if (account == null) {
+      throw const MdtbbsException(message: '未登录 BBS，不能上传云存档');
+    }
     onStatus?.call('查云端槽位');
     final slot = await resolveSlot(
       accessToken: accessToken,
@@ -827,6 +832,7 @@ class CloudSaveService {
     if (quota?.supportsManifest ?? false) {
       return _uploadManifest(
         accessToken: accessToken,
+        account: account,
         version: version,
         slot: slot,
         deviceName: name,
@@ -930,6 +936,7 @@ class CloudSaveService {
         addLog(.info, '云端 head 与本机这份内容相同，按已同步处理', tag: 'Cloud');
         _rememberSynced(
           version,
+          account: account,
           slotId: slot.id,
           snapshotId: head.currentSnapshotId,
           files: export.manifest.fileHashes,
@@ -981,6 +988,7 @@ class CloudSaveService {
           )).currentSnapshotId;
       _rememberSynced(
         version,
+        account: account,
         slotId: slot.id,
         snapshotId: headId,
         files: export.manifest.fileHashes,
@@ -1090,6 +1098,7 @@ class CloudSaveService {
   /// 差量上传：只传服务端缺的文件内容，再用 manifest 建快照
   static Future<CloudSaveUploadResult> _uploadManifest({
     required String accessToken,
+    required String account,
     required Mindustry version,
     required CloudSaveSlot slot,
     required String deviceName,
@@ -1255,6 +1264,7 @@ class CloudSaveService {
         )).currentSnapshotId;
     _rememberSynced(
       version,
+      account: account,
       slotId: slot.id,
       snapshotId: headId,
       files: built.hashes,
@@ -1528,6 +1538,7 @@ class CloudSaveService {
       if (report.rejected.isEmpty) {
         _rememberSynced(
           version,
+          account: account,
           slotId: slotId,
           snapshotId: snapshotId,
           files: reader.manifest.fileHashes,
@@ -1641,6 +1652,7 @@ class CloudSaveService {
     if (remoteManifest != null) {
       return _restoreManifest(
         accessToken: accessToken,
+        account: account,
         version: version,
         slotId: slotId,
         snapshotId: snapshotId,
@@ -1676,6 +1688,7 @@ class CloudSaveService {
       if (report.rejected.isEmpty) {
         await _rememberCurrentState(
           version,
+          account: account,
           slotId: slotId,
           snapshotId: snapshotId,
         );
@@ -1693,6 +1706,7 @@ class CloudSaveService {
   /// manifest 快照：按缺失的 blob 下载，逐文件覆盖本机
   static Future<CloudSaveRestoreResult> _restoreManifest({
     required String accessToken,
+    required String account,
     required Mindustry version,
     required String slotId,
     required String snapshotId,
@@ -1786,6 +1800,7 @@ class CloudSaveService {
       // 文件，直接抄清单会让状态一直显示「本机已改」
       await _rememberCurrentState(
         version,
+        account: account,
         slotId: slotId,
         snapshotId: snapshotId,
       );
@@ -1936,6 +1951,7 @@ class CloudSaveService {
   /// 把「本机现状」记成同步基线（恢复后调；上传侧直接用扫描结果）
   static Future<void> _rememberCurrentState(
     Mindustry version, {
+    required String account,
     required String slotId,
     required String? snapshotId,
   }) async {
@@ -1948,6 +1964,7 @@ class CloudSaveService {
       );
       _rememberSynced(
         version,
+        account: account,
         slotId: slotId,
         snapshotId: snapshotId,
         files: manifest.fileHashes,
@@ -2745,12 +2762,11 @@ class CloudSaveService {
   /// 记下「这个数据目录同步到哪个槽位 / 哪个快照 / 哪些文件」
   static void _rememberSynced(
     Mindustry version, {
+    required String account,
     required String slotId,
     required String? snapshotId,
     required Map<String, String> files,
   }) {
-    final account = currentAccountId;
-    if (account == null) return;
     final profile = profileIdOf(version);
     final store = _loadStore();
     final existing = store.stateOf(account, profile);
