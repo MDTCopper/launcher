@@ -18,6 +18,7 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/04-native-switch` | 分段恢复立体渐变；线性条默认 12；开关换 Flutter 原生 `Switch`；新增独立设置 tile（高 48） |
 | `catalog/05-switch-outline` | 开关**开态**的描边跟着轨道一起消失（原来一律是灰边）；其余同 04 |
 | `catalog/06-slider` | 拖动条加厚（轨道 12、滑块 20）；新增「滑块类型」小节：自绘 / 原生 M3 2024 / 2023 / 带刻度 |
+| `catalog/07-copper-colors` | 皮肤改用 Copper **现在的** `AppColors` 拼（`TemplateSkin.fromAppColors`）；`SKIN=hct` 可切回生成式那套 |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 
