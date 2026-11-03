@@ -68,7 +68,7 @@ class TemplateSkin {
   ///
   /// 只让种子决定**铜色**：表面保持纯灰（`neutralChroma: 0`）——现在是「灰面配铜色」，
   /// 表面跟着种子色相走会整页发土黄（用户 2026-11-03「看着像屎色」）；
-  /// 色相 / 色度一律照种子走，调色在「种子配色」页里当场调
+  /// 色相 / 色度 / 明度一律照种子走（`accentTone` 传种子的 tone），调色在「种子配色」页里当场调
   factory TemplateSkin.fromAppColors({
     required AppColors colors,
     required bool dark,
@@ -79,17 +79,20 @@ class TemplateSkin {
       dark: dark,
       chroma: seed.chroma,
       neutralChroma: 0,
+      accentTone: seed.tone,
     );
   }
 
   /// 从一个主题种子（色相 + 色度）生成整套皮肤；不给色度就按命名色相查表
   ///
-  /// [neutralChroma] 传 0 只影响表面：表面变纯灰，铜色仍由种子决定
+  /// [neutralChroma] 传 0 只影响表面：表面变纯灰，铜色仍由种子决定；
+  /// [accentTone] 是种子自己的明度，给了实心就照原样渲染（不再压暗），其上文字自动换深色
   factory TemplateSkin.of({
     required double hue,
     required bool dark,
     double? chroma,
     double neutralChroma = 3,
+    double? accentTone,
   }) {
     final seedChroma = chroma ?? TemplateHues.chromaOf(hue);
     final tones = TemplateTones.of(
@@ -97,6 +100,7 @@ class TemplateSkin {
       chroma: seedChroma,
       dark: dark,
       neutralChroma: neutralChroma,
+      accentTone: accentTone,
     );
     // 阴影与选中态要一点色度：用一个低色度的色阶，别用主题色的满色度
     final shadowRamp = ToneRamp(hue, 12);

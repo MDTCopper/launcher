@@ -129,11 +129,16 @@ class TemplateTones {
   ///
   /// [neutralChroma] 是中性表面的色度：A 路线默认 3（带一点色温）；
   /// 传 0 就是纯灰表面——Copper 现在那套界面就是灰面配铜色，想让种子只影响铜色时用它
+  ///
+  /// [accentTone] 是种子自身的明度：**给了就照它原样当实心**，不再按「白字 4.8」去压暗。
+  /// 按白字反解会把黄色 / 青色这类高亮色压成暗橄榄（用户 2026-11-03 反馈），
+  /// 那种情况改成深色字更合适
   factory TemplateTones.of({
     required double hue,
     required double chroma,
     required bool dark,
     double neutralChroma = 3,
+    double? accentTone,
   }) {
     // 中性色：色度压到几乎不带色（3），只留一点色温；描边/强描边给 6
     final neutral = ToneRamp(hue, neutralChroma);
@@ -165,7 +170,7 @@ class TemplateTones {
     final sunken = neutral.at(dark ? 20 : 90);
     final border = neutral.at(dark ? 24 : 88);
     final borderStrong = strong.at(dark ? 33 : 75);
-    final onAccent = neutral.at(98);
+    final onAccentWhite = neutral.at(98);
     final accentTint = dark ? tintRamp.at(22) : strong.at(89);
 
     // ── 要满足对比度的档：二分 tone ──
@@ -173,16 +178,25 @@ class TemplateTones {
     final textPrimary = text.solveOn(surface, 13, lighter: dark);
     final textSecondary = text.solveOn(surface, 7, lighter: dark);
     final textTertiary = microText.solveOn(surface, 5.5, lighter: dark);
-    // 实心：**两个约束一起看** —— 其上文字要 ≥4.5，同时它自己要从卡面里跳出来（≥3，1.4.11）。
-    // 浅色解「白字刚好压得住的最亮那档」；暗色反过来解「刚压得住白字的那档」，
-    // 它同时就落在卡面上方 3.3 左右（先前的写法只盯卡面 3.4，白字会掉到 4.40 不达标）
-    final accent = accentRamp.solveOn(onAccent, 4.8, lighter: false);
+    // 实心：种子给了 tone 就用种子自己的明度（颜色不被压暗），其上文字按对比度挑；
+    // 没给才走老逻辑「白字刚好压得住的那档」
+    final int accent;
+    final int onAccent;
+    if (accentTone != null) {
+      accent = accentRamp.at(accentTone.clamp(0.0, 100.0));
+      onAccent = toneContrast(onAccentWhite, accent) >= 4.5
+          ? onAccentWhite
+          : neutral.solveOn(accent, 4.5, lighter: false);
+    } else {
+      accent = accentRamp.solveOn(onAccentWhite, 4.8, lighter: false);
+      onAccent = onAccentWhite;
+    }
     // 强调文字：浅色可以用足色度（深色本身压得住），暗色换成低色度那支
     final accentText = dark
         ? accentSoft.solveOn(surface, 5.5, lighter: true)
         : accentRamp.solveOn(surface, 5, lighter: false);
     final onAccentTint = accentSoft.solveOn(accentTint, 6.5, lighter: dark);
-    final danger = dangerRamp.solveOn(onAccent, 4.8, lighter: false);
+    final danger = dangerRamp.solveOn(onAccentWhite, 4.8, lighter: false);
     final dangerText = dangerRamp.solveOn(
       surface,
       dark ? 5.5 : 5,
@@ -190,10 +204,10 @@ class TemplateTones {
     );
     final success = dark
         ? successRamp.solveOn(surface, 5.5, lighter: true)
-        : successRamp.solveOn(onAccent, 4.8, lighter: false);
+        : successRamp.solveOn(onAccentWhite, 4.8, lighter: false);
     final warning = dark
         ? warningRamp.solveOn(surface, 5.5, lighter: true)
-        : warningRamp.solveOn(onAccent, 4.8, lighter: false);
+        : warningRamp.solveOn(onAccentWhite, 4.8, lighter: false);
 
     return TemplateTones(
       hue: hue,
@@ -216,7 +230,7 @@ class TemplateTones {
       onAccentTint: onAccentTint,
       danger: danger,
       dangerText: dangerText,
-      onDanger: onAccent,
+      onDanger: onAccentWhite,
       success: success,
       warning: warning,
     );

@@ -44,6 +44,8 @@ class _SeedLabPageState extends State<SeedLabPage> {
       chroma: (seeded.chroma * _chromaScale).clamp(0, 120),
       dark: _dark,
       neutralChroma: _neutralChroma,
+      // 实心照种子本身的明度出，不再为白字压暗
+      accentTone: seeded.tone,
     );
   }
 
