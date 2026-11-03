@@ -1202,6 +1202,8 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     }
 
     final head = slot?.currentSnapshot;
+    final isDefaultProfile =
+        CloudSaveService.profileIdOf(version) == 'default';
     final lockedOwner = CloudSaveService.ownerOf(version);
     final locked = CloudSaveService.isLocked(version);
     final boundState = CloudSaveService.localState(version);
@@ -1218,7 +1220,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             children: [
               Text(version.tag, style: theme.textTheme.bodyLarge),
               // 默认数据目录那份是「唯一可共享存档」，不绑定版本，只做提示
-              if (!version.isolation)
+              if (isDefaultProfile)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 6,
@@ -1232,10 +1234,18 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
                 ),
             ],
           ),
-          if (!version.isolation)
+          if (isDefaultProfile)
             Text(
               '这份存档在游戏默认数据目录：不绑定任何版本，所有「未隔离」的版本共用它。'
               '要一份独立的云存档，给这个版本打开隔离数据目录。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            )
+          else if (version.hasExternalDataDir)
+            Text(
+              '这份存档绑在游戏安装目录（Steam 版）：按外置数据目录单独同步，'
+              '不与其他版本共用默认存档。',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.itemSecondary,
               ),

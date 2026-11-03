@@ -379,6 +379,32 @@ class CloudSaveService {
     return parts[1].trim() == '默认存档';
   }
 
+  /// 绑定里记的 profile 种类：由 profile id 反推，别再按「是否隔离」猜
+  static String profileKindOf(String profile) {
+    if (profile == 'default') return 'default';
+    if (profile.startsWith('external:')) return 'external';
+    return 'instance';
+  }
+
+  /// 同一份数据目录是不是已经被另一个 profile 绑过
+  ///
+  /// 身份键是 `instance:<版本 id>`，不是数据目录：同一个 tag 装两次 / 重新导入目录
+  /// 会出现两个 profile 指向同一份数据，绑定与 owner 锁各算各的（owner 锁等于分家）
+  static String? conflictingProfileOf(
+    String account,
+    String profile,
+    String dataPath,
+  ) {
+    final target = _normalize(dataPath);
+    for (final entry in _loadStore().profilesOf(account).entries) {
+      if (entry.key == profile) continue;
+      final path = entry.value.dataPath;
+      if (path == null) continue;
+      if (_normalize(path) == target) return entry.key;
+    }
+    return null;
+  }
+
   /// 从云端槽位名里解出 `boundTag`；默认存档 / 旧命名返回 null
   static String? boundTagOfSlotName(String name) {
     final withoutShort = name.replaceFirst(RegExp(r' #[0-9a-fA-F]{8}$'), '');
@@ -545,6 +571,14 @@ class CloudSaveService {
       throw CloudProfileLockedException(owner, localProfileId: profile);
     }
     final isDefault = profile == 'default';
+    final conflict = conflictingProfileOf(account, profile, version.dataPath);
+    if (conflict != null) {
+      throw MdtbbsException(
+        message:
+            '同一份数据目录已经被另一个版本（$conflict）绑过云存档；'
+            '先解绑那个版本，或给这个版本打开隔离数据目录',
+      );
+    }
     if (isDefault && slotName != null && !isDefaultSlotName(slotName)) {
       throw const MdtbbsException(
         message: '默认存档只能绑默认存档槽位；这个槽位属于某个隔离实例',
@@ -567,7 +601,7 @@ class CloudSaveService {
           signatureShort: cloudSignatureShort(signature),
         ),
         baseline: false,
-        profileKind: isDefault ? 'default' : 'instance',
+        profileKind: profileKindOf(profile),
         release: version.release,
         build: version.versionNumber ?? version.releaseInt,
         isBe: version.isBe,
@@ -763,7 +797,7 @@ class CloudSaveService {
         cloudTag: isDefault ? null : version.tag,
         slotName: slotName,
         baseline: false,
-        profileKind: isDefault ? 'default' : 'instance',
+        profileKind: profileKindOf(profile),
         release: version.release,
         build: version.versionNumber ?? version.releaseInt,
         isBe: version.isBe,
@@ -1784,8 +1818,13 @@ class CloudSaveService {
           }
         }
       }
-      // 差量只按清单写文件，同一个模组的旧版本要自己收掉
-      await _dedupeRestoredMods(version: version, manifest: manifest);
+      // 差量只按清单写文件，同一个模组的旧版本要自己收掉；
+      // 移进备份目录而不是删掉 —— 私有模组删了就没处找了
+      await _dedupeRestoredMods(
+        version: version,
+        manifest: manifest,
+        rescueDir: _modsRescueDir(backupPath),
+      );
       // 与整包恢复同一套口径：启用态要写回，否则装好却没生效
       final modStates = await readInstalledModStates(
         p.join(version.dataPath, 'settings.bin'),
@@ -1974,6 +2013,12 @@ class CloudSaveService {
     }
   }
 
+  /// 恢复时被顶掉的模组旧版本放在备份 zip 旁边，随备份一起清理
+  static String _modsRescueDir(String backupPath) => p.join(
+    p.dirname(backupPath),
+    'mods-${p.basenameWithoutExtension(backupPath).replaceFirst('cloud-backup-', '')}',
+  );
+
   /// 差量恢复落地后删掉同一个模组的其它版本文件
   ///
   /// 差量是逐文件写，不清的话新旧两版会一起被游戏加载；只处理随包带了字节的模组，
@@ -1981,6 +2026,7 @@ class CloudSaveService {
   static Future<void> _dedupeRestoredMods({
     required Mindustry version,
     required CloudManifest manifest,
+    String? rescueDir,
   }) async {
     final modsDirs = allModsDirPathsIn(version.dataPath);
     for (final mod in manifest.mods) {
@@ -1996,6 +2042,7 @@ class CloudSaveService {
           internalName: internalName,
           modsDirs: modsDirs,
           keepPath: keepPath,
+          rescueDir: rescueDir,
         );
       } on Object catch (error) {
         addLog(
@@ -2408,7 +2455,7 @@ class CloudSaveService {
         account: account,
         cloudSignature: state?.signature,
         boundTag: state?.boundTag,
-        profileKind: profile == 'default' ? 'default' : 'instance',
+        profileKind: profileKindOf(profile),
         includePreviews: includePreviews,
         includeModBytes: includeModBytes,
         includeBytesWhen: includeBytesWhen,
@@ -2436,8 +2483,22 @@ class CloudSaveService {
               p.basename(entity.path).startsWith(backupFilePrefix))
             entity,
       ]..sort((a, b) => b.path.compareTo(a.path));
+      final kept = <String>{};
+      for (final file in files.take(backupKeep)) {
+        kept.add(p.basenameWithoutExtension(file.path));
+      }
       for (final file in files.skip(backupKeep)) {
         file.deleteSync();
+      }
+      // 与备份同名的救援目录（恢复时移出来的模组旧版本）跟着清，
+      // 不能留一堆没人管的 jar 占数据目录
+      for (final entity in directory.listSync()) {
+        if (entity is! Directory) continue;
+        final name = p.basename(entity.path);
+        if (!name.startsWith('mods-')) continue;
+        final stamp = name.substring('mods-'.length);
+        if (kept.contains('cloud-backup-$stamp')) continue;
+        entity.deleteSync(recursive: true);
       }
     } catch (error) {
       addLog(.warning, '清理旧备份失败：${removeNewlines('$error')}', tag: 'Cloud');
@@ -2785,7 +2846,7 @@ class CloudSaveService {
         slotName: existing?.slotName,
         pendingSlotRename: existing?.pendingSlotRename ?? false,
         baseline: true,
-        profileKind: isDefault ? 'default' : 'instance',
+        profileKind: profileKindOf(profile),
         release: version.release,
         build: version.versionNumber ?? version.releaseInt,
         isBe: version.isBe,
