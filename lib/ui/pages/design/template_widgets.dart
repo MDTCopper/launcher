@@ -344,7 +344,12 @@ class TemplateButton extends StatelessWidget {
 /// 开关：**直接用 Flutter 原生的 [Switch]**（用户 2026-11-03：原生的挺好看，别再自己画）
 ///
 /// 尺寸也沿用原生的一套：默认点按热区 48 高 ⇒ 单行设置 tile 的高度就取它
-class TemplateSwitch extends StatelessWidget {
+/// 开关：自绘（M3 形制）——原生 `Switch.thumbIcon` 只收 [Icon]，
+/// 圆球里要放会加粗、会形变的勾/叉，只能自己画
+///
+/// 用户 2026-11-03 的口径：**槽 = 实色，圆球 = 亮色（亮色模式）/ 暗色（暗色模式）**，
+/// 暗色圆球用凹槽面而不是页底（页底太黑）；圆球里 开 = 勾、关 = 叉，切换做形变过渡
+class TemplateSwitch extends StatefulWidget {
   const TemplateSwitch({
     super.key,
     required this.skin,
@@ -362,53 +367,158 @@ class TemplateSwitch extends StatelessWidget {
   final bool enabled;
 
   @override
+  State<TemplateSwitch> createState() => _TemplateSwitchState();
+}
+
+class _TemplateSwitchState extends State<TemplateSwitch>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+    value: widget.value ? 1 : 0,
+  );
+
+  @override
+  void didUpdateWidget(covariant TemplateSwitch oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != oldWidget.value) {
+      widget.value ? _controller.forward() : _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // 用户 2026-11-03 定：**槽 = 实色，圆球 = 亮色（亮色模式）/ 暗色（暗色模式）**；
-    // 暗色下用抬升面（sunken）而不是页底——页底太黑（用户「暗色的开关圆球太黑了」）
-    final onTrack = skin.accent;
-    final onThumb = skin.dark ? skin.sunken : skin.surface;
-    // 禁用时轨道与滑块都要退掉：原来直接给 activeTrackColor，禁用态照样是一条铜色轨道，
-    // 看着像「还点得动」（MD3 的禁用选中也是中性底，不保留强调色）
-    final colors = WidgetStateProperty.resolveWith<Color?>((states) {
-      final disabled = states.contains(WidgetState.disabled);
-      return disabled
-          ? skin.sunken
-          : value
-          ? onTrack
-          : skin.sunken;
-    });
-    final thumbColors = WidgetStateProperty.resolveWith<Color?>((states) {
-      final disabled = states.contains(WidgetState.disabled);
-      if (disabled) return skin.textDisabled;
-      return value ? onThumb : skin.textTertiary;
-    });
-    // 圆球里加图标：开 = 勾（铜色，压在做亮/做暗的球上），关 = 叉（取跟球反差的那支）
-    final thumbIcons = WidgetStateProperty.resolveWith<Icon?>((states) {
-      if (states.contains(WidgetState.disabled)) return null;
-      final on = states.contains(WidgetState.selected);
-      return Icon(
-        on ? Icons.check_rounded : Icons.close_rounded,
-        size: 13,
-        color: on ? skin.accent : (skin.dark ? skin.page : skin.surface),
-      );
-    });
-    return Switch(
-      value: value,
-      onChanged: enabled ? (_) => onTap() : null,
-      thumbColor: thumbColors,
-      thumbIcon: thumbIcons,
-      trackColor: colors,
-      trackOutlineColor: WidgetStateProperty.resolveWith((states) {
-        // 开态描边跟着轨道一起消失（M3 原生就是这样）：原来一律给常态边界色，
-        // 铜色轨道外面还箍着一圈灰边（用户 2026-11-03 指出）
-        if (states.contains(WidgetState.selected)) return Colors.transparent;
-        if (states.contains(WidgetState.disabled)) {
-          return skin.controlBorderDisabled;
-        }
-        return skin.controlBorder;
-      }),
+    final skin = widget.skin;
+    final enabled = widget.enabled;
+    // M3 的尺寸：轨道 52×32，球 24，四边各留 4
+    const trackWidth = 52.0;
+    const trackHeight = 32.0;
+    const thumbSize = 24.0;
+    const pad = 4.0;
+    return SizedBox(
+      width: trackWidth,
+      height: TemplateSwitch.height,
+      child: Center(
+        child: MouseRegion(
+          cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: enabled ? widget.onTap : null,
+            child: Semantics(
+              toggled: widget.value,
+              enabled: enabled,
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  final t = Curves.easeInOutCubic.transform(_controller.value);
+                  // 禁用时不保留强调色（与 M3 一致）：轨道回到凹槽面，球退成 38% 的字色
+                  final trackColor = enabled
+                      ? Color.lerp(skin.sunken, skin.accent, t)!
+                      : skin.sunken;
+                  final borderColor = enabled
+                      ? Color.lerp(skin.controlBorder, Colors.transparent, t)!
+                      : skin.controlBorderDisabled;
+                  final thumbOn = skin.dark ? skin.sunken : skin.surface;
+                  final thumbColor = enabled
+                      ? Color.lerp(skin.textTertiary, thumbOn, t)!
+                      : skin.textDisabled;
+                  return Stack(
+                    children: [
+                      Container(
+                        width: trackWidth,
+                        height: trackHeight,
+                        decoration: BoxDecoration(
+                          color: trackColor,
+                          borderRadius: BorderRadius.circular(trackHeight / 2),
+                          border: Border.all(color: borderColor),
+                        ),
+                      ),
+                      Positioned(
+                        left: pad + (trackWidth - thumbSize - pad * 2) * t,
+                        top: (trackHeight - thumbSize) / 2,
+                        width: thumbSize,
+                        height: thumbSize,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: thumbColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: enabled
+                              ? Center(
+                                  child: CustomPaint(
+                                    size: const Size.square(15),
+                                    painter: _SwitchGlyphPainter(
+                                      t: t,
+                                      onColor: skin.accent,
+                                      offColor: skin.dark
+                                          ? skin.page
+                                          : skin.surface,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
+}
+
+/// 叉 → 勾的形变：两条笔画各自的端点线性插值（叉的两条对角线正好滑成勾的两段折线）
+class _SwitchGlyphPainter extends CustomPainter {
+  const _SwitchGlyphPainter({
+    required this.t,
+    required this.onColor,
+    required this.offColor,
+  });
+
+  final double t;
+  final Color onColor;
+  final Color offColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    Offset p(double x, double y) => Offset(x * size.width, y * size.height);
+    final paint = Paint()
+      ..color = Color.lerp(offColor, onColor, t)!
+      // 加厚：笔画取边长 17%（16 的球里约 2.7）
+      ..strokeWidth = size.width * 0.17
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    // 笔画一：叉的左上一笔 → 勾的短边
+    canvas.drawLine(
+      Offset.lerp(p(0.28, 0.28), p(0.26, 0.56), t)!,
+      Offset.lerp(p(0.72, 0.72), p(0.45, 0.74), t)!,
+      paint,
+    );
+    // 笔画二：叉的右上一笔 → 勾的长边（终点重合在勾的拐点上）
+    canvas.drawLine(
+      Offset.lerp(p(0.72, 0.28), p(0.45, 0.74), t)!,
+      Offset.lerp(p(0.28, 0.72), p(0.77, 0.28), t)!,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SwitchGlyphPainter oldDelegate) =>
+      oldDelegate.t != t ||
+      oldDelegate.onColor != onColor ||
+      oldDelegate.offColor != offColor;
 }
 
 /// 一条独立设置：单行标题 + 右侧控件，**高度取原生开关的默认高度**
