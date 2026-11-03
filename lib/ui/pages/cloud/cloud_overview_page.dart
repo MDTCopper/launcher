@@ -426,6 +426,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
     final token = await _accounts.ensureAccessToken();
     if (token == null) return;
     final task = CloudPullTask(accessToken: token, slot: slot);
+    task.cancelWhenLoggedOut();
     addTask(task);
     await task.done;
     if (!mounted) return;

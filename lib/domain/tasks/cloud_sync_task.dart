@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/util/format/byte_unit.dart';
@@ -127,6 +128,31 @@ class CloudSyncTask extends Task {
     );
     progress = (weighted / totalWeight).clamp(0.0, 1.0);
   }
+
+  /// 登录态没了（登出 / 换号）就取消这张卡：同步不该在别人的账号下继续写盘 / 上传
+  ///
+  /// 任务收尾时自动摘掉监听，调用方不用管
+  void cancelWhenLoggedOut() {
+    if (_accountListener != null) return;
+    void listener() {
+      if (!AccountManager.instance.isLoggedIn && !cancelToken.isCancelled) {
+        cancel();
+      }
+    }
+
+    _accountListener = listener;
+    AccountManager.instance.snapshot.addListener(listener);
+    unawaited(
+      done.whenComplete(() {
+        final watcher = _accountListener;
+        if (watcher == null) return;
+        AccountManager.instance.snapshot.removeListener(watcher);
+        _accountListener = null;
+      }),
+    );
+  }
+
+  VoidCallback? _accountListener;
 
   /// 失败时的原始异常：调用方据此**保留原来的分类处理**（比如冲突要单独弹一条）
   Object? error;

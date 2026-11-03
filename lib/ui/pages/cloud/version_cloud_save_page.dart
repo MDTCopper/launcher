@@ -349,6 +349,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           return '云包 ${formatBytes(uploaded!.archiveBytes)}';
         },
       );
+      task.cancelWhenLoggedOut();
       addTask(task);
       if (mounted) setState(() => _busy = '上传中（任务列表可取消）');
       await task.done;
@@ -1429,6 +1430,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     }
     // 拉取只认这份云存档已经绑定的实例；没实例由任务新建
     final task = CloudPullTask(accessToken: token, slot: slot);
+    task.cancelWhenLoggedOut();
     addTask(task);
     await task.done;
     if (!mounted) return;

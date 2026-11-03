@@ -363,6 +363,7 @@ class CloudAutoSync {
         return '写入 ${outcome!.report.written.length} 份（覆盖前已备份）';
       },
     );
+    syncTask.cancelWhenLoggedOut();
     addTask(syncTask);
     await syncTask.done;
 
@@ -446,6 +447,7 @@ class CloudAutoSync {
               : '已上传 ${formatBytes(result.archiveBytes)}';
         },
       );
+      syncTask.cancelWhenLoggedOut();
       addTask(syncTask);
       await syncTask.done;
 
