@@ -9,6 +9,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.BinaryMessenger
 import io.github.copper.launcher.generated.AndroidCall
 import io.github.copper.launcher.generated.AndroidEvent
+import io.github.copper.launcher.game.GameProcess
 import io.github.copper.launcher.intent.Incoming
 import io.github.copper.launcher.intent.IncomingIntake
 import io.github.copper.launcher.shortcut.DebugPinHandler
@@ -26,6 +27,7 @@ import io.github.copper.launcher.ui.SilentLaunchOverlay
 open class MainActivity : FlutterActivity() {
     // 引擎可能比 Activity 活得久：onDestroy 要用它把通道 handler 摘掉
     private var androidMessenger: BinaryMessenger? = null
+    private var leftForHeadlessGame = false
 
     // configureFlutterEngine 可能在 super.onCreate 里就被调用，这里用 lazy 避免初始化顺序问题
     private val lanLock by lazy { LanDiscoveryLock(applicationContext) }
@@ -61,6 +63,23 @@ open class MainActivity : FlutterActivity() {
 
         debugPin.handle(intent)
         lanLock.acquire()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (SilentLaunchOverlay.isHeadlessSilent()) leftForHeadlessGame = true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 无界面快捷启动：从游戏回到空 Activity 时直接退后台，
+        // 不在黑屏上等 Dart 收尾；上传由后台进程继续
+        if (SilentLaunchOverlay.isHeadlessSilent() && leftForHeadlessGame) {
+            leftForHeadlessGame = false
+            if (!GameProcess.isGameActivityVisible(applicationContext)) {
+                moveTaskToBack(true)
+            }
+        }
     }
 
     override fun onDestroy() {

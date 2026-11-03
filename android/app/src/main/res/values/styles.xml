@@ -41,8 +41,9 @@
         <item name="android:taskToBackExitAnimation">@null</item>
     </style>
     <!-- 静默启动用的启动主题：底色压成深色，避免快捷方式点下去先闪一下白屏 -->
-    <style name="SilentLaunchTheme" parent="@style/LaunchTheme">
+    <style name="SilentLaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
         <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowDisablePreview">true</item>
         <item name="android:windowAnimationStyle">@style/SilentWindowAnimation</item>
     </style>
     <!-- Flutter 首帧之后窗口背后的底色，同样用深色 -->

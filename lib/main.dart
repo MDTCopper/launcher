@@ -147,6 +147,7 @@ Future<void> _runAndroidSilentShortcut(LaunchArgs cli) async {
     '时间线：安卓静默快捷启动无界面模式 +${AppRuntime.elapsedMs}ms',
     tag: 'Timeline',
   );
+  await AndroidCall.setHeadlessSilent();
   AndroidEvent.start();
   unawaited(ShortcutLaunch.start());
 }

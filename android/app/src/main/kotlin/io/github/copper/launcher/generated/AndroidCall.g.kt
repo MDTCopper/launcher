@@ -161,6 +161,14 @@ object AndroidCall {
                         result.error("call_failed", error.message, null)
                     }
                 }
+                "setHeadlessSilent" -> {
+                    try {
+                        SilentLaunchOverlay.setHeadlessSilent()
+                        result.success(null)
+                    } catch (error: Throwable) {
+                        result.error("call_failed", error.message, null)
+                    }
+                }
                 "takeAuthUri" -> {
                     try {
                         result.success(IncomingIntake.takeAuthUri())

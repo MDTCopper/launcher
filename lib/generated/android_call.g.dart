@@ -101,6 +101,11 @@ class AndroidCall {
     return await _channel.invokeMethod<bool>('requestPinWidget', <Object?>[versionId, tag, jarPath, iconPath]) ?? false;
   }
 
+  static Future<void> setHeadlessSilent() async {
+    if (!_isAndroid) return;
+    await _channel.invokeMethod<void>('setHeadlessSilent');
+  }
+
   static Future<String?> takeAuthUri() async {
     if (!_isAndroid) return null;
     return await _channel.invokeMethod<String>('takeAuthUri');

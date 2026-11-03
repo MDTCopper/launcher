@@ -18,6 +18,7 @@ import io.github.copper.launcher.channel.DartCall
 object SilentLaunchOverlay {
     private var overlay: View? = null
     private var silentLaunch = false
+    private var headlessSilent = false
 
     /** MainActivity 在 super.onCreate 前标记：这次是从桌面快捷方式静默启动 */
     fun markSilentLaunch() {
@@ -27,6 +28,14 @@ object SilentLaunchOverlay {
     fun clearSilentLaunch() {
         silentLaunch = false
     }
+
+    /** Dart 侧决定不建启动器 UI（直接回桌面模式） */
+    @DartCall
+    fun setHeadlessSilent() {
+        headlessSilent = true
+    }
+
+    fun isHeadlessSilent(): Boolean = headlessSilent
 
     @DartCall
     fun isSilentLaunch(): Boolean = silentLaunch
@@ -57,6 +66,7 @@ object SilentLaunchOverlay {
     /** Activity 销毁时调用：静态状态不能留着旧 Activity 和它的 View */
     fun release() {
         silentLaunch = false
+        headlessSilent = false
         detach()
     }
 

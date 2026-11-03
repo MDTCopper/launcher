@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Android 12+ 系统 splash：深色底，不画系统图标（系统会把图标放大，和窗口/Flutter 的 64dp 图标跳一下） -->
     <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
@@ -16,11 +16,15 @@
     </style>
 
     <!-- 静默启动：系统 splash 用深色底、不画图标，避免点快捷方式先闪白屏 -->
-    <style name="SilentLaunchTheme" parent="@style/LaunchTheme">
+    <style name="SilentLaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
         <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowDisablePreview">true</item>
         <item name="android:windowAnimationStyle">@style/SilentWindowAnimation</item>
         <item name="android:windowSplashScreenBackground">@android:color/black</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/silent_splash_icon</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/black</item>
         <item name="android:windowSplashScreenAnimationDuration">0</item>
     </style>
 </resources>
+
+
