@@ -108,8 +108,32 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   @override
   void initState() {
     super.initState();
+    _accounts.snapshot.addListener(_onAccountChanged);
     // 首帧之后再拉：登录态与网络都是异步的，别在 build 里起
     WidgetsBinding.instance.addPostFrameCallback((_) => _reload());
+  }
+
+  @override
+  void dispose() {
+    _accounts.snapshot.removeListener(_onAccountChanged);
+    super.dispose();
+  }
+
+  /// 登出 / 换号：这一页显示的配额、槽位、快照都属于上一个账号，得清掉
+  void _onAccountChanged() {
+    if (!mounted) return;
+    if (_accounts.isLoggedIn) {
+      unawaited(_reload());
+      return;
+    }
+    setState(() {
+      _slot = null;
+      _snapshots = const [];
+      _estimate = null;
+      _quota = null;
+      _error = null;
+      _loading = false;
+    });
   }
 
   // ── 数据 ──
@@ -122,7 +146,10 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     }
 
     final version = _selectedVersion;
-    final cacheKey = version?.dataPath;
+    // 缓存按「账号 + 数据目录」分开：换号后不能拿上一个账号的槽位与配额顶着显示
+    final cacheKey = version == null
+        ? null
+        : '${_accounts.subject ?? ''}|${version.dataPath}';
     final cached = cacheKey == null ? null : _cloudPageCache[cacheKey];
     if (cached != null) {
       setState(() {
@@ -154,7 +181,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
 
       final token = await _accounts.ensureAccessToken();
       if (token == null) {
-        throw const MdtbbsException(message: '登录已失效，请重新登录');
+        throw const MdtbbsException(
+          message: '登录已失效或网络异常，请稍后重试或重新登录',
+        );
       }
 
       // 只查不建：没有槽位就是「这个版本还没传过」
@@ -280,7 +309,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     try {
       final token = await _accounts.ensureAccessToken();
       if (token == null) {
-        throw const MdtbbsException(message: '登录已失效，请重新登录');
+        throw const MdtbbsException(
+          message: '登录已失效或网络异常，请稍后重试或重新登录',
+        );
       }
 
       CloudSaveUploadResult? uploaded;
@@ -470,7 +501,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     try {
       final token = await _accounts.ensureAccessToken();
       if (token == null) {
-        throw const MdtbbsException(message: '登录已失效，请重新登录');
+        throw const MdtbbsException(
+          message: '登录已失效或网络异常，请稍后重试或重新登录',
+        );
       }
 
       CloudImportReport? restored;
@@ -559,7 +592,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     try {
       final token = await _accounts.ensureAccessToken();
       if (token == null) {
-        throw const MdtbbsException(message: '登录已失效，请重新登录');
+        throw const MdtbbsException(
+          message: '登录已失效或网络异常，请稍后重试或重新登录',
+        );
       }
       final manifest = await CloudSaveService.manifestOfSnapshot(
         accessToken: token,
@@ -1358,7 +1393,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     });
     try {
       final token = await _accounts.ensureAccessToken();
-      if (token == null) throw const MdtbbsException(message: '登录已失效，请重新登录');
+      if (token == null) throw const MdtbbsException(
+          message: '登录已失效或网络异常，请稍后重试或重新登录',
+        );
       final slots = await CloudSaveService.allSlots(accessToken: token);
       if (!mounted) return;
       setState(() => _cloudSlots = slots);

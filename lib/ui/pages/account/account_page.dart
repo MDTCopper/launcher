@@ -50,6 +50,7 @@ class _AccountPageState extends State<AccountPage> {
   void initState() {
     super.initState();
     _loadIdentity();
+    _accounts.snapshot.addListener(_onAccountChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAccount();
     });
@@ -57,8 +58,21 @@ class _AccountPageState extends State<AccountPage> {
 
   @override
   void dispose() {
+    _accounts.snapshot.removeListener(_onAccountChanged);
     _nameController.dispose();
     super.dispose();
+  }
+
+  /// 登录态变了就跟着变：登出后不能还显示上一个账号（那一条分支没有登录按钮）
+  void _onAccountChanged() {
+    if (!mounted) return;
+    final loggedIn = _accounts.isLoggedIn;
+    if (!loggedIn && _account != null) {
+      setState(() => _account = null);
+      return;
+    }
+    // 登录态从无到有，或换了账号：补拉一次资料
+    if (loggedIn && _account == null) unawaited(_loadAccount());
   }
 
   // ── 游戏内身份 ──

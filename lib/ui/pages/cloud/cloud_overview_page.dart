@@ -43,10 +43,33 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
   @override
   void initState() {
     super.initState();
+    _accounts.snapshot.addListener(_onAccountChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_load()));
   }
 
+  @override
+  void dispose() {
+    _accounts.snapshot.removeListener(_onAccountChanged);
+    super.dispose();
+  }
+
+  /// 登出 / 换号：配额与槽位都属于上一个账号，不能继续显示
+  void _onAccountChanged() {
+    if (!mounted) return;
+    if (_accounts.isLoggedIn) {
+      unawaited(_load());
+      return;
+    }
+    setState(() {
+      _quota = null;
+      _cloudSlots = null;
+    });
+  }
+
   Future<void> _load() async {
+    // 先恢复账号再判登录态：冷启动直接进这页时账号还没读盘
+    await _accounts.ensureRestored();
+    if (!mounted) return;
     if (!_accounts.isLoggedIn) {
       setState(() => _quota = null);
       return;
@@ -89,7 +112,9 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
     final colors = AppColors.of(context);
     final version = config.versionOptions.selectedVersion;
     final state = version == null ? null : CloudSaveService.localState(version);
-    final usable = version != null && !version.isolation;
+    // 按 profile 判默认存档：外置数据目录（Steam）虽未隔离，但它是独立 profile
+    final usable =
+        version != null && CloudSaveService.profileIdOf(version) == 'default';
     return ContentPanelModule(
       title: '默认存档',
       child: Column(
