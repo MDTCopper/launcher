@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 普通启动窗口：系统深色时铺 #121212，和 Flutter 启动页、主界面深色底一致 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/copper_launch_bg" />
+</layer-list>

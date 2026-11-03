@@ -28,7 +28,7 @@ class CopperLauncherState extends State<CopperLauncher>
   /// 桥的运行环境装好了没：桌面端不需要这份载荷，Android 上要装完才进主页
   bool isRuntimeReady = !Platform.isAndroid;
 
-  /// Android 启动页：先铺空白白底，初始化完再淡入主界面
+  /// Android 启动页：先铺空白底（跟随系统深浅色），初始化完再淡入主界面
   late final AnimationController _fadeController;
   bool _showStartup = Platform.isAndroid;
 
