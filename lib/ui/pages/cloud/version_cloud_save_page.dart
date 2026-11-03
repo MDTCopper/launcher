@@ -24,6 +24,7 @@ import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
 import 'package:copper_launcher/domain/tasks/cloud_pull_task.dart';
 import 'package:copper_launcher/domain/tasks/cloud_sync_task.dart';
+import 'package:copper_launcher/domain/tasks/launch_mindustry_task.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/panel/content_panel_module.dart';
 import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
@@ -40,6 +41,7 @@ import 'package:copper_launcher/util/format/byte_unit.dart';
 import 'package:copper_launcher/util/format/date_time_format.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/game_process_watch.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -400,9 +402,29 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     );
   }
 
+  /// 有游戏正用这份数据目录：运行中的游戏退出时会把状态写回去，这时候动存档会互相覆盖
+  bool _gameRunningWith(Mindustry version) {
+    for (final task in taskManager.currentTasks) {
+      if (task is! LaunchMindustryTask) continue;
+      if (task.status != TaskStatus.process) continue;
+      final pid = task.gamePid;
+      if (pid == null || !GameProcessWatch.isAlive(pid)) continue;
+      if (p.equals(task.mindustry.dataPath, version.dataPath)) return true;
+    }
+    return false;
+  }
+
   void _restore(CloudSaveSnapshot snapshot) {
     final version = _selectedVersion;
     if (version == null) return;
+    if (_gameRunningWith(version)) {
+      addNotice(
+        icon: Icons.block,
+        title: '游戏正在运行',
+        content: CloudNotes.gameRunningHint,
+      );
+      return;
+    }
 
     showConfirmationPopup(
       context: context,
@@ -730,9 +752,17 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
   Future<void> _openBackups() async {
     final version = _selectedVersion;
     if (version == null) return;
+    if (_gameRunningWith(version)) {
+      addNotice(
+        icon: Icons.block,
+        title: '游戏正在运行',
+        content: CloudNotes.gameRunningHint,
+      );
+      return;
+    }
 
     final chosen = await showCloudBackupPrompt(
-      backups: CloudSaveService.backups(),
+      backups: CloudSaveService.backups(version),
       versionTag: version.tag,
     );
     if (chosen == null || !mounted) return;
@@ -1328,7 +1358,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
 
   /// 槽位名在界面只显示 tag / 发布号，完整设备名留给确认弹窗
   String _shortSlotLabel(CloudSaveSlot slot) {
-    if (slot.name.contains('默认存档')) return '默认存档';
+    if (CloudSaveService.isDefaultSlotName(slot.name)) return '默认存档';
     final tag =
         CloudSaveService.boundTagOfSlotName(slot.name) ??
         CloudSaveService.releaseFromSlotName(slot.name);
@@ -1499,6 +1529,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     final isSteam = _selectedVersion?.steam ?? false;
+    final version = _selectedVersion;
 
     return ContentPanelModule(
       title: '同步前注意',
@@ -1524,7 +1555,9 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
             alignment: Alignment.centerLeft,
             child: IconTextButton(
               icon: Icons.settings_backup_restore,
-              content: '本机自备份（${CloudSaveService.backups().length}）',
+              content:
+                  '本机自备份'
+                  '（${version == null ? 0 : CloudSaveService.backups(version).length}）',
               onTap: _openBackups,
             ),
           ),

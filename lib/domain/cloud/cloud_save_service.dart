@@ -18,6 +18,7 @@ import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
@@ -368,6 +369,16 @@ class CloudSaveService {
     return '${base.substring(0, keep)}$suffix';
   }
 
+  /// 这个槽位名是不是「默认存档」：默认存档的名字里 release 那一段固定是 `默认存档`
+  ///
+  /// 只认整段相等（设备名 / 标签里恰好吃包含这四个字的不算），比 `contains` 稳
+  static bool isDefaultSlotName(String name) {
+    final withoutShort = name.replaceFirst(RegExp(r' #[0-9a-fA-F]{8}$'), '');
+    final parts = withoutShort.split(' · ');
+    if (parts.length < 2) return false;
+    return parts[1].trim() == '默认存档';
+  }
+
   /// 从云端槽位名里解出 `boundTag`；默认存档 / 旧命名返回 null
   static String? boundTagOfSlotName(String name) {
     final withoutShort = name.replaceFirst(RegExp(r' #[0-9a-fA-F]{8}$'), '');
@@ -521,7 +532,10 @@ class CloudSaveService {
   }
 
   /// 把当前账号的数据目录绑到指定槽位（供拉取 / 上传在完成对话框后调用）
-  static void bindSlot(Mindustry version, String slotId) {
+  ///
+  /// [slotName] 给了就能拦住「默认存档绑到实例槽位」：默认存档只对应默认槽位，
+  /// 绑错会让两份存档共用同一个 profile
+  static void bindSlot(Mindustry version, String slotId, {String? slotName}) {
     final account = currentAccountId;
     if (account == null) return;
     final profile = profileIdOf(version);
@@ -531,6 +545,11 @@ class CloudSaveService {
       throw CloudProfileLockedException(owner, localProfileId: profile);
     }
     final isDefault = profile == 'default';
+    if (isDefault && slotName != null && !isDefaultSlotName(slotName)) {
+      throw const MdtbbsException(
+        message: '默认存档只能绑默认存档槽位；这个槽位属于某个隔离实例',
+      );
+    }
     final signature = cloudSignatureForSlot(slotId);
     store.putState(
       account,
@@ -804,7 +823,8 @@ class CloudSaveService {
       cancelToken: cancelToken,
     );
 
-    if (await _supportsManifest(accessToken, cancelToken)) {
+    final quota = await _quotaOrNull(accessToken, cancelToken);
+    if (quota?.supportsManifest ?? false) {
       return _uploadManifest(
         accessToken: accessToken,
         version: version,
@@ -816,6 +836,7 @@ class CloudSaveService {
         includePreviews: includePreviews,
         includeModBytes: includeModBytes,
         includeBytesWhen: includeBytesWhen,
+        quota: quota,
         onStatus: onStatus,
         onSendProgress: onSendProgress,
         cancelToken: cancelToken,
@@ -843,12 +864,23 @@ class CloudSaveService {
 
       final bytes = File(archivePath).readAsBytesSync();
       final sha256 = sha256OfBytes(bytes);
+      // 整包路同样受单文件上限约束：超了根本传不上去，别白占一次上传会话
+      final maxFile = quota?.maxFileSizeBytes;
+      if (maxFile != null && bytes.length > maxFile) {
+        throw MdtbbsException(
+          message:
+              '云包有 ${formatBytes(bytes.length)}，'
+              '超过云端单文件上限 ${formatBytes(maxFile)}；'
+              '在设置里关掉「随云包带上模组字节」后再试',
+        );
+      }
 
       onStatus?.call('检查云端空间');
       final guard = await _makeRoomForUpload(
         accessToken: accessToken,
         slot: slot,
         newBytes: bytes.length,
+        quota: quota,
         onStatus: onStatus,
         cancelToken: cancelToken,
       );
@@ -966,19 +998,92 @@ class CloudSaveService {
     }
   }
 
-  /// 服务端是否支持 manifest 快照（判断一次，失败按不支持处理）
-  static Future<bool> _supportsManifest(
+  /// 读一次配额；读不到就当没有（不拦上传，交给服务端判）
+  static Future<CloudSaveQuota?> _quotaOrNull(
     String accessToken,
     CancelToken? cancelToken,
   ) async {
     try {
-      final quota = await MdtbbsCloudSaveApi.quota(
+      return await MdtbbsCloudSaveApi.quota(
         accessToken: accessToken,
         cancelToken: cancelToken,
       );
-      return quota.supportsManifest;
-    } on Object {
-      return false;
+    } on Object catch (error) {
+      addLog(
+        .warning,
+        '读不到云端配额，按整包上传并跳过空间检查：${removeNewlines('$error')}',
+        tag: 'Cloud',
+      );
+      return null;
+    }
+  }
+
+  /// 上传前的硬上限预检：单文件上限与 manifest 文件数
+  ///
+  /// 不预检的话，差量路会先把能传的都传完、最后建快照才被拒；整包路要白打包一次
+  static void _checkUploadLimits(CloudSaveQuota? quota, CloudManifest manifest) {
+    if (quota == null) return;
+    final maxFile = quota.maxFileSizeBytes;
+    if (maxFile != null) {
+      for (final entry in [
+        ...manifest.includedFiles.map((file) => (file.entryPath, file.size)),
+        ...manifest.includedModBytes.map((mod) => (mod.fileName, mod.size)),
+      ]) {
+        if (entry.$2 > maxFile) {
+          throw MdtbbsException(
+            message:
+                '「${entry.$1}」有 ${formatBytes(entry.$2)}，'
+                '超过云端单文件上限 ${formatBytes(maxFile)}；先在设置里关掉「随云包带上模组字节」或换小一点的存档',
+          );
+        }
+      }
+    }
+    final maxFiles = quota.manifestMaxFiles;
+    if (maxFiles != null && manifest.includedFiles.length > maxFiles) {
+      throw MdtbbsException(
+        message:
+            '本机有 ${manifest.includedFiles.length} 份文件，'
+            '超过云端清单上限 $maxFiles 份',
+      );
+    }
+  }
+
+  /// 这次要传哪些 blob
+  ///
+  /// 只信服务端说「已有」的：既不在 exists 也不在 missing 的一律当作要传，
+  /// 内容寻址重传是安全的，比引用一个不存在的 blob 好
+  static Future<Map<String, CloudSaveManifestFile>> _missingBlobs({
+    required String accessToken,
+    required List<CloudSaveManifestFile> files,
+    CancelToken? cancelToken,
+  }) async {
+    final check = await MdtbbsCloudSaveApi.checkBlobs(
+      accessToken: accessToken,
+      sha256: {for (final file in files) file.sha256}.toList(),
+      cancelToken: cancelToken,
+    );
+    return {
+      for (final file in files)
+        if (!check.exists.contains(file.sha256)) file.sha256: file,
+    };
+  }
+
+  /// 建快照前复核：扫描时列出的文件现在还在、大小没变
+  ///
+  /// 只 stat 不读字节，很便宜；变了的直接报错，不去传一份错的内容
+  static void _checkUploadSources(
+    Map<String, String> paths,
+    List<CloudSaveManifestFile> files,
+  ) {
+    for (final file in files) {
+      final local = paths[file.sha256];
+      if (local == null) continue;
+      final source = File(local);
+      if (!source.existsSync() || source.lengthSync() != file.size) {
+        throw MdtbbsException(
+          message: '本机文件在扫描后变了：${file.path}，请重试上传',
+        );
+      }
     }
   }
 
@@ -994,6 +1099,7 @@ class CloudSaveService {
     required bool includePreviews,
     required bool includeModBytes,
     required bool Function(CloudModEntry mod)? includeBytesWhen,
+    CloudSaveQuota? quota,
     void Function(String status)? onStatus,
     ProgressCallback? onSendProgress,
     CancelToken? cancelToken,
@@ -1006,30 +1112,52 @@ class CloudSaveService {
       includeModBytes: includeModBytes,
       includeBytesWhen: includeBytesWhen,
     );
+    _checkUploadLimits(quota, manifest);
     final built = _manifestPayloadOf(manifest, version);
     final payload = built.payload;
     if (payload.files.isEmpty) {
       throw const MdtbbsException(message: '没有可上传的文件');
     }
 
+    // 差量路没有整包那种「打包时逐份复核」：建快照前先确认这些文件还在、
+    // 大小没变（哈希来自缓存时尤其重要），否则会记上一份早就不存在的内容
+    _checkUploadSources(built.paths, payload.files);
+
     onStatus?.call('检查云端已有文件');
-    final check = await MdtbbsCloudSaveApi.checkBlobs(
+    var missing = await _missingBlobs(
       accessToken: accessToken,
-      sha256: {for (final file in payload.files) file.sha256}.toList(),
+      files: payload.files,
       cancelToken: cancelToken,
     );
-    final missing = {
-      for (final file in payload.files)
-        if (check.missing.contains(file.sha256)) file.sha256: file,
-    };
 
-    final guard = await _makeRoomForUpload(
+    var guard = await _makeRoomForUpload(
       accessToken: accessToken,
       slot: slot,
       newBytes: missing.values.fold(0, (sum, file) => sum + file.size),
+      quota: quota,
       onStatus: onStatus,
       cancelToken: cancelToken,
     );
+    if (guard.deletedSnapshots > 0) {
+      // 清理删掉的旧快照可能正是这次要复用的 blob 的最后引用：重新问一次哪些要传
+      missing = await _missingBlobs(
+        accessToken: accessToken,
+        files: payload.files,
+        cancelToken: cancelToken,
+      );
+      final again = await _makeRoomForUpload(
+        accessToken: accessToken,
+        slot: slot,
+        newBytes: missing.values.fold(0, (sum, file) => sum + file.size),
+        onStatus: onStatus,
+        cancelToken: cancelToken,
+      );
+      guard = CloudQuotaGuard(
+        deletedSnapshots: guard.deletedSnapshots + again.deletedSnapshots,
+        freedBytes: guard.freedBytes + again.freedBytes,
+        remainingBytes: again.remainingBytes,
+      );
+    }
 
     var uploaded = 0;
     var uploadedBytes = 0;
@@ -1248,29 +1376,33 @@ class CloudSaveService {
     required String accessToken,
     required CloudSaveSlot slot,
     required int newBytes,
+    CloudSaveQuota? quota,
     void Function(String status)? onStatus,
     CancelToken? cancelToken,
   }) async {
-    final CloudSaveQuota quota;
-    try {
-      quota = await MdtbbsCloudSaveApi.quota(
-        accessToken: accessToken,
-        cancelToken: cancelToken,
-      );
-    } catch (error) {
-      addLog(
-        .warning,
-        '读不到云端配额，跳过空间检查：${removeNewlines('$error')}',
-        tag: 'Cloud',
-      );
-      return const CloudQuotaGuard();
+    final CloudSaveQuota quotaNow;
+    if (quota != null) {
+      quotaNow = quota;
+    } else {
+      try {
+        quotaNow = await MdtbbsCloudSaveApi.quota(
+          accessToken: accessToken,
+          cancelToken: cancelToken,
+        );
+      } catch (error) {
+        addLog(
+          .warning,
+          '读不到云端配额，跳过空间检查：${removeNewlines('$error')}',
+          tag: 'Cloud',
+        );
+        return const CloudQuotaGuard();
+      }
     }
-
-    final limit = quota.limitBytes;
-    final used = quota.usedBytes;
+    final limit = quotaNow.limitBytes;
+    final used = quotaNow.usedBytes;
     // 服务端没给额度就别拿猜出来的数字拦玩家
     if (limit == null || used == null) {
-      return CloudQuotaGuard(remainingBytes: quota.remainingBytes);
+      return CloudQuotaGuard(remainingBytes: quotaNow.remainingBytes);
     }
     if (used + newBytes <= limit) {
       return CloudQuotaGuard(remainingBytes: limit - used - newBytes);
@@ -1293,10 +1425,12 @@ class CloudSaveService {
                 ),
           );
 
-    var freed = 0;
+    // 删一个就重读一次额度：计费是**去重后的唯一 blob**，拿快照逻辑大小当腾出的字节
+    // 会高估（旧快照与 head 共享绝大多数 blob，删了可能一个计费字节都没释放）
     var deleted = 0;
+    var usedNow = used;
     for (final snapshot in candidates) {
-      if (used + newBytes - freed <= limit) break;
+      if (usedNow + newBytes <= limit) break;
       try {
         await MdtbbsCloudSaveApi.deleteSnapshot(
           accessToken: accessToken,
@@ -1312,16 +1446,30 @@ class CloudSaveService {
         );
         continue;
       }
-      freed += snapshot.size ?? 0;
       deleted++;
       addLog(
         .info,
-        '云端空间不够，删掉第 ${snapshot.revision ?? 0} 版旧快照（${snapshot.size ?? 0} 字节）',
+        '云端空间不够，删掉第 ${snapshot.revision ?? 0} 版旧快照',
         tag: 'Cloud',
       );
+      try {
+        final after = await MdtbbsCloudSaveApi.quota(
+          accessToken: accessToken,
+          cancelToken: cancelToken,
+        );
+        usedNow = after.usedBytes ?? usedNow;
+      } catch (error) {
+        // 读不到就按删掉的快照大小估，别在这里中断上传
+        usedNow = (usedNow - (snapshot.size ?? 0)).clamp(0, usedNow);
+        addLog(
+          .warning,
+          '清理后读不到配额，按快照大小估算：${removeNewlines('$error')}',
+          tag: 'Cloud',
+        );
+      }
     }
 
-    final stillShort = used + newBytes - freed - limit;
+    final stillShort = usedNow + newBytes - limit;
     if (stillShort > 0) {
       throw MdtbbsException(
         code: 'QUOTA_INSUFFICIENT',
@@ -1333,8 +1481,8 @@ class CloudSaveService {
     }
     return CloudQuotaGuard(
       deletedSnapshots: deleted,
-      freedBytes: freed,
-      remainingBytes: limit - (used + newBytes - freed),
+      freedBytes: used - usedNow,
+      remainingBytes: limit - usedNow - newBytes,
     );
   }
 
@@ -1374,7 +1522,7 @@ class CloudSaveService {
       final report = await reader.extractTo(
         dataPath: version.dataPath,
         mode: mode,
-        backupDirPath: _campaignBackupDirPath(),
+        backupDirPath: _campaignBackupDirPath(version),
       );
       await _applyModStatesQuietly(version, reader.manifest);
       if (report.rejected.isEmpty) {
@@ -1523,7 +1671,7 @@ class CloudSaveService {
         mode: CloudImportMode.overwrite,
       );
       await _applyModStatesQuietly(version, reader.manifest);
-      _pruneBackups();
+      _pruneBackups(_profileBackupDirPath(version));
       // 落干净了才记「同步到这个快照」；有拒收说明本机与云上并不一致，别谎报
       if (report.rejected.isEmpty) {
         await _rememberCurrentState(
@@ -1633,7 +1781,7 @@ class CloudSaveService {
         manifest,
         modStates: modStates,
       );
-      _pruneBackups();
+      _pruneBackups(_profileBackupDirPath(version));
       // 基线按恢复后的本机重扫：包里的模组名可能已被启用态改名、也可能有本机多出来的
       // 文件，直接抄清单会让状态一直显示「本机已改」
       await _rememberCurrentState(
@@ -1985,8 +2133,22 @@ class CloudSaveService {
     return account == null ? backupDirPath : p.join(backupDirPath, account);
   }
 
-  static List<CloudBackupFile> backups() {
-    final directory = Directory(_accountBackupDirPath);
+  /// 每个数据目录（profile）一份备份目录：不同版本的存档互不覆盖、互不挤占保留份数
+  static String _profileBackupDirPath(Mindustry version) =>
+      p.join(_accountBackupDirPath, _profileDirName(version));
+
+  /// 这个版本的备份目录（列备份 / 还原都只认它）
+  static String backupDirPathFor(Mindustry version) =>
+      _profileBackupDirPath(version);
+
+  /// profile id 里有 `:` / 尖括号之类，落成目录名要先取摘要
+  static String _profileDirName(Mindustry version) => sha256
+      .convert(utf8.encode(profileIdOf(version)))
+      .toString()
+      .substring(0, 12);
+
+  static List<CloudBackupFile> backups(Mindustry version) {
+    final directory = Directory(_profileBackupDirPath(version));
     if (!directory.existsSync()) return const [];
     final files = [
       for (final entity in directory.listSync())
@@ -2014,6 +2176,11 @@ class CloudSaveService {
     required Mindustry version,
     required String backupPath,
   }) async {
+    // 只认这份数据目录自己的备份：别的实例的存档混进来会把两份记录搅在一起
+    final profileDir = _profileBackupDirPath(version);
+    if (!p.isWithin(profileDir, backupPath)) {
+      throw const MdtbbsException(message: '这份备份不属于当前版本的数据目录');
+    }
     if (!File(backupPath).existsSync()) {
       throw const MdtbbsException(message: '这份自备份已经不在了');
     }
@@ -2023,7 +2190,7 @@ class CloudSaveService {
       version: version,
       mode: CloudImportMode.overwrite,
     );
-    _pruneBackups();
+    _pruneBackups(_profileBackupDirPath(version));
     addLogAndPrint(.info, '用本机自备份还原：${p.basename(backupPath)}', tag: 'Cloud');
     return CloudSaveRestoreResult(
       report: extracted.report,
@@ -2158,17 +2325,18 @@ class CloudSaveService {
   }
 
   /// keepBoth 下战役关键文件被覆盖前的本机副本目录
-  static String _campaignBackupDirPath() {
+  static String _campaignBackupDirPath(Mindustry version) {
     final stamp = DateTime.now()
         .toIso8601String()
         .substring(0, 19)
         .replaceAll(RegExp('[:.]'), '-');
-    return p.join(_accountBackupDirPath, 'local-$stamp');
+    return p.join(_profileBackupDirPath(version), 'local-$stamp');
   }
 
-  /// 「恢复」前留的底：把本机这份按云包格式导出到账号自己的备份目录
+  /// 恢复前留的底：把本机这份按云包格式导出到该数据目录自己的备份目录
   static Future<CloudArchiveExport> _backupForRestore(Mindustry version) async {
-    final directory = Directory(_accountBackupDirPath);
+    final dirPath = _profileBackupDirPath(version);
+    final directory = Directory(dirPath);
     if (!directory.existsSync()) directory.createSync(recursive: true);
     // 文件名带时间戳，清理时按名字倒序就是「最新在前」
     final stamp = DateTime.now()
@@ -2176,11 +2344,21 @@ class CloudSaveService {
         .substring(0, 19)
         .replaceAll(RegExp('[:.]'), '-');
     try {
-      return await _exportWithCache(
+      final export = await _exportWithCache(
         version: version,
-        outputPath: p.join(_accountBackupDirPath, '$backupFilePrefix$stamp.zip'),
+        outputPath: p.join(dirPath, '$backupFilePrefix$stamp.zip'),
         deviceName: deviceName,
       );
+      // 有文件没进备份（被跳过 / 读不了）就等于没有完整退路，直接中止
+      if (export.dropped.isNotEmpty) {
+        throw MdtbbsException(
+          message:
+              '备份本机存档不完整（${export.dropped.length} 份没进包），已中止恢复',
+        );
+      }
+      return export;
+    } on MdtbbsException {
+      rethrow;
     } catch (error) {
       throw MdtbbsException(
         message: '备份本机存档失败，已中止恢复：${removeNewlines('$error')}',
@@ -2231,9 +2409,9 @@ class CloudSaveService {
   }
 
   /// 备份只留最近 [backupKeep] 份：每次恢复留一份会一直涨
-  static void _pruneBackups() {
+  static void _pruneBackups(String dirPath) {
     try {
-      final directory = Directory(_accountBackupDirPath);
+      final directory = Directory(dirPath);
       if (!directory.existsSync()) return;
       final files = [
         for (final entity in directory.listSync())
