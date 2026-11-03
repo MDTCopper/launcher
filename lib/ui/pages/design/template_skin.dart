@@ -66,32 +66,45 @@ class TemplateSkin {
 
   /// 以 Copper **现在的主题色**为种子，重新生成一整套皮肤
   ///
-  /// 不逐个搬 AppColors 的固定值：项目里的约定是**暗色取亮的那支铜、亮色取暗的那支**
-  /// （`AppColors.interactive` 本身就是这样配的，铜 600 / 铜 700），
-  /// 所以直接拿它当种子解出「色相 + 色度」，其余表面与文字仍由 A 路线按对比度反解
+  /// 只让种子决定**铜色**：表面保持纯灰（`neutralChroma: 0`）——现在是「灰面配铜色」，
+  /// 表面跟着铜色相走会整页发土黄（用户 2026-11-03「看着像屎色」）；
+  /// 色相收到 66~70，直接取种子的 73 会偏芥末黄
   factory TemplateSkin.fromAppColors({
     required AppColors colors,
     required bool dark,
   }) {
     final seed = Hct.fromInt(colors.interactive.toARGB32());
-    return TemplateSkin.of(hue: seed.hue, dark: dark, chroma: seed.chroma);
+    return TemplateSkin.of(
+      hue: seed.hue.clamp(66.0, 70.0),
+      dark: dark,
+      chroma: seed.chroma,
+      neutralChroma: 0,
+    );
   }
 
   /// 从一个主题种子（色相 + 色度）生成整套皮肤；不给色度就按命名色相查表
+  ///
+  /// [neutralChroma] 传 0 只影响表面：表面变纯灰，铜色仍由种子决定
   factory TemplateSkin.of({
     required double hue,
     required bool dark,
     double? chroma,
+    double neutralChroma = 3,
   }) {
     final seedChroma = chroma ?? TemplateHues.chromaOf(hue);
-    final tones = TemplateTones.of(hue: hue, chroma: seedChroma, dark: dark);
+    final tones = TemplateTones.of(
+      hue: hue,
+      chroma: seedChroma,
+      dark: dark,
+      neutralChroma: neutralChroma,
+    );
     // 阴影与选中态要一点色度：用一个低色度的色阶，别用主题色的满色度
     final shadowRamp = ToneRamp(hue, 12);
     final accent = Color(tones.accent);
 
     return TemplateSkin(
       dark: dark,
-      neutral: ToneRamp(hue, 3),
+      neutral: ToneRamp(hue, neutralChroma),
       page: Color(tones.page),
       surface: Color(tones.surface),
       raised: Color(tones.raised),

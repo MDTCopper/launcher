@@ -126,17 +126,21 @@ class TemplateTones {
   });
 
   /// 从一个种子（HCT 色相 + 色度）解出整套色值，返回的都是 ARGB
+  ///
+  /// [neutralChroma] 是中性表面的色度：A 路线默认 3（带一点色温）；
+  /// 传 0 就是纯灰表面——Copper 现在那套界面就是灰面配铜色，想让种子只影响铜色时用它
   factory TemplateTones.of({
     required double hue,
     required double chroma,
     required bool dark,
+    double neutralChroma = 3,
   }) {
     // 中性色：色度压到几乎不带色（3），只留一点色温；描边/强描边给 6
-    final neutral = ToneRamp(hue, 3);
-    final strong = ToneRamp(hue, 6);
-    final text = ToneRamp(hue, 3);
+    final neutral = ToneRamp(hue, neutralChroma);
+    final strong = ToneRamp(hue, neutralChroma * 2);
+    final text = ToneRamp(hue, neutralChroma);
     // 越小的字越不该带色：三级小字用更低的色度
-    final microText = ToneRamp(hue, 2);
+    final microText = ToneRamp(hue, neutralChroma * 0.67);
     final accentRamp = ToneRamp(hue, chroma);
     // 强调色的「文字形态」用更低的色度：小字上高色度会吵（暗色尤其）
     final accentSoft = ToneRamp(hue, chroma * 0.68);
