@@ -10,6 +10,9 @@ class ShortcutSession {
   /// 快捷方式拉起游戏时调用
   static void markLaunchedFromShortcut() => _launchedFromShortcut = true;
 
+  /// 只读查询，不清空标记
+  static bool get isLaunchedFromShortcut => _launchedFromShortcut;
+
   /// 取走标记（取完清空）：true 表示这一局是快捷方式启动的
   static bool takeLaunchedFromShortcut() {
     final value = _launchedFromShortcut;

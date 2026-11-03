@@ -430,7 +430,13 @@ class LaunchMindustryTask extends Task {
 
     // 云存档：启动前按需把云端那份拉下来；**冲突要玩家选，没选就不启动**
     var cloudReady = true;
-    if (AppRuntime.headless && Platform.isAndroid) {
+    final fromShortcut = ShortcutSession.isLaunchedFromShortcut;
+    final quickCloudSync =
+        !fromShortcut ||
+        config.setting.personalizationOptions.quickLaunchCloudSync;
+    if (!quickCloudSync) {
+      addLog(.info, '快捷启动：设置关闭了云同步，跳过启动前检查 [${mindustry.tag}]', tag: 'Cloud');
+    } else if (AppRuntime.headless && Platform.isAndroid) {
       // 安卓无界面快捷启动：断网时不要等云同步超时，先把游戏拉起来
       final online = await AndroidCall.isNetworkAvailable();
       if (online) {
@@ -726,7 +732,14 @@ class LaunchMindustryTask extends Task {
       LauncherTray.instance.showIfRestoreOnExit();
     }
     // 云存档：游戏退出后自动上传（只对启用了云存档的目录；失败只提示）
-    unawaited(CloudAutoSync.afterGameExit(mindustry));
+    final quickCloudSync =
+        !ShortcutSession.isLaunchedFromShortcut ||
+        config.setting.personalizationOptions.quickLaunchCloudSync;
+    if (quickCloudSync) {
+      unawaited(CloudAutoSync.afterGameExit(mindustry));
+    } else {
+      addLog(.info, '快捷启动：设置关闭了云同步，退出后不上传 [${mindustry.tag}]', tag: 'Cloud');
+    }
     // 快捷方式启动的局：无界面模式后台收尾后退出；有界面模式按设置撤黑幕 / 回桌面
     if (AppRuntime.headless && Platform.isAndroid) {
       unawaited(ShortcutLaunch.finishHeadlessExit());

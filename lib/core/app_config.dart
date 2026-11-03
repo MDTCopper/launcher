@@ -626,6 +626,10 @@ class PersonalizationOptions {
   @JsonKey(defaultValue: ShortcutExitAction.backToLauncher)
   ShortcutExitAction shortcutExitAction;
 
+  ///快速启动是否启用云同步：关闭后不等启动前同步，退出后也不自动上传
+  @JsonKey(defaultValue: true)
+  bool quickLaunchCloudSync;
+
   PersonalizationOptions({
     this.windowCloseAction = WindowCloseAction.exit,
     this.gameRunningCloseAction = GameRunningCloseAction.closeKeepService,
@@ -638,6 +642,7 @@ class PersonalizationOptions {
     this.colorfulBackground = true,
     this.menuRelocate = true,
     this.shortcutExitAction = ShortcutExitAction.backToLauncher,
+    this.quickLaunchCloudSync = true,
   });
 
   factory PersonalizationOptions.fromJson(Map<String, dynamic> json) {

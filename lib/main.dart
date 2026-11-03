@@ -137,9 +137,12 @@ Future<void> _runAndroidSilentShortcut(LaunchArgs cli) async {
   await _initializeCore(pathsReady: true, logReady: true);
 
   final online = await AndroidCall.isNetworkAvailable();
-  if (online) {
+  final quickCloudSync =
+      config.setting.personalizationOptions.quickLaunchCloudSync;
+  // 上一次残留的代理状态会让本次页面误显示；先清掉
+  await SyncProxyStore.clear();
+  if (online && quickCloudSync) {
     // 先清掉上次残留的取消标记，再放「检查云端」占位状态
-    await SyncProxyStore.clearCancel();
     final versionId = cli.launchVersionId ?? '';
     final startedAt = DateTime.now();
     try {

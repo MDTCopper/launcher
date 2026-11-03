@@ -217,6 +217,7 @@ PersonalizationOptions _$PersonalizationOptionsFromJson(
         json['shortcutExitAction'],
       ) ??
       ShortcutExitAction.backToLauncher,
+  quickLaunchCloudSync: json['quickLaunchCloudSync'] as bool? ?? true,
 );
 
 Map<String, dynamic> _$PersonalizationOptionsToJson(
@@ -236,6 +237,7 @@ Map<String, dynamic> _$PersonalizationOptionsToJson(
   'windowCloseAction': _$WindowCloseActionEnumMap[instance.windowCloseAction]!,
   'shortcutExitAction':
       _$ShortcutExitActionEnumMap[instance.shortcutExitAction]!,
+  'quickLaunchCloudSync': instance.quickLaunchCloudSync,
 };
 
 const _$WindowCloseActionEnumMap = {

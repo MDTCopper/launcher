@@ -135,28 +135,43 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
     final isAndroid = Platform.isAndroid;
     return ContentPanelModule(
       title: '快捷方式启动',
-      child: OptionSettingBar<ShortcutExitAction>(
-        title: '退出游戏后',
-        hintText: isAndroid
-            ? '从桌面快捷方式启动的游戏，退出时去哪'
-            : '从桌面快捷方式启动的游戏，退出时去哪（云存档上传完才退出）',
-        initialValue: personalizationOptions.shortcutExitAction,
-        options: [
-          DropdownOption(
-            value: ShortcutExitAction.backToHome,
-            label: isAndroid ? '直接回桌面' : '直接退出',
+      child: Column(
+        spacing: 8,
+        children: [
+          OptionSettingBar<ShortcutExitAction>(
+            title: '退出游戏后',
+            hintText: isAndroid
+                ? '从桌面快捷方式启动的游戏，退出时去哪'
+                : '从桌面快捷方式启动的游戏，退出时去哪（云存档上传完才退出）',
+            initialValue: personalizationOptions.shortcutExitAction,
+            options: [
+              DropdownOption(
+                value: ShortcutExitAction.backToHome,
+                label: isAndroid ? '直接回桌面' : '直接退出',
+              ),
+              DropdownOption(
+                value: ShortcutExitAction.backToLauncher,
+                label: isAndroid ? '回到启动器' : '唤起启动器',
+              ),
+            ],
+            onSelect: (value) {
+              setState(() {
+                personalizationOptions.shortcutExitAction = value;
+              });
+              config.save();
+            },
           ),
-          DropdownOption(
-            value: ShortcutExitAction.backToLauncher,
-            label: isAndroid ? '回到启动器' : '唤起启动器',
+          SwitchSettingBar(
+            title: '快速启动云同步',
+            value: personalizationOptions.quickLaunchCloudSync,
+            onChanged: (value) {
+              setState(() {
+                personalizationOptions.quickLaunchCloudSync = value;
+              });
+              config.save();
+            },
           ),
         ],
-        onSelect: (value) {
-          setState(() {
-            personalizationOptions.shortcutExitAction = value;
-          });
-          config.save();
-        },
       ),
     );
   }
