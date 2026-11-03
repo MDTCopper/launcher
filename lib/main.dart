@@ -23,6 +23,7 @@ import 'package:copper_launcher/domain/tasks/startup_background_task.dart';
 import 'package:copper_launcher/ui/copper_launcher.dart';
 import 'package:copper_launcher/ui/dialog/resource_importer.dart';
 import 'package:copper_launcher/ui/startup/startup_page.dart';
+import 'package:copper_launcher/ui/sync_proxy/android_sync_proxy_page.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/core/app_paths.dart';
@@ -129,11 +130,30 @@ Future<void> _runAndroidSilentShortcut(LaunchArgs cli) async {
   AppRuntime.form = AppForm.quickTrigger;
   AppRuntime.headless = true;
   // 无界面形态也要画一帧：Flutter 不画首帧时 Android 的启动图会一直挂着
-  runApp(const _AndroidHeadlessShell());
+  runApp(const AndroidSyncProxyPage());
   await WidgetsBinding.instance.endOfFrame;
   await AppPaths.init();
   await Log.init();
   await _initializeCore(pathsReady: true, logReady: true);
+
+  final online = await AndroidCall.isNetworkAvailable();
+  if (online) {
+    // 先清掉上次残留的取消标记，再放「检查云端」占位状态
+    await SyncProxyStore.clearCancel();
+    final versionId = cli.launchVersionId ?? '';
+    final startedAt = DateTime.now();
+    try {
+      await SyncProxyStore.writeStatus(
+        SyncProxyStatus(
+          versionId: versionId,
+          phase: SyncProxyPhase.checking,
+          startedAt: startedAt,
+          updatedAt: startedAt,
+          message: '检查云端存档',
+        ),
+      );
+    } catch (_) {}
+  }
 
   final action = config.setting.personalizationOptions.shortcutExitAction;
   if (action != ShortcutExitAction.backToHome ||
@@ -387,15 +407,6 @@ Future<bool> _waitForShell() async {
     await Future.delayed(const Duration(milliseconds: 100));
   }
   return false;
-}
-
-/// 安卓无界面快捷启动的占位壳：只负责让 Flutter 画出首帧，替换系统启动图
-class _AndroidHeadlessShell extends StatelessWidget {
-  const _AndroidHeadlessShell();
-
-  @override
-  Widget build(BuildContext context) =>
-      const ColoredBox(color: Colors.black);
 }
 
 void _checkPlatform() {

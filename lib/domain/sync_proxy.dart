@@ -272,6 +272,8 @@ SyncProxyPhase? syncProxyPhaseOfRestoreStatus(String statusText) {
 /// 把代理窗口作为**独立进程**拉起：服务 / UI 都不用为它建完整 shell
 abstract class SyncProxyLauncher {
   static Future<bool> spawn({required String versionId}) async {
+    // 安卓由同一进程里的 AndroidSyncProxyPage 显示，不拉起桌面代理进程
+    if (Platform.isAndroid) return false;
     try {
       await Process.start(
         Platform.resolvedExecutable,
@@ -351,7 +353,10 @@ class SyncProxyGate {
     if (!AppRuntime.headless) return null;
     await _active?.disposeQuietly();
     try {
-      await SyncProxyStore.clearCancel();
+      // 安卓代理页在进程内，提前点的取消不能被服务端 reset 掉
+      if (!Platform.isAndroid) {
+        await SyncProxyStore.clearCancel();
+      }
       final gate = SyncProxyGate._(versionId: versionId, tag: tag);
       _active = gate;
       gate._startTimers();
