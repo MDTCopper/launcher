@@ -13,6 +13,7 @@ import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/gpu_preference.dart';
+import 'package:copper_launcher/util/mindustry_version_era.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart'
     show AppLifecycleListener, AppLifecycleState, Icons;
@@ -194,8 +195,8 @@ class MindustryLauncher {
       );
 
       // 隔离时补环境变量：官方 ClientLauncher 先读 -Dmindustry.data.dir、读不到退回
-      // MINDUSTRY_DATA_DIR；更低版本则直接读 MINDUSTRY 环境变量；
-      // 高性能显卡在 Linux 上就是靠环境变量让游戏走独显。
+      // MINDUSTRY_DATA_DIR；更低版本只能靠系统目录变量被顶走，游戏会在覆盖值后面
+      // 再套一层 Mindustry；高性能显卡在 Linux 上就是靠环境变量让游戏走独显。
       // **Steam 版不走这一支**：它的数据目录靠工作目录定，改 APPDATA 反而指歪
       final gpuEnvironment = GpuPreference.launchEnvironment(
         preferHighPerformance: preferHighPerformance,
@@ -207,13 +208,21 @@ class MindustryLauncher {
         ...gpuEnvironment,
         if (mindustry.steam) ...SteamLibrary.launchEnvironment(),
       };
+      final dataDirOverridePath = mindustry.dataDirOverridePath;
+      final releaseBuild = mindustry.releaseDouble;
+      // Linux 老版本没有数据目录参数，只能靠 XDG_DATA_HOME 顶走（v104 起才认）
+      final needsLinuxXdgDataHome =
+          Platform.isLinux &&
+          !MindustryVersionEra.supportsDataDirOverride(releaseBuild) &&
+          MindustryVersionEra.supportsImplicitDataDirOverride(releaseBuild);
       final environment =
           mindustry.isolation && !mindustry.isViaLoader && !mindustry.steam
           ? {
               ...Platform.environment,
-              'MINDUSTRY_DATA_DIR': mindustry.dataPath,
-              'MINDUSTRY': mindustry.dataPath,
-              if (Platform.isWindows) 'APPDATA': mindustry.dataPath,
+              'MINDUSTRY_DATA_DIR': dataDirOverridePath,
+              'MINDUSTRY': dataDirOverridePath,
+              if (Platform.isWindows) 'APPDATA': dataDirOverridePath,
+              if (needsLinuxXdgDataHome) 'XDG_DATA_HOME': dataDirOverridePath,
               ...extraEnvironment,
             }
           : extraEnvironment.isEmpty
@@ -542,7 +551,7 @@ class MindustryLauncher {
       else
         '-Xmx512m',
       if (mindustry.needsDataDirArg)
-        '-Dmindustry.data.dir=${mindustry.dataPath}',
+        '-Dmindustry.data.dir=${mindustry.dataDirOverridePath}',
       ...extraArgs.where((arg) => arg.isNotEmpty),
       '-jar',
       if (mindustry.isViaLoader) loaderPath! else mindustry.resolvedJarPath,
@@ -550,7 +559,7 @@ class MindustryLauncher {
         '-G',
         mindustry.resolvedJarPath,
         '-D',
-        mindustry.dataPath,
+        mindustry.dataDirOverridePath,
         '--',
       ],
       ..._buildMindustryArgs(windowSize: windowSize, maximize: maximize),

@@ -178,16 +178,10 @@ class LaunchMindustryTask extends Task {
 
   /// 游戏自己的日志文件（`last_log.txt`）
   ///
-  /// v126 之前游戏把数据落在 `<数据目录>/Mindustry/` 下，所以两个位置都找一遍
+  /// 老版本多出来的那层 `Mindustry` 已经算进 [Mindustry.dataPath]
   File? _gameLogFile() {
-    for (final path in [
-      p.join(mindustry.dataPath, 'last_log.txt'),
-      p.join(mindustry.dataPath, 'Mindustry', 'last_log.txt'),
-    ]) {
-      final file = File(path);
-      if (file.existsSync()) return file;
-    }
-    return null;
+    final file = File(p.join(mindustry.dataPath, 'last_log.txt'));
+    return file.existsSync() ? file : null;
   }
 
   /// 进程日志：游戏写在自己数据目录里的 `last_log.txt`

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 /// Mindustry 版本时代：按 build 号划分
 ///
 /// - v70（2019-04-02）pixelate 设置回归且默认关闭，传统像素风结束
@@ -48,9 +50,22 @@ enum MindustryVersionEra {
   /// 数据会被套一层 `Mindustry` 子目录）
   static const double dataDirOverrideStartBuild = 126;
 
+  /// v104：Linux 上 arc 开始认 `XDG_DATA_HOME`，数据目录自此可被隐式顶走；
+  /// 更早的版本把 `~/.local/share` 写死，没有可用的覆盖手段
+  static const double implicitDataDirOverrideStartBuild = 104;
+
   /// 数据目录能否被外部指定——决定「把文件放进版本数据目录」这类操作是否成立
   static bool supportsDataDirOverride(double build) =>
       build >= dataDirOverrideStartBuild;
+
+  /// 数据目录能否被**隐式**顶走：覆盖系统目录变量，游戏会在覆盖值后面再套一层
+  /// `Mindustry`（Windows 覆盖 `APPDATA`，全版本一致；Linux v104 起覆盖
+  /// `XDG_DATA_HOME`）；Android / macOS 没有这类变量
+  static bool supportsImplicitDataDirOverride(double build) {
+    if (Platform.isWindows) return true;
+    if (Platform.isLinux) return build >= implicitDataDirOverrideStartBuild;
+    return false;
+  }
 
   /// 按 build 号判定时代
   static MindustryVersionEra ofBuild(double build) {

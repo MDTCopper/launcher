@@ -179,15 +179,31 @@ class Mindustry {
   ///
   ///三种口径，优先外部绑定（Steam 版）：
   ///① [externalDataPath] 有值 → 就用它（Steam 版绑 Steam 安装目录下的 `saves/`）
-  ///② 开了隔离 → `<版本目录>/data`
+  ///② 开了隔离 → `<版本目录>/data`；只有明确读得出是 v126 之前的版本才套一层
+  ///`Mindustry`（游戏只认隐式覆盖，见 [dataDirOverridePath]）；release 读不出
+  ///build 时不动口径，仍按 `<版本目录>/data`
   ///③ 否则共享官方默认数据目录（`%APPDATA%\Mindustry` 那类）
   String get dataPath {
     if (hasExternalDataDir) {
       return AppPaths.resolveStoredPath(externalDataPath!);
     }
-    if (isolation) return p.join(foldPath, 'data');
-    return AppPaths.defaultGameData!; //默认存储位置
+    if (!isolation) return AppPaths.defaultGameData!; //默认存储位置
+    final basePath = _isolationDataBasePath;
+    final isOldBuild =
+        releaseDouble > 0 &&
+        !MindustryVersionEra.supportsDataDirOverride(releaseDouble);
+    return isOldBuild ? p.join(basePath, 'Mindustry') : basePath;
   }
+
+  ///交给游戏 / 加载器**覆盖**用的数据目录
+  ///
+  ///v126 之前的游戏会在它后面再套一层 `Mindustry`（见 [dataPath]）；其余口径与
+  ///[dataPath] 相同，调用方不用分情况
+  String get dataDirOverridePath =>
+      isolation && !hasExternalDataDir ? _isolationDataBasePath : dataPath;
+
+  ///隔离开启时数据目录的外层：v126 之前的游戏会在它后面再套一层 `Mindustry`
+  String get _isolationDataBasePath => p.join(foldPath, 'data');
 
   /// 数据目录绑在启动器外面（Steam 版那份），不按「隔离 / 官方默认」走
   bool get hasExternalDataDir =>
@@ -215,10 +231,15 @@ class Mindustry {
   ///[releaseDouble] / [releaseInt] / [gameVersionOf] 与 loader 兼容门禁都靠它解析
   String get displayRelease => steam ? 'steam $release' : release;
 
-  ///能否把资源导入到该版本：v126 之前游戏无法被指定数据目录（数据实际落在
-  ///`<dataPath>/Mindustry`），导入的文件游戏读不到，因此这些版本不支持导入
+  ///能否把资源导入到该版本：v126 起靠官方数据目录参数；更早的版本在 Windows / Linux
+  ///上只能隐式顶走系统目录（数据落在 `<外层目录>/Mindustry`，见 [dataPath]），
+  ///Android / macOS 的老版本两样都没有，导入的文件游戏读不到
+  ///
+  ///release 读不出 build 时一律不放行：分不清新老版本，导入可能落错目录
   bool get supportsResourceImport =>
-      MindustryVersionEra.supportsDataDirOverride(releaseDouble);
+      releaseDouble > 0 &&
+      (MindustryVersionEra.supportsDataDirOverride(releaseDouble) ||
+          MindustryVersionEra.supportsImplicitDataDirOverride(releaseDouble));
 
   String get modsPath => p.join(dataPath, 'mods');
 

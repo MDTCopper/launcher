@@ -986,10 +986,11 @@ class VersionOptions {
       return;
     }
     // 目录里只有这个版本的本体（老布局）→ 本体刚清掉，空目录一起收；
-    // 隔离版本则要数据目录真的存在（那是启动器 / 游戏写进去的）
+    // 隔离版本则要隔离根真的存在（那是启动器 / 游戏写进去的）
     final isFolderOwned =
         version.isBodyInOwnFolder ||
-        (version.isolation && await Directory(version.dataPath).exists());
+        (version.isolation &&
+            await Directory(version.dataDirOverridePath).exists());
     if (!isFolderOwned) return;
 
     final folder = Directory(version.foldPath);
