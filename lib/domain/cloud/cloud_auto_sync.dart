@@ -137,13 +137,32 @@ class CloudAutoSync {
         if (slotId == null || snapshotId == null) return true;
         await gate?.reportPhase(SyncProxyPhase.downloading, message: '下载云端存档');
         addLog(.info, '云存档：启动前发现云端更新，先恢复 [${version.tag}]', tag: 'Cloud');
-        final result = await _restoreWithCard(
-          version: version,
-          token: token,
-          slotId: slotId,
-          snapshotId: snapshotId,
-          gate: gate,
-        );
+        final CloudSaveRestoreResult result;
+        try {
+          result = await _restoreWithCard(
+            version: version,
+            token: token,
+            slotId: slotId,
+            snapshotId: snapshotId,
+            gate: gate,
+            isCancelled: isCancelled,
+          );
+        } on Object catch (error) {
+          // 恢复没成功就别带着半套数据启动：交回界面让玩家处理
+          addLog(
+            .warning,
+            '云存档：启动前恢复失败，这次不启动 [${version.tag}]：'
+            '${removeNewlines('$error')}',
+            tag: 'Cloud',
+          );
+          addNotice(
+            icon: Icons.error_outline,
+            title: '云端存档恢复失败，这次没有启动游戏',
+            content: '打开启动器重试，或从「云存档 → 备份」还原上一份',
+          );
+          await gate?.markNeedsUi(message: '云存档恢复失败，需要到启动器里处理');
+          return false;
+        }
         addNotice(
           icon: Icons.cloud_download_outlined,
           title: '已自动恢复云端存档',
@@ -170,6 +189,7 @@ class CloudAutoSync {
           token: token,
           slotId: slotId,
           snapshotId: snapshotId,
+          isCancelled: isCancelled,
         );
       default:
         return true;
@@ -228,17 +248,35 @@ class CloudAutoSync {
     required String token,
     required String? slotId,
     required String? snapshotId,
+    SyncCancelCheck? isCancelled,
   }) async {
     switch (choice) {
       case CloudConflictChoice.useCloud:
         if (slotId == null || snapshotId == null) return true;
         addLog(.info, '云存档冲突：玩家选择用云端覆盖本机 [${version.tag}]', tag: 'Cloud');
-        final result = await _restoreWithCard(
-          version: version,
-          token: token,
-          slotId: slotId,
-          snapshotId: snapshotId,
-        );
+        final CloudSaveRestoreResult result;
+        try {
+          result = await _restoreWithCard(
+            version: version,
+            token: token,
+            slotId: slotId,
+            snapshotId: snapshotId,
+            isCancelled: isCancelled,
+          );
+        } on Object catch (error) {
+          addLog(
+            .warning,
+            '云存档冲突：用云端恢复失败，这次不启动 [${version.tag}]：'
+            '${removeNewlines('$error')}',
+            tag: 'Cloud',
+          );
+          addNotice(
+            icon: Icons.error_outline,
+            title: '用云端恢复失败，这次没有启动游戏',
+            content: '打开启动器重试，或从「云存档 → 备份」还原上一份',
+          );
+          return false;
+        }
         addNotice(
           icon: Icons.cloud_download_outlined,
           title: '已用云端覆盖本机',
@@ -275,32 +313,51 @@ class CloudAutoSync {
   ///
   /// 失败时把任务里捕获的原始异常抛回去，调用方按类型分支（冲突 / 网络）不用改
   ///
-  /// [gate] 只用于把恢复内部的阶段文字同步给代理窗口；恢复本身不可中断，
-  /// 取消到这一步已经推迟到「当前步骤结束」
+  /// [gate] 把恢复内部的阶段文字同步给代理窗口
+  /// [isCancelled] 玩家在代理窗口取消时，取消到恢复的**下载阶段**就生效；
+  /// 已经进入写存档后不再中断（写一半更糟），等它写完再启动
   static Future<CloudSaveRestoreResult> _restoreWithCard({
     required Mindustry version,
     required String token,
     required String slotId,
     required String snapshotId,
     SyncProxyGate? gate,
+    SyncCancelCheck? isCancelled,
   }) async {
     CloudSaveRestoreResult? outcome;
     final syncTask = CloudSyncTask(
       direction: CloudSyncDirection.download,
       versionTag: version.tag,
       onRun: (task) async {
-        outcome = await CloudSaveService.restore(
-          accessToken: token,
-          version: version,
-          slotId: slotId,
-          snapshotId: snapshotId,
-          onStatus: (status) {
-            task.setPhase(status);
-            gate?.reportRestoreStatus(status);
-          },
-          onProgress: task.acceptProgress,
-          cancelToken: task.cancelToken,
-        );
+        Timer? cancelWatcher;
+        if (isCancelled != null) {
+          cancelWatcher = Timer.periodic(const Duration(milliseconds: 300), (
+            _,
+          ) async {
+            if (task.cancelToken.isCancelled) return;
+            try {
+              if (await isCancelled()) task.cancel();
+            } catch (_) {
+              // 取消查询自己出错不该改变恢复结果
+            }
+          });
+        }
+        try {
+          outcome = await CloudSaveService.restore(
+            accessToken: token,
+            version: version,
+            slotId: slotId,
+            snapshotId: snapshotId,
+            onStatus: (status) {
+              task.setPhase(status);
+              gate?.reportRestoreStatus(status);
+            },
+            onProgress: task.acceptProgress,
+            cancelToken: task.cancelToken,
+          );
+        } finally {
+          cancelWatcher?.cancel();
+        }
         return '写入 ${outcome!.report.written.length} 份（覆盖前已备份）';
       },
     );

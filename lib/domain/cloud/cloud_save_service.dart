@@ -1463,6 +1463,13 @@ class CloudSaveService {
     if (owner != null && owner != account) {
       throw CloudProfileLockedException(owner, localProfileId: profile);
     }
+    // 差量快照不带账号 / 云签名字段，靠绑定对账：绑定指向别的槽位就不许覆盖
+    final boundSlotId = _loadStore().stateOf(account, profile)?.slotId;
+    if (boundSlotId != null && boundSlotId != slotId) {
+      throw const MdtbbsException(
+        message: '这份云存档与当前绑定的不是同一个槽位，已中止恢复',
+      );
+    }
 
     onStatus?.call('备份本机存档');
     final backup = await _backupForRestore(version);
