@@ -176,7 +176,8 @@ class CloudSyncTask extends Task {
     try {
       _result = await onRun(this);
       progress = 1.0;
-      status = TaskStatus.completed;
+      // 用户取消后 onRun 仍可能正常收尾（例如已进入写存档），终态保持「已取消」
+      if (status != TaskStatus.cancel) status = TaskStatus.completed;
     } catch (captured) {
       error = captured;
       // 用户自己按的取消：状态保持「已取消」，别改写成失败
@@ -194,7 +195,8 @@ class CloudSyncTask extends Task {
   void cancel() {
     super.cancel();
     if (!cancelToken.isCancelled) cancelToken.cancel('用户在任务抽屉里取消了云存档同步');
-    if (!_done.isCompleted) _done.complete();
+    // 不在这里结束 [done]：取消只是「不再继续」，收尾（含已经开始的写盘）结束才算完，
+    // 否则等 done 的一方会以为同步停了，带着半套数据去启动游戏
     updateDisplay();
   }
 
