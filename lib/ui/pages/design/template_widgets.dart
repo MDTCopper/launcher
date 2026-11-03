@@ -363,9 +363,10 @@ class TemplateSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 用户 2026-11-03 定：**槽 = 实色，圆球 = 亮色（亮色模式）/ 暗色（暗色模式）**
+    // 用户 2026-11-03 定：**槽 = 实色，圆球 = 亮色（亮色模式）/ 暗色（暗色模式）**；
+    // 暗色下用抬升面（sunken）而不是页底——页底太黑（用户「暗色的开关圆球太黑了」）
     final onTrack = skin.accent;
-    final onThumb = skin.dark ? skin.page : skin.surface;
+    final onThumb = skin.dark ? skin.sunken : skin.surface;
     // 禁用时轨道与滑块都要退掉：原来直接给 activeTrackColor，禁用态照样是一条铜色轨道，
     // 看着像「还点得动」（MD3 的禁用选中也是中性底，不保留强调色）
     final colors = WidgetStateProperty.resolveWith<Color?>((states) {
@@ -910,7 +911,7 @@ class TemplateSliderRow extends StatelessWidget {
                 final trackWidth = inner.maxWidth;
                 final x = trackWidth * value.clamp(0.0, 1.0);
                 final handleColor = enabled
-                    ? (skin.dark ? skin.page : skin.surface)
+                    ? (skin.dark ? skin.sunken : skin.surface)
                     : skin.controlBorderDisabled;
 
                 Widget segment(double left, double right, Color color) {
