@@ -128,6 +128,9 @@ Future<void> _runQuickLaunch(LaunchArgs cli) async {
 Future<void> _runAndroidSilentShortcut(LaunchArgs cli) async {
   AppRuntime.form = AppForm.quickTrigger;
   AppRuntime.headless = true;
+  // 无界面形态也要画一帧：Flutter 不画首帧时 Android 的启动图会一直挂着
+  runApp(const _AndroidHeadlessShell());
+  await WidgetsBinding.instance.endOfFrame;
   await AppPaths.init();
   await Log.init();
   await _initializeCore(pathsReady: true, logReady: true);
@@ -383,6 +386,15 @@ Future<bool> _waitForShell() async {
     await Future.delayed(const Duration(milliseconds: 100));
   }
   return false;
+}
+
+/// 安卓无界面快捷启动的占位壳：只负责让 Flutter 画出首帧，替换系统启动图
+class _AndroidHeadlessShell extends StatelessWidget {
+  const _AndroidHeadlessShell();
+
+  @override
+  Widget build(BuildContext context) =>
+      const ColoredBox(color: Colors.black);
 }
 
 void _checkPlatform() {
