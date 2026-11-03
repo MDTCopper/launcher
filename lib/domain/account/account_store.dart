@@ -154,13 +154,16 @@ class StoredAccount {
     String? pendingRefreshToken,
     DateTime? pendingRefreshAt,
     bool clearPendingRefresh = false,
+    bool clearRefreshToken = false,
     bool clearLanlinkToken = false,
     bool clearMultiplayerSession = false,
   }) => StoredAccount(
     clientId: clientId ?? this.clientId,
     subject: subject ?? this.subject,
     username: username ?? this.username,
-    refreshToken: refreshToken ?? this.refreshToken,
+    refreshToken: clearRefreshToken
+        ? null
+        : (refreshToken ?? this.refreshToken),
     lanlinkToken: clearLanlinkToken
         ? null
         : (lanlinkToken ?? this.lanlinkToken),
@@ -233,16 +236,26 @@ class AccountStore {
       if (decoded is! Map) return null;
       final json = decoded.cast<String, dynamic>();
       final account = StoredAccount.fromJson(json);
+      // 解密失败（安全存储的 key 换了 / 应用标识变过）就是这份凭证废了，
+      // 按未登录处理：不能把密文原样留下，否则状态显示「已登录」但每次请求都 401
+      final refresh = _restore(
+        account.refreshToken,
+        json['refreshTokenEncrypted'] == true,
+      );
+      final pending = _restore(
+        account.pendingRefreshToken,
+        json['pendingRefreshTokenEncrypted'] == true,
+      );
+      final refreshLost =
+          (account.refreshToken?.isNotEmpty ?? false) && refresh == null;
+      final pendingLost =
+          (account.pendingRefreshToken?.isNotEmpty ?? false) && pending == null;
       return account
           .copyWith(
-            refreshToken: _restore(
-              account.refreshToken,
-              json['refreshTokenEncrypted'] == true,
-            ),
-            pendingRefreshToken: _restore(
-              account.pendingRefreshToken,
-              json['pendingRefreshTokenEncrypted'] == true,
-            ),
+            refreshToken: refresh,
+            clearRefreshToken: refreshLost,
+            pendingRefreshToken: pending,
+            clearPendingRefresh: pendingLost,
           )
           .copyWith(
             lanlinkToken: _restore(
@@ -260,16 +273,31 @@ class AccountStore {
             ),
           );
     } catch (error) {
+      // 只记异常类型与位置：jsonDecode 的 message 里带原文片段，账号 JSON 是单行，
+      // 整份（含 token）会跟着进日志，而日志是可导出 / 分享的
       addLog(
         .warning,
-        '账号态读取失败，按未登录处理：${removeNewlines('$error')}',
+        '账号态读取失败（${error.runtimeType}），按未登录处理',
         tag: 'Account',
       );
       return null;
     }
   }
 
-  static void save(StoredAccount account) {
+  /// 账号文件最后修改时间；文件不在给 null（跨进程判「对方改过没有」用）
+  static DateTime? lastModified() {
+    final file = File(filePath);
+    if (!file.existsSync()) return null;
+    try {
+      return file.lastModifiedSync();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 写账号态；返回 false 表示没写进盘（调用方要按失败处理，不能假装成功）
+  static bool save(StoredAccount account) {
+    final target = File(filePath);
     try {
       final directory = Directory(p.dirname(filePath));
       if (!directory.existsSync()) directory.createSync(recursive: true);
@@ -292,13 +320,27 @@ class AccountStore {
         ..['lanlinkTokenEncrypted'] = lanlink.encrypted
         ..['multiplayerResumeTokenEncrypted'] = resume.encrypted;
 
-      final temporary = File('$filePath.tmp');
+      // 临时文件名带 pid：两个进程同时写时不会互相盖掉对方的半成品
+      final temporary = File('$filePath.$pid.tmp');
       temporary.writeAsStringSync(jsonEncode(json), flush: true);
-      final target = File(filePath);
-      if (target.existsSync()) target.deleteSync();
-      temporary.renameSync(filePath);
+      try {
+        // Dart 在 Windows 上 rename 是替换语义，不要先 delete：
+        // 删完到改名之间被杀，下次启动就读不到账号了
+        temporary.renameSync(filePath);
+      } on FileSystemException {
+        if (target.existsSync()) target.deleteSync();
+        temporary.renameSync(filePath);
+      }
+      return true;
     } catch (error) {
       addLog(.error, '账号态写入失败：${removeNewlines('$error')}', tag: 'Account');
+      try {
+        final temporary = File('$filePath.$pid.tmp');
+        if (temporary.existsSync()) temporary.deleteSync();
+      } catch (_) {
+        // 临时文件清不掉只能留着，不影响本次结果
+      }
+      return false;
     }
   }
 
@@ -306,6 +348,9 @@ class AccountStore {
     try {
       final file = File(filePath);
       if (file.existsSync()) file.deleteSync();
+      // 登出后盘上不能还留一份带 token 的临时文件
+      final temporary = File('$filePath.$pid.tmp');
+      if (temporary.existsSync()) temporary.deleteSync();
     } catch (error) {
       addLog(.warning, '账号态清除失败：${removeNewlines('$error')}', tag: 'Account');
     }
@@ -319,10 +364,11 @@ class AccountStore {
   /// 在安全存储不可用的机器上被当成「解不开的密文」**直接丢弃**、登录态存不住
   static ({String? value, bool encrypted}) _protect(String? value) {
     if (value == null || value.isEmpty) return (value: value, encrypted: false);
+    // 安全存储可用时一律加密：不能靠「看起来像不像密文」判断 ——
+    // 64 位十六进制的 refresh token 恰好命中 isEncrypted 的启发式，会被明文落盘
+    if (!TokenEncryptor.isAvailable) return (value: value, encrypted: false);
     try {
-      final encrypted = TokenEncryptor.encryptIfNeeded(value);
-      // 加密器不可用时它会原样返回，那就是没加密
-      return (value: encrypted, encrypted: encrypted != value);
+      return (value: TokenEncryptor.encryptToken(value), encrypted: true);
     } catch (_) {
       return (value: value, encrypted: false);
     }

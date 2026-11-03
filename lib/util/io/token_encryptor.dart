@@ -15,6 +15,9 @@ class TokenEncryptor {
   /// 此时加密器不初始化，token 明文直存
   static bool _storageAvailable = false;
 
+  /// 安全存储可用（调用方据此决定要不要加密；可用时必须加密）
+  static bool get isAvailable => _storageAvailable;
+
   static const _storage = FlutterSecureStorage();
   static const _keyStorageKey = 'copper_aes_key';
   static const _ivStorageKey = 'copper_aes_iv';

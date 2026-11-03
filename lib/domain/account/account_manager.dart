@@ -95,6 +95,16 @@ class AccountManager {
   String? _accessToken;
   DateTime? _accessTokenExpiresAt;
 
+  /// 账号态每次被「清掉 / 换人」就加一：异步操作回来后先比 epoch，
+  /// 不一致就丢弃结果（否则退出登录瞬间到达的刷新结果会把 token 写回、甚至串号）
+  int _epoch = 0;
+
+  /// 正在进行的刷新；并发调用共用一次请求，别一起放大失败
+  Future<bool>? _refreshing;
+
+  /// 账号文件最后被本进程看到的时间；用来发现「另一个进程改过 / 登出了」
+  DateTime? _diskStamp;
+
   /// 是不是配了 client_id；没配就别显示登录入口
   bool get isConfigured => MdtbbsConfig.isConfigured;
 
@@ -164,6 +174,7 @@ class AccountManager {
     _restored = true;
 
     final stored = AccountStore.load();
+    _diskStamp = AccountStore.lastModified();
     if (stored == null) return;
     if (!MdtbbsConfig.isConfigured ||
         !stored.matchesClient(MdtbbsConfig.clientId)) {
@@ -190,6 +201,7 @@ class AccountManager {
     if (!isConfigured) {
       throw const MdtbbsException(message: '还没配置 MDTBBS client_id，无法登录');
     }
+    final epoch = _epoch;
 
     // 每次登录都重新生成，绝不复用上一次留下的 PKCE 值
     final verifier = Pkce.createVerifier();
@@ -261,15 +273,36 @@ class AccountManager {
         redirectUri: redirectUri,
         cancelToken: cancelToken,
       );
+      // 等的时候用户退出 / 又点了别的登录：这次结果作废
+      if (epoch != _epoch) {
+        throw const MdtbbsException(message: '登录已被取消');
+      }
+      final refresh = tokens.refreshToken;
+      if (refresh == null || refresh.isEmpty) {
+        throw const MdtbbsException(message: '服务端没给 refresh token，登录失败');
+      }
       _acceptTokens(tokens);
       _stored = StoredAccount(
         clientId: MdtbbsConfig.clientId,
-        refreshToken: tokens.refreshToken,
+        refreshToken: refresh,
       );
-      AccountStore.save(_stored!);
+      if (!AccountStore.save(_stored!)) {
+        throw const MdtbbsException(message: '登录凭证没写进盘，请检查磁盘权限后重试');
+      }
       _restored = true;
+      _diskStamp = AccountStore.lastModified();
 
-      return await loadAccount(cancelToken: cancelToken);
+      // 资料读不回来不算登录失败：token 已经落地，状态是「已登录、资料待刷新」
+      try {
+        return await loadAccount(cancelToken: cancelToken, force: true);
+      } on Object catch (error) {
+        addLogAndPrint(
+          .warning,
+          '已登录，但资料没读回来（稍后可重试）：${removeNewlines('$error')}',
+          tag: 'Account',
+        );
+        return MdtbbsAccount(subject: _stored?.subject ?? '');
+      }
     } finally {
       await loopback?.close();
     }
@@ -283,6 +316,7 @@ class AccountManager {
     CancelToken? cancelToken,
     bool force = false,
   }) async {
+    final epoch = _epoch;
     final cached = _account;
     if (cached != null && !force) return cached;
     final token = await ensureAccessToken(cancelToken: cancelToken);
@@ -293,6 +327,10 @@ class AccountManager {
       accessToken: token,
       cancelToken: cancelToken,
     );
+    // 等 /me 的时候退出 / 换号了：别把旧账号的资料写成新账号的
+    if (epoch != _epoch) {
+      throw const MdtbbsException(message: '账号已切换，这次资料作废');
+    }
     _account = account;
     addLog(
       .debug,
@@ -311,11 +349,42 @@ class AccountManager {
   }
 
   /// 拿一个可用的 access token；过期内或没有就刷新一次
+  ///
+  /// 刷新失败（网络 / 5xx）时返回 null，**不交出过期的那一份**：
+  /// 调用方只看「非 null 即成功」，交旧的只会换来一串 401
   Future<String?> ensureAccessToken({CancelToken? cancelToken}) async {
+    await _syncFromDiskIfChanged();
     if (_accessToken != null && !_isAccessTokenExpired()) return _accessToken;
     if (!isLoggedIn) return null;
-    await refresh(cancelToken: cancelToken);
+    final ok = await refresh(cancelToken: cancelToken);
+    if (!ok) return null;
     return _accessToken;
+  }
+
+  /// 另一个进程改过账号文件时就按盘上的来（登出 / 换号 / 轮换了 token）
+  ///
+  /// 账号文件没有跨进程锁，两个进程各自只读一次盘；不比对的话，
+  /// 一边轮换完另一边还在用旧 refresh token，刷新会 invalid_grant 把对方登出
+  Future<void> _syncFromDiskIfChanged() async {
+    if (!_restored) return;
+    final stamp = AccountStore.lastModified();
+    if (stamp == null) {
+      // 盘上没有账号态了：另一个进程登出 / 换号
+      if (_stored != null) {
+        addLogAndPrint(.info, '账号态已被另一个进程清掉，按未登录处理', tag: 'Account');
+        _forget(persist: false);
+      }
+      return;
+    }
+    final seen = _diskStamp;
+    if (seen != null && !stamp.isAfter(seen)) return;
+    final disk = AccountStore.load();
+    _diskStamp = stamp;
+    if (disk == null) {
+      _forget(persist: false);
+      return;
+    }
+    _stored = disk;
   }
 
   /// 刷新 token，按官方那套幂等规则来
@@ -325,9 +394,21 @@ class AccountManager {
   /// - 成功才原子覆盖新的 refresh token 并清掉未决尝试；
   /// - `invalid_grant` 说明这份 refresh token 已经废了（被轮换掉或授权被撤销），
   ///   重试没有意义 ⇒ 直接按未登录处理
-  Future<bool> refresh({CancelToken? cancelToken}) async {
+  Future<bool> refresh({CancelToken? cancelToken}) {
+    final running = _refreshing;
+    if (running != null) return running;
+    final future = _refreshOnce(cancelToken);
+    _refreshing = future;
+    return future.whenComplete(() {
+      if (identical(_refreshing, future)) _refreshing = null;
+    });
+  }
+
+  Future<bool> _refreshOnce(CancelToken? cancelToken) async {
     final stored = _stored;
     if (stored == null || !stored.isLoggedIn) return false;
+    final epoch = _epoch;
+    _diskStamp = AccountStore.lastModified();
 
     final now = DateTime.now();
     final reusePending =
@@ -344,7 +425,16 @@ class AccountManager {
       pendingRefreshToken: refreshToken,
       pendingRefreshAt: now,
     );
-    AccountStore.save(_stored!);
+    // 幂等键没落盘就别发请求：超时后重试会变成「新 key + 旧 token」，
+    // 服务端可能按重放处理，撤掉这个账号在该客户端的全部 refresh token
+    if (!AccountStore.save(_stored!)) {
+      addLogAndPrint(
+        .warning,
+        '幂等键没写进盘，这次不刷新（避免重放）：稍后重试',
+        tag: 'Account',
+      );
+      return false;
+    }
 
     final MdtbbsTokens tokens;
     try {
@@ -354,7 +444,24 @@ class AccountManager {
         cancelToken: cancelToken,
       );
     } on MdtbbsException catch (error) {
+      if (epoch != _epoch) return false;
       if (error.code == 'invalid_grant') {
+        // 盘上可能已经被另一个进程换成新 token 了：只有这份还是自己那份才登出
+        final disk = AccountStore.load();
+        if (disk != null &&
+            disk.refreshToken != null &&
+            disk.refreshToken != refreshToken &&
+            disk.isLoggedIn) {
+          addLogAndPrint(
+            .info,
+            '账号态已被另一个进程刷新，采用盘上的凭证',
+            tag: 'Account',
+          );
+          _stored = disk;
+          _accessToken = null;
+          _accessTokenExpiresAt = null;
+          return refresh(cancelToken: cancelToken);
+        }
         addLogAndPrint(.warning, '登录已失效，需要重新登录', tag: 'Account');
         _forget();
         return false;
@@ -368,12 +475,23 @@ class AccountManager {
       return false;
     }
 
+    // 刷新期间退出 / 换号了：结果作废，不写回
+    if (epoch != _epoch || _stored == null) return false;
+
     _acceptTokens(tokens);
     _stored = _stored!.copyWith(
       refreshToken: tokens.refreshToken ?? refreshToken,
       clearPendingRefresh: true,
     );
-    AccountStore.save(_stored!);
+    if (!AccountStore.save(_stored!)) {
+      // 服务端已经轮换、盘上还是旧的：重启就得重登，不如现在就说清
+      addLogAndPrint(
+        .warning,
+        '新的登录凭证没写进盘，下次启动可能需要重新登录',
+        tag: 'Account',
+      );
+    }
+    _diskStamp = AccountStore.lastModified();
     return true;
   }
 
@@ -382,6 +500,7 @@ class AccountManager {
   /// 撤销失败不拦住退出（本地凭证该清还是要清）
   Future<void> logout({CancelToken? cancelToken}) async {
     final token = _stored?.refreshToken ?? _stored?.pendingRefreshToken;
+    final epoch = _epoch;
     if (token != null && token.isNotEmpty && isConfigured) {
       try {
         await MdtbbsAccountApi.revoke(token: token, cancelToken: cancelToken);
@@ -393,16 +512,24 @@ class AccountManager {
         );
       }
     }
+    // 撤销期间又登录了别的账号：别把新登录清掉
+    if (epoch != _epoch) return;
     _forget();
   }
 
   void _acceptTokens(MdtbbsTokens tokens) {
-    _accessToken = tokens.accessToken;
-    final expiresIn = tokens.expiresIn;
-    // 提前一分钟认定过期，别卡在边界上
-    _accessTokenExpiresAt = expiresIn == null
-        ? null
-        : DateTime.now().add(Duration(seconds: expiresIn - 60));
+    final access = tokens.accessToken;
+    if (access.isEmpty) {
+      throw const MdtbbsException(message: '服务端没给 access token');
+    }
+    _accessToken = access;
+    // 提前一分钟认定过期，别卡在边界上；`expires_in` 缺失就给个保守值，
+    // 否则「永不过期」= 永不刷新，只能等 401（而这条链路没有 401 自愈）
+    final expiresIn = tokens.expiresIn ?? 300;
+    final effective = expiresIn - 60;
+    _accessTokenExpiresAt = DateTime.now().add(
+      Duration(seconds: effective < 30 ? 30 : effective),
+    );
   }
 
   bool _isAccessTokenExpired() {
@@ -411,16 +538,19 @@ class AccountManager {
     return !DateTime.now().isBefore(at);
   }
 
-  void _forget() {
+  /// 清本地登录态（可选连盘）：[persist] false 用于「盘上已经被别人清掉」
+  void _forget({bool persist = true}) {
     _clearMemory();
-    AccountStore.clear();
+    if (persist) AccountStore.clear();
   }
 
   /// 只清内存：退出登录要连盘一起清（[_forget]），重新读盘前则只清内存
   void _clearMemory() {
+    _epoch++;
     _stored = null;
     _accessToken = null;
     _accessTokenExpiresAt = null;
     _account = null;
+    _diskStamp = null;
   }
 }
