@@ -123,6 +123,38 @@ class MdtbbsClient {
     return '${MdtbbsConfig.apiBase}$path';
   }
 
+  /// 401 时找账号层要一份新 token；账号层在初始化时注册，拿不到就返回 null
+  static Future<String?> Function()? renewToken;
+
+  /// 这个方法重放安全吗：GET / PUT / DELETE 天然幂等，POST 只有带幂等键才算
+  static bool _replayable(String method, Map<String, String>? headers) {
+    switch (method) {
+      case 'GET':
+      case 'PUT':
+      case 'DELETE':
+        return true;
+      case 'POST':
+      case 'PATCH':
+        if (headers == null) return false;
+        return headers.keys.any(
+          (key) => key.toLowerCase() == 'idempotency-key',
+        );
+      default:
+        return false;
+    }
+  }
+
+  /// 401 后强制续期一次并拿新 token；失败返回 null
+  static Future<String?> _renewOnUnauthorized() async {
+    final hook = renewToken;
+    if (hook == null) return null;
+    try {
+      return await hook();
+    } on Object {
+      return null;
+    }
+  }
+
   /// 只给同源请求带账号凭证
   ///
   /// 服务端可能把上传 / 下载地址换成外部（对象存储 / CDN）的预签名绝对 URL，
@@ -296,6 +328,7 @@ class MdtbbsClient {
     ProgressCallback? onSendProgress,
     CancelToken? cancelToken,
     bool retriedCsrf = false,
+    bool retriedAuth = false,
   }) async {
     final url = urlOf(path);
     if (_sameOrigin(url)) await _ensureCsrf(accessToken, cancelToken);
@@ -318,6 +351,21 @@ class MdtbbsClient {
     } on DioException catch (error) {
       _captureCsrf(error.response?.headers);
       final failure = _asMdtbbsException(error);
+      if (!retriedAuth && failure.isUnauthorized) {
+        final fresh = await _renewOnUnauthorized();
+        if (fresh != null && fresh.isNotEmpty) {
+          return _putBytes(
+            path,
+            bytes: bytes,
+            accessToken: fresh,
+            headers: headers,
+            onSendProgress: onSendProgress,
+            cancelToken: cancelToken,
+            retriedCsrf: retriedCsrf,
+            retriedAuth: true,
+          );
+        }
+      }
       // 重传同一份字节是安全的（服务端按 sha256 校验），所以 CSRF 过期就重试一次
       if (!retriedCsrf && failure.isCsrfFailure) {
         _csrfToken = null;
@@ -428,6 +476,7 @@ class MdtbbsClient {
     Map<String, dynamic>? queryParameters,
     CancelToken? cancelToken,
     bool retriedCsrf = false,
+    bool retriedAuth = false,
   }) async {
     final url = urlOf(path);
     final isWrite = method != 'GET';
@@ -479,6 +528,25 @@ class MdtbbsClient {
     } on DioException catch (error) {
       _captureCsrf(error.response?.headers);
       final failure = _asMdtbbsException(error);
+      // 401：服务端提前吊销 / 时钟偏差 ⇒ 强制续期一次，只重放幂等请求
+      if (!retriedAuth &&
+          failure.isUnauthorized &&
+          _replayable(method, headers)) {
+        final fresh = await _renewOnUnauthorized();
+        if (fresh != null && fresh.isNotEmpty) {
+          return _sendEnvelope(
+            method,
+            path,
+            body: body,
+            accessToken: fresh,
+            headers: headers,
+            queryParameters: queryParameters,
+            cancelToken: cancelToken,
+            retriedCsrf: retriedCsrf,
+            retriedAuth: true,
+          );
+        }
+      }
       // 令牌过期（Max-Age 一天）或服务端换了令牌：丢掉重新引一次，只重试一次
       if (isWrite && !retriedCsrf && failure.isCsrfFailure) {
         _csrfToken = null;

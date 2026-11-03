@@ -45,9 +45,21 @@ class AccountSnapshot {
 }
 
 class AccountManager {
-  AccountManager._();
+  AccountManager._() {
+    // 401 时让网络层回来续期一次：提前刷新挡不住「服务端提前吊销」
+    MdtbbsClient.renewToken = _renewAccessToken;
+  }
 
   static final AccountManager instance = AccountManager._();
+
+  /// 401 后强制续期：丢掉内存里的 access token 再刷一次
+  Future<String?> _renewAccessToken() async {
+    _accessToken = null;
+    _accessTokenExpiresAt = null;
+    if (!isLoggedIn) return null;
+    final ok = await refresh();
+    return ok ? _accessToken : null;
+  }
 
   /// 打开系统浏览器；用例可替换掉
   @visibleForTesting
