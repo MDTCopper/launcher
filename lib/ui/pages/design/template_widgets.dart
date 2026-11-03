@@ -363,6 +363,14 @@ class TemplateSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 开态轨道按模式分开：**亮色更亮、暗色更暗**（用户 2026-11-03「亮色让开关是亮的，暗色是暗的」）；
+    // 滑块反向取色，保证两种模式下「开」都一眼能认出来
+    final onTrack = skin.dark
+        ? Color.lerp(skin.accent, const Color(0xFF000000), 0.20)!
+        : Color.lerp(skin.accent, const Color(0xFFFFFFFF), 0.18)!;
+    final onThumb = skin.dark
+        ? Color.lerp(skin.accent, const Color(0xFFFFFFFF), 0.82)!
+        : skin.onAccent;
     // 禁用时轨道与滑块都要退掉：原来直接给 activeTrackColor，禁用态照样是一条铜色轨道，
     // 看着像「还点得动」（MD3 的禁用选中也是中性底，不保留强调色）
     final colors = WidgetStateProperty.resolveWith<Color?>((states) {
@@ -370,13 +378,13 @@ class TemplateSwitch extends StatelessWidget {
       return disabled
           ? skin.sunken
           : value
-          ? skin.accent
+          ? onTrack
           : skin.sunken;
     });
     final thumbColors = WidgetStateProperty.resolveWith<Color?>((states) {
       final disabled = states.contains(WidgetState.disabled);
       if (disabled) return skin.textDisabled;
-      return value ? skin.onAccent : skin.textTertiary;
+      return value ? onThumb : skin.textTertiary;
     });
     return Switch(
       value: value,
