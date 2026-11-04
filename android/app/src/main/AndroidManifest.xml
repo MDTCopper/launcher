@@ -27,6 +27,7 @@
         android:label="Copper Launcher"
         android:name="io.github.copper.launcher.CopperApplication"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:largeHeap="true"
         android:isGame="true"
         android:appCategory="game"
