@@ -62,7 +62,7 @@ class LauncherTray extends TrayListener with WindowListener {
   ///托盘图标资源：Windows 的 `LoadImage` 只认 .ico，macOS/Linux 用 png
   String get _iconAsset => Platform.isWindows
       ? 'assets/images/app_icon.ico'
-      : 'assets/images/logo.png';
+      : 'assets/images/app_icon.png';
 
   ///Linux 状态栏宿主的探测结果（null = 还没探过）
   static bool? _linuxTrayHost;

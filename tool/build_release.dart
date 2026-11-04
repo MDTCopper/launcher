@@ -1138,7 +1138,7 @@ Future<File?> _packageAppImage(
     }
 
     // 复制图标
-    final iconSrc = File('assets/images/logo.png');
+    final iconSrc = File('assets/images/app_icon.png');
     if (await iconSrc.exists()) {
       final iconDst = File(
         '${appDir.path}${Platform.pathSeparator}copper_launcher.png',
