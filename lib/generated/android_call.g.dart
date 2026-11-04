@@ -111,6 +111,11 @@ class AndroidCall {
     await _channel.invokeMethod<void>('setHeadlessSilent');
   }
 
+  static Future<void> setLauncherIcon(String theme) async {
+    if (!_isAndroid) return;
+    await _channel.invokeMethod<void>('setLauncherIcon', <Object?>[theme]);
+  }
+
   static Future<String?> takeAuthUri() async {
     if (!_isAndroid) return null;
     return await _channel.invokeMethod<String>('takeAuthUri');

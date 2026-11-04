@@ -68,11 +68,57 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="copperlauncher" android:host="oauth"/>
             </intent-filter>
+        </activity>
+        <!-- 桌面图标跟随 App 内主题：每个主题一个 activity-alias、各带一套图标，运行时只启用当前主题那个
+             （shortcut/LauncherIcon.kt）；四个 label 保持一致，避免 launcher 上出现不同名字 -->
+        <activity-alias
+            android:name=".IconCopper"
+            android:exported="true"
+            android:label="Copper Launcher"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconTitanium"
+            android:exported="true"
+            android:label="Copper Launcher"
+            android:icon="@mipmap/ic_launcher_titanium"
+            android:enabled="false"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconThorium"
+            android:exported="true"
+            android:label="Copper Launcher"
+            android:icon="@mipmap/ic_launcher_thorium"
+            android:enabled="false"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconPlastanium"
+            android:exported="true"
+            android:label="Copper Launcher"
+            android:icon="@mipmap/ic_launcher_plastanium"
+            android:enabled="false"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
         <!-- 系统分享进来（在 QQ 里对某个 .jar 选「分享」）：宿主把 content:// 复制成本机文件后交给 Dart，
              导入仍走桌面拖入那条路（showResourceImporter 按类型分流）。
 

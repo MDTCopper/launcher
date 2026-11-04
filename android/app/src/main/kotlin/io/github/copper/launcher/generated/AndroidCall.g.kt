@@ -16,6 +16,7 @@ import io.github.copper.launcher.launch.Bridge
 import io.github.copper.launcher.launch.Loader
 import io.github.copper.launcher.shortcut.GameShortcut
 import io.github.copper.launcher.shortcut.GameWidget
+import io.github.copper.launcher.shortcut.LauncherIcon
 import io.github.copper.launcher.system.HeapLimits
 import io.github.copper.launcher.system.MemorySnapshot
 import io.github.copper.launcher.system.SystemInfo
@@ -171,6 +172,14 @@ object AndroidCall {
                 "setHeadlessSilent" -> {
                     try {
                         SilentLaunchOverlay.setHeadlessSilent()
+                        result.success(null)
+                    } catch (error: Throwable) {
+                        result.error("call_failed", error.message, null)
+                    }
+                }
+                "setLauncherIcon" -> {
+                    try {
+                        LauncherIcon.setLauncherIcon(activity.applicationContext, args[0] as String)
                         result.success(null)
                     } catch (error: Throwable) {
                         result.error("call_failed", error.message, null)

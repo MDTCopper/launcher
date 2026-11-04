@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/launcher_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -17,6 +19,7 @@ void themeSwitchTo(ThemeMode mode, ThemeColor color) {
   setting.themeColor = color;
   key.currentState?.updateTheme();
   config.save();
+  unawaited(applyLauncherIcon(color));
   addLog(.info, '切换主题：${mode.name} / ${color.name}', tag: 'Setting');
 }
 

@@ -32,6 +32,7 @@ import 'package:copper_launcher/util/data_root_migration.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
+import 'package:copper_launcher/util/launcher_icon.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:copper_launcher/util/share_in.dart';
 import 'package:flutter/foundation.dart';
@@ -203,6 +204,8 @@ Future<void> _runLauncherUi(LaunchArgs cli) async {
 
   await _initializeCore(pathsReady: true, logReady: true);
   await _initializeUi(launchRequest, fromService: fromService);
+  // 桌面图标跟配置里的主题对齐；headless 形态没有桌面入口，不调
+  unawaited(applyLauncherIcon(config.setting.personalizationOptions.themeColor));
   runCopperLauncher();
 }
 
