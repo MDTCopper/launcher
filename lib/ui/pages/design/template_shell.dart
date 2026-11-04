@@ -19,6 +19,9 @@ class TemplateBreadcrumb {
 /// 覆盖度审计（2026-11-04）里排 P0-1：现有 App 的顶栏是自绘的
 /// （拖拽区 / 折叠 / 面包屑 / 窗控），设计层原先一行都没有。
 /// 这里只做**内容页**的骨架；窗口拖拽、窗控按钮属于外壳，用 [leading] / [trailing] 注入
+///
+/// 2026-11-04 定稿的左上角规则：**返回键与左上 icon 共用同一个位置**——
+/// 子页面（[onBack] 非空）显示返回，否则显示 [leading]（账户头像 / 应用图标）
 class TemplatePageFrame extends StatelessWidget {
   const TemplatePageFrame({
     super.key,
@@ -71,7 +74,7 @@ class TemplatePageFrame extends StatelessWidget {
             child: Row(
               spacing: TemplateSpace.xs,
               children: [
-                if (leading != null) leading!,
+                // 左上角共享位置：有返回就显示返回，否则显示外壳给的那颗 icon（账户 / 应用图标）
                 if (onBack != null)
                   TemplateIconButton(
                     skin: skin,
@@ -80,7 +83,9 @@ class TemplatePageFrame extends StatelessWidget {
                     size: 28,
                     iconSize: 16,
                     onTap: onBack,
-                  ),
+                  )
+                else if (leading != null)
+                  leading!,
                 Expanded(
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -533,8 +538,8 @@ class TemplateRailEntry {
 
 /// 侧边导航栏：顶部槽（折叠按钮）+ 导航格 + 底部槽（账户 / 任务入口）
 ///
-/// 2026-11-04 讨论「账户和任务放哪」时加的：把这几个外壳件从顶栏里拆出来，
-/// 顶栏只留面包屑，侧栏负责导航、账户、任务、收起/展开
+/// 2026-11-04 定稿的摆放：**折叠按钮在侧栏底部**、账户在**左上**、任务在**右上**（左右侧抽屉）；
+/// 左上角与返回键**共用同一个位置**——子页面时显示返回，否则显示账户图标
 class TemplateSideRail extends StatelessWidget {
   const TemplateSideRail({
     super.key,
@@ -544,7 +549,9 @@ class TemplateSideRail extends StatelessWidget {
     this.onSelect,
     this.top,
     this.bottom,
+    this.collapsed = false,
     this.width = 56,
+    this.collapsedWidth = 24,
   });
 
   final TemplateSkin skin;
@@ -552,17 +559,22 @@ class TemplateSideRail extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int>? onSelect;
 
-  /// 顶部槽：一般是侧栏收起 / 展开按钮
+  /// 顶部槽（可选）：一般不用，折叠按钮已经挪到底部
   final Widget? top;
 
-  /// 底部槽：账户卡、任务抽屉入口这类
+  /// 底部槽：**折叠 / 展开按钮**放这里
   final Widget? bottom;
+
+  /// 收起态：只剩一条 24 宽的窄条 + 底部展开按钮
+  final bool collapsed;
   final double width;
+  final double collapsedWidth;
 
   @override
   Widget build(BuildContext context) {
+    final railWidth = collapsed ? collapsedWidth : width;
     return Container(
-      width: width,
+      width: railWidth,
       decoration: BoxDecoration(
         color: skin.surface,
         border: Border(right: BorderSide(color: skin.border)),
@@ -571,23 +583,25 @@ class TemplateSideRail extends StatelessWidget {
       child: Column(
         children: [
           if (top != null) ...[top!, const SizedBox(height: TemplateSpace.sm)],
-          // 导航格可滚：窗口矮的时候先牺牲它们，顶部折叠和底部账户不动
+          // 导航格可滚：窗口矮的时候先牺牲它们，底部折叠按钮不动
           Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  for (var i = 0; i < entries.length; i++)
-                    _TemplateRailTile(
-                      skin: skin,
-                      entry: entries[i],
-                      selected: i == selectedIndex,
-                      onTap:
-                          entries[i].onTap ??
-                          (onSelect == null ? null : () => onSelect!(i)),
+            child: collapsed
+                ? const SizedBox.shrink()
+                : SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < entries.length; i++)
+                          _TemplateRailTile(
+                            skin: skin,
+                            entry: entries[i],
+                            selected: i == selectedIndex,
+                            onTap:
+                                entries[i].onTap ??
+                                (onSelect == null ? null : () => onSelect!(i)),
+                          ),
+                      ],
                     ),
-                ],
-              ),
-            ),
+                  ),
           ),
           if (bottom != null) ...[
             const SizedBox(height: TemplateSpace.sm),
