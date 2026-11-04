@@ -1131,11 +1131,12 @@ class TemplateSliderRow extends StatelessWidget {
             height: 40,
             child: LayoutBuilder(
               builder: (context, inner) {
-                // 「24 版」：粗实心轨道 + 一根细长竖杆当把手（比轨道略高），
+                // 「24 版」：粗实心轨道 + 一根细长竖杆当把手（比轨道高一截），
                 // 杆两侧留缝把轨道断开；杆色亮色模式取亮、暗色模式取暗（用户 2026-11-03）
+                // 竖杆高度 18 → 24（用户 2026-11-04「滑杆过矮，提高一点」）
                 const trackHeight = 12.0;
                 const handleWidth = 4.0;
-                const handleHeight = 18.0;
+                const handleHeight = 24.0;
                 const gap = 3.0;
                 final trackWidth = inner.maxWidth;
                 final x = trackWidth * value.clamp(0.0, 1.0);
