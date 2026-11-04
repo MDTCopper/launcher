@@ -3,40 +3,53 @@ import 'package:flutter/material.dart';
 
 import 'template_skin.dart';
 
-/// 页面骨架：顶栏（面包屑 / 标题 / 右侧动作）+ 内容区（默认带滚动）
+/// 面包屑的一段：越靠右越「当前」；给了 [onTap] 才能点（像文件管理器那样跳级）
+class TemplateBreadcrumb {
+  const TemplateBreadcrumb(this.label, {this.onTap});
+
+  final String label;
+  final VoidCallback? onTap;
+}
+
+/// 页面骨架：**40 高的一行顶栏** + 内容区（默认带滚动）
+///
+/// 用户 2026-11-04 的反馈：顶栏要贴近现有设计、别把信息堆成三层（面包屑 / 标题 / 副标题），
+/// 一层就够；面包屑本身就是标题，越靠右越当前。
 ///
 /// 覆盖度审计（2026-11-04）里排 P0-1：现有 App 的顶栏是自绘的
 /// （拖拽区 / 折叠 / 面包屑 / 窗控），设计层原先一行都没有。
-/// 这里只做**内容页**的骨架；窗口拖拽、窗控按钮属于外壳，不进模板
+/// 这里只做**内容页**的骨架；窗口拖拽、窗控按钮属于外壳，用 [leading] / [trailing] 注入
 class TemplatePageFrame extends StatelessWidget {
   const TemplatePageFrame({
     super.key,
     required this.skin,
-    required this.title,
+    required this.breadcrumb,
     required this.child,
-    this.subtitle,
-    this.breadcrumb,
     this.actions = const <Widget>[],
     this.onBack,
+    this.leading,
+    this.trailing,
     this.scroll = true,
     this.padding = const EdgeInsets.all(TemplateSpace.xl),
+    this.barHeight = 40,
     this.headerBackground,
     this.pageBackground,
   });
 
   final TemplateSkin skin;
-  final String title;
 
-  /// 标题上方的细字，一般是「概览 / 设置」这类层级
-  final String? breadcrumb;
-  final String? subtitle;
+  /// 从根到当前的路径（至少一段）；最后一段是当前页、不可点
+  final List<TemplateBreadcrumb> breadcrumb;
   final List<Widget> actions;
   final VoidCallback? onBack;
 
-  /// 内容是否套滚动容器（表格式页面可以关掉自己控制）
+  /// 外壳插进来的东西：折叠按钮 / 账户卡 / 任务抽屉按钮等
+  final Widget? leading;
+  final Widget? trailing;
   final bool scroll;
   final EdgeInsetsGeometry padding;
   final Widget child;
+  final double barHeight;
   final Color? headerBackground;
   final Color? pageBackground;
 
@@ -49,65 +62,53 @@ class TemplatePageFrame extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            // 至少 56；带面包屑 + 副标题时按内容长（否则三行会溢出）
-            constraints: const BoxConstraints(minHeight: 56),
-            padding: const EdgeInsets.symmetric(
-              horizontal: TemplateSpace.lg,
-              vertical: TemplateSpace.sm,
-            ),
+            height: barHeight,
+            padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.md),
             decoration: BoxDecoration(
-              color: headerBackground ?? skin.page,
+              color: headerBackground ?? skin.surface,
               border: Border(bottom: BorderSide(color: skin.border)),
             ),
             child: Row(
-              spacing: TemplateSpace.sm,
+              spacing: TemplateSpace.xs,
               children: [
+                if (leading != null) leading!,
                 if (onBack != null)
                   TemplateIconButton(
                     skin: skin,
                     icon: Icons.arrow_back,
                     tooltip: '返回',
+                    size: 28,
+                    iconSize: 16,
                     onTap: onBack,
                   ),
                 Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 2,
-                    children: [
-                      if (breadcrumb != null)
-                        Text(
-                          breadcrumb!,
-                          style: TemplateType.micro.copyWith(
-                            color: skin.textTertiary,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      spacing: 2,
+                      children: [
+                        for (var i = 0; i < breadcrumb.length; i++) ...[
+                          if (i > 0)
+                            Icon(
+                              Icons.chevron_right,
+                              size: 14,
+                              color: skin.textTertiary,
+                            ),
+                          _BreadcrumbItem(
+                            skin: skin,
+                            item: breadcrumb[i],
+                            current: i == breadcrumb.length - 1,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      Text(
-                        title,
-                        style: TemplateType.page.copyWith(
-                          color: skin.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (subtitle != null)
-                        Text(
-                          subtitle!,
-                          style: TemplateType.caption.copyWith(
-                            color: skin.textSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
+                        ],
+                      ],
+                    ),
                   ),
                 ),
                 if (actions.isNotEmpty) ...[
-                  const SizedBox(width: TemplateSpace.sm),
-                  Row(spacing: TemplateSpace.sm, children: actions),
+                  const SizedBox(width: TemplateSpace.xs),
+                  Row(spacing: 2, children: actions),
                 ],
+                if (trailing != null) trailing!,
               ],
             ),
           ),
@@ -122,6 +123,41 @@ class TemplatePageFrame extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _BreadcrumbItem extends StatelessWidget {
+  const _BreadcrumbItem({
+    required this.skin,
+    required this.item,
+    required this.current,
+  });
+
+  final TemplateSkin skin;
+  final TemplateBreadcrumb item;
+  final bool current;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text(
+      item.label,
+      style: TemplateType.item.copyWith(
+        color: current ? skin.textPrimary : skin.textTertiary,
+        fontWeight: current ? FontWeight.w600 : FontWeight.w400,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+    if (current || item.onTap == null) return text;
+    return ReboundContainer(
+      onTap: item.onTap,
+      pressedScale: 0.98,
+      borderRadius: BorderRadius.circular(TemplateRadius.control),
+      hoverColor: skin.hoverOn(skin.surface),
+      highlightColor: skin.pressed,
+      padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.xs),
+      child: text,
     );
   }
 }
