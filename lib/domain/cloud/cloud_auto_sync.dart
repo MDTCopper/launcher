@@ -62,6 +62,8 @@ class CloudAutoSync {
   }) async {
     try {
       if (_skipAutoSync.contains(_skipKey(version))) return true;
+      // 上次上传被强杀留下的临时包 / 标记：纯本地清理，顺手提示一次
+      CloudSaveService.cleanupUploadLeftovers();
       // 先恢复账号再看开关：关闭云存档的版本不该为了一个 token 等十几秒
       await AccountManager.instance.ensureRestored();
       if (!CloudSaveService.isEnabled(version)) return true;

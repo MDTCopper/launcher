@@ -6,6 +6,7 @@ import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/mod_version_gate.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
+import 'package:copper_launcher/domain/cloud/cloud_mod_sources.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill.dart';
 import 'package:copper_launcher/domain/task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
@@ -106,6 +107,7 @@ Future<List<ModFillOutcome>> planModFills({
   required Future<List<ModRelease>> Function(String repo) fetchReleases,
   Map<String, String> internalNameToRepo = const {},
   Future<String?> Function(String repo)? resolveRepo,
+  CloudModSource? Function(CloudModEntry mod)? sourceHint,
 }) async {
   final outcomes = <ModFillOutcome>[];
   final releasesByRepo = <String, List<ModRelease>>{};
@@ -127,6 +129,23 @@ Future<List<ModFillOutcome>> planModFills({
       );
       outcomes.add(
         ModFillOutcome(mod: mod, status: ModFillStatus.carriedInPackage),
+      );
+      continue;
+    }
+    final hint = sourceHint?.call(mod);
+    if (hint != null) {
+      addLogAndPrint(
+        .info,
+        '补全模组：$label 按云快照里记的下载地址补（${hint.repo.isEmpty ? hint.url : hint.repo}）',
+        tag: 'Cloud',
+      );
+      outcomes.add(
+        ModFillOutcome(
+          mod: mod,
+          status: ModFillStatus.queued,
+          plan: _planFromHint(mod, hint),
+          detail: '按云快照里记的下载地址补',
+        ),
       );
       continue;
     }
@@ -330,6 +349,7 @@ Future<List<ModFillOutcome>> fillMissingMods({
   Map<String, String> headers = _defaultHeaders,
   void Function(String status)? onStatus,
   bool queueTasks = true,
+  CloudModSources? sources,
 }) async {
   onStatus?.call('读取官方模组列表');
   final List<ModOfficialListEntry> officialList;
@@ -378,6 +398,7 @@ Future<List<ModFillOutcome>> fillMissingMods({
     fetchReleases: (repo) => _fetchReleases(repo, headers, onStatus),
     internalNameToRepo: internalNameToRepo,
     resolveRepo: (repo) => _resolveRepoFullName(repo, headers),
+    sourceHint: sources == null ? null : (mod) => sources.sourceOf(mod.internalName),
   );
 
   if (queueTasks) {
@@ -388,6 +409,43 @@ Future<List<ModFillOutcome>> fillMissingMods({
     }
   }
   return outcomes;
+}
+
+/// 用云快照里记的下载地址造计划：合成「官方列表项 + release」喂给同一套下载任务
+ModFillPlan _planFromHint(CloudModEntry mod, CloudModSource hint) {
+  final repo = hint.repo.isEmpty ? 'cloud/${mod.internalName ?? mod.fileName}' : hint.repo;
+  final version = hint.version.isEmpty ? (mod.version ?? '') : hint.version;
+  return ModFillPlan(
+    mod: mod,
+    entry: ModOfficialListEntry(
+      repo: repo,
+      name: CloudRestoreGap.displayNameOf(mod),
+      author: '',
+      lastUpdated: DateTime.now(),
+      stars: 0,
+      minGameVersion: '',
+      hasScripts: !hint.hasJava,
+      hasJava: hint.hasJava,
+      description: '',
+    ),
+    kind: hint.hasJava ? ModFillKind.java : ModFillKind.zip,
+    release: ModRelease(
+      name: '云快照记的来源',
+      tag: version.isEmpty ? 'cloud' : version,
+      releaseDate: '',
+      describe: '',
+      assets: [
+        GithubApiReleaseAsset(
+          name: hint.fileName.isEmpty ? mod.fileName : hint.fileName,
+          url: hint.url,
+          size: mod.size,
+          downloadCount: 0,
+        ),
+      ],
+    ),
+    mainAssetIndex: 0,
+    versionMatched: true,
+  );
 }
 
 /// 按补全计划造出对应的下载任务（**只造不启动**）

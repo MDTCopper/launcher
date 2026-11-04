@@ -11,6 +11,8 @@ import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_archive.dart';
 import 'package:copper_launcher/domain/cloud/cloud_binding_store.dart';
 import 'package:copper_launcher/domain/cloud/cloud_manifest.dart';
+import 'package:copper_launcher/domain/cloud/cloud_mod_sources.dart';
+import 'package:copper_launcher/domain/cloud/mod_fill_runner.dart';
 import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
 import 'package:copper_launcher/domain/mod_install.dart';
 import 'package:copper_launcher/core/app_paths.dart';
@@ -888,6 +890,7 @@ class CloudSaveService {
     if (account == null) {
       throw const MdtbbsException(message: '未登录 BBS，不能上传云存档');
     }
+    try {
     onStatus?.call('查云端槽位');
     final slot = await resolveSlot(
       accessToken: accessToken,
@@ -899,7 +902,7 @@ class CloudSaveService {
 
     final quota = await _quotaOrNull(accessToken, cancelToken);
     if (quota?.supportsManifest ?? false) {
-      return _uploadManifest(
+      return await _uploadManifest(
         accessToken: accessToken,
         account: account,
         version: version,
@@ -968,6 +971,12 @@ class CloudSaveService {
         reason: reason,
         contentSha256: sha256,
         manifestMode: false,
+      );
+      _markUploadInFlight(
+        slotId: slot.id,
+        deviceName: name,
+        contentSha256: sha256,
+        idempotencyKey: idempotencyKey,
       );
       final CloudSaveUploadSession session;
       try {
@@ -1161,7 +1170,18 @@ class CloudSaveService {
     } finally {
       _deleteQuietly(archivePath);
     }
+    } finally {
+      // 正常情况下走到这里就说明这轮上传有结论了；被强杀时进程不会执行到这里，
+      // 标记会留到下次启动，由 cleanupUploadLeftovers 提示一次
+      _clearUploadInFlight();
+    }
   }
+
+  /// 测试用：替换「给私有模组查下载来源」这一步（默认联网查 GitHub）
+  static Future<CloudModSources> Function({
+    required Iterable<CloudModEntry> mods,
+  })?
+  debugClassifySourcesOverride;
 
   /// 上传用的幂等键：同一份请求（同槽位 / 同 base / 同内容 / 同设备与原因）要一直用同一个
   ///
@@ -1184,6 +1204,86 @@ class CloudSaveService {
       contentSha256,
     ].join('|');
     return sha256.convert(utf8.encode(raw)).toString();
+  }
+
+  /// 上传中途被强关的痕迹：进程没跑完就会留在这里，下次启动据此说一声并清干净
+  /// 上传中途标记的位置（排查 / 用例用）
+  static String get uploadMarkerPath =>
+      p.join(_root, 'cloud-upload-pending.json');
+
+  static void _markUploadInFlight({
+    required String slotId,
+    required String deviceName,
+    required String contentSha256,
+    String? idempotencyKey,
+  }) {
+    try {
+      final file = File(uploadMarkerPath);
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(
+        jsonEncode({
+          'format': 'copper-upload-pending-v1',
+          'slot_id': slotId,
+          'device': deviceName,
+          'content_sha256': contentSha256,
+          'idempotency_key': ?idempotencyKey,
+          'at': DateTime.now().toIso8601String(),
+        }),
+        flush: true,
+      );
+    } catch (error) {
+      addLog(
+        .warning,
+        '记「上传中」标记失败：${removeNewlines('$error')}',
+        tag: 'Cloud',
+      );
+    }
+  }
+
+  static void _clearUploadInFlight() {
+    try {
+      final file = File(uploadMarkerPath);
+      if (file.existsSync()) file.deleteSync();
+    } catch (_) {
+      // 删不掉不影响上传
+    }
+  }
+
+  /// 上次上传被强杀时留下的东西：临时包 / 解包目录 / 标记
+  ///
+  /// 只清一小时以前的（避免误删正在进行的上传）；标记只用来提示一次
+  static void cleanupUploadLeftovers() {
+    final directory = Directory(tempDirPath);
+    if (directory.existsSync()) {
+      final cutoff = DateTime.now().subtract(const Duration(hours: 1));
+      try {
+        for (final entity in directory.listSync()) {
+          final name = p.basename(entity.path);
+          if (!name.startsWith('cloud-upload-') &&
+              !name.startsWith('manifest-')) {
+            continue;
+          }
+          try {
+            if (entity.statSync().modified.isBefore(cutoff)) {
+              entity.deleteSync(recursive: true);
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+    final marker = File(uploadMarkerPath);
+    if (!marker.existsSync()) return;
+    try {
+      final raw = jsonDecode(marker.readAsStringSync());
+      final map = raw is Map ? raw.cast<String, dynamic>() : const {};
+      addLog(
+        .warning,
+        '上次上传云存档没跑完（槽位 ${map['slot_id'] ?? '?'}）；'
+        '云端可能已经有了这一版，重新上传会按同一份内容对账',
+        tag: 'Cloud',
+      );
+    } catch (_) {}
+    _clearUploadInFlight();
   }
 
   /// 读一次配额；读不到就当没有（不拦上传，交给服务端判）
@@ -1293,17 +1393,43 @@ class CloudSaveService {
     ProgressCallback? onSendProgress,
     CancelToken? cancelToken,
   }) async {
+    // 私有模组先看能不能从网上下回来：能就只记下载地址，不带字节（省配额）
+    var sources = const CloudModSources([]);
+    if (includeBytesWhen != null) {
+      onStatus?.call('检查模组来源');
+      final probe = await _scanManifest(
+        version: version,
+        deviceName: deviceName,
+        includePreviews: false,
+      );
+      final override = debugClassifySourcesOverride;
+      sources = override != null
+          ? await override(mods: probe.mods)
+          : await classifyUploadSources(
+              mods: probe.mods,
+              officialKeys: await officialModKeys(),
+              onStatus: onStatus,
+            );
+    }
+    final linkable = {
+      for (final source in sources.sources) source.internalName.toLowerCase(),
+    };
+
     onStatus?.call('扫描本机存档');
     final manifest = await _scanManifest(
       version: version,
       deviceName: deviceName,
       includePreviews: includePreviews,
       includeModBytes: includeModBytes,
-      includeBytesWhen: includeBytesWhen,
+      includeBytesWhen: includeBytesWhen == null
+          ? null
+          : (mod) =>
+                includeBytesWhen(mod) &&
+                !linkable.contains((mod.internalName ?? '').toLowerCase()),
     );
     _checkUploadLimits(quota, manifest);
     final built = _manifestPayloadOf(manifest, version);
-    final payload = built.payload;
+    var payload = built.payload;
     if (payload.files.isEmpty) {
       throw const MdtbbsException(message: '没有可上传的文件');
     }
@@ -1311,6 +1437,36 @@ class CloudSaveService {
     // 差量路没有整包那种「打包时逐份复核」：建快照前先确认这些文件还在、
     // 大小没变（哈希来自缓存时尤其重要），否则会记上一份早就不存在的内容
     _checkUploadSources(built.paths, payload.files);
+
+    // 「这个私有模组去哪下」服务端存不下（mods 元数据只留 4 个字段），
+    // 当成一个普通小文件放进快照，换设备恢复时照着下
+    if (!sources.isEmpty) {
+      final sidecarPath = p.join(version.dataPath, CloudModSources.fileName);
+      final sidecarBytes = utf8.encode(sources.encode());
+      File(sidecarPath).writeAsStringSync(
+        utf8.decode(sidecarBytes),
+        flush: true,
+      );
+      final sidecarSha = sha256OfBytes(sidecarBytes);
+      built.paths[sidecarSha] = sidecarPath;
+      payload = CloudSaveManifestPayload(
+        files: [
+          ...payload.files,
+          CloudSaveManifestFile(
+            path: CloudModSources.fileName,
+            size: sidecarBytes.length,
+            sha256: sidecarSha,
+          ),
+        ],
+        game: payload.game,
+        save: payload.save,
+      );
+      addLog(
+        .info,
+        '模组来源清单已放进快照：${sources.sources.length} 个模组不带字节',
+        tag: 'Cloud',
+      );
+    }
 
     onStatus?.call('检查云端已有文件');
     var missing = await _missingBlobs(
@@ -1414,6 +1570,13 @@ class CloudSaveService {
         ),
       ),
       manifestMode: true,
+    );
+
+    _markUploadInFlight(
+      slotId: slot.id,
+      deviceName: deviceName,
+      contentSha256: idempotencyKey,
+      idempotencyKey: idempotencyKey,
     );
 
     onStatus?.call('创建云端快照');

@@ -1,4 +1,5 @@
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/domain/cloud/cloud_mod_sources.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill_runner.dart';
 import 'package:copper_launcher/domain/task.dart';
@@ -48,6 +49,8 @@ Future<List<CloudMissingMod>> fillGapMods({
     version: version,
     queueTasks: false,
     onStatus: onStatus,
+    // 云快照里记了下载地址的私有模组：有就用它，不必再依赖官方列表
+    sources: CloudModSources.read(version.dataPath),
   );
   for (final outcome in outcomes) {
     if (isCancelled?.call() ?? false) return missing;
