@@ -32,6 +32,7 @@ import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/components/input/tag_input_dialog.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
+import 'package:copper_launcher/ui/util/route/route_trail.dart';
 
 import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
@@ -87,6 +88,17 @@ class _VersionSettingState extends State<VersionSettingPage>
     with SubNavigationCollapseListener {
   static int _index = 0;
 
+  static const _sectionLabels = ['概况', '设置', '模组', '云存档', '资源打包'];
+
+  /// 顶栏：本页后缀是版本 tag，页内分项是当前分项
+  void _reportTopBar() {
+    if (!mounted) return;
+    final bar = PageTopBar.of(context);
+    bar.setSuffix(_mindustry.tag);
+    final index = _index.clamp(0, _sectionLabels.length - 1);
+    bar.setSections([_sectionLabels[index]]);
+  }
+
   late final List<Widget> pages = [
     _About(),
     _Setting(),
@@ -96,7 +108,9 @@ class _VersionSettingState extends State<VersionSettingPage>
   ];
 
   void moveTo(int i) {
-    if (mounted) setState(() => _index = i);
+    if (!mounted) return;
+    setState(() => _index = i);
+    _reportTopBar();
   }
 
   @override
@@ -114,6 +128,7 @@ class _VersionSettingState extends State<VersionSettingPage>
         debugPrint('页面参数index需要在 ${r.toString()} 内');
       }
     }
+    _reportTopBar();
   }
 
   @override
@@ -653,6 +668,7 @@ class _AboutState extends State<_About> {
     }
 
     setState(() => _mindustry.tag = tag);
+    PageTopBar.of(context).setSuffix(tag);
     await config.save();
   }
 

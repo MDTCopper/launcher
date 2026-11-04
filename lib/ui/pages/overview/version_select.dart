@@ -15,6 +15,7 @@ import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
+import 'package:copper_launcher/ui/util/route/route_trail.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 
 import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
@@ -54,6 +55,24 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   final List<VersionFold> _versionFolds = config.versionOptions.versionFolds;
 
   static int _index = 0;
+
+  /// 当前目录是页内分项：作为顶栏在「版本选择」段之后追加的方框
+  void _reportFold() {
+    if (!mounted) return;
+    final folds = _versionFolds;
+    if (folds.isEmpty) {
+      PageTopBar.of(context).setSections(const []);
+      return;
+    }
+    final index = _index.clamp(0, folds.length - 1);
+    PageTopBar.of(context).setSections([folds[index].tag]);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reportFold();
+  }
 
   void _delete(Mindustry version) {
     final index = _versionFolds[_index].versions.indexWhere(
@@ -157,7 +176,9 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   /// 的 await 路由语义（await 绑定旧 route，替换后提前完成导致列表刷新失联），
   /// 且使局部状态（滚动 / 折叠）重置；本页数据源是 config 引用，setState 足够
   void _updateView() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    _reportFold();
   }
 
   void _popToSettingOf(Mindustry version) {
@@ -168,7 +189,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     Navigator.pushNamed(
       context,
       '/version_setting',
-      arguments: {'lead': '版本设置', 'version': version, 'title': version.tag},
+      arguments: {'version': version},
     );
   }
 
@@ -624,7 +645,6 @@ class _VersionSelectPageState extends State<VersionSelectPage>
                       context,
                       '/mindustry_download',
                       (_) => false,
-                      arguments: {'lead': 'Mindustry'},
                     );
                   },
                   child: Row(
@@ -670,6 +690,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
               collapse: collapse,
               onTap: () {
                 setState(() => _index = index);
+                _reportFold();
               },
             );
 

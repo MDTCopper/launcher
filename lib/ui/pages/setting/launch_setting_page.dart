@@ -137,11 +137,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     Navigator.pushNamed(
       context,
       '/version_setting',
-      arguments: {
-        'lead': '版本设置',
-        'version': config.versionOptions.selectedVersion,
-        'title': config.versionOptions.selectedVersion?.tag ?? 'null',
-      },
+      arguments: {'version': config.versionOptions.selectedVersion},
     );
   }
 
@@ -170,11 +166,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
           ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
-            Navigator.pushNamed(
-              context,
-              mobileRuntimePageRouteKey,
-              arguments: {'lead': '设置', 'title': '移动端运行环境'},
-            );
+            Navigator.pushNamed(context, mobileRuntimePageRouteKey);
           },
         );
       },

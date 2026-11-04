@@ -11,6 +11,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
+import 'package:copper_launcher/ui/util/route/route_trail.dart';
 import 'package:copper_launcher/util/io/print_on_debug.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
@@ -77,6 +78,18 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
   /// FutureBuilder 会退回 waiting 再完成——列表闪烁、动画重复触发
   Future<ModMetaFetchStatus>? _fetchFuture;
   int _fetchFuturePage = -1;
+
+  /// 本页路由段后缀是模组名
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && args['mod'] is ModOfficialListEntry) {
+      PageTopBar.of(
+        context,
+      ).setSuffix((args['mod'] as ModOfficialListEntry).name);
+    }
+  }
 
   Future<ModMetaFetchStatus> get _fetchFutureOfCurrentPage {
     if (_fetchFuture == null || _fetchFuturePage != index) {
@@ -374,11 +387,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
       '由于githubAPI对匿名访问有 60次/小时 的限制，请不要短时间访问多个模组，访问过的模组已经缓存；'
           '如有条件，可以到设置中添加github访问token',
       onTap: () => setState(() {}), // 关闭后刷新移除本条
-      onNavigate: () => Navigator.pushNamed(
-        context,
-        otherSettingPageRouteKey,
-        arguments: {'lead': '设置', 'title': 'github token'},
-      ),
+      onNavigate: () => Navigator.pushNamed(context, otherSettingPageRouteKey),
     );
   }
 

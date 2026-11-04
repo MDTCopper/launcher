@@ -7,6 +7,8 @@ import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
 import 'package:copper_launcher/ui/shell/app_navigation.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
+import 'package:copper_launcher/ui/components/scroll/scroll_fade_mask.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
@@ -16,7 +18,7 @@ import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/online/online_page.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
-import 'package:copper_launcher/ui/util/animation/switcher_builder.dart';
+import 'package:copper_launcher/ui/util/route/route_trail.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
@@ -24,6 +26,7 @@ import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:window_manager/window_manager.dart';
@@ -57,12 +60,22 @@ class AppShellState extends State<AppShell> {
   /// 抽屉里当前选中的页签
   _AccountTab _accountTab = _AccountTab.profile;
 
-  String _currentRoute = '/';
-  String _pageName = '';
+  /// 顶栏面包屑的横向滚动：长了可以滚动查看整条路由栈
+  final _trailScrollController = ScrollController();
 
   // ── 导航配置 ──
 
   bool get canPop => _navigatorKey.currentState?.canPop() == true;
+
+  /// 栈顶路由，导航栏高亮用；首帧栈还没建立时按主页算
+  String get _currentRoute => routeWatcher.stack.isEmpty
+      ? '/'
+      : routeWatcher.stack.last.settings.name ?? '/';
+
+  /// 栈底路由 = 这个栈的正式入口
+  String get _currentRootRoute => routeWatcher.stack.isEmpty
+      ? '/'
+      : routeWatcher.stack.first.settings.name ?? '/';
 
   /// 返回键连按的判定窗口：两下之间超过它就算新的一轮（重新提醒）
   static const _backTwiceWindow = Duration(seconds: 2);
@@ -70,7 +83,6 @@ class AppShellState extends State<AppShell> {
   /// 上一次按返回键的时刻；null = 还没按过
   DateTime? _lastBackPressedAt;
 
-  String _currentRootRoute = '/';
   static final _sections = [
     RailSection(
       label: '概览',
@@ -114,20 +126,47 @@ class AppShellState extends State<AppShell> {
     if (kDebugMode)
       RailItem(label: '测试页面', icon: Icons.terminal_outlined, route: '/test'),
   ];
-  //导航栏根路由切换
-  void _onRootNavigate(String route, Object? arg) {
-    if (route == _currentRoute) return;
 
-    _currentRootRoute = route;
-    // 清空子路由栈，回到根页面
-    _navigatorKey.currentState?.pushNamedAndRemoveUntil(
-      route,
-      arguments: arg,
-      (_) => false,
-    );
+  /// 根路由段名：就是主导航项的名字，不另存一份
+  static final Map<String, String> _rootRouteLabels = {
+    for (final section in _sections)
+      for (final item in section.items) item.route: item.label,
+    for (final item in _items) item.route: item.label,
+  };
+
+  /// 面包屑里的段名：根段取主导航名字，其余取路由表；没登记的回退成路由 key
+  String _labelOfRoute(String route) {
+    final label = _rootRouteLabels[route] ?? routeLabels[route];
+    if (label == null) {
+      debugPrint('顶栏没登记路由段名：$route');
+    }
+    return label ?? route;
   }
 
-  late final routeWatcher = _RouteWatcher(_onRouteChanged);
+  //导航栏根路由切换
+  void _onRootNavigate(String route) {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+
+    // 同一入口下只是压了子页：回根页，保留根页状态
+    final stack = routeWatcher.stack;
+    if (stack.isNotEmpty && stack.first.settings.name == route) {
+      navigator.popUntil((page) => page.isFirst);
+      return;
+    }
+
+    // 换入口：清空子路由栈，从新入口重新开始
+    navigator.pushNamedAndRemoveUntil(route, (_) => false);
+  }
+
+  /// 点面包屑里的中间段：直接退回那一层
+  void _jumpToRoute(PageRoute<dynamic> route) {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null || !routeWatcher.stack.contains(route)) return;
+    navigator.popUntil((page) => page == route);
+  }
+
+  late final routeWatcher = _RouteWatcher(_scheduleTrailRebuild);
 
   // ── 系统返回键 ──
 
@@ -168,40 +207,152 @@ class AppShellState extends State<AppShell> {
     }
   }
 
-  // ── 路由监听 更新导航栏高亮和面包屑 ──
+  // ── 路由监听 更新导航栏高亮与顶栏面包屑 ──
 
-  void _onRouteChanged(String? name, dynamic args) {
-    if (name == null) return;
-
-    _currentRoute = name;
-
-    // 延迟到下一帧，避免在 build 阶段触发 setState
+  /// 栈或页面回写变化后重建：统一延迟到帧后，避免在 build 里 setState
+  void _scheduleTrailRebuild() {
+    if (_trailRebuildScheduled) return;
+    _trailRebuildScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      String lead = name;
-      String? title;
-      if (args is Map) {
-        lead = args['lead'] ?? lead;
-        title = args['title'];
-      }
-      final display = title != null ? '$lead -> $title' : lead;
-
-      _pageName = display;
-
-      final isRoot = !_navigatorKey.currentState!.canPop();
-
-      if (isRoot) {
-        _currentRootRoute = name;
-      }
-
-      //无奈之举，在启动时，args肯定是空的，启动页的名字就会变成/
-      if (name == '/' && args == null) {
-        _pageName = '启动';
-      }
-
-      setState(() {});
+      _trailRebuildScheduled = false;
+      if (mounted) setState(() {});
     });
+  }
+
+  bool _trailRebuildScheduled = false;
+
+  /// 把当前路由栈展开成顶栏段：每条路由一段，页面回写的页内分项跟在它后面
+  List<BreadcrumbSegment> _buildTrailSegments() {
+    final entries = <RouteTrailEntry>[];
+    for (final route in routeWatcher.stack) {
+      final trail = route is CopperPageRoute
+          ? route.trailController.value
+          : const PageTopBarTrail();
+      final args = route.settings.arguments;
+      final title = args is Map && args['title'] is String
+          ? args['title'] as String
+          : null;
+      entries.add(
+        RouteTrailEntry(
+          route: route,
+          label: _labelOfRoute(route.settings.name ?? ''),
+          suffix: trail.suffix ?? title,
+          sections: trail.sections,
+        ),
+      );
+    }
+    return buildBreadcrumb(entries);
+  }
+
+  Widget _buildBreadcrumb() {
+    final segments = _buildTrailSegments();
+    if (segments.isEmpty) {
+      return Text('主页', style: Theme.of(context).textTheme.labelMedium);
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Listener(
+        onPointerSignal: _handleTrailPointerSignal,
+        child: ScrollFadeMask(
+          controller: _trailScrollController,
+          scrollDirection: Axis.horizontal,
+          child: SingleChildScrollView(
+            controller: _trailScrollController,
+            scrollDirection: Axis.horizontal,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Row(
+                key: ValueKey(_trailSignature(segments)),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var index = 0; index < segments.length; index++) ...[
+                    if (index > 0) _buildTrailSeparator(),
+                    _buildTrailSegment(segments[index]),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _trailSignature(List<BreadcrumbSegment> segments) => segments
+      .map(
+        (segment) =>
+            '${segment is InPageBreadcrumb ? '[' : ''}${segment.label}',
+      )
+      .join('>');
+
+  /// 顶栏放不下时用滚轮横向看完整条栈
+  void _handleTrailPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (!_trailScrollController.hasClients) return;
+    final delta = event.scrollDelta.dy != 0
+        ? event.scrollDelta.dy
+        : event.scrollDelta.dx;
+    if (delta == 0) return;
+    final position = _trailScrollController.position;
+    _trailScrollController.jumpTo(
+      (_trailScrollController.offset + delta).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      ),
+    );
+  }
+
+  Widget _buildTrailSeparator() {
+    final colors = AppColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Icon(Icons.chevron_right, size: 14, color: colors.itemHint),
+    );
+  }
+
+  Widget _buildTrailSegment(BreadcrumbSegment segment) {
+    final colors = AppColors.of(context);
+    final theme = Theme.of(context);
+    switch (segment) {
+      case RouteBreadcrumb(:final label, :final route, :final isCurrent):
+        final text = Text(
+          label,
+          maxLines: 1,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: isCurrent ? colors.itemPrimary : colors.itemSecondary,
+            fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
+          ),
+        );
+        if (isCurrent) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: text,
+          );
+        }
+        return ReboundContainer(
+          onTap: () => _jumpToRoute(route),
+          pressedScale: 0.96,
+          duration: const Duration(milliseconds: 120),
+          borderRadius: BorderRadius.circular(4),
+          hoverColor: colors.highBackgroundOnCard,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          child: text,
+        );
+      case InPageBreadcrumb(:final label):
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          decoration: BoxDecoration(
+            border: Border.all(color: colors.border),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            style: theme.textTheme.labelSmall?.copyWith(color: colors.itemHint),
+          ),
+        );
+    }
   }
 
   void _handleDragFile(DropDoneDetails d) async {
@@ -255,24 +406,9 @@ class AppShellState extends State<AppShell> {
 
               _buildAccountButton(),
 
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                transitionBuilder: SwitcherBuilders.fadeSlide(Offset(0.0, 1.0)),
-                layoutBuilder: (child, children) {
-                  return Stack(children: [?child, ...children]);
-                },
-                child: Padding(
-                  key: ValueKey(_pageName),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    _pageName,
-                    style: Theme.of(context).textTheme.labelMedium,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
+              const SizedBox(width: 8),
 
-              Expanded(child: SizedBox()),
+              Expanded(child: _buildBreadcrumb()),
 
               const TaskDrawerOpener(),
               const SizedBox(width: 4),
@@ -655,17 +791,15 @@ class AppShellState extends State<AppShell> {
     super.initState();
     AppNavigation.handler = (route) {
       _scaffoldKey.currentState?.closeDrawer();
-      // 带上 lead，顶栏才显示页面名而不是路由串
-      _onRootNavigate(route, {'lead': _labelOfRoute(route)});
+      _onRootNavigate(route);
     };
   }
 
-  /// 抽屉跳转时给顶栏用的标题
-  String _labelOfRoute(String route) => switch (route) {
-    onlinePageRouteKey => '联机',
-    '/' => '主页',
-    _ => route,
-  };
+  @override
+  void dispose() {
+    _trailScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -759,18 +893,21 @@ class AppShellState extends State<AppShell> {
 
   // ── 页面过渡 ──
 
-  PageRouteBuilder _buildRoute(RouteSettings setting) {
-    Widget page = routeMap[setting.name] ?? _NotFoundPage();
+  Route<dynamic> _buildRoute(RouteSettings setting) {
+    final page = routeMap[setting.name] ?? _NotFoundPage();
+    final trailController = PageTopBarController();
 
-    return PageRouteBuilder(
+    return CopperPageRoute(
       settings: setting,
-      pageBuilder: (_, _, _) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {},
-        child: page,
+      trailController: trailController,
+      pageBuilder: (_, _, _) => PageTopBarScope(
+        controller: trailController,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {},
+          child: page,
+        ),
       ),
-      transitionDuration: const Duration(milliseconds: 350),
-      reverseTransitionDuration: const Duration(milliseconds: 350),
       transitionsBuilder: (_, animation, secondaryAnimation, child) {
         final curvedEnter = CurvedAnimation(
           parent: animation,
@@ -817,44 +954,76 @@ class AppShellState extends State<AppShell> {
 // 路由监听器
 // ════════════════════════════════════════════
 
-typedef _RouteCallback = void Function(String? name, dynamic args);
-
+/// 维护内层导航的实际路由栈，并把页面回写的顶栏变化转成重建
+///
+/// Navigator 没有公开的栈读取接口，这里按 push / pop / replace / remove 自己记账；
+/// [pushNamedAndRemoveUntil] 是「先 push 新的，再 remove 旧的」，同一条记账规则就能处理
 class _RouteWatcher extends RouteObserver {
-  final _RouteCallback onChanged;
-
   _RouteWatcher(this.onChanged);
+
+  final VoidCallback onChanged;
+
+  /// 当前内层导航栈，顺序就是路由层级
+  final List<PageRoute<dynamic>> stack = [];
 
   @override
   void didPush(Route route, Route? previousRoute) {
-    _notify(route);
-  }
-
-  @override
-  void didReplace({Route? newRoute, Route? oldRoute}) {
-    if (newRoute != null) _notify(newRoute);
+    if (route is PageRoute<dynamic>) {
+      stack.add(route);
+      _listenTrail(route);
+      _logStack();
+    }
+    onChanged();
   }
 
   @override
   void didPop(Route route, Route? previousRoute) {
-    if (previousRoute != null) _notify(previousRoute);
+    if (route is PageRoute<dynamic>) {
+      _drop(route);
+      _logStack();
+    }
+    onChanged();
   }
 
-  void _notify(Route route) {
-    final name = route.settings.name;
-    final args = route.settings.arguments;
-    debugPrint('当前路由 [$name , $args]');
-    addLog(.debug, '路由切换：$name${_argsSummary(args)}', tag: 'Route');
-    onChanged(name, args);
+  @override
+  void didReplace({Route? newRoute, Route? oldRoute}) {
+    if (oldRoute is PageRoute<dynamic>) _drop(oldRoute);
+    if (newRoute is PageRoute<dynamic>) {
+      stack.add(newRoute);
+      _listenTrail(newRoute);
+      _logStack();
+    }
+    onChanged();
   }
 
-  /// 路由参数摘要：只取面包屑用的 lead / title，别把整个对象（可能很大）塞进日志
-  static String _argsSummary(dynamic args) {
-    if (args is! Map) return '';
-    final parts = [
-      if (args['lead'] != null) 'lead=${args['lead']}',
-      if (args['title'] != null) 'title=${args['title']}',
-    ];
-    return parts.isEmpty ? '' : '（${parts.join(', ')}）';
+  @override
+  void didRemove(Route route, Route? previousRoute) {
+    if (route is PageRoute<dynamic>) {
+      _drop(route);
+      _logStack();
+    }
+    onChanged();
+  }
+
+  void _listenTrail(PageRoute<dynamic> route) {
+    if (route is CopperPageRoute) {
+      route.trailController.addListener(_onTrailChanged);
+    }
+  }
+
+  void _drop(PageRoute<dynamic> route) {
+    stack.remove(route);
+    if (route is CopperPageRoute) {
+      route.trailController.removeListener(_onTrailChanged);
+    }
+  }
+
+  /// 页面改后缀 / 页内分项：不重记日志，只通知重建
+  void _onTrailChanged() => onChanged();
+
+  void _logStack() {
+    final path = stack.map((route) => route.settings.name ?? '?').join(' > ');
+    addLog(.debug, '路由栈：$path', tag: 'Route');
   }
 }
 

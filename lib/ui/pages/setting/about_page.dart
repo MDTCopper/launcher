@@ -134,11 +134,7 @@ class AboutPage extends StatelessWidget {
               IconTextButton(
                 icon: Icons.description_outlined,
                 content: '查看开源许可',
-                onTap: () => Navigator.pushNamed(
-                  context,
-                  licensePageRouteKey,
-                  arguments: {'lead': '设置', 'title': '开源许可'},
-                ),
+                onTap: () => Navigator.pushNamed(context, licensePageRouteKey),
               ),
             ],
           ),

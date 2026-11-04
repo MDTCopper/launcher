@@ -2,6 +2,7 @@ import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
+import 'package:copper_launcher/ui/util/route/route_trail.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:line_icons/line_icons.dart';
@@ -28,6 +29,8 @@ class _ResourcePageState extends State<ResourcePage>
     with SubNavigationCollapseListener {
   static int _index = 0;
 
+  static const _sectionLabels = ['模组', '整合包', '蓝图', '地图'];
+
   late final List<Widget> pages = const [
     ModViewPage(),
     PackageViewPage(),
@@ -36,7 +39,16 @@ class _ResourcePageState extends State<ResourcePage>
   ];
 
   void moveTo(int i) {
-    if (mounted) setState(() => _index = i);
+    if (!mounted) return;
+    setState(() => _index = i);
+    _reportSection();
+  }
+
+  /// 当前分项作为页内段显示在顶栏「社区资源」之后
+  void _reportSection() {
+    if (!mounted) return;
+    final index = _index.clamp(0, _sectionLabels.length - 1);
+    PageTopBar.of(context).setSections([_sectionLabels[index]]);
   }
 
   @override
@@ -54,6 +66,7 @@ class _ResourcePageState extends State<ResourcePage>
       case mapViewPageRouteKey:
         _index = 3;
     }
+    _reportSection();
   }
 
   @override

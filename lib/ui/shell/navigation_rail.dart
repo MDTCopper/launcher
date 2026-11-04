@@ -36,7 +36,7 @@ class RailSection {
 ///与AppShell高度耦合，本质就是它的附属组件
 class NavigationRail extends StatefulWidget {
   final GlobalKey<NavigatorState> navigatorKey;
-  final void Function(String route, Object arg) onNavigate;
+  final void Function(String route) onNavigate;
   final String currentRoute;
   final String currentRootRoute;
 
@@ -246,7 +246,7 @@ class NavigationRailState extends State<NavigationRail> {
             hintPosition: .right,
             onTap: () {
               item.onTap?.call();
-              onNavigate(item.route, {'lead': item.label});
+              onNavigate(item.route);
             },
           ),
         ),
@@ -286,7 +286,7 @@ class NavigationRailState extends State<NavigationRail> {
               hintPosition: .right,
               onTap: () {
                 item.onTap?.call();
-                onNavigate(item.route, {'lead': item.label});
+                onNavigate(item.route);
               },
             ),
         ],

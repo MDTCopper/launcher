@@ -646,11 +646,7 @@ class _ModViewPageState extends State<ModViewPage> {
       'warning bar of mod page of download page enable',
       '国内访问github受限，可去设置调整github镜像策略',
       onTap: () => setState(() {}),
-      onNavigate: () => Navigator.pushNamed(
-        context,
-        otherSettingPageRouteKey,
-        arguments: {'lead': '设置', 'title': 'github镜像策略'},
-      ),
+      onNavigate: () => Navigator.pushNamed(context, otherSettingPageRouteKey),
     );
   }
 
@@ -811,7 +807,7 @@ class _ModViewPageState extends State<ModViewPage> {
           Navigator.pushNamed(
             context,
             '/mod_view/download',
-            arguments: {'lead': '模组下载', 'title': mod.name, 'mod': mod},
+            arguments: {'mod': mod},
           );
         },
       ),

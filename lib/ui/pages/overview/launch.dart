@@ -39,11 +39,7 @@ class _LaunchPageState extends State<LaunchPage> {
       return ReboundListTile(
         borderRadius: BorderRadius.circular(8),
         onTap: () {
-          Navigator.pushNamed(
-            context,
-            '/version_select',
-            arguments: {'lead': '版本选择'},
-          );
+          Navigator.pushNamed(context, '/version_select');
         },
         title: SizedBox(
           height: 40,
@@ -68,11 +64,7 @@ class _LaunchPageState extends State<LaunchPage> {
       borderRadius: BorderRadius.circular(8),
       onTap: () {
         if (selectedVersion != _selectedVersion) return;
-        Navigator.pushNamed(
-          context,
-          '/version_select',
-          arguments: {'lead': '版本选择'},
-        );
+        Navigator.pushNamed(context, '/version_select');
       },
       // 选中版本切换时：图标 / 名称 / 版本号 交叠切换（淡入 + 向上位移）
       leading: VersionIcon(
@@ -114,11 +106,7 @@ class _LaunchPageState extends State<LaunchPage> {
           Navigator.pushNamed(
             context,
             '/version_setting',
-            arguments: {
-              'lead': '版本设置',
-              'version': selectedVersion,
-              'title': selectedVersion.tag,
-            },
+            arguments: {'version': selectedVersion},
           );
         },
       ),

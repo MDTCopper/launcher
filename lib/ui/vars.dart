@@ -63,6 +63,34 @@ const Map<String, Widget> routeMap = {
   mobileRuntimePageRouteKey: MobileRuntimePage(),
 };
 
+/// 顶栏面包屑用的子路由段名
+///
+/// 根路由段名取自主导航项，不在这里登记；容器页的分项别名归并到容器页自己的名字
+/// （页内哪个分项由页面自己回写），未登记的路由会回退到路由 key
+const Map<String, String> routeLabels = {
+  versionSelectPageRouteKey: '版本选择',
+  versionSettingPageRouteKey: '版本设置',
+  accountPageRouteKey: '账户',
+  friendsPageRouteKey: '好友',
+  notificationsPageRouteKey: '通知',
+  versionCloudSavePageRouteKey: '版本云存档',
+  '/mod_view/download': '模组下载',
+
+  // 容器页的分项别名：只作为进入容器页的入口，段名用容器页自己的
+  modViewPageRouteKey: '社区资源',
+  packageViewPageRouteKey: '社区资源',
+  blueprintViewPageRouteKey: '社区资源',
+  mapViewPageRouteKey: '社区资源',
+  launchSettingPageRouteKey: '设置',
+  gameSettingPageRouteKey: '设置',
+  personalizedSettingPageRouteKey: '设置',
+  otherSettingPageRouteKey: '设置',
+  helpPageRouteKey: '设置',
+  aboutPageRouteKey: '设置',
+  licensePageRouteKey: '开源许可',
+  mobileRuntimePageRouteKey: '移动端运行环境',
+};
+
 //token 注入统一由 cio 拦截器处理：仅 api.github.com、且 token 非空才附加，
 //避免空 token 的 `Authorization: token ` 触发 GitHub 401，以及 token 泄露给镜像/raw
 Map<String, String> get modDownloadHeaders => {
