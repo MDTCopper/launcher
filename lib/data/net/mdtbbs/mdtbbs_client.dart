@@ -56,6 +56,41 @@ class MdtbbsException implements Exception {
   bool get isCsrfFailure =>
       statusCode == 403 && message.toUpperCase().contains('CSRF');
 
+  /// [details] 里第一个对象（服务端多数错误把结构化信息放这一条）
+  Map<String, dynamic>? get firstDetail {
+    for (final detail in details) {
+      if (detail is Map) return detail.cast<String, dynamic>();
+    }
+    return null;
+  }
+
+  /// 出问题的文件路径（`SAVE_FILE_TOO_LARGE` / `SAVE_MANIFEST_INVALID` 会带）
+  String? get detailPath => firstDetail?['path'] as String?;
+
+  /// 出问题的字段名（`SAVE_MANIFEST_INVALID` 会带）
+  String? get detailField => firstDetail?['field'] as String?;
+
+  /// `SAVE_BLOB_MISSING` 时缺哪些 sha：服务端结构没写死，几种形态都认
+  List<String> get missingBlobShas {
+    final out = <String>[];
+    for (final detail in details) {
+      final missing = detail is Map ? detail['missing'] : detail;
+      final candidates = missing is List ? missing : [if (detail is String) detail];
+      for (final item in candidates) {
+        if (item is String && item.isNotEmpty) out.add(item);
+        if (item is Map) {
+          final sha = item['sha256'] ?? item['sha'] ?? item['id'];
+          if (sha is String && sha.isNotEmpty) out.add(sha);
+        }
+      }
+    }
+    return out;
+  }
+
+  /// 建议的冲突处理方式（服务端会在 normal 策略下给 `create_conflict_copy`）
+  String? get suggestedConflictResolution =>
+      firstDetail?['suggested_resolution'] as String?;
+
   /// 从 [details] 里尽力找出「当前快照 ID」；找不到给 null
   ///
   /// 冲突响应的字段名官方文档没写死（`paths` 未导出），所以这里两种常见形态都认
