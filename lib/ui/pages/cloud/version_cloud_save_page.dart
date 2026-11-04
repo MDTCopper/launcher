@@ -18,6 +18,7 @@ import 'package:copper_launcher/domain/cloud/cloud_mod_state.dart';
 import 'package:copper_launcher/domain/cloud/cloud_notes.dart';
 import 'package:copper_launcher/domain/cloud/cloud_restore_gap.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_error_text.dart';
 import 'package:copper_launcher/domain/cloud/game_version_fill.dart';
 import 'package:copper_launcher/domain/cloud/mod_fill_runner.dart';
 import 'package:copper_launcher/domain/task.dart';
@@ -381,7 +382,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           addNotice(
             icon: Icons.error_outline,
             title: '上传失败',
-            content: removeNewlines('$error'),
+            content: describeMdtbbsError(error ?? ''),
           );
         }
         return;
@@ -413,7 +414,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         addNotice(
           icon: Icons.error_outline,
           title: '上传失败',
-          content: removeNewlines('$error'),
+          content: describeMdtbbsError(error),
         );
       }
     } catch (error) {
@@ -421,7 +422,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       addNotice(
         icon: Icons.error_outline,
         title: '上传失败',
-        content: removeNewlines('$error'),
+        content: describeMdtbbsError(error),
       );
     } finally {
       if (mounted) {
@@ -556,7 +557,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         addNotice(
           icon: Icons.error_outline,
           title: '恢复失败',
-          content: removeNewlines('${task.error}'),
+          content: describeMdtbbsError(task.error!),
         );
         return;
       }
@@ -573,7 +574,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       addNotice(
         icon: Icons.error_outline,
         title: '恢复失败',
-        content: removeNewlines('$error'),
+        content: describeMdtbbsError(error),
       );
     } finally {
       if (mounted) setState(() => _busy = null);
@@ -644,7 +645,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
         addNotice(
           icon: Icons.error_outline,
           title: '补全失败',
-          content: removeNewlines('${task.error}'),
+          content: describeMdtbbsError(task.error!),
         );
         return;
       }
@@ -661,7 +662,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       addNotice(
         icon: Icons.error_outline,
         title: '补全失败',
-        content: removeNewlines('$error'),
+        content: describeMdtbbsError(error),
       );
     } finally {
       if (mounted) setState(() => _busy = null);
@@ -836,7 +837,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       addNotice(
         icon: Icons.error_outline,
         title: '还原失败',
-        content: removeNewlines('$error'),
+        content: describeMdtbbsError(error),
       );
     } finally {
       if (mounted) setState(() => _busy = null);
@@ -866,7 +867,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           addNotice(
             icon: Icons.error_outline,
             title: '删除失败',
-            content: removeNewlines('$error'),
+            content: describeMdtbbsError(error),
           );
         }
       },
@@ -899,7 +900,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       addNotice(
         icon: Icons.error_outline,
         title: '固定状态没改成功',
-        content: removeNewlines('$error'),
+        content: describeMdtbbsError(error),
       );
     }
   }
@@ -931,7 +932,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           addNotice(
             icon: Icons.error_outline,
             title: '删除失败',
-            content: removeNewlines('$error'),
+            content: describeMdtbbsError(error),
           );
         }
       },
@@ -957,7 +958,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
           addNotice(
             icon: Icons.error_outline,
             title: '解绑失败',
-            content: removeNewlines('$error'),
+            content: describeMdtbbsError(error),
           );
         }
       },
@@ -1279,7 +1280,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
                       addNotice(
                         icon: Icons.error_outline,
                         title: '覆盖归属失败',
-                        content: removeNewlines('$error'),
+                        content: describeMdtbbsError(error),
                       );
                     }
                   },
@@ -1454,7 +1455,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
       addNotice(
         icon: Icons.error_outline,
         title: '从云拉取失败',
-        content: removeNewlines('${task.error}'),
+        content: describeMdtbbsError(task.error!),
       );
       return;
     }

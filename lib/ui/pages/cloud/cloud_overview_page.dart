@@ -4,6 +4,7 @@ import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
 import 'package:copper_launcher/domain/cloud/cloud_save_service.dart';
+import 'package:copper_launcher/domain/mdtbbs/mdtbbs_error_text.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/domain/tasks/cloud_pull_task.dart';
 import 'package:copper_launcher/domain/task_manager.dart';
@@ -349,7 +350,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
           addNotice(
             icon: Icons.error_outline,
             title: '解绑失败',
-            content: removeNewlines('$error'),
+            content: describeMdtbbsError(error),
           );
         }
       },
@@ -374,7 +375,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
       addNotice(
         icon: Icons.close,
         title: '读取云端存档失败',
-        content: removeNewlines('$error'),
+        content: describeMdtbbsError(error),
       );
     } finally {
       if (mounted) setState(() => _loadingSlots = false);
@@ -416,7 +417,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
       addNotice(
         icon: Icons.error_outline,
         title: '处理标签失败',
-        content: removeNewlines('$error'),
+        content: describeMdtbbsError(error),
       );
       return false;
     }
@@ -513,7 +514,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
       addNotice(
         icon: Icons.error_outline,
         title: '绑定失败',
-        content: removeNewlines('$error'),
+        content: describeMdtbbsError(error),
       );
     }
   }
@@ -545,7 +546,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
           addNotice(
             icon: Icons.error_outline,
             title: '删除失败',
-            content: removeNewlines('$error'),
+            content: describeMdtbbsError(error),
           );
         }
       },
