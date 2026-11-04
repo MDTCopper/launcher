@@ -272,6 +272,16 @@ class TemplateSkin {
   Color get controlBorderDisabled =>
       controlBorder.withAlpha((0.5 * 255).round());
 
+  // ── 外壳用的派生色（2026-11-04 覆盖度审计后补，AppColors 里有、皮肤里原先没有）──
+
+  /// 滚动条：槽 = 凹槽面，拇指 = 强边界，悬停提到三级字色
+  Color get scrollbarTrack => sunken;
+  Color get scrollbarThumb => borderStrong;
+  Color get scrollbarThumbHover => textTertiary;
+
+  /// 对话框 / 抽屉后面的遮罩（亮色 40%、暗色 60% 黑）
+  Color get barrier => dark ? const Color(0x99000000) : const Color(0x66000000);
+
   /// 禁用的实心：主题色只留 12%（用户 2026-10-24「实心变的颜色更透明一点」）
   ///
   /// 换成中性灰会让「主行动不可用」和「标准不可用」长得一模一样；留一层淡主题色，
