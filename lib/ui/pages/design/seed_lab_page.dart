@@ -305,7 +305,8 @@ class _SeedLabPageState extends State<SeedLabPage> {
                       skin: skin,
                       label: '删除',
                       icon: Icons.delete_outline,
-                      kind: TemplateButtonKind.danger,
+                      kind: TemplateButtonKind.plain,
+                      danger: true,
                       onTap: () {},
                     ),
                   ],
@@ -314,17 +315,18 @@ class _SeedLabPageState extends State<SeedLabPage> {
                   spacing: TemplateSpace.md,
                   runSpacing: TemplateSpace.md,
                   children: [
-                    for (final (kind, label) in const [
-                      (TemplateButtonKind.solid, '实心'),
-                      (TemplateButtonKind.plain, '标准'),
-                      (TemplateButtonKind.quiet, '安静'),
-                      (TemplateButtonKind.danger, '破坏'),
+                    for (final (kind, danger, label) in const [
+                      (TemplateButtonKind.solid, false, '实心'),
+                      (TemplateButtonKind.plain, false, '标准'),
+                      (TemplateButtonKind.quiet, false, '安静'),
+                      (TemplateButtonKind.plain, true, '标准+危险'),
                     ])
                       TemplateButton(
                         skin: skin,
                         label: label,
                         icon: Icons.block,
                         kind: kind,
+                        danger: danger,
                         enabled: false,
                       ),
                   ],

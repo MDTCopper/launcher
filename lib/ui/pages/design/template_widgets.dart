@@ -10,8 +10,11 @@ import 'template_skin.dart';
 /// 交互一律走项目的 rebound（[ReboundContainer] / [ReboundButton]），
 /// 颜色全部由 [TemplateSkin] 显式传入 —— 不读 `AppColors`，因此可以脱离原皮肤试版
 
-/// 按钮的四种量级：实心主行动 / 中性 / 安静 / 破坏性
-enum TemplateButtonKind { solid, plain, quiet, danger }
+/// 按钮的三种**面**：实心主行动 / 标准（控件面）/ 安静（无面）
+///
+/// 危险**不再是第四档面**，而是一个标识（`danger: true`）——面还是那三种，只是字 / 底变红
+/// （用户 2026-11-04：「danger 改为一个标识吧，有就变红；不然对话框里取消有底衬、删除没有，看着怪」）
+enum TemplateButtonKind { solid, plain, quiet }
 
 /// 分组卡：标题**在卡外**（2026-10-05 用户先问「是否应该把标题再融入 card」、
 /// 试过之后要求「标题还是移出去」⇒ 回到卡外，标题贴左 4、与卡相距 8）
@@ -252,12 +255,12 @@ class TemplateSwitchRow extends StatelessWidget {
   }
 }
 
-/// 四档的**面**：实心 = 主题色底 + 其上文字；标准 = 控件面；安静 = 无面；破坏 = 无面 + 危险文字。
-/// **只有实心带主题色**（用户 2026-10-24 定）
+/// 按钮的面：实心 = 主题色底 + 其上文字；标准 = 控件面；安静 = 无面。
+/// **只有实心带主题色**（用户 2026-10-24 定）；`danger` 只换颜色不改面
 ///
 /// 禁用态：实心留 12% 的主题色（[TemplateSkin.solidDisabledSurface]）、标准比控件面暗一档
 /// （[TemplateSkin.standardDisabledSurface]）——两块要分得开，不然禁用的主行动和次级行动一模一样；
-/// 安静 / 破坏禁用时只剩 38% 的字
+/// 安静禁用时只剩 38% 的字
 class TemplateButton extends StatelessWidget {
   const TemplateButton({
     super.key,
@@ -265,6 +268,7 @@ class TemplateButton extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.kind,
+    this.danger = false,
     this.onTap,
     this.enabled = true,
   });
@@ -273,6 +277,9 @@ class TemplateButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final TemplateButtonKind kind;
+
+  /// 危险标识：面不变，底 / 字换成危险的语义色
+  final bool danger;
   final VoidCallback? onTap;
   final bool enabled;
 
@@ -281,19 +288,27 @@ class TemplateButton extends StatelessWidget {
     final (background, foreground) = switch (kind) {
       TemplateButtonKind.solid =>
         enabled
-            ? (skin.accent, skin.onAccent)
-            : (skin.solidDisabledSurface, skin.textDisabled),
+            ? (
+                danger ? skin.danger : skin.accent,
+                danger ? skin.onDanger : skin.onAccent,
+              )
+            : (
+                danger
+                    ? skin.danger.withAlpha((0.12 * 255).round())
+                    : skin.solidDisabledSurface,
+                skin.textDisabled,
+              ),
       TemplateButtonKind.plain => (
         enabled ? skin.sunken : skin.standardDisabledSurface,
-        enabled ? skin.textPrimary : skin.textDisabled,
+        enabled
+            ? (danger ? skin.dangerText : skin.textPrimary)
+            : skin.textDisabled,
       ),
       TemplateButtonKind.quiet => (
         Colors.transparent,
-        enabled ? skin.textSecondary : skin.textDisabled,
-      ),
-      TemplateButtonKind.danger => (
-        Colors.transparent,
-        enabled ? skin.dangerText : skin.textDisabled,
+        enabled
+            ? (danger ? skin.dangerText : skin.textSecondary)
+            : skin.textDisabled,
       ),
     };
     // 实心上的状态要更明显，而且是「压暗」而不是按主题方向（见 solidHoverOn）

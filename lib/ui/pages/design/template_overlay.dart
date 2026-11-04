@@ -154,7 +154,9 @@ Future<bool> showTemplateConfirm(
             skin: skin,
             label: confirmLabel,
             icon: danger ? Icons.delete_outline : Icons.check,
-            kind: danger ? TemplateButtonKind.danger : TemplateButtonKind.solid,
+            // 危险只是标识：面跟「取消」一样是标准面，只把颜色变红
+            kind: danger ? TemplateButtonKind.plain : TemplateButtonKind.solid,
+            danger: danger,
             onTap: () => Navigator.of(dialogContext).pop(true),
           ),
         ],
