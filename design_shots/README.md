@@ -42,7 +42,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/28-batch1-chrome` | 批 1a——页面骨架（顶栏+滚动+回顶）、对话框壳、Toast 堆叠、空/错/载三态、图标按钮、tooltip、复选（含三态）、徽标；只加设计层，不动现有 UI |
 | `catalog/29-danger-flag` | `danger` 从第四档面改成**标识**（面还是实心/标准/安静，只变红）；对话框里「取消 / 删除」同面不同色 |
 | `catalog/30-compact-bar` | 顶栏改成 **40 高单行面包屑**（越靠右越当前、可点可跳），不再堆面包屑/标题/副标题三层 |
-| `catalog/31-rail-placement` | **当前**：加 `TemplateSideRail`（折叠/导航/账户/任务四个槽位），并出「账户与任务放哪」三种摆法对照 |
+| `catalog/31-rail-placement` | 加 `TemplateSideRail`（折叠/导航/账户/任务四个槽位），并出「账户与任务放哪」三种摆法对照 |
+| `catalog/32-chrome-final` | **当前**：外壳定稿——左上角「返回键 / 账户头像」共用位置、任务右上（左右抽屉）、折叠按钮挪到侧栏底部；侧栏收起成 24 宽窄条（底部变展开） |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`）、实心偏移 −6 / 0 / +6 对照（`accent_shift.png`） |
