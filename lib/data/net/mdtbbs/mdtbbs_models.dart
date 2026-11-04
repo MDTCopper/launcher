@@ -508,6 +508,8 @@ class CloudSaveUploadSession {
     this.method = 'PUT',
     this.headers = const {},
     this.expiresAt,
+    this.noUploadRequired = false,
+    this.snapshotId,
   });
 
   final String uploadId;
@@ -518,6 +520,10 @@ class CloudSaveUploadSession {
   final Map<String, String> headers;
   final DateTime? expiresAt;
 
+  /// 服务端判断「head 已经是这份内容」：不用传字节，直接按 [snapshotId] 收尾
+  final bool noUploadRequired;
+  final String? snapshotId;
+
   factory CloudSaveUploadSession.fromJson(Map<String, dynamic> json) {
     final upload =
         (json['upload'] as Map?)?.cast<String, dynamic>() ?? const {};
@@ -527,6 +533,8 @@ class CloudSaveUploadSession {
       url: '${upload['url'] ?? ''}',
       method: '${upload['method'] ?? 'PUT'}',
       headers: headers.map((key, value) => MapEntry('$key', '$value')),
+      noUploadRequired: json['no_upload_required'] == true,
+      snapshotId: json['snapshot_id'] as String?,
       expiresAt: _timeOf(upload['expires_at']),
     );
   }

@@ -961,6 +961,14 @@ class CloudSaveService {
       );
 
       onStatus?.call('申请上传额度');
+      final idempotencyKey = uploadIdempotencyKey(
+        slotId: slot.id,
+        baseSnapshotId: slot.currentSnapshotId,
+        deviceName: name,
+        reason: reason,
+        contentSha256: sha256,
+        manifestMode: false,
+      );
       final CloudSaveUploadSession session;
       try {
         session = await MdtbbsCloudSaveApi.createUpload(
@@ -980,6 +988,7 @@ class CloudSaveService {
           save: _displayInfoOf(_newestSave(export.manifest)?.meta),
           mods: _modsOf(export.manifest),
           deviceId: name,
+          idempotencyKey: idempotencyKey,
           cancelToken: cancelToken,
         );
       } on MdtbbsException catch (error) {
@@ -1019,10 +1028,30 @@ class CloudSaveService {
         );
       }
 
+      // 服务端说「head 已经是这份内容」：不用传字节，按已同步收尾
+      if (session.noUploadRequired) {
+        addLog(.info, '云端 head 与本机这份内容相同（免上传）', tag: 'Cloud');
+        final headId = session.snapshotId ?? slot.currentSnapshotId;
+        await _rememberSynced(
+          version,
+          account: account,
+          slotId: slot.id,
+          snapshotId: headId,
+          files: export.manifest.fileHashes,
+        );
+        return CloudSaveUploadResult(
+          slot: slot,
+          snapshot: slot.currentSnapshot,
+          archiveBytes: 0,
+          dropped: export.dropped,
+          alreadyUpToDate: true,
+        );
+      }
+
       onStatus?.call('上传云包');
       // 会话一建好，服务端就替我们占着配额 ⇒ 取消 / 失败都必须把它交回去
       // 不交的话那笔额度要等它自己过期，用户看到的是「刚传失败了，怎么又传不了」
-      final CloudSaveSnapshot? snapshot;
+      CloudSaveSnapshot? snapshot;
       try {
         await MdtbbsCloudSaveApi.putUploadBytes(
           accessToken: accessToken,
@@ -1031,19 +1060,78 @@ class CloudSaveService {
           onSendProgress: onSendProgress,
           cancelToken: cancelToken,
         );
-
-        onStatus?.call('等云端确认');
-        snapshot = await MdtbbsCloudSaveApi.commitUpload(
-          accessToken: accessToken,
-          uploadId: session.uploadId,
-          cancelToken: cancelToken,
-        );
       } on Object {
+        // 字节还没传完：会话可以安全地交回去
         await _releaseUploadQuietly(
           accessToken: accessToken,
           uploadId: session.uploadId,
         );
         rethrow;
+      }
+
+      // commit 是幂等的（已提交的会话再 commit 直接回原快照，会话过期后也能回）：
+      // 超时 / 502 时**原样重发**，不要 DELETE —— 删了可能把已经提交的结果当失败处理
+      onStatus?.call('等云端确认');
+      Future<bool> headHasThisContent() async {
+        try {
+          final head = await MdtbbsCloudSaveApi.slot(
+            accessToken: accessToken,
+            slotId: slot.id,
+            cancelToken: cancelToken,
+          );
+          return head.currentSnapshot?.sha256 == sha256;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      var committed = false;
+      for (var attempt = 0; attempt < 2 && !committed; attempt++) {
+        try {
+          snapshot = await MdtbbsCloudSaveApi.commitUpload(
+            accessToken: accessToken,
+            uploadId: session.uploadId,
+            idempotencyKey: idempotencyKey,
+            cancelToken: cancelToken,
+          );
+          committed = true;
+        } on MdtbbsException catch (error) {
+          if (error.isConflict && error.code == 'SAVE_UPLOAD_ALREADY_COMMITTED') {
+            committed = true;
+            break;
+          }
+          if (attempt == 0 && error.retryable) {
+            addLog(
+              .warning,
+              '云端确认失败（可重试），原样重发一次：${removeNewlines('$error')}',
+              tag: 'Cloud',
+            );
+            continue;
+          }
+          // 结果未知：看云端 head 是不是已经是这份内容
+          if (await headHasThisContent()) {
+            addLog(.info, '云端 head 已是这份内容，按已同步收尾', tag: 'Cloud');
+            committed = true;
+            break;
+          }
+          rethrow;
+        } on Object catch (error) {
+          // 断网这类没有错误码的失败：重发一次，仍失败就按「结果未知」处理
+          if (attempt == 0 && !(cancelToken?.isCancelled ?? false)) {
+            addLog(
+              .warning,
+              '云端确认结果未知，原样重发一次：${removeNewlines('$error')}',
+              tag: 'Cloud',
+            );
+            continue;
+          }
+          if (await headHasThisContent()) {
+            addLog(.info, '云端 head 已是这份内容，按已同步收尾', tag: 'Cloud');
+            committed = true;
+            break;
+          }
+          rethrow;
+        }
       }
 
       // 记下「同步到哪个快照」：commit 的响应解不出快照时问一次槽位拿 head id，
@@ -1073,6 +1161,29 @@ class CloudSaveService {
     } finally {
       _deleteQuietly(archivePath);
     }
+  }
+
+  /// 上传用的幂等键：同一份请求（同槽位 / 同 base / 同内容 / 同设备与原因）要一直用同一个
+  ///
+  /// 服务端按「账号 + 操作 + key」留 24 小时；重试时同 key 同 body 会直接回第一次的结果。
+  /// 这里用内容摘要算，不需要额外落盘：内容没变就算出同一个 key
+  static String uploadIdempotencyKey({
+    required String slotId,
+    required String? baseSnapshotId,
+    required String deviceName,
+    required CloudSaveUploadReason reason,
+    required String contentSha256,
+    required bool manifestMode,
+  }) {
+    final raw = [
+      manifestMode ? 'manifest' : 'zip',
+      slotId,
+      baseSnapshotId ?? '',
+      deviceName,
+      reason.name,
+      contentSha256,
+    ].join('|');
+    return sha256.convert(utf8.encode(raw)).toString();
   }
 
   /// 读一次配额；读不到就当没有（不拦上传，交给服务端判）
@@ -1239,46 +1350,49 @@ class CloudSaveService {
 
     var uploaded = 0;
     var uploadedBytes = 0;
-    // 进度按「已传完的 + 当前文件已传的」累计，否则每换一个文件进度条会打回 0
-    final missingBytes = missing.values.fold(
-      0,
-      (sum, file) => sum + file.size,
-    );
-    for (final file in missing.values) {
-      if (cancelToken?.isCancelled ?? false) {
-        throw const MdtbbsException(message: '已取消');
-      }
-      final localPath = built.paths[file.sha256];
-      final source = localPath == null ? null : File(localPath);
-      if (source == null || !source.existsSync()) {
-        throw MdtbbsException(message: '本机文件不见了：${file.path}');
-      }
-      final bytes = source.readAsBytesSync();
-      if (bytes.length != file.size || sha256OfBytes(bytes) != file.sha256) {
-        throw MdtbbsException(message: '文件在上传前发生变化：${file.path}');
-      }
-      onStatus?.call('上传 ${file.path}（${uploaded + 1}/${missing.length}）');
-      final session = await MdtbbsCloudSaveApi.createBlobUpload(
-        accessToken: accessToken,
-        sha256: file.sha256,
-        size: file.size,
-        cancelToken: cancelToken,
-      );
-      if (!session.noUploadRequired) {
-        final sentBefore = uploadedBytes;
-        await MdtbbsCloudSaveApi.putBlobBytes(
+    Future<void> uploadBlobs(Map<String, CloudSaveManifestFile> files) async {
+      if (files.isEmpty) return;
+      // 进度按「已传完的 + 当前文件已传的」累计，否则每换一个文件进度条会打回 0
+      final totalBytes = files.values.fold(0, (sum, file) => sum + file.size);
+      final sentBeforeRound = uploadedBytes;
+      for (final file in files.values) {
+        if (cancelToken?.isCancelled ?? false) {
+          throw const MdtbbsException(message: '已取消');
+        }
+        final localPath = built.paths[file.sha256];
+        final source = localPath == null ? null : File(localPath);
+        if (source == null || !source.existsSync()) {
+          throw MdtbbsException(message: '本机文件不见了：${file.path}');
+        }
+        final bytes = source.readAsBytesSync();
+        if (bytes.length != file.size || sha256OfBytes(bytes) != file.sha256) {
+          throw MdtbbsException(message: '文件在上传前发生变化：${file.path}');
+        }
+        onStatus?.call('上传 ${file.path}（${uploaded + 1}/${files.length}）');
+        final session = await MdtbbsCloudSaveApi.createBlobUpload(
           accessToken: accessToken,
-          upload: session,
-          bytes: bytes,
-          onSendProgress: onSendProgress == null
-              ? null
-              : (sent, _) => onSendProgress(sentBefore + sent, missingBytes),
+          sha256: file.sha256,
+          size: file.size,
           cancelToken: cancelToken,
         );
+        if (!session.noUploadRequired) {
+          await MdtbbsCloudSaveApi.putBlobBytes(
+            accessToken: accessToken,
+            upload: session,
+            bytes: bytes,
+            onSendProgress: onSendProgress == null
+                ? null
+                : (sent, _) =>
+                      onSendProgress(sentBeforeRound + sent, totalBytes),
+            cancelToken: cancelToken,
+          );
+        }
+        uploaded++;
+        uploadedBytes += file.size;
       }
-      uploaded++;
-      uploadedBytes += file.size;
     }
+
+    await uploadBlobs(missing);
     addLog(
       .info,
       '差量上传：清单 ${payload.files.length} 个文件，已有 '
@@ -1287,41 +1401,77 @@ class CloudSaveService {
       tag: 'Cloud',
     );
 
+    final idempotencyKey = uploadIdempotencyKey(
+      slotId: slot.id,
+      baseSnapshotId: slot.currentSnapshotId,
+      deviceName: deviceName,
+      reason: reason,
+      contentSha256: sha256OfBytes(
+        utf8.encode(
+          [
+            for (final file in payload.files) '${file.path}:${file.sha256}',
+          ].join('\n'),
+        ),
+      ),
+      manifestMode: true,
+    );
+
     onStatus?.call('创建云端快照');
     CloudSaveSnapshot? snapshot;
-    try {
-      snapshot = await MdtbbsCloudSaveApi.createManifestSnapshot(
-        accessToken: accessToken,
-        slotId: slot.id,
-        manifest: payload,
-        baseSnapshotId: slot.currentSnapshotId,
-        reason: reason,
-        conflictPolicy: conflictPolicy,
-        confirmCurrentSnapshotId: confirmCurrentSnapshotId,
-        game: CloudSaveGameInfo(
-          version: version.release,
-          build: version.versionNumber ?? version.releaseInt,
-        ),
-        save: _displayInfoOf(_newestSave(manifest)?.meta),
-        mods: _modsOf(manifest),
-        deviceId: deviceName,
-        cancelToken: cancelToken,
-      );
-    } on MdtbbsException catch (error) {
-      if (!error.isConflict) rethrow;
+    // 检查与建快照之间 blob 仍可能失效（GC / 上传会话过期）：按 details 里缺的 sha 补传后重试一次
+    for (var attempt = 0; ; attempt++) {
+      try {
+        snapshot = await MdtbbsCloudSaveApi.createManifestSnapshot(
+          accessToken: accessToken,
+          slotId: slot.id,
+          manifest: payload,
+          baseSnapshotId: slot.currentSnapshotId,
+          reason: reason,
+          conflictPolicy: conflictPolicy,
+          confirmCurrentSnapshotId: confirmCurrentSnapshotId,
+          game: CloudSaveGameInfo(
+            version: version.release,
+            build: version.versionNumber ?? version.releaseInt,
+          ),
+          save: _displayInfoOf(_newestSave(manifest)?.meta),
+          mods: _modsOf(manifest),
+          deviceId: deviceName,
+          idempotencyKey: idempotencyKey,
+          cancelToken: cancelToken,
+        );
+        break;
+      } on MdtbbsException catch (error) {
+        final missingShas = error.code == 'SAVE_BLOB_MISSING'
+            ? error.missingBlobShas
+            : const <String>[];
+        if (attempt == 0 && missingShas.isNotEmpty) {
+          addLog(
+            .warning,
+            '云端说还有 ${missingShas.length} 个文件没传上去，补传后重试',
+            tag: 'Cloud',
+          );
+          final retry = {
+            for (final file in payload.files)
+              if (missingShas.contains(file.sha256)) file.sha256: file,
+          };
+          await uploadBlobs(retry);
+          continue;
+        }
+        if (!error.isConflict) rethrow;
       final head = await MdtbbsCloudSaveApi.slot(
         accessToken: accessToken,
         slotId: slot.id,
         cancelToken: cancelToken,
       );
-      throw CloudSaveConflictException(
-        cause: error,
-        outcome: outcomeOf(
-          slot: head,
-          state: localState(version),
-          manifest: manifest,
-        ),
-      );
+        throw CloudSaveConflictException(
+          cause: error,
+          outcome: outcomeOf(
+            slot: head,
+            state: localState(version),
+            manifest: manifest,
+          ),
+        );
+      }
     }
 
     final headId =
@@ -1536,7 +1686,19 @@ class CloudSaveService {
           accessToken: accessToken,
           cancelToken: cancelToken,
         );
+        final before = usedNow;
         usedNow = after.usedBytes ?? usedNow;
+        // 删了快照但占用没降：说明这些内容还被别的快照共享，再删也腾不出空间，
+        // 继续删只会白丢用户的历史
+        if (usedNow >= before && snapshot.size != null) {
+          addLog(
+            .info,
+            '删掉第 ${snapshot.revision ?? 0} 版后占用没有下降（内容被其它快照共享），'
+            '不再继续删历史',
+            tag: 'Cloud',
+          );
+          break;
+        }
       } catch (error) {
         // 读不到就按删掉的快照大小估，别在这里中断上传
         usedNow = (usedNow - (snapshot.size ?? 0)).clamp(0, usedNow);
@@ -1550,11 +1712,14 @@ class CloudSaveService {
 
     final stillShort = usedNow + newBytes - limit;
     if (stillShort > 0) {
+      final logical = quotaNow.logicalBytes;
       throw MdtbbsException(
         code: 'QUOTA_INSUFFICIENT',
         message:
             '云端空间不够：这次要 ${formatBytes(newBytes)}，'
-            '清掉 $deleted 个旧快照后还差 ${formatBytes(stillShort)}；'
+            '清掉 $deleted 个旧快照后还差 ${formatBytes(stillShort)}'
+            '${logical == null ? '' : '（快照合计 ${formatBytes(logical)}，'
+                      '占用按去重后的内容算）'}；'
             '先把要长期留的版本固定住、再删掉一些旧快照后重试',
       );
     }

@@ -203,10 +203,14 @@ class MdtbbsCloudSaveApi {
     CloudSaveDisplayInfo? save,
     List<CloudSaveModInfo> mods = const [],
     String? deviceId,
+    String? idempotencyKey,
     CancelToken? cancelToken,
   }) async {
     final data = await MdtbbsClient.postJson(
       '$_base/$slotId/uploads',
+      headers: idempotencyKey == null
+          ? null
+          : {'Idempotency-Key': idempotencyKey},
       body: {
         'sha256': sha256,
         'size': size,
@@ -250,10 +254,14 @@ class MdtbbsCloudSaveApi {
   static Future<CloudSaveSnapshot?> commitUpload({
     required String accessToken,
     required String uploadId,
+    String? idempotencyKey,
     CancelToken? cancelToken,
   }) async {
     final data = await MdtbbsClient.postJson(
       '$_base/uploads/$uploadId/commit',
+      headers: idempotencyKey == null
+          ? null
+          : {'Idempotency-Key': idempotencyKey},
       body: const <String, dynamic>{},
       accessToken: accessToken,
       cancelToken: cancelToken,
@@ -326,11 +334,12 @@ class MdtbbsCloudSaveApi {
     CloudSaveDisplayInfo? save,
     List<CloudSaveModInfo> mods = const [],
     String? deviceId,
+    String? idempotencyKey,
     CancelToken? cancelToken,
   }) async {
     final data = await MdtbbsClient.postJson(
       '$_base/$slotId/snapshots',
-      headers: {'Idempotency-Key': const Uuid().v4()},
+      headers: {'Idempotency-Key': idempotencyKey ?? const Uuid().v4()},
       body: {
         'manifest': manifest.toJson(),
         'base_snapshot_id': ?baseSnapshotId,
