@@ -513,3 +513,149 @@ class TemplateCheckRow extends StatelessWidget {
     );
   }
 }
+
+/// 侧边栏的一格：图标 + 名称（收起时只剩图标，名称走 tooltip）
+class TemplateRailEntry {
+  const TemplateRailEntry({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.showDot = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  /// 右上角小圆点：未读 / 有更新这类
+  final bool showDot;
+}
+
+/// 侧边导航栏：顶部槽（折叠按钮）+ 导航格 + 底部槽（账户 / 任务入口）
+///
+/// 2026-11-04 讨论「账户和任务放哪」时加的：把这几个外壳件从顶栏里拆出来，
+/// 顶栏只留面包屑，侧栏负责导航、账户、任务、收起/展开
+class TemplateSideRail extends StatelessWidget {
+  const TemplateSideRail({
+    super.key,
+    required this.skin,
+    required this.entries,
+    this.selectedIndex = 0,
+    this.onSelect,
+    this.top,
+    this.bottom,
+    this.width = 56,
+  });
+
+  final TemplateSkin skin;
+  final List<TemplateRailEntry> entries;
+  final int selectedIndex;
+  final ValueChanged<int>? onSelect;
+
+  /// 顶部槽：一般是侧栏收起 / 展开按钮
+  final Widget? top;
+
+  /// 底部槽：账户卡、任务抽屉入口这类
+  final Widget? bottom;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      decoration: BoxDecoration(
+        color: skin.surface,
+        border: Border(right: BorderSide(color: skin.border)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
+      child: Column(
+        children: [
+          if (top != null) ...[top!, const SizedBox(height: TemplateSpace.sm)],
+          // 导航格可滚：窗口矮的时候先牺牲它们，顶部折叠和底部账户不动
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  for (var i = 0; i < entries.length; i++)
+                    _TemplateRailTile(
+                      skin: skin,
+                      entry: entries[i],
+                      selected: i == selectedIndex,
+                      onTap:
+                          entries[i].onTap ??
+                          (onSelect == null ? null : () => onSelect!(i)),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (bottom != null) ...[
+            const SizedBox(height: TemplateSpace.sm),
+            bottom!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TemplateRailTile extends StatelessWidget {
+  const _TemplateRailTile({
+    required this.skin,
+    required this.entry,
+    required this.selected,
+    this.onTap,
+  });
+
+  final TemplateSkin skin;
+  final TemplateRailEntry entry;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: TemplateSpace.xs,
+        vertical: 2,
+      ),
+      child: TemplateTooltip(
+        skin: skin,
+        message: entry.label,
+        child: ReboundContainer(
+          onTap: onTap,
+          pressedScale: 0.94,
+          borderRadius: BorderRadius.circular(TemplateRadius.control),
+          backgroundColor: selected ? skin.selected : Colors.transparent,
+          hoverColor: skin.hoverOn(skin.surface),
+          highlightColor: skin.pressed,
+          padding: const EdgeInsets.all(TemplateSpace.sm),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                entry.icon,
+                size: 20,
+                color: selected ? skin.accentText : skin.textSecondary,
+              ),
+              if (entry.showDot)
+                Positioned(
+                  right: -3,
+                  top: -2,
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: skin.danger,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: skin.surface, width: 1),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
