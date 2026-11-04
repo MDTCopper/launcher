@@ -1,6 +1,7 @@
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 
 import 'template_skin.dart';
 
@@ -371,52 +372,159 @@ class TemplateSwitch extends StatefulWidget {
 }
 
 class _TemplateSwitchState extends State<TemplateSwitch>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
+    with TickerProviderStateMixin {
+  static const double _trackWidth = 52;
+  static const double _trackHeight = 32;
+  static const double _thumbSize = 24;
+  static const double _pad = 4;
+
+  /// 按住 / 拖动时球被拉长到多少（M3 的「球被拉伸」）
+  static const double _stretchExtra = 12;
+
+  /// 松手回弹用弹簧（阻尼比 ≈ 0.6，会有一点点过冲，看起来像回弹）
+  static const SpringDescription _spring = SpringDescription(
+    mass: 1,
+    stiffness: 550,
+    damping: 28,
+  );
+
+  /// 允许一点越界，过冲才画得出来（画的时候再夹回 0~1）
+  late final AnimationController _position = AnimationController(
     vsync: this,
+    lowerBound: -0.04,
+    upperBound: 1.04,
     duration: const Duration(milliseconds: 220),
     value: widget.value ? 1 : 0,
   );
+  late final AnimationController _stretch = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 140),
+  );
+
+  bool _dragging = false;
+  double _velocity = 0;
+  double _lastT = 0;
+  Duration _lastStamp = Duration.zero;
 
   @override
   void didUpdateWidget(covariant TemplateSwitch oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value) {
-      widget.value ? _controller.forward() : _controller.reverse();
+    if (widget.value != oldWidget.value && !_dragging) {
+      _settle(widget.value ? 1 : 0);
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _position.dispose();
+    _stretch.dispose();
     super.dispose();
+  }
+
+  /// 用弹簧把 t 落到目标值（回弹动画）
+  void _settle(double target) {
+    _position.animateWith(
+      SpringSimulation(_spring, _position.value, target, 0),
+    );
+  }
+
+  /// 把拖动横坐标换算成 0~1 的 t（球心跟着指针）
+  double _tForDx(double dx) {
+    final thumb = _thumbSize + _stretchExtra * _stretch.value;
+    final travel = _trackWidth - _pad * 2 - thumb;
+    if (travel <= 0) return 0;
+    return ((dx - _pad - thumb / 2) / travel).clamp(0.0, 1.0);
+  }
+
+  void _onDragStart(DragStartDetails details) {
+    _dragging = true;
+    _position.stop();
+    _stretch.animateTo(1, duration: const Duration(milliseconds: 120));
+    _lastT = _position.value;
+    _lastStamp = Duration.zero;
+    _velocity = 0;
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    final t = _tForDx(details.localPosition.dx);
+    _position.value = t;
+    final stamp = details.sourceTimeStamp;
+    if (stamp != null && _lastStamp != Duration.zero) {
+      final dt = (stamp - _lastStamp).inMicroseconds / 1e6;
+      if (dt > 0) _velocity = ((t - _lastT) / dt).clamp(-6.0, 6.0);
+    }
+    _lastStamp = stamp ?? _lastStamp;
+    _lastT = t;
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    _dragging = false;
+    _stretch.animateTo(0, duration: const Duration(milliseconds: 160));
+    // 惯性：往哪边甩就翻到哪边，否则看位置过半没有
+    final target = (_position.value + _velocity * 0.05) >= 0.5 ? 1.0 : 0.0;
+    _position.animateWith(
+      SpringSimulation(_spring, _position.value, target, _velocity),
+    );
+    if ((target > 0.5) != widget.value) widget.onTap();
+    _velocity = 0;
   }
 
   @override
   Widget build(BuildContext context) {
     final skin = widget.skin;
     final enabled = widget.enabled;
-    // M3 的尺寸：轨道 52×32，球 24，四边各留 4
-    const trackWidth = 52.0;
-    const trackHeight = 32.0;
-    const thumbSize = 24.0;
-    const pad = 4.0;
+    // 暗色圆球掺主题色（用户 2026-11-04「圆球主题色再明显一点」）：22% → 38%
+    final thumbOn = skin.dark
+        ? Color.lerp(skin.sunken, skin.accent, 0.38)!
+        : skin.surface;
     return SizedBox(
-      width: trackWidth,
+      width: _trackWidth,
       height: TemplateSwitch.height,
       child: Center(
         child: MouseRegion(
           cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: enabled ? widget.onTap : null,
+            // 点按：按下先拉长球，松手弹回
+            onTapDown: enabled
+                ? (_) => _stretch.animateTo(
+                    1,
+                    duration: const Duration(milliseconds: 110),
+                  )
+                : null,
+            onTapUp: enabled
+                ? (_) => _stretch.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 160),
+                  )
+                : null,
+            onTapCancel: enabled
+                ? () => _stretch.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 160),
+                  )
+                : null,
+            onTap: enabled
+                ? () {
+                    final target = widget.value ? 0.0 : 1.0;
+                    _settle(target);
+                    widget.onTap();
+                  }
+                : null,
+            // 横向拖动：球跟手、松手回弹到最近的一边
+            onHorizontalDragStart: enabled ? _onDragStart : null,
+            onHorizontalDragUpdate: enabled ? _onDragUpdate : null,
+            onHorizontalDragEnd: enabled ? _onDragEnd : null,
             child: Semantics(
               toggled: widget.value,
               enabled: enabled,
               child: AnimatedBuilder(
-                animation: _controller,
+                animation: Listenable.merge([_position, _stretch]),
                 builder: (context, _) {
-                  final t = Curves.easeInOutCubic.transform(_controller.value);
+                  // 过冲夹回来再画，位置与颜色仍按夹过的 t
+                  final t = _position.value.clamp(0.0, 1.0);
+                  final stretch = Curves.easeOutCubic.transform(_stretch.value);
+                  final thumbWidth = _thumbSize + _stretchExtra * stretch;
                   // 禁用时不保留强调色（与 M3 一致）：轨道回到凹槽面，球退成 38% 的字色
                   final trackColor = enabled
                       ? Color.lerp(skin.sunken, skin.accent, t)!
@@ -424,31 +532,30 @@ class _TemplateSwitchState extends State<TemplateSwitch>
                   final borderColor = enabled
                       ? Color.lerp(skin.controlBorder, Colors.transparent, t)!
                       : skin.controlBorderDisabled;
-                  final thumbOn = skin.dark ? skin.sunken : skin.surface;
                   final thumbColor = enabled
                       ? Color.lerp(skin.textTertiary, thumbOn, t)!
                       : skin.textDisabled;
                   return Stack(
                     children: [
                       Container(
-                        width: trackWidth,
-                        height: trackHeight,
+                        width: _trackWidth,
+                        height: _trackHeight,
                         decoration: BoxDecoration(
                           color: trackColor,
-                          borderRadius: BorderRadius.circular(trackHeight / 2),
+                          borderRadius: BorderRadius.circular(_trackHeight / 2),
                           // 自研就把边缘加厚：常态 2px（原生是 1px），开态一起淡出
                           border: Border.all(color: borderColor, width: 2),
                         ),
                       ),
                       Positioned(
-                        left: pad + (trackWidth - thumbSize - pad * 2) * t,
-                        top: (trackHeight - thumbSize) / 2,
-                        width: thumbSize,
-                        height: thumbSize,
+                        left: _pad + (_trackWidth - thumbWidth - _pad * 2) * t,
+                        top: (_trackHeight - _thumbSize) / 2,
+                        width: thumbWidth,
+                        height: _thumbSize,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: thumbColor,
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(_thumbSize / 2),
                           ),
                           child: enabled
                               ? Center(
