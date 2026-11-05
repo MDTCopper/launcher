@@ -44,7 +44,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/30-compact-bar` | 顶栏改成 **40 高单行面包屑**（越靠右越当前、可点可跳），不再堆面包屑/标题/副标题三层 |
 | `catalog/31-rail-placement` | 加 `TemplateSideRail`（折叠/导航/账户/任务四个槽位），并出「账户与任务放哪」三种摆法对照 |
 | `catalog/32-chrome-final` | 外壳定稿——左上角「返回键 / 账户头像」先按共用位置理解；任务右上（左右抽屉）、折叠按钮挪到侧栏底部；侧栏收起成 24 宽窄条 |
-| `catalog/33-logo-slot` | **当前**：澄清——侧栏顶部是**软件 logo**，返回键与 logo 共用那个位置；顶栏左侧只留账户 |
+| `catalog/33-logo-slot` | 澄清——侧栏顶部是**软件 logo**，返回键与 logo 共用那个位置；顶栏左侧只留账户 |
+| `catalog/34-menus-cards` | **当前**：批 1b——右键菜单（复选/危险项/快捷键）、真下拉、提示条四语气（可关闭/行内动作）、列表卡与网格卡 |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`）、实心偏移 −6 / 0 / +6 对照（`accent_shift.png`） |
