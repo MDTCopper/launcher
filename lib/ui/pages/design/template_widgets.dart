@@ -208,6 +208,59 @@ class TemplateKeyRow extends StatelessWidget {
   }
 }
 
+/// 竖排字段块：**标题在上、解释在下、控件再往下**（铺满整行）
+///
+/// 用户 2026-11-05：「内存分配在上 / 下面是解释 / 再下面是选项」——
+/// 分段 / 多选这类控件比单行控件宽，挤在右边会跟别的行对不齐，干脆单独占一块
+class TemplateFieldBlock extends StatelessWidget {
+  const TemplateFieldBlock({
+    super.key,
+    required this.skin,
+    required this.title,
+    required this.child,
+    this.desc,
+    this.enabled = true,
+  });
+
+  final TemplateSkin skin;
+  final String title;
+  final String? desc;
+  final Widget child;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    // 横向 12：和 TemplateRow 的内边距一致，卡里混排时才不会左右错位
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.xs,
+        children: [
+          Text(
+            title,
+            style: TemplateType.item.copyWith(
+              color: enabled ? skin.textPrimary : skin.textDisabled,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (desc != null)
+            Text(
+              desc!,
+              style: TemplateType.caption.copyWith(
+                color: enabled ? skin.textSecondary : skin.textDisabled,
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(top: TemplateSpace.xs),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 开关行：标题 + 说明 + 右侧开关
 class TemplateSwitchRow extends StatelessWidget {
   const TemplateSwitchRow({
