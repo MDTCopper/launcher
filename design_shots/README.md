@@ -50,8 +50,10 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/36-corner-fix` | 圆角改到**内容区**（顶栏保持直角横贯、侧栏是包边），内容区在两者交界处倒角 |
 | `catalog/37-no-divider` | 试**去掉边界线**——顶栏下边框、侧栏右分隔线关掉，只靠底色 + 圆角分隔 |
 | `catalog/38-corner-stroke` | 试**圆角描边**：内容区 1px 边线跟着圆角走（顶栏/侧栏仍不画线） |
-| `shell/shell-01-border` | **外壳特写（1280×800，直接看细节）**：侧栏 + 顶栏 + 内容区，内容区左上/左下圆角 + 描边 |
+| `catalog/39-edge-left-top` | **当前**：内容区只圆**左上**（左下改直角）；描边只画**左 + 上**两条边 |
+| `shell/shell-01-border` | 外壳特写（1280×800）：内容区左上/左下都圆 + 四条边描边（已被 39 取代） |
 | `shell/shell-02-plain` | 同外壳特写，内容区**不描边**（只靠底色差 + 圆角） |
+| `shell/shell-03-stroke` | **当前外壳**：左下直角 + 只画左/上边描边（亮暗各一张） |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`）、实心偏移 −6 / 0 / +6 对照（`accent_shift.png`） |
