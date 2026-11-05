@@ -3,6 +3,7 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 
+import 'template_shell.dart';
 import 'template_skin.dart';
 
 /// 参考模版的组件层：**皮肤（[TemplateSkin]）+ 这一层 = 要搬进 Copper 的东西**
@@ -843,27 +844,59 @@ class _SegmentPillState extends State<_SegmentPill> {
   }
 }
 
+/// 提示条的语气
+enum TemplateNoticeTone { info, success, warning, danger }
+
 /// 提示条：靠底色与左边一道强调线，不靠描边把整条圈起来
+///
+/// 2026-11-05 补：语气（info / success / warning / danger）、可关闭、行内动作——
+/// 覆盖度审计 P0-10（原来的静态一条替代不了错误 / 成功这些场景）
 class TemplateNotice extends StatelessWidget {
   const TemplateNotice({
     super.key,
     required this.skin,
     required this.text,
-    this.icon = Icons.info_outline,
+    this.tone = TemplateNoticeTone.info,
+    this.icon,
+    this.title,
+    this.action,
+    this.onClose,
   });
 
   final TemplateSkin skin;
   final String text;
-  final IconData icon;
+  final TemplateNoticeTone tone;
+
+  /// 不给就按语气取默认图标
+  final IconData? icon;
+  final String? title;
+
+  /// 行内动作，一般是一个安静的按钮
+  final Widget? action;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
+    final (bar, iconColor) = switch (tone) {
+      TemplateNoticeTone.info => (skin.accent, skin.accentText),
+      TemplateNoticeTone.success => (skin.success, skin.success),
+      TemplateNoticeTone.warning => (skin.warning, skin.warning),
+      TemplateNoticeTone.danger => (skin.danger, skin.dangerText),
+    };
+    final resolvedIcon =
+        icon ??
+        switch (tone) {
+          TemplateNoticeTone.info => Icons.info_outline,
+          TemplateNoticeTone.success => Icons.check_circle_outline,
+          TemplateNoticeTone.warning => Icons.warning_amber_outlined,
+          TemplateNoticeTone.danger => Icons.error_outline,
+        };
     // 外面不再自带边距：它是卡里的一项，间距由卡片自己（`TemplateSection.spacing`）管
     return DecoratedBox(
       decoration: BoxDecoration(
         color: skin.sunken,
         borderRadius: BorderRadius.circular(TemplateRadius.card),
-        border: Border(left: BorderSide(color: skin.accent, width: 3)),
+        border: Border(left: BorderSide(color: bar, width: 3)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -873,13 +906,39 @@ class TemplateNotice extends StatelessWidget {
         child: Row(
           spacing: TemplateSpace.md,
           children: [
-            Icon(icon, size: 18, color: skin.accentText),
+            Icon(resolvedIcon, size: 18, color: iconColor),
             Expanded(
-              child: Text(
-                text,
-                style: TemplateType.caption.copyWith(color: skin.textSecondary),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: [
+                  if (title != null)
+                    Text(
+                      title!,
+                      style: TemplateType.item.copyWith(
+                        color: skin.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  Text(
+                    text,
+                    style: TemplateType.caption.copyWith(
+                      color: skin.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
+            if (action != null) action!,
+            if (onClose != null)
+              TemplateIconButton(
+                skin: skin,
+                icon: Icons.close,
+                size: 24,
+                iconSize: 14,
+                tooltip: '关闭',
+                onTap: onClose,
+              ),
           ],
         ),
       ),
@@ -1273,6 +1332,217 @@ class TemplateInputRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 列表项卡：图标 / 封面 + 两行文字 + 右侧动作 + 角标
+///
+/// 覆盖度审计 P0-9：`TemplateTwoLine` 只有两行纯文本且 maxLines 1，
+/// 版本列表 / 模组列表 / 存档列表都需要「图 + 元信息 + 动作 + 状态角标」
+class TemplateListCard extends StatelessWidget {
+  const TemplateListCard({
+    super.key,
+    required this.skin,
+    required this.title,
+    this.subtitle,
+    this.icon,
+    this.cover,
+    this.badge,
+    this.trailing,
+    this.onTap,
+    this.selected = false,
+    this.enabled = true,
+  });
+
+  final TemplateSkin skin;
+  final String title;
+  final String? subtitle;
+
+  /// 前导图标；给了 [cover] 就用图
+  final IconData? icon;
+  final Widget? cover;
+  final Widget? badge;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final bool selected;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = selected ? skin.selected : Colors.transparent;
+    return ReboundContainer(
+      onTap: enabled ? onTap : null,
+      pressedScale: 0.995,
+      borderRadius: BorderRadius.circular(TemplateRadius.control),
+      backgroundColor: background,
+      hoverColor: enabled ? skin.hoverOn(background) : Colors.transparent,
+      highlightColor: enabled ? skin.pressedOn(background) : Colors.transparent,
+      padding: const EdgeInsets.symmetric(
+        horizontal: TemplateSpace.md,
+        vertical: TemplateSpace.sm,
+      ),
+      child: Row(
+        spacing: TemplateSpace.md,
+        children: [
+          if (cover != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(TemplateRadius.control),
+              child: SizedBox(width: 40, height: 40, child: cover),
+            )
+          else if (icon != null)
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: skin.sunken,
+                borderRadius: BorderRadius.circular(TemplateRadius.control),
+              ),
+              child: Icon(
+                icon,
+                size: 18,
+                color: enabled ? skin.textSecondary : skin.textDisabled,
+              ),
+            ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: [
+                Row(
+                  spacing: TemplateSpace.sm,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: TemplateType.item.copyWith(
+                          color: enabled ? skin.textPrimary : skin.textDisabled,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (badge != null) badge!,
+                  ],
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: TemplateType.caption.copyWith(
+                      color: enabled ? skin.textTertiary : skin.textDisabled,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+          if (trailing != null) trailing!,
+        ],
+      ),
+    );
+  }
+}
+
+/// 网格卡：封面 + 标题 + 副标题，资源页 / 版本页的卡片格
+class TemplateGridCard extends StatelessWidget {
+  const TemplateGridCard({
+    super.key,
+    required this.skin,
+    required this.title,
+    this.subtitle,
+    this.cover,
+    this.icon,
+    this.badge,
+    this.onTap,
+    this.selected = false,
+  });
+
+  final TemplateSkin skin;
+  final String title;
+  final String? subtitle;
+  final Widget? cover;
+  final IconData? icon;
+  final Widget? badge;
+  final VoidCallback? onTap;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = selected ? skin.selected : skin.surface;
+    return ReboundContainer(
+      onTap: onTap,
+      pressedScale: 0.985,
+      borderRadius: BorderRadius.circular(TemplateRadius.card),
+      backgroundColor: background,
+      hoverColor: skin.hoverOn(background),
+      highlightColor: skin.pressedOn(background),
+      padding: EdgeInsets.zero,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(TemplateRadius.card),
+          border: Border.all(color: selected ? skin.accent : skin.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(TemplateRadius.card - 1),
+              ),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child:
+                    cover ??
+                    ColoredBox(
+                      color: skin.sunken,
+                      child: Icon(
+                        icon ?? Icons.image_outlined,
+                        size: 28,
+                        color: skin.textTertiary,
+                      ),
+                    ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(TemplateSpace.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: [
+                  Row(
+                    spacing: TemplateSpace.sm,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: TemplateType.item.copyWith(
+                            color: skin.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (badge != null) badge!,
+                    ],
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      style: TemplateType.caption.copyWith(
+                        color: skin.textTertiary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
