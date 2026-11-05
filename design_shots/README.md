@@ -51,12 +51,15 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/37-no-divider` | 试**去掉边界线**——顶栏下边框、侧栏右分隔线关掉，只靠底色 + 圆角分隔 |
 | `catalog/38-corner-stroke` | 试**圆角描边**：内容区 1px 边线跟着圆角走（顶栏/侧栏仍不画线） |
 | `catalog/39-edge-left-top` | 内容区只圆**左上**（左下改直角）；描边只画**左 + 上**两条边 |
-| `catalog/40-brand-rail` | **当前**：仿现有导航栏——侧栏顶部 logo + 「Copper」文字、返回键带「返回」字、收纳按钮在顶栏最左 |
-| `shell/shell-04-brand` | **外壳特写**：展开态（侧栏 logo + Copper / 顶栏收纳按钮高亮 + 账户 / 任务） |
+| `catalog/40-brand-rail` | 仿现有导航栏——侧栏顶部 logo + 「Copper」文字、返回键带「返回」字（收纳按钮曾试放顶栏） |
+| `catalog/41-rail-bottom` | **当前**：**收纳按钮回到侧栏底部**（展开带「收纳菜单」文字、收起只剩图标）；移除版本号；顶栏左侧只留账户 |
+| `shell/shell-04-brand` | 外壳特写：展开态（早期，收纳按钮在顶栏） |
 | `shell/shell-05-collapsed` | 外壳特写：收起态（侧栏 56 宽只剩 logo，收纳按钮转向） |
 | `shell/shell-01-border` | 外壳特写（1280×800）：内容区左上/左下都圆 + 四条边描边（已被 39 取代） |
 | `shell/shell-02-plain` | 同外壳特写，内容区**不描边**（只靠底色差 + 圆角） |
-| `shell/shell-03-stroke` | **当前外壳**：左下直角 + 只画左/上边描边（亮暗各一张） |
+| `shell/shell-03-stroke` | 左下直角 + 只画左/上边描边（收纳按钮在顶栏、有版本号） |
+| `shell/shell-06-rail-bottom` | **当前外壳**：展开态——侧栏 logo + Copper、底部「« 收纳菜单」，顶栏只有账户 |
+| `shell/shell-07-rail-bottom-collapsed` | **当前外壳**：收起态——侧栏 56 宽只剩 logo，底部只剩「»」图标 |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`）、实心偏移 −6 / 0 / +6 对照（`accent_shift.png`） |
