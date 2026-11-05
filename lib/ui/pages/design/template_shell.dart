@@ -209,6 +209,7 @@ class TemplateBreadcrumbBar extends StatefulWidget {
 class _TemplateBreadcrumbBarState extends State<TemplateBreadcrumbBar> {
   final _controller = ScrollController();
   bool _moreLeft = false;
+  bool _jumpedToEnd = false;
 
   @override
   void initState() {
@@ -220,7 +221,11 @@ class _TemplateBreadcrumbBarState extends State<TemplateBreadcrumbBar> {
   @override
   void didUpdateWidget(covariant TemplateBreadcrumbBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+    // 换了一条栈：重新滚到「当前层」那一头
+    if (oldWidget.crumbs.length != widget.crumbs.length) {
+      _jumpedToEnd = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+    }
   }
 
   @override
@@ -233,10 +238,12 @@ class _TemplateBreadcrumbBarState extends State<TemplateBreadcrumbBar> {
   void _sync() {
     if (!mounted || !_controller.hasClients) return;
     final position = _controller.position;
-    // reverse 模式：0 在「当前层」那一头，往左滚时 pixels 变大
-    final moreLeft =
-        position.maxScrollExtent > 0.5 &&
-        position.pixels < position.maxScrollExtent - 0.5;
+    // 栈太长：首次进来先滚到最右（露出当前层），之后左边若有内容就贴渐隐
+    if (!_jumpedToEnd && position.maxScrollExtent > 0.5) {
+      _jumpedToEnd = true;
+      _controller.jumpTo(position.maxScrollExtent);
+    }
+    final moreLeft = position.pixels > position.minScrollExtent + 0.5;
     if (moreLeft != _moreLeft) {
       setState(() => _moreLeft = moreLeft);
     }
@@ -249,8 +256,6 @@ class _TemplateBreadcrumbBarState extends State<TemplateBreadcrumbBar> {
     final row = SingleChildScrollView(
       controller: _controller,
       scrollDirection: Axis.horizontal,
-      // reverse：栈太长时先露出「当前层」那一头，左边可以往回滚
-      reverse: true,
       child: Row(
         spacing: 2,
         children: [
