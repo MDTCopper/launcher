@@ -3,12 +3,37 @@ import 'package:flutter/material.dart';
 
 import 'template_skin.dart';
 
-/// 面包屑的一段：越靠右越「当前」；给了 [onTap] 才能点（像文件管理器那样跳级）
+/// 顶栏「路由线路」上的一段
+///
+/// 用户 2026-11-05 的口径：顶栏显示的是**整条路由栈**（不是层级串），
+/// 从哪个入口进来的栈就长那条栈；点名称直接跳回那一层；
+/// 页面可以在自己那段之后追加**页面内路由**（用框包起来、不可点）。
+///
+/// 例：
+/// - `主页 > 版本选择 > 版本设置 - build 146 > [设置]`
+/// - `社区资源 > [模组] > （模组）下载 - New Horizon`
 class TemplateBreadcrumb {
-  const TemplateBreadcrumb(this.label, {this.onTap});
+  const TemplateBreadcrumb(
+    this.label, {
+    this.onTap,
+    this.tag,
+    this.boxed = false,
+    this.icon,
+  });
 
   final String label;
+
+  /// 可点跳转；[boxed] 为 true 时忽略（页面内路由不可点）
   final VoidCallback? onTap;
+
+  /// 跟在名称后面的小字，如版本 tag「build 146」、资源名「New Horizon」
+  final String? tag;
+
+  /// 页面内路由：框起来、不可点（代表不是标准路由层级）
+  final bool boxed;
+
+  /// 可选前置图标，如「（模组）下载」前的扩展图标
+  final IconData? icon;
 }
 
 /// 页面骨架：**40 高的一行顶栏** + 内容区（默认带滚动）
@@ -121,27 +146,7 @@ class TemplatePageFrame extends StatelessWidget {
                 // 顶栏左侧只放账户（返回键在上一条规则里由侧栏顶部承担）
                 if (leading != null) leading!,
                 Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      spacing: 2,
-                      children: [
-                        for (var i = 0; i < breadcrumb.length; i++) ...[
-                          if (i > 0)
-                            Icon(
-                              Icons.chevron_right,
-                              size: 14,
-                              color: skin.textTertiary,
-                            ),
-                          _BreadcrumbItem(
-                            skin: skin,
-                            item: breadcrumb[i],
-                            current: i == breadcrumb.length - 1,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                  child: TemplateBreadcrumbBar(skin: skin, crumbs: breadcrumb),
                 ),
                 if (actions.isNotEmpty) ...[
                   const SizedBox(width: TemplateSpace.xs),
@@ -152,6 +157,43 @@ class TemplatePageFrame extends StatelessWidget {
             ),
           ),
           Expanded(child: bodyArea),
+        ],
+      ),
+    );
+  }
+}
+
+/// 顶栏的**路由线路**：从左到右是整条栈，段间用 `›` 分隔
+///
+/// - 普通路由段：可点（悬停有底），最右那段是当前页（深色加粗、不可点）
+/// - 页面内路由段（`boxed`）：框起来、不可点，用来表示「这一层不是标准路由」
+/// - `tag`：名称后的小字（版本 tag / 资源名）
+class TemplateBreadcrumbBar extends StatelessWidget {
+  const TemplateBreadcrumbBar({
+    super.key,
+    required this.skin,
+    required this.crumbs,
+  });
+
+  final TemplateSkin skin;
+  final List<TemplateBreadcrumb> crumbs;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        spacing: 2,
+        children: [
+          for (var i = 0; i < crumbs.length; i++) ...[
+            if (i > 0)
+              Icon(Icons.chevron_right, size: 14, color: skin.textTertiary),
+            _BreadcrumbItem(
+              skin: skin,
+              item: crumbs[i],
+              current: i == crumbs.length - 1,
+            ),
+          ],
         ],
       ),
     );
@@ -171,24 +213,80 @@ class _BreadcrumbItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Text(
-      item.label,
-      style: TemplateType.item.copyWith(
-        color: current ? skin.textPrimary : skin.textTertiary,
-        fontWeight: current ? FontWeight.w600 : FontWeight.w400,
-      ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
+    // 页面内路由：框起来、不可点
+    if (item.boxed) {
+      return Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: TemplateSpace.sm,
+          vertical: 1,
+        ),
+        decoration: BoxDecoration(
+          border: Border.all(color: skin.border),
+          borderRadius: BorderRadius.circular(TemplateRadius.control),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: TemplateSpace.xs,
+          children: [
+            if (item.icon != null)
+              Icon(item.icon, size: 12, color: skin.textTertiary),
+            Text(
+              item.label,
+              style: TemplateType.micro.copyWith(
+                color: current ? skin.textSecondary : skin.textTertiary,
+              ),
+            ),
+            if (item.tag != null)
+              Text(
+                item.tag!,
+                style: TemplateType.micro.copyWith(color: skin.textTertiary),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: TemplateSpace.xs,
+      children: [
+        if (item.icon != null)
+          Icon(
+            item.icon,
+            size: 14,
+            color: current ? skin.accentText : skin.textTertiary,
+          ),
+        Text(
+          item.label,
+          style: TemplateType.item.copyWith(
+            color: current ? skin.textPrimary : skin.textTertiary,
+            fontWeight: current ? FontWeight.w600 : FontWeight.w400,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (item.tag != null)
+          Text(
+            item.tag!,
+            style: TemplateType.micro.copyWith(
+              color: current ? skin.textSecondary : skin.textTertiary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+      ],
     );
-    if (current || item.onTap == null) return text;
+
+    if (current || item.onTap == null) return content;
     return ReboundContainer(
       onTap: item.onTap,
       pressedScale: 0.98,
       borderRadius: BorderRadius.circular(TemplateRadius.control),
+      backgroundColor: Colors.transparent,
       hoverColor: skin.hoverOn(skin.surface),
       highlightColor: skin.pressed,
       padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.xs),
-      child: text,
+      child: content,
     );
   }
 }
