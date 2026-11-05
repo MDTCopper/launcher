@@ -62,8 +62,26 @@ class TemplatePageFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final body = Padding(padding: padding, child: child);
-    final content = ColoredBox(
+    // 外壳底色 = 顶栏色：内容区圆角露出来的就是它，于是看起来是「顶栏 + 侧栏包住内容区」
+    final chrome = headerBackground ?? skin.surface;
+    final contentArea = ColoredBox(
       color: pageBackground ?? skin.page,
+      child: scroll
+          ? TemplateScrollView(skin: skin, showBackToTop: true, child: body)
+          : body,
+    );
+    // 圆角只给**内容区**（不是整页）：顶栏保持直角横贯顶部，内容区在交界处倒角
+    final bodyArea = cornerRadius <= 0
+        ? contentArea
+        : ClipRRect(
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(cornerRadius),
+              bottomLeft: Radius.circular(cornerRadius),
+            ),
+            child: contentArea,
+          );
+    return ColoredBox(
+      color: chrome,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -71,7 +89,7 @@ class TemplatePageFrame extends StatelessWidget {
             height: barHeight,
             padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.md),
             decoration: BoxDecoration(
-              color: headerBackground ?? skin.surface,
+              color: chrome,
               border: Border(bottom: BorderSide(color: skin.border)),
             ),
             child: Row(
@@ -110,26 +128,9 @@ class TemplatePageFrame extends StatelessWidget {
               ],
             ),
           ),
-          Expanded(
-            child: scroll
-                ? TemplateScrollView(
-                    skin: skin,
-                    showBackToTop: true,
-                    child: body,
-                  )
-                : body,
-          ),
+          Expanded(child: bodyArea),
         ],
       ),
-    );
-    if (cornerRadius <= 0) return content;
-    // 页面跟侧栏交界处圆一下：左上是主视觉，顺带把左下也圆了，免得只圆一角显得偏
-    return ClipRRect(
-      borderRadius: BorderRadius.only(
-        topLeft: Radius.circular(cornerRadius),
-        bottomLeft: Radius.circular(cornerRadius),
-      ),
-      child: content,
     );
   }
 }
