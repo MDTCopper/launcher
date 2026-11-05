@@ -71,7 +71,10 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_pag
 | `shell/shell-03-stroke` | 左下直角 + 只画左/上边描边（收纳按钮在顶栏、有版本号） |
 | `shell/shell-06-rail-bottom` | **当前外壳**：展开态——侧栏 logo + Copper、底部「« 收纳菜单」，顶栏只有账户 |
 | `shell/shell-07-rail-bottom-collapsed` | **当前外壳**：收起态——侧栏 56 宽只剩 logo，底部只剩「»」图标 |
-| `page/page-01-version-setting` | **第一张整页复刻（当前）**：版本设置·启动——定稿外壳 + 版本头 + 启动选项 / 游戏内存 / 高级选项三段卡 |
+| `page/page-01-version-setting` | 第一张整页复刻：版本设置·启动（初版） |
+| `page/page-02-memory-block` | 内存分配改竖排块（标题 / 解释 / 选项），游戏Java 下拉右对齐 |
+| `page/page-03-aligned` | **当前整页**：行内边距统一（12），其余行与开关行左右边缘对齐 |
+| `page/page-03-tall` | 同上的长图（1180 高），用来检查折线以下的高级选项与危险区 |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`）、实心偏移 −6 / 0 / +6 对照（`accent_shift.png`） |
