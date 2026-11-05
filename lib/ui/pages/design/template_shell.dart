@@ -35,6 +35,7 @@ class TemplatePageFrame extends StatelessWidget {
     this.scroll = true,
     this.padding = const EdgeInsets.all(TemplateSpace.xl),
     this.barHeight = 40,
+    this.cornerRadius = 0,
     this.headerBackground,
     this.pageBackground,
   });
@@ -52,13 +53,16 @@ class TemplatePageFrame extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final Widget child;
   final double barHeight;
+
+  /// 左上角圆角（页面与侧栏交界处）：0 = 直角，一般取 12~16
+  final double cornerRadius;
   final Color? headerBackground;
   final Color? pageBackground;
 
   @override
   Widget build(BuildContext context) {
     final body = Padding(padding: padding, child: child);
-    return ColoredBox(
+    final content = ColoredBox(
       color: pageBackground ?? skin.page,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -117,6 +121,15 @@ class TemplatePageFrame extends StatelessWidget {
           ),
         ],
       ),
+    );
+    if (cornerRadius <= 0) return content;
+    // 页面跟侧栏交界处圆一下：左上是主视觉，顺带把左下也圆了，免得只圆一角显得偏
+    return ClipRRect(
+      borderRadius: BorderRadius.only(
+        topLeft: Radius.circular(cornerRadius),
+        bottomLeft: Radius.circular(cornerRadius),
+      ),
+      child: content,
     );
   }
 }
@@ -539,8 +552,9 @@ class TemplateSideRail extends StatelessWidget {
     this.top,
     this.bottom,
     this.collapsed = false,
-    this.width = 56,
-    this.collapsedWidth = 24,
+    // 展开：图标 + 名称的长条；收起：只剩图标
+    this.width = 180,
+    this.collapsedWidth = 56,
   });
 
   final TemplateSkin skin;
@@ -554,7 +568,7 @@ class TemplateSideRail extends StatelessWidget {
   /// 底部槽：**折叠 / 展开按钮**放这里
   final Widget? bottom;
 
-  /// 收起态：只剩一条 24 宽的窄条 + 底部展开按钮
+  /// 收起态：只剩图标（56 宽），名称走 tooltip
   final bool collapsed;
   final double width;
   final double collapsedWidth;
@@ -574,23 +588,22 @@ class TemplateSideRail extends StatelessWidget {
           if (top != null) ...[top!, const SizedBox(height: TemplateSpace.sm)],
           // 导航格可滚：窗口矮的时候先牺牲它们，底部折叠按钮不动
           Expanded(
-            child: collapsed
-                ? const SizedBox.shrink()
-                : SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        for (var i = 0; i < entries.length; i++)
-                          _TemplateRailTile(
-                            skin: skin,
-                            entry: entries[i],
-                            selected: i == selectedIndex,
-                            onTap:
-                                entries[i].onTap ??
-                                (onSelect == null ? null : () => onSelect!(i)),
-                          ),
-                      ],
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  for (var i = 0; i < entries.length; i++)
+                    _TemplateRailTile(
+                      skin: skin,
+                      entry: entries[i],
+                      selected: i == selectedIndex,
+                      collapsed: collapsed,
+                      onTap:
+                          entries[i].onTap ??
+                          (onSelect == null ? null : () => onSelect!(i)),
                     ),
-                  ),
+                ],
+              ),
+            ),
           ),
           if (bottom != null) ...[
             const SizedBox(height: TemplateSpace.sm),
@@ -602,63 +615,91 @@ class TemplateSideRail extends StatelessWidget {
   }
 }
 
+/// 导航格：展开时是「图标 + 名称」的整条，收起时只剩图标（名称走 tooltip）
 class _TemplateRailTile extends StatelessWidget {
   const _TemplateRailTile({
     required this.skin,
     required this.entry,
     required this.selected,
+    required this.collapsed,
     this.onTap,
   });
 
   final TemplateSkin skin;
   final TemplateRailEntry entry;
   final bool selected;
+  final bool collapsed;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final icon = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(
+          entry.icon,
+          size: 20,
+          color: selected ? skin.accentText : skin.textSecondary,
+        ),
+        if (entry.showDot)
+          Positioned(
+            right: -3,
+            top: -2,
+            child: Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: skin.danger,
+                shape: BoxShape.circle,
+                border: Border.all(color: skin.surface, width: 1),
+              ),
+            ),
+          ),
+      ],
+    );
+
+    final tile = ReboundContainer(
+      onTap: onTap,
+      pressedScale: 0.96,
+      borderRadius: BorderRadius.circular(TemplateRadius.control),
+      backgroundColor: selected ? skin.selected : Colors.transparent,
+      hoverColor: skin.hoverOn(skin.surface),
+      highlightColor: skin.pressed,
+      padding: collapsed
+          ? const EdgeInsets.all(TemplateSpace.sm)
+          : const EdgeInsets.symmetric(
+              horizontal: TemplateSpace.md,
+              vertical: TemplateSpace.sm,
+            ),
+      child: collapsed
+          ? icon
+          : Row(
+              spacing: TemplateSpace.sm,
+              children: [
+                icon,
+                Expanded(
+                  child: Text(
+                    entry.label,
+                    style: TemplateType.item.copyWith(
+                      color: selected ? skin.textPrimary : skin.textSecondary,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: TemplateSpace.xs,
         vertical: 2,
       ),
-      child: TemplateTooltip(
-        skin: skin,
-        message: entry.label,
-        child: ReboundContainer(
-          onTap: onTap,
-          pressedScale: 0.94,
-          borderRadius: BorderRadius.circular(TemplateRadius.control),
-          backgroundColor: selected ? skin.selected : Colors.transparent,
-          hoverColor: skin.hoverOn(skin.surface),
-          highlightColor: skin.pressed,
-          padding: const EdgeInsets.all(TemplateSpace.sm),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Icon(
-                entry.icon,
-                size: 20,
-                color: selected ? skin.accentText : skin.textSecondary,
-              ),
-              if (entry.showDot)
-                Positioned(
-                  right: -3,
-                  top: -2,
-                  child: Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: skin.danger,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: skin.surface, width: 1),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
+      child: collapsed
+          ? TemplateTooltip(skin: skin, message: entry.label, child: tile)
+          : tile,
     );
   }
 }
