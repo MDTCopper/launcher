@@ -37,6 +37,7 @@ class TemplatePageFrame extends StatelessWidget {
     this.barHeight = 40,
     this.cornerRadius = 0,
     this.showBarDivider = true,
+    this.showContentBorder = false,
     this.headerBackground,
     this.pageBackground,
   });
@@ -60,6 +61,9 @@ class TemplatePageFrame extends StatelessWidget {
 
   /// 顶栏下边框：去掉后靠底色 + 内容区圆角分隔（用户 2026-11-05 想试无边界线）
   final bool showBarDivider;
+
+  /// 内容区描边：1px 边线跟着圆角走（顶栏/侧栏不画线，分隔靠这一圈）
+  final bool showContentBorder;
   final Color? headerBackground;
   final Color? pageBackground;
 
@@ -82,7 +86,19 @@ class TemplatePageFrame extends StatelessWidget {
               topLeft: Radius.circular(cornerRadius),
               bottomLeft: Radius.circular(cornerRadius),
             ),
-            child: contentArea,
+            child: showContentBorder
+                // 描边画在裁切里面，跟着圆角走
+                ? DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: skin.border),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(cornerRadius),
+                        bottomLeft: Radius.circular(cornerRadius),
+                      ),
+                    ),
+                    child: contentArea,
+                  )
+                : contentArea,
           );
     return ColoredBox(
       color: chrome,
