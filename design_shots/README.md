@@ -48,7 +48,10 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/34-menus-cards` | 批 1b——右键菜单（复选/危险项/快捷键）、真下拉、提示条四语气（可关闭/行内动作）、列表卡与网格卡 |
 | `catalog/35-rail-labels` | 侧栏展开是「图标 + 名称」长条（180 宽）、折叠只剩图标（56 宽）；页面左侧加圆角 |
 | `catalog/36-corner-fix` | 圆角改到**内容区**（顶栏保持直角横贯、侧栏是包边），内容区在两者交界处倒角 |
-| `catalog/37-no-divider` | **当前**：试**去掉边界线**——顶栏下边框、侧栏右分隔线关掉，只靠底色 + 圆角分隔 |
+| `catalog/37-no-divider` | 试**去掉边界线**——顶栏下边框、侧栏右分隔线关掉，只靠底色 + 圆角分隔 |
+| `catalog/38-corner-stroke` | 试**圆角描边**：内容区 1px 边线跟着圆角走（顶栏/侧栏仍不画线） |
+| `shell/shell-01-border` | **外壳特写（1280×800，直接看细节）**：侧栏 + 顶栏 + 内容区，内容区左上/左下圆角 + 描边 |
+| `shell/shell-02-plain` | 同外壳特写，内容区**不描边**（只靠底色差 + 圆角） |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`）、实心偏移 −6 / 0 / +6 对照（`accent_shift.png`） |
