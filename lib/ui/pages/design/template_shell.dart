@@ -62,7 +62,7 @@ class TemplatePageFrame extends StatelessWidget {
   /// 顶栏下边框：去掉后靠底色 + 内容区圆角分隔（用户 2026-11-05 想试无边界线）
   final bool showBarDivider;
 
-  /// 内容区描边：1px 边线跟着圆角走（顶栏/侧栏不画线，分隔靠这一圈）
+  /// 内容区描边：只画**左边 + 上边**两条 1px 线（左上角跟着圆角），右边和下边不画
   final bool showContentBorder;
   final Color? headerBackground;
   final Color? pageBackground;
@@ -78,25 +78,26 @@ class TemplatePageFrame extends StatelessWidget {
           ? TemplateScrollView(skin: skin, showBackToTop: true, child: body)
           : body,
     );
-    // 圆角只给**内容区**（不是整页）：顶栏保持直角横贯顶部，内容区在交界处倒角
+    // 圆角只给内容区的**左上角**（不是整页）：顶栏保持直角横贯顶部，左下留直角
     final bodyArea = cornerRadius <= 0
         ? contentArea
         : ClipRRect(
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(cornerRadius),
-              bottomLeft: Radius.circular(cornerRadius),
             ),
             child: showContentBorder
-                // 描边画在裁切里面，跟着圆角走
-                ? DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: skin.border),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(cornerRadius),
-                        bottomLeft: Radius.circular(cornerRadius),
+                // 描边只压左边与上边，跟着左上圆角走
+                ? Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      contentArea,
+                      IgnorePointer(
+                        child: TemplateContentEdge(
+                          skin: skin,
+                          cornerRadius: cornerRadius,
+                        ),
                       ),
-                    ),
-                    child: contentArea,
+                    ],
                   )
                 : contentArea,
           );
@@ -730,5 +731,68 @@ class _TemplateRailTile extends StatelessWidget {
           ? TemplateTooltip(skin: skin, message: entry.label, child: tile)
           : tile,
     );
+  }
+}
+
+/// 内容区描边：只画**左边 + 上边**两条 1px 线，左上角顺着圆角画弧；右边与下边不画
+///
+/// 用户 2026-11-05：「描边说的是内容页的左和上边加描边」
+class TemplateContentEdge extends StatelessWidget {
+  const TemplateContentEdge({
+    super.key,
+    required this.skin,
+    required this.cornerRadius,
+  });
+
+  final TemplateSkin skin;
+  final double cornerRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _ContentEdgePainter(
+        color: skin.border,
+        cornerRadius: cornerRadius,
+      ),
+    );
+  }
+}
+
+class _ContentEdgePainter extends CustomPainter {
+  _ContentEdgePainter({required this.color, required this.cornerRadius});
+
+  final Color color;
+  final double cornerRadius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final radius = cornerRadius;
+    // 0.5 内缩让 1px 线落在像素上，不糊成两像素
+    final path = Path()..moveTo(0.5, size.height);
+    if (radius > 0) {
+      path
+        ..lineTo(0.5, radius + 0.5)
+        ..arcToPoint(
+          Offset(radius + 0.5, 0.5),
+          radius: Radius.circular(radius),
+          clockwise: true,
+        );
+    } else {
+      path.lineTo(0.5, 0.5);
+    }
+    path.lineTo(size.width, 0.5);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ContentEdgePainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.cornerRadius != cornerRadius;
   }
 }
