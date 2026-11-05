@@ -658,6 +658,7 @@ class TemplateRailBack extends StatelessWidget {
         onTap: onTap,
         pressedScale: collapsed ? 0.8 : 0.94,
         borderRadius: BorderRadius.circular(TemplateRadius.control),
+        backgroundColor: Colors.transparent,
         hoverColor: skin.hoverOn(skin.surface),
         highlightColor: skin.pressed,
         child: Row(
@@ -669,6 +670,69 @@ class TemplateRailBack extends StatelessWidget {
                 child: Text(
                   label,
                   style: TemplateType.item.copyWith(color: skin.textPrimary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 侧栏**底部**的收纳 / 展开按钮：展开时是「图标 + 文字」一整条（跟菜单项一致），收起只剩图标
+class TemplateRailCollapse extends StatelessWidget {
+  const TemplateRailCollapse({
+    super.key,
+    required this.skin,
+    required this.collapsed,
+    this.collapseLabel = '收纳菜单',
+    this.expandLabel = '展开菜单',
+    this.onTap,
+  });
+
+  final TemplateSkin skin;
+  final bool collapsed;
+  final String collapseLabel;
+  final String expandLabel;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.xs),
+      child: ReboundContainer(
+        onTap: onTap,
+        pressedScale: collapsed ? 0.94 : 0.96,
+        borderRadius: BorderRadius.circular(TemplateRadius.control),
+        backgroundColor: Colors.transparent,
+        hoverColor: skin.hoverOn(skin.surface),
+        highlightColor: skin.pressed,
+        padding: collapsed
+            ? const EdgeInsets.all(TemplateSpace.sm)
+            : const EdgeInsets.symmetric(
+                horizontal: TemplateSpace.md,
+                vertical: TemplateSpace.sm,
+              ),
+        child: Row(
+          spacing: TemplateSpace.sm,
+          children: [
+            AnimatedRotation(
+              turns: collapsed ? 0.5 : 0,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.ease,
+              child: Icon(
+                Icons.keyboard_double_arrow_left,
+                size: 20,
+                color: skin.textSecondary,
+              ),
+            ),
+            if (!collapsed)
+              Flexible(
+                child: Text(
+                  collapsed ? expandLabel : collapseLabel,
+                  style: TemplateType.item.copyWith(color: skin.textSecondary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -708,7 +772,7 @@ class TemplateNavigationToggle extends StatelessWidget {
   }
 }
 
-/// 侧边导航栏：顶部槽（**软件 logo / 返回键**）+ 导航格 + 底部槽（底部条目，如版本号 / 账户）
+/// 侧边导航栏：顶部槽（**软件 logo / 返回键**）+ 导航格 + 底部槽（**收纳 / 展开按钮**）
 class TemplateSideRail extends StatelessWidget {
   const TemplateSideRail({
     super.key,
