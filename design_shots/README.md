@@ -52,7 +52,9 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/38-corner-stroke` | 试**圆角描边**：内容区 1px 边线跟着圆角走（顶栏/侧栏仍不画线） |
 | `catalog/39-edge-left-top` | 内容区只圆**左上**（左下改直角）；描边只画**左 + 上**两条边 |
 | `catalog/40-brand-rail` | 仿现有导航栏——侧栏顶部 logo + 「Copper」文字、返回键带「返回」字（收纳按钮曾试放顶栏） |
-| `catalog/41-rail-bottom` | **当前**：**收纳按钮回到侧栏底部**（展开带「收纳菜单」文字、收起只剩图标）；移除版本号；顶栏左侧只留账户 |
+| `catalog/41-rail-bottom` | 收纳按钮回到侧栏底部（展开带「收纳菜单」文字、收起只剩图标）；移除版本号；顶栏左侧只留账户 |
+| `catalog/42-route-stack` | **当前**：顶栏**路由线路**——整条栈（名称 + tag）、可点跳级、页面内路由用框包起来、页面内路由后还能再接外部路由 |
+| `shell/shell-08-route-stack` | **当前外壳**：路由线路实拍（`主页 › 版本选择 › 版本设置 build 146 › [设置]`） |
 | `shell/shell-04-brand` | 外壳特写：展开态（早期，收纳按钮在顶栏） |
 | `shell/shell-05-collapsed` | 外壳特写：收起态（侧栏 56 宽只剩 logo，收纳按钮转向） |
 | `shell/shell-01-border` | 外壳特写（1280×800）：内容区左上/左下都圆 + 四条边描边（已被 39 取代） |
