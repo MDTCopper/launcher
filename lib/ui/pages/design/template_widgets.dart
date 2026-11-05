@@ -208,6 +208,50 @@ class TemplateKeyRow extends StatelessWidget {
   }
 }
 
+/// 通用卡片：卡面色 + 1px 边 + 卡圆角
+///
+/// `TemplateSection` 是「标题 + 卡」；这块是不带标题的卡，给版本头这类自成一块的内容用
+class TemplateCard extends StatelessWidget {
+  const TemplateCard({
+    super.key,
+    required this.skin,
+    required this.child,
+    this.padding = const EdgeInsets.all(TemplateSpace.lg),
+    this.selected = false,
+    this.onTap,
+  });
+
+  final TemplateSkin skin;
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = selected ? skin.selected : skin.surface;
+    final card = DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(TemplateRadius.card),
+        border: Border.all(color: skin.border),
+      ),
+      child: Padding(padding: padding, child: child),
+    );
+    if (onTap == null) return card;
+    return ReboundContainer(
+      onTap: onTap,
+      pressedScale: 0.995,
+      borderRadius: BorderRadius.circular(TemplateRadius.card),
+      backgroundColor: Colors.transparent,
+      hoverColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      padding: EdgeInsets.zero,
+      child: card,
+    );
+  }
+}
+
 /// 竖排字段块：**标题在上、解释在下、控件再往下**（铺满整行）
 ///
 /// 用户 2026-11-05：「内存分配在上 / 下面是解释 / 再下面是选项」——
