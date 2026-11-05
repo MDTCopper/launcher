@@ -50,7 +50,10 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 | `catalog/36-corner-fix` | 圆角改到**内容区**（顶栏保持直角横贯、侧栏是包边），内容区在两者交界处倒角 |
 | `catalog/37-no-divider` | 试**去掉边界线**——顶栏下边框、侧栏右分隔线关掉，只靠底色 + 圆角分隔 |
 | `catalog/38-corner-stroke` | 试**圆角描边**：内容区 1px 边线跟着圆角走（顶栏/侧栏仍不画线） |
-| `catalog/39-edge-left-top` | **当前**：内容区只圆**左上**（左下改直角）；描边只画**左 + 上**两条边 |
+| `catalog/39-edge-left-top` | 内容区只圆**左上**（左下改直角）；描边只画**左 + 上**两条边 |
+| `catalog/40-brand-rail` | **当前**：仿现有导航栏——侧栏顶部 logo + 「Copper」文字、返回键带「返回」字、收纳按钮在顶栏最左 |
+| `shell/shell-04-brand` | **外壳特写**：展开态（侧栏 logo + Copper / 顶栏收纳按钮高亮 + 账户 / 任务） |
+| `shell/shell-05-collapsed` | 外壳特写：收起态（侧栏 56 宽只剩 logo，收纳按钮转向） |
 | `shell/shell-01-border` | 外壳特写（1280×800）：内容区左上/左下都圆 + 四条边描边（已被 39 取代） |
 | `shell/shell-02-plain` | 同外壳特写，内容区**不描边**（只靠底色差 + 圆角） |
 | `shell/shell-03-stroke` | **当前外壳**：左下直角 + 只画左/上边描边（亮暗各一张） |
