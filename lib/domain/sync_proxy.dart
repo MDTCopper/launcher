@@ -562,10 +562,9 @@ Future<void> runSyncProxy({String? versionId}) async {
     title: '云同步',
     titleBarStyle: TitleBarStyle.hidden,
   );
-  await windowManager.waitUntilReadyToShow(options, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
+  // 这里不显示窗口：先 show 会露出窗口默认底色，要等首帧画完再显示；
+  // 代理进程带 --launch-version，Windows runner 已压制首次自动显示，只能由这里补
+  await windowManager.waitUntilReadyToShow(options, null);
   // WindowOptions 的 size 在 Windows 上按物理像素落，而 Flutter 布局用的是
   // 逻辑像素；125% 缩放下 420x180 会变成 336x144，底部/右侧内容被裁。
   // 按 DPR 反算一次物理尺寸，保证逻辑区域仍是 420x180。
@@ -594,4 +593,8 @@ Future<void> runSyncProxy({String? versionId}) async {
   );
   await SyncProxyStore.writeProxyPid();
   runApp(SyncProxyApp(versionId: versionId));
+  // 与主窗口同一口径：首帧渲染完再显示，避免先露出一块空白小窗
+  await WidgetsBinding.instance.endOfFrame;
+  await windowManager.show();
+  await windowManager.focus();
 }
