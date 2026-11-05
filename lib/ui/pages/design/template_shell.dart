@@ -36,6 +36,7 @@ class TemplatePageFrame extends StatelessWidget {
     this.padding = const EdgeInsets.all(TemplateSpace.xl),
     this.barHeight = 40,
     this.cornerRadius = 0,
+    this.showBarDivider = true,
     this.headerBackground,
     this.pageBackground,
   });
@@ -56,6 +57,9 @@ class TemplatePageFrame extends StatelessWidget {
 
   /// 左上角圆角（页面与侧栏交界处）：0 = 直角，一般取 12~16
   final double cornerRadius;
+
+  /// 顶栏下边框：去掉后靠底色 + 内容区圆角分隔（用户 2026-11-05 想试无边界线）
+  final bool showBarDivider;
   final Color? headerBackground;
   final Color? pageBackground;
 
@@ -90,7 +94,9 @@ class TemplatePageFrame extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.md),
             decoration: BoxDecoration(
               color: chrome,
-              border: Border(bottom: BorderSide(color: skin.border)),
+              border: showBarDivider
+                  ? Border(bottom: BorderSide(color: skin.border))
+                  : null,
             ),
             child: Row(
               spacing: TemplateSpace.xs,
@@ -556,6 +562,7 @@ class TemplateSideRail extends StatelessWidget {
     // 展开：图标 + 名称的长条；收起：只剩图标
     this.width = 180,
     this.collapsedWidth = 56,
+    this.showDivider = true,
   });
 
   final TemplateSkin skin;
@@ -574,6 +581,9 @@ class TemplateSideRail extends StatelessWidget {
   final double width;
   final double collapsedWidth;
 
+  /// 右侧分隔线：去掉后靠底色 + 内容区圆角分隔
+  final bool showDivider;
+
   @override
   Widget build(BuildContext context) {
     final railWidth = collapsed ? collapsedWidth : width;
@@ -581,7 +591,9 @@ class TemplateSideRail extends StatelessWidget {
       width: railWidth,
       decoration: BoxDecoration(
         color: skin.surface,
-        border: Border(right: BorderSide(color: skin.border)),
+        border: showDivider
+            ? Border(right: BorderSide(color: skin.border))
+            : null,
       ),
       padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
       child: Column(
