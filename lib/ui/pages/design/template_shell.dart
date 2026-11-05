@@ -63,6 +63,7 @@ class TemplatePageFrame extends StatelessWidget {
     this.cornerRadius = 0,
     this.showBarDivider = true,
     this.showContentBorder = false,
+    this.onWindowDragStart,
     this.headerBackground,
     this.pageBackground,
   });
@@ -89,6 +90,9 @@ class TemplatePageFrame extends StatelessWidget {
 
   /// 内容区描边：只画**左边 + 上边**两条 1px 线（左上角跟着圆角），右边和下边不画
   final bool showContentBorder;
+
+  /// 顶栏可拖动窗口：给一个「开始拖拽」回调（应用里接 `windowManager.startDragging`）
+  final VoidCallback? onWindowDragStart;
   final Color? headerBackground;
   final Color? pageBackground;
 
@@ -140,19 +144,35 @@ class TemplatePageFrame extends StatelessWidget {
                   ? Border(bottom: BorderSide(color: skin.border))
                   : null,
             ),
-            child: Row(
-              spacing: TemplateSpace.xs,
+            child: Stack(
               children: [
-                // 顶栏左侧只放账户（返回键在上一条规则里由侧栏顶部承担）
-                if (leading != null) leading!,
-                Expanded(
-                  child: TemplateBreadcrumbBar(skin: skin, crumbs: breadcrumb),
+                // 拖拽区铺满整条顶栏（按钮在它上面，空白处可拖窗口）
+                if (onWindowDragStart != null)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onPanStart: (_) => onWindowDragStart!(),
+                    ),
+                  ),
+                Row(
+                  spacing: TemplateSpace.xs,
+                  children: [
+                    // 顶栏左侧只放账户（返回键在上一条规则里由侧栏顶部承担）
+                    if (leading != null) leading!,
+                    Expanded(
+                      child: TemplateBreadcrumbBar(
+                        skin: skin,
+                        crumbs: breadcrumb,
+                        fadeColor: chrome,
+                      ),
+                    ),
+                    if (actions.isNotEmpty) ...[
+                      const SizedBox(width: TemplateSpace.xs),
+                      Row(spacing: 2, children: actions),
+                    ],
+                    if (trailing != null) trailing!,
+                  ],
                 ),
-                if (actions.isNotEmpty) ...[
-                  const SizedBox(width: TemplateSpace.xs),
-                  Row(spacing: 2, children: actions),
-                ],
-                if (trailing != null) trailing!,
               ],
             ),
           ),
@@ -168,34 +188,105 @@ class TemplatePageFrame extends StatelessWidget {
 /// - 普通路由段：可点（悬停有底），最右那段是当前页（深色加粗、不可点）
 /// - 页面内路由段（`boxed`）：框起来、不可点，用来表示「这一层不是标准路由」
 /// - `tag`：名称后的小字（版本 tag / 资源名）
-class TemplateBreadcrumbBar extends StatelessWidget {
+class TemplateBreadcrumbBar extends StatefulWidget {
   const TemplateBreadcrumbBar({
     super.key,
     required this.skin,
     required this.crumbs,
+    this.fadeColor,
   });
 
   final TemplateSkin skin;
   final List<TemplateBreadcrumb> crumbs;
 
+  /// 左侧渐隐用的底色（默认取皮肤卡面色）
+  final Color? fadeColor;
+
+  @override
+  State<TemplateBreadcrumbBar> createState() => _TemplateBreadcrumbBarState();
+}
+
+class _TemplateBreadcrumbBarState extends State<TemplateBreadcrumbBar> {
+  final _controller = ScrollController();
+  bool _moreLeft = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_sync);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+  }
+
+  @override
+  void didUpdateWidget(covariant TemplateBreadcrumbBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_sync);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _sync() {
+    if (!mounted || !_controller.hasClients) return;
+    final position = _controller.position;
+    // reverse 模式：0 在「当前层」那一头，往左滚时 pixels 变大
+    final moreLeft =
+        position.maxScrollExtent > 0.5 &&
+        position.pixels < position.maxScrollExtent - 0.5;
+    if (moreLeft != _moreLeft) {
+      setState(() => _moreLeft = moreLeft);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    final skin = widget.skin;
+    final fadeColor = widget.fadeColor ?? skin.surface;
+    final row = SingleChildScrollView(
+      controller: _controller,
       scrollDirection: Axis.horizontal,
+      // reverse：栈太长时先露出「当前层」那一头，左边可以往回滚
+      reverse: true,
       child: Row(
         spacing: 2,
         children: [
-          for (var i = 0; i < crumbs.length; i++) ...[
+          for (var i = 0; i < widget.crumbs.length; i++) ...[
             if (i > 0)
               Icon(Icons.chevron_right, size: 14, color: skin.textTertiary),
             _BreadcrumbItem(
               skin: skin,
-              item: crumbs[i],
-              current: i == crumbs.length - 1,
+              item: widget.crumbs[i],
+              current: i == widget.crumbs.length - 1,
             ),
           ],
         ],
       ),
+    );
+    if (!_moreLeft) return row;
+    // 左边还有内容：贴一条 20px 渐隐，暗示可以往回滚
+    return Stack(
+      children: [
+        row,
+        Positioned(
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 20,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [fadeColor, fadeColor.withAlpha(0)],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1035,6 +1126,123 @@ class _TemplateRailTile extends StatelessWidget {
       child: collapsed
           ? TemplateTooltip(skin: skin, message: entry.label, child: tile)
           : tile,
+    );
+  }
+}
+
+/// 窗口控制按钮（最小化 / 最大化 / 关闭）
+///
+/// 仿现有 `WindowCloseButton`：关闭按钮悬停时铺危险色底、图标转成 `onDanger`；
+/// 最小化 / 最大化悬停只铺一层薄底。动作由应用侧接 `windowManager`
+class TemplateWindowControls extends StatelessWidget {
+  const TemplateWindowControls({
+    super.key,
+    required this.skin,
+    this.onMinimize,
+    this.onMaximize,
+    this.onClose,
+    this.size = 28,
+    this.iconSize = 14,
+  });
+
+  final TemplateSkin skin;
+  final VoidCallback? onMinimize;
+  final VoidCallback? onMaximize;
+  final VoidCallback? onClose;
+  final double size;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 2,
+      children: [
+        if (onMinimize != null)
+          _TemplateWindowButton(
+            skin: skin,
+            icon: Icons.remove,
+            tooltip: '最小化',
+            size: size,
+            iconSize: iconSize,
+            onTap: onMinimize,
+          ),
+        if (onMaximize != null)
+          _TemplateWindowButton(
+            skin: skin,
+            icon: Icons.crop_square,
+            tooltip: '最大化',
+            size: size,
+            iconSize: iconSize - 2,
+            onTap: onMaximize,
+          ),
+        if (onClose != null)
+          _TemplateWindowButton(
+            skin: skin,
+            icon: Icons.close,
+            tooltip: '关闭',
+            size: size,
+            iconSize: iconSize,
+            danger: true,
+            onTap: onClose,
+          ),
+      ],
+    );
+  }
+}
+
+class _TemplateWindowButton extends StatefulWidget {
+  const _TemplateWindowButton({
+    required this.skin,
+    required this.icon,
+    required this.tooltip,
+    required this.size,
+    required this.iconSize,
+    this.danger = false,
+    this.onTap,
+  });
+
+  final TemplateSkin skin;
+  final IconData icon;
+  final String tooltip;
+  final double size;
+  final double iconSize;
+  final bool danger;
+  final VoidCallback? onTap;
+
+  @override
+  State<_TemplateWindowButton> createState() => _TemplateWindowButtonState();
+}
+
+class _TemplateWindowButtonState extends State<_TemplateWindowButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = widget.skin;
+    final background = _hovered
+        ? (widget.danger ? skin.danger : skin.hoverOn(skin.surface))
+        : Colors.transparent;
+    final foreground = _hovered && widget.danger
+        ? skin.onDanger
+        : skin.textSecondary;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: TemplateTooltip(
+        skin: skin,
+        message: widget.tooltip,
+        child: ReboundContainer(
+          onTap: widget.onTap,
+          pressedScale: 0.94,
+          borderRadius: BorderRadius.circular(TemplateRadius.control),
+          backgroundColor: background,
+          hoverColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          padding: EdgeInsets.all((widget.size - widget.iconSize) / 2),
+          child: Icon(widget.icon, size: widget.iconSize, color: foreground),
+        ),
+      ),
     );
   }
 }
