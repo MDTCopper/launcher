@@ -20,8 +20,9 @@ class TemplateBreadcrumb {
 /// （拖拽区 / 折叠 / 面包屑 / 窗控），设计层原先一行都没有。
 /// 这里只做**内容页**的骨架；窗口拖拽、窗控按钮属于外壳，用 [leading] / [trailing] 注入
 ///
-/// 2026-11-04 定稿的左上角规则：**返回键与左上 icon 共用同一个位置**——
-/// 子页面（[onBack] 非空）显示返回，否则显示 [leading]（账户头像 / 应用图标）
+/// 2026-11-04 定稿的外壳规则（用户澄清后）：**软件 logo 在左侧边栏顶部，返回键与 logo 共用那个位置**
+/// ——子页面时侧栏顶部显示返回、隐藏 logo；顶栏左边是账户（左抽屉）、右边是任务（右抽屉）。
+/// 所以本组件不再管返回键，[leading] 放账户，[trailing] 放任务/窗控
 class TemplatePageFrame extends StatelessWidget {
   const TemplatePageFrame({
     super.key,
@@ -29,7 +30,6 @@ class TemplatePageFrame extends StatelessWidget {
     required this.breadcrumb,
     required this.child,
     this.actions = const <Widget>[],
-    this.onBack,
     this.leading,
     this.trailing,
     this.scroll = true,
@@ -44,9 +44,8 @@ class TemplatePageFrame extends StatelessWidget {
   /// 从根到当前的路径（至少一段）；最后一段是当前页、不可点
   final List<TemplateBreadcrumb> breadcrumb;
   final List<Widget> actions;
-  final VoidCallback? onBack;
 
-  /// 外壳插进来的东西：折叠按钮 / 账户卡 / 任务抽屉按钮等
+  /// 顶栏左侧：账户头像（左抽屉入口）
   final Widget? leading;
   final Widget? trailing;
   final bool scroll;
@@ -74,18 +73,8 @@ class TemplatePageFrame extends StatelessWidget {
             child: Row(
               spacing: TemplateSpace.xs,
               children: [
-                // 左上角共享位置：有返回就显示返回，否则显示外壳给的那颗 icon（账户 / 应用图标）
-                if (onBack != null)
-                  TemplateIconButton(
-                    skin: skin,
-                    icon: Icons.arrow_back,
-                    tooltip: '返回',
-                    size: 28,
-                    iconSize: 16,
-                    onTap: onBack,
-                  )
-                else if (leading != null)
-                  leading!,
+                // 顶栏左侧只放账户（返回键在上一条规则里由侧栏顶部承担）
+                if (leading != null) leading!,
                 Expanded(
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -536,10 +525,10 @@ class TemplateRailEntry {
   final bool showDot;
 }
 
-/// 侧边导航栏：顶部槽（折叠按钮）+ 导航格 + 底部槽（账户 / 任务入口）
+/// 侧边导航栏：顶部槽（**软件 logo / 返回键**）+ 导航格 + 底部槽（**折叠按钮**）
 ///
-/// 2026-11-04 定稿的摆放：**折叠按钮在侧栏底部**、账户在**左上**、任务在**右上**（左右侧抽屉）；
-/// 左上角与返回键**共用同一个位置**——子页面时显示返回，否则显示账户图标
+/// 2026-11-04 定稿的摆放：**折叠按钮在侧栏底部**、账户在顶栏**左上**、任务在顶栏**右上**（左右侧抽屉）；
+/// 顶部那个位置是**软件 logo**，子页面时换成返回键（两者共享同一位置）
 class TemplateSideRail extends StatelessWidget {
   const TemplateSideRail({
     super.key,
@@ -559,7 +548,7 @@ class TemplateSideRail extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int>? onSelect;
 
-  /// 顶部槽（可选）：一般不用，折叠按钮已经挪到底部
+  /// 顶部槽：**软件 logo**；子页面时换成返回键（二选一，位置共用）
   final Widget? top;
 
   /// 底部槽：**折叠 / 展开按钮**放这里
