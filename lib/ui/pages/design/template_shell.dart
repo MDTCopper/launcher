@@ -299,6 +299,7 @@ class TemplateIconButton extends StatelessWidget {
     this.size = 32,
     this.selected = false,
     this.enabled = true,
+    this.rotationTurns = 0.0,
   });
 
   final TemplateSkin skin;
@@ -310,9 +311,23 @@ class TemplateIconButton extends StatelessWidget {
   final bool selected;
   final bool enabled;
 
+  /// 图标旋转圈数（收纳按钮用：展开 0 圈、收起 0.5 圈）
+  final double rotationTurns;
+
   @override
   Widget build(BuildContext context) {
-    final foreground = enabled ? skin.textSecondary : skin.textDisabled;
+    final foreground = selected && enabled
+        ? skin.accentText
+        : (enabled ? skin.textSecondary : skin.textDisabled);
+    Widget iconWidget = Icon(icon, size: iconSize, color: foreground);
+    if (rotationTurns != 0) {
+      iconWidget = AnimatedRotation(
+        turns: rotationTurns,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.ease,
+        child: iconWidget,
+      );
+    }
     final button = ReboundContainer(
       onTap: enabled ? (onTap ?? () {}) : null,
       pressedScale: 0.94,
@@ -321,7 +336,7 @@ class TemplateIconButton extends StatelessWidget {
       hoverColor: enabled ? skin.hoverOn(skin.surface) : Colors.transparent,
       highlightColor: enabled ? skin.pressed : Colors.transparent,
       padding: EdgeInsets.all((size - iconSize) / 2),
-      child: Icon(icon, size: iconSize, color: foreground),
+      child: iconWidget,
     );
     if (tooltip == null) return button;
     return TemplateTooltip(skin: skin, message: tooltip!, child: button);
@@ -562,10 +577,138 @@ class TemplateRailEntry {
   final bool showDot;
 }
 
-/// 侧边导航栏：顶部槽（**软件 logo / 返回键**）+ 导航格 + 底部槽（**折叠按钮**）
-///
-/// 2026-11-04 定稿的摆放：**折叠按钮在侧栏底部**、账户在顶栏**左上**、任务在顶栏**右上**（左右侧抽屉）；
-/// 顶部那个位置是**软件 logo**，子页面时换成返回键（两者共享同一位置）
+/// 侧栏顶部：**软件 logo + 应用名**（展开显示文字、收起只剩 logo），仿照现有 App 的 `NavigationRail._buildLogo`
+class TemplateRailBrand extends StatelessWidget {
+  const TemplateRailBrand({
+    super.key,
+    required this.skin,
+    this.logo,
+    this.title = 'Copper',
+    this.collapsed = false,
+  });
+
+  final TemplateSkin skin;
+  final Widget? logo;
+  final String title;
+  final bool collapsed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.md),
+      alignment: Alignment.centerLeft,
+      child: Row(
+        spacing: TemplateSpace.sm,
+        children: [
+          logo ??
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: skin.accent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  Icons.play_arrow_rounded,
+                  size: 16,
+                  color: skin.onAccent,
+                ),
+              ),
+          if (!collapsed)
+            Flexible(
+              child: Text(
+                title,
+                style: TemplateType.page.copyWith(
+                  color: skin.accentText,
+                  fontWeight: FontWeight.w800,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 侧栏顶部（子页面）：返回键 + 「返回」文字，与 logo 共用同一个位置
+class TemplateRailBack extends StatelessWidget {
+  const TemplateRailBack({
+    super.key,
+    required this.skin,
+    this.label = '返回',
+    this.collapsed = false,
+    this.onTap,
+  });
+
+  final TemplateSkin skin;
+  final String label;
+  final bool collapsed;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.md),
+      alignment: Alignment.centerLeft,
+      child: ReboundContainer(
+        onTap: onTap,
+        pressedScale: collapsed ? 0.8 : 0.94,
+        borderRadius: BorderRadius.circular(TemplateRadius.control),
+        hoverColor: skin.hoverOn(skin.surface),
+        highlightColor: skin.pressed,
+        child: Row(
+          spacing: TemplateSpace.sm,
+          children: [
+            Icon(Icons.arrow_back, size: 20, color: skin.textSecondary),
+            if (!collapsed)
+              Flexible(
+                child: Text(
+                  label,
+                  style: TemplateType.item.copyWith(color: skin.textPrimary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 顶栏最左的**侧栏收纳/展开**按钮（仿现有 App 的 `Symbols.dock_to_right`：展开时高亮、收起时转 180°）
+class TemplateNavigationToggle extends StatelessWidget {
+  const TemplateNavigationToggle({
+    super.key,
+    required this.skin,
+    required this.collapsed,
+    this.onTap,
+  });
+
+  final TemplateSkin skin;
+  final bool collapsed;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return TemplateIconButton(
+      skin: skin,
+      icon: Icons.keyboard_double_arrow_left,
+      tooltip: collapsed ? '展开主菜单' : '收纳主菜单',
+      size: 28,
+      iconSize: 16,
+      selected: !collapsed,
+      rotationTurns: collapsed ? 0.5 : 0,
+      onTap: onTap,
+    );
+  }
+}
+
+/// 侧边导航栏：顶部槽（**软件 logo / 返回键**）+ 导航格 + 底部槽（底部条目，如版本号 / 账户）
 class TemplateSideRail extends StatelessWidget {
   const TemplateSideRail({
     super.key,
