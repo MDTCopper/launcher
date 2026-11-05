@@ -19,6 +19,7 @@ import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dar
 import 'package:copper_launcher/ui/dialog/cloud_tag_conflict_dialog.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/pages/cloud/version_cloud_save_page.dart';
+import 'package:copper_launcher/ui/shell/app_navigation.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
@@ -138,10 +139,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
               pressedScale: 0.96,
               icon: Icons.tune,
               content: '打开版本云存档管理',
-              onTap: () => Navigator.pushNamed(
-                context,
-                versionCloudSavePageRouteKey,
-              ),
+              onTap: () => AppNavigation.push(versionCloudSavePageRouteKey),
             ),
           ),
         ],
@@ -245,10 +243,8 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
                   ContextMenuAction(
                     label: '打开版本云存档管理',
                     icon: Icons.tune,
-                    onSelected: () => Navigator.pushNamed(
-                      context,
-                      versionCloudSavePageRouteKey,
-                    ),
+                    onSelected: () =>
+                        AppNavigation.push(versionCloudSavePageRouteKey),
                   ),
                 ];
               },
@@ -585,10 +581,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
               pressedScale: 0.96,
               icon: Icons.tune,
               content: '版本云存档管理',
-              onTap: () => Navigator.pushNamed(
-                context,
-                versionCloudSavePageRouteKey,
-              ),
+              onTap: () => AppNavigation.push(versionCloudSavePageRouteKey),
             ),
           ),
         ],

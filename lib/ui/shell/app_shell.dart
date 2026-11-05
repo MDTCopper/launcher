@@ -793,6 +793,10 @@ class AppShellState extends State<AppShell> {
       _scaffoldKey.currentState?.closeDrawer();
       _onRootNavigate(route);
     };
+    AppNavigation.pushHandler = (route, arguments) {
+      _scaffoldKey.currentState?.closeDrawer();
+      _navigatorKey.currentState?.pushNamed(route, arguments: arguments);
+    };
   }
 
   @override

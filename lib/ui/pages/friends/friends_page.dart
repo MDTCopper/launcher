@@ -187,7 +187,7 @@ class _FriendsPageState extends State<FriendsPage> {
               pressedScale: 0.96,
               icon: Icons.account_circle_outlined,
               content: '去登录',
-              onTap: () => Navigator.pushNamed(context, accountPageRouteKey),
+              onTap: () => AppNavigation.push(accountPageRouteKey),
             ),
           ),
         ],
