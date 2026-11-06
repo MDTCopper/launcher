@@ -96,6 +96,10 @@ class StoredAccount {
     this.pendingRefreshKey,
     this.pendingRefreshToken,
     this.pendingRefreshAt,
+    this.accessToken,
+    this.accessTokenExpiresAt,
+    this.avatar,
+    this.phoneVerified,
   });
 
   /// 记下是哪个 client 换来的：换了 client_id 这份 token 就不再有效
@@ -123,6 +127,18 @@ class StoredAccount {
   final String? pendingRefreshKey;
   final String? pendingRefreshToken;
   final DateTime? pendingRefreshAt;
+
+  /// 上次拿到的 access token 与过期时间
+  ///
+  /// 启动时先用这一份：没过期就不用刷新，省掉一次网络往返
+  final String? accessToken;
+  final DateTime? accessTokenExpiresAt;
+
+  /// 上次拉到的账号资料
+  ///
+  /// 启动时先用它把顶栏画出来，等 `/me` 回来再覆盖；头像图片本身有磁盘缓存
+  final String? avatar;
+  final bool? phoneVerified;
 
   /// 官方给的重试窗口
   static const retryWindow = Duration(minutes: 10);
@@ -153,10 +169,15 @@ class StoredAccount {
     String? pendingRefreshKey,
     String? pendingRefreshToken,
     DateTime? pendingRefreshAt,
+    String? accessToken,
+    DateTime? accessTokenExpiresAt,
+    String? avatar,
+    bool? phoneVerified,
     bool clearPendingRefresh = false,
     bool clearRefreshToken = false,
     bool clearLanlinkToken = false,
     bool clearMultiplayerSession = false,
+    bool clearAccessToken = false,
   }) => StoredAccount(
     clientId: clientId ?? this.clientId,
     subject: subject ?? this.subject,
@@ -179,6 +200,14 @@ class StoredAccount {
     pendingRefreshAt: clearPendingRefresh
         ? null
         : (pendingRefreshAt ?? this.pendingRefreshAt),
+    accessToken: clearAccessToken
+        ? null
+        : (accessToken ?? this.accessToken),
+    accessTokenExpiresAt: clearAccessToken
+        ? null
+        : (accessTokenExpiresAt ?? this.accessTokenExpiresAt),
+    avatar: avatar ?? this.avatar,
+    phoneVerified: phoneVerified ?? this.phoneVerified,
   );
 
   Map<String, dynamic> toJson() => {
@@ -191,6 +220,10 @@ class StoredAccount {
     'pendingRefreshKey': ?pendingRefreshKey,
     'pendingRefreshToken': ?pendingRefreshToken,
     'pendingRefreshAt': ?pendingRefreshAt?.toIso8601String(),
+    'accessToken': ?accessToken,
+    'accessTokenExpiresAt': ?accessTokenExpiresAt?.toIso8601String(),
+    'avatar': ?avatar,
+    'phoneVerified': ?phoneVerified,
   };
 
   factory StoredAccount.fromJson(Map<String, dynamic> json) => StoredAccount(
@@ -207,6 +240,12 @@ class StoredAccount {
     pendingRefreshKey: json['pendingRefreshKey'] as String?,
     pendingRefreshToken: json['pendingRefreshToken'] as String?,
     pendingRefreshAt: DateTime.tryParse('${json['pendingRefreshAt']}'),
+    accessToken: json['accessToken'] as String?,
+    accessTokenExpiresAt: DateTime.tryParse(
+      '${json['accessTokenExpiresAt']}',
+    ),
+    avatar: json['avatar'] as String?,
+    phoneVerified: json['phoneVerified'] as bool?,
   );
 }
 
@@ -246,8 +285,14 @@ class AccountStore {
         account.pendingRefreshToken,
         json['pendingRefreshTokenEncrypted'] == true,
       );
+      final access = _restore(
+        account.accessToken,
+        json['accessTokenEncrypted'] == true,
+      );
       final refreshLost =
           (account.refreshToken?.isNotEmpty ?? false) && refresh == null;
+      final accessLost =
+          (account.accessToken?.isNotEmpty ?? false) && access == null;
       final pendingLost =
           (account.pendingRefreshToken?.isNotEmpty ?? false) && pending == null;
       return account
@@ -256,6 +301,11 @@ class AccountStore {
             clearRefreshToken: refreshLost,
             pendingRefreshToken: pending,
             clearPendingRefresh: pendingLost,
+          )
+          .copyWith(
+            accessToken: access,
+            accessTokenExpiresAt: account.accessTokenExpiresAt,
+            clearAccessToken: accessLost,
           )
           .copyWith(
             lanlinkToken: _restore(
@@ -325,11 +375,13 @@ class AccountStore {
       if (!directory.existsSync()) directory.createSync(recursive: true);
 
       final refresh = _protect(payload.refreshToken);
+      final access = _protect(payload.accessToken);
       final pending = _protect(payload.pendingRefreshToken);
       final lanlink = _protect(payload.lanlinkToken);
       final session = payload.multiplayerSession;
       final resume = _protect(session?.resumeToken);
       final stored = payload.copyWith(
+        accessToken: access.value,
         refreshToken: refresh.value,
         pendingRefreshToken: pending.value,
         lanlinkToken: lanlink.value,
@@ -338,6 +390,7 @@ class AccountStore {
 
       final json = stored.toJson()
         ..['refreshTokenEncrypted'] = refresh.encrypted
+        ..['accessTokenEncrypted'] = access.encrypted
         ..['pendingRefreshTokenEncrypted'] = pending.encrypted
         ..['lanlinkTokenEncrypted'] = lanlink.encrypted
         ..['multiplayerResumeTokenEncrypted'] = resume.encrypted;

@@ -114,6 +114,7 @@ class AccountManager {
       return;
     }
     _storedField = stored;
+    _adoptStoredAccessToken(stored);
     _publish();
   }
 
@@ -129,8 +130,8 @@ class AccountManager {
     snapshot.value = AccountSnapshot(
       loggedIn: stored?.isLoggedIn ?? false,
       username: account?.username ?? stored?.username,
-      avatarUrl: account?.avatar,
-      phoneVerified: account?.phoneVerified ?? false,
+      avatarUrl: account?.avatar ?? stored?.avatar,
+      phoneVerified: account?.phoneVerified ?? stored?.phoneVerified ?? false,
       hasLanlinkToken: stored?.hasLanlinkToken ?? false,
       subject: stored?.subject,
       hasMultiplayerSession: stored?.multiplayerSession != null,
@@ -139,6 +140,17 @@ class AccountManager {
 
   String? _accessToken;
   DateTime? _accessTokenExpiresAt;
+
+  /// 盘上那份 access token 还没过期就直接用：省掉启动时的一次刷新往返
+  void _adoptStoredAccessToken(StoredAccount stored) {
+    if (_accessToken != null) return;
+    final token = stored.accessToken;
+    final expiresAt = stored.accessTokenExpiresAt;
+    if (token == null || token.isEmpty) return;
+    if (expiresAt != null && !DateTime.now().isBefore(expiresAt)) return;
+    _accessToken = token;
+    _accessTokenExpiresAt = expiresAt;
+  }
 
   /// 账号态每次被「清掉 / 换人」就加一：异步操作回来后先比 epoch，
   /// 不一致就丢弃结果（否则退出登录瞬间到达的刷新结果会把 token 写回、甚至串号）
@@ -228,6 +240,7 @@ class AccountManager {
       return;
     }
     _stored = stored;
+    _adoptStoredAccessToken(stored);
   }
 
   /// 页面进来时用这个：这次运行已经读过盘就直接返回，不再清内存、不再丢 access token
@@ -330,6 +343,8 @@ class AccountManager {
       _stored = StoredAccount(
         clientId: MdtbbsConfig.clientId,
         refreshToken: refresh,
+        accessToken: _accessToken,
+        accessTokenExpiresAt: _accessTokenExpiresAt,
       );
       if (!AccountStore.save(_stored!, tokenOwner: true)) {
         throw const MdtbbsException(message: '登录凭证没写进盘，请检查磁盘权限后重试');
@@ -387,6 +402,8 @@ class AccountManager {
       _stored = stored.copyWith(
         subject: account.subject,
         username: account.username,
+        avatar: account.avatar,
+        phoneVerified: account.phoneVerified,
       );
       AccountStore.save(_stored!);
     }
@@ -430,6 +447,7 @@ class AccountManager {
       return;
     }
     _stored = disk;
+    _adoptStoredAccessToken(disk);
   }
 
   /// 刷新 token，按官方那套幂等规则来
@@ -526,6 +544,8 @@ class AccountManager {
     _acceptTokens(tokens);
     _stored = _stored!.copyWith(
       refreshToken: tokens.refreshToken ?? refreshToken,
+      accessToken: _accessToken,
+      accessTokenExpiresAt: _accessTokenExpiresAt,
       clearPendingRefresh: true,
     );
     if (!AccountStore.save(_stored!, tokenOwner: true)) {
