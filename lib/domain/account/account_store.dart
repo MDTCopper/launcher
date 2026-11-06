@@ -100,6 +100,7 @@ class StoredAccount {
     this.accessTokenExpiresAt,
     this.avatar,
     this.phoneVerified,
+    this.profileFetchedAt,
   });
 
   /// 记下是哪个 client 换来的：换了 client_id 这份 token 就不再有效
@@ -140,6 +141,9 @@ class StoredAccount {
   final String? avatar;
   final bool? phoneVerified;
 
+  /// 上次 `/me` 回来的时间：太久远才在启动后补拉一次，省掉每次冷启动的往返
+  final DateTime? profileFetchedAt;
+
   /// 官方给的重试窗口
   static const retryWindow = Duration(minutes: 10);
 
@@ -173,6 +177,7 @@ class StoredAccount {
     DateTime? accessTokenExpiresAt,
     String? avatar,
     bool? phoneVerified,
+    DateTime? profileFetchedAt,
     bool clearPendingRefresh = false,
     bool clearRefreshToken = false,
     bool clearLanlinkToken = false,
@@ -208,6 +213,7 @@ class StoredAccount {
         : (accessTokenExpiresAt ?? this.accessTokenExpiresAt),
     avatar: avatar ?? this.avatar,
     phoneVerified: phoneVerified ?? this.phoneVerified,
+    profileFetchedAt: profileFetchedAt ?? this.profileFetchedAt,
   );
 
   Map<String, dynamic> toJson() => {
@@ -224,6 +230,7 @@ class StoredAccount {
     'accessTokenExpiresAt': ?accessTokenExpiresAt?.toIso8601String(),
     'avatar': ?avatar,
     'phoneVerified': ?phoneVerified,
+    'profileFetchedAt': ?profileFetchedAt?.toIso8601String(),
   };
 
   factory StoredAccount.fromJson(Map<String, dynamic> json) => StoredAccount(
@@ -246,6 +253,7 @@ class StoredAccount {
     ),
     avatar: json['avatar'] as String?,
     phoneVerified: json['phoneVerified'] as bool?,
+    profileFetchedAt: DateTime.tryParse('${json['profileFetchedAt']}'),
   );
 }
 

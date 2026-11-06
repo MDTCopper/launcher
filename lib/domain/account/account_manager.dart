@@ -103,6 +103,21 @@ class AccountManager {
   }
 
   /// 同步读盘（只在还没 restore 过时走）：与 [restore] 同一套校验，只是不 await
+  /// 用账号文件里缓存的资料先拼一份账号态
+  ///
+  /// 冷启动不该等 `/me`：资料超过 [profileMaxAge] 才在后台补拉
+  void _seedCachedAccount(StoredAccount stored) {
+    if (_accountField != null) return;
+    final subject = stored.subject?.trim() ?? '';
+    if (subject.isEmpty) return;
+    _accountField = MdtbbsAccount(
+      subject: subject,
+      username: stored.username,
+      avatar: stored.avatar,
+      phoneVerified: stored.phoneVerified,
+    );
+  }
+
   void _loadFromDiskSync() {
     _restored = true;
     final stored = AccountStore.load();
@@ -115,6 +130,7 @@ class AccountManager {
     }
     _storedField = stored;
     _adoptStoredAccessToken(stored);
+    _seedCachedAccount(stored);
     _publish();
   }
 
@@ -161,6 +177,12 @@ class AccountManager {
 
   /// 账号文件最后被本进程看到的时间；用来发现「另一个进程改过 / 登出了」
   DateTime? _diskStamp;
+
+  /// 资料缓存多久算旧：旧了才在后台补拉一次，不然每次冷启动都要多一趟 `/me`
+  static const profileMaxAge = Duration(hours: 24);
+
+  /// 后台补拉资料去重
+  bool _profileRefreshing = false;
 
   /// 是不是配了 client_id；没配就别显示登录入口
   bool get isConfigured => MdtbbsConfig.isConfigured;
@@ -241,6 +263,8 @@ class AccountManager {
     }
     _stored = stored;
     _adoptStoredAccessToken(stored);
+    _seedCachedAccount(stored);
+    _publish();
   }
 
   /// 页面进来时用这个：这次运行已经读过盘就直接返回，不再清内存、不再丢 access token
@@ -378,7 +402,10 @@ class AccountManager {
   }) async {
     final epoch = _epoch;
     final cached = _account;
-    if (cached != null && !force) return cached;
+    if (cached != null && !force) {
+      _refreshProfileInBackgroundIfStale(epoch);
+      return cached;
+    }
     final token = await ensureAccessToken(cancelToken: cancelToken);
     if (token == null) {
       throw const MdtbbsException(message: '未登录');
@@ -404,10 +431,36 @@ class AccountManager {
         username: account.username,
         avatar: account.avatar,
         phoneVerified: account.phoneVerified,
+        profileFetchedAt: DateTime.now(),
       );
       AccountStore.save(_stored!);
     }
     return account;
+  }
+
+  /// 资料缓存过期了就在后台补一次 `/me`：界面先用缓存，回来再覆盖
+  void _refreshProfileInBackgroundIfStale(int epoch) {
+    if (_profileRefreshing) return;
+    final fetchedAt = _stored?.profileFetchedAt;
+    if (fetchedAt != null &&
+        DateTime.now().difference(fetchedAt) < profileMaxAge) {
+      return;
+    }
+    _profileRefreshing = true;
+    Future<void>(() async {
+      try {
+        if (!isLoggedIn || epoch != _epoch) return;
+        await loadAccount(force: true);
+      } on Object catch (error) {
+        addLog(
+          .debug,
+          '后台补拉账号资料失败（先用缓存）：${removeNewlines('$error')}',
+          tag: 'Account',
+        );
+      } finally {
+        _profileRefreshing = false;
+      }
+    });
   }
 
   /// 拿一个可用的 access token；过期内或没有就刷新一次
@@ -448,6 +501,7 @@ class AccountManager {
     }
     _stored = disk;
     _adoptStoredAccessToken(disk);
+    _seedCachedAccount(disk);
   }
 
   /// 刷新 token，按官方那套幂等规则来
