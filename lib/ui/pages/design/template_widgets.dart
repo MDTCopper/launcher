@@ -806,6 +806,7 @@ class TemplateSegment extends StatelessWidget {
     required this.value,
     required this.onTap,
     this.enabled = true,
+    this.icons,
   });
 
   final TemplateSkin skin;
@@ -813,6 +814,86 @@ class TemplateSegment extends StatelessWidget {
   final int value;
   final void Function(int index) onTap;
   final bool enabled;
+
+  /// 可选的段内图标（与 options 等长）
+  final List<IconData>? icons;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SegmentShell(
+      skin: skin,
+      enabled: enabled,
+      children: [
+        for (var i = 0; i < options.length; i++)
+          Expanded(
+            child: _SegmentPill(
+              skin: skin,
+              label: options[i],
+              icon: icons == null ? null : icons![i],
+              selected: value == i,
+              enabled: enabled,
+              onTap: () => onTap(i),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 多选分段：每个格子独立开合（筛选标签、多条件开关）
+class TemplateMultiSegment extends StatelessWidget {
+  const TemplateMultiSegment({
+    super.key,
+    required this.skin,
+    required this.options,
+    required this.selectedValues,
+    required this.onTap,
+    this.enabled = true,
+    this.icons,
+  });
+
+  final TemplateSkin skin;
+  final List<String> options;
+
+  /// 选中的下标集合
+  final Set<int> selectedValues;
+  final void Function(int index) onTap;
+  final bool enabled;
+  final List<IconData>? icons;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SegmentShell(
+      skin: skin,
+      enabled: enabled,
+      children: [
+        for (var i = 0; i < options.length; i++)
+          Expanded(
+            child: _SegmentPill(
+              skin: skin,
+              label: options[i],
+              icon: icons == null ? null : icons![i],
+              selected: selectedValues.contains(i),
+              enabled: enabled,
+              onTap: () => onTap(i),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 分段的外壳：凹槽底 + 一圈控件描边（单选与多选共用）
+class _SegmentShell extends StatelessWidget {
+  const _SegmentShell({
+    required this.skin,
+    required this.enabled,
+    required this.children,
+  });
+
+  final TemplateSkin skin;
+  final bool enabled;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
@@ -827,21 +908,7 @@ class TemplateSegment extends StatelessWidget {
           color: enabled ? skin.controlBorder : skin.controlBorderDisabled,
         ),
       ),
-      child: Row(
-        spacing: TemplateSpace.xs,
-        children: [
-          for (var i = 0; i < options.length; i++)
-            Expanded(
-              child: _SegmentPill(
-                skin: skin,
-                label: options[i],
-                selected: value == i,
-                enabled: enabled,
-                onTap: () => onTap(i),
-              ),
-            ),
-        ],
-      ),
+      child: Row(spacing: TemplateSpace.xs, children: children),
     );
   }
 }
@@ -854,10 +921,12 @@ class _SegmentPill extends StatefulWidget {
     required this.selected,
     required this.enabled,
     required this.onTap,
+    this.icon,
   });
 
   final TemplateSkin skin;
   final String label;
+  final IconData? icon;
   final bool selected;
   final bool enabled;
   final VoidCallback onTap;
@@ -930,17 +999,33 @@ class _SegmentPillState extends State<_SegmentPill> {
                     ],
             ),
           ),
-          child: Text(
-            widget.label,
-            textAlign: TextAlign.center,
-            style: TemplateType.item.copyWith(
-              color: !enabled
-                  ? skin.textDisabled
-                  : selected
-                  ? skin.textPrimary
-                  : skin.textSecondary,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            spacing: TemplateSpace.xs,
+            children: [
+              if (widget.icon != null)
+                Icon(
+                  widget.icon,
+                  size: 15,
+                  color: !enabled
+                      ? skin.textDisabled
+                      : selected
+                      ? skin.textPrimary
+                      : skin.textSecondary,
+                ),
+              Text(
+                widget.label,
+                textAlign: TextAlign.center,
+                style: TemplateType.item.copyWith(
+                  color: !enabled
+                      ? skin.textDisabled
+                      : selected
+                      ? skin.textPrimary
+                      : skin.textSecondary,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
           ),
         ),
       ),

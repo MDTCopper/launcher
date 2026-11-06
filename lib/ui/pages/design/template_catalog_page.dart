@@ -9,6 +9,7 @@ import 'package:copper_launcher/ui/pages/design/template_menu.dart';
 import 'package:copper_launcher/ui/pages/design/template_overlay.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
+import 'package:copper_launcher/ui/pages/design/template_table.dart';
 import 'package:copper_launcher/ui/pages/design/template_state.dart';
 import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +39,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
   double _slider = 0.55;
   String _java = 'Java 17';
   List<String> _hotkey = const ['Ctrl', 'Shift', 'K'];
+  Set<int> _multiSeg = {0};
   Color _color = templatePresetColors[1];
   bool _dropActive = false;
   final _input = TextEditingController(text: '-XX:+UseG1GC');
@@ -70,6 +72,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         _buildRouteStacks(skin),
         _buildMenus(skin),
         _buildCards(skin),
+        _buildTable(skin),
         _buildDrawerParts(skin),
         _buildPageParts(skin),
         _buildScene(skin),
@@ -1096,6 +1099,32 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
               ),
             ],
           ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.sm,
+            children: [
+              _hint(skin, '分段：带图标 / 多选'),
+              TemplateSegment(
+                skin: skin,
+                icons: const [
+                  Icons.grid_view_outlined,
+                  Icons.dashboard_outlined,
+                  Icons.view_list_outlined,
+                ],
+                options: const ['网格', '卡片', '列表'],
+                value: _segment,
+                onTap: (index) => setState(() => _segment = index),
+              ),
+              TemplateMultiSegment(
+                skin: skin,
+                options: const ['已安装', '有更新', '已收藏'],
+                selectedValues: _multiSeg,
+                onTap: (index) => setState(() {
+                  if (!_multiSeg.remove(index)) _multiSeg.add(index);
+                }),
+              ),
+            ],
+          ),
           _hint(skin, '开关：开 / 关 / 禁用'),
           Wrap(
             spacing: TemplateSpace.xl,
@@ -1386,6 +1415,68 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
           onSelected: () {},
         ),
       ],
+    );
+  }
+
+  /// 表格：表头 + 固定列 + 行分隔（模组页版本列表的抽出版）
+  Widget _buildTable(TemplateSkin skin) {
+    Widget cell(String text, {bool accent = false}) => Text(
+      text,
+      style: accent
+          ? TemplateType.item.copyWith(
+              color: skin.textPrimary,
+              fontWeight: FontWeight.w600,
+            )
+          : TemplateType.caption.copyWith(color: skin.textTertiary),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+
+    return _section(
+      skin,
+      '表格',
+      TemplateTable(
+        skin: skin,
+        onRowTap: (_) {},
+        columns: const [
+          TemplateTableColumn('版本', width: 90, icon: Icons.info_outline),
+          TemplateTableColumn('发布时间', width: 110, icon: Icons.calendar_today),
+          TemplateTableColumn(
+            '支持版本',
+            width: 150,
+            icon: Icons.check_circle_outline,
+          ),
+          TemplateTableColumn('体积', width: 80, icon: Icons.storage),
+          TemplateTableColumn('下载量', width: 70, icon: Icons.download),
+          TemplateTableColumn('备注', flex: 1),
+        ],
+        rows: [
+          [
+            cell('v2.1.4', accent: true),
+            cell('2026-11-04'),
+            cell('v146-v153'),
+            cell('12.4 MB'),
+            cell('10.2k'),
+            cell('当前主推版本'),
+          ],
+          [
+            cell('v2.1.3', accent: true),
+            cell('2026-10-21'),
+            cell('v146-v153'),
+            cell('12.1 MB'),
+            cell('1499'),
+            cell(''),
+          ],
+          [
+            cell('v2.1.0', accent: true),
+            cell('2026-09-30'),
+            cell('v146-v153'),
+            cell('11.8 MB'),
+            cell('25.4k'),
+            cell('已知与部分整合包冲突'),
+          ],
+        ],
+      ),
     );
   }
 
