@@ -104,7 +104,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/48-page-parts` | 补分页器、折叠面板、图片位 / 头像（有图用图、没图退回图标或首字） |
 | `catalog/49-note-colors` | 第四个语义色「提示 note」蓝调（徽标 / 提示条）；任务卡状态挪到时间下面、窄屏按钮通栏 |
 | `catalog/50-form-status` | 输入族（多行 / 错误态 / 字数 / 密码显隐 / 后缀）、滑条刻度与量程、进度双段、状态点 / 数字徽章 / 胶囊标签 |
-| `catalog/51-base-size` | **当前**：组件目录改按标准设计宽度 **760** 出图（原先 900）；顺带把放不下的两排改成 `Wrap` |
+| `catalog/51-base-size` | 组件目录改按标准设计宽度 **760** 出图（原先 900）；顺带把放不下的两排改成 `Wrap` |
+| `catalog/52-keys-color-drop` | **当前**：键帽 / 组合键与键位捕获、颜色选择（SV 面板 + 色相条 + 16 色点）、拖放区与窗口级拖放遮罩 |
 | `screen/screen-mod` | **App 内页面**：模组下载新页（宽屏版，1000×700） |
 | `screen/screen-mod-base` | 同一页按**标准尺寸 760×450**（最小窗口首屏） |
 | `screen/screen-mod-base-tall` | 同上拉高到 900 看折线以下 |

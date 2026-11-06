@@ -1,6 +1,9 @@
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
+import 'package:copper_launcher/ui/pages/design/template_color.dart';
 import 'package:copper_launcher/ui/pages/design/template_drawer.dart';
+import 'package:copper_launcher/ui/pages/design/template_drop.dart';
+import 'package:copper_launcher/ui/pages/design/template_keys.dart';
 import 'package:copper_launcher/ui/pages/design/template_media.dart';
 import 'package:copper_launcher/ui/pages/design/template_menu.dart';
 import 'package:copper_launcher/ui/pages/design/template_overlay.dart';
@@ -34,6 +37,9 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
   int _segmentWide = 2;
   double _slider = 0.55;
   String _java = 'Java 17';
+  List<String> _hotkey = const ['Ctrl', 'Shift', 'K'];
+  Color _color = templatePresetColors[1];
+  bool _dropActive = false;
   final _input = TextEditingController(text: '-XX:+UseG1GC');
 
   @override
@@ -56,6 +62,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         _buildTiles(skin),
         _buildControls(skin),
         _buildTabs(skin),
+        _buildPickers(skin),
         _buildSliders(skin),
         _buildFeedback(skin),
         _buildChrome(skin),
@@ -671,6 +678,88 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
           Text(
             '当前选中：${const ['版本列表', '模组介绍', 'Readme'][_tab]}',
             style: TemplateType.caption.copyWith(color: skin.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 键位 / 颜色 / 拖放
+  Widget _buildPickers(TemplateSkin skin) {
+    Widget caption(String text) => Text(
+      text,
+      style: TemplateType.caption.copyWith(color: skin.textTertiary),
+    );
+
+    return _section(
+      skin,
+      '键位 / 颜色 / 拖放',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.md,
+        children: [
+          caption('键位组合 + 捕获面板（点「开始捕获」后按键；Esc 取消）'),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.lg,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: TemplateSpace.sm,
+                  children: [
+                    TemplateKeyCombo(skin: skin, keys: _hotkey, size: 30),
+                    Text(
+                      '捕获到：${_hotkey.join(' + ')}',
+                      style: TemplateType.micro.copyWith(
+                        color: skin.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: TemplateKeyCapture(
+                  skin: skin,
+                  initial: _hotkey,
+                  onCaptured: (keys) {
+                    if (keys != null && keys.isNotEmpty) {
+                      setState(() => _hotkey = keys);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: TemplateSpace.sm),
+          caption('颜色：SV 面板 + 色相条 + 16 个预置色点'),
+          TemplateColorPicker(
+            skin: skin,
+            color: _color,
+            onChanged: (color) => setState(() => _color = color),
+          ),
+          const SizedBox(height: TemplateSpace.sm),
+          caption('拖放区：常态虚线，悬停实线 + 主题色底（点一下切换演示）'),
+          TemplateDropZone(
+            skin: skin,
+            title: '把资源拖进来',
+            hint: 'zip / jar / 游戏本体',
+            active: _dropActive,
+            onTap: () => setState(() => _dropActive = !_dropActive),
+          ),
+          const SizedBox(height: TemplateSpace.sm),
+          caption('窗口级拖放遮罩'),
+          SizedBox(
+            height: 200,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(TemplateRadius.card),
+              child: Stack(
+                children: [
+                  Positioned.fill(child: ColoredBox(color: skin.sunken)),
+                  TemplateDropOverlay(skin: skin),
+                ],
+              ),
+            ),
           ),
         ],
       ),
