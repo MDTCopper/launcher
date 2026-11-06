@@ -1,4 +1,5 @@
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_config.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
@@ -124,6 +125,13 @@ class MdtbbsAccountApi {
     if (data is! Map) {
       throw const MdtbbsException(message: 'token 响应不是 JSON 对象');
     }
-    return MdtbbsTokens.fromJson(data.cast<String, dynamic>());
+    final json = data.cast<String, dynamic>();
+    // 只记字段名：确认服务端到底给不给 refresh token 的寿命（值里是 token，不能记）
+    addLog(
+      .debug,
+      '换 token 响应字段：${json.keys.join(', ')}',
+      tag: 'Mdtbbs',
+    );
+    return MdtbbsTokens.fromJson(json);
   }
 }

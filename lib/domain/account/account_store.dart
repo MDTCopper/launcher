@@ -98,6 +98,8 @@ class StoredAccount {
     this.pendingRefreshAt,
     this.accessToken,
     this.accessTokenExpiresAt,
+    this.refreshTokenExpiresAt,
+    this.refreshTokenIssuedAt,
     this.avatar,
     this.phoneVerified,
     this.profileFetchedAt,
@@ -134,6 +136,12 @@ class StoredAccount {
   /// 启动时先用这一份：没过期就不用刷新，省掉一次网络往返
   final String? accessToken;
   final DateTime? accessTokenExpiresAt;
+
+  /// refresh token 的到期 / 签发时间：服务端给了有效期才有到期时间
+  ///
+  /// 启动时先按它判一次，已过期就直接当未登录，不用再白打一次「换 token」
+  final DateTime? refreshTokenExpiresAt;
+  final DateTime? refreshTokenIssuedAt;
 
   /// 上次拉到的账号资料
   ///
@@ -175,6 +183,8 @@ class StoredAccount {
     DateTime? pendingRefreshAt,
     String? accessToken,
     DateTime? accessTokenExpiresAt,
+    DateTime? refreshTokenExpiresAt,
+    DateTime? refreshTokenIssuedAt,
     String? avatar,
     bool? phoneVerified,
     DateTime? profileFetchedAt,
@@ -183,6 +193,7 @@ class StoredAccount {
     bool clearLanlinkToken = false,
     bool clearMultiplayerSession = false,
     bool clearAccessToken = false,
+    bool clearRefreshTokenExpiry = false,
   }) => StoredAccount(
     clientId: clientId ?? this.clientId,
     subject: subject ?? this.subject,
@@ -211,6 +222,12 @@ class StoredAccount {
     accessTokenExpiresAt: clearAccessToken
         ? null
         : (accessTokenExpiresAt ?? this.accessTokenExpiresAt),
+    refreshTokenExpiresAt: clearRefreshToken || clearRefreshTokenExpiry
+        ? null
+        : (refreshTokenExpiresAt ?? this.refreshTokenExpiresAt),
+    refreshTokenIssuedAt: clearRefreshToken
+        ? null
+        : (refreshTokenIssuedAt ?? this.refreshTokenIssuedAt),
     avatar: avatar ?? this.avatar,
     phoneVerified: phoneVerified ?? this.phoneVerified,
     profileFetchedAt: profileFetchedAt ?? this.profileFetchedAt,
@@ -228,6 +245,8 @@ class StoredAccount {
     'pendingRefreshAt': ?pendingRefreshAt?.toIso8601String(),
     'accessToken': ?accessToken,
     'accessTokenExpiresAt': ?accessTokenExpiresAt?.toIso8601String(),
+    'refreshTokenExpiresAt': ?refreshTokenExpiresAt?.toIso8601String(),
+    'refreshTokenIssuedAt': ?refreshTokenIssuedAt?.toIso8601String(),
     'avatar': ?avatar,
     'phoneVerified': ?phoneVerified,
     'profileFetchedAt': ?profileFetchedAt?.toIso8601String(),
@@ -250,6 +269,12 @@ class StoredAccount {
     accessToken: json['accessToken'] as String?,
     accessTokenExpiresAt: DateTime.tryParse(
       '${json['accessTokenExpiresAt']}',
+    ),
+    refreshTokenExpiresAt: DateTime.tryParse(
+      '${json['refreshTokenExpiresAt']}',
+    ),
+    refreshTokenIssuedAt: DateTime.tryParse(
+      '${json['refreshTokenIssuedAt']}',
     ),
     avatar: json['avatar'] as String?,
     phoneVerified: json['phoneVerified'] as bool?,

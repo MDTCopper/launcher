@@ -86,6 +86,7 @@ class MdtbbsTokens {
     required this.accessToken,
     this.refreshToken,
     this.expiresIn,
+    this.refreshExpiresIn,
     this.scope,
   });
 
@@ -97,6 +98,9 @@ class MdtbbsTokens {
   /// access token 剩余寿命（秒）
   final int? expiresIn;
 
+  /// refresh token 剩余寿命（秒）；服务端没给就是 null
+  final int? refreshExpiresIn;
+
   final String? scope;
 
   factory MdtbbsTokens.fromJson(Map<String, dynamic> json) => MdtbbsTokens(
@@ -105,6 +109,11 @@ class MdtbbsTokens {
     expiresIn: json['expires_in'] is num
         ? (json['expires_in'] as num).toInt()
         : null,
+    refreshExpiresIn: switch (json['refresh_expires_in'] ??
+        json['refresh_token_expires_in']) {
+      final num value => value.toInt(),
+      _ => null,
+    },
     scope: json['scope'] as String?,
   );
 }

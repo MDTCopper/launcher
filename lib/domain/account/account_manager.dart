@@ -1,5 +1,6 @@
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_account_api.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_client.dart';
+import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_config.dart';
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_models.dart';
 import 'package:copper_launcher/domain/account/account_store.dart';
@@ -128,9 +129,18 @@ class AccountManager {
       AccountStore.clear();
       return;
     }
+    if (_dropIfRefreshTokenExpired(stored)) {
+      AccountStore.clear();
+      return;
+    }
     _storedField = stored;
     _adoptStoredAccessToken(stored);
     _seedCachedAccount(stored);
+    _logTimelineOnce(
+      message: '账号态就绪（缓存）',
+      already: () => _timelineAccountReady,
+      mark: () => _timelineAccountReady = true,
+    );
     _publish();
   }
 
@@ -180,6 +190,50 @@ class AccountManager {
 
   /// 资料缓存多久算旧：旧了才在后台补拉一次，不然每次冷启动都要多一趟 `/me`
   static const profileMaxAge = Duration(hours: 24);
+
+  /// refresh token 本地提前多久算过期：留点余量，别卡在边界上
+  static const refreshTokenMargin = Duration(seconds: 30);
+
+  /// 时间线只记首次
+  bool _timelineAccountReady = false;
+  bool _timelineTokenReady = false;
+  bool _timelineProfileReady = false;
+
+  /// 服务端给了 refresh token 寿命就换算成到期时间；没给返回 null
+  DateTime? _refreshExpiresAtOf(MdtbbsTokens tokens) {
+    final seconds = tokens.refreshExpiresIn;
+    if (seconds == null || seconds <= 0) return null;
+    return DateTime.now().add(Duration(seconds: seconds));
+  }
+
+  /// 盘上这份 refresh token 按时间算已经过期（服务端给过寿命才能判）
+  bool _isRefreshTokenExpiredLocally(StoredAccount stored) {
+    final at = stored.refreshTokenExpiresAt;
+    if (at == null) return false;
+    return !DateTime.now().isBefore(at.subtract(refreshTokenMargin));
+  }
+
+  /// 本地时间判定过期：不用再白打一次「换 token」，直接按未登录处理
+  bool _dropIfRefreshTokenExpired(StoredAccount stored) {
+    if (!_isRefreshTokenExpiredLocally(stored)) return false;
+    final left = stored.refreshTokenExpiresAt!.difference(DateTime.now());
+    addLogAndPrint(
+      .warning,
+      '登录凭证已过期（本地时间判断，剩 ${left.inSeconds}s），需要重新登录',
+      tag: 'Account',
+    );
+    return true;
+  }
+
+  void _logTimelineOnce({
+    required String message,
+    required bool Function() already,
+    required void Function() mark,
+  }) {
+    if (already()) return;
+    mark();
+    addLog(.info, '时间线：$message +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
+  }
 
   /// 后台补拉资料去重
   bool _profileRefreshing = false;
@@ -261,9 +315,18 @@ class AccountManager {
       AccountStore.clear();
       return;
     }
+    if (_dropIfRefreshTokenExpired(stored)) {
+      AccountStore.clear();
+      return;
+    }
     _stored = stored;
     _adoptStoredAccessToken(stored);
     _seedCachedAccount(stored);
+    _logTimelineOnce(
+      message: '账号态就绪（缓存）',
+      already: () => _timelineAccountReady,
+      mark: () => _timelineAccountReady = true,
+    );
     _publish();
   }
 
@@ -370,7 +433,14 @@ class AccountManager {
           refreshToken: refresh,
           accessToken: _accessToken,
           accessTokenExpiresAt: _accessTokenExpiresAt,
+          refreshTokenIssuedAt: DateTime.now(),
+          refreshTokenExpiresAt: _refreshExpiresAtOf(tokens),
         ),
+      );
+      _logTimelineOnce(
+        message: '登录完成（token 已落盘）',
+        already: () => _timelineTokenReady,
+        mark: () => _timelineTokenReady = true,
       );
 
       // 资料读不回来不算登录失败：token 已经落地，状态是「已登录、资料待刷新」
@@ -431,6 +501,11 @@ class AccountManager {
       throw const MdtbbsException(message: '账号已切换，这次资料作废');
     }
     _account = account;
+    _logTimelineOnce(
+      message: '账号资料就绪（/me）',
+      already: () => _timelineProfileReady,
+      mark: () => _timelineProfileReady = true,
+    );
     addLog(
       .debug,
       '账号资料：${account.username ?? '?'} 头像=${account.avatar ?? '无'}',
@@ -481,6 +556,11 @@ class AccountManager {
   /// 调用方只看「非 null 即成功」，交旧的只会换来一串 401
   Future<String?> ensureAccessToken({CancelToken? cancelToken}) async {
     await _syncFromDiskIfChanged();
+    final storedNow = _stored;
+    if (storedNow != null && _dropIfRefreshTokenExpired(storedNow)) {
+      _forget();
+      return null;
+    }
     if (_accessToken != null && !_isAccessTokenExpired()) return _accessToken;
     if (!isLoggedIn) return null;
     final ok = await refresh(cancelToken: cancelToken);
@@ -509,6 +589,10 @@ class AccountManager {
     _diskStamp = stamp;
     if (disk == null) {
       _forget(persist: false);
+      return;
+    }
+    if (_dropIfRefreshTokenExpired(disk)) {
+      _forget();
       return;
     }
     _stored = disk;
@@ -608,8 +692,12 @@ class AccountManager {
     if (epoch != _epoch || _stored == null) return false;
 
     _acceptTokens(tokens);
+    final refreshExpiresAt = _refreshExpiresAtOf(tokens);
     _stored = _stored!.copyWith(
       refreshToken: tokens.refreshToken ?? refreshToken,
+      refreshTokenIssuedAt: DateTime.now(),
+      refreshTokenExpiresAt: refreshExpiresAt,
+      clearRefreshTokenExpiry: refreshExpiresAt == null,
       accessToken: _accessToken,
       accessTokenExpiresAt: _accessTokenExpiresAt,
       clearPendingRefresh: true,
@@ -623,6 +711,11 @@ class AccountManager {
       );
     }
     _diskStamp = AccountStore.lastModified();
+    _logTimelineOnce(
+      message: '登录令牌就绪（已刷新）',
+      already: () => _timelineTokenReady,
+      mark: () => _timelineTokenReady = true,
+    );
     return true;
   }
 
