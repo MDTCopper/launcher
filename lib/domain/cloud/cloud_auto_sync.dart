@@ -45,6 +45,13 @@ class CloudAutoSync {
   /// 启动前那次「查云端」最多等这么久，超了就问玩家要不要直接启动
   static const syncTimeout = Duration(seconds: 30);
 
+  /// 启动前最多等多久账号令牌
+  ///
+  /// refresh 失败会重试几次，网络差时能拖十几秒；启动不该被它卡住，
+  /// 等超了就按「这次不查云端」直接启动（刷新还在后台继续，下次就能用上）
+  @visibleForTesting
+  static Duration tokenWaitLimit = const Duration(seconds: 4);
+
   /// 游戏**启动前**：云端有新东西、本机没改过 ⇒ 拉下来
   ///
   /// 返回 **false = 这次别启动**（冲突没选 / 同步超时后选了取消）；出错一律返回 true
@@ -67,15 +74,36 @@ class CloudAutoSync {
       // 先恢复账号再看开关：关闭云存档的版本不该为了一个 token 等十几秒
       await AccountManager.instance.ensureRestored();
       if (!CloudSaveService.isEnabled(version)) return true;
-      final token = await _token();
-      if (token == null) return true;
-
       // 无界面服务：启动前同步超过 3 秒才拉起代理窗口；UI 进程这里返回 null
+      // 把「等令牌」也算进这 3 秒里：令牌慢的时候玩家也能看到正在干什么
       final gate = await SyncProxyGate.startForHeadlessService(
         versionId: version.id,
         tag: version.tag,
       );
       try {
+        final tokenWatch = Stopwatch()..start();
+        await gate?.reportPhase(SyncProxyPhase.checking, message: '等待账号登录');
+        final token = await _token().timeout(
+          tokenWaitLimit,
+          onTimeout: () => null,
+        );
+        if (token == null) {
+          if (tokenWatch.elapsedMilliseconds >= tokenWaitLimit.inMilliseconds) {
+            addLog(
+              .warning,
+              '等账号令牌超过 ${tokenWaitLimit.inMilliseconds}ms，'
+              '跳过启动前云同步直接启动：这次按本机存档进游戏',
+              tag: 'Cloud',
+            );
+          }
+          return true;
+        }
+        addLog(
+          .info,
+          '启动前云同步：拿令牌 ${tokenWatch.elapsedMilliseconds}ms',
+          tag: 'Cloud',
+        );
+
         return await _syncBeforeLaunch(
           version,
           token: token,
@@ -105,6 +133,7 @@ class CloudAutoSync {
     if (await isCancelled?.call() ?? false) return true;
 
     final CloudSyncOutcome outcome;
+    final syncWatch = Stopwatch()..start();
     try {
       final syncResult = await _awaitCancelable(
         CloudSaveService.syncStatus(
@@ -116,6 +145,12 @@ class CloudAutoSync {
       // 取消就别再等云端返回了：直接跳过本次同步
       if (syncResult.cancelled) return true;
       outcome = syncResult.value!;
+      addLog(
+        .info,
+        '启动前云同步：查云端 ${syncWatch.elapsedMilliseconds}ms'
+        '（${outcome.status.name}）',
+        tag: 'Cloud',
+      );
     } on TimeoutException {
       //超时：问玩家要不要直接启动（与 Steam 云一致）
       addLog(
