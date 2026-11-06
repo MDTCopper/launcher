@@ -1161,8 +1161,16 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
     );
   }
 
-  /// 右侧抽屉里的任务卡 / 日志卡（任务卡形制对齐 `LaunchMindustryTask`）
+  /// 右侧抽屉里的任务卡 / 日志卡
   Widget _buildDrawerParts(TemplateSkin skin) {
+    Widget quiet(String label, IconData icon) => TemplateButton(
+      skin: skin,
+      label: label,
+      icon: icon,
+      kind: TemplateButtonKind.quiet,
+      onTap: () {},
+    );
+
     return _section(
       skin,
       '任务卡 / 日志卡（右侧抽屉）',
@@ -1173,88 +1181,51 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
           TemplateTaskCard(
             skin: skin,
             icon: Icons.rocket_launch,
-            title: 'Mindustry',
-            subtitle: 'Mindustry 146  运行中...',
+            title: 'Mindustry 146',
+            statusLabel: '运行中',
+            statusTone: TemplateBadgeTone.accent,
+            phaseText: '游戏已启动 · 已运行 12 分钟',
             timeText: '18:20',
+            detailText: '内存 4.0 / 8.0 GB · Java 17',
             actions: [
-              TemplateButton(
-                skin: skin,
-                label: '结束进程',
-                icon: Icons.pause,
-                kind: TemplateButtonKind.plain,
-                expanded: true,
-                onTap: () {},
-              ),
-              TemplateButton(
-                skin: skin,
-                label: '进程日志',
-                icon: Icons.terminal,
-                kind: TemplateButtonKind.plain,
-                expanded: true,
-                onTap: () {},
-              ),
+              quiet('结束进程', Icons.pause),
+              quiet('进程日志', Icons.terminal),
             ],
           ),
           TemplateTaskCard(
             skin: skin,
             icon: Icons.downloading,
             title: 'Mindustry 146',
-            subtitle: '正在下载本体分块  5.2 MB / 12.4 MB · 1.8 MB/s',
+            statusLabel: '下载中',
+            phaseText: '正在下载本体分块',
             progress: 0.42,
+            progressText: '5.2 MB / 12.4 MB',
+            sizeText: '1.8 MB/s',
+            detailText: '分块 3 / 8 · 已校验 2 块',
             timeText: '18:19',
-            actions: [
-              TemplateButton(
-                skin: skin,
-                label: '取消',
-                icon: Icons.close,
-                kind: TemplateButtonKind.plain,
-                expanded: true,
-                onTap: () {},
-              ),
-            ],
+            actions: [quiet('取消', Icons.close)],
           ),
           TemplateTaskCard(
             skin: skin,
             icon: Icons.link,
             title: '拉取云存档',
-            subtitle: '正在获取大小…',
+            statusLabel: '进行中',
+            phaseText: '正在获取大小…',
             timeText: '18:18',
-            actions: [
-              TemplateButton(
-                skin: skin,
-                label: '取消',
-                icon: Icons.close,
-                kind: TemplateButtonKind.plain,
-                expanded: true,
-                onTap: () {},
-              ),
-            ],
+            actions: [quiet('取消', Icons.close)],
           ),
           TemplateTaskCard(
             skin: skin,
             icon: Icons.error_outline,
             title: 'Copper Loader 0.2.1',
-            subtitle: '下载失败：连接超时',
+            statusLabel: '失败',
+            statusTone: TemplateBadgeTone.danger,
+            phaseText: '下载失败：连接超时',
             progress: 0.21,
+            progressText: '2.6 MB / 12.4 MB',
+            detailText: '重试会自动续传',
             timeText: '18:05',
-            actions: [
-              TemplateButton(
-                skin: skin,
-                label: '重试',
-                icon: Icons.refresh,
-                kind: TemplateButtonKind.plain,
-                expanded: true,
-                onTap: () {},
-              ),
-              TemplateButton(
-                skin: skin,
-                label: '日志',
-                icon: Icons.terminal,
-                kind: TemplateButtonKind.plain,
-                expanded: true,
-                onTap: () {},
-              ),
-            ],
+            actions: [quiet('重试', Icons.refresh), quiet('日志', Icons.terminal)],
           ),
           const SizedBox(height: TemplateSpace.xs),
           TemplateLogCard(
