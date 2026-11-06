@@ -246,7 +246,8 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
                   style: TemplateType.caption.copyWith(
                     color: skin.textTertiary,
                   ),
-                  maxLines: 1,
+                  // 正常态（760 基准）给两行：只给一行会在最小窗口里截成「需要 Co…」
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(),

@@ -440,26 +440,29 @@ class TemplateRadius {
 /// 标准设计尺寸与断点（用户 2026-11-06 定）
 ///
 /// **标准尺寸 = 桌面端允许的最小窗口 `760 × 450`**（`lib/main.dart` 的 `minimumSize`），
-/// 也就是手机横屏那个量级（≈ 780×360）。所有页面先按这个宽度设计，
-/// 再往上适配宽屏（≥ [wide]）、往下适配抽屉宽度（[drawerWidth]）。
+/// 也就是手机横屏那个量级（≈ 780×360）。所有页面**以这个尺寸为「正常态」**设计，
+/// 再往上适配宽屏（≥ [wide]）、往下适配窄屏（< [designWidth]，例如抽屉 360）。
+///
+/// 注意：基准尺寸本身**不触发窄屏排布**（用户 2026-11-06 明确），
+/// 判定用 `<`（[isCompact]），不是 `<=`。
 abstract final class TemplateBreakpoints {
-  /// 基准宽（最小窗口）
+  /// 基准宽（最小窗口）＝正常态：表格用固定列、头卡横排
   static const designWidth = 760.0;
 
   /// 基准高（最小窗口）
   static const designHeight = 450.0;
 
-  /// ≤ 这个宽度按窄屏排：紧凑间距、表头隐藏、按钮通栏
+  /// 窄屏上界（不含）：比基准再窄才换成紧凑间距、隐藏表头、按钮通栏
   static const compact = designWidth;
 
-  /// ≥ 这个宽度按宽屏排：内容区可以分栏、表格可以用固定列宽
+  /// ≥ 这个宽度按宽屏排：内容区可以分栏、列表可以双列
   static const wide = 1100.0;
 
   /// 右侧抽屉的内容宽度（任务卡 / 日志卡按它判断）
   static const drawerWidth = 360.0;
 
-  /// 给定宽度是否按窄屏排（`<= compact`）
-  static bool isCompact(double width) => width <= compact;
+  /// 给定宽度是否按窄屏排（`< compact`：基准宽度走正常排布）
+  static bool isCompact(double width) => width < compact;
 
   /// 给定宽度是否按宽屏排（`>= wide`）
   static bool isWide(double width) => width >= wide;
