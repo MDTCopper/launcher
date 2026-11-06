@@ -562,7 +562,7 @@ class AccountManager {
       );
     } on MdtbbsException catch (error) {
       if (epoch != _epoch) return false;
-      if (error.code == 'invalid_grant') {
+      if (_isDeadRefreshToken(error)) {
         // 盘上可能已经被另一个进程换成新 token 了：只有这份还是自己那份才登出
         final disk = AccountStore.load();
         if (disk != null &&
@@ -612,6 +612,25 @@ class AccountManager {
     }
     _diskStamp = AccountStore.lastModified();
     return true;
+  }
+
+  /// 这份 refresh token 是不是已经废了
+  ///
+  /// 官方给 `invalid_grant`（401）；别的实现在 401 上可能给 `invalid_token` /
+  /// `invalid_refresh_token`，或只在 message 里写「无效或已过期的 refresh_token」。
+  /// 这些都必须按「登出」处理：留着只会让每次启动都白等一次刷新
+  static bool _isDeadRefreshToken(MdtbbsException error) {
+    switch (error.code) {
+      case 'invalid_grant':
+      case 'invalid_token':
+      case 'invalid_refresh_token':
+      case 'expired_token':
+        return true;
+    }
+    if (error.statusCode != 401) return false;
+    final message = error.message.toLowerCase();
+    return message.contains('refresh') &&
+        (message.contains('无效') || message.contains('过期'));
   }
 
   /// 退出登录：先按官方要求撤销 token，再清本地

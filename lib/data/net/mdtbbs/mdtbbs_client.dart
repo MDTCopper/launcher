@@ -161,6 +161,15 @@ class MdtbbsClient {
   /// 401 时找账号层要一份新 token；账号层在初始化时注册，拿不到就返回 null
   static Future<String?> Function()? renewToken;
 
+  /// 换 token / 撤销 token 这两个端点自己回 401 时**不能**再走「401 自愈」：
+  /// 自愈会回头调 `refresh()`，而 refresh 正是这个请求 ⇒ 自己等自己
+  /// （Android 上实测能卡十几秒，最后还丢掉 `invalid_grant` 这个码，登不出去）
+  static bool _isAuthEndpoint(String url) {
+    final target = url.trim();
+    return target == MdtbbsConfig.tokenEndpoint ||
+        target == MdtbbsConfig.revokeEndpoint;
+  }
+
   /// 这个方法重放安全吗：GET / PUT / DELETE 天然幂等，POST 只有带幂等键才算
   static bool _replayable(String method, Map<String, String>? headers) {
     switch (method) {
@@ -386,7 +395,7 @@ class MdtbbsClient {
     } on DioException catch (error) {
       _captureCsrf(error.response?.headers);
       final failure = _asMdtbbsException(error);
-      if (!retriedAuth && failure.isUnauthorized) {
+      if (!retriedAuth && failure.isUnauthorized && !_isAuthEndpoint(url)) {
         final fresh = await _renewOnUnauthorized();
         if (fresh != null && fresh.isNotEmpty) {
           return _putBytes(
@@ -566,6 +575,7 @@ class MdtbbsClient {
       // 401：服务端提前吊销 / 时钟偏差 ⇒ 强制续期一次，只重放幂等请求
       if (!retriedAuth &&
           failure.isUnauthorized &&
+          !_isAuthEndpoint(url) &&
           _replayable(method, headers)) {
         final fresh = await _renewOnUnauthorized();
         if (fresh != null && fresh.isNotEmpty) {
