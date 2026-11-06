@@ -27,6 +27,8 @@ class ReadmeView extends StatefulWidget {
     required this.data,
     required this.source,
     this.onLinkTap,
+    this.colorsOverride,
+    this.themeOverride,
   });
 
   /// README 原文（markdown）
@@ -37,6 +39,12 @@ class ReadmeView extends StatefulWidget {
 
   /// 覆盖默认的链接打开行为（默认用系统浏览器/内嵌 webview 打开）
   final void Function(String url)? onLinkTap;
+
+  /// 换色：设计层（`TemplateSkin`）渲染时传自己那套，不传就用 `AppColors`
+  final AppColors? colorsOverride;
+
+  /// 换字体 / 字号：同上，默认取当前 `Theme`
+  final ThemeData? themeOverride;
 
   /// 把 README 里的链接解析成可打开的绝对地址
   ///
@@ -291,11 +299,14 @@ class _ReadmeViewState extends State<ReadmeView> {
 
   List<md.Node> _parse(String data) => ReadmeView.parseMarkdown(data);
 
-  ThemeData get _theme => Theme.of(context);
+  ThemeData get _theme => widget.themeOverride ?? Theme.of(context);
+
+  /// 换色后的取色入口：设计层传 `colorsOverride`，其余情况与原来一致
+  AppColors get _colors => widget.colorsOverride ?? AppColors.of(context);
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
+    final colors = _colors;
     //顶层也是「行内 + 块级」混排（如整段的直写 HTML 与裸图片行），统一走混排拆分
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -693,7 +704,7 @@ class _ReadmeViewState extends State<ReadmeView> {
       decoration: BoxDecoration(
         color: _theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.of(context).border),
+        border: Border.all(color: _colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -704,7 +715,7 @@ class _ReadmeViewState extends State<ReadmeView> {
               child: Text(
                 language,
                 style: _theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.of(context).itemHint,
+                  color: _colors.itemHint,
                 ),
               ),
             ),
