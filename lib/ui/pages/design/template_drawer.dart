@@ -1,63 +1,40 @@
-import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
 import 'package:flutter/material.dart';
 
-/// 任务卡的状态
-enum TemplateTaskState { running, paused, failed, done }
-
-/// 任务卡：图标 + 标题 + 状态 + 进度 + 阶段说明 + 时间，右上可取消
+/// 任务卡：仿当前 launcher 里的 Mindustry 任务卡（`LaunchMindustryTask.buildDisplayWidget`）
 ///
-/// 对应现有右侧任务抽屉里的那条卡（`CopperCard` + `task.buildDisplayWidget`）；
-/// 设计层把可变的部分抽成参数，让不同任务类型都能套
+/// 形制就是那一套：**图标 + 强调色大标题 + 右侧时间**，下面一行状态说明，
+/// 再到一条进度条，最后是等宽的操作按钮（结束进程 / 进程日志…）。
+/// 差别只在于：这里把内容抽成参数，其它任务类型也能套同一条形制
 class TemplateTaskCard extends StatelessWidget {
   const TemplateTaskCard({
     super.key,
     required this.skin,
     required this.icon,
     required this.title,
-    this.state = TemplateTaskState.running,
+    this.subtitle,
     this.progress,
-    this.progressText,
-    this.sizeText,
-    this.phaseText,
-    this.detailText,
     this.timeText,
-    this.onCancel,
+    this.actions = const <Widget>[],
   });
 
   final TemplateSkin skin;
   final IconData icon;
   final String title;
-  final TemplateTaskState state;
 
-  /// 0~1；null = 总量未知（进度条走不确定态）
+  /// 状态说明那一行，如 `Mindustry 146  运行中...`
+  final String? subtitle;
+
+  /// 0~1；null = 不确定进度（跟原生 `LinearProgressIndicator()` 一样来回走）
   final double? progress;
-
-  /// 左侧进度文字，如 `3.2 MB / 12.4 MB`
-  final String? progressText;
-
-  /// 右侧体积 / 速度文字
-  final String? sizeText;
-
-  /// 阶段说明，如 `正在下载[New Horizon]`
-  final String? phaseText;
-
-  /// 次级明细（分块 / 子任务），小字
-  final String? detailText;
   final String? timeText;
-  final VoidCallback? onCancel;
 
-  (String, TemplateBadgeTone) get _statusBadge => switch (state) {
-    TemplateTaskState.running => ('进行中', TemplateBadgeTone.accent),
-    TemplateTaskState.paused => ('已暂停', TemplateBadgeTone.warning),
-    TemplateTaskState.failed => ('失败', TemplateBadgeTone.danger),
-    TemplateTaskState.done => ('已完成', TemplateBadgeTone.success),
-  };
+  /// 底部等宽操作按钮；直接放 `TemplateButton(expanded: true)` 即可
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
-    final (statusLabel, statusTone) = _statusBadge;
     return TemplateCard(
       skin: skin,
       padding: const EdgeInsets.all(TemplateSpace.md),
@@ -68,88 +45,40 @@ class TemplateTaskCard extends StatelessWidget {
           Row(
             spacing: TemplateSpace.sm,
             children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: skin.sunken,
-                  borderRadius: BorderRadius.circular(TemplateRadius.control),
-                ),
-                child: Icon(icon, size: 16, color: skin.textSecondary),
-              ),
+              Icon(icon, size: 24, color: skin.accentText),
               Expanded(
                 child: Text(
                   title,
-                  style: TemplateType.item.copyWith(
-                    color: skin.textPrimary,
-                    fontWeight: FontWeight.w600,
+                  style: TemplateType.page.copyWith(
+                    color: skin.accentText,
+                    fontWeight: FontWeight.w700,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              TemplateBadge(skin: skin, label: statusLabel, tone: statusTone),
-              if (onCancel != null)
-                TemplateIconButton(
-                  skin: skin,
-                  icon: Icons.close,
-                  size: 24,
-                  iconSize: 14,
-                  tooltip: '取消任务',
-                  onTap: onCancel,
+              if (timeText != null)
+                Text(
+                  timeText!,
+                  style: TemplateType.micro.copyWith(color: skin.textTertiary),
                 ),
             ],
           ),
+          if (subtitle != null)
+            Text(
+              subtitle!,
+              style: TemplateType.item.copyWith(color: skin.textPrimary),
+            ),
           TemplateProgressBar(
             skin: skin,
             value: progress ?? 0,
             indeterminate: progress == null,
-            height: 8,
+            height: 4,
           ),
-          if (progressText != null || sizeText != null)
+          if (actions.isNotEmpty)
             Row(
               spacing: TemplateSpace.sm,
-              children: [
-                Expanded(
-                  child: Text(
-                    progressText ?? '',
-                    style: TemplateType.caption.copyWith(
-                      color: skin.textSecondary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (sizeText != null)
-                  Text(
-                    sizeText!,
-                    style: TemplateType.caption.copyWith(
-                      color: skin.textTertiary,
-                    ),
-                  ),
-              ],
-            ),
-          if (phaseText != null)
-            Text(
-              phaseText!,
-              style: TemplateType.caption.copyWith(color: skin.textTertiary),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          if (detailText != null)
-            Text(
-              detailText!,
-              style: TemplateType.micro.copyWith(color: skin.textTertiary),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          if (timeText != null)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                timeText!,
-                style: TemplateType.micro.copyWith(color: skin.textTertiary),
-              ),
+              children: [for (final action in actions) Expanded(child: action)],
             ),
         ],
       ),

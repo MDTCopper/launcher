@@ -1,3 +1,5 @@
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
 import 'package:copper_launcher/ui/pages/design/template_drawer.dart';
 import 'package:copper_launcher/ui/pages/design/template_menu.dart';
 import 'package:copper_launcher/ui/pages/design/template_overlay.dart';
@@ -1123,35 +1125,43 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
     );
   }
 
-  /// 右键菜单（真菜单，跟 `showTemplateMenu` 同一套）
+  /// 右键菜单：这里刻意用**当前项目里的** `ContextMenu`（用户 2026-11-06：
+  /// 「右键菜单我说的是当前项目里用的」），设计层只负责在页面里接上它
   void _showContextMenu(BuildContext context, Offset globalPosition) {
-    showTemplateMenu(
-      context,
-      skin: widget.skin,
-      globalPosition: globalPosition,
-      items: [
-        const TemplateMenuItem(
-          label: '启动',
+    ContextMenu.show(
+      context: context,
+      position: globalPosition,
+      entries: [
+        ContextMenuAction(
           icon: Icons.play_arrow,
-          shortcut: 'Enter',
+          label: '启动',
+          onSelected: () {},
         ),
-        const TemplateMenuItem(label: '打开文件夹', icon: Icons.folder_open),
-        const TemplateMenuItem(
-          label: '复制版本名',
-          icon: Icons.copy,
-          shortcut: 'Ctrl+C',
+        ContextMenuAction(
+          icon: Icons.folder_open,
+          label: '打开文件夹',
+          onSelected: () {},
         ),
-        const TemplateMenuItem(label: '只显示已安装', checked: true),
-        const TemplateMenuItem(
-          label: '删除版本',
+        const ContextMenuDivider(),
+        ContextMenuAction(
+          icon: Icons.visibility_outlined,
+          label: '只显示已安装',
+          checked: true,
+          onSelected: () {},
+        ),
+        ContextMenuAction(icon: Icons.copy, label: '复制版本名', onSelected: () {}),
+        const ContextMenuDivider(),
+        ContextMenuAction(
           icon: Icons.delete_outline,
+          label: '删除版本',
           danger: true,
+          onSelected: () {},
         ),
       ],
     );
   }
 
-  /// 右侧抽屉里的任务卡 / 日志卡
+  /// 右侧抽屉里的任务卡 / 日志卡（任务卡形制对齐 `LaunchMindustryTask`）
   Widget _buildDrawerParts(TemplateSkin skin) {
     return _section(
       skin,
@@ -1162,45 +1172,89 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         children: [
           TemplateTaskCard(
             skin: skin,
-            icon: Icons.cloud_download_outlined,
-            title: '下载 Mindustry 146',
+            icon: Icons.rocket_launch,
+            title: 'Mindustry',
+            subtitle: 'Mindustry 146  运行中...',
+            timeText: '18:20',
+            actions: [
+              TemplateButton(
+                skin: skin,
+                label: '结束进程',
+                icon: Icons.pause,
+                kind: TemplateButtonKind.plain,
+                expanded: true,
+                onTap: () {},
+              ),
+              TemplateButton(
+                skin: skin,
+                label: '进程日志',
+                icon: Icons.terminal,
+                kind: TemplateButtonKind.plain,
+                expanded: true,
+                onTap: () {},
+              ),
+            ],
+          ),
+          TemplateTaskCard(
+            skin: skin,
+            icon: Icons.downloading,
+            title: 'Mindustry 146',
+            subtitle: '正在下载本体分块  5.2 MB / 12.4 MB · 1.8 MB/s',
             progress: 0.42,
-            progressText: '5.2 MB / 12.4 MB',
-            sizeText: '1.8 MB/s',
-            phaseText: '正在下载本体分块',
-            detailText: '分块 3 / 8 · 已校验 2 块',
-            timeText: '18:20:31',
-            onCancel: () {},
+            timeText: '18:19',
+            actions: [
+              TemplateButton(
+                skin: skin,
+                label: '取消',
+                icon: Icons.close,
+                kind: TemplateButtonKind.plain,
+                expanded: true,
+                onTap: () {},
+              ),
+            ],
           ),
           TemplateTaskCard(
             skin: skin,
             icon: Icons.link,
             title: '拉取云存档',
-            progress: null,
-            phaseText: '正在获取大小…',
-            timeText: '18:19:02',
-            onCancel: () {},
-          ),
-          TemplateTaskCard(
-            skin: skin,
-            icon: Icons.download_outlined,
-            title: '下载 New Horizon 2.1.4',
-            state: TemplateTaskState.paused,
-            progress: 0.68,
-            progressText: '8.4 MB / 12.4 MB',
-            phaseText: '已暂停（可继续）',
-            timeText: '18:12:44',
-            onCancel: () {},
+            subtitle: '正在获取大小…',
+            timeText: '18:18',
+            actions: [
+              TemplateButton(
+                skin: skin,
+                label: '取消',
+                icon: Icons.close,
+                kind: TemplateButtonKind.plain,
+                expanded: true,
+                onTap: () {},
+              ),
+            ],
           ),
           TemplateTaskCard(
             skin: skin,
             icon: Icons.error_outline,
-            title: '下载 Copper Loader 0.2.1',
-            state: TemplateTaskState.failed,
+            title: 'Copper Loader 0.2.1',
+            subtitle: '下载失败：连接超时',
             progress: 0.21,
-            progressText: '2.6 MB / 12.4 MB',
-            phaseText: '下载失败：连接超时',
-            timeText: '18:05:10',
+            timeText: '18:05',
+            actions: [
+              TemplateButton(
+                skin: skin,
+                label: '重试',
+                icon: Icons.refresh,
+                kind: TemplateButtonKind.plain,
+                expanded: true,
+                onTap: () {},
+              ),
+              TemplateButton(
+                skin: skin,
+                label: '日志',
+                icon: Icons.terminal,
+                kind: TemplateButtonKind.plain,
+                expanded: true,
+                onTap: () {},
+              ),
+            ],
           ),
           const SizedBox(height: TemplateSpace.xs),
           TemplateLogCard(

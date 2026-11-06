@@ -369,6 +369,7 @@ class TemplateButton extends StatelessWidget {
     this.danger = false,
     this.onTap,
     this.enabled = true,
+    this.expanded = false,
   });
 
   final TemplateSkin skin;
@@ -380,6 +381,9 @@ class TemplateButton extends StatelessWidget {
   final bool danger;
   final VoidCallback? onTap;
   final bool enabled;
+
+  /// 撑满可用宽度、内容居中（任务卡底部那排等宽按钮用）
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) {
@@ -435,7 +439,10 @@ class TemplateButton extends StatelessWidget {
       child: IconTheme(
         data: IconThemeData(color: foreground, size: 18),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisAlignment: expanded
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
           spacing: TemplateSpace.sm,
           children: [
             Icon(icon),

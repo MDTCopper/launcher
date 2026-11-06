@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'template_skin.dart';
 
 /// 菜单项：右键菜单与下拉共用
+///
+/// 样式对齐当前 App 的 `ContextMenuPanel`：面板 12 圆角 + 1px 边 + 投影，
+/// 条目高 32、图标槽 16、左右内衬 8、条目圆角 8
 class TemplateMenuItem {
   const TemplateMenuItem({
     required this.label,
@@ -13,6 +16,7 @@ class TemplateMenuItem {
     this.checked,
     this.shortcut,
     this.enabled = true,
+    this.dividerBefore = false,
   });
 
   final String label;
@@ -28,6 +32,9 @@ class TemplateMenuItem {
   /// 右侧快捷键提示
   final String? shortcut;
   final bool enabled;
+
+  /// 在这一项前面画一条分隔线
+  final bool dividerBefore;
 }
 
 /// 弹出右键 / 长按菜单（位置用指针的全局坐标）
@@ -52,7 +59,7 @@ Future<void> showTemplateMenu(
     color: skin.surface,
     elevation: 0,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(TemplateRadius.card),
+      borderRadius: BorderRadius.circular(12),
       side: BorderSide(color: skin.border),
     ),
     constraints: const BoxConstraints(minWidth: 180, maxWidth: 320),
@@ -429,18 +436,29 @@ List<PopupMenuEntry<void>> _menuEntries(
   List<TemplateMenuItem> items,
 ) {
   return [
-    for (final item in items)
+    for (final item in items) ...[
+      if (item.dividerBefore)
+        PopupMenuItem<void>(
+          height: 9,
+          padding: EdgeInsets.zero,
+          enabled: false,
+          child: Center(child: Container(height: 1, color: skin.border)),
+        ),
       PopupMenuItem<void>(
-        height: 36,
+        height: 32,
         padding: EdgeInsets.zero,
         enabled: item.enabled,
         onTap: item.onTap,
         child: _TemplateMenuItemRow(skin: skin, item: item),
       ),
+    ],
   ];
 }
 
 /// 静态菜单面板：样式与 [showTemplateMenu] 弹出的一致，给样张 / 内嵌菜单用
+///
+/// 照当前 App 的 `ContextMenuPanel` 取：卡面 + 12 圆角 + 1px 边 + 黑 30 投影，
+/// 内衬 4，条目 32 高、圆角 8
 class TemplateMenuPanel extends StatelessWidget {
   const TemplateMenuPanel({
     super.key,
@@ -462,32 +480,44 @@ class TemplateMenuPanel extends StatelessWidget {
         padding: const EdgeInsets.all(TemplateSpace.xs),
         decoration: BoxDecoration(
           color: skin.surface,
-          borderRadius: BorderRadius.circular(TemplateRadius.card),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: skin.border),
           boxShadow: [
             BoxShadow(
-              color: skin.shadow,
-              blurRadius: 16,
+              color: Colors.black.withAlpha(30),
+              blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final item in items)
-              ReboundContainer(
-                onTap: item.enabled ? item.onTap : null,
-                pressedScale: 0.99,
-                borderRadius: BorderRadius.circular(TemplateRadius.control),
-                hoverColor: skin.hoverOn(skin.surface),
-                highlightColor: skin.pressed,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: TemplateSpace.sm,
-                  vertical: TemplateSpace.sm,
+            for (final item in items) ...[
+              if (item.dividerBefore)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: TemplateSpace.xs,
+                  ),
+                  child: Container(height: 1, color: skin.border),
                 ),
-                child: _TemplateMenuItemRow(skin: skin, item: item),
+              SizedBox(
+                height: 32,
+                child: ReboundContainer(
+                  onTap: item.enabled ? item.onTap : null,
+                  pressedScale: 0.98,
+                  borderRadius: BorderRadius.circular(8),
+                  backgroundColor: Colors.transparent,
+                  hoverColor: skin.hoverOn(skin.surface),
+                  highlightColor: skin.pressed,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: TemplateSpace.sm,
+                  ),
+                  child: _TemplateMenuItemRow(skin: skin, item: item),
+                ),
               ),
+            ],
           ],
         ),
       ),
@@ -507,45 +537,37 @@ class _TemplateMenuItemRow extends StatelessWidget {
         ? skin.textDisabled
         : item.danger
         ? skin.dangerText
-        : skin.textPrimary;
-    final iconColor = !item.enabled
-        ? skin.textDisabled
-        : item.danger
-        ? skin.dangerText
         : skin.textSecondary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.sm),
-      child: Row(
-        spacing: TemplateSpace.sm,
-        children: [
-          SizedBox(
-            width: 18,
-            child: item.icon == null
-                ? null
-                : Icon(item.icon, size: 16, color: iconColor),
+    return Row(
+      spacing: TemplateSpace.sm,
+      children: [
+        SizedBox(
+          width: 16,
+          child: item.icon == null
+              ? null
+              : Icon(item.icon, size: 16, color: color),
+        ),
+        Expanded(
+          child: Text(
+            item.label,
+            style: TemplateType.item.copyWith(color: color),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          Expanded(
-            child: Text(
-              item.label,
-              style: TemplateType.item.copyWith(color: color),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+        ),
+        if (item.shortcut != null)
+          Text(
+            item.shortcut!,
+            style: TemplateType.micro.copyWith(color: skin.textTertiary),
           ),
-          if (item.shortcut != null)
-            Text(
-              item.shortcut!,
-              style: TemplateType.micro.copyWith(color: skin.textTertiary),
-            ),
-          if (item.checked != null)
-            SizedBox(
-              width: 16,
-              child: item.checked!
-                  ? Icon(Icons.check, size: 14, color: skin.accentText)
-                  : null,
-            ),
-        ],
-      ),
+        // 行尾槽固定 16 宽：勾 / 箭头都钉在同一列
+        SizedBox(
+          width: 16,
+          child: item.checked == true
+              ? Icon(Icons.check, size: 16, color: skin.accentText)
+              : null,
+        ),
+      ],
     );
   }
 }

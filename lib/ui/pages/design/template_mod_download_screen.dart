@@ -1,4 +1,5 @@
-import 'package:copper_launcher/ui/pages/design/template_menu.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:copper_launcher/ui/pages/design/template_state.dart';
@@ -28,9 +29,9 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
 
   /// 占位版本数据：`(版本, 日期, 体积, 下载量, 是否兼容当前版本)`
   static const _versions = [
-    ('v2.1.4', '2026-11-04', '12.4 MB', '1.2k', true),
-    ('v2.1.3', '2026-10-21', '12.1 MB', '980', true),
-    ('v2.1.0', '2026-09-30', '11.8 MB', '2.4k', false),
+    ('v2.1.4', '2026-11-04', '12.4 MB', '10.2k', true),
+    ('v2.1.3', '2026-10-21', '12.1 MB', '1499', true),
+    ('v2.1.0', '2026-09-30', '11.8 MB', '25.4k', false),
   ];
 
   @override
@@ -106,12 +107,33 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: TemplateSpace.xs,
               children: [
-                Text(
-                  'New Horizon',
-                  style: TemplateType.page.copyWith(
-                    color: skin.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      'New Horizon',
+                      style: TemplateType.page.copyWith(
+                        color: skin.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                    ),
+                    Expanded(child: SizedBox()),
+                    Icon(Icons.download, size: 20, color: skin.textSecondary),
+                    Text(
+                      '126.9M',
+                      style: TemplateType.caption.copyWith(
+                        color: skin.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: TemplateSpace.sm),
+                    Icon(Icons.star, size: 20, color: skin.textSecondary),
+                    Text(
+                      '1.2k',
+                      style: TemplateType.caption.copyWith(
+                        color: skin.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
 
                 Text(
@@ -119,6 +141,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
                   style: TemplateType.caption.copyWith(
                     color: skin.textSecondary,
                   ),
+                  maxLines: 1,
                 ),
                 Text(
                   '把 Mindustry 的玩法推到极限：新的科技树、单位与建筑，配套的星球与战役。'
@@ -127,14 +150,31 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
                   style: TemplateType.caption.copyWith(
                     color: skin.textTertiary,
                   ),
-                  maxLines: 3,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                // TemplateBadge(
-                //   skin: skin,
-                //   label: 'Java 模组',
-                //   tone: TemplateBadgeTone.accent,
-                // ),
+
+                Row(
+                  spacing: TemplateSpace.sm,
+                  children: [
+                    TemplateBadge(
+                      skin: skin,
+                      icon: Icons.coffee_outlined,
+                      label: 'Java 模组',
+                      tone: TemplateBadgeTone.danger,
+                    ),
+                    TemplateBadge(
+                      skin: skin,
+                      label: 'Beta',
+                      tone: TemplateBadgeTone.warning,
+                    ),
+                    TemplateBadge(
+                      skin: skin,
+                      label: '社区维护标签',
+                      tone: TemplateBadgeTone.neutral,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -174,28 +214,30 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
     // TODO(设计层): 接入 ModOfficialListEntry / ModRelease 后实现
   }
 
+  /// 更多操作：用**当前项目里的** `ContextMenu`（样式跟现有右键菜单一致）
   void _openMore(BuildContext buttonContext) {
-    final skin = TemplateSkin.ofContext(context);
-    final box = buttonContext.findRenderObject() as RenderBox?;
-    final position = box == null
-        ? const Offset(120, 120)
-        : box.localToGlobal(Offset.zero) + Offset(0, box.size.height + 4);
-    showTemplateMenu(
-      context,
-      skin: skin,
-      globalPosition: position,
-      items: [
-        TemplateMenuItem(label: '模组详情', icon: Icons.info_outline, onTap: () {}),
-        TemplateMenuItem(
-          label: 'README',
-          icon: Icons.description_outlined,
-          onTap: () => setState(() => _tab = 2),
+    ContextMenu.showBelow(
+      context: buttonContext,
+      entries: [
+        ContextMenuAction(
+          icon: Icons.info_outline,
+          label: '模组详情',
+          onSelected: () {},
         ),
-        TemplateMenuItem(label: '源码仓库', icon: Icons.folder_open, onTap: () {}),
-        TemplateMenuItem(
-          label: '作者主页',
+        ContextMenuAction(
+          icon: Icons.description_outlined,
+          label: 'README',
+          onSelected: () => setState(() => _tab = 2),
+        ),
+        ContextMenuAction(
+          icon: Icons.folder_open,
+          label: '源码仓库',
+          onSelected: () {},
+        ),
+        ContextMenuAction(
           icon: Icons.person_outline,
-          onTap: () {},
+          label: '作者主页',
+          onSelected: () {},
         ),
       ],
     );
@@ -279,11 +321,17 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
   }
 
   Widget _buildColumnHeader(TemplateSkin skin) {
-    Widget cell(double width, String label) => SizedBox(
+    Widget cell(double width, String label, IconData icon) => SizedBox(
       width: width,
-      child: Text(
-        label,
-        style: TemplateType.micro.copyWith(color: skin.textTertiary),
+      child: Row(
+        spacing: TemplateSpace.xs,
+        children: [
+          Icon(icon, size: 16, color: skin.textTertiary),
+          Text(
+            label,
+            style: TemplateType.caption.copyWith(color: skin.textTertiary),
+          ),
+        ],
       ),
     );
     return Padding(
@@ -294,12 +342,11 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
       child: Row(
         spacing: TemplateSpace.md,
         children: [
-          cell(90, '版本'),
-          cell(110, '发布时间'),
-          cell(150, '支持版本'),
-          cell(80, '体积'),
-          cell(70, '下载量'),
-          const SizedBox(width: 88),
+          cell(90, '版本', Icons.info_outline),
+          cell(110, '发布时间', Icons.calendar_today),
+          cell(150, '支持版本', Icons.check_circle),
+          cell(80, '体积', Icons.storage),
+          cell(70, '下载量', Icons.download),
         ],
       ),
     );
