@@ -526,7 +526,12 @@ class MdtbbsClient {
     final isWrite = method != 'GET';
     addLog(.debug, '$method $url', tag: 'Mdtbbs');
     // 写请求先确保手里有 CSRF 令牌，否则会被守卫直接 403
-    if (isWrite) await _ensureCsrf(accessToken, cancelToken);
+    //
+    // 只对同源写请求做：跨域（换 token 的 auth 域）不带 CSRF，也不该为了它
+    // 先串两次 GET；冷启动时那两次 GET 能把换 token 拖十几秒
+    if (isWrite && _sameOrigin(url) && !_isAuthEndpoint(url)) {
+      await _ensureCsrf(accessToken, cancelToken);
+    }
 
     final mergedHeaders = <String, String>{
       ...?headers,
