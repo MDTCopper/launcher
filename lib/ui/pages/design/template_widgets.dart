@@ -986,6 +986,7 @@ class TemplateTabBar extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: TemplateSpace.xs),
                 child: trailing!,
               ),
+            const SizedBox(width: TemplateSpace.md),
           ],
         ),
       ],
@@ -1306,6 +1307,7 @@ class TemplateProgressBar extends StatelessWidget {
     required this.value,
     this.height = 12,
     this.enabled = true,
+    this.indeterminate = false,
   });
 
   final TemplateSkin skin;
@@ -1313,8 +1315,20 @@ class TemplateProgressBar extends StatelessWidget {
   final double height;
   final bool enabled;
 
+  /// 总量未知时用不确定态：一条色块来回滑，比恒为 0 的进度条诚实
+  final bool indeterminate;
+
   @override
   Widget build(BuildContext context) {
+    if (indeterminate) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(TemplateRadius.pill),
+        child: SizedBox(
+          height: height,
+          child: _IndeterminateBar(skin: skin),
+        ),
+      );
+    }
     // 用两段 Expanded 拼出来：FractionallySizedBox 里的 ColoredBox 没有子节点时会量成 0 宽，
     // 填充段在样张里根本画不出来（2026-10-24 渲染时发现）
     final clamped = value.clamp(0.0, 1.0);
@@ -1342,6 +1356,63 @@ class TemplateProgressBar extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 不确定进度：槽底 + 一段 35% 宽的色块来回滑动
+class _IndeterminateBar extends StatefulWidget {
+  const _IndeterminateBar({required this.skin});
+
+  final TemplateSkin skin;
+
+  @override
+  State<_IndeterminateBar> createState() => _IndeterminateBarState();
+}
+
+class _IndeterminateBarState extends State<_IndeterminateBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = widget.skin;
+    return ColoredBox(
+      color: skin.sunken,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // 色块从左侧滑出、到右侧完全出去：位置 = -0.35 → 1.0
+                final position = -0.35 + _controller.value * 1.35;
+                return Stack(
+                  children: [
+                    Positioned(
+                      left: constraints.maxWidth * position,
+                      width: constraints.maxWidth * 0.35,
+                      top: 0,
+                      bottom: 0,
+                      child: ColoredBox(color: skin.accent),
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+        },
       ),
     );
   }

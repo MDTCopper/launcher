@@ -397,11 +397,25 @@ class TemplateType {
 
 /// 几何：4 的倍数，4 / 8 / 12 / 16 / 24 / 32
 class TemplateSpace {
+  ///2
+  static const xxs = 2.0;
+
+  ///4
   static const xs = 4.0;
+
+  ///8
   static const sm = 8.0;
+
+  ///12
   static const md = 12.0;
+
+  ///16
   static const lg = 16.0;
+
+  ///24
   static const xl = 24.0;
+
+  ///32
   static const xxl = 32.0;
 }
 

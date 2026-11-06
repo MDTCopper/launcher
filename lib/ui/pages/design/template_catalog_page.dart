@@ -1,3 +1,4 @@
+import 'package:copper_launcher/ui/pages/design/template_drawer.dart';
 import 'package:copper_launcher/ui/pages/design/template_menu.dart';
 import 'package:copper_launcher/ui/pages/design/template_overlay.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
@@ -25,6 +26,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
   bool _tileSwitch = true;
   int _segment = 0;
   int _tab = 0;
+  Set<String> _multi = {'Java 17'};
   int _segmentWide = 2;
   double _slider = 0.55;
   String _java = 'Java 17';
@@ -57,6 +59,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         _buildRouteStacks(skin),
         _buildMenus(skin),
         _buildCards(skin),
+        _buildDrawerParts(skin),
         _buildScene(skin),
       ],
     );
@@ -1120,6 +1123,114 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
     );
   }
 
+  /// 右键菜单（真菜单，跟 `showTemplateMenu` 同一套）
+  void _showContextMenu(BuildContext context, Offset globalPosition) {
+    showTemplateMenu(
+      context,
+      skin: widget.skin,
+      globalPosition: globalPosition,
+      items: [
+        const TemplateMenuItem(
+          label: '启动',
+          icon: Icons.play_arrow,
+          shortcut: 'Enter',
+        ),
+        const TemplateMenuItem(label: '打开文件夹', icon: Icons.folder_open),
+        const TemplateMenuItem(
+          label: '复制版本名',
+          icon: Icons.copy,
+          shortcut: 'Ctrl+C',
+        ),
+        const TemplateMenuItem(label: '只显示已安装', checked: true),
+        const TemplateMenuItem(
+          label: '删除版本',
+          icon: Icons.delete_outline,
+          danger: true,
+        ),
+      ],
+    );
+  }
+
+  /// 右侧抽屉里的任务卡 / 日志卡
+  Widget _buildDrawerParts(TemplateSkin skin) {
+    return _section(
+      skin,
+      '任务卡 / 日志卡（右侧抽屉）',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.md,
+        children: [
+          TemplateTaskCard(
+            skin: skin,
+            icon: Icons.cloud_download_outlined,
+            title: '下载 Mindustry 146',
+            progress: 0.42,
+            progressText: '5.2 MB / 12.4 MB',
+            sizeText: '1.8 MB/s',
+            phaseText: '正在下载本体分块',
+            detailText: '分块 3 / 8 · 已校验 2 块',
+            timeText: '18:20:31',
+            onCancel: () {},
+          ),
+          TemplateTaskCard(
+            skin: skin,
+            icon: Icons.link,
+            title: '拉取云存档',
+            progress: null,
+            phaseText: '正在获取大小…',
+            timeText: '18:19:02',
+            onCancel: () {},
+          ),
+          TemplateTaskCard(
+            skin: skin,
+            icon: Icons.download_outlined,
+            title: '下载 New Horizon 2.1.4',
+            state: TemplateTaskState.paused,
+            progress: 0.68,
+            progressText: '8.4 MB / 12.4 MB',
+            phaseText: '已暂停（可继续）',
+            timeText: '18:12:44',
+            onCancel: () {},
+          ),
+          TemplateTaskCard(
+            skin: skin,
+            icon: Icons.error_outline,
+            title: '下载 Copper Loader 0.2.1',
+            state: TemplateTaskState.failed,
+            progress: 0.21,
+            progressText: '2.6 MB / 12.4 MB',
+            phaseText: '下载失败：连接超时',
+            timeText: '18:05:10',
+          ),
+          const SizedBox(height: TemplateSpace.xs),
+          TemplateLogCard(
+            skin: skin,
+            message: '已启动 Mindustry 146',
+            timeText: '18:20:31',
+          ),
+          TemplateLogCard(
+            skin: skin,
+            message: '云存档同步完成（3 个文件）',
+            timeText: '18:19:40',
+            tone: TemplateLogTone.success,
+          ),
+          TemplateLogCard(
+            skin: skin,
+            message: 'GitHub 接口接近限流阈值',
+            timeText: '18:18:02',
+            tone: TemplateLogTone.warning,
+          ),
+          TemplateLogCard(
+            skin: skin,
+            message: '下载失败：连接超时',
+            timeText: '18:05:12',
+            tone: TemplateLogTone.error,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildScene(TemplateSkin skin) {
     return _section(
       skin,
@@ -1198,6 +1309,20 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                     onSelected: (value) => setState(() => _java = value),
                   ),
                   const SizedBox(height: TemplateSpace.sm),
+                  caption('下拉（多选，面板可连续勾选）'),
+                  TemplateMultiDropdown<String>(
+                    skin: skin,
+                    width: 200,
+                    values: _multi,
+                    items: const [
+                      TemplateDropdownItem(value: 'Java 17', label: 'Java 17'),
+                      TemplateDropdownItem(value: 'Java 21', label: 'Java 21'),
+                      TemplateDropdownItem(value: 'Java 8', label: 'Java 8'),
+                      TemplateDropdownItem(value: 'Java 25', label: 'Java 25'),
+                    ],
+                    onChanged: (values) => setState(() => _multi = values),
+                  ),
+                  const SizedBox(height: TemplateSpace.sm),
                   caption('右键菜单（含复选 / 危险项 / 快捷键）'),
                 ],
               ),
@@ -1228,6 +1353,27 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                 ],
               ),
             ],
+          ),
+          const SizedBox(height: TemplateSpace.sm),
+          caption('右键 / 长按下面这块，弹出真菜单（点外部关闭、Esc 关闭）'),
+          GestureDetector(
+            onSecondaryTapDown: (details) =>
+                _showContextMenu(context, details.globalPosition),
+            onLongPressStart: (details) =>
+                _showContextMenu(context, details.globalPosition),
+            child: Container(
+              height: 72,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: skin.sunken,
+                borderRadius: BorderRadius.circular(TemplateRadius.card),
+                border: Border.all(color: skin.border),
+              ),
+              child: Text(
+                '右键这里',
+                style: TemplateType.caption.copyWith(color: skin.textTertiary),
+              ),
+            ),
           ),
           const SizedBox(height: TemplateSpace.sm),
           caption('提示条：四种语气 / 可关闭 / 行内动作'),

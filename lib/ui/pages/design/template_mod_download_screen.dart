@@ -22,8 +22,6 @@ class TemplateModDownloadScreen extends StatefulWidget {
 }
 
 class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
-  final _moreKey = GlobalKey();
-
   int _tab = 0;
   int _filter = 0;
   int _page = 1;
@@ -43,7 +41,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
       color: skin.page,
       child: TemplateScrollView(
         skin: skin,
-        padding: const EdgeInsets.all(TemplateSpace.xl),
+        padding: const EdgeInsets.all(TemplateSpace.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: TemplateSpace.lg,
@@ -89,8 +87,8 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
             spacing: TemplateSpace.sm,
             children: [
               Container(
-                width: 72,
-                height: 72,
+                width: 96,
+                height: 96,
                 decoration: BoxDecoration(
                   color: skin.accentTint,
                   borderRadius: BorderRadius.circular(TemplateRadius.card),
@@ -101,70 +99,67 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
                   color: skin.onAccentTint,
                 ),
               ),
-              Row(
-                spacing: TemplateSpace.xs,
-                children: [
-                  // 主行动：直接下最新「兼容当前选中版本」的那个版本
-                  TemplateButton(
-                    skin: skin,
-                    label: '下载',
-                    icon: Icons.download,
-                    kind: TemplateButtonKind.solid,
-                    onTap: _downloadLatestCompatible,
-                  ),
-                  Builder(
-                    key: _moreKey,
-                    builder: (buttonContext) => TemplateIconButton(
-                      skin: skin,
-                      icon: Icons.more_horiz,
-                      tooltip: '更多操作',
-                      onTap: () => _openMore(buttonContext),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: TemplateSpace.sm,
+              spacing: TemplateSpace.xs,
               children: [
-                Row(
-                  spacing: TemplateSpace.sm,
-                  children: [
-                    Text(
-                      'New Horizon',
-                      style: TemplateType.page.copyWith(
-                        color: skin.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TemplateBadge(
-                      skin: skin,
-                      label: 'Java 模组',
-                      tone: TemplateBadgeTone.accent,
-                    ),
-                    TemplateBadge(skin: skin, label: '已安装'),
-                  ],
-                ),
                 Text(
-                  'Yuria-Shikibe / NewHorizonMod · ★ 1.2k · 更新于 3 天前',
+                  'New Horizon',
+                  style: TemplateType.page.copyWith(
+                    color: skin.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+
+                Text(
+                  'Yuria-Shikibe / NewHorizonMod',
                   style: TemplateType.caption.copyWith(
                     color: skin.textSecondary,
                   ),
                 ),
                 Text(
                   '把 Mindustry 的玩法推到极限：新的科技树、单位与建筑，配套的星球与战役。'
-                  '需要 Copper Loader 0.2.1 以上；与部分整合包的核心模组冲突。',
+                  '需要 Copper Loader 0.2.1 以上；与部分整合包的核心模组冲突。'
+                  '目前模组处于beta阶段，部分功能可能不稳定，战役流程也在持续更新中。敬请期待后续版本。',
                   style: TemplateType.caption.copyWith(
                     color: skin.textTertiary,
                   ),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
+                // TemplateBadge(
+                //   skin: skin,
+                //   label: 'Java 模组',
+                //   tone: TemplateBadgeTone.accent,
+                // ),
               ],
             ),
+          ),
+          Column(
+            spacing: TemplateSpace.sm,
+            mainAxisAlignment: .center,
+            children: [
+              // 主行动：直接下最新「兼容当前选中版本」的那个版本
+              TemplateButton(
+                skin: skin,
+                label: '下载',
+                icon: Icons.download,
+                kind: .solid,
+                onTap: _downloadLatestCompatible,
+              ),
+              Builder(
+                builder: (moreContext) => TemplateButton(
+                  skin: skin,
+                  label: '更多',
+                  icon: Icons.more_horiz,
+                  kind: .quiet,
+                  onTap: () => _openMore(moreContext),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -215,7 +210,10 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
       children: [
         TemplateCard(
           skin: skin,
-          padding: const EdgeInsets.symmetric(vertical: TemplateSpace.xs),
+          padding: const EdgeInsets.symmetric(
+            vertical: TemplateSpace.sm,
+            horizontal: TemplateSpace.sm,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: TemplateSpace.xs,
@@ -239,17 +237,11 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
                         onTap: (index) => setState(() => _filter = index),
                       ),
                     ),
-                    Expanded(
-                      child: Text(
-                        '仅兼容 = 支持当前选中版本的最新几个',
-                        style: TemplateType.caption.copyWith(
-                          color: skin.textTertiary,
-                        ),
-                      ),
-                    ),
+                    Expanded(child: SizedBox()),
+
                     TemplateButton(
                       skin: skin,
-                      label: '重新读取',
+                      label: '刷新',
                       icon: Icons.refresh,
                       kind: TemplateButtonKind.quiet,
                       onTap: () {},
@@ -303,15 +295,10 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
         spacing: TemplateSpace.md,
         children: [
           cell(90, '版本'),
-          cell(110, '日期'),
+          cell(110, '发布时间'),
+          cell(150, '支持版本'),
           cell(80, '体积'),
-          cell(70, '下载'),
-          Expanded(
-            child: Text(
-              '兼容当前版本',
-              style: TemplateType.micro.copyWith(color: skin.textTertiary),
-            ),
-          ),
+          cell(70, '下载量'),
           const SizedBox(width: 88),
         ],
       ),
@@ -351,6 +338,27 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
             ),
           ),
           SizedBox(
+            width: 150,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: TemplateSpace.sm,
+              children: [
+                Text(
+                  'v146-v153', //支持版本范围，由mingameversion翻译
+                  style: TemplateType.caption.copyWith(
+                    color: skin.textTertiary,
+                  ),
+                ),
+                TemplateBadge(
+                  skin: skin,
+                  label: compatible ? '兼容' : '不兼容',
+                  tone: compatible ? .success : .warning,
+                ),
+              ],
+            ),
+          ),
+
+          SizedBox(
             width: 80,
             child: Text(
               size,
@@ -360,28 +368,12 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
           SizedBox(
             width: 70,
             child: Text(
-              '↓ $downloads',
+              downloads,
               style: TemplateType.caption.copyWith(color: skin.textTertiary),
             ),
           ),
           Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TemplateBadge(
-                skin: skin,
-                label: compatible ? '兼容' : '可能不兼容',
-                tone: compatible
-                    ? TemplateBadgeTone.success
-                    : TemplateBadgeTone.warning,
-              ),
-            ),
-          ),
-          TemplateButton(
-            skin: skin,
-            label: '下载',
-            icon: Icons.download,
-            kind: TemplateButtonKind.plain,
-            onTap: () {},
+            child: Align(alignment: Alignment.centerLeft, child: SizedBox()),
           ),
         ],
       ),

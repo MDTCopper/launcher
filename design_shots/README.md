@@ -93,7 +93,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `page/page-08-mod-download` | 模组下载复刻（按原页面结构） |
 | `page/page-09-mod-redesign` | 模组下载**重构版**：单主行动 + 表格式版本列表 + 底部限流提示 |
 | `catalog/44-tabs` | 组件目录新增「标签页（下划线式）」；目录本身挪进 `lib/`，App 内可打开 |
-| `screen/screen-mod` | **App 内页面**：模组下载新页（头卡 + 版本列表） |
+| `catalog/45-drawer-dropdowns` | **当前**：新增任务卡 / 日志卡（右侧抽屉）、多选下拉、可交互右键菜单区；进度条加不确定态 |
+| `screen/screen-mod` | **App 内页面**：模组下载新页（头卡 + 版本列表；含用户微调后的列头） |
 | `screen/screen-mod-readme` | 同上切到 Readme 标签页 |
 | `screen/screen-catalog` | **App 内页面**：组件目录（`/template_catalog`） |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
