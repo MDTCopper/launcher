@@ -1039,6 +1039,10 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
             title: '内存上限',
             label: '${(_slider * 12).toStringAsFixed(1)} GB',
             value: _slider,
+            divisions: 24,
+            showTicks: true,
+            minLabel: '0 GB',
+            maxLabel: '12 GB',
             onChanged: (value) => setState(() => _slider = value),
           ),
           TemplateSliderRow(
@@ -1059,6 +1063,31 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
             title: '启动参数',
             controller: TextEditingController(text: '由启动器自动决定'),
             enabled: false,
+          ),
+          // 输入族：多行 / 错误 / 字数上限 / 密码显隐 / 后缀
+          TemplateInputRow(
+            skin: skin,
+            title: '备注（多行）',
+            controller: TextEditingController(text: ''),
+            hint: '给这个版本写点什么…',
+            multiline: true,
+            maxLength: 200,
+          ),
+          TemplateInputRow(
+            skin: skin,
+            title: '端口（错误态）',
+            controller: TextEditingController(text: '70000'),
+            error: '端口要在 1 ~ 65535 之间',
+            suffix: Text(
+              '端口',
+              style: TemplateType.micro.copyWith(color: skin.textTertiary),
+            ),
+          ),
+          TemplateInputRow(
+            skin: skin,
+            title: '访问令牌（密码）',
+            controller: TextEditingController(text: 'ghp_xxxxxxxxxxxx'),
+            obscure: true,
           ),
         ],
       ),
@@ -1105,6 +1134,103 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
             value: 0.72,
             height: 12,
             enabled: false,
+          ),
+          // 双段进度：已分配（淡）＋ 已用（实心）——内存 / 磁盘这类「底量 + 用量」
+          Row(
+            spacing: TemplateSpace.md,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: TemplateSpace.xs,
+                  children: [
+                    _hint(skin, '双段：已用 4.2 / 已分配 6.0 GB'),
+                    TemplateProgressBar(
+                      skin: skin,
+                      value: 0.52,
+                      secondary: 0.74,
+                      height: 12,
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: TemplateSpace.xs,
+                  children: [
+                    _hint(skin, '双段：接近上限'),
+                    TemplateProgressBar(
+                      skin: skin,
+                      value: 0.93,
+                      secondary: 0.97,
+                      height: 12,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // 状态点 / 数字徽章 / 胶囊标签
+          Wrap(
+            spacing: TemplateSpace.lg,
+            runSpacing: TemplateSpace.md,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TemplateStatusDot(
+                skin: skin,
+                tone: TemplateStatusTone.online,
+                label: '在线',
+              ),
+              TemplateStatusDot(
+                skin: skin,
+                tone: TemplateStatusTone.busy,
+                label: '忙碌',
+              ),
+              TemplateStatusDot(
+                skin: skin,
+                tone: TemplateStatusTone.away,
+                label: '离开',
+              ),
+              TemplateStatusDot(
+                skin: skin,
+                tone: TemplateStatusTone.offline,
+                label: '离线',
+              ),
+            ],
+          ),
+          Wrap(
+            spacing: TemplateSpace.sm,
+            runSpacing: TemplateSpace.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TemplateCountBadge(skin: skin, count: 3),
+              TemplateCountBadge(
+                skin: skin,
+                count: 128,
+                tone: TemplateBadgeTone.danger,
+              ),
+              TemplateCountBadge(
+                skin: skin,
+                count: 9,
+                tone: TemplateBadgeTone.neutral,
+              ),
+              TemplateCountBadge(skin: skin, dotOnly: true),
+              TemplateChip(
+                skin: skin,
+                icon: Icons.tag,
+                label: 'v146',
+                selected: true,
+                onTap: () {},
+              ),
+              TemplateChip(
+                skin: skin,
+                icon: Icons.tag,
+                label: 'v153',
+                onTap: () {},
+              ),
+              TemplateChip(skin: skin, label: 'Java 模组', onClose: () {}),
+            ],
           ),
           Wrap(
             spacing: TemplateSpace.md,

@@ -627,6 +627,184 @@ class TemplateBadge extends StatelessWidget {
   }
 }
 
+/// 状态点：在线 / 忙碌 / 离开 / 离线
+enum TemplateStatusTone { online, busy, away, offline }
+
+/// 状态点（可带文字）：好友在线点、服务连通性、任务状态灯
+class TemplateStatusDot extends StatelessWidget {
+  const TemplateStatusDot({
+    super.key,
+    required this.skin,
+    this.tone = TemplateStatusTone.online,
+    this.size = 8,
+    this.label,
+  });
+
+  final TemplateSkin skin;
+  final TemplateStatusTone tone;
+  final double size;
+  final String? label;
+
+  Color get _color => switch (tone) {
+    TemplateStatusTone.online => skin.success,
+    TemplateStatusTone.busy => skin.warning,
+    TemplateStatusTone.away => skin.note,
+    TemplateStatusTone.offline => skin.textTertiary,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final dot = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: _color, shape: BoxShape.circle),
+    );
+    if (label == null) return dot;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: TemplateSpace.xs,
+      children: [
+        dot,
+        Text(
+          label!,
+          style: TemplateType.caption.copyWith(color: skin.textSecondary),
+        ),
+      ],
+    );
+  }
+}
+
+/// 数字徽章 / 未读圆点：导航栏角标、标签页计数
+class TemplateCountBadge extends StatelessWidget {
+  const TemplateCountBadge({
+    super.key,
+    required this.skin,
+    this.count = 0,
+    this.max = 99,
+    this.dotOnly = false,
+    this.tone = TemplateBadgeTone.accent,
+  });
+
+  final TemplateSkin skin;
+  final int count;
+  final int max;
+
+  /// 只要一个点（有未读但不想报数）
+  final bool dotOnly;
+  final TemplateBadgeTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg) = switch (tone) {
+      TemplateBadgeTone.neutral => (skin.textTertiary, skin.surface),
+      TemplateBadgeTone.success => (
+        skin.success,
+        skin.dark ? skin.sunken : skin.surface,
+      ),
+      TemplateBadgeTone.warning => (
+        skin.warning,
+        skin.dark ? skin.sunken : skin.surface,
+      ),
+      TemplateBadgeTone.danger => (skin.danger, skin.onDanger),
+      TemplateBadgeTone.note => (
+        skin.note,
+        skin.dark ? skin.sunken : skin.surface,
+      ),
+      TemplateBadgeTone.accent => (skin.accent, skin.onAccent),
+    };
+    if (dotOnly) {
+      return Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+      );
+    }
+    return Container(
+      constraints: const BoxConstraints(minWidth: 18),
+      height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(TemplateRadius.pill),
+      ),
+      // Center(widthFactor: 1) 让它按内容收窄：只给 alignment 的话，Wrap 里会被拉满整行
+      child: Center(
+        widthFactor: 1,
+        heightFactor: 1,
+        child: Text(
+          count > max ? '$max+' : '$count',
+          style: TemplateType.micro.copyWith(color: fg),
+        ),
+      ),
+    );
+  }
+}
+
+/// 胶囊标签：版本 tag、模组标签、可点选筛选项
+class TemplateChip extends StatelessWidget {
+  const TemplateChip({
+    super.key,
+    required this.skin,
+    required this.label,
+    this.icon,
+    this.selected = false,
+    this.onTap,
+    this.onClose,
+  });
+
+  final TemplateSkin skin;
+  final String label;
+  final IconData? icon;
+  final bool selected;
+  final VoidCallback? onTap;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = selected ? skin.accentTint : Colors.transparent;
+    final foreground = selected ? skin.onAccentTint : skin.textSecondary;
+    final borderColor = selected ? Colors.transparent : skin.border;
+    return ReboundContainer(
+      onTap: onTap,
+      pressedScale: 0.96,
+      borderRadius: BorderRadius.circular(TemplateRadius.pill),
+      backgroundColor: background,
+      hoverColor: onTap == null ? Colors.transparent : skin.hoverOn(background),
+      highlightColor: onTap == null ? Colors.transparent : skin.pressed,
+      padding: const EdgeInsets.symmetric(
+        horizontal: TemplateSpace.sm,
+        vertical: TemplateSpace.xs,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(TemplateRadius.pill),
+          border: Border.all(color: borderColor),
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: TemplateSpace.sm,
+          vertical: 3,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: TemplateSpace.xs,
+          children: [
+            if (icon != null) Icon(icon, size: 13, color: foreground),
+            Text(
+              label,
+              style: TemplateType.caption.copyWith(color: foreground),
+            ),
+            if (onClose != null)
+              GestureDetector(
+                onTap: onClose,
+                child: Icon(Icons.close, size: 12, color: foreground),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// 复选：`value == null` 就是第三态「不变」（项目里三处设置页都用它）
 class TemplateCheckbox extends StatelessWidget {
   const TemplateCheckbox({

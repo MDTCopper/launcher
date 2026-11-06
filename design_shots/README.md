@@ -98,7 +98,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/46-project-menu` | 任务卡改按 `LaunchMindustryTask` 形制（大标题 + 状态行 + 细进度 + 等宽按钮）；右键菜单改用**当前项目的 `ContextMenu`** |
 | `catalog/47-task-card-v2` | 任务卡第二版——图标块 + 标题/状态徽标 + 右侧时间、进度条带百分比、说明/体积分栏、操作收在右下 |
 | `catalog/48-page-parts` | 补分页器、折叠面板、图片位 / 头像（有图用图、没图退回图标或首字） |
-| `catalog/49-note-colors` | **当前**：第四个语义色「提示 note」蓝调（徽标 / 提示条）；任务卡状态挪到时间下面、窄屏按钮通栏 |
+| `catalog/49-note-colors` | 第四个语义色「提示 note」蓝调（徽标 / 提示条）；任务卡状态挪到时间下面、窄屏按钮通栏 |
+| `catalog/50-form-status` | **当前**：输入族（多行 / 错误态 / 字数 / 密码显隐 / 后缀）、滑条刻度与量程、进度双段、状态点 / 数字徽章 / 胶囊标签 |
 | `screen/screen-mod` | **App 内页面**：模组下载新页（宽屏版，1000×700） |
 | `screen/screen-mod-portrait` | 同一页 **竖屏 / 窄窗版**（720×1180）：头卡堆叠、表头隐藏、逐行折叠、翻页竖排 |
 | `screen/screen-mod-readme` | 同上切到 Readme 标签页 |

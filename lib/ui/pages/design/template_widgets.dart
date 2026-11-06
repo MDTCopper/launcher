@@ -1317,6 +1317,7 @@ class TemplateProgressBar extends StatelessWidget {
     this.height = 12,
     this.enabled = true,
     this.indeterminate = false,
+    this.secondary,
   });
 
   final TemplateSkin skin;
@@ -1327,6 +1328,9 @@ class TemplateProgressBar extends StatelessWidget {
   /// 总量未知时用不确定态：一条色块来回滑，比恒为 0 的进度条诚实
   final bool indeterminate;
 
+  /// 第二段（0~1）：内存「已分配」这类底量，画成淡主题色，[value] 再叠在上面
+  final double? secondary;
+
   @override
   Widget build(BuildContext context) {
     if (indeterminate) {
@@ -1335,6 +1339,46 @@ class TemplateProgressBar extends StatelessWidget {
         child: SizedBox(
           height: height,
           child: _IndeterminateBar(skin: skin),
+        ),
+      );
+    }
+    if (secondary != null) {
+      // 双段：淡底（已分配）+ 实心（已用）；宽度按分数直接算，不依赖 Flex
+      final filled = value.clamp(0.0, 1.0);
+      final reserved = secondary!.clamp(0.0, 1.0);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(TemplateRadius.pill),
+        child: SizedBox(
+          height: height,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              Widget band(double fraction, Color color) => Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: width * fraction,
+                child: ColoredBox(color: color),
+              );
+              return Stack(
+                children: [
+                  Positioned.fill(child: ColoredBox(color: skin.sunken)),
+                  if (reserved > 0)
+                    band(
+                      reserved,
+                      // 淡主题色：用强调色加透明度，暗色下也看得见（accentTint 在暗色里与凹槽底太接近）
+                      enabled
+                          ? skin.accent.withAlpha(
+                              (skin.dark ? 0.30 : 0.32) * 255 ~/ 1,
+                            )
+                          : skin.standardDisabledSurface,
+                    ),
+                  if (filled > 0)
+                    band(filled, enabled ? skin.accent : skin.textDisabled),
+                ],
+              );
+            },
+          ),
         ),
       );
     }
@@ -1438,6 +1482,9 @@ class TemplateSliderRow extends StatelessWidget {
     this.onChanged,
     this.divisions = 20,
     this.enabled = true,
+    this.minLabel,
+    this.maxLabel,
+    this.showTicks = false,
   });
 
   final TemplateSkin skin;
@@ -1447,6 +1494,13 @@ class TemplateSliderRow extends StatelessWidget {
   final ValueChanged<double>? onChanged;
   final int divisions;
   final bool enabled;
+
+  /// 轨道两端的量程文字（如 `0 GB` / `8 GB`）
+  final String? minLabel;
+  final String? maxLabel;
+
+  /// 轨道下画刻度点（档位数取 [divisions]，太多会自动稀疏）
+  final bool showTicks;
 
   @override
   Widget build(BuildContext context) {
@@ -1477,8 +1531,52 @@ class TemplateSliderRow extends StatelessWidget {
             ],
           ),
           _buildTrack(),
+          if (showTicks || minLabel != null || maxLabel != null) ...[
+            const SizedBox(height: TemplateSpace.xs),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: TemplateSpace.sm,
+              children: [
+                if (minLabel != null)
+                  Text(
+                    minLabel!,
+                    style: TemplateType.micro.copyWith(
+                      color: skin.textTertiary,
+                    ),
+                  ),
+                if (showTicks) ...[
+                  Expanded(child: _buildTicks()),
+                ] else
+                  const Spacer(),
+                if (maxLabel != null)
+                  Text(
+                    maxLabel!,
+                    style: TemplateType.micro.copyWith(
+                      color: skin.textTertiary,
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  /// 刻度点：0 ~ 1 之间均匀画 [divisions] + 1 个点，超过 12 档就每 2 档点一个
+  Widget _buildTicks() {
+    final count = divisions + 1;
+    final step = count > 12 ? (count / 12).ceil() : 1;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        for (var i = 0; i < count; i += step)
+          Container(
+            width: 2,
+            height: 4,
+            color: enabled ? skin.borderStrong : skin.controlBorderDisabled,
+          ),
+      ],
     );
   }
 
@@ -1571,6 +1669,144 @@ class TemplateSliderRow extends StatelessWidget {
   }
 }
 
+/// 输入框：单行 / 多行 / 密码（可显隐）/ 后缀控件 / 错误说明 / 字数上限
+///
+/// 覆盖度审计 P1-11：原先只有「标题 + 单行输入」的 [TemplateInputRow]，
+/// 设置页里的参数框、备注、端口、路径都需要这些形态
+class TemplateTextField extends StatefulWidget {
+  const TemplateTextField({
+    super.key,
+    required this.skin,
+    required this.controller,
+    this.hint = '',
+    this.enabled = true,
+    this.maxLines = 1,
+    this.obscure = false,
+    this.error,
+    this.maxLength,
+    this.suffix,
+    this.onSubmitted,
+  });
+
+  final TemplateSkin skin;
+  final TextEditingController controller;
+  final String hint;
+  final bool enabled;
+  final int maxLines;
+
+  /// 密码态：右侧自动加一个显隐按钮
+  final bool obscure;
+
+  /// 给了就是错误态（描边与说明都换成危险色）
+  final String? error;
+
+  /// 字数上限：给了就在右下角显示 `n / max`
+  final int? maxLength;
+
+  /// 输入框内的后缀（单位、浏览按钮…）
+  final Widget? suffix;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  State<TemplateTextField> createState() => _TemplateTextFieldState();
+}
+
+class _TemplateTextFieldState extends State<TemplateTextField> {
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = widget.skin;
+    final hasError = widget.error != null;
+    final borderColor = !widget.enabled
+        ? skin.controlBorderDisabled
+        : hasError
+        ? skin.danger
+        : skin.controlBorder;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: TemplateSpace.xs,
+      children: [
+        TextField(
+          controller: widget.controller,
+          enabled: widget.enabled,
+          maxLines: widget.maxLines,
+          obscureText: widget.obscure && !_revealed,
+          maxLength: widget.maxLength,
+          onSubmitted: widget.onSubmitted,
+          style: TemplateType.item.copyWith(
+            color: widget.enabled ? skin.textPrimary : skin.textDisabled,
+          ),
+          cursorColor: skin.accent,
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: widget.hint,
+            hintStyle: TemplateType.item.copyWith(color: skin.textTertiary),
+            // 字数自己画在下面，关掉 Material 那套计数器
+            counterText: '',
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: TemplateSpace.md,
+              vertical: TemplateSpace.md,
+            ),
+            filled: true,
+            fillColor: skin.sunken,
+            suffixIcon: widget.obscure
+                ? IconButton(
+                    onPressed: () => setState(() => _revealed = !_revealed),
+                    icon: Icon(
+                      _revealed ? Icons.visibility_off : Icons.visibility,
+                      size: 18,
+                      color: skin.textTertiary,
+                    ),
+                  )
+                : widget.suffix,
+            suffixIconConstraints: const BoxConstraints(
+              minWidth: 0,
+              minHeight: 0,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(TemplateRadius.control),
+              borderSide: BorderSide(color: borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(TemplateRadius.control),
+              borderSide: BorderSide(
+                color: hasError ? skin.danger : skin.accent,
+                width: 2,
+              ),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(TemplateRadius.control),
+              borderSide: BorderSide(color: skin.controlBorderDisabled),
+            ),
+          ),
+        ),
+        if (hasError || widget.maxLength != null)
+          Row(
+            children: [
+              Expanded(
+                child: hasError
+                    ? Text(
+                        widget.error!,
+                        style: TemplateType.caption.copyWith(
+                          color: skin.dangerText,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              if (widget.maxLength != null)
+                Text(
+                  '${widget.controller.text.characters.length} / ${widget.maxLength}',
+                  style: TemplateType.micro.copyWith(color: skin.textTertiary),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
 /// 输入行：标题 + 输入框（聚焦时描边换强调色）
 class TemplateInputRow extends StatelessWidget {
   const TemplateInputRow({
@@ -1580,6 +1816,11 @@ class TemplateInputRow extends StatelessWidget {
     required this.controller,
     this.hint = '',
     this.enabled = true,
+    this.multiline = false,
+    this.obscure = false,
+    this.error,
+    this.maxLength,
+    this.suffix,
   });
 
   final TemplateSkin skin;
@@ -1587,6 +1828,13 @@ class TemplateInputRow extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
   final bool enabled;
+
+  /// 多行（说明 / 备注 / 参数），给 4 行高
+  final bool multiline;
+  final bool obscure;
+  final String? error;
+  final int? maxLength;
+  final Widget? suffix;
 
   @override
   Widget build(BuildContext context) {
@@ -1603,36 +1851,16 @@ class TemplateInputRow extends StatelessWidget {
               color: enabled ? skin.textTertiary : skin.textDisabled,
             ),
           ),
-          TextField(
+          TemplateTextField(
+            skin: skin,
             controller: controller,
+            hint: hint,
             enabled: enabled,
-            style: TemplateType.item.copyWith(
-              color: enabled ? skin.textPrimary : skin.textDisabled,
-            ),
-            cursorColor: skin.accent,
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: hint,
-              hintStyle: TemplateType.item.copyWith(color: skin.textTertiary),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: TemplateSpace.md,
-                vertical: TemplateSpace.md,
-              ),
-              filled: true,
-              fillColor: skin.sunken,
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(TemplateRadius.control),
-                borderSide: BorderSide(color: skin.controlBorder),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(TemplateRadius.control),
-                borderSide: BorderSide(color: skin.accent, width: 2),
-              ),
-              disabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(TemplateRadius.control),
-                borderSide: BorderSide(color: skin.controlBorderDisabled),
-              ),
-            ),
+            maxLines: multiline ? 4 : 1,
+            obscure: obscure,
+            error: error,
+            maxLength: maxLength,
+            suffix: suffix,
           ),
         ],
       ),
