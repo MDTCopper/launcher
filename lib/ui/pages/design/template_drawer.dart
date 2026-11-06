@@ -62,129 +62,179 @@ class TemplateTaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final determinate = progress != null;
-    return TemplateCard(
-      skin: skin,
-      padding: const EdgeInsets.all(TemplateSpace.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: TemplateSpace.sm,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: TemplateSpace.md,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 抽屉里只有 300 上下宽：操作按钮不能跟明细挤在一排，
+        // 否则就像用户说的「捉襟见肘」（宽屏 / 将来的任务详情页才走一排）
+        final compact = constraints.maxWidth < 400;
+
+        // 窄屏时把按钮自动抻满一行；宽屏保持原来的安静按钮
+        Widget resolvedAction(Widget action) => switch (action) {
+          TemplateButton() when compact => TemplateButton(
+            skin: action.skin,
+            label: action.label,
+            icon: action.icon,
+            kind: action.kind,
+            danger: action.danger,
+            enabled: action.enabled,
+            expanded: true,
+            onTap: action.onTap,
+          ),
+          _ => action,
+        };
+
+        return TemplateCard(
+          skin: skin,
+          padding: const EdgeInsets.all(TemplateSpace.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: TemplateSpace.sm,
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: skin.sunken,
-                  borderRadius: BorderRadius.circular(TemplateRadius.control),
-                ),
-                child: Icon(icon, size: 18, color: _iconColor),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 2,
-                  children: [
-                    Row(
-                      spacing: TemplateSpace.sm,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: TemplateSpace.md,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: skin.sunken,
+                      borderRadius: BorderRadius.circular(
+                        TemplateRadius.control,
+                      ),
+                    ),
+                    child: Icon(icon, size: 18, color: _iconColor),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 2,
                       children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            style: TemplateType.item.copyWith(
-                              color: skin.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        Text(
+                          title,
+                          style: TemplateType.item.copyWith(
+                            color: skin.textPrimary,
+                            fontWeight: FontWeight.w600,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        if (statusLabel != null)
-                          TemplateBadge(
-                            skin: skin,
-                            label: statusLabel!,
-                            tone: statusTone,
+                        if (phaseText != null)
+                          Text(
+                            phaseText!,
+                            style: TemplateType.caption.copyWith(
+                              color: skin.textSecondary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                       ],
                     ),
-                    if (phaseText != null)
-                      Text(
-                        phaseText!,
+                  ),
+                  // 时间在上、状态在下（用户 2026-11-06：「把任务当前状态放到时间下面」）
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    spacing: TemplateSpace.xs,
+                    children: [
+                      if (timeText != null)
+                        Text(
+                          timeText!,
+                          style: TemplateType.micro.copyWith(
+                            color: skin.textTertiary,
+                          ),
+                        ),
+                      if (statusLabel != null)
+                        TemplateBadge(
+                          skin: skin,
+                          label: statusLabel!,
+                          tone: statusTone,
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+              Row(
+                spacing: TemplateSpace.sm,
+                children: [
+                  Expanded(
+                    child: TemplateProgressBar(
+                      skin: skin,
+                      value: progress ?? 0,
+                      indeterminate: !determinate,
+                      height: 8,
+                    ),
+                  ),
+                  if (determinate)
+                    Text(
+                      '${(progress! * 100).round()}%',
+                      style: TemplateType.micro.copyWith(
+                        color: skin.textTertiary,
+                      ),
+                    ),
+                ],
+              ),
+              if (progressText != null || sizeText != null)
+                Row(
+                  spacing: TemplateSpace.sm,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        progressText ?? '',
                         style: TemplateType.caption.copyWith(
                           color: skin.textSecondary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                    if (sizeText != null)
+                      Text(
+                        sizeText!,
+                        style: TemplateType.caption.copyWith(
+                          color: skin.textTertiary,
+                        ),
+                      ),
                   ],
                 ),
-              ),
-              if (timeText != null)
-                Text(
-                  timeText!,
-                  style: TemplateType.micro.copyWith(color: skin.textTertiary),
-                ),
-            ],
-          ),
-          Row(
-            spacing: TemplateSpace.sm,
-            children: [
-              Expanded(
-                child: TemplateProgressBar(
-                  skin: skin,
-                  value: progress ?? 0,
-                  indeterminate: !determinate,
-                  height: 8,
-                ),
-              ),
-              if (determinate)
-                Text(
-                  '${(progress! * 100).round()}%',
-                  style: TemplateType.micro.copyWith(color: skin.textTertiary),
-                ),
-            ],
-          ),
-          if (progressText != null || sizeText != null)
-            Row(
-              spacing: TemplateSpace.sm,
-              children: [
-                Expanded(
-                  child: Text(
-                    progressText ?? '',
-                    style: TemplateType.caption.copyWith(
-                      color: skin.textSecondary,
+              if (compact) ...[
+                if (detailText != null)
+                  Text(
+                    detailText!,
+                    style: TemplateType.micro.copyWith(
+                      color: skin.textTertiary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                if (sizeText != null)
-                  Text(
-                    sizeText!,
-                    style: TemplateType.caption.copyWith(
-                      color: skin.textTertiary,
-                    ),
+                if (actions.isNotEmpty)
+                  Row(
+                    spacing: TemplateSpace.sm,
+                    children: [
+                      for (final action in actions)
+                        Expanded(child: resolvedAction(action)),
+                    ],
                   ),
-              ],
-            ),
-          Row(
-            spacing: TemplateSpace.sm,
-            children: [
-              Expanded(
-                child: Text(
-                  detailText ?? '',
-                  style: TemplateType.micro.copyWith(color: skin.textTertiary),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              ] else
+                Row(
+                  spacing: TemplateSpace.sm,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        detailText ?? '',
+                        style: TemplateType.micro.copyWith(
+                          color: skin.textTertiary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    for (final action in actions) action,
+                  ],
                 ),
-              ),
-              for (final action in actions) action,
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

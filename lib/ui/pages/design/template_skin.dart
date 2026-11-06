@@ -59,6 +59,8 @@ class TemplateSkin {
     required this.onDanger,
     required this.success,
     required this.warning,
+    required this.note,
+    required this.noteText,
     required this.hover,
     required this.pressed,
     required this.selected,
@@ -119,6 +121,8 @@ class TemplateSkin {
     final red = dark ? redDark : redLight;
     final green = dark ? greenDark : greenLight;
     final yellow = dark ? yellowDark : yellowLight;
+    // 提示（note）用蓝调：Radix 沙色系里没有蓝色，直接按 HCT 解一档
+    final noteRamp = ToneRamp(250.5, 55);
     const white = 0xFFFFFFFF;
 
     Color pick(List<int> scale, int step) => Color(scale[step - 1]);
@@ -149,6 +153,8 @@ class TemplateSkin {
       onDanger: Color(onSolid(red)),
       success: pick(green, dark ? 11 : 9),
       warning: pick(yellow, dark ? 11 : 9),
+      note: Color(noteRamp.solveOn(sand[1], dark ? 5.5 : 5, lighter: dark)),
+      noteText: Color(noteRamp.solveOn(sand[1], dark ? 5.5 : 5, lighter: dark)),
       hover: dark ? const Color(0x14FFFFFF) : const Color(0x0F000000),
       pressed: dark ? const Color(0x1FFFFFFF) : const Color(0x1A000000),
       selected: pick(
@@ -211,6 +217,8 @@ class TemplateSkin {
       onDanger: Color(tones.onDanger),
       success: Color(tones.success),
       warning: Color(tones.warning),
+      note: Color(tones.note),
+      noteText: Color(tones.noteText),
       // ── 叠层：手写（业界也如此），方向按主题 ──
       hover: dark ? const Color(0x14FFFFFF) : const Color(0x0F000000),
       pressed: dark ? const Color(0x1FFFFFFF) : const Color(0x1A000000),
@@ -252,6 +260,10 @@ class TemplateSkin {
   final Color onDanger;
   final Color success;
   final Color warning;
+
+  /// 提示 / 说明（蓝调）：实心形态与文字形态
+  final Color note;
+  final Color noteText;
   final Color hover;
   final Color pressed;
   final Color selected;

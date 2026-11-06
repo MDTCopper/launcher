@@ -1076,7 +1076,7 @@ class _TabItemState extends State<_TabItem> {
 }
 
 /// 提示条的语气
-enum TemplateNoticeTone { info, success, warning, danger }
+enum TemplateNoticeTone { info, success, warning, danger, note }
 
 /// 提示条：靠底色与左边一道强调线，不靠描边把整条圈起来
 ///
@@ -1113,6 +1113,7 @@ class TemplateNotice extends StatelessWidget {
       TemplateNoticeTone.success => (skin.success, skin.success),
       TemplateNoticeTone.warning => (skin.warning, skin.warning),
       TemplateNoticeTone.danger => (skin.danger, skin.dangerText),
+      TemplateNoticeTone.note => (skin.note, skin.noteText),
     };
     final resolvedIcon =
         icon ??
@@ -1121,6 +1122,7 @@ class TemplateNotice extends StatelessWidget {
           TemplateNoticeTone.success => Icons.check_circle_outline,
           TemplateNoticeTone.warning => Icons.warning_amber_outlined,
           TemplateNoticeTone.danger => Icons.error_outline,
+          TemplateNoticeTone.note => Icons.lightbulb_outline,
         };
     // 外面不再自带边距：它是卡里的一项，间距由卡片自己（`TemplateSection.spacing`）管
     return DecoratedBox(

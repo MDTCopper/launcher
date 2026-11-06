@@ -307,6 +307,13 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                           label: '不兼容',
                           tone: TemplateBadgeTone.danger,
                         ),
+                        // 第四个语义色：提示 / 说明（蓝调，用户 2026-11-06 要的）
+                        TemplateBadge(
+                          skin: skin,
+                          label: '提示',
+                          tone: TemplateBadgeTone.note,
+                          icon: Icons.lightbulb_outline,
+                        ),
                       ],
                     ),
                   ],
@@ -1477,12 +1484,17 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
             ),
           ),
           const SizedBox(height: TemplateSpace.sm),
-          caption('提示条：四种语气 / 可关闭 / 行内动作'),
+          caption('提示条：五种语气 / 可关闭 / 行内动作'),
           TemplateNotice(skin: skin, text: '把资源或游戏本体拖进 Copper 直接导入'),
           TemplateNotice(
             skin: skin,
             tone: TemplateNoticeTone.success,
             text: '版本列表已刷新',
+          ),
+          TemplateNotice(
+            skin: skin,
+            tone: TemplateNoticeTone.note,
+            text: '选「仅兼容」只会列出支持当前版本的那些版本',
           ),
           TemplateNotice(
             skin: skin,

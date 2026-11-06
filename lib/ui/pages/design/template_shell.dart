@@ -578,7 +578,7 @@ class TemplateTooltip extends StatelessWidget {
 }
 
 /// 徽标 / 状态签：列表项右侧、列表卡角标、状态点后面的文字都用它
-enum TemplateBadgeTone { neutral, accent, success, warning, danger }
+enum TemplateBadgeTone { neutral, accent, success, warning, danger, note }
 
 class TemplateBadge extends StatelessWidget {
   const TemplateBadge({
@@ -602,6 +602,7 @@ class TemplateBadge extends StatelessWidget {
       TemplateBadgeTone.success => (skin.success, skin.success),
       TemplateBadgeTone.warning => (skin.warning, skin.warning),
       TemplateBadgeTone.danger => (skin.danger, skin.dangerText),
+      TemplateBadgeTone.note => (skin.note, skin.noteText),
     };
     return DecoratedBox(
       decoration: BoxDecoration(

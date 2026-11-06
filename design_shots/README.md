@@ -16,10 +16,11 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_pag
 # 可选：PAGE=version|cloud|mod 换页面；PAGE_HEIGHT 拉高看折叠线以下
 ```
 
-**App 内设计层页面**（`design_shots/screen/`，`SCREEN=catalog|mod`，`TAB=1|2` 切标签页）：
+**App 内设计层页面**（`design_shots/screen/`，`SCREEN=catalog|mod|drawer`，`TAB=1|2` 切标签页，
+`WIDTH` / `PAGE_HEIGHT` 改画布尺寸——竖屏与抽屉宽度就靠它们）：
 
 ```powershell
-$env:SHOT_TAG='screen-mod'; $env:SCREEN='mod'
+$env:SHOT_TAG='screen-mod'; $env:SCREEN='mod'; $env:WIDTH='1000'; $env:PAGE_HEIGHT='700'
 dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab_screens_shot_test.dart
 ```
 
@@ -96,9 +97,12 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/45-drawer-dropdowns` | 新增任务卡 / 日志卡（右侧抽屉）、多选下拉、可交互右键菜单区；进度条加不确定态 |
 | `catalog/46-project-menu` | 任务卡改按 `LaunchMindustryTask` 形制（大标题 + 状态行 + 细进度 + 等宽按钮）；右键菜单改用**当前项目的 `ContextMenu`** |
 | `catalog/47-task-card-v2` | 任务卡第二版——图标块 + 标题/状态徽标 + 右侧时间、进度条带百分比、说明/体积分栏、操作收在右下 |
-| `catalog/48-page-parts` | **当前**：补分页器、折叠面板、图片位 / 头像（有图用图、没图退回图标或首字） |
-| `screen/screen-mod` | **App 内页面**：模组下载新页（头卡 + 版本列表；含用户微调后的列头） |
+| `catalog/48-page-parts` | 补分页器、折叠面板、图片位 / 头像（有图用图、没图退回图标或首字） |
+| `catalog/49-note-colors` | **当前**：第四个语义色「提示 note」蓝调（徽标 / 提示条）；任务卡状态挪到时间下面、窄屏按钮通栏 |
+| `screen/screen-mod` | **App 内页面**：模组下载新页（宽屏版，1000×700） |
+| `screen/screen-mod-portrait` | 同一页 **竖屏 / 窄窗版**（720×1180）：头卡堆叠、表头隐藏、逐行折叠、翻页竖排 |
 | `screen/screen-mod-readme` | 同上切到 Readme 标签页 |
+| `screen/screen-drawer-narrow` | 抽屉宽度（360）下的任务卡 / 日志卡：状态在时间下面、操作按钮单独通栏 |
 | `screen/screen-catalog` | **App 内页面**：组件目录（`/template_catalog`） |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |

@@ -34,172 +34,231 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
     ('v2.1.0', '2026-09-30', '11.8 MB', '25.4k', false),
   ];
 
+  static const _desc =
+      '把 Mindustry 的玩法推到极限：新的科技树、单位与建筑，配套的星球与战役。'
+      '需要 Copper Loader 0.2.1 以上；与部分整合包的核心模组冲突。'
+      '目前模组处于beta阶段，部分功能可能不稳定，战役流程也在持续更新中。敬请期待后续版本。';
+
+  /// 窄屏阈值：竖屏 / 窄窗时头卡、版本表都换成堆叠排布
+  static const _compactWidth = 760.0;
+
   @override
   Widget build(BuildContext context) {
     final skin = TemplateSkin.ofContext(context);
 
-    return ColoredBox(
-      color: skin.page,
-      child: TemplateScrollView(
-        skin: skin,
-        padding: const EdgeInsets.all(TemplateSpace.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: TemplateSpace.lg,
-          children: [
-            _buildHead(skin),
-            TemplateTabBar(
-              skin: skin,
-              tabs: const ['版本列表', '模组介绍', 'Readme'],
-              value: _tab,
-              onTap: (index) => setState(() => _tab = index),
-              trailing: _tab == 0
-                  ? Text(
-                      '共 ${_versions.length} 个版本',
-                      style: TemplateType.caption.copyWith(
-                        color: skin.textTertiary,
-                      ),
-                    )
-                  : null,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < _compactWidth;
+        return ColoredBox(
+          color: skin.page,
+          child: TemplateScrollView(
+            skin: skin,
+            padding: EdgeInsets.all(
+              compact ? TemplateSpace.md : TemplateSpace.lg,
             ),
-            switch (_tab) {
-              1 => _buildIntro(skin),
-              2 => _buildReadme(skin),
-              _ => _buildVersions(skin),
-            },
-          ],
-        ),
-      ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: TemplateSpace.lg,
+              children: [
+                _buildHead(skin, compact: compact),
+                TemplateTabBar(
+                  skin: skin,
+                  tabs: const ['版本列表', '模组介绍', 'Readme'],
+                  value: _tab,
+                  onTap: (index) => setState(() => _tab = index),
+                  trailing: _tab == 0
+                      ? Text(
+                          '共 ${_versions.length} 个版本',
+                          style: TemplateType.caption.copyWith(
+                            color: skin.textTertiary,
+                          ),
+                        )
+                      : null,
+                ),
+                switch (_tab) {
+                  1 => _buildIntro(skin),
+                  2 => _buildReadme(skin),
+                  _ => _buildVersions(skin, compact: compact),
+                },
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   // ── 头卡 ──
 
-  Widget _buildHead(TemplateSkin skin) {
+  Widget _buildHead(TemplateSkin skin, {required bool compact}) {
+    final logoSize = compact ? 64.0 : 96.0;
+
+    Widget logo() => Container(
+      width: logoSize,
+      height: logoSize,
+      decoration: BoxDecoration(
+        color: skin.accentTint,
+        borderRadius: BorderRadius.circular(TemplateRadius.card),
+      ),
+      child: Icon(
+        Icons.extension_outlined,
+        size: logoSize * 0.36,
+        color: skin.onAccentTint,
+      ),
+    );
+
+    Widget titleRow() => Row(
+      spacing: TemplateSpace.sm,
+      children: [
+        Flexible(
+          child: Text(
+            'New Horizon',
+            style: TemplateType.page.copyWith(
+              color: skin.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (!compact) ...[
+          const Spacer(),
+          Icon(Icons.download, size: 18, color: skin.textSecondary),
+          Text(
+            '126.9M',
+            style: TemplateType.caption.copyWith(color: skin.textSecondary),
+          ),
+          const SizedBox(width: TemplateSpace.sm),
+          Icon(Icons.star, size: 18, color: skin.textSecondary),
+          Text(
+            '1.2k',
+            style: TemplateType.caption.copyWith(color: skin.textSecondary),
+          ),
+        ],
+      ],
+    );
+
+    Widget badges() => Wrap(
+      spacing: TemplateSpace.sm,
+      runSpacing: TemplateSpace.xs,
+      children: [
+        TemplateBadge(
+          skin: skin,
+          icon: Icons.coffee_outlined,
+          label: 'Java 模组',
+          tone: TemplateBadgeTone.danger,
+        ),
+        TemplateBadge(
+          skin: skin,
+          label: 'Beta',
+          tone: TemplateBadgeTone.warning,
+        ),
+        TemplateBadge(
+          skin: skin,
+          label: '社区维护标签',
+          tone: TemplateBadgeTone.neutral,
+        ),
+      ],
+    );
+
+    Widget author() => Text(
+      'Yuria-Shikibe / NewHorizonMod',
+      style: TemplateType.caption.copyWith(color: skin.textSecondary),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+
+    // 主行动：直接下最新「兼容当前选中版本」的那个版本；「更多」走项目现有菜单
+    Widget download() => TemplateButton(
+      skin: skin,
+      label: '下载',
+      icon: Icons.download,
+      kind: TemplateButtonKind.solid,
+      expanded: compact,
+      onTap: _downloadLatestCompatible,
+    );
+
+    Widget more() => Builder(
+      builder: (moreContext) => TemplateButton(
+        skin: skin,
+        label: '更多',
+        icon: Icons.more_horiz,
+        kind: TemplateButtonKind.quiet,
+        onTap: () => _openMore(moreContext),
+      ),
+    );
+
+    if (compact) {
+      // 窄屏：图标 + 标题一行，描述单独一行，按钮在底部通栏 —— 抽屉 / 竖屏里也放得下
+      return TemplateCard(
+        skin: skin,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: TemplateSpace.md,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: TemplateSpace.md,
+              children: [
+                logo(),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: TemplateSpace.xs,
+                    children: [titleRow(), author(), badges()],
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              _desc,
+              style: TemplateType.caption.copyWith(color: skin.textTertiary),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Row(
+              spacing: TemplateSpace.sm,
+              children: [
+                Expanded(child: download()),
+                more(),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
     return TemplateCard(
       skin: skin,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: TemplateSpace.lg,
         children: [
-          // 左侧：图标 + 图标下面的主行动
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: TemplateSpace.sm,
-            children: [
-              Container(
-                width: 96,
-                height: 96,
-                decoration: BoxDecoration(
-                  color: skin.accentTint,
-                  borderRadius: BorderRadius.circular(TemplateRadius.card),
-                ),
-                child: Icon(
-                  Icons.extension_outlined,
-                  size: 34,
-                  color: skin.onAccentTint,
-                ),
-              ),
-            ],
-          ),
+          logo(),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: TemplateSpace.xs,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      'New Horizon',
-                      style: TemplateType.page.copyWith(
-                        color: skin.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                    ),
-                    Expanded(child: SizedBox()),
-                    Icon(Icons.download, size: 20, color: skin.textSecondary),
-                    Text(
-                      '126.9M',
-                      style: TemplateType.caption.copyWith(
-                        color: skin.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: TemplateSpace.sm),
-                    Icon(Icons.star, size: 20, color: skin.textSecondary),
-                    Text(
-                      '1.2k',
-                      style: TemplateType.caption.copyWith(
-                        color: skin.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-
+                titleRow(),
+                author(),
                 Text(
-                  'Yuria-Shikibe / NewHorizonMod',
-                  style: TemplateType.caption.copyWith(
-                    color: skin.textSecondary,
-                  ),
-                  maxLines: 1,
-                ),
-                Text(
-                  '把 Mindustry 的玩法推到极限：新的科技树、单位与建筑，配套的星球与战役。'
-                  '需要 Copper Loader 0.2.1 以上；与部分整合包的核心模组冲突。'
-                  '目前模组处于beta阶段，部分功能可能不稳定，战役流程也在持续更新中。敬请期待后续版本。',
+                  _desc,
                   style: TemplateType.caption.copyWith(
                     color: skin.textTertiary,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-
-                Row(
-                  spacing: TemplateSpace.sm,
-                  children: [
-                    TemplateBadge(
-                      skin: skin,
-                      icon: Icons.coffee_outlined,
-                      label: 'Java 模组',
-                      tone: TemplateBadgeTone.danger,
-                    ),
-                    TemplateBadge(
-                      skin: skin,
-                      label: 'Beta',
-                      tone: TemplateBadgeTone.warning,
-                    ),
-                    TemplateBadge(
-                      skin: skin,
-                      label: '社区维护标签',
-                      tone: TemplateBadgeTone.neutral,
-                    ),
-                  ],
-                ),
+                const SizedBox(),
+                badges(),
               ],
             ),
           ),
           Column(
             spacing: TemplateSpace.sm,
-            mainAxisAlignment: .center,
-            children: [
-              // 主行动：直接下最新「兼容当前选中版本」的那个版本
-              TemplateButton(
-                skin: skin,
-                label: '下载',
-                icon: Icons.download,
-                kind: .solid,
-                onTap: _downloadLatestCompatible,
-              ),
-              Builder(
-                builder: (moreContext) => TemplateButton(
-                  skin: skin,
-                  label: '更多',
-                  icon: Icons.more_horiz,
-                  kind: .quiet,
-                  onTap: () => _openMore(moreContext),
-                ),
-              ),
-            ],
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [download(), more()],
           ),
         ],
       ),
@@ -245,7 +304,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
 
   // ── 版本列表 ──
 
-  Widget _buildVersions(TemplateSkin skin) {
+  Widget _buildVersions(TemplateSkin skin, {required bool compact}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: TemplateSpace.md,
@@ -271,7 +330,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
                   spacing: TemplateSpace.md,
                   children: [
                     SizedBox(
-                      width: 180,
+                      width: compact ? 168 : 180,
                       child: TemplateSegment(
                         skin: skin,
                         options: const ['全部', '仅兼容'],
@@ -291,7 +350,8 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
                   ],
                 ),
               ),
-              _buildColumnHeader(skin),
+              // 窄屏不摆表头，列名落到每行第二排
+              if (!compact) _buildColumnHeader(skin),
               for (var i = 0; i < _versions.length; i++) ...[
                 if (i > 0)
                   Container(
@@ -301,9 +361,9 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
                     ),
                     color: skin.border,
                   ),
-                _buildVersionRow(skin, _versions[i]),
+                _buildVersionRow(skin, _versions[i], compact: compact),
               ],
-              _buildPager(skin),
+              _buildPager(skin, compact: compact),
             ],
           ),
         ),
@@ -354,9 +414,61 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
 
   Widget _buildVersionRow(
     TemplateSkin skin,
-    (String, String, String, String, bool) version,
-  ) {
+    (String, String, String, String, bool) version, {
+    required bool compact,
+  }) {
     final (tag, date, size, downloads, compatible) = version;
+
+    final compatBadge = TemplateBadge(
+      skin: skin,
+      label: compatible ? '兼容' : '不兼容',
+      tone: compatible ? .success : .warning,
+    );
+
+    if (compact) {
+      // 窄屏：第一排 版本 + 兼容徽标 + 日期，第二排 支持范围 / 体积 / 下载量
+      return TemplateRow(
+        skin: skin,
+        padding: const EdgeInsets.symmetric(
+          horizontal: TemplateSpace.md,
+          vertical: TemplateSpace.sm,
+        ),
+        onTap: () {},
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: TemplateSpace.xs,
+          children: [
+            Row(
+              spacing: TemplateSpace.sm,
+              children: [
+                Text(
+                  tag,
+                  style: TemplateType.item.copyWith(
+                    color: skin.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                compatBadge,
+                const Spacer(),
+                Text(
+                  date,
+                  style: TemplateType.caption.copyWith(
+                    color: skin.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              '支持 v146-v153 · $size · 下载 $downloads',
+              style: TemplateType.caption.copyWith(color: skin.textTertiary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      );
+    }
+
     return TemplateRow(
       skin: skin,
       padding: const EdgeInsets.symmetric(
@@ -396,11 +508,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
                     color: skin.textTertiary,
                   ),
                 ),
-                TemplateBadge(
-                  skin: skin,
-                  label: compatible ? '兼容' : '不兼容',
-                  tone: compatible ? .success : .warning,
-                ),
+                compatBadge,
               ],
             ),
           ),
@@ -427,44 +535,53 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
     );
   }
 
-  Widget _buildPager(TemplateSkin skin) {
+  Widget _buildPager(TemplateSkin skin, {required bool compact}) {
+    final info = Text(
+      '第 $_page / 3 页',
+      style: TemplateType.caption.copyWith(color: skin.textTertiary),
+    );
+    final buttons = Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: TemplateSpace.sm,
+      children: [
+        TemplateButton(
+          skin: skin,
+          label: '上一页',
+          icon: Icons.chevron_left,
+          kind: TemplateButtonKind.quiet,
+          enabled: _page > 1,
+          onTap: () => setState(() => _page--),
+        ),
+        TemplateButton(
+          skin: skin,
+          label: '下一页',
+          icon: Icons.chevron_right,
+          kind: TemplateButtonKind.quiet,
+          onTap: () => setState(() => _page = _page < 3 ? _page + 1 : 3),
+        ),
+      ],
+    );
     return TemplateRow(
       skin: skin,
       padding: const EdgeInsets.symmetric(
         horizontal: TemplateSpace.md,
         vertical: TemplateSpace.xs,
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '第 $_page / 3 页',
-              style: TemplateType.caption.copyWith(color: skin.textTertiary),
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: TemplateSpace.xs,
+              children: [
+                info,
+                Align(alignment: Alignment.centerRight, child: buttons),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: info),
+                buttons,
+              ],
             ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: TemplateSpace.sm,
-            children: [
-              TemplateButton(
-                skin: skin,
-                label: '上一页',
-                icon: Icons.chevron_left,
-                kind: TemplateButtonKind.quiet,
-                enabled: _page > 1,
-                onTap: () => setState(() => _page--),
-              ),
-              TemplateButton(
-                skin: skin,
-                label: '下一页',
-                icon: Icons.chevron_right,
-                kind: TemplateButtonKind.quiet,
-                onTap: () => setState(() => _page = _page < 3 ? _page + 1 : 3),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 

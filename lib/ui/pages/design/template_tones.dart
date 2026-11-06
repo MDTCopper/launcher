@@ -123,6 +123,8 @@ class TemplateTones {
     required this.onDanger,
     required this.success,
     required this.warning,
+    required this.note,
+    required this.noteText,
   });
 
   /// 从一个种子（HCT 色相 + 色度）解出整套色值，返回的都是 ARGB
@@ -164,6 +166,8 @@ class TemplateTones {
     final dangerRamp = ToneRamp(22.8, 55);
     final successRamp = ToneRamp(156.1, 50);
     final warningRamp = ToneRamp(73.3, 45);
+    // 提示 / 说明（note）：蓝调，同样与主题色无关（用户 2026-11-06 要的第四个语义色）
+    final noteRamp = ToneRamp(250.5, 55);
 
     // ── 表面：tone 档位，数值由旧观感量过来（见 .project_status/components.md）──
     // **tone 最高只到 98**：material_color_utilities 自己注明 tone > 98 时色度会受
@@ -232,6 +236,10 @@ class TemplateTones {
     final warning = dark
         ? warningRamp.solveOn(surface, 5.5, lighter: true)
         : warningRamp.solveOn(onAccentWhite, 4.8, lighter: false);
+    final note = dark
+        ? noteRamp.solveOn(surface, 5.5, lighter: true)
+        : noteRamp.solveOn(onAccentWhite, 4.8, lighter: false);
+    final noteText = noteRamp.solveOn(surface, dark ? 5.5 : 5, lighter: dark);
 
     return TemplateTones(
       hue: hue,
@@ -257,6 +265,8 @@ class TemplateTones {
       onDanger: onAccentWhite,
       success: success,
       warning: warning,
+      note: note,
+      noteText: noteText,
     );
   }
 
@@ -294,4 +304,8 @@ class TemplateTones {
   final int onDanger;
   final int success;
   final int warning;
+
+  /// 提示 / 说明（蓝调）：实心形态与文字形态
+  final int note;
+  final int noteText;
 }
