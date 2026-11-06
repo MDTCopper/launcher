@@ -1,5 +1,6 @@
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
+import 'package:copper_launcher/ui/pages/design/template_markdown.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:copper_launcher/ui/pages/design/template_state.dart';
@@ -39,6 +40,38 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
       '需要 Copper Loader 0.2.1 以上；与部分整合包的核心模组冲突。'
       '目前模组处于beta阶段，部分功能可能不稳定，战役流程也在持续更新中。敬请期待后续版本。';
 
+  /// Readme 占位内容（接真实数据后换成仓库 README 原文）
+  static const _readme = '''
+# New Horizon
+
+一个把 Mindustry 往「大后期」推的内容模组：新增科技层级、单位与建筑，以及配套的星球与战役流程。
+
+> 装之前先看下面的「已知问题」，与部分整合包的核心模组存在冲突。
+
+## 安装
+
+1. 先在 Copper 里选一个 **v146 ~ v153** 的版本
+2. 点上面的「下载」，启动器会自动挑一个兼容版本
+3. 启动游戏，模组会在启动时加载
+
+- 建议搭配 Copper Loader `0.2.1` 及以上版本
+- 与核心模组冲突时先禁用对方，再重启
+
+## 配置片段
+
+```json
+"minGameVersion": "146",
+"java": true,
+"hidden": false
+```
+
+## 已知问题
+
+- beta 阶段，战役流程还在更新
+- 部分安卓设备上加载较慢
+
+更多内容见仓库里的 README.md。
+''';
   // 窄屏阈值走 `TemplateBreakpoints`（标准设计宽度 = 最小窗口 760）：不再各写一个数
 
   @override
@@ -619,18 +652,6 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
   // ── Readme ──
 
   Widget _buildReadme(TemplateSkin skin) {
-    Widget heading(String text) => Text(
-      text,
-      style: TemplateType.item.copyWith(
-        color: skin.textPrimary,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-    Widget paragraph(String text) => Text(
-      text,
-      style: TemplateType.caption.copyWith(color: skin.textSecondary),
-    );
-
     return TemplateCard(
       skin: skin,
       child: Column(
@@ -655,27 +676,8 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
               ),
             ],
           ),
-          heading('New Horizon'),
-          paragraph(
-            '一个把 Mindustry 往「大后期」推的内容模组：新增科技层级、'
-            '单位与建筑，以及配套的星球与战役流程。',
-          ),
-          paragraph('· 建议搭配 Copper Loader 0.2.1 及以上版本'),
-          paragraph('· 与部分整合包的核心模组存在冲突，装之前先看说明'),
-          heading('配置片段'),
-          Container(
-            padding: const EdgeInsets.all(TemplateSpace.md),
-            decoration: BoxDecoration(
-              color: skin.sunken,
-              borderRadius: BorderRadius.circular(TemplateRadius.control),
-              border: Border.all(color: skin.border),
-            ),
-            child: Text(
-              '"minGameVersion": "146",\n"java": true,\n"hidden": false',
-              style: TemplateType.caption.copyWith(color: skin.textSecondary),
-            ),
-          ),
-          paragraph('更多内容见仓库里的 README.md（这里只展示摘要）。'),
+          // 正文交给 Markdown 渲染器（接真实数据后把 _readme 换成接口返回的字符串）
+          TemplateMarkdown(skin: skin, data: _readme, onLinkTap: (url) {}),
         ],
       ),
     );

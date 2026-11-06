@@ -106,7 +106,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/50-form-status` | 输入族（多行 / 错误态 / 字数 / 密码显隐 / 后缀）、滑条刻度与量程、进度双段、状态点 / 数字徽章 / 胶囊标签 |
 | `catalog/51-base-size` | 组件目录改按标准设计宽度 **760** 出图（原先 900）；顺带把放不下的两排改成 `Wrap` |
 | `catalog/52-keys-color-drop` | 键帽 / 组合键与键位捕获、颜色选择（SV 面板 + 色相条 + 16 色点）、拖放区与窗口级拖放遮罩 |
-| `catalog/53-table-segments` | **当前**：表格组件（表头 + 固定列 + 弹性列 + 行分隔 + 横向滚动）、分段带图标与多选分段 |
+| `catalog/53-table-segments` | 表格组件（表头 + 固定列 + 弹性列 + 行分隔 + 横向滚动）、分段带图标与多选分段 |
+| `catalog/54-markdown` | **当前**：轻量 Markdown 渲染（标题 / 段落 / 列表 / 引用 / 代码块 / 分隔线 / 徽章 / 链接），模组页 Readme 已改用它 |
 | `screen/screen-mod` | **App 内页面**：模组下载新页（宽屏版，1000×700） |
 | `screen/screen-mod-base` | 同一页按**标准尺寸 760×450**（最小窗口首屏） |
 | `screen/screen-mod-base-tall` | 同上拉高到 900 看折线以下 |

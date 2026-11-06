@@ -4,6 +4,7 @@ import 'package:copper_launcher/ui/pages/design/template_color.dart';
 import 'package:copper_launcher/ui/pages/design/template_drawer.dart';
 import 'package:copper_launcher/ui/pages/design/template_drop.dart';
 import 'package:copper_launcher/ui/pages/design/template_keys.dart';
+import 'package:copper_launcher/ui/pages/design/template_markdown.dart';
 import 'package:copper_launcher/ui/pages/design/template_media.dart';
 import 'package:copper_launcher/ui/pages/design/template_menu.dart';
 import 'package:copper_launcher/ui/pages/design/template_overlay.dart';
@@ -73,6 +74,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         _buildMenus(skin),
         _buildCards(skin),
         _buildTable(skin),
+        _buildMarkdown(skin),
         _buildDrawerParts(skin),
         _buildPageParts(skin),
         _buildScene(skin),
@@ -1644,6 +1646,45 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// Markdown（README 渲染）
+  Widget _buildMarkdown(TemplateSkin skin) {
+    return _section(
+      skin,
+      'Markdown（README）',
+      TemplateMarkdown(
+        skin: skin,
+        data: '''
+# New Horizon
+
+一个把 Mindustry 往「大后期」推的内容模组：新增科技层级、单位与建筑。
+
+> 装之前先看「已知问题」，与部分整合包冲突。
+
+## 安装
+
+1. 选一个 **v146 ~ v153** 的版本
+2. 点「下载」，启动器自动挑兼容版本
+3. 启动游戏
+
+- 建议搭配 Copper Loader `0.2.1` 及以上
+- 冲突时先禁用对方再重启
+
+---
+
+```json
+"minGameVersion": "146",
+"java": true
+```
+
+![Java 模组](https://img.shields.io/badge/java-mod-orange)
+
+更多见 [GitHub 仓库](https://github.com/)。
+''',
+        onLinkTap: (_) {},
       ),
     );
   }
