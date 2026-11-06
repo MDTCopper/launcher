@@ -194,6 +194,9 @@ class AccountManager {
   /// refresh token 本地提前多久算过期：留点余量，别卡在边界上
   static const refreshTokenMargin = Duration(seconds: 30);
 
+  /// access token 本地提前多久算过期：到点前就当作要刷新
+  static const accessTokenMargin = Duration(seconds: 30);
+
   /// 时间线只记首次
   bool _timelineAccountReady = false;
   bool _timelineTokenReady = false;
@@ -777,10 +780,10 @@ class AccountManager {
       throw const MdtbbsException(message: '服务端没给 access token');
     }
     _accessToken = access;
-    // 提前一分钟认定过期，别卡在边界上；`expires_in` 缺失就给个保守值，
+    // 提前 30 秒认定过期，别卡在边界上；`expires_in` 缺失就给个保守值，
     // 否则「永不过期」= 永不刷新，只能等 401（而这条链路没有 401 自愈）
     final expiresIn = tokens.expiresIn ?? 300;
-    final effective = expiresIn - 60;
+    final effective = expiresIn - accessTokenMargin.inSeconds;
     _accessTokenExpiresAt = DateTime.now().add(
       Duration(seconds: effective < 30 ? 30 : effective),
     );
