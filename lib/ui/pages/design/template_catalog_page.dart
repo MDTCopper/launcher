@@ -1,6 +1,7 @@
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
 import 'package:copper_launcher/ui/pages/design/template_drawer.dart';
+import 'package:copper_launcher/ui/pages/design/template_media.dart';
 import 'package:copper_launcher/ui/pages/design/template_menu.dart';
 import 'package:copper_launcher/ui/pages/design/template_overlay.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
@@ -29,6 +30,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
   int _segment = 0;
   int _tab = 0;
   Set<String> _multi = {'Java 17'};
+  int _pagerPage = 2;
   int _segmentWide = 2;
   double _slider = 0.55;
   String _java = 'Java 17';
@@ -62,6 +64,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         _buildMenus(skin),
         _buildCards(skin),
         _buildDrawerParts(skin),
+        _buildPageParts(skin),
         _buildScene(skin),
       ],
     );
@@ -1250,6 +1253,79 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
             message: '下载失败：连接超时',
             timeText: '18:05:12',
             tone: TemplateLogTone.error,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 分页 / 折叠 / 图片与头像
+  Widget _buildPageParts(TemplateSkin skin) {
+    Widget caption(String text) => Text(
+      text,
+      style: TemplateType.caption.copyWith(color: skin.textTertiary),
+    );
+
+    return _section(
+      skin,
+      '分页 / 折叠 / 图片位',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.md,
+        children: [
+          caption('分页器（第 x / y 页，可带首末页）'),
+          TemplatePager(
+            skin: skin,
+            page: _pagerPage,
+            pageCount: 6,
+            firstLast: true,
+            onPage: (page) => setState(() => _pagerPage = page),
+          ),
+          const SizedBox(height: TemplateSpace.sm),
+          caption('折叠面板（整行可点，内容由调用方给）'),
+          TemplateCollapse(
+            skin: skin,
+            title: '高级选项',
+            subtitle: 'JVM 参数 / 启动参数 / 键位',
+            initiallyExpanded: true,
+            trailing: Text(
+              '3 项',
+              style: TemplateType.micro.copyWith(color: skin.textTertiary),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: TemplateSpace.sm,
+              children: [
+                TemplateKeyRow(
+                  skin: skin,
+                  title: 'JVM 参数',
+                  value: '-XX:+UseG1GC',
+                ),
+                TemplateKeyRow(skin: skin, title: '启动参数', value: '自动'),
+                TemplateKeyRow(skin: skin, title: '键位', value: '默认'),
+              ],
+            ),
+          ),
+          const SizedBox(height: TemplateSpace.sm),
+          caption('图片位 / 头像（有图用图，没图退回图标或首字）'),
+          Row(
+            spacing: TemplateSpace.md,
+            children: [
+              TemplateImageBox(
+                skin: skin,
+                size: 72,
+                icon: Icons.extension_outlined,
+              ),
+              TemplateImageBox(
+                skin: skin,
+                size: 72,
+                icon: Icons.map_outlined,
+                radius: TemplateRadius.control,
+              ),
+              TemplateAvatar(skin: skin, size: 48, name: 'Copper'),
+              TemplateAvatar(skin: skin, size: 48, name: 'Alex'),
+              TemplateAvatar(skin: skin, size: 48),
+            ],
           ),
         ],
       ),

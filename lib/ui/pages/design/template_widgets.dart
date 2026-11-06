@@ -1848,3 +1848,171 @@ class TemplateGridCard extends StatelessWidget {
     );
   }
 }
+
+/// 分页器：第 x / y 页 + 上一页 / 下一页（可选首末页）
+class TemplatePager extends StatelessWidget {
+  const TemplatePager({
+    super.key,
+    required this.skin,
+    required this.page,
+    required this.pageCount,
+    required this.onPage,
+    this.firstLast = false,
+  });
+
+  final TemplateSkin skin;
+
+  /// 1 起
+  final int page;
+  final int pageCount;
+  final ValueChanged<int> onPage;
+
+  /// 是否给「首页 / 末页」
+  final bool firstLast;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget button(String label, IconData icon, int target) => TemplateButton(
+      skin: skin,
+      label: label,
+      icon: icon,
+      kind: TemplateButtonKind.quiet,
+      enabled: target >= 1 && target <= pageCount && target != page,
+      onTap: () => onPage(target),
+    );
+
+    return Row(
+      spacing: TemplateSpace.sm,
+      children: [
+        Expanded(
+          child: Text(
+            '第 $page / $pageCount 页',
+            style: TemplateType.caption.copyWith(color: skin.textTertiary),
+          ),
+        ),
+        if (firstLast) button('首页', Icons.first_page, 1),
+        button('上一页', Icons.chevron_left, page - 1),
+        button('下一页', Icons.chevron_right, page + 1),
+        if (firstLast) button('末页', Icons.last_page, pageCount),
+      ],
+    );
+  }
+}
+
+/// 折叠面板：标题行（可点整行）+ 展开后的内容
+///
+/// 展开态用 [AnimatedSize] 过渡；内容由调用方给（一般是一组 KeyRow / 设置行）
+class TemplateCollapse extends StatefulWidget {
+  const TemplateCollapse({
+    super.key,
+    required this.skin,
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.trailing,
+    this.initiallyExpanded = false,
+  });
+
+  final TemplateSkin skin;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  @override
+  State<TemplateCollapse> createState() => _TemplateCollapseState();
+}
+
+class _TemplateCollapseState extends State<TemplateCollapse> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = widget.skin;
+    return Container(
+      decoration: BoxDecoration(
+        color: skin.surface,
+        borderRadius: BorderRadius.circular(TemplateRadius.card),
+        border: Border.all(color: skin.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ReboundContainer(
+            onTap: () => setState(() => _expanded = !_expanded),
+            pressedScale: 0.995,
+            borderRadius: BorderRadius.circular(TemplateRadius.card),
+            backgroundColor: Colors.transparent,
+            hoverColor: skin.hoverOn(skin.surface),
+            highlightColor: skin.pressed,
+            padding: const EdgeInsets.all(TemplateSpace.md),
+            child: Row(
+              spacing: TemplateSpace.sm,
+              children: [
+                AnimatedRotation(
+                  turns: _expanded ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 160),
+                  child: Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: skin.textTertiary,
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: TemplateType.item.copyWith(
+                          color: skin.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (widget.subtitle != null)
+                        Text(
+                          widget.subtitle!,
+                          style: TemplateType.caption.copyWith(
+                            color: skin.textTertiary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                if (widget.trailing != null) widget.trailing!,
+              ],
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        height: 1,
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: TemplateSpace.md,
+                        ),
+                        color: skin.border,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(TemplateSpace.md),
+                        child: widget.child,
+                      ),
+                    ],
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
+    );
+  }
+}
