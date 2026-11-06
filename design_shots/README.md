@@ -2,6 +2,10 @@
 
 渲染出来的对照图，一代一个目录，方便横向翻。**图是生成的，不要手改**；重新出图：
 
+> **标准设计尺寸：`760 × 450`**（桌面端最小窗口，≈ 手机横屏量级）。所有页面按这个宽度设计，
+> 再往上适配宽屏（≥ 1100）、往下适配抽屉（360）。断点统一取 `TemplateBreakpoints`；
+> 样张脚本默认就按 760 宽出图，宽屏 / 竖屏用 `WIDTH` / `PAGE_HEIGHT` 覆盖。
+
 ```powershell
 $env:NO_PROXY='127.0.0.1,localhost'
 $env:SHOT_TAG='05-xxx'   # 这一代叫什么，不给就写 latest
@@ -99,12 +103,16 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/47-task-card-v2` | 任务卡第二版——图标块 + 标题/状态徽标 + 右侧时间、进度条带百分比、说明/体积分栏、操作收在右下 |
 | `catalog/48-page-parts` | 补分页器、折叠面板、图片位 / 头像（有图用图、没图退回图标或首字） |
 | `catalog/49-note-colors` | 第四个语义色「提示 note」蓝调（徽标 / 提示条）；任务卡状态挪到时间下面、窄屏按钮通栏 |
-| `catalog/50-form-status` | **当前**：输入族（多行 / 错误态 / 字数 / 密码显隐 / 后缀）、滑条刻度与量程、进度双段、状态点 / 数字徽章 / 胶囊标签 |
+| `catalog/50-form-status` | 输入族（多行 / 错误态 / 字数 / 密码显隐 / 后缀）、滑条刻度与量程、进度双段、状态点 / 数字徽章 / 胶囊标签 |
+| `catalog/51-base-size` | **当前**：组件目录改按标准设计宽度 **760** 出图（原先 900）；顺带把放不下的两排改成 `Wrap` |
 | `screen/screen-mod` | **App 内页面**：模组下载新页（宽屏版，1000×700） |
+| `screen/screen-mod-base` | 同一页按**标准尺寸 760×450**（最小窗口首屏） |
+| `screen/screen-mod-base-tall` | 同上拉高到 900 看折线以下 |
 | `screen/screen-mod-portrait` | 同一页 **竖屏 / 窄窗版**（720×1180）：头卡堆叠、表头隐藏、逐行折叠、翻页竖排 |
 | `screen/screen-mod-readme` | 同上切到 Readme 标签页 |
 | `screen/screen-drawer-narrow` | 抽屉宽度（360）下的任务卡 / 日志卡：状态在时间下面、操作按钮单独通栏 |
-| `screen/screen-catalog` | **App 内页面**：组件目录（`/template_catalog`） |
+| `screen/screen-catalog` | **App 内页面**：组件目录（`/template_catalog`，1000 宽） |
+| `screen/screen-catalog-base` | 同一页按标准宽度 760（检查组件在最小窗口下的折行） |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`）、实心偏移 −6 / 0 / +6 对照（`accent_shift.png`） |

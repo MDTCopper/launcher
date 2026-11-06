@@ -39,8 +39,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
       '需要 Copper Loader 0.2.1 以上；与部分整合包的核心模组冲突。'
       '目前模组处于beta阶段，部分功能可能不稳定，战役流程也在持续更新中。敬请期待后续版本。';
 
-  /// 窄屏阈值：竖屏 / 窄窗时头卡、版本表都换成堆叠排布
-  static const _compactWidth = 760.0;
+  // 窄屏阈值走 `TemplateBreakpoints`（标准设计宽度 = 最小窗口 760）：不再各写一个数
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +47,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < _compactWidth;
+        final compact = TemplateBreakpoints.isCompact(constraints.maxWidth);
         return ColoredBox(
           color: skin.page,
           child: TemplateScrollView(

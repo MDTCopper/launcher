@@ -64,9 +64,10 @@ class TemplateTaskCard extends StatelessWidget {
     final determinate = progress != null;
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 抽屉里只有 300 上下宽：操作按钮不能跟明细挤在一排，
-        // 否则就像用户说的「捉襟见肘」（宽屏 / 将来的任务详情页才走一排）
-        final compact = constraints.maxWidth < 400;
+        // 抽屉内容宽约 TemplateBreakpoints.drawerWidth：操作按钮不能跟明细挤在一排，
+        // 否则就像用户说的「捉襟见肘」（这个宽度的上限留给将来的任务详情页）
+        final compact =
+            constraints.maxWidth < TemplateBreakpoints.drawerWidth + 40;
 
         // 窄屏时把按钮自动抻满一行；宽屏保持原来的安静按钮
         Widget resolvedAction(Widget action) => switch (action) {

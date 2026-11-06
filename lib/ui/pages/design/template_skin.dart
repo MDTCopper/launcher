@@ -437,6 +437,34 @@ class TemplateRadius {
   static const pill = 999.0;
 }
 
+/// 标准设计尺寸与断点（用户 2026-11-06 定）
+///
+/// **标准尺寸 = 桌面端允许的最小窗口 `760 × 450`**（`lib/main.dart` 的 `minimumSize`），
+/// 也就是手机横屏那个量级（≈ 780×360）。所有页面先按这个宽度设计，
+/// 再往上适配宽屏（≥ [wide]）、往下适配抽屉宽度（[drawerWidth]）。
+abstract final class TemplateBreakpoints {
+  /// 基准宽（最小窗口）
+  static const designWidth = 760.0;
+
+  /// 基准高（最小窗口）
+  static const designHeight = 450.0;
+
+  /// ≤ 这个宽度按窄屏排：紧凑间距、表头隐藏、按钮通栏
+  static const compact = designWidth;
+
+  /// ≥ 这个宽度按宽屏排：内容区可以分栏、表格可以用固定列宽
+  static const wide = 1100.0;
+
+  /// 右侧抽屉的内容宽度（任务卡 / 日志卡按它判断）
+  static const drawerWidth = 360.0;
+
+  /// 给定宽度是否按窄屏排（`<= compact`）
+  static bool isCompact(double width) => width <= compact;
+
+  /// 给定宽度是否按宽屏排（`>= wide`）
+  static bool isWide(double width) => width >= wide;
+}
+
 /// WCAG 2.x 对比度（判定函数只能用它；APCA 仍是草案，只当诊断）
 /// 计算本身在纯 Dart 的 `template_tones.dart` 里，这里只是给 Flutter 的 [Color] 用
 double templateContrast(Color a, Color b) =>

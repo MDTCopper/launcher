@@ -231,8 +231,11 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                     ),
                     const SizedBox(height: TemplateSpace.sm),
                     caption('图标按钮 / 复选 / 徽标'),
-                    Row(
+                    // Wrap：标准宽度 760 下这一排放不下，允许换行
+                    Wrap(
                       spacing: TemplateSpace.sm,
+                      runSpacing: TemplateSpace.sm,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         TemplateIconButton(
                           skin: skin,
@@ -325,9 +328,9 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         _section(
           skin,
           '空 / 错 / 载三态',
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Wrap(
             spacing: TemplateSpace.md,
+            runSpacing: TemplateSpace.md,
             children: [
               SizedBox(
                 width: 240,
