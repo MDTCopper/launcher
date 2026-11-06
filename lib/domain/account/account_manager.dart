@@ -364,17 +364,14 @@ class AccountManager {
         throw const MdtbbsException(message: '服务端没给 refresh token，登录失败');
       }
       _acceptTokens(tokens);
-      _stored = StoredAccount(
-        clientId: MdtbbsConfig.clientId,
-        refreshToken: refresh,
-        accessToken: _accessToken,
-        accessTokenExpiresAt: _accessTokenExpiresAt,
+      await commitLoginTokens(
+        StoredAccount(
+          clientId: MdtbbsConfig.clientId,
+          refreshToken: refresh,
+          accessToken: _accessToken,
+          accessTokenExpiresAt: _accessTokenExpiresAt,
+        ),
       );
-      if (!AccountStore.save(_stored!, tokenOwner: true)) {
-        throw const MdtbbsException(message: '登录凭证没写进盘，请检查磁盘权限后重试');
-      }
-      _restored = true;
-      _diskStamp = AccountStore.lastModified();
 
       // 资料读不回来不算登录失败：token 已经落地，状态是「已登录、资料待刷新」
       try {
@@ -390,6 +387,21 @@ class AccountManager {
     } finally {
       await loopback?.close();
     }
+  }
+
+  /// 登录成功后把账号态交给内存
+  ///
+  /// **必须先落盘再广播**：广播会同步通知监听者（在线服务就在里面），它们会立刻去拿
+  /// token；此时如果盘上还没有这份账号，就会被判成「被别的进程清掉」而反过来把登录态清空
+  /// （Android 上实测：登录成功后抛 `Null check operator used on a null value`）
+  @visibleForTesting
+  Future<void> commitLoginTokens(StoredAccount stored) async {
+    if (!AccountStore.save(stored, tokenOwner: true)) {
+      throw const MdtbbsException(message: '登录凭证没写进盘，请检查磁盘权限后重试');
+    }
+    _restored = true;
+    _diskStamp = AccountStore.lastModified();
+    _stored = stored;
   }
 
   /// 读当前账号资料（顺带把 subject / username 补进账号态）
