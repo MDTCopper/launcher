@@ -941,6 +941,132 @@ class _SegmentPillState extends State<_SegmentPill> {
   }
 }
 
+/// 标签页（下划线式）：一级分类切换，比分段控件更轻，适合「版本列表 / 介绍 / Readme」这种并列内容
+class TemplateTabBar extends StatelessWidget {
+  const TemplateTabBar({
+    super.key,
+    required this.skin,
+    required this.tabs,
+    required this.value,
+    required this.onTap,
+    this.trailing,
+  });
+
+  final TemplateSkin skin;
+  final List<String> tabs;
+  final int value;
+  final ValueChanged<int> onTap;
+
+  /// 右侧附加内容（比如计数、刷新按钮）
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // 整条底边线：选中项自己再压一道强调色
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(height: 1, color: skin.border),
+        ),
+        Row(
+          children: [
+            for (var i = 0; i < tabs.length; i++)
+              _TabItem(
+                skin: skin,
+                label: tabs[i],
+                selected: i == value,
+                onTap: () => onTap(i),
+              ),
+            const Spacer(),
+            if (trailing != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: TemplateSpace.xs),
+                child: trailing!,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TabItem extends StatefulWidget {
+  const _TabItem({
+    required this.skin,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final TemplateSkin skin;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_TabItem> createState() => _TabItemState();
+}
+
+class _TabItemState extends State<_TabItem> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = widget.skin;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: TemplateSpace.sm,
+            vertical: TemplateSpace.sm,
+          ),
+          color: _hover && !widget.selected
+              ? skin.hoverOn(skin.page)
+              : Colors.transparent,
+          // IntrinsicWidth：Row 里子项宽度不定，这里先按文字宽度定死，下划线才能撑满
+          child: IntrinsicWidth(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: TemplateSpace.sm,
+              children: [
+                Text(
+                  widget.label,
+                  textAlign: TextAlign.center,
+                  style: TemplateType.item.copyWith(
+                    color: widget.selected
+                        ? skin.textPrimary
+                        : skin.textSecondary,
+                    fontWeight: widget.selected
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: widget.selected ? skin.accent : Colors.transparent,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 提示条的语气
 enum TemplateNoticeTone { info, success, warning, danger }
 

@@ -13,7 +13,18 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_ren
 ```powershell
 $env:SHOT_TAG='page-01-version-setting'
 dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_page_shot_test.dart
+# 可选：PAGE=version|cloud|mod 换页面；PAGE_HEIGHT 拉高看折叠线以下
 ```
+
+**App 内设计层页面**（`design_shots/screen/`，`SCREEN=catalog|mod`，`TAB=1|2` 切标签页）：
+
+```powershell
+$env:SHOT_TAG='screen-mod'; $env:SCREEN='mod'
+dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab_screens_shot_test.dart
+```
+
+> 这两页已经在 App 里：debug 构建下左侧栏「发现」会多出 **模组下载（新）** 和 **组件目录** 两项，
+> 对应路由 `/template_mod_download`、`/template_catalog`。
 
 目录说明（`light.png` / `dark.png` 一对）：
 
@@ -76,7 +87,15 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_pag
 | `page/page-03-aligned` | 行内边距统一（12），其余行与开关行左右边缘对齐 |
 | `page/page-03-tall` | 同上的长图（1180 高），用来检查折线以下的高级选项与危险区 |
 | `page/page-04-version-card` | **版本头也做成卡片**（与下面几段卡一致） |
-| `page/page-05-version-card` | 同上，版本头改用通用 `TemplateCard` 组件（当前整页） |
+| `page/page-05-version-card` | 同上，版本头改用通用 `TemplateCard` 组件 |
+| `page/page-06-cloud` | 云存档总览复刻（初版） |
+| `page/page-07-cloud` | 云存档总览：卡内段落 / 按钮 / 提示条内边距统一成 12 |
+| `page/page-08-mod-download` | 模组下载复刻（按原页面结构） |
+| `page/page-09-mod-redesign` | 模组下载**重构版**：单主行动 + 表格式版本列表 + 底部限流提示 |
+| `catalog/44-tabs` | 组件目录新增「标签页（下划线式）」；目录本身挪进 `lib/`，App 内可打开 |
+| `screen/screen-mod` | **App 内页面**：模组下载新页（头卡 + 版本列表） |
+| `screen/screen-mod-readme` | 同上切到 Readme 标签页 |
+| `screen/screen-catalog` | **App 内页面**：组件目录（`/template_catalog`） |
 | `candidates/accent` | 主体色亮度候选（现状 / 更亮四档） |
 | `candidates/disabled` | 禁用态候选（实心透明度 / 标准明度三版） |
 | `candidates/seed` | 种子配色：色相 / 色度四组对照（`compare.png`）、调试页样张（`seed_lab.png`）、六种种子 → 实心输出（`seed_output.png`）、实心与卡面最小对比度 3 / 2.5 / 2 / 1.6 对照（`accent_contrast.png`）、实心偏移 −6 / 0 / +6 对照（`accent_shift.png`） |

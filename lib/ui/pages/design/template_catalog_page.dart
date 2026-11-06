@@ -1,0 +1,1352 @@
+import 'package:copper_launcher/ui/pages/design/template_menu.dart';
+import 'package:copper_launcher/ui/pages/design/template_overlay.dart';
+import 'package:copper_launcher/ui/pages/design/template_shell.dart';
+import 'package:copper_launcher/ui/pages/design/template_skin.dart';
+import 'package:copper_launcher/ui/pages/design/template_state.dart';
+import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
+import 'package:flutter/material.dart';
+
+/// 组件目录：一次把所有组件与它们的常见状态摆出来
+///
+/// 既是设计样张的来源（`test/design_render_test.dart` 渲染它），
+/// 也是 App 里可以打开的「组件目录」调试页（`/template_catalog`，仅 debug 可见）
+class TemplateCatalogPage extends StatefulWidget {
+  const TemplateCatalogPage({super.key, required this.skin});
+
+  final TemplateSkin skin;
+
+  @override
+  State<TemplateCatalogPage> createState() => _TemplateCatalogPageState();
+}
+
+class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
+  bool _switchA = true;
+  bool _switchB = false;
+  bool _tileSwitch = true;
+  int _segment = 0;
+  int _tab = 0;
+  int _segmentWide = 2;
+  double _slider = 0.55;
+  String _java = 'Java 17';
+  final _input = TextEditingController(text: '-XX:+UseG1GC');
+
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = widget.skin;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: TemplateSpace.lg,
+      children: [
+        _buildButtons(skin),
+        _buildRows(skin),
+        _buildTiles(skin),
+        _buildControls(skin),
+        _buildTabs(skin),
+        _buildSliders(skin),
+        _buildFeedback(skin),
+        _buildChrome(skin),
+        _buildRailPlacements(skin),
+        _buildRouteStacks(skin),
+        _buildMenus(skin),
+        _buildCards(skin),
+        _buildScene(skin),
+      ],
+    );
+  }
+
+  Widget _section(TemplateSkin skin, String title, Widget child) {
+    return TemplateSection(skin: skin, title: title, child: child);
+  }
+
+  /// 批 1 新增：页面骨架 / 浮层 / 三态 / 图标按钮 / 复选 / 徽标
+  Widget _buildChrome(TemplateSkin skin) {
+    Widget caption(String text) => Text(
+      text,
+      style: TemplateType.caption.copyWith(color: skin.textTertiary),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: TemplateSpace.lg,
+      children: [
+        _section(
+          skin,
+          '页面骨架（顶部栏 + 滚动区）',
+          SizedBox(
+            height: 420,
+            child: TemplatePageFrame(
+              skin: skin,
+              breadcrumb: const [
+                TemplateBreadcrumb('设置', onTap: _noop),
+                TemplateBreadcrumb('启动'),
+                TemplateBreadcrumb('启动设置'),
+              ],
+              // 顶栏左上是账户（左抽屉入口），返回键在侧栏顶部与 logo 共用位置
+              leading: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: skin.accentTint,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: skin.border),
+                ),
+                child: Icon(Icons.person, size: 14, color: skin.onAccentTint),
+              ),
+              actions: [
+                TemplateIconButton(
+                  skin: skin,
+                  icon: Icons.refresh,
+                  tooltip: '刷新',
+                  onTap: () {},
+                ),
+                TemplateIconButton(
+                  skin: skin,
+                  icon: Icons.more_horiz,
+                  tooltip: '更多',
+                  onTap: () {},
+                ),
+              ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TemplateSection(
+                    skin: skin,
+                    title: '启动项',
+                    child: Column(
+                      spacing: 2,
+                      children: [
+                        TemplateSwitchRow(
+                          skin: skin,
+                          title: '游戏存档隔离',
+                          desc: '存档与模组放在版本目录里',
+                          value: true,
+                          onTap: () {},
+                        ),
+                        TemplateSwitchRow(
+                          skin: skin,
+                          title: '启动前自动同步云存档',
+                          desc: '退出游戏后上传',
+                          value: false,
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+                  TemplateSection(
+                    skin: skin,
+                    title: '操作',
+                    child: Wrap(
+                      spacing: TemplateSpace.md,
+                      runSpacing: TemplateSpace.md,
+                      children: [
+                        TemplateButton(
+                          skin: skin,
+                          label: '启动游戏',
+                          icon: Icons.play_arrow,
+                          kind: TemplateButtonKind.solid,
+                          onTap: () {},
+                        ),
+                        TemplateButton(
+                          skin: skin,
+                          label: '打开文件夹',
+                          icon: Icons.folder_open,
+                          kind: TemplateButtonKind.plain,
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        _section(
+          skin,
+          '浮层（对话框 / Toast）',
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.lg,
+            children: [
+              SizedBox(
+                width: 380,
+                child: TemplateDialog(
+                  skin: skin,
+                  icon: Icons.delete_outline,
+                  title: '删除这个版本？',
+                  message: '版本文件与模组会被一并移除，存档目录不动。',
+                  actions: [
+                    TemplateButton(
+                      skin: skin,
+                      label: '取消',
+                      icon: Icons.close,
+                      kind: TemplateButtonKind.plain,
+                      onTap: () {},
+                    ),
+                    TemplateButton(
+                      skin: skin,
+                      label: '删除',
+                      icon: Icons.delete_outline,
+                      kind: TemplateButtonKind.plain,
+                      danger: true,
+                      onTap: () {},
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: TemplateSpace.sm,
+                  children: [
+                    caption('Toast（右上堆叠，5s 自消）'),
+                    TemplateToast(skin: skin, message: '已复制到剪贴板'),
+                    TemplateToast(
+                      skin: skin,
+                      message: '版本列表已刷新',
+                      icon: Icons.check_circle_outline,
+                      tone: TemplateToastTone.success,
+                    ),
+                    TemplateToast(
+                      skin: skin,
+                      message: '下载失败，已写入日志',
+                      icon: Icons.error_outline,
+                      tone: TemplateToastTone.danger,
+                    ),
+                    const SizedBox(height: TemplateSpace.sm),
+                    caption('图标按钮 / 复选 / 徽标'),
+                    Row(
+                      spacing: TemplateSpace.sm,
+                      children: [
+                        TemplateIconButton(
+                          skin: skin,
+                          icon: Icons.refresh,
+                          tooltip: '刷新',
+                          onTap: () {},
+                        ),
+                        TemplateIconButton(
+                          skin: skin,
+                          icon: Icons.more_horiz,
+                          onTap: () {},
+                        ),
+                        TemplateIconButton(
+                          skin: skin,
+                          icon: Icons.settings,
+                          selected: true,
+                          onTap: () {},
+                        ),
+                        TemplateIconButton(
+                          skin: skin,
+                          icon: Icons.block,
+                          enabled: false,
+                          onTap: () {},
+                        ),
+                        const SizedBox(width: TemplateSpace.md),
+                        TemplateCheckbox(skin: skin, value: true, onTap: () {}),
+                        TemplateCheckbox(
+                          skin: skin,
+                          value: false,
+                          onTap: () {},
+                        ),
+                        TemplateCheckbox(skin: skin, value: null, onTap: () {}),
+                        TemplateCheckbox(
+                          skin: skin,
+                          value: true,
+                          enabled: false,
+                          onTap: () {},
+                        ),
+                        const SizedBox(width: TemplateSpace.md),
+                        // 窗控：关闭悬停会铺危险色底
+                        TemplateWindowControls(
+                          skin: skin,
+                          onMinimize: () {},
+                          onMaximize: () {},
+                          onClose: () {},
+                        ),
+                      ],
+                    ),
+                    Wrap(
+                      spacing: TemplateSpace.sm,
+                      runSpacing: TemplateSpace.sm,
+                      children: [
+                        TemplateBadge(skin: skin, label: '已就绪'),
+                        TemplateBadge(
+                          skin: skin,
+                          label: '推荐',
+                          tone: TemplateBadgeTone.accent,
+                        ),
+                        TemplateBadge(
+                          skin: skin,
+                          label: '已同步',
+                          tone: TemplateBadgeTone.success,
+                          icon: Icons.cloud_done_outlined,
+                        ),
+                        TemplateBadge(
+                          skin: skin,
+                          label: '有更新',
+                          tone: TemplateBadgeTone.warning,
+                        ),
+                        TemplateBadge(
+                          skin: skin,
+                          label: '不兼容',
+                          tone: TemplateBadgeTone.danger,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        _section(
+          skin,
+          '空 / 错 / 载三态',
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.md,
+            children: [
+              SizedBox(
+                width: 240,
+                height: 180,
+                child: TemplateEmptyState(
+                  skin: skin,
+                  title: '还没有存档',
+                  message: '启动一次游戏后，这里会出现可同步的存档',
+                ),
+              ),
+              SizedBox(
+                width: 240,
+                height: 180,
+                child: TemplateErrorState(
+                  skin: skin,
+                  title: '加载失败',
+                  message: '无法连接到版本服务，检查网络后重试',
+                ),
+              ),
+              SizedBox(
+                width: 240,
+                height: 180,
+                // 转圈是无限动画，样张里关掉 ticker，否则 pumpAndSettle 永远等不到静止
+                child: TickerMode(
+                  enabled: false,
+                  child: TemplateLoadingState(skin: skin, message: '正在读取版本…'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 账户 / 任务 / 折叠按钮放哪：三种摆法对照（2026-11-04 待用户选）
+  Widget _buildRailPlacements(TemplateSkin skin) {
+    Widget avatar(double size) => Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: skin.accentTint,
+        shape: BoxShape.circle,
+        border: Border.all(color: skin.border),
+      ),
+      child: Icon(Icons.person, size: size * 0.6, color: skin.onAccentTint),
+    );
+
+    Widget tasksIcon() => Stack(
+      clipBehavior: Clip.none,
+      children: [
+        TemplateIconButton(
+          skin: skin,
+          icon: Icons.assignment_outlined,
+          tooltip: '任务',
+          size: 28,
+          iconSize: 18,
+          onTap: () {},
+        ),
+        Positioned(
+          right: 2,
+          top: 2,
+          child: Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: skin.danger,
+              shape: BoxShape.circle,
+              border: Border.all(color: skin.surface, width: 1),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    const entries = [
+      TemplateRailEntry(icon: Icons.play_circle_outline, label: '概览'),
+      TemplateRailEntry(icon: Icons.storage_outlined, label: '资源'),
+      TemplateRailEntry(icon: Icons.public, label: '联机'),
+      TemplateRailEntry(icon: Icons.settings_outlined, label: '设置'),
+    ];
+
+    Widget mock({
+      required String title,
+      required String note,
+      required bool collapsed,
+      required bool isSubPage,
+      List<Widget> barTrailing = const [],
+      double corner = 14,
+    }) {
+      final brand = isSubPage
+          ? TemplateRailBack(skin: skin, collapsed: collapsed)
+          : TemplateRailBrand(skin: skin, collapsed: collapsed);
+      return SizedBox(
+        width: 400,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: TemplateSpace.xs,
+          children: [
+            Text(
+              title,
+              style: TemplateType.item.copyWith(color: skin.textPrimary),
+            ),
+            Text(
+              note,
+              style: TemplateType.caption.copyWith(color: skin.textTertiary),
+            ),
+            Container(
+              height: 250,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                // 外壳底色 = 顶栏色：内容区圆角露出来的就是它（顶栏 + 侧栏包住内容区）
+                color: skin.surface,
+                border: Border.all(color: skin.border),
+                borderRadius: BorderRadius.circular(TemplateRadius.card),
+              ),
+              child: Row(
+                children: [
+                  TemplateSideRail(
+                    skin: skin,
+                    entries: entries,
+                    collapsed: collapsed,
+                    showDivider: false,
+                    top: brand,
+                    // 底部：收纳 / 展开按钮
+                    bottom: TemplateRailCollapse(
+                      skin: skin,
+                      collapsed: collapsed,
+                      onTap: () {},
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Container(
+                          height: 40,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: TemplateSpace.sm,
+                          ),
+                          // 无边界线：顶栏与内容区只靠底色 + 圆角分隔
+                          decoration: BoxDecoration(color: skin.surface),
+                          child: Row(
+                            spacing: TemplateSpace.xs,
+                            children: [
+                              // 顶栏左侧只有账户（收纳按钮在侧栏底部）
+                              avatar(24),
+                              Expanded(
+                                child: Text(
+                                  '概览 › 启动',
+                                  style: TemplateType.item.copyWith(
+                                    color: skin.textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              ...barTrailing,
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(corner),
+                            ),
+                            // 描边只压左边 + 上边（左上跟着圆角），右边 / 下边不画
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Container(
+                                  color: skin.page,
+                                  padding: const EdgeInsets.all(
+                                    TemplateSpace.md,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    spacing: TemplateSpace.sm,
+                                    children: [
+                                      Container(
+                                        height: 56,
+                                        decoration: BoxDecoration(
+                                          color: skin.surface,
+                                          borderRadius: BorderRadius.circular(
+                                            TemplateRadius.card,
+                                          ),
+                                          border: Border.all(
+                                            color: skin.border,
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        height: 96,
+                                        decoration: BoxDecoration(
+                                          color: skin.surface,
+                                          borderRadius: BorderRadius.circular(
+                                            TemplateRadius.card,
+                                          ),
+                                          border: Border.all(
+                                            color: skin.border,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IgnorePointer(
+                                  child: TemplateContentEdge(
+                                    skin: skin,
+                                    cornerRadius: corner,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _section(
+      skin,
+      '外壳：logo + 应用名 / 收纳按钮在侧栏底部 / 页面左上圆角',
+      Wrap(
+        spacing: TemplateSpace.lg,
+        runSpacing: TemplateSpace.lg,
+        children: [
+          mock(
+            title: '展开：侧栏顶部 logo + Copper',
+            note: '收纳按钮在侧栏底部；账户在顶栏左上、任务在右上',
+            collapsed: false,
+            isSubPage: false,
+            barTrailing: [tasksIcon()],
+          ),
+          mock(
+            title: '折叠：侧栏只剩 logo（56 宽）',
+            note: '导航格只剩图标、名称走 tooltip；侧栏底部只剩旋转后的展开图标',
+            collapsed: true,
+            isSubPage: false,
+            barTrailing: [tasksIcon()],
+          ),
+          mock(
+            title: '子页面：返回键 + 「返回」占 logo 位',
+            note: '返回键与软件 logo 共用同一位置——有返回就显示返回，logo 让位',
+            collapsed: false,
+            isSubPage: true,
+            barTrailing: [tasksIcon()],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 顶栏「路由线路」：整条栈 + 页面内路由（框起来）+ 名称后的 tag
+  Widget _buildRouteStacks(TemplateSkin skin) {
+    Widget bar(List<TemplateBreadcrumb> crumbs) => Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.md),
+      decoration: BoxDecoration(
+        color: skin.surface,
+        borderRadius: BorderRadius.circular(TemplateRadius.control),
+        border: Border.all(color: skin.border),
+      ),
+      child: TemplateBreadcrumbBar(skin: skin, crumbs: crumbs),
+    );
+
+    void noop() {}
+
+    return _section(
+      skin,
+      '顶栏路由线路（整条栈 / 页面内路由用框 / 名称带 tag）',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.sm,
+        children: [
+          _hint(skin, '从「主页」进来：版本设置 → 页面内「设置」（框起来，不可点）'),
+          bar([
+            TemplateBreadcrumb('主页', onTap: noop),
+            TemplateBreadcrumb('版本选择', onTap: noop),
+            TemplateBreadcrumb('版本设置', tag: 'build 146', onTap: noop),
+            const TemplateBreadcrumb('设置', boxed: true),
+          ]),
+          _hint(skin, '同一页，但从「设置」进来：栈不一样（入口不同 = 分类不同）'),
+          bar([
+            TemplateBreadcrumb('设置', onTap: noop),
+            TemplateBreadcrumb('版本设置', tag: 'build 146', onTap: noop),
+            const TemplateBreadcrumb('资源', boxed: true),
+          ]),
+          _hint(skin, '当前层是普通路由：最深且加粗（不可点）'),
+          bar([
+            TemplateBreadcrumb('主页', onTap: noop),
+            TemplateBreadcrumb('版本选择', onTap: noop),
+            TemplateBreadcrumb('版本设置', tag: 'build 146'),
+          ]),
+          _hint(skin, '页面内路由后面还能再接外部路由（资源下载）'),
+          bar([
+            TemplateBreadcrumb('社区资源', onTap: noop),
+            const TemplateBreadcrumb('模组', boxed: true),
+            TemplateBreadcrumb(
+              '模组下载',
+              tag: 'New Horizon',
+              icon: Icons.extension_outlined,
+              onTap: noop,
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  /// 滑块可选的几种形态：自绘 / 原生 M3 两代 / 刻度 / 数值气泡
+  /// 标签页：一级分类切换（下划线式）
+  Widget _buildTabs(TemplateSkin skin) {
+    return _section(
+      skin,
+      '标签页（下划线式）',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.md,
+        children: [
+          TemplateTabBar(
+            skin: skin,
+            tabs: const ['版本列表', '模组介绍', 'Readme'],
+            value: _tab,
+            onTap: (index) => setState(() => _tab = index),
+            trailing: Text(
+              '共 3 个版本',
+              style: TemplateType.caption.copyWith(color: skin.textTertiary),
+            ),
+          ),
+          Text(
+            '当前选中：${const ['版本列表', '模组介绍', 'Readme'][_tab]}',
+            style: TemplateType.caption.copyWith(color: skin.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSliders(TemplateSkin skin) {
+    Widget row(String title, Widget slider) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: TemplateSpace.xs,
+        children: [
+          Text(
+            title,
+            style: TemplateType.caption.copyWith(color: skin.textTertiary),
+          ),
+          slider,
+        ],
+      );
+    }
+
+    Widget native({required bool year2023, int? divisions, String? label}) {
+      return SliderTheme(
+        data: SliderThemeData(
+          year2023: year2023,
+          trackHeight: 12,
+          activeTrackColor: skin.accent,
+          inactiveTrackColor: skin.sunken,
+          thumbColor: skin.accent,
+          overlayColor: skin.accent.withAlpha(0x1F),
+          valueIndicatorColor: skin.accent,
+          valueIndicatorTextStyle: TemplateType.caption.copyWith(
+            color: skin.onAccent,
+          ),
+          showValueIndicator: label == null
+              ? ShowValueIndicator.never
+              : ShowValueIndicator.alwaysVisible,
+          activeTickMarkColor: skin.onAccent,
+          inactiveTickMarkColor: skin.textTertiary,
+          thumbShape: year2023
+              ? const RoundSliderThumbShape(enabledThumbRadius: 10)
+              : null,
+        ),
+        child: Slider(
+          value: 0.55,
+          divisions: divisions,
+          label: label,
+          onChanged: (_) {},
+        ),
+      );
+    }
+
+    return _section(
+      skin,
+      '滑块类型',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.lg,
+        children: [
+          row(
+            '现状：自绘（轨道 16 + 圆滑块 24）',
+            TemplateSliderRow(
+              skin: skin,
+              title: '内存上限',
+              label: '6.6 GB',
+              value: _slider,
+              onChanged: (value) => setState(() => _slider = value),
+            ),
+          ),
+          row('原生 M3 · 2024 样式', native(year2023: false)),
+          row('原生 + 刻度（10 档）', native(year2023: false, divisions: 10)),
+        ],
+      ),
+    );
+  }
+
+  /// 一条独立设置 = 一行，高度与原生开关一致
+  Widget _buildTiles(TemplateSkin skin) {
+    return _section(
+      skin,
+      '独立设置 tile（高度 = 原生开关默认高度）',
+      Column(
+        spacing: 2,
+        children: [
+          TemplateSettingTile(
+            skin: skin,
+            title: '自动检查启动器更新',
+            onTap: () {},
+            trailing: TemplateSwitch(
+              skin: skin,
+              value: _tileSwitch,
+              onTap: () => setState(() => _tileSwitch = !_tileSwitch),
+            ),
+          ),
+          TemplateSettingTile(
+            skin: skin,
+            title: '启动时恢复上次版本',
+            trailing: TemplateSwitch(
+              skin: skin,
+              value: true,
+              onTap: () {},
+              enabled: false,
+            ),
+          ),
+          TemplateSettingTile(
+            skin: skin,
+            title: '临时文件',
+            onTap: () {},
+            trailing: Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: skin.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildButtons(TemplateSkin skin) {
+    return _section(
+      skin,
+      '按钮',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: TemplateSpace.md,
+        children: [
+          Wrap(
+            spacing: TemplateSpace.md,
+            runSpacing: TemplateSpace.md,
+            children: [
+              TemplateButton(
+                skin: skin,
+                label: '启动游戏',
+                icon: Icons.play_arrow,
+                kind: TemplateButtonKind.solid,
+                onTap: () {},
+              ),
+              TemplateButton(
+                skin: skin,
+                label: '打开文件夹',
+                icon: Icons.folder_open,
+                kind: TemplateButtonKind.plain,
+                onTap: () {},
+              ),
+              TemplateButton(
+                skin: skin,
+                label: '取消',
+                icon: Icons.close,
+                kind: TemplateButtonKind.quiet,
+                onTap: () {},
+              ),
+              TemplateButton(
+                skin: skin,
+                label: '删除',
+                icon: Icons.delete_outline,
+                kind: TemplateButtonKind.plain,
+                danger: true,
+                onTap: () {},
+              ),
+              TemplateButton(
+                skin: skin,
+                label: '清空',
+                icon: Icons.delete_sweep_outlined,
+                kind: TemplateButtonKind.quiet,
+                danger: true,
+                onTap: () {},
+              ),
+            ],
+          ),
+          Wrap(
+            spacing: TemplateSpace.md,
+            runSpacing: TemplateSpace.md,
+            children: [
+              for (final (kind, danger, label) in const [
+                (TemplateButtonKind.solid, false, '启动游戏'),
+                (TemplateButtonKind.plain, false, '打开文件夹'),
+                (TemplateButtonKind.quiet, false, '取消'),
+                (TemplateButtonKind.plain, true, '删除'),
+                (TemplateButtonKind.solid, true, '重置'),
+              ])
+                TemplateButton(
+                  skin: skin,
+                  label: label,
+                  icon: Icons.block,
+                  kind: kind,
+                  danger: danger,
+                  enabled: false,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRows(TemplateSkin skin) {
+    return _section(
+      skin,
+      '行',
+      Column(
+        spacing: 2,
+        children: [
+          TemplateSwitchRow(
+            skin: skin,
+            title: '游戏存档隔离',
+            desc: '存档与模组放在版本目录里',
+            value: _switchA,
+            onTap: () => setState(() => _switchA = !_switchA),
+          ),
+          TemplateSwitchRow(
+            skin: skin,
+            title: '启动前自动同步云存档',
+            desc: '退出游戏后上传',
+            value: _switchB,
+            onTap: () => setState(() => _switchB = !_switchB),
+          ),
+          TemplateSwitchRow(
+            skin: skin,
+            title: '仅已同步时可用',
+            desc: '禁用时整行与开关一起退掉',
+            value: true,
+            onTap: () {},
+            enabled: false,
+          ),
+          TemplateSelectRow(
+            skin: skin,
+            title: '游戏Java',
+            value: 'Java 17',
+            onTap: () {},
+          ),
+          TemplateSelectRow(
+            skin: skin,
+            title: '版本通道',
+            value: '未检测到本体',
+            enabled: false,
+          ),
+          TemplateRow(
+            skin: skin,
+            onTap: () {},
+            child: Row(
+              children: [
+                Expanded(
+                  child: TemplateTwoLine(
+                    skin: skin,
+                    title: 'NewHorizon',
+                    desc: 'v2.1.4 · 大型模组 · 12.8 MB',
+                  ),
+                ),
+                Icon(
+                  Icons.toggle_on_outlined,
+                  size: 20,
+                  color: skin.textSecondary,
+                ),
+              ],
+            ),
+          ),
+          TemplateRow(
+            skin: skin,
+            selected: true,
+            onTap: () {},
+            child: Row(
+              children: [
+                Expanded(
+                  child: TemplateTwoLine(
+                    skin: skin,
+                    title: '已选中的条目',
+                    desc: '选中态用主题色的一层薄底',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TemplateKeyRow(
+            skin: skin,
+            title: '模组加载器',
+            value: 'Copper Loader 0.2.0',
+          ),
+          TemplateKeyRow(
+            skin: skin,
+            title: '数据目录',
+            value: r'E:\Mindustry\Copper',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControls(TemplateSkin skin) {
+    return _section(
+      skin,
+      '控件',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: TemplateSpace.lg,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.sm,
+            children: [
+              _hint(skin, '分段：三个选项'),
+              TemplateSegment(
+                skin: skin,
+                options: const ['跟随全局', '自动分配', '自定义'],
+                value: _segment,
+                onTap: (index) => setState(() => _segment = index),
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.sm,
+            children: [
+              _hint(skin, '分段：五个选项（挤的边界）'),
+              TemplateSegment(
+                skin: skin,
+                options: const ['跟随全局', '自动分配', '自定义', '极简', '省电'],
+                value: _segmentWide,
+                onTap: (index) => setState(() => _segmentWide = index),
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.sm,
+            children: [
+              _hint(skin, '分段：禁用'),
+              TemplateSegment(
+                skin: skin,
+                options: const ['Java 17', 'Java 21'],
+                value: 1,
+                onTap: (_) {},
+                enabled: false,
+              ),
+            ],
+          ),
+          _hint(skin, '开关：开 / 关 / 禁用'),
+          Wrap(
+            spacing: TemplateSpace.xl,
+            runSpacing: TemplateSpace.md,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TemplateSwitch(
+                skin: skin,
+                value: true,
+                onTap: () => setState(() => _switchA = true),
+              ),
+              TemplateSwitch(
+                skin: skin,
+                value: false,
+                onTap: () => setState(() => _switchB = false),
+              ),
+              TemplateSwitch(
+                skin: skin,
+                value: true,
+                onTap: () {},
+                enabled: false,
+              ),
+              TemplateSwitch(
+                skin: skin,
+                value: false,
+                onTap: () {},
+                enabled: false,
+              ),
+            ],
+          ),
+          TemplateSliderRow(
+            skin: skin,
+            title: '内存上限',
+            label: '${(_slider * 12).toStringAsFixed(1)} GB',
+            value: _slider,
+            onChanged: (value) => setState(() => _slider = value),
+          ),
+          TemplateSliderRow(
+            skin: skin,
+            title: '交换空间',
+            label: '不可调',
+            value: 0.4,
+            enabled: false,
+          ),
+          TemplateInputRow(
+            skin: skin,
+            title: 'jvm虚拟机参数',
+            controller: _input,
+            hint: '-XX:+UseG1GC',
+          ),
+          TemplateInputRow(
+            skin: skin,
+            title: '启动参数',
+            controller: TextEditingController(text: '由启动器自动决定'),
+            enabled: false,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedback(TemplateSkin skin) {
+    return _section(
+      skin,
+      '反馈与入口',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: TemplateSpace.md,
+        children: [
+          TemplateNotice(skin: skin, text: '可以把资源或游戏本体拖进 Copper 直接导入'),
+          // 主题色别堆：三条粗细并排成一排看差别，再补一条禁用态就够
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.md,
+            children: [
+              for (final (height, label) in const [
+                (8.0, '8'),
+                (12.0, '12'),
+                (16.0, '16'),
+              ])
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: TemplateSpace.xs,
+                    children: [
+                      _hint(skin, '粗 $label'),
+                      TemplateProgressBar(
+                        skin: skin,
+                        value: 0.62,
+                        height: height,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          TemplateProgressBar(
+            skin: skin,
+            value: 0.72,
+            height: 12,
+            enabled: false,
+          ),
+          Wrap(
+            spacing: TemplateSpace.md,
+            runSpacing: TemplateSpace.md,
+            children: [
+              TemplateShortcut(
+                skin: skin,
+                icon: Icons.save,
+                label: '存档文件夹',
+                onTap: () {},
+              ),
+              TemplateShortcut(
+                skin: skin,
+                icon: Icons.map_outlined,
+                label: '地图文件夹',
+                onTap: () {},
+              ),
+              TemplateShortcut(
+                skin: skin,
+                icon: Icons.folder_off_outlined,
+                label: '未安装',
+                enabled: false,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScene(TemplateSkin skin) {
+    return _section(
+      skin,
+      '页面片段：启动前设置',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.md,
+        children: [
+          TemplateTwoLine(
+            skin: skin,
+            title: 'Mindustry 146 · 已就绪',
+            desc: '上次启动 2 小时前',
+          ),
+          TemplateProgressBar(skin: skin, value: 0.62, height: 12),
+          const SizedBox(height: TemplateSpace.xs),
+          TemplateKeyRow(skin: skin, title: 'Java', value: 'Zulu 17.0.9'),
+          TemplateKeyRow(skin: skin, title: '内存', value: '4.0 GB / 8.0 GB'),
+          const SizedBox(height: TemplateSpace.sm),
+          Wrap(
+            spacing: TemplateSpace.md,
+            runSpacing: TemplateSpace.md,
+            children: [
+              TemplateButton(
+                skin: skin,
+                label: '启动游戏',
+                icon: Icons.play_arrow,
+                kind: TemplateButtonKind.solid,
+                onTap: () {},
+              ),
+              TemplateButton(
+                skin: skin,
+                label: '版本设置',
+                icon: Icons.tune,
+                kind: TemplateButtonKind.plain,
+                onTap: () {},
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 菜单 / 下拉 / 提示条语气
+  Widget _buildMenus(TemplateSkin skin) {
+    Widget caption(String text) => Text(
+      text,
+      style: TemplateType.caption.copyWith(color: skin.textTertiary),
+    );
+
+    return _section(
+      skin,
+      '菜单 / 下拉 / 提示条语气',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: TemplateSpace.md,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.lg,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: TemplateSpace.sm,
+                children: [
+                  caption('下拉（真菜单，单选）'),
+                  TemplateDropdown<String>(
+                    skin: skin,
+                    width: 200,
+                    value: _java,
+                    items: const [
+                      TemplateDropdownItem(value: 'Java 17', label: 'Java 17'),
+                      TemplateDropdownItem(value: 'Java 21', label: 'Java 21'),
+                      TemplateDropdownItem(value: 'Java 8', label: 'Java 8'),
+                    ],
+                    onSelected: (value) => setState(() => _java = value),
+                  ),
+                  const SizedBox(height: TemplateSpace.sm),
+                  caption('右键菜单（含复选 / 危险项 / 快捷键）'),
+                ],
+              ),
+              TemplateMenuPanel(
+                skin: skin,
+                items: [
+                  const TemplateMenuItem(
+                    label: '启动',
+                    icon: Icons.play_arrow,
+                    shortcut: 'Enter',
+                  ),
+                  const TemplateMenuItem(
+                    label: '打开文件夹',
+                    icon: Icons.folder_open,
+                  ),
+                  const TemplateMenuItem(
+                    label: '复制版本名',
+                    icon: Icons.copy,
+                    shortcut: 'Ctrl+C',
+                  ),
+                  const TemplateMenuItem(label: '只显示已安装', checked: true),
+                  TemplateMenuItem(
+                    label: '删除版本',
+                    icon: Icons.delete_outline,
+                    danger: true,
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: TemplateSpace.sm),
+          caption('提示条：四种语气 / 可关闭 / 行内动作'),
+          TemplateNotice(skin: skin, text: '把资源或游戏本体拖进 Copper 直接导入'),
+          TemplateNotice(
+            skin: skin,
+            tone: TemplateNoticeTone.success,
+            text: '版本列表已刷新',
+          ),
+          TemplateNotice(
+            skin: skin,
+            tone: TemplateNoticeTone.warning,
+            title: '有可用更新',
+            text: 'Copper Loader 0.2.1 已发布，重启后生效',
+            action: TemplateButton(
+              skin: skin,
+              label: '查看',
+              icon: Icons.arrow_forward,
+              kind: TemplateButtonKind.quiet,
+              onTap: () {},
+            ),
+            onClose: () {},
+          ),
+          TemplateNotice(
+            skin: skin,
+            tone: TemplateNoticeTone.danger,
+            text: '下载失败，已写入日志',
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 列表卡 / 网格卡
+  Widget _buildCards(TemplateSkin skin) {
+    return _section(
+      skin,
+      '列表卡 / 网格卡',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.md,
+        children: [
+          TemplateListCard(
+            skin: skin,
+            title: 'Mindustry 146',
+            subtitle: 'v146 · 已安装 · 2 小时前启动',
+            icon: Icons.gamepad_outlined,
+            badge: TemplateBadge(
+              skin: skin,
+              label: '已同步',
+              tone: TemplateBadgeTone.success,
+            ),
+            trailing: TemplateIconButton(
+              skin: skin,
+              icon: Icons.play_arrow,
+              tooltip: '启动',
+              onTap: () {},
+            ),
+            onTap: () {},
+          ),
+          TemplateListCard(
+            skin: skin,
+            title: 'NewHorizon',
+            subtitle: 'v2.1.4 · 大型模组 · 12.8 MB',
+            icon: Icons.extension_outlined,
+            selected: true,
+            trailing: TemplateIconButton(
+              skin: skin,
+              icon: Icons.more_horiz,
+              onTap: () {},
+            ),
+            onTap: () {},
+          ),
+          SizedBox(
+            height: 236,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: TemplateSpace.md,
+              children: [
+                SizedBox(
+                  width: 220,
+                  child: TemplateGridCard(
+                    skin: skin,
+                    title: 'Mindustry 146',
+                    subtitle: '已安装 · 2 小时前',
+                    icon: Icons.gamepad_outlined,
+                    badge: TemplateBadge(
+                      skin: skin,
+                      label: '推荐',
+                      tone: TemplateBadgeTone.accent,
+                    ),
+                    onTap: () {},
+                  ),
+                ),
+                SizedBox(
+                  width: 220,
+                  child: TemplateGridCard(
+                    skin: skin,
+                    title: '地图合集',
+                    subtitle: '32 张地图 · 14.2 MB',
+                    icon: Icons.map_outlined,
+                    onTap: () {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _hint(TemplateSkin skin, String text) {
+    return Text(
+      text,
+      style: TemplateType.caption.copyWith(color: skin.textTertiary),
+    );
+  }
+}
+
+/// 面包屑演示用：常量上下文里只能挂顶层函数引用
+void _noop() {}

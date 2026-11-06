@@ -117,6 +117,19 @@ class AppShellState extends State<AppShell> {
             icon: Icons.palette_outlined,
             route: '/seed_lab',
           ),
+        // 设计层预览页：新模组下载页 + 组件目录（用户在这两页上做微调）
+        if (kDebugMode)
+          RailItem(
+            label: '模组下载（新）',
+            icon: Icons.extension_outlined,
+            route: '/template_mod_download',
+          ),
+        if (kDebugMode)
+          RailItem(
+            label: '组件目录',
+            icon: Icons.widgets_outlined,
+            route: '/template_catalog',
+          ),
       ],
     ),
   ];

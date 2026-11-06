@@ -82,6 +82,10 @@ class TemplateSkin {
     );
   }
 
+  /// 按当前 `Theme` 的亮暗取默认皮肤：给 App 里的设计层页面直接用
+  static TemplateSkin ofContext(BuildContext context) =>
+      TemplateSkin.tuned(dark: Theme.of(context).brightness == Brightness.dark);
+
   /// 以 Copper **现在的主题色**为种子，按 **A 路线**（第 6 版那套）重新生成整套皮肤
   ///
   /// 用户 2026-11-03 的口径：「回到第 6 版配色种子算法，整体亮一点（接近现在配色）」，
