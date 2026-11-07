@@ -17,6 +17,7 @@ class _ModItem {
     required this.stars,
     required this.updated,
     required this.installed,
+    required this.hasUpdate,
     required this.range,
     required this.compatible,
   });
@@ -30,8 +31,11 @@ class _ModItem {
   final String stars;
   final String updated;
 
-  /// 本地是否已安装（只在下载操作旁做标识，不做按钮态）
+  /// 本地是否已安装：决定主行动按钮是「下载」还是「已安装 / 更新」
   final bool installed;
+
+  /// 已安装但有新版本时，主行动变成「更新」
+  final bool hasUpdate;
 
   /// 支持的游戏版本范围，如 `v146-v153`（由 minGameVersion 换算）
   final String range;
@@ -78,6 +82,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
       stars: '1.2k',
       updated: '3 天前',
       installed: true,
+      hasUpdate: true,
       range: 'v146-v153',
       compatible: true,
     ),
@@ -91,6 +96,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
       stars: '2.4k',
       updated: '1 周前',
       installed: false,
+      hasUpdate: false,
       range: 'v146-v153',
       compatible: true,
     ),
@@ -104,6 +110,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
       stars: '640',
       updated: '2 周前',
       installed: false,
+      hasUpdate: false,
       range: 'v146-v152',
       compatible: false,
     ),
@@ -117,6 +124,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
       stars: '96',
       updated: '1 个月前',
       installed: true,
+      hasUpdate: true,
       range: '不限版本',
       compatible: true,
     ),
@@ -129,7 +137,8 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
       downloads: '860k',
       stars: '48',
       updated: '2 个月前',
-      installed: false,
+      installed: true,
+      hasUpdate: false,
       range: 'v153 起',
       compatible: false,
     ),
@@ -143,6 +152,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
       stars: '12',
       updated: '3 个月前',
       installed: false,
+      hasUpdate: false,
       range: '不限版本',
       compatible: true,
     ),
@@ -580,26 +590,39 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
           // 名称 / 下载 / 星标 / 适配 四列按比例分，窄屏也塞得下
           Expanded(
             flex: 5,
-            child: Row(
-              spacing: TemplateSpace.xs,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: TemplateSpace.xxs,
               children: [
-                Flexible(
-                  child: Text(
-                    mod.name,
-                    style: TemplateType.item.copyWith(
-                      color: skin.textPrimary,
-                      fontWeight: FontWeight.w600,
+                Row(
+                  spacing: TemplateSpace.xs,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        mod.name,
+                        style: TemplateType.item.copyWith(
+                          color: skin.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                    if (mod.beta)
+                      TemplateBadge(
+                        skin: skin,
+                        label: 'Beta',
+                        tone: TemplateBadgeTone.danger,
+                      ),
+                  ],
                 ),
-                if (mod.beta)
-                  TemplateBadge(
-                    skin: skin,
-                    label: 'Beta',
-                    tone: TemplateBadgeTone.danger,
-                  ),
+                // 紧凑行也带一行描述（用户 2026-11-07：名称下面加一行）
+                Text(
+                  mod.desc,
+                  style: TemplateType.micro.copyWith(color: skin.textTertiary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -607,17 +630,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
           Expanded(flex: 2, child: _stat(skin, Icons.star_outline, mod.stars)),
           // 适配列给 4：范围文字 + 兼容徽标，窄窗口下也塞得下
           Expanded(flex: 4, child: _compat(skin, mod, dense: true)),
-          // 已安装：只在下载旁做标识（紧凑行里用小勾，不占按钮位）
-          if (mod.installed)
-            Icon(Icons.check_circle, size: 14, color: skin.success),
-          TemplateIconButton(
-            skin: skin,
-            icon: Icons.download,
-            tooltip: '下载',
-            size: 26,
-            iconSize: 15,
-            onTap: () {},
-          ),
+          _compactAction(skin, mod),
         ],
       ),
     );
@@ -681,16 +694,18 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: TemplateSpace.md,
             children: [
+              // 列表 logo：高度要装下「名称 + 仓库 + 两行描述」（约 84），
+              // 再给一点余量让左侧不显空（用户 2026-11-07）
               Container(
-                width: 52,
-                height: 52,
+                width: 84,
+                height: 84,
                 decoration: BoxDecoration(
                   color: skin.sunken,
                   borderRadius: BorderRadius.circular(TemplateRadius.card),
                 ),
                 child: Icon(
                   mod.java ? Icons.coffee_outlined : Icons.extension_outlined,
-                  size: 26,
+                  size: 38,
                   color: skin.textSecondary,
                 ),
               ),
@@ -735,31 +750,12 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
                   ],
                 ),
               ),
-              // 操作区：已安装只在下载旁做标识（固定宽槽，保证各行按钮对齐），
-              // 「更多」放在下载右边（用户 2026-11-07）
+              // 操作区：主行动按钮自己表达状态（下载 / 已安装 / 更新），
+              // 「更多」放在它右边（用户 2026-11-07）
               Row(
                 spacing: TemplateSpace.sm,
                 children: [
-                  SizedBox(
-                    width: 56,
-                    child: mod.installed
-                        ? Align(
-                            alignment: Alignment.centerRight,
-                            child: TemplateBadge(
-                              skin: skin,
-                              label: '已安装',
-                              tone: TemplateBadgeTone.success,
-                            ),
-                          )
-                        : null,
-                  ),
-                  TemplateButton(
-                    skin: skin,
-                    label: '下载',
-                    icon: Icons.download,
-                    kind: TemplateButtonKind.plain,
-                    onTap: () {},
-                  ),
+                  _actionButton(skin, mod),
                   TemplateIconButton(
                     skin: skin,
                     icon: Icons.more_horiz,
@@ -792,6 +788,71 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 主行动按钮的三个状态（用户 2026-11-07：下载 → 已安装 → 更新）
+  ///
+  /// - 未安装：**下载**
+  /// - 已安装且最新：**已安装**（安静态，不再是实心主行动）
+  /// - 已安装但有新版本：**更新**（实心，主行动回到它身上）
+  Widget _actionButton(TemplateSkin skin, _ModItem mod) {
+    if (!mod.installed) {
+      return TemplateButton(
+        skin: skin,
+        label: '下载',
+        icon: Icons.download,
+        kind: TemplateButtonKind.plain,
+        onTap: () {},
+      );
+    }
+    if (mod.hasUpdate) {
+      return TemplateButton(
+        skin: skin,
+        label: '更新',
+        icon: Icons.system_update_alt,
+        kind: TemplateButtonKind.solid,
+        onTap: () {},
+      );
+    }
+    return TemplateButton(
+      skin: skin,
+      label: '已安装',
+      icon: Icons.check,
+      kind: TemplateButtonKind.quiet,
+      onTap: () {},
+    );
+  }
+
+  /// 紧凑行里的同款状态（图标按钮，省宽度）
+  Widget _compactAction(TemplateSkin skin, _ModItem mod) {
+    if (!mod.installed) {
+      return TemplateIconButton(
+        skin: skin,
+        icon: Icons.download,
+        tooltip: '下载',
+        size: 26,
+        iconSize: 15,
+        onTap: () {},
+      );
+    }
+    if (mod.hasUpdate) {
+      return TemplateIconButton(
+        skin: skin,
+        icon: Icons.system_update_alt,
+        tooltip: '更新',
+        size: 26,
+        iconSize: 15,
+        onTap: () {},
+      );
+    }
+    return TemplateIconButton(
+      skin: skin,
+      icon: Icons.check,
+      tooltip: '已安装',
+      size: 26,
+      iconSize: 15,
+      onTap: () {},
     );
   }
 
@@ -959,22 +1020,8 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
                   style: TemplateType.micro.copyWith(color: skin.textTertiary),
                 ),
               ),
-              // 已安装只在下载旁做标识
-              if (mod.installed) ...[
-                TemplateBadge(
-                  skin: skin,
-                  label: '已安装',
-                  tone: TemplateBadgeTone.success,
-                ),
-                const SizedBox(width: TemplateSpace.sm),
-              ],
-              TemplateButton(
-                skin: skin,
-                label: '下载',
-                icon: Icons.download,
-                kind: TemplateButtonKind.plain,
-                onTap: () {},
-              ),
+              // 主行动按钮自己表达状态（下载 / 已安装 / 更新）
+              _actionButton(skin, mod),
             ],
           ),
         ],

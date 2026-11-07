@@ -110,9 +110,10 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/53-table-segments` | 表格组件（表头 + 固定列 + 弹性列 + 行分隔 + 横向滚动）、分段带图标与多选分段 |
 | `catalog/54-markdown` | 轻量 Markdown 渲染（标题 / 段落 / 列表 / 引用 / 代码块 / 分隔线 / 徽章 / 链接），模组页 Readme 已改用它 |
 | `catalog/55-readme-project` | Readme 改用**项目现有的 `ReadmeView`**（markdown AST + 直写 HTML + 图片 / 链接解析），只把皮肤翻成它要的 `AppColors` / `ThemeData` |
-| `screen/screen-mod-view` | 模组浏览页第四版：已安装做成下载旁标识（固定槽保对齐）、更多按钮挪到下载右边、统计按权重分宽；页面按**窗口−左导航**的内容宽渲染 |
-| `screen/screen-mod-view-compact` | 同页**紧凑视图**：一行一条（名称 + 下载 / 星标 / 适配 + 兼容 + 已安装勾 + 下载图标） |
-| `screen/screen-mod-view-grid` | 同页**网格视图**：logo 76（盖住标题+仓库+标签），已安装做在下载旁 |
+| `screen/screen-mod-view` | 模组浏览页第五版：主行动按钮自己表达状态（**下载 / 更新 / 已安装**），列表 logo 84，紧凑行补描述 |
+| `screen/screen-mod-view-full` | 同页完整列表（1200 高），三种按钮状态都能看到 |
+| `screen/screen-mod-view-compact` | 同页**紧凑视图**：名称下面带一行描述 + 下载 / 星标 / 适配 + 状态图标 |
+| `screen/screen-mod-view-grid` | 同页**网格视图**：logo 76（盖住标题+仓库+标签），按钮同款三态 |
 | `screen/screen-mod-view-narrow` | 同页**窄窗口**（窗口 700 → 内容 520）：只有「列表 / 网格」，列表 = 紧凑行 |
 | `screen/screen-mod` | **App 内页面**：模组下载新页（宽屏版，1000×700） |
 | `screen/screen-mod-base` | 同一页按**标准尺寸 760×450**（最小窗口首屏） |
