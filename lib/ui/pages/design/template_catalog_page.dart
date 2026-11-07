@@ -76,6 +76,8 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         _buildFeedback(skin),
         _buildMotion(skin),
         _buildDotMatrix(skin),
+        _buildDotMatrixLive(skin),
+        _buildDotMatrixFrames(skin),
         _buildLoaders(skin),
         _buildChrome(skin),
         _buildRailPlacements(skin),
@@ -1357,6 +1359,111 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
             skin,
             '页面转场：templatePageRoute（淡入 + 上移 2%，200ms easeOutCubic；返回 160ms）',
           ),
+        ],
+      ),
+    );
+  }
+
+  /// 圆点矩阵动效（全动画）：不传 phase，五种图案同时在跑，App 里看真实节奏
+  Widget _buildDotMatrixLive(TemplateSkin skin) {
+    Widget item(String label, TemplateDotPattern pattern, {double size = 72}) =>
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: TemplateSpace.xs,
+          children: [
+            SizedBox(
+              width: size + 8,
+              height: size + 8,
+              child: Center(
+                child: TemplateDotMatrix(
+                  skin: skin,
+                  size: size,
+                  dots: size >= 56 ? 16 : 12,
+                  pattern: pattern,
+                ),
+              ),
+            ),
+            _hint(skin, label),
+          ],
+        );
+
+    return _section(
+      skin,
+      '圆点矩阵动效（全动画）',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.lg,
+        children: [
+          _hint(skin, '五种图案都在跑（不传 phase 时自循环；这一节是给 App 里看真机的）'),
+          Row(
+            spacing: TemplateSpace.lg,
+            children: [
+              item('径向波纹', TemplateDotPattern.radialRipple),
+              item('双螺旋', TemplateDotPattern.dualSpiral),
+              item('环闪', TemplateDotPattern.ringFlash),
+              item('菱形波', TemplateDotPattern.diamondWave),
+              item('轨道光点', TemplateDotPattern.orbit),
+            ],
+          ),
+          _hint(skin, '同一图案（径向波纹）三种尺寸：56 / 40 / 28 都在转'),
+          Row(
+            spacing: TemplateSpace.lg,
+            children: [
+              for (final size in const [56.0, 40.0, 28.0])
+                item(
+                  '${size.toInt()}',
+                  TemplateDotPattern.radialRipple,
+                  size: size,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 圆点矩阵帧序列：每种图案 8 帧静帧，样张里看「运动轨迹」
+  Widget _buildDotMatrixFrames(TemplateSkin skin) {
+    Widget row(String label, TemplateDotPattern pattern) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: TemplateSpace.xs,
+      children: [
+        _hint(skin, label),
+        Row(
+          spacing: TemplateSpace.sm,
+          children: [
+            for (var i = 0; i < 8; i++)
+              SizedBox(
+                width: 72,
+                height: 72,
+                child: Center(
+                  child: TemplateDotMatrix(
+                    skin: skin,
+                    size: 62,
+                    dots: 16,
+                    pattern: pattern,
+                    phase: i / 8,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+
+    return _section(
+      skin,
+      '圆点矩阵动效（帧序列）',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.md,
+        children: [
+          _hint(skin, '每种图案 8 帧（0 → 7/8），静帧拼起来就是运动轨迹；App 里看「全动画」那节'),
+          row('① 径向波纹', TemplateDotPattern.radialRipple),
+          row('② 双螺旋', TemplateDotPattern.dualSpiral),
+          row('③ 环闪', TemplateDotPattern.ringFlash),
+          row('④ 菱形波', TemplateDotPattern.diamondWave),
+          row('⑤ 轨道光点', TemplateDotPattern.orbit),
         ],
       ),
     );
