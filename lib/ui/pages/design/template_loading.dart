@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:flutter/material.dart';
@@ -526,7 +526,8 @@ class TemplateDotMatrix extends StatelessWidget {
     this.phase,
     this.duration = const Duration(milliseconds: 1600),
     this.sparkles = 7,
-    this.spread = 0.86,
+    // 光点聚得更紧凑（用户 2026-11-07）：半径 0.58 内 + 相互至少隔 2 格
+    this.spread = 0.58,
     this.seed = 11,
   });
 
@@ -621,7 +622,7 @@ class _DotMatrixPainter extends CustomPainter {
     final cells = <({int col, int row, int k, double offset})>[];
     final used = <int>{};
     var guard = 0;
-    while (cells.length < count && guard < count * 40) {
+    while (cells.length < count && guard < count * 60) {
       guard++;
       final col = random.nextInt(dots);
       final row = random.nextInt(dots);
@@ -632,6 +633,17 @@ class _DotMatrixPainter extends CustomPainter {
       final gy = (row + 0.5) / dots * 2 - 1;
       final r = math.sqrt(gx * gx + gy * gy);
       if (r > spread) continue;
+      // 相互之间至少隔 2 格：光斑靠得紧但不糊成一团（用户 2026-11-07：再紧凑一点）
+      var tooClose = false;
+      for (final other in cells) {
+        final ddx = (other.col - col).toDouble();
+        final ddy = (other.row - row).toDouble();
+        if (ddx * ddx + ddy * ddy < 4.0) {
+          tooClose = true;
+          break;
+        }
+      }
+      if (tooClose) continue;
       used.add(key);
       cells.add((
         col: col,
