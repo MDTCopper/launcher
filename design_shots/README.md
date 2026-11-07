@@ -109,8 +109,9 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/53-table-segments` | 表格组件（表头 + 固定列 + 弹性列 + 行分隔 + 横向滚动）、分段带图标与多选分段 |
 | `catalog/54-markdown` | 轻量 Markdown 渲染（标题 / 段落 / 列表 / 引用 / 代码块 / 分隔线 / 徽章 / 链接），模组页 Readme 已改用它 |
 | `catalog/55-readme-project` | Readme 改用**项目现有的 `ReadmeView`**（markdown AST + 直写 HTML + 图片 / 链接解析），只把皮肤翻成它要的 `AppColors` / `ThemeData` |
-| `screen/screen-mod-view` | **当前**：模组浏览页（`/template_mod_view`，760 基准宽）：标题卡 + 搜索筛选 + 列表/网格切换 + 翻页 |
-| `screen/screen-mod-view-narrow` | 同一页窄屏（600 宽）：筛选换行、列表改成堆叠行 |
+| `screen/screen-mod-view` | 模组浏览页（`/template_mod_view`，760 基准宽）第二版：下载/星标/适配范围单独一行、logo 52、右侧操作居中 |
+| `screen/screen-mod-view-grid` | 同页**网格视图**（2 列）：同样的统计行 + 适配范围 |
+| `screen/screen-mod-view-narrow` | 同页窄屏（600 宽）：描述与统计收进文字列，左边缘与标题对齐 |
 | `screen/screen-mod` | **App 内页面**：模组下载新页（宽屏版，1000×700） |
 | `screen/screen-mod-base` | 同一页按**标准尺寸 760×450**（最小窗口首屏） |
 | `screen/screen-mod-base-tall` | 同上拉高到 900 看折线以下 |

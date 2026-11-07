@@ -5,13 +5,47 @@ import 'package:copper_launcher/ui/pages/design/template_state.dart';
 import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
 import 'package:flutter/material.dart';
 
+/// 一条模组占位数据（接入后换成 `ModOfficialListEntry`）
+class _ModItem {
+  const _ModItem({
+    required this.name,
+    required this.repo,
+    required this.desc,
+    required this.java,
+    required this.beta,
+    required this.installed,
+    required this.downloads,
+    required this.stars,
+    required this.updated,
+    required this.range,
+    required this.compatible,
+  });
+
+  final String name;
+  final String repo;
+  final String desc;
+  final bool java;
+  final bool beta;
+  final bool installed;
+  final String downloads;
+  final String stars;
+  final String updated;
+
+  /// 支持的游戏版本范围，如 `v146-v153`（由 minGameVersion 换算）
+  final String range;
+
+  /// 这份记录是否支持当前选中版本
+  final bool compatible;
+}
+
 /// 模组浏览页（设计层版本，App 内可打开：`/template_mod_view`，仅 debug 可见）
 ///
 /// 2026-11-07：用户要「做 modviewpage，不一定按照现在的样子」——
 /// 现有页面是「搜索 + 类型 / 版本 / 排序 三个下拉 + 长列表」，这里重排成：
 /// 标题卡 → 搜索与筛选条（可 Wrap）→ 工具条（计数 / 视图切换）→ 列表或网格 → 翻页
 ///
-/// 数据未接：`_mods` 是占位，接入时替换成 `ModOfficialListEntry` 列表即可
+/// 2026-11-07 第二版（用户反馈）：下载量 / 星标那排原来跟按钮抢位置、也没对齐 →
+/// 单独一行、等距排列；logo 放大到 52；补上「适配范围 + 兼容 / 不兼容」信息
 class TemplateModViewScreen extends StatefulWidget {
   const TemplateModViewScreen({super.key});
 
@@ -30,73 +64,84 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
   int _view = 0;
   int _page = 1;
 
-  /// 占位数据：`(名称, 仓库, 描述, Java, Beta, 已安装, 下载量, 星标, 更新时间)`
   static const _mods = [
-    (
-      'New Horizon',
-      'Yuria-Shikibe/NewHorizonMod',
-      '把 Mindustry 的玩法推到极限：新的科技树、单位与建筑，配套的星球与战役。',
-      true,
-      true,
-      true,
-      '126.9M',
-      '1.2k',
-      '3 天前',
+    _ModItem(
+      name: 'New Horizon',
+      repo: 'Yuria-Shikibe/NewHorizonMod',
+      desc: '把 Mindustry 的玩法推到极限：新的科技树、单位与建筑，配套的星球与战役。',
+      java: true,
+      beta: true,
+      installed: true,
+      downloads: '126.9M',
+      stars: '1.2k',
+      updated: '3 天前',
+      range: 'v146-v153',
+      compatible: true,
     ),
-    (
-      'Exogenesis',
-      'Team-Exogenesis/Exogenesis',
-      '一套以「终极科技」为核心的超大型内容模组，新增大量单位、建筑与星球。',
-      true,
-      false,
-      false,
-      '88.4M',
-      '2.4k',
-      '1 周前',
+    _ModItem(
+      name: 'Exogenesis',
+      repo: 'Team-Exogenesis/Exogenesis',
+      desc: '一套以「终极科技」为核心的超大型内容模组，新增大量单位、建筑与星球。',
+      java: true,
+      beta: false,
+      installed: false,
+      downloads: '88.4M',
+      stars: '2.4k',
+      updated: '1 周前',
+      range: 'v146-v153',
+      compatible: true,
     ),
-    (
-      'Mindustry Extended',
-      'Mindustry-Extended/Extended',
-      '在原版基础上扩展科技树与单位，玩法更完整，但加载时间也更长。',
-      true,
-      false,
-      false,
-      '35.2M',
-      '640',
-      '2 周前',
+    _ModItem(
+      name: 'Mindustry Extended',
+      repo: 'Mindustry-Extended/Extended',
+      desc: '在原版基础上扩展科技树与单位，玩法更完整，但加载时间也更长。',
+      java: true,
+      beta: false,
+      installed: false,
+      downloads: '35.2M',
+      stars: '640',
+      updated: '2 周前',
+      range: 'v146-v152',
+      compatible: false,
     ),
-    (
-      'UI Lib',
-      'Copper-Studio/ui-lib',
-      '给其它模组用的 UI 组件库：列表、对话框、标签页一应俱全。',
-      false,
-      false,
-      true,
-      '1.2M',
-      '96',
-      '1 个月前',
+    _ModItem(
+      name: 'UI Lib',
+      repo: 'Copper-Studio/ui-lib',
+      desc: '给其它模组用的 UI 组件库：列表、对话框、标签页一应俱全。',
+      java: false,
+      beta: false,
+      installed: true,
+      downloads: '1.2M',
+      stars: '96',
+      updated: '1 个月前',
+      range: '不限版本',
+      compatible: true,
     ),
-    (
-      'Random Ore',
-      'Some-Author/RandomOre',
-      '随机生成矿物分布，让每张地图的资源都不一样。',
-      false,
-      false,
-      false,
-      '860k',
-      '48',
-      '2 个月前',
+    _ModItem(
+      name: 'Random Ore',
+      repo: 'Some-Author/RandomOre',
+      desc: '随机生成矿物分布，让每张地图的资源都不一样。',
+      java: false,
+      beta: false,
+      installed: false,
+      downloads: '860k',
+      stars: '48',
+      updated: '2 个月前',
+      range: 'v153 起',
+      compatible: false,
     ),
-    (
-      'Debug Toolkit',
-      'Some-Author/DebugToolkit',
-      '调试工具集：显示实体数量、碰撞箱与性能面板。',
-      true,
-      false,
-      false,
-      '12.4k',
-      '12',
-      '3 个月前',
+    _ModItem(
+      name: 'Debug Toolkit',
+      repo: 'Some-Author/DebugToolkit',
+      desc: '调试工具集：显示实体数量、碰撞箱与性能面板。',
+      java: true,
+      beta: false,
+      installed: false,
+      downloads: '12.4k',
+      stars: '12',
+      updated: '3 个月前',
+      range: '不限版本',
+      compatible: true,
     ),
   ];
 
@@ -110,28 +155,31 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
     super.dispose();
   }
 
-  List<(String, String, String, bool, bool, bool, String, String, String)>
-  get _visibleMods {
+  List<_ModItem> get _visibleMods {
     final keyword = _search.text.trim().toLowerCase();
     final filtered = _mods.where((mod) {
       if (keyword.isNotEmpty) {
-        final haystack = '${mod.$1} ${mod.$2} ${mod.$3}'.toLowerCase();
+        final haystack = '${mod.name} ${mod.repo} ${mod.desc}'.toLowerCase();
         if (!haystack.contains(keyword)) return false;
       }
       return switch (_type) {
-        1 => mod.$4,
-        2 => !mod.$4,
+        1 => mod.java,
+        2 => !mod.java,
         _ => true,
       };
     }).toList();
-    // 排序只有三项，占位数据直接按对应字段排
     switch (_sort) {
       case 1:
-        filtered.sort((a, b) => _parseCount(b.$8).compareTo(_parseCount(a.$8)));
+        filtered.sort(
+          (a, b) => _parseCount(b.stars).compareTo(_parseCount(a.stars)),
+        );
       case 2:
-        filtered.sort((a, b) => _parseCount(a.$9).compareTo(_parseCount(b.$9)));
+        filtered.sort((a, b) => _ageOf(a).compareTo(_ageOf(b)));
       default:
-        filtered.sort((a, b) => _parseCount(b.$7).compareTo(_parseCount(a.$7)));
+        filtered.sort(
+          (a, b) =>
+              _parseCount(b.downloads).compareTo(_parseCount(a.downloads)),
+        );
     }
     return filtered;
   }
@@ -146,6 +194,15 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
         : 1.0;
     final number = double.tryParse(text.replaceAll(RegExp(r'[km]$'), '')) ?? 0;
     return number * multiplier;
+  }
+
+  /// 更新时间 → 天数（占位排序用）
+  static double _ageOf(_ModItem mod) {
+    final match = RegExp(r'(\d+)').firstMatch(mod.updated);
+    final value = double.tryParse(match?.group(1) ?? '0') ?? 0;
+    if (mod.updated.contains('周')) return value * 7;
+    if (mod.updated.contains('个月')) return value * 30;
+    return value;
   }
 
   @override
@@ -211,7 +268,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
                   title: '数据从哪来',
                   text:
                       '模组条目来自 Copper 的官方索引与 GitHub；下载量与星标每日更新，'
-                      '版本兼容范围由社区维护的清单补充',
+                      '适配范围由社区维护的清单补充',
                   onClose: () {},
                 ),
               ],
@@ -254,6 +311,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
     );
 
     final actions = Row(
+      mainAxisSize: MainAxisSize.min,
       spacing: TemplateSpace.sm,
       children: [
         TemplateButton(
@@ -276,19 +334,18 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
     return TemplateCard(
       skin: skin,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         spacing: TemplateSpace.md,
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               color: skin.accentTint,
               borderRadius: BorderRadius.circular(TemplateRadius.card),
             ),
             child: Icon(
               Icons.extension_outlined,
-              size: 22,
+              size: 26,
               color: skin.onAccentTint,
             ),
           ),
@@ -426,12 +483,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
 
   // ── 列表视图 ──
 
-  Widget _buildList(
-    TemplateSkin skin,
-    bool compact,
-    List<(String, String, String, bool, bool, bool, String, String, String)>
-    mods,
-  ) {
+  Widget _buildList(TemplateSkin skin, bool compact, List<_ModItem> mods) {
     return TemplateCard(
       skin: skin,
       padding: const EdgeInsets.symmetric(vertical: TemplateSpace.xs),
@@ -454,24 +506,17 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
     );
   }
 
-  Widget _buildModRow(
-    TemplateSkin skin,
-    bool compact,
-    (String, String, String, bool, bool, bool, String, String, String) mod,
-  ) {
-    final (name, repo, desc, java, beta, installed, downloads, stars, updated) =
-        mod;
-
-    Widget icon() => Container(
-      width: 40,
-      height: 40,
+  Widget _buildModRow(TemplateSkin skin, bool compact, _ModItem mod) {
+    Widget logo() => Container(
+      width: 52,
+      height: 52,
       decoration: BoxDecoration(
         color: skin.sunken,
-        borderRadius: BorderRadius.circular(TemplateRadius.control),
+        borderRadius: BorderRadius.circular(TemplateRadius.card),
       ),
       child: Icon(
-        java ? Icons.coffee_outlined : Icons.extension_outlined,
-        size: 20,
+        mod.java ? Icons.coffee_outlined : Icons.extension_outlined,
+        size: 26,
         color: skin.textSecondary,
       ),
     );
@@ -482,16 +527,16 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
       children: [
         TemplateBadge(
           skin: skin,
-          label: java ? 'Java' : 'JS',
-          tone: java ? TemplateBadgeTone.warning : TemplateBadgeTone.note,
+          label: mod.java ? 'Java' : 'JS',
+          tone: mod.java ? TemplateBadgeTone.warning : TemplateBadgeTone.note,
         ),
-        if (beta)
+        if (mod.beta)
           TemplateBadge(
             skin: skin,
             label: 'Beta',
             tone: TemplateBadgeTone.danger,
           ),
-        if (installed)
+        if (mod.installed)
           TemplateBadge(
             skin: skin,
             label: '已安装',
@@ -500,39 +545,28 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
       ],
     );
 
-    Widget stats() => Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: TemplateSpace.md,
+    // 统计与适配范围单独一行：等距、对齐，不和右侧按钮抢位置
+    Widget meta() => Wrap(
+      spacing: TemplateSpace.lg,
+      runSpacing: TemplateSpace.xs,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        _stat(skin, Icons.download, downloads),
-        _stat(skin, Icons.star_outline, stars),
+        _stat(skin, Icons.download, mod.downloads),
+        _stat(skin, Icons.star_outline, mod.stars),
+        _compat(skin, mod),
         Text(
-          updated,
+          '更新于 ${mod.updated}',
           style: TemplateType.micro.copyWith(color: skin.textTertiary),
         ),
       ],
     );
 
-    Widget actions() => Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: TemplateSpace.xs,
-      children: [
-        TemplateButton(
-          skin: skin,
-          label: installed ? '已安装' : '下载',
-          icon: installed ? Icons.check : Icons.download,
-          kind: installed ? TemplateButtonKind.quiet : TemplateButtonKind.plain,
-          onTap: () {},
-        ),
-        Builder(
-          builder: (moreContext) => TemplateIconButton(
-            skin: skin,
-            icon: Icons.more_horiz,
-            tooltip: '更多操作',
-            onTap: () {},
-          ),
-        ),
-      ],
+    Widget download() => TemplateButton(
+      skin: skin,
+      label: mod.installed ? '已安装' : '下载',
+      icon: mod.installed ? Icons.check : Icons.download,
+      kind: mod.installed ? TemplateButtonKind.quiet : TemplateButtonKind.plain,
+      onTap: () {},
     );
 
     if (compact) {
@@ -540,20 +574,21 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
         skin: skin,
         padding: const EdgeInsets.symmetric(
           horizontal: TemplateSpace.md,
-          vertical: TemplateSpace.sm,
+          vertical: TemplateSpace.md,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: TemplateSpace.md,
           children: [
-            icon(),
+            logo(),
+            // 窄屏也把描述与统计收进文字列：左边缘与标题对齐，不要「描述从 logo 底下穿过去」
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: TemplateSpace.xs,
+                spacing: TemplateSpace.sm,
                 children: [
                   Text(
-                    name,
+                    mod.name,
                     style: TemplateType.item.copyWith(
                       color: skin.textPrimary,
                       fontWeight: FontWeight.w600,
@@ -562,7 +597,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    repo,
+                    mod.repo,
                     style: TemplateType.micro.copyWith(
                       color: skin.textTertiary,
                     ),
@@ -571,19 +606,15 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
                   ),
                   badges(),
                   Text(
-                    desc,
+                    mod.desc,
                     style: TemplateType.caption.copyWith(
                       color: skin.textTertiary,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Row(
-                    children: [
-                      Expanded(child: stats()),
-                      actions(),
-                    ],
-                  ),
+                  meta(),
+                  Row(children: [const Spacer(), download()]),
                 ],
               ),
             ),
@@ -596,24 +627,24 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
       skin: skin,
       padding: const EdgeInsets.symmetric(
         horizontal: TemplateSpace.md,
-        vertical: TemplateSpace.sm,
+        vertical: TemplateSpace.md,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         spacing: TemplateSpace.md,
         children: [
-          icon(),
+          logo(),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: TemplateSpace.xxs,
+              spacing: TemplateSpace.xs,
               children: [
                 Row(
                   spacing: TemplateSpace.sm,
                   children: [
                     Flexible(
                       child: Text(
-                        name,
+                        mod.name,
                         style: TemplateType.item.copyWith(
                           color: skin.textPrimary,
                           fontWeight: FontWeight.w600,
@@ -626,24 +657,38 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
                   ],
                 ),
                 Text(
-                  repo,
+                  mod.repo,
                   style: TemplateType.micro.copyWith(color: skin.textTertiary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  desc,
+                  mod.desc,
                   style: TemplateType.caption.copyWith(
                     color: skin.textTertiary,
                   ),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
+                meta(),
               ],
             ),
           ),
-          stats(),
-          actions(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            spacing: TemplateSpace.xs,
+            children: [
+              download(),
+              TemplateIconButton(
+                skin: skin,
+                icon: Icons.more_horiz,
+                tooltip: '更多操作',
+                size: 28,
+                iconSize: 16,
+                onTap: () {},
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -663,14 +708,35 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
     );
   }
 
+  /// 适配范围 + 兼容 / 不兼容
+  Widget _compat(TemplateSkin skin, _ModItem mod) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: TemplateSpace.xs,
+      children: [
+        Icon(
+          mod.compatible ? Icons.check_circle_outline : Icons.info_outline,
+          size: 14,
+          color: skin.textTertiary,
+        ),
+        Text(
+          '适配 ${mod.range}',
+          style: TemplateType.micro.copyWith(color: skin.textTertiary),
+        ),
+        TemplateBadge(
+          skin: skin,
+          label: mod.compatible ? '兼容' : '不兼容',
+          tone: mod.compatible
+              ? TemplateBadgeTone.success
+              : TemplateBadgeTone.warning,
+        ),
+      ],
+    );
+  }
+
   // ── 网格视图 ──
 
-  Widget _buildGrid(
-    TemplateSkin skin,
-    bool compact,
-    List<(String, String, String, bool, bool, bool, String, String, String)>
-    mods,
-  ) {
+  Widget _buildGrid(TemplateSkin skin, bool compact, List<_ModItem> mods) {
     const gap = TemplateSpace.md;
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -689,12 +755,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
     );
   }
 
-  Widget _buildGridCard(
-    TemplateSkin skin,
-    (String, String, String, bool, bool, bool, String, String, String) mod,
-  ) {
-    final (name, repo, desc, java, beta, installed, downloads, stars, updated) =
-        mod;
+  Widget _buildGridCard(TemplateSkin skin, _ModItem mod) {
     return TemplateCard(
       skin: skin,
       padding: const EdgeInsets.all(TemplateSpace.md),
@@ -703,18 +764,19 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
         spacing: TemplateSpace.sm,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             spacing: TemplateSpace.sm,
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: skin.sunken,
                   borderRadius: BorderRadius.circular(TemplateRadius.control),
                 ),
                 child: Icon(
-                  java ? Icons.coffee_outlined : Icons.extension_outlined,
-                  size: 18,
+                  mod.java ? Icons.coffee_outlined : Icons.extension_outlined,
+                  size: 22,
                   color: skin.textSecondary,
                 ),
               ),
@@ -724,7 +786,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
                   spacing: TemplateSpace.xxs,
                   children: [
                     Text(
-                      name,
+                      mod.name,
                       style: TemplateType.item.copyWith(
                         color: skin.textPrimary,
                         fontWeight: FontWeight.w600,
@@ -733,7 +795,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      repo,
+                      mod.repo,
                       style: TemplateType.micro.copyWith(
                         color: skin.textTertiary,
                       ),
@@ -743,7 +805,7 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
                   ],
                 ),
               ),
-              if (installed)
+              if (mod.installed)
                 TemplateBadge(
                   skin: skin,
                   label: '已安装',
@@ -752,34 +814,34 @@ class _TemplateModViewScreenState extends State<TemplateModViewScreen> {
             ],
           ),
           Text(
-            desc,
+            mod.desc,
             style: TemplateType.caption.copyWith(color: skin.textTertiary),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
+          Wrap(
+            spacing: TemplateSpace.md,
+            runSpacing: TemplateSpace.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _stat(skin, Icons.download, mod.downloads),
+              _stat(skin, Icons.star_outline, mod.stars),
+              _compat(skin, mod),
+            ],
+          ),
           Row(
-            spacing: TemplateSpace.sm,
             children: [
               Expanded(
-                child: Row(
-                  spacing: TemplateSpace.md,
-                  children: [
-                    _stat(skin, Icons.download, downloads),
-                    _stat(skin, Icons.star_outline, stars),
-                    if (beta)
-                      TemplateBadge(
-                        skin: skin,
-                        label: 'Beta',
-                        tone: TemplateBadgeTone.danger,
-                      ),
-                  ],
+                child: Text(
+                  '更新于 ${mod.updated}',
+                  style: TemplateType.micro.copyWith(color: skin.textTertiary),
                 ),
               ),
               TemplateButton(
                 skin: skin,
-                label: installed ? '已安装' : '下载',
-                icon: installed ? Icons.check : Icons.download,
-                kind: installed
+                label: mod.installed ? '已安装' : '下载',
+                icon: mod.installed ? Icons.check : Icons.download,
+                kind: mod.installed
                     ? TemplateButtonKind.quiet
                     : TemplateButtonKind.plain,
                 onTap: () {},
