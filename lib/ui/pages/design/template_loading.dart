@@ -562,8 +562,8 @@ class _DotDrillPainter extends CustomPainter {
     final spacing = radius * 2 / dots;
     final baseDot = spacing * 0.30;
     final rotation = phase * math.pi * 2;
-    // 定子（中心八边形）占的半径；叶片从它外面起
-    final stator = radius * 0.30;
+    // 定子正八边形的「内切半径」（apothem）；叶片从它外面起
+    final statorApothem = radius * 0.32;
 
     // ── 圆盘：整块淡淡的「托盘点」+ 一圈明显的盘沿 ──
     for (var row = 0; row < dots; row++) {
@@ -610,7 +610,7 @@ class _DotDrillPainter extends CustomPainter {
         final dx = -radius + spacing * (col + 0.5);
         final dy = -radius + spacing * (row + 0.5);
         final distance = math.sqrt(dx * dx + dy * dy) / radius;
-        if (distance > 0.94 || distance * radius <= stator) continue;
+        if (distance > 0.94 || distance * radius <= statorApothem) continue;
 
         // 往外扭：同一个半径上的点整体偏一个角度，四片直刃就变成螺旋刃
         final angle =
@@ -623,7 +623,7 @@ class _DotDrillPainter extends CustomPainter {
         final half = 0.50 * (1 - 0.30 * distance);
 
         final angular = (1 - offset / half).clamp(0.0, 1.0);
-        final rise = ((distance - 0.32) / 0.10).clamp(0.0, 1.0);
+        final rise = ((distance - 0.34) / 0.10).clamp(0.0, 1.0);
         final fall = ((0.90 - distance) / 0.14).clamp(0.0, 1.0);
         final radial = math.min(rise, fall);
         // 顺着转动方向的前缘亮一档，静态帧也看得出往哪边转
@@ -642,47 +642,58 @@ class _DotDrillPainter extends CustomPainter {
       }
     }
 
-    // ── 定子：正八边形，**不转**，叶片绕着它转 ──
-    final statorPath = Path();
-    for (var i = 0; i < 8; i++) {
-      // 转 22.5°，让八边形是「平顶」的
-      final angle = math.pi / 8 + i * math.pi / 4;
-      final point = Offset(
-        center.dx + stator * math.cos(angle),
-        center.dy + stator * math.sin(angle),
-      );
-      if (i == 0) {
-        statorPath.moveTo(point.dx, point.dy);
-      } else {
-        statorPath.lineTo(point.dx, point.dy);
-      }
-    }
-    statorPath.close();
+    // ── 定子：正八边形也走点阵，**不转**，叶片绕着它转 ──
+    //
+    // 点阵格子对齐时八边形的斜边会被量化掉，所以轮廓沿着八条边**按格距采点**画一圈实点，
+    // 里面再用稀疏点阵填一层「面」——整体仍是点的语言，但八边形一眼能读出来
+    final statorEdge = statorApothem / radius; // 归一化 apothem
+    final circumradius = statorApothem / math.cos(math.pi / 8);
+    final vertices = <Offset>[
+      for (var i = 0; i < 8; i++)
+        Offset(
+          center.dx + circumradius * math.cos(math.pi / 8 + i * math.pi / 4),
+          center.dy + circumradius * math.sin(math.pi / 8 + i * math.pi / 4),
+        ),
+    ];
 
-    canvas.drawPath(statorPath, Paint()..color = accent.withAlpha(38));
-    canvas.drawPath(
-      statorPath,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(1.2, baseDot * 0.5)
-        ..color = accent,
-    );
-    // 定子里再嵌一颗小八边形，做出「定子嵌在轮毂里」的层次
-    final corePath = Path();
-    for (var i = 0; i < 8; i++) {
-      final angle = math.pi / 8 + i * math.pi / 4;
-      final point = Offset(
-        center.dx + stator * 0.46 * math.cos(angle),
-        center.dy + stator * 0.46 * math.sin(angle),
-      );
-      if (i == 0) {
-        corePath.moveTo(point.dx, point.dy);
-      } else {
-        corePath.lineTo(point.dx, point.dy);
+    // 内部：稀疏点阵（比轮廓暗、比盘面亮一档）
+    for (var row = 0; row < dots; row++) {
+      for (var col = 0; col < dots; col++) {
+        final dx = -radius + spacing * (col + 0.5);
+        final dy = -radius + spacing * (row + 0.5);
+        final r = math.sqrt(dx * dx + dy * dy) / radius;
+        if (r * radius > statorApothem * 1.5) continue;
+
+        final theta = math.atan2(dy, dx);
+        final wrapped = ((theta % (math.pi / 4)) + math.pi / 4) % (math.pi / 4);
+        final delta = math.min(wrapped, math.pi / 4 - wrapped);
+        final boundary = statorEdge / math.cos(delta);
+        // 离轮廓不到半格就让给轮廓点，避免糊成一坨
+        if (r > boundary - spacing / radius * 0.5) continue;
+
+        canvas.drawCircle(
+          Offset(center.dx + dx, center.dy + dy),
+          baseDot * 0.55,
+          Paint()..color = accent.withAlpha(110),
+        );
       }
     }
-    corePath.close();
-    canvas.drawPath(corePath, Paint()..color = accent);
+
+    // 轮廓：沿八条边按格距采点
+    for (var i = 0; i < 8; i++) {
+      final a = vertices[i];
+      final b = vertices[(i + 1) % 8];
+      final edgeLength = (b - a).distance;
+      final segments = math.max(2, (edgeLength / (spacing * 0.5)).round());
+      for (var s = 0; s < segments; s++) {
+        final t = s / segments;
+        final pos = Offset.lerp(a, b, t)!;
+        canvas.drawCircle(pos, baseDot * 0.85, Paint()..color = accent);
+      }
+    }
+
+    // 定子轴心：一颗更亮的点
+    canvas.drawCircle(center, baseDot * 1.15, Paint()..color = accent);
   }
 
   @override

@@ -1483,26 +1483,6 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
               ),
             ],
           ),
-          _hint(skin, '不要盘沿（只留叶片 + 定子）'),
-          Row(
-            spacing: TemplateSpace.lg,
-            children: [
-              for (var i = 0; i < 4; i++)
-                SizedBox(
-                  width: 84,
-                  height: 84,
-                  child: Center(
-                    child: TemplateDotDrill(
-                      skin: skin,
-                      size: 76,
-                      dots: 18,
-                      ring: false,
-                      phase: i / 12,
-                    ),
-                  ),
-                ),
-            ],
-          ),
           _hint(skin, '尺寸对照：56 / 44 / 32（整页 / 列表 / 行内）'),
           Row(
             spacing: TemplateSpace.lg,
