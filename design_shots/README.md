@@ -20,7 +20,7 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_pag
 # 可选：PAGE=version|cloud|mod 换页面；PAGE_HEIGHT 拉高看折叠线以下
 ```
 
-**App 内设计层页面**（`design_shots/screen/`，`SCREEN=catalog|mod|drawer`，`TAB=1|2` 切标签页，
+**App 内设计层页面**（`design_shots/screen/`，`SCREEN=catalog|mod|modview|drawer`，`TAB=1|2` 切标签页，
 `WIDTH` / `PAGE_HEIGHT` 改画布尺寸——竖屏与抽屉宽度就靠它们）：
 
 ```powershell
@@ -108,7 +108,9 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/52-keys-color-drop` | 键帽 / 组合键与键位捕获、颜色选择（SV 面板 + 色相条 + 16 色点）、拖放区与窗口级拖放遮罩 |
 | `catalog/53-table-segments` | 表格组件（表头 + 固定列 + 弹性列 + 行分隔 + 横向滚动）、分段带图标与多选分段 |
 | `catalog/54-markdown` | 轻量 Markdown 渲染（标题 / 段落 / 列表 / 引用 / 代码块 / 分隔线 / 徽章 / 链接），模组页 Readme 已改用它 |
-| `catalog/55-readme-project` | **当前**：Readme 改用**项目现有的 `ReadmeView`**（markdown AST + 直写 HTML + 图片 / 链接解析），只把皮肤翻成它要的 `AppColors` / `ThemeData` |
+| `catalog/55-readme-project` | Readme 改用**项目现有的 `ReadmeView`**（markdown AST + 直写 HTML + 图片 / 链接解析），只把皮肤翻成它要的 `AppColors` / `ThemeData` |
+| `screen/screen-mod-view` | **当前**：模组浏览页（`/template_mod_view`，760 基准宽）：标题卡 + 搜索筛选 + 列表/网格切换 + 翻页 |
+| `screen/screen-mod-view-narrow` | 同一页窄屏（600 宽）：筛选换行、列表改成堆叠行 |
 | `screen/screen-mod` | **App 内页面**：模组下载新页（宽屏版，1000×700） |
 | `screen/screen-mod-base` | 同一页按**标准尺寸 760×450**（最小窗口首屏） |
 | `screen/screen-mod-base-tall` | 同上拉高到 900 看折线以下 |

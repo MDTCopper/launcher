@@ -126,6 +126,12 @@ class AppShellState extends State<AppShell> {
           ),
         if (kDebugMode)
           RailItem(
+            label: '模组浏览（新）',
+            icon: Icons.grid_view_outlined,
+            route: '/template_mod_view',
+          ),
+        if (kDebugMode)
+          RailItem(
             label: '组件目录',
             icon: Icons.widgets_outlined,
             route: '/template_catalog',

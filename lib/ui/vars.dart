@@ -4,6 +4,7 @@ import 'package:copper_launcher/ui/pages/cloud/version_cloud_save_page.dart';
 import 'package:copper_launcher/ui/pages/design/seed_lab_page.dart';
 import 'package:copper_launcher/ui/pages/design/template_catalog_screen.dart';
 import 'package:copper_launcher/ui/pages/design/template_mod_download_screen.dart';
+import 'package:copper_launcher/ui/pages/design/template_mod_view_screen.dart';
 import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
 import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/overview/version_select.dart';
@@ -31,6 +32,7 @@ const Map<String, Widget> routeMap = {
   //设计层预览页（仅 debug 出现在导航里）：组件目录 / 模组下载新页面
   '/template_catalog': TemplateCatalogScreen(),
   '/template_mod_download': TemplateModDownloadScreen(),
+  '/template_mod_view': TemplateModViewScreen(),
 
   //概览
   '/': LaunchPage(),

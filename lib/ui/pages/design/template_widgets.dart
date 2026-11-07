@@ -978,9 +978,12 @@ class _SegmentPillState extends State<_SegmentPill> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 130),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(
+          padding: EdgeInsets.symmetric(
             vertical: TemplateSpace.sm,
-            horizontal: TemplateSpace.md,
+            // 带图标时左右内衬收一档，窄分段里才塞得下图标 + 文字
+            horizontal: widget.icon == null
+                ? TemplateSpace.md
+                : TemplateSpace.sm,
           ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(TemplateRadius.control),
@@ -1013,16 +1016,20 @@ class _SegmentPillState extends State<_SegmentPill> {
                       ? skin.textPrimary
                       : skin.textSecondary,
                 ),
-              Text(
-                widget.label,
-                textAlign: TextAlign.center,
-                style: TemplateType.item.copyWith(
-                  color: !enabled
-                      ? skin.textDisabled
-                      : selected
-                      ? skin.textPrimary
-                      : skin.textSecondary,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              Flexible(
+                child: Text(
+                  widget.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TemplateType.item.copyWith(
+                    color: !enabled
+                        ? skin.textDisabled
+                        : selected
+                        ? skin.textPrimary
+                        : skin.textSecondary,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
                 ),
               ),
             ],
