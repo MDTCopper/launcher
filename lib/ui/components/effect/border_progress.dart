@@ -44,10 +44,7 @@ class BorderProgress extends StatelessWidget {
         trackColor: trackColor ?? colors.border,
         progressColor: progressColor ?? colors.interactive,
       ),
-      child: Padding(
-        padding: EdgeInsets.all(strokeWidth),
-        child: child,
-      ),
+      child: Padding(padding: EdgeInsets.all(strokeWidth), child: child),
     );
   }
 }
@@ -97,7 +94,10 @@ class _BorderProgressPainter extends CustomPainter {
 
     final shapePath = Path()..addRRect(trackShape);
     for (final metric in shapePath.computeMetrics()) {
-      canvas.drawPath(metric.extractPath(0, metric.length * value), progressPaint);
+      canvas.drawPath(
+        metric.extractPath(0, metric.length * value),
+        progressPaint,
+      );
     }
   }
 

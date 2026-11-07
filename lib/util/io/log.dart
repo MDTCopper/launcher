@@ -48,9 +48,7 @@ String _withLogPrefix(String header, String message) {
 /// 日志会被用户导出 / 分享，服务端下发的 URL 与响应体偶尔会把 token 带进来
 String redactSecrets(String message) => _applyRedactions(message);
 
-final RegExp _bearerPattern = RegExp(
-  r'(Bearer\s+)[A-Za-z0-9\-._~+/=]{8,}',
-);
+final RegExp _bearerPattern = RegExp(r'(Bearer\s+)[A-Za-z0-9\-._~+/=]{8,}');
 final RegExp _credentialFieldPattern = RegExp(
   r'("(?:access_token|refresh_token|id_token|resume_token|ticket|lanlink_?token)"\s*:\s*")[^"]{4,}"',
 );

@@ -32,9 +32,8 @@ class EasedProgressBar extends StatelessWidget {
       tween: Tween(end: current),
       duration: duration,
       curve: curve,
-      builder: (context, animatedValue, child) => LinearProgressIndicator(
-        value: animatedValue.clamp(0.0, 1.0),
-      ),
+      builder: (context, animatedValue, child) =>
+          LinearProgressIndicator(value: animatedValue.clamp(0.0, 1.0)),
     );
   }
 }
