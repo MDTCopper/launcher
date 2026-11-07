@@ -113,7 +113,7 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/56-motion` | 新增**动效**一节：交错入场 / 铜钻头加载（循环·完成·错误）/ 描边进度 / 数字滚动 / 页面转场约定 |
 | `catalog/57-motion-only` | 只画「动效」一节（`ONLY=动效`，画布 1400 高）：单节自查用 |
 | `catalog/58-loaders` | 加载动效**候选**：弧线环 / 铜粒轨道 / 熔炉脉冲 / 进度环 / 行内传送带，每种 4 帧相位（`ONLY=加载动效（候选）`） |
-| `catalog/60-dot-drill` | 追加 **⑥ 圆点阵列钻头**：点阵不动、叶片在点阵里转；带外圈 / 纯叶片 / 螺旋程度（twist 0·0.45·0.9）/ 尺寸 56·44·32 对照 |
+| `catalog/62-dot-drill-disc` | 圆点阵列钻头 v2：**盘面 + 盘沿**做出来了、中心**正八边形定子**不转、四片螺旋刃绕它转（twist 0.45，4 帧差 30°）|
 | `screen/screen-mod-view` | 模组浏览页第五版：主行动按钮自己表达状态（**下载 / 更新 / 已安装**），列表 logo 84，紧凑行补描述 |
 | `screen/screen-mod-view-full` | 同页完整列表（1200 高），三种按钮状态都能看到 |
 | `screen/screen-mod-view-compact` | 同页**紧凑视图**：名称下面带一行描述 + 下载 / 星标 / 适配 + 状态图标 |

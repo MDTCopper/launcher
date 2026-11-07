@@ -503,7 +503,7 @@ class TemplateDotDrill extends StatelessWidget {
     this.size = 64,
     this.dots = 18,
     this.ring = true,
-    this.twist = 0.65,
+    this.twist = 0.45,
     this.phase,
     this.duration = const Duration(milliseconds: 1400),
   });
@@ -562,25 +562,55 @@ class _DotDrillPainter extends CustomPainter {
     final spacing = radius * 2 / dots;
     final baseDot = spacing * 0.30;
     final rotation = phase * math.pi * 2;
+    // 定子（中心八边形）占的半径；叶片从它外面起
+    final stator = radius * 0.30;
 
+    // ── 圆盘：整块淡淡的「托盘点」+ 一圈明显的盘沿 ──
     for (var row = 0; row < dots; row++) {
       for (var col = 0; col < dots; col++) {
         final dx = -radius + spacing * (col + 0.5);
         final dy = -radius + spacing * (row + 0.5);
         final distance = math.sqrt(dx * dx + dy * dy) / radius;
         if (distance > 1.02) continue;
-
         final pos = Offset(center.dx + dx, center.dy + dy);
 
-        // 外圈：勾圆盘边界，暗到只当「托盘」
-        if (ring && (distance - 0.94).abs() < spacing / radius * 0.85) {
-          canvas.drawCircle(
-            pos,
-            baseDot * 0.55,
-            Paint()..color = track.withAlpha(70),
-          );
-          continue;
+        if (ring) {
+          // 盘沿：两圈亮点，一眼就能看出「这是个圆盘」
+          final rim = (distance - 0.94).abs() < spacing / radius * 0.8;
+          final inner = (distance - 0.82).abs() < spacing / radius * 0.6;
+          if (rim) {
+            canvas.drawCircle(
+              pos,
+              baseDot * 0.68,
+              Paint()..color = track.withAlpha(150),
+            );
+            continue;
+          }
+          if (inner) {
+            canvas.drawCircle(
+              pos,
+              baseDot * 0.45,
+              Paint()..color = track.withAlpha(80),
+            );
+            continue;
+          }
         }
+        // 盘面：极淡的点，让「盘」有底但不抢叶片
+        canvas.drawCircle(
+          pos,
+          baseDot * 0.42,
+          Paint()..color = track.withAlpha(26),
+        );
+      }
+    }
+
+    // ── 叶片：点阵不动，叶片在点阵里转 ──
+    for (var row = 0; row < dots; row++) {
+      for (var col = 0; col < dots; col++) {
+        final dx = -radius + spacing * (col + 0.5);
+        final dy = -radius + spacing * (row + 0.5);
+        final distance = math.sqrt(dx * dx + dy * dy) / radius;
+        if (distance > 0.94 || distance * radius <= stator) continue;
 
         // 往外扭：同一个半径上的点整体偏一个角度，四片直刃就变成螺旋刃
         final angle =
@@ -590,43 +620,69 @@ class _DotDrillPainter extends CustomPainter {
         final signed = sector <= math.pi / 4 ? -sector : (math.pi / 2 - sector);
         final offset = signed.abs();
         // 越往外越收窄，像真钻头的斜刃
-        final half = 0.48 * (1 - 0.30 * distance);
-        final inHub = distance <= 0.26;
+        final half = 0.50 * (1 - 0.30 * distance);
 
-        // 叶片强度 = 角度差 × 径向包络；只留够亮的核心点，
-        // 边缘点直接不画（否则整块糊成一片烟）
-        var strength = 0.0;
-        if (!inHub) {
-          final angular = (1 - offset / half).clamp(0.0, 1.0);
-          final rise = ((distance - 0.26) / 0.10).clamp(0.0, 1.0);
-          final fall = ((0.88 - distance) / 0.16).clamp(0.0, 1.0);
-          final radial = math.min(rise, fall);
-          // 顺着转动方向的前缘亮一档，静态帧也看得出往哪边转
-          final lead = 0.82 + 0.18 * (signed / half).clamp(-1.0, 1.0);
-          strength = math.pow(angular, 0.55).toDouble() * radial * lead;
-        }
-        if (!inHub && strength <= 0.10) continue;
+        final angular = (1 - offset / half).clamp(0.0, 1.0);
+        final rise = ((distance - 0.32) / 0.10).clamp(0.0, 1.0);
+        final fall = ((0.90 - distance) / 0.14).clamp(0.0, 1.0);
+        final radial = math.min(rise, fall);
+        // 顺着转动方向的前缘亮一档，静态帧也看得出往哪边转
+        final lead = 0.82 + 0.18 * (signed / half).clamp(-1.0, 1.0);
+        final strength = math.pow(angular, 0.55).toDouble() * radial * lead;
+        if (strength <= 0.10) continue;
 
-        final alpha = inHub ? 255 : (strength * 255).round();
-        final dotRadius = inHub
-            ? baseDot * 1.35
-            : baseDot * (0.70 + 0.30 * strength) * (1 - 0.14 * distance);
-
+        final pos = Offset(center.dx + dx, center.dy + dy);
+        final dotRadius =
+            baseDot * (0.70 + 0.30 * strength) * (1 - 0.14 * distance);
         canvas.drawCircle(
           pos,
           dotRadius,
-          Paint()..color = accent.withAlpha(alpha.clamp(0, 255)),
+          Paint()..color = accent.withAlpha((strength * 255).round()),
         );
       }
     }
 
-    // 轮毂：中心一颗实心，加一圈淡淡的光
-    canvas.drawCircle(
-      center,
-      baseDot * 2.6,
-      Paint()..color = accent.withAlpha(46),
+    // ── 定子：正八边形，**不转**，叶片绕着它转 ──
+    final statorPath = Path();
+    for (var i = 0; i < 8; i++) {
+      // 转 22.5°，让八边形是「平顶」的
+      final angle = math.pi / 8 + i * math.pi / 4;
+      final point = Offset(
+        center.dx + stator * math.cos(angle),
+        center.dy + stator * math.sin(angle),
+      );
+      if (i == 0) {
+        statorPath.moveTo(point.dx, point.dy);
+      } else {
+        statorPath.lineTo(point.dx, point.dy);
+      }
+    }
+    statorPath.close();
+
+    canvas.drawPath(statorPath, Paint()..color = accent.withAlpha(38));
+    canvas.drawPath(
+      statorPath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.2, baseDot * 0.5)
+        ..color = accent,
     );
-    canvas.drawCircle(center, baseDot * 1.35, Paint()..color = accent);
+    // 定子里再嵌一颗小八边形，做出「定子嵌在轮毂里」的层次
+    final corePath = Path();
+    for (var i = 0; i < 8; i++) {
+      final angle = math.pi / 8 + i * math.pi / 4;
+      final point = Offset(
+        center.dx + stator * 0.46 * math.cos(angle),
+        center.dy + stator * 0.46 * math.sin(angle),
+      );
+      if (i == 0) {
+        corePath.moveTo(point.dx, point.dy);
+      } else {
+        corePath.lineTo(point.dx, point.dy);
+      }
+    }
+    corePath.close();
+    canvas.drawPath(corePath, Paint()..color = accent);
   }
 
   @override
@@ -635,7 +691,8 @@ class _DotDrillPainter extends CustomPainter {
       old.accent != accent ||
       old.track != track ||
       old.dots != dots ||
-      old.ring != ring;
+      old.ring != ring ||
+      old.twist != twist;
 }
 
 // ───────────────────────── ⑤ 行内传送带 ─────────────────────────

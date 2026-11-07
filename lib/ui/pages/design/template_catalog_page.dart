@@ -1443,28 +1443,47 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
               ),
             ],
           ),
-          // ⑥ 圆点阵列钻头：用户点名要的「点阵叶片」，给带外圈 / 纯叶片两版
-          _hint(skin, '⑥ 圆点阵列钻头：点阵不动、叶片在点阵里转（角度差平滑淡出，不会闪格）'),
-          _hint(skin, '带外圈（勾出圆盘）'),
+          // ⑥ 圆点阵列钻头：用户点名要的「点阵叶片」，定子正八边形、叶片绕它转
+          _hint(skin, '⑥ 圆点阵列钻头：圆盘点阵当盘面、四片螺旋刃在盘里转，中心定子（正八边形）不转'),
           Row(
-            spacing: TemplateSpace.lg,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            spacing: TemplateSpace.xl,
             children: [
-              for (var i = 0; i < 4; i++)
-                SizedBox(
-                  width: 84,
-                  height: 84,
-                  child: Center(
-                    child: TemplateDotDrill(
-                      skin: skin,
-                      size: 76,
-                      dots: 18,
-                      phase: i / 4,
-                    ),
-                  ),
+              SizedBox(
+                width: 116,
+                height: 116,
+                child: Center(
+                  child: TemplateDotDrill(skin: skin, size: 108, dots: 20),
                 ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: TemplateSpace.xs,
+                children: [
+                  _hint(skin, '转起来（4 帧，每帧差 30°；App 里连续转）'),
+                  Row(
+                    spacing: TemplateSpace.md,
+                    children: [
+                      for (var i = 0; i < 4; i++)
+                        SizedBox(
+                          width: 84,
+                          height: 84,
+                          child: Center(
+                            child: TemplateDotDrill(
+                              skin: skin,
+                              size: 76,
+                              dots: 18,
+                              phase: i / 12,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ],
           ),
-          _hint(skin, '只叶片（无外圈）'),
+          _hint(skin, '不要盘沿（只留叶片 + 定子）'),
           Row(
             spacing: TemplateSpace.lg,
             children: [
@@ -1478,26 +1497,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                       size: 76,
                       dots: 18,
                       ring: false,
-                      phase: i / 4,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          _hint(skin, '螺旋程度（twist：0 正十字 / 0.45 微扭 / 0.9 强螺旋）'),
-          Row(
-            spacing: TemplateSpace.lg,
-            children: [
-              for (final twist in const [0.0, 0.45, 0.9])
-                SizedBox(
-                  width: 84,
-                  height: 84,
-                  child: Center(
-                    child: TemplateDotDrill(
-                      skin: skin,
-                      size: 76,
-                      twist: twist,
-                      phase: 0.12,
+                      phase: i / 12,
                     ),
                   ),
                 ),
@@ -1516,7 +1516,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                       skin: skin,
                       size: size,
                       dots: size >= 50 ? 18 : 14,
-                      phase: 0.12,
+                      phase: 0.05,
                     ),
                   ),
                 ),
