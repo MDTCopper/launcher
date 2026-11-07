@@ -12,6 +12,8 @@ class InstalledModFile {
     required this.path,
     required this.internalName,
     required this.disabled,
+    this.version = '',
+    this.copper = false,
   });
 
   final String path;
@@ -19,6 +21,12 @@ class InstalledModFile {
 
   /// 按文件名后缀判断的禁用态（`.disable` / `.disabled`）
   final bool disabled;
+
+  /// 模组元数据里的版本号；读不出时为 `''`（更新检查拿它和远端比）
+  final String version;
+
+  /// 是不是 Copper 原生模组（装在 `<数据目录>/copper/mods` 的那种）
+  final bool copper;
 }
 
 /// 一次装模组的结果
@@ -170,6 +178,8 @@ Future<ModInstallOutcome> installModFile({
       path: destination,
       internalName: mod.internalName,
       disabled: disabled,
+      version: mod.version,
+      copper: mod.copper,
     ),
   );
   addLog(
@@ -318,6 +328,8 @@ Future<InstalledModFile?> _readInstalledMod(String path) async {
     path: path,
     internalName: mod.internalName,
     disabled: isDisabledModFileName(fileName),
+    version: mod.version,
+    copper: mod.copper,
   );
 }
 

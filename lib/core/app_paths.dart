@@ -65,6 +65,10 @@ abstract class AppPaths {
   /// 例：`<数据根>\remote_data\mindustry_versions.json`
   static late String remoteData;
 
+  /// 公共数据索引缓存（模组索引 / 每个模组的版本 / 游戏版本列表，按远端相对路径存）
+  /// 例：`<数据根>\remote_data\data_index\index.json`
+  static late String dataIndexCache;
+
   /// 启动器配置（人可读的 JSON）
   /// 例：`<数据根>\config.json`
   static late String configJson;
@@ -174,6 +178,7 @@ abstract class AppPaths {
     logs = p.join(rootPath, 'logs');
     java = p.join(rootPath, 'java');
     remoteData = p.join(rootPath, 'remote_data');
+    dataIndexCache = p.join(remoteData, 'data_index');
     configJson = p.join(rootPath, 'config.json');
     configBin = p.join(rootPath, 'config.bin');
     cloudService = p.join(rootPath, 'cloud-service');

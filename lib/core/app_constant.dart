@@ -21,6 +21,12 @@ const githubRAW = 'https://raw.githubusercontent.com';
 ///remote 数据源（copper launcher 自身仓库）raw 根地址
 const remoteRawBase = '$githubRAW/MDTCopper/launcher/main/remote/';
 
+///公共数据索引仓库（模组索引 / 每个模组的版本 / 游戏版本列表，由 Actions 定时生成）
+const dataIndexRepo = 'MDTCopper/mindustry-data-index';
+
+///公共数据索引的 raw 根地址
+const dataIndexRawBase = '$githubRAW/$dataIndexRepo/main/';
+
 ///启动器本体仓库地址
 const launcherRepoUrl = '$githubCOM/MDTCopper/launcher';
 
