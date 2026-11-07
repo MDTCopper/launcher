@@ -486,6 +486,158 @@ class _RingPainter extends CustomPainter {
       old.value != value || old.accent != accent;
 }
 
+// ───────────────────────── ⑥ 圆点阵列钻头 ─────────────────────────
+
+/// 圆点阵列钻头：整块「像素点阵」里，四片钻臂按角度亮起来形成旋转的叶片
+///
+/// 用户 2026-11-07：「想做一个圆点阵列的钻头叶片」——点阵不转，**叶片在点阵里转**：
+/// 每颗点的亮度由「它相对旋转后钻臂中线的角度差」平滑决定，所以不会闪成一格一格的
+///
+/// - [dots] 横向点阵数（16~22 比较像「点阵」，再密就糊成实心）
+/// - [ring] 外面那圈暗点（勾出钻头圆盘边界），关掉就只剩叶片
+/// - [twist] 叶片往外扭的弧度（0 = 正十字，0.5~0.8 才有「钻头」的螺旋感）
+class TemplateDotDrill extends StatelessWidget {
+  const TemplateDotDrill({
+    super.key,
+    required this.skin,
+    this.size = 64,
+    this.dots = 18,
+    this.ring = true,
+    this.twist = 0.65,
+    this.phase,
+    this.duration = const Duration(milliseconds: 1400),
+  });
+
+  final TemplateSkin skin;
+  final double size;
+  final int dots;
+  final bool ring;
+  final double twist;
+  final double? phase;
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: _PhaseLoop(
+        duration: duration,
+        phase: phase,
+        builder: (phase) => CustomPaint(
+          painter: _DotDrillPainter(
+            phase: phase,
+            dots: dots,
+            ring: ring,
+            twist: twist,
+            accent: TemplateLoader.copper(skin),
+            track: TemplateLoader.track(skin),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DotDrillPainter extends CustomPainter {
+  _DotDrillPainter({
+    required this.phase,
+    required this.dots,
+    required this.ring,
+    required this.twist,
+    required this.accent,
+    required this.track,
+  });
+
+  final double phase;
+  final int dots;
+  final bool ring;
+  final double twist;
+  final Color accent;
+  final Color track;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2 - 1;
+    final spacing = radius * 2 / dots;
+    final baseDot = spacing * 0.30;
+    final rotation = phase * math.pi * 2;
+
+    for (var row = 0; row < dots; row++) {
+      for (var col = 0; col < dots; col++) {
+        final dx = -radius + spacing * (col + 0.5);
+        final dy = -radius + spacing * (row + 0.5);
+        final distance = math.sqrt(dx * dx + dy * dy) / radius;
+        if (distance > 1.02) continue;
+
+        final pos = Offset(center.dx + dx, center.dy + dy);
+
+        // 外圈：勾圆盘边界，暗到只当「托盘」
+        if (ring && (distance - 0.94).abs() < spacing / radius * 0.85) {
+          canvas.drawCircle(
+            pos,
+            baseDot * 0.55,
+            Paint()..color = track.withAlpha(70),
+          );
+          continue;
+        }
+
+        // 往外扭：同一个半径上的点整体偏一个角度，四片直刃就变成螺旋刃
+        final angle =
+            math.atan2(dy, dx) + rotation + twist * math.pow(distance, 1.25);
+        final sector = angle % (math.pi / 2);
+        // 钻臂压在 0° / 90° / 180° / 270°（正十字，正好落在点阵的行列上，边缘干净）
+        final signed = sector <= math.pi / 4 ? -sector : (math.pi / 2 - sector);
+        final offset = signed.abs();
+        // 越往外越收窄，像真钻头的斜刃
+        final half = 0.48 * (1 - 0.30 * distance);
+        final inHub = distance <= 0.26;
+
+        // 叶片强度 = 角度差 × 径向包络；只留够亮的核心点，
+        // 边缘点直接不画（否则整块糊成一片烟）
+        var strength = 0.0;
+        if (!inHub) {
+          final angular = (1 - offset / half).clamp(0.0, 1.0);
+          final rise = ((distance - 0.26) / 0.10).clamp(0.0, 1.0);
+          final fall = ((0.88 - distance) / 0.16).clamp(0.0, 1.0);
+          final radial = math.min(rise, fall);
+          // 顺着转动方向的前缘亮一档，静态帧也看得出往哪边转
+          final lead = 0.82 + 0.18 * (signed / half).clamp(-1.0, 1.0);
+          strength = math.pow(angular, 0.55).toDouble() * radial * lead;
+        }
+        if (!inHub && strength <= 0.10) continue;
+
+        final alpha = inHub ? 255 : (strength * 255).round();
+        final dotRadius = inHub
+            ? baseDot * 1.35
+            : baseDot * (0.70 + 0.30 * strength) * (1 - 0.14 * distance);
+
+        canvas.drawCircle(
+          pos,
+          dotRadius,
+          Paint()..color = accent.withAlpha(alpha.clamp(0, 255)),
+        );
+      }
+    }
+
+    // 轮毂：中心一颗实心，加一圈淡淡的光
+    canvas.drawCircle(
+      center,
+      baseDot * 2.6,
+      Paint()..color = accent.withAlpha(46),
+    );
+    canvas.drawCircle(center, baseDot * 1.35, Paint()..color = accent);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DotDrillPainter old) =>
+      old.phase != phase ||
+      old.accent != accent ||
+      old.track != track ||
+      old.dots != dots ||
+      old.ring != ring;
+}
+
 // ───────────────────────── ⑤ 行内传送带 ─────────────────────────
 
 /// 行内传送带：一排小矿石沿轨道往前挪（列表行 / 按钮里当行内 loading）

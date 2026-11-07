@@ -1384,7 +1384,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: TemplateSpace.lg,
         children: [
-          _hint(skin, '铜钻头那版不好看，这里给五个新候选；每行 4 帧是同一动画的不同相位（App 里是连续循环）'),
+          _hint(skin, '铜钻头那版不好看，这里给六个新候选；每行 4 帧是同一动画的不同相位（App 里是连续循环）'),
           block(
             '① 弧线环：一根带渐隐尾巴的铜色圆弧（最稳，任意尺寸都清楚）',
             (phase) => TemplateArcSpinner(skin: skin, size: 32, phase: phase),
@@ -1441,6 +1441,85 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                   ),
                 ],
               ),
+            ],
+          ),
+          // ⑥ 圆点阵列钻头：用户点名要的「点阵叶片」，给带外圈 / 纯叶片两版
+          _hint(skin, '⑥ 圆点阵列钻头：点阵不动、叶片在点阵里转（角度差平滑淡出，不会闪格）'),
+          _hint(skin, '带外圈（勾出圆盘）'),
+          Row(
+            spacing: TemplateSpace.lg,
+            children: [
+              for (var i = 0; i < 4; i++)
+                SizedBox(
+                  width: 84,
+                  height: 84,
+                  child: Center(
+                    child: TemplateDotDrill(
+                      skin: skin,
+                      size: 76,
+                      dots: 18,
+                      phase: i / 4,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          _hint(skin, '只叶片（无外圈）'),
+          Row(
+            spacing: TemplateSpace.lg,
+            children: [
+              for (var i = 0; i < 4; i++)
+                SizedBox(
+                  width: 84,
+                  height: 84,
+                  child: Center(
+                    child: TemplateDotDrill(
+                      skin: skin,
+                      size: 76,
+                      dots: 18,
+                      ring: false,
+                      phase: i / 4,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          _hint(skin, '螺旋程度（twist：0 正十字 / 0.45 微扭 / 0.9 强螺旋）'),
+          Row(
+            spacing: TemplateSpace.lg,
+            children: [
+              for (final twist in const [0.0, 0.45, 0.9])
+                SizedBox(
+                  width: 84,
+                  height: 84,
+                  child: Center(
+                    child: TemplateDotDrill(
+                      skin: skin,
+                      size: 76,
+                      twist: twist,
+                      phase: 0.12,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          _hint(skin, '尺寸对照：56 / 44 / 32（整页 / 列表 / 行内）'),
+          Row(
+            spacing: TemplateSpace.lg,
+            children: [
+              for (final size in const [56.0, 44.0, 32.0])
+                SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: Center(
+                    child: TemplateDotDrill(
+                      skin: skin,
+                      size: size,
+                      dots: size >= 50 ? 18 : 14,
+                      phase: 0.12,
+                    ),
+                  ),
+                ),
             ],
           ),
         ],
