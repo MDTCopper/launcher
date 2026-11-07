@@ -1364,7 +1364,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
     );
   }
 
-  /// 圆点矩阵动效（全动画）：不传 phase，五种图案同时在跑，App 里看真实节奏
+  /// 圆点矩阵动效（全动画）：不传 phase，几种图案同时在跑，App 里看真实节奏
   Widget _buildDotMatrixLive(TemplateSkin skin) {
     Widget item(String label, TemplateDotPattern pattern, {double size = 72}) =>
         Column(
@@ -1380,6 +1380,10 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                   size: size,
                   dots: size >= 56 ? 16 : 12,
                   pattern: pattern,
+                  // 随机闪烁是「长循环的固定序列」：整圈 9.6s，单次呼吸 3.2~9.6s
+                  duration: pattern == TemplateDotPattern.randomBlink
+                      ? const Duration(milliseconds: 9600)
+                      : const Duration(milliseconds: 1600),
                 ),
               ),
             ),

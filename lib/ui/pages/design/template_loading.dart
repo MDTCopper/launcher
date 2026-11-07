@@ -601,7 +601,9 @@ class _DotMatrixPainter extends CustomPainter {
   /// 每颗光点落在哪个格子上 + 各自的周期（整数分频，保证整条动画无缝循环）
   final List<({int col, int row, int k, double offset})> _sparkleCells;
 
-  /// 随机挑格子：同一个种子 → 同一批格子；k 是周期分频（2/3/4/5 分之一圈）
+  /// 随机挑格子：同一个种子 → 同一批格子；k 是周期分频（整圈的 1/1、1/2、1/3）
+  ///
+  /// 用户 2026-11-07：频率要慢、像呼吸，循环其实是**不随机的固定序列**，只是整圈很长
   static List<({int col, int row, int k, double offset})> _buildSparkles({
     required int dots,
     required int count,
@@ -627,7 +629,8 @@ class _DotMatrixPainter extends CustomPainter {
       cells.add((
         col: col,
         row: row,
-        k: 2 + random.nextInt(4), // 2..5：一圈里闪 2~5 次
+        // 1..3：一圈里呼吸 1~3 次（整圈 9.6s → 单次呼吸 3.2~9.6s）
+        k: 1 + random.nextInt(3),
         offset: random.nextDouble(),
       ));
     }
@@ -679,15 +682,24 @@ class _DotMatrixPainter extends CustomPainter {
 
         final pos = Offset(center.dx + dx, center.dy + dy);
         if (blink != null) {
-          // 闪烁点：核心 + 一圈柔光，才像「光点」而不是「格子亮了一下」
+          // 闪烁点：大泛光 + 中层柔光 + 实心核心，三层叠出「泛光」感
           canvas.drawCircle(
             pos,
-            baseDot * (1.7 + 1.1 * v),
-            Paint()..color = accent.withAlpha((v * 46).round()),
+            baseDot * (3.1 + 1.9 * v),
+            Paint()
+              ..color = accent.withAlpha((v * 34).round())
+              ..maskFilter = MaskFilter.blur(BlurStyle.normal, baseDot * 1.9),
           );
           canvas.drawCircle(
             pos,
-            baseDot * (0.60 + 1.05 * v),
+            baseDot * (1.6 + 1.2 * v),
+            Paint()
+              ..color = accent.withAlpha((v * 96).round())
+              ..maskFilter = MaskFilter.blur(BlurStyle.normal, baseDot * 0.85),
+          );
+          canvas.drawCircle(
+            pos,
+            baseDot * (0.55 + 0.95 * v),
             Paint()..color = accent.withAlpha((v * 255).round()),
           );
           continue;
@@ -702,31 +714,31 @@ class _DotMatrixPainter extends CustomPainter {
   }
 
   /// 这一帧的闪烁表：主光点 + 邻近格子的光晕
+  ///
+  /// 用户 2026-11-07：频率放慢、像**呼吸**——用平滑的余弦包络（不硬切），
+  /// 且整条是**固定序列**（种子决定），只是整圈很长（默认 9.6s）才像随机
   Map<int, double> _blinkFrame() {
     final table = <int, double>{};
     for (final s in _sparkleCells) {
       // 用「整数分频 × 整圈相位」保证循环接缝不跳
       final local = (phase * s.k + s.offset) % 1.0;
-      // 前 45% 亮：升 → 顶 → 降；剩下时间全灭，才有「闪」的感觉
-      const onWindow = 0.45;
-      final pulse = local >= onWindow
-          ? 0.0
-          : math.pow(math.sin(math.pi * local / onWindow), 1.4).toDouble();
-      if (pulse <= 0) continue;
+      // 呼吸：0.12 起步（不完全灭），峰值 1.0；pow 1.6 让亮的那段更有「吸」进去的感觉
+      final breath = 0.5 - 0.5 * math.cos(math.pi * 2 * local);
+      final pulse = 0.12 + 0.88 * math.pow(breath, 1.6).toDouble();
       table[rowKey(s.col, s.row)] = math.max(
         table[rowKey(s.col, s.row)] ?? 0,
         pulse,
       );
-      // 光晕：一圈八邻域（十字重、斜角轻），像真的在发亮
+      // 光晕：一圈八邻域（十字重、斜角轻），让每颗光点「泛」开
       for (final (dx, dy, weight) in const [
-        (1, 0, 0.42),
-        (-1, 0, 0.42),
-        (0, 1, 0.42),
-        (0, -1, 0.42),
-        (1, 1, 0.20),
-        (-1, 1, 0.20),
-        (1, -1, 0.20),
-        (-1, -1, 0.20),
+        (1, 0, 0.46),
+        (-1, 0, 0.46),
+        (0, 1, 0.46),
+        (0, -1, 0.46),
+        (1, 1, 0.22),
+        (-1, 1, 0.22),
+        (1, -1, 0.22),
+        (-1, -1, 0.22),
       ]) {
         final c = s.col + dx;
         final r = s.row + dy;
