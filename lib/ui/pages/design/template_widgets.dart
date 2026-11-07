@@ -649,8 +649,14 @@ class _TemplateSwitchState extends State<TemplateSwitch>
                   final trackColor = enabled
                       ? Color.lerp(skin.sunken, skin.accent, t)!
                       : skin.sunken;
+                  // 淡出用「同色零透明」：和 `Colors.transparent`（透明黑）插值时，
+                  // 中间帧是半透明黑 ⇒ 开关切换时描边会先发一瞬暗边
                   final borderColor = enabled
-                      ? Color.lerp(skin.controlBorder, Colors.transparent, t)!
+                      ? Color.lerp(
+                          skin.controlBorder,
+                          skin.controlBorder.withAlpha(0),
+                          t,
+                        )!
                       : skin.controlBorderDisabled;
                   final thumbColor = enabled
                       ? Color.lerp(skin.textTertiary, thumbOn, t)!
@@ -948,6 +954,37 @@ class _SegmentPillState extends State<_SegmentPill> {
     return _hover ? (97, 95) : (98, 96);
   }
 
+  /// 未选中格的两端：与选中格**同一个中性档、只把 alpha 归零**
+  ///
+  /// **不能写 `Colors.transparent`**：它是 0x00000000 的「透明黑」，
+  /// 而 [AnimatedContainer] 在两道渐变之间插值是逐通道（含 alpha）线性混合 ——
+  /// 近白的 tone98 和透明黑插值，中间帧就是「半透明黑」⇒ 切换的一瞬先发暗再亮，
+  /// 用户看到的「莫名闪一下」正是它（2026-11-07 实测：亮色下亮度 248.6 → 179.4 → 226.3）。
+  /// 同一色系零透明后，中间帧只改变透明度，不会经过发黑的中间色。
+  List<Color> _idleGradient() {
+    final skin = widget.skin;
+    return [
+      skin.neutralTone(_stops.$1).withAlpha(0),
+      skin.neutralTone(_stops.$2).withAlpha(0),
+    ];
+  }
+
+  /// 悬停态的渐变：先合成为**不透明**的「凹槽底 + 状态层」
+  ///
+  /// `hoverOn(Colors.transparent)` 本身是黑 / 白的一层半透明（无 hoverColor 可借），
+  /// 直接拿去和近白选中色插值，中间帧同样是半透明黑 —— 与未选中端同一个病。
+  /// 它在凹槽底上渲染出来的颜色 = 叠层合成；合成成不透明色后静止态像素一致
+  /// （实测最大通道差 1/255，来自合成取整），但插值只在同一色系里改变明度，
+  /// 不再有中间发暗 / 过亮的帧。
+  List<Color> _hoverGradient() {
+    final skin = widget.skin;
+    final hovered = Color.alphaBlend(
+      skin.hoverOn(Colors.transparent),
+      skin.sunken,
+    );
+    return [hovered, hovered];
+  }
+
   @override
   Widget build(BuildContext context) {
     final skin = widget.skin;
@@ -973,7 +1010,7 @@ class _SegmentPillState extends State<_SegmentPill> {
         hoverColor: Colors.transparent,
         highlightColor: Colors.transparent,
         splashColor: Colors.transparent,
-        // 一律用渐变（未选中＝两端同色的透明/薄底）：同类型之间才插值得平滑，
+        // 一律用渐变（未选中＝同一中性档的零透明）：同类型之间才插值得平滑，
         // 底色与渐变互换时会硬切
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 130),
@@ -992,14 +1029,9 @@ class _SegmentPillState extends State<_SegmentPill> {
               end: Alignment.bottomCenter,
               colors: selected
                   ? [skin.neutralTone(_stops.$1), skin.neutralTone(_stops.$2)]
-                  : [
-                      enabled && _hover
-                          ? skin.hoverOn(Colors.transparent)
-                          : Colors.transparent,
-                      enabled && _hover
-                          ? skin.hoverOn(Colors.transparent)
-                          : Colors.transparent,
-                    ],
+                  : enabled && _hover
+                  ? _hoverGradient()
+                  : _idleGradient(),
             ),
           ),
           child: Row(
@@ -1154,7 +1186,12 @@ class _TabItemState extends State<_TabItem> {
                   duration: const Duration(milliseconds: 150),
                   height: 2,
                   decoration: BoxDecoration(
-                    color: widget.selected ? skin.accent : Colors.transparent,
+                    // 未选中端用「强调色零透明」而不是 Colors.transparent：
+                    // 透明黑参与 Color.lerp 时颜色通道会一起混向黑，中间帧的下划线
+                    // 比正常淡入 / 淡出更暗也更脏
+                    color: widget.selected
+                        ? skin.accent
+                        : skin.accent.withAlpha(0),
                     borderRadius: BorderRadius.circular(1),
                   ),
                 ),
