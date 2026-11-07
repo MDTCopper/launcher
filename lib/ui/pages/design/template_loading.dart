@@ -486,6 +486,184 @@ class _RingPainter extends CustomPainter {
       old.value != value || old.accent != accent;
 }
 
+// ───────────────────────── ⑦ 圆点矩阵动效（统一网格） ─────────────────────────
+
+/// 圆点矩阵的几种「抽象」动效：**一张统一网格**，只让点的亮度 / 大小变化来出图案
+///
+/// 参考方向（都是这类点阵加载的常见做法）：
+/// - flutter_dot_loader 的 `MatrixPattern`：radial ripple / dual spiral / ring flash / manhattan pulse
+/// - 以及 Dither / halftone 类点阵波纹（点只在亮度上动，网格不动）
+///
+/// 用户 2026-11-07：钻头那版「也不算好看」，改成这组纯点阵波纹挑
+enum TemplateDotPattern {
+  /// 径向波纹：一圈圈从中心荡出去
+  radialRipple,
+
+  /// 双螺旋：两道光臂绕中心扫
+  dualSpiral,
+
+  /// 环闪：一道亮环从中心往外扫，带两条拖影
+  ringFlash,
+
+  /// 菱形波：曼哈顿距离上的波（菱形向外扩）
+  diamondWave,
+
+  /// 轨道光点：一颗光点在轨道上跑，附近的点被照亮
+  orbit,
+}
+
+/// 统一网格的圆点矩阵：网格密度处处一致（不再出现「轮廓更密、里面更空」）
+class TemplateDotMatrix extends StatelessWidget {
+  const TemplateDotMatrix({
+    super.key,
+    required this.skin,
+    this.size = 64,
+    this.dots = 16,
+    this.pattern = TemplateDotPattern.radialRipple,
+    this.phase,
+    this.duration = const Duration(milliseconds: 1600),
+  });
+
+  final TemplateSkin skin;
+  final double size;
+
+  /// 横向点阵数：**所有图案、所有尺寸都用同一套网格间距**
+  final int dots;
+  final TemplateDotPattern pattern;
+  final double? phase;
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: _PhaseLoop(
+        duration: duration,
+        phase: phase,
+        builder: (phase) => CustomPaint(
+          painter: _DotMatrixPainter(
+            phase: phase,
+            dots: dots,
+            pattern: pattern,
+            accent: TemplateLoader.copper(skin),
+            track: TemplateLoader.track(skin),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DotMatrixPainter extends CustomPainter {
+  _DotMatrixPainter({
+    required this.phase,
+    required this.dots,
+    required this.pattern,
+    required this.accent,
+    required this.track,
+  });
+
+  final double phase;
+  final int dots;
+  final TemplateDotPattern pattern;
+  final Color accent;
+  final Color track;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2 - 1;
+    final spacing = radius * 2 / dots;
+    final baseDot = spacing * 0.30;
+
+    // 底层：统一网格的淡点，密度哪里都一样
+    for (var row = 0; row < dots; row++) {
+      for (var col = 0; col < dots; col++) {
+        final dx = -radius + spacing * (col + 0.5);
+        final dy = -radius + spacing * (row + 0.5);
+        if (dx * dx + dy * dy > radius * radius) continue;
+        canvas.drawCircle(
+          Offset(center.dx + dx, center.dy + dy),
+          baseDot * 0.40,
+          Paint()..color = track.withAlpha(24),
+        );
+      }
+    }
+
+    // 亮层：按图案算每颗点的强度
+    for (var row = 0; row < dots; row++) {
+      for (var col = 0; col < dots; col++) {
+        final dx = -radius + spacing * (col + 0.5);
+        final dy = -radius + spacing * (row + 0.5);
+        final gx = dx / radius;
+        final gy = dy / radius;
+        final r = math.sqrt(gx * gx + gy * gy);
+        if (r > 1) continue;
+
+        final theta = math.atan2(gy, gx);
+        final v = _intensity(r, theta, gx, gy).clamp(0.0, 1.0);
+        if (v <= 0.05) continue;
+
+        canvas.drawCircle(
+          Offset(center.dx + dx, center.dy + dy),
+          baseDot * (0.55 + 0.70 * v),
+          Paint()..color = accent.withAlpha((v * 245).round()),
+        );
+      }
+    }
+  }
+
+  double _intensity(double r, double theta, double gx, double gy) {
+    final t = phase;
+    switch (pattern) {
+      case TemplateDotPattern.radialRipple:
+        final wave = 0.5 + 0.5 * math.sin(math.pi * 2 * (1.7 * r - t));
+        return wave * math.pow(1 - r, 0.35).toDouble();
+      case TemplateDotPattern.dualSpiral:
+        final wave =
+            0.5 + 0.5 * math.sin(2 * theta + math.pi * 2 * (1.1 * r - 2 * t));
+        return wave * math.pow(1 - r, 0.20).toDouble();
+      case TemplateDotPattern.ringFlash:
+        final head = t % 1.0;
+        var v = _ring(r, head, 0.14);
+        // 两条拖影
+        v = math.max(v, _ring(r, head - 0.33, 0.14) * 0.45);
+        v = math.max(v, _ring(r, head - 0.66, 0.14) * 0.22);
+        return math.max(v, 0.12 * (1 - r));
+      case TemplateDotPattern.diamondWave:
+        final d = (gx.abs() + gy.abs()) / 2;
+        final wave = 0.5 + 0.5 * math.sin(math.pi * 2 * (1.6 * d - t));
+        return wave * (1 - d * 0.75);
+      case TemplateDotPattern.orbit:
+        final angle = math.pi * 2 * t - math.pi / 2;
+        final ox = math.cos(angle) * 0.58;
+        final oy = math.sin(angle) * 0.58;
+        // 正对面再放一颗小一号的，画面才不空
+        final ox2 = -ox * 0.92;
+        final oy2 = -oy * 0.92;
+        final d1 = math.sqrt((gx - ox) * (gx - ox) + (gy - oy) * (gy - oy));
+        final d2 = math.sqrt((gx - ox2) * (gx - ox2) + (gy - oy2) * (gy - oy2));
+        final head = math.exp(-math.pow(d1 / 0.30, 2).toDouble());
+        final tail = math.exp(-math.pow(d2 / 0.22, 2).toDouble()) * 0.55;
+        return math.max(head, tail);
+    }
+  }
+
+  /// 高斯亮环：半径中心 [center]、宽度 [width]
+  double _ring(double r, double center, double width) {
+    final d = (r - center) / width;
+    return math.exp(-(d * d));
+  }
+
+  @override
+  bool shouldRepaint(covariant _DotMatrixPainter old) =>
+      old.phase != phase ||
+      old.pattern != pattern ||
+      old.accent != accent ||
+      old.track != track ||
+      old.dots != dots;
+}
+
 // ───────────────────────── ⑥ 圆点阵列钻头 ─────────────────────────
 
 /// 圆点阵列钻头：整块「像素点阵」里，四片钻臂按角度亮起来形成旋转的叶片
@@ -642,58 +820,30 @@ class _DotDrillPainter extends CustomPainter {
       }
     }
 
-    // ── 定子：正八边形也走点阵，**不转**，叶片绕着它转 ──
+    // ── 定子：正八边形，**同一套网格、实心填满**（不空心、不加密度） ──
     //
-    // 点阵格子对齐时八边形的斜边会被量化掉，所以轮廓沿着八条边**按格距采点**画一圈实点，
-    // 里面再用稀疏点阵填一层「面」——整体仍是点的语言，但八边形一眼能读出来
-    final statorEdge = statorApothem / radius; // 归一化 apothem
-    final circumradius = statorApothem / math.cos(math.pi / 8);
-    final vertices = <Offset>[
-      for (var i = 0; i < 8; i++)
-        Offset(
-          center.dx + circumradius * math.cos(math.pi / 8 + i * math.pi / 4),
-          center.dy + circumradius * math.sin(math.pi / 8 + i * math.pi / 4),
-        ),
-    ];
-
-    // 内部：稀疏点阵（比轮廓暗、比盘面亮一档）
+    // 八边形内切半径 / cos(到最近边法线的角度差) = 该方向上的边界；
+    // 格点落在里面就画，点径与网格一致，斜边自然被量化成阶梯 —— 点阵该有的样子
+    final statorEdge = statorApothem / radius;
     for (var row = 0; row < dots; row++) {
       for (var col = 0; col < dots; col++) {
         final dx = -radius + spacing * (col + 0.5);
         final dy = -radius + spacing * (row + 0.5);
-        final r = math.sqrt(dx * dx + dy * dy) / radius;
-        if (r * radius > statorApothem * 1.5) continue;
+        final r = math.sqrt(dx * dx + dy * dy);
+        if (r > statorApothem * 1.5) continue;
 
         final theta = math.atan2(dy, dx);
         final wrapped = ((theta % (math.pi / 4)) + math.pi / 4) % (math.pi / 4);
         final delta = math.min(wrapped, math.pi / 4 - wrapped);
-        final boundary = statorEdge / math.cos(delta);
-        // 离轮廓不到半格就让给轮廓点，避免糊成一坨
-        if (r > boundary - spacing / radius * 0.5) continue;
+        if (r / radius > statorEdge / math.cos(delta)) continue;
 
         canvas.drawCircle(
           Offset(center.dx + dx, center.dy + dy),
-          baseDot * 0.55,
-          Paint()..color = accent.withAlpha(110),
+          baseDot * 0.88,
+          Paint()..color = accent,
         );
       }
     }
-
-    // 轮廓：沿八条边按格距采点
-    for (var i = 0; i < 8; i++) {
-      final a = vertices[i];
-      final b = vertices[(i + 1) % 8];
-      final edgeLength = (b - a).distance;
-      final segments = math.max(2, (edgeLength / (spacing * 0.5)).round());
-      for (var s = 0; s < segments; s++) {
-        final t = s / segments;
-        final pos = Offset.lerp(a, b, t)!;
-        canvas.drawCircle(pos, baseDot * 0.85, Paint()..color = accent);
-      }
-    }
-
-    // 定子轴心：一颗更亮的点
-    canvas.drawCircle(center, baseDot * 1.15, Paint()..color = accent);
   }
 
   @override

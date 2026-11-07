@@ -75,6 +75,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         _buildSliders(skin),
         _buildFeedback(skin),
         _buildMotion(skin),
+        _buildDotMatrix(skin),
         _buildLoaders(skin),
         _buildChrome(skin),
         _buildRailPlacements(skin),
@@ -1502,6 +1503,81 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                 ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  /// 圆点矩阵动效候选：统一网格，只让点的亮度 / 大小变化
+  Widget _buildDotMatrix(TemplateSkin skin) {
+    Widget frames(TemplateDotPattern pattern) => Row(
+      spacing: TemplateSpace.lg,
+      children: [
+        for (var i = 0; i < 4; i++)
+          SizedBox(
+            width: 84,
+            height: 84,
+            child: Center(
+              child: TemplateDotMatrix(
+                skin: skin,
+                size: 72,
+                dots: 16,
+                pattern: pattern,
+                phase: i / 4,
+              ),
+            ),
+          ),
+      ],
+    );
+
+    Widget block(String title, TemplateDotPattern pattern) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: TemplateSpace.xs,
+      children: [_hint(skin, title), frames(pattern)],
+    );
+
+    return _section(
+      skin,
+      '圆点矩阵动效（候选）',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.lg,
+        children: [
+          _hint(
+            skin,
+            '一堆点、一套网格，只让亮度 / 点径动：参考 flutter_dot_loader 的 MatrixPattern（radial ripple / dual spiral / ring flash / manhattan pulse）',
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            spacing: TemplateSpace.xl,
+            children: [
+              SizedBox(
+                width: 132,
+                height: 132,
+                child: Center(
+                  child: TemplateDotMatrix(
+                    skin: skin,
+                    size: 124,
+                    dots: 20,
+                    pattern: TemplateDotPattern.radialRipple,
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: TemplateSpace.xs,
+                children: [
+                  _hint(skin, '尺寸：整页 56~72 / 行内 20~28（同一网格密度）'),
+                  _hint(skin, '下面每个给 4 帧（0 / 25 / 50 / 75%）'),
+                ],
+              ),
+            ],
+          ),
+          block('① 径向波纹：一圈圈从中心荡出去（最耐看）', TemplateDotPattern.radialRipple),
+          block('② 双螺旋：两道光臂绕中心扫（最「科技」）', TemplateDotPattern.dualSpiral),
+          block('③ 环闪：一道亮环往外扫 + 两条拖影（最「扫描」）', TemplateDotPattern.ringFlash),
+          block('④ 菱形波：曼哈顿距离上的波，菱形向外扩（最「棋盘」）', TemplateDotPattern.diamondWave),
+          block('⑤ 轨道光点：一颗光点在轨道上跑，附近点被照亮（最克制）', TemplateDotPattern.orbit),
         ],
       ),
     );
