@@ -119,8 +119,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/70-dot-matrix-frames` | 同一批图案的**帧序列**（每种 8 帧，静帧拼运动轨迹；`ONLY=圆点矩阵动效（帧序列）`） |
 | `catalog/73-dot-matrix-blink` | 追加 **⑥ 随机闪烁**（用户想法）：几颗光点在限定范围内随机亮灭，核心 + 柔光晕；帧序列 |
 | `catalog/74-dot-matrix-live-blink` | 全动画节加上随机闪烁（六种并排跑） |
-| `catalog/75-blink-breath-frames` | 随机闪烁改成**呼吸式**（慢：整圈 9.6s、单次 3.2~9.6s；平滑余弦包络；大泛光 + 柔光 + 核心三层） |
-| `catalog/76-blink-breath-live` | 呼吸版全动画（随机闪烁用长循环） |
+| `catalog/77-blink-radius-frames` | 随机闪烁 v3：**照抄轨道光点的高斯光斑**（亮一片、半径大，不再用模糊），整圈 16s、单次呼吸 8~16s |
+| `catalog/78-blink-radius-live` | 光斑版全动画（随机闪烁默认自动用 16s 长循环） |
 | `screen/screen-mod-view` | 模组浏览页第五版：主行动按钮自己表达状态（**下载 / 更新 / 已安装**），列表 logo 84，紧凑行补描述 |
 | `screen/screen-mod-view-full` | 同页完整列表（1200 高），三种按钮状态都能看到 |
 | `screen/screen-mod-view-compact` | 同页**紧凑视图**：名称下面带一行描述 + 下载 / 星标 / 适配 + 状态图标 |

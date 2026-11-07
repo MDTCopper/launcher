@@ -1380,9 +1380,9 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                   size: size,
                   dots: size >= 56 ? 16 : 12,
                   pattern: pattern,
-                  // 随机闪烁是「长循环的固定序列」：整圈 9.6s，单次呼吸 3.2~9.6s
+                  // 随机闪烁是「长循环的固定序列」：整圈 16s，单次呼吸 8~16s
                   duration: pattern == TemplateDotPattern.randomBlink
-                      ? const Duration(milliseconds: 9600)
+                      ? const Duration(milliseconds: 16000)
                       : const Duration(milliseconds: 1600),
                 ),
               ),

@@ -550,10 +550,16 @@ class TemplateDotMatrix extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 随机闪烁需要长的整圈才像「不重复」：没显式改 duration 时自动用 16s
+    final loopDuration =
+        pattern == TemplateDotPattern.randomBlink &&
+            duration == const Duration(milliseconds: 1600)
+        ? const Duration(milliseconds: 16000)
+        : duration;
     return SizedBox.square(
       dimension: size,
       child: _PhaseLoop(
-        duration: duration,
+        duration: loopDuration,
         phase: phase,
         builder: (phase) => CustomPaint(
           painter: _DotMatrixPainter(
@@ -601,9 +607,10 @@ class _DotMatrixPainter extends CustomPainter {
   /// 每颗光点落在哪个格子上 + 各自的周期（整数分频，保证整条动画无缝循环）
   final List<({int col, int row, int k, double offset})> _sparkleCells;
 
-  /// 随机挑格子：同一个种子 → 同一批格子；k 是周期分频（整圈的 1/1、1/2、1/3）
+  /// 随机挑格子：同一个种子 → 同一批格子；k 是周期分频（整圈的 1/1、1/2）
   ///
-  /// 用户 2026-11-07：频率要慢、像呼吸，循环其实是**不随机的固定序列**，只是整圈很长
+  /// 用户 2026-11-07：频率要慢、像呼吸；效果直接照「轨道光点」那套高斯光斑，
+  /// 只是光斑位置固定（不绕圈跑）；循环是不随机的固定序列，只是整圈很长
   static List<({int col, int row, int k, double offset})> _buildSparkles({
     required int dots,
     required int count,
@@ -629,8 +636,8 @@ class _DotMatrixPainter extends CustomPainter {
       cells.add((
         col: col,
         row: row,
-        // 1..3：一圈里呼吸 1~3 次（整圈 9.6s → 单次呼吸 3.2~9.6s）
-        k: 1 + random.nextInt(3),
+        // 1..2：一圈里呼吸 1~2 次（整圈 16s → 单次 8~16s）
+        k: 1 + random.nextInt(2),
         offset: random.nextDouble(),
       ));
     }
@@ -681,70 +688,44 @@ class _DotMatrixPainter extends CustomPainter {
         if (v <= 0.05) continue;
 
         final pos = Offset(center.dx + dx, center.dy + dy);
-        if (blink != null) {
-          // 闪烁点：大泛光 + 中层柔光 + 实心核心，三层叠出「泛光」感
-          canvas.drawCircle(
-            pos,
-            baseDot * (3.1 + 1.9 * v),
-            Paint()
-              ..color = accent.withAlpha((v * 34).round())
-              ..maskFilter = MaskFilter.blur(BlurStyle.normal, baseDot * 1.9),
-          );
-          canvas.drawCircle(
-            pos,
-            baseDot * (1.6 + 1.2 * v),
-            Paint()
-              ..color = accent.withAlpha((v * 96).round())
-              ..maskFilter = MaskFilter.blur(BlurStyle.normal, baseDot * 0.85),
-          );
-          canvas.drawCircle(
-            pos,
-            baseDot * (0.55 + 0.95 * v),
-            Paint()..color = accent.withAlpha((v * 255).round()),
-          );
-          continue;
-        }
+        // 随机闪烁走「高斯光斑」：亮的是**一片格子**（半径大），不再叠模糊
         canvas.drawCircle(
           pos,
-          baseDot * (0.55 + 0.70 * v),
-          Paint()..color = accent.withAlpha((v * 245).round()),
+          baseDot * (0.55 + 0.85 * v),
+          Paint()..color = accent.withAlpha((v * 250).round()),
         );
       }
     }
   }
 
-  /// 这一帧的闪烁表：主光点 + 邻近格子的光晕
+  /// 这一帧的闪烁表：每颗光点按**轨道光点同样的高斯光斑**铺到周围格子上
   ///
-  /// 用户 2026-11-07：频率放慢、像**呼吸**——用平滑的余弦包络（不硬切），
-  /// 且整条是**固定序列**（种子决定），只是整圈很长（默认 9.6s）才像随机
+  /// 用户 2026-11-07：照抄轨道光点的光斑（不是模糊泛光），只是光斑位置固定在随机格子上；
+  /// 频率再放慢（整圈 16s、单次呼吸 8~16s），但仍是**固定序列**的循环
   Map<int, double> _blinkFrame() {
     final table = <int, double>{};
     for (final s in _sparkleCells) {
       // 用「整数分频 × 整圈相位」保证循环接缝不跳
       final local = (phase * s.k + s.offset) % 1.0;
-      // 呼吸：0.12 起步（不完全灭），峰值 1.0；pow 1.6 让亮的那段更有「吸」进去的感觉
+      // 呼吸：0.10 起步（不完全灭），峰值 1.0；余弦包络，慢慢吸/呼
       final breath = 0.5 - 0.5 * math.cos(math.pi * 2 * local);
-      final pulse = 0.12 + 0.88 * math.pow(breath, 1.6).toDouble();
-      table[rowKey(s.col, s.row)] = math.max(
-        table[rowKey(s.col, s.row)] ?? 0,
-        pulse,
-      );
-      // 光晕：一圈八邻域（十字重、斜角轻），让每颗光点「泛」开
-      for (final (dx, dy, weight) in const [
-        (1, 0, 0.46),
-        (-1, 0, 0.46),
-        (0, 1, 0.46),
-        (0, -1, 0.46),
-        (1, 1, 0.22),
-        (-1, 1, 0.22),
-        (1, -1, 0.22),
-        (-1, -1, 0.22),
-      ]) {
-        final c = s.col + dx;
-        final r = s.row + dy;
-        if (c < 0 || r < 0 || c >= dots || r >= dots) continue;
-        final key = rowKey(c, r);
-        table[key] = math.max(table[key] ?? 0, pulse * weight);
+      final pulse = 0.10 + 0.90 * math.pow(breath, 1.8).toDouble();
+      if (pulse <= 0.02) continue;
+
+      // 光斑半径：σ ≈ 1.25 格 → 亮到 2~3 格，跟轨道光点一个观感
+      const sigma = 1.25;
+      final reach = (sigma * 2.6).ceil();
+      for (var dy = -reach; dy <= reach; dy++) {
+        for (var dx = -reach; dx <= reach; dx++) {
+          final c = s.col + dx;
+          final r = s.row + dy;
+          if (c < 0 || r < 0 || c >= dots || r >= dots) continue;
+          final d2 = (dx * dx + dy * dy) / (sigma * sigma);
+          final falloff = math.exp(-d2 / 2);
+          if (falloff <= 0.02) continue;
+          final key = rowKey(c, r);
+          table[key] = math.max(table[key] ?? 0, pulse * falloff);
+        }
       }
     }
     return table;
