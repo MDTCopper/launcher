@@ -5,6 +5,7 @@ import 'package:copper_launcher/ui/pages/design/template_color.dart';
 import 'package:copper_launcher/ui/pages/design/template_drawer.dart';
 import 'package:copper_launcher/ui/pages/design/template_drop.dart';
 import 'package:copper_launcher/ui/pages/design/template_keys.dart';
+import 'package:copper_launcher/ui/pages/design/template_loading.dart';
 import 'package:copper_launcher/ui/pages/design/template_markdown.dart';
 import 'package:copper_launcher/ui/pages/design/template_media.dart';
 import 'package:copper_launcher/ui/pages/design/template_motion.dart';
@@ -74,6 +75,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         _buildSliders(skin),
         _buildFeedback(skin),
         _buildMotion(skin),
+        _buildLoaders(skin),
         _buildChrome(skin),
         _buildRailPlacements(skin),
         _buildRouteStacks(skin),
@@ -1353,6 +1355,93 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
           _hint(
             skin,
             '页面转场：templatePageRoute（淡入 + 上移 2%，200ms easeOutCubic；返回 160ms）',
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 加载动效候选：每个候选给 4 帧（0 / 25 / 50 / 75%），挑一个再接到真实页面
+  Widget _buildLoaders(TemplateSkin skin) {
+    Widget frames(Widget Function(double phase) build) => Row(
+      spacing: TemplateSpace.lg,
+      children: [
+        for (var i = 0; i < 4; i++)
+          SizedBox(width: 56, height: 56, child: Center(child: build(i / 4))),
+      ],
+    );
+
+    Widget block(String label, Widget Function(double phase) build) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: TemplateSpace.xs,
+      children: [_hint(skin, label), frames(build)],
+    );
+
+    return _section(
+      skin,
+      '加载动效（候选）',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.lg,
+        children: [
+          _hint(skin, '铜钻头那版不好看，这里给五个新候选；每行 4 帧是同一动画的不同相位（App 里是连续循环）'),
+          block(
+            '① 弧线环：一根带渐隐尾巴的铜色圆弧（最稳，任意尺寸都清楚）',
+            (phase) => TemplateArcSpinner(skin: skin, size: 32, phase: phase),
+          ),
+          block(
+            '② 铜粒轨道：三颗铜粒追尾旋转，头亮尾淡（最像「铜」）',
+            (phase) => TemplateOrbitDots(skin: skin, size: 32, phase: phase),
+          ),
+          block(
+            '③ 熔炉脉冲：三圈波纹从中心荡开 + 中心铜点呼吸（静态也好看）',
+            (phase) => TemplateFurnacePulse(skin: skin, size: 32, phase: phase),
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.xl,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: TemplateSpace.xs,
+                children: [
+                  _hint(skin, '④ 进度环（确定进度，环里带百分比）'),
+                  Row(
+                    spacing: TemplateSpace.lg,
+                    children: [
+                      TemplateRingProgress(
+                        skin: skin,
+                        size: 44,
+                        value: 0.28,
+                        label: '28%',
+                      ),
+                      TemplateRingProgress(
+                        skin: skin,
+                        size: 44,
+                        value: 0.62,
+                        label: '62%',
+                      ),
+                      TemplateRingProgress(skin: skin, size: 44, value: null),
+                    ],
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: TemplateSpace.xs,
+                children: [
+                  _hint(skin, '⑤ 行内传送带（列表行 / 按钮里用）'),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: TemplateSpace.sm,
+                    children: [
+                      for (var i = 0; i < 2; i++)
+                        TemplateBeltLoader(skin: skin, width: 92, phase: i / 2),
+                    ],
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
