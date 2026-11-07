@@ -110,6 +110,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/53-table-segments` | 表格组件（表头 + 固定列 + 弹性列 + 行分隔 + 横向滚动）、分段带图标与多选分段 |
 | `catalog/54-markdown` | 轻量 Markdown 渲染（标题 / 段落 / 列表 / 引用 / 代码块 / 分隔线 / 徽章 / 链接），模组页 Readme 已改用它 |
 | `catalog/55-readme-project` | Readme 改用**项目现有的 `ReadmeView`**（markdown AST + 直写 HTML + 图片 / 链接解析），只把皮肤翻成它要的 `AppColors` / `ThemeData` |
+| `catalog/56-motion` | 新增**动效**一节：交错入场 / 铜钻头加载（循环·完成·错误）/ 描边进度 / 数字滚动 / 页面转场约定 |
+| `catalog/57-motion-only` | 只画「动效」一节（`ONLY=动效`，画布 1400 高）：单节自查用 |
 | `screen/screen-mod-view` | 模组浏览页第五版：主行动按钮自己表达状态（**下载 / 更新 / 已安装**），列表 logo 84，紧凑行补描述 |
 | `screen/screen-mod-view-full` | 同页完整列表（1200 高），三种按钮状态都能看到 |
 | `screen/screen-mod-view-compact` | 同页**紧凑视图**：名称下面带一行描述 + 下载 / 星标 / 适配 + 状态图标 |

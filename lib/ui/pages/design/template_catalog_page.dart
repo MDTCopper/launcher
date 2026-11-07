@@ -1,3 +1,4 @@
+import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
 import 'package:copper_launcher/ui/pages/design/template_color.dart';
@@ -6,6 +7,7 @@ import 'package:copper_launcher/ui/pages/design/template_drop.dart';
 import 'package:copper_launcher/ui/pages/design/template_keys.dart';
 import 'package:copper_launcher/ui/pages/design/template_markdown.dart';
 import 'package:copper_launcher/ui/pages/design/template_media.dart';
+import 'package:copper_launcher/ui/pages/design/template_motion.dart';
 import 'package:copper_launcher/ui/pages/design/template_menu.dart';
 import 'package:copper_launcher/ui/pages/design/template_overlay.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
@@ -20,9 +22,12 @@ import 'package:flutter/material.dart';
 /// 既是设计样张的来源（`test/design_render_test.dart` 渲染它），
 /// 也是 App 里可以打开的「组件目录」调试页（`/template_catalog`，仅 debug 可见）
 class TemplateCatalogPage extends StatefulWidget {
-  const TemplateCatalogPage({super.key, required this.skin});
+  const TemplateCatalogPage({super.key, required this.skin, this.onlySection});
 
   final TemplateSkin skin;
+
+  /// 只渲染某一节（出单节样张 / 截图用）；null = 全量
+  final String? onlySection;
 
   @override
   State<TemplateCatalogPage> createState() => _TemplateCatalogPageState();
@@ -68,6 +73,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
         _buildPickers(skin),
         _buildSliders(skin),
         _buildFeedback(skin),
+        _buildMotion(skin),
         _buildChrome(skin),
         _buildRailPlacements(skin),
         _buildRouteStacks(skin),
@@ -83,6 +89,9 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
   }
 
   Widget _section(TemplateSkin skin, String title, Widget child) {
+    if (widget.onlySection != null && widget.onlySection != title) {
+      return const SizedBox.shrink();
+    }
     return TemplateSection(skin: skin, title: title, child: child);
   }
 
@@ -1211,6 +1220,139 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
             title: '访问令牌（密码）',
             controller: TextEditingController(text: 'ghp_xxxxxxxxxxxx'),
             obscure: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 动效：交错入场 / 品牌加载 / 描边进度 / 数字滚动 / 转场约定
+  Widget _buildMotion(TemplateSkin skin) {
+    Widget demo(String label, Widget child) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: TemplateSpace.xs,
+      children: [_hint(skin, label), child],
+    );
+
+    return _section(
+      skin,
+      '动效',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.md,
+        children: [
+          _hint(skin, '交错入场（AppearItem：淡入 + 上移 10，延迟按 index × 40ms）'),
+          Row(
+            spacing: TemplateSpace.md,
+            children: [
+              for (var i = 0; i < 3; i++)
+                Expanded(
+                  child: TemplateAppear(
+                    index: i,
+                    child: TemplateCard(
+                      skin: skin,
+                      padding: const EdgeInsets.all(TemplateSpace.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: TemplateSpace.xs,
+                        children: [
+                          Text(
+                            '卡片 ${i + 1}',
+                            style: TemplateType.item.copyWith(
+                              color: skin.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '进场延迟 ${i * 40}ms',
+                            style: TemplateType.micro.copyWith(
+                              color: skin.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          _hint(skin, '品牌加载：铜钻头（循环 / 完成 / 错误）'),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: TemplateSpace.xl,
+            children: [
+              demo('循环', TemplateDrillLoading(skin: skin, size: 64)),
+              demo(
+                '完成',
+                TemplateDrillLoading(
+                  skin: skin,
+                  size: 44,
+                  state: DrillLoadingState.completing,
+                ),
+              ),
+              demo(
+                '错误',
+                TemplateDrillLoading(
+                  skin: skin,
+                  size: 44,
+                  state: DrillLoadingState.error,
+                ),
+              ),
+            ],
+          ),
+          _hint(skin, '描边进度（按钮 / 卡片外沿；null = 不确定态）'),
+          Row(
+            spacing: TemplateSpace.md,
+            children: [
+              Expanded(
+                child: TemplateBorderProgress(
+                  skin: skin,
+                  progress: 0.42,
+                  child: TemplateButton(
+                    skin: skin,
+                    label: '下载中 42%',
+                    icon: Icons.download,
+                    kind: TemplateButtonKind.plain,
+                    onTap: () {},
+                  ),
+                ),
+              ),
+              Expanded(
+                child: TemplateBorderProgress(
+                  skin: skin,
+                  progress: null,
+                  child: TemplateButton(
+                    skin: skin,
+                    label: '刷新中…',
+                    icon: Icons.refresh,
+                    kind: TemplateButtonKind.quiet,
+                    onTap: () {},
+                  ),
+                ),
+              ),
+            ],
+          ),
+          _hint(skin, '数字滚动（从 0 滚到目标值，600ms easeOutCubic；≥1 万显示「万」）'),
+          Row(
+            spacing: TemplateSpace.xl,
+            children: [
+              demo(
+                '126,900 次下载',
+                TemplateAnimatedCounter(skin: skin, value: 126900),
+              ),
+              demo(
+                '1,200 星标',
+                TemplateAnimatedCounter(skin: skin, value: 1200, suffix: ' ★'),
+              ),
+              demo(
+                '860 次（不带万）',
+                TemplateAnimatedCounter(skin: skin, value: 860),
+              ),
+            ],
+          ),
+          _hint(
+            skin,
+            '页面转场：templatePageRoute（淡入 + 上移 2%，200ms easeOutCubic；返回 160ms）',
           ),
         ],
       ),

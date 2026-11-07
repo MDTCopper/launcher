@@ -29,7 +29,15 @@ class DrillLoading extends StatefulWidget {
     this.cycle = const Duration(milliseconds: 1600),
     this.onCycleFinished,
     this.probe,
+    this.hubColor,
+    this.errorColor,
   });
+
+  /// 轮毂亮点（正常）与错误态用的颜色；不传就取 `AppColors`
+  ///
+  /// 设计层（`TemplateSkin`）换皮时由调用方传自己的强调色 / 危险色
+  final Color? hubColor;
+  final Color? errorColor;
 
   /// 要去哪个状态；切过去要等当前这一步走完
   final DrillLoadingState state;
@@ -354,7 +362,9 @@ class _DrillLoadingState extends State<DrillLoading>
               strokeFloor: _minStrokePixels,
               tint: tint,
               tone: DrillTone.of(context),
-              hubColor: isError ? colors.error : colors.interactive,
+              hubColor: isError
+                  ? (widget.errorColor ?? colors.error)
+                  : (widget.hubColor ?? colors.interactive),
               drillScale:
                   widget.size * DrillPaint.drillRadiusRatio / DrillPaint.grid,
             ),
