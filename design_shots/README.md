@@ -117,6 +117,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/67-dot-matrix` | **圆点矩阵动效候选**（一套网格只动亮度）：径向波纹 / 双螺旋 / 环闪 / 菱形波 / 轨道光点（`ONLY=圆点矩阵动效（候选）`） |
 | `catalog/71-dot-matrix-live` | 同上一节的**全动画版**（不传 phase、自循环，App 里看真机；尺寸 56 / 40 / 28 对照） |
 | `catalog/70-dot-matrix-frames` | 同一批图案的**帧序列**（每种 8 帧，静帧拼运动轨迹；`ONLY=圆点矩阵动效（帧序列）`） |
+| `catalog/73-dot-matrix-blink` | 追加 **⑥ 随机闪烁**（用户想法）：几颗光点在限定范围内随机亮灭，核心 + 柔光晕；帧序列 |
+| `catalog/74-dot-matrix-live-blink` | 全动画节加上随机闪烁（六种并排跑） |
 | `screen/screen-mod-view` | 模组浏览页第五版：主行动按钮自己表达状态（**下载 / 更新 / 已安装**），列表 logo 84，紧凑行补描述 |
 | `screen/screen-mod-view-full` | 同页完整列表（1200 高），三种按钮状态都能看到 |
 | `screen/screen-mod-view-compact` | 同页**紧凑视图**：名称下面带一行描述 + 下载 / 星标 / 适配 + 状态图标 |

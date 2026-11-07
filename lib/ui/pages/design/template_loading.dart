@@ -510,6 +510,9 @@ enum TemplateDotPattern {
 
   /// 轨道光点：一颗光点在轨道上跑，附近的点被照亮
   orbit,
+
+  /// 随机闪烁：几颗光点在限定范围内随机亮灭（用户 2026-11-07 的想法）
+  randomBlink,
 }
 
 /// 统一网格的圆点矩阵：网格密度处处一致（不再出现「轮廓更密、里面更空」）
@@ -522,6 +525,9 @@ class TemplateDotMatrix extends StatelessWidget {
     this.pattern = TemplateDotPattern.radialRipple,
     this.phase,
     this.duration = const Duration(milliseconds: 1600),
+    this.sparkles = 7,
+    this.spread = 0.86,
+    this.seed = 11,
   });
 
   final TemplateSkin skin;
@@ -532,6 +538,15 @@ class TemplateDotMatrix extends StatelessWidget {
   final TemplateDotPattern pattern;
   final double? phase;
   final Duration duration;
+
+  /// 随机闪烁的「光点」数量
+  final int sparkles;
+
+  /// 随机闪烁的限定范围（0~1，相对半径）
+  final double spread;
+
+  /// 随机种子：同一个种子每次生成的闪烁点阵一致（不会一帧一换）
+  final int seed;
 
   @override
   Widget build(BuildContext context) {
@@ -545,6 +560,9 @@ class TemplateDotMatrix extends StatelessWidget {
             phase: phase,
             dots: dots,
             pattern: pattern,
+            sparkles: sparkles,
+            spread: spread,
+            seed: seed,
             accent: TemplateLoader.copper(skin),
             track: TemplateLoader.track(skin),
           ),
@@ -559,15 +577,62 @@ class _DotMatrixPainter extends CustomPainter {
     required this.phase,
     required this.dots,
     required this.pattern,
+    required this.sparkles,
+    required this.spread,
+    required this.seed,
     required this.accent,
     required this.track,
-  });
+  }) : _sparkleCells = _buildSparkles(
+         dots: dots,
+         count: sparkles,
+         spread: spread,
+         seed: seed,
+       );
 
   final double phase;
   final int dots;
   final TemplateDotPattern pattern;
+  final int sparkles;
+  final double spread;
+  final int seed;
   final Color accent;
   final Color track;
+
+  /// 每颗光点落在哪个格子上 + 各自的周期（整数分频，保证整条动画无缝循环）
+  final List<({int col, int row, int k, double offset})> _sparkleCells;
+
+  /// 随机挑格子：同一个种子 → 同一批格子；k 是周期分频（2/3/4/5 分之一圈）
+  static List<({int col, int row, int k, double offset})> _buildSparkles({
+    required int dots,
+    required int count,
+    required double spread,
+    required int seed,
+  }) {
+    final random = math.Random(seed);
+    final cells = <({int col, int row, int k, double offset})>[];
+    final used = <int>{};
+    var guard = 0;
+    while (cells.length < count && guard < count * 40) {
+      guard++;
+      final col = random.nextInt(dots);
+      final row = random.nextInt(dots);
+      final key = row * dots + col;
+      if (used.contains(key)) continue;
+      // 限定范围：只取圆内且半径不超过 spread 的格子
+      final gx = (col + 0.5) / dots * 2 - 1;
+      final gy = (row + 0.5) / dots * 2 - 1;
+      final r = math.sqrt(gx * gx + gy * gy);
+      if (r > spread) continue;
+      used.add(key);
+      cells.add((
+        col: col,
+        row: row,
+        k: 2 + random.nextInt(4), // 2..5：一圈里闪 2~5 次
+        offset: random.nextDouble(),
+      ));
+    }
+    return cells;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -590,6 +655,12 @@ class _DotMatrixPainter extends CustomPainter {
       }
     }
 
+    // 随机闪烁：先把「这一帧哪些格子亮」算成一张表（含邻近格子的光晕）
+    Map<int, double>? blink;
+    if (pattern == TemplateDotPattern.randomBlink) {
+      blink = _blinkFrame();
+    }
+
     // 亮层：按图案算每颗点的强度
     for (var row = 0; row < dots; row++) {
       for (var col = 0; col < dots; col++) {
@@ -601,17 +672,73 @@ class _DotMatrixPainter extends CustomPainter {
         if (r > 1) continue;
 
         final theta = math.atan2(gy, gx);
-        final v = _intensity(r, theta, gx, gy).clamp(0.0, 1.0);
+        final v = blink != null
+            ? (blink[row * dots + col] ?? 0)
+            : _intensity(r, theta, gx, gy).clamp(0.0, 1.0);
         if (v <= 0.05) continue;
 
+        final pos = Offset(center.dx + dx, center.dy + dy);
+        if (blink != null) {
+          // 闪烁点：核心 + 一圈柔光，才像「光点」而不是「格子亮了一下」
+          canvas.drawCircle(
+            pos,
+            baseDot * (1.7 + 1.1 * v),
+            Paint()..color = accent.withAlpha((v * 46).round()),
+          );
+          canvas.drawCircle(
+            pos,
+            baseDot * (0.60 + 1.05 * v),
+            Paint()..color = accent.withAlpha((v * 255).round()),
+          );
+          continue;
+        }
         canvas.drawCircle(
-          Offset(center.dx + dx, center.dy + dy),
+          pos,
           baseDot * (0.55 + 0.70 * v),
           Paint()..color = accent.withAlpha((v * 245).round()),
         );
       }
     }
   }
+
+  /// 这一帧的闪烁表：主光点 + 邻近格子的光晕
+  Map<int, double> _blinkFrame() {
+    final table = <int, double>{};
+    for (final s in _sparkleCells) {
+      // 用「整数分频 × 整圈相位」保证循环接缝不跳
+      final local = (phase * s.k + s.offset) % 1.0;
+      // 前 45% 亮：升 → 顶 → 降；剩下时间全灭，才有「闪」的感觉
+      const onWindow = 0.45;
+      final pulse = local >= onWindow
+          ? 0.0
+          : math.pow(math.sin(math.pi * local / onWindow), 1.4).toDouble();
+      if (pulse <= 0) continue;
+      table[rowKey(s.col, s.row)] = math.max(
+        table[rowKey(s.col, s.row)] ?? 0,
+        pulse,
+      );
+      // 光晕：一圈八邻域（十字重、斜角轻），像真的在发亮
+      for (final (dx, dy, weight) in const [
+        (1, 0, 0.42),
+        (-1, 0, 0.42),
+        (0, 1, 0.42),
+        (0, -1, 0.42),
+        (1, 1, 0.20),
+        (-1, 1, 0.20),
+        (1, -1, 0.20),
+        (-1, -1, 0.20),
+      ]) {
+        final c = s.col + dx;
+        final r = s.row + dy;
+        if (c < 0 || r < 0 || c >= dots || r >= dots) continue;
+        final key = rowKey(c, r);
+        table[key] = math.max(table[key] ?? 0, pulse * weight);
+      }
+    }
+    return table;
+  }
+
+  int rowKey(int col, int row) => row * dots + col;
 
   double _intensity(double r, double theta, double gx, double gy) {
     final t = phase;
@@ -646,6 +773,9 @@ class _DotMatrixPainter extends CustomPainter {
         final head = math.exp(-math.pow(d1 / 0.30, 2).toDouble());
         final tail = math.exp(-math.pow(d2 / 0.22, 2).toDouble()) * 0.55;
         return math.max(head, tail);
+      case TemplateDotPattern.randomBlink:
+        // 闪烁在 paint 里按格子算（见 _blinkFrame），这里不走
+        return 0;
     }
   }
 
@@ -661,7 +791,10 @@ class _DotMatrixPainter extends CustomPainter {
       old.pattern != pattern ||
       old.accent != accent ||
       old.track != track ||
-      old.dots != dots;
+      old.dots != dots ||
+      old.sparkles != sparkles ||
+      old.spread != spread ||
+      old.seed != seed;
 }
 
 // ───────────────────────── ⑥ 圆点阵列钻头 ─────────────────────────

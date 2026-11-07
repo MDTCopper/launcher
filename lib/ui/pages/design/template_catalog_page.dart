@@ -1403,6 +1403,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
               item('环闪', TemplateDotPattern.ringFlash),
               item('菱形波', TemplateDotPattern.diamondWave),
               item('轨道光点', TemplateDotPattern.orbit),
+              item('随机闪烁', TemplateDotPattern.randomBlink),
             ],
           ),
           _hint(skin, '同一图案（径向波纹）三种尺寸：56 / 40 / 28 都在转'),
@@ -1464,6 +1465,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
           row('③ 环闪', TemplateDotPattern.ringFlash),
           row('④ 菱形波', TemplateDotPattern.diamondWave),
           row('⑤ 轨道光点', TemplateDotPattern.orbit),
+          row('⑥ 随机闪烁（几颗光点随机亮灭）', TemplateDotPattern.randomBlink),
         ],
       ),
     );
@@ -1685,6 +1687,7 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
           block('③ 环闪：一道亮环往外扫 + 两条拖影（最「扫描」）', TemplateDotPattern.ringFlash),
           block('④ 菱形波：曼哈顿距离上的波，菱形向外扩（最「棋盘」）', TemplateDotPattern.diamondWave),
           block('⑤ 轨道光点：一颗光点在轨道上跑，附近点被照亮（最克制）', TemplateDotPattern.orbit),
+          block('⑥ 随机闪烁：几颗光点在限定范围内随机亮灭（用户的想法）', TemplateDotPattern.randomBlink),
         ],
       ),
     );
