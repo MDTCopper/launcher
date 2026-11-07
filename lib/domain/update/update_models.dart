@@ -61,17 +61,41 @@ class ModUpdate implements ContentUpdate {
   bool get hasUpdate => targetVersion != null;
 }
 
-/// 游戏版本（Mindustry 正式版 / BE）的更新检查结果
+/// 「更换版本」里的一款可选游戏版本
+class GameVersionCandidate {
+  const GameVersionCandidate({
+    required this.release,
+    required this.installed,
+    required this.isLatest,
+  });
+
+  /// 远端这一版的完整信息（带下载资产）
+  final MindustryRelease release;
+
+  /// 本机已经装过同一版本
+  final bool installed;
+
+  /// 是不是这一族（正式版 / BE）远端最新的一版
+  final bool isLatest;
+
+  /// 版本 tag：正式版 `v160.7`，BE 是 build 号
+  String get tag => release.tag;
+
+  bool get isBe => release.isBe;
+}
+
+/// 游戏版本（Mindustry 正式版 / BE）的「更换版本」结果
 ///
-/// 只表达「远端有比本机新的版本」，不提供替换动作：游戏版本由用户下载新版本，
-/// 已装版本不动
-class GameVersionUpdate implements ContentUpdate {
-  const GameVersionUpdate({
+/// 工具侧可以拿 [candidates] 列可选版本（默认最新，降级也在这里选）；[hasUpdate]
+/// 只是给「可以更新」的提醒用，不提供自动替换
+class GameVersionChange implements ContentUpdate {
+  const GameVersionChange({
     required this.isBe,
     required this.installedVersion,
     required this.latestVersion,
     required this.hasUpdate,
     this.latestRelease,
+    this.candidates = const [],
   });
 
   /// 是不是 BE（MindustryBuilds）版本
@@ -89,6 +113,9 @@ class GameVersionUpdate implements ContentUpdate {
 
   /// 远端最新一版的完整信息（带下载资产），供「去下载」直接用
   final MindustryRelease? latestRelease;
+
+  /// 这一族全部可选版本：远端版本、新在前，含本机已装的
+  final List<GameVersionCandidate> candidates;
 
   @override
   UpdateContentKind get kind => UpdateContentKind.gameVersion;
@@ -140,7 +167,7 @@ class UpdateReport {
   /// 已装模组的检查结果：已安装的都在，带 [ModUpdate.hasUpdate]
   final List<ModUpdate> mods;
 
-  final List<GameVersionUpdate> gameVersions;
+  final List<GameVersionChange> gameVersions;
 
   final List<LoaderUpdate> loaders;
 

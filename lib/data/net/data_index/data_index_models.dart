@@ -306,15 +306,6 @@ class DataIndexModReleases {
 
   final int? pages;
 
-  /// 与 [gameVersion] 兼容、可下载的最新一版；没有返回 null
-  DataIndexModVersion? newestCompatible(String? gameVersion) {
-    for (final version in versions) {
-      if (!version.downloadable) continue;
-      if (version.supportsGameVersion(gameVersion)) return version;
-    }
-    return null;
-  }
-
   static DataIndexModReleases? parse(String content) {
     final decoded = _decodeJson(content);
     if (decoded is! Map) return null;

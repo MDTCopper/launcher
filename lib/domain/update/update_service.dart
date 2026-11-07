@@ -2,7 +2,7 @@ import '../../core/app_config.dart';
 import '../../data/models.dart';
 import '../../util/format/string_cleaner.dart';
 import '../../util/io/log.dart';
-import 'game_version_update.dart';
+import 'game_version_change.dart';
 import 'loader_update.dart';
 import 'mod_update.dart';
 import 'update_models.dart';
@@ -37,9 +37,9 @@ class UpdateService {
         onProgress: onModProgress,
       );
     });
-    final gameVersionFuture = _guard<GameVersionCheck>(
+    final gameVersionFuture = _guard<GameVersionChangeCheck>(
       () =>
-          GameVersionUpdateService.check(installed: versions, refresh: refresh),
+          GameVersionChangeService.check(installed: versions, refresh: refresh),
     );
     final loaderFuture = _guard<LoaderUpdateCheck>(LoaderUpdateService.check);
 
@@ -66,7 +66,7 @@ class UpdateService {
     final loaderUpdate = loaderRun.value?.update;
     return UpdateReport(
       mods: modRun.value?.mods ?? const [],
-      gameVersions: gameVersionRun.value?.updates ?? const [],
+      gameVersions: gameVersionRun.value?.changes ?? const [],
       loaders: [?loaderUpdate],
       checkedModCount: modRun.value?.checkedCount ?? 0,
       skippedModCount: modRun.value?.skippedCount ?? 0,
