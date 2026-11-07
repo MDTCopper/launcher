@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
+﻿import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
 import 'package:copper_launcher/ui/pages/design/template_color.dart';
@@ -1380,9 +1380,9 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                   size: size,
                   dots: size >= 56 ? 16 : 12,
                   pattern: pattern,
-                  // 随机闪烁是「长循环的固定序列」：整圈 16s，单次呼吸 8~16s
+                  // 随机闪烁是「长循环的固定序列」：整圈 24s，单次呼吸 12~24s
                   duration: pattern == TemplateDotPattern.randomBlink
-                      ? const Duration(milliseconds: 16000)
+                      ? const Duration(milliseconds: 24000)
                       : const Duration(milliseconds: 1600),
                 ),
               ),

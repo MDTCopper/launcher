@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:flutter/material.dart';
@@ -550,11 +550,11 @@ class TemplateDotMatrix extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 随机闪烁需要长的整圈才像「不重复」：没显式改 duration 时自动用 16s
+    // 随机闪烁需要长的整圈才像「不重复」：没显式改 duration 时自动用 24s
     final loopDuration =
         pattern == TemplateDotPattern.randomBlink &&
             duration == const Duration(milliseconds: 1600)
-        ? const Duration(milliseconds: 16000)
+        ? const Duration(milliseconds: 24000)
         : duration;
     return SizedBox.square(
       dimension: size,
@@ -636,7 +636,7 @@ class _DotMatrixPainter extends CustomPainter {
       cells.add((
         col: col,
         row: row,
-        // 1..2：一圈里呼吸 1~2 次（整圈 16s → 单次 8~16s）
+        // 1..2：一圈里呼吸 1~2 次（整圈 24s → 单次 12~24s）
         k: 1 + random.nextInt(2),
         offset: random.nextDouble(),
       ));
