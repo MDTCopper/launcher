@@ -461,6 +461,24 @@ abstract final class TemplateBreakpoints {
   /// 右侧抽屉的内容宽度（任务卡 / 日志卡按它判断）
   static const drawerWidth = 360.0;
 
+  /// 左侧导航栏展开宽度：**默认布局要按「侧栏都打开」算内容宽**（用户 2026-11-07）
+  static const navRailWidth = 180.0;
+
+  /// 右侧抽屉宽度（覆盖式打开，不占内容宽；留常量给将来做推挤式）
+  static const sidePanelWidth = 320.0;
+
+  /// 给定窗口宽，默认布局可用的内容宽（减掉展开的左侧导航）
+  ///
+  /// 用户 2026-11-07：「设计默认布局时，按照左右都打开侧边栏的尺寸计算」——
+  /// 现在的右侧抽屉是覆盖式的（`endDrawer`），所以只减左侧导航；
+  /// 若将来改成推挤式，把 [sidePanelWidth] 一起减掉即可
+  static double contentWidth(double windowWidth) => windowWidth - navRailWidth;
+
+  /// 窗口是否该走窄屏排布：**看窗口宽，不看组件自身宽度**（用户 2026-11-07）
+  ///
+  /// 组件放在 180 侧栏右边时自身只有 ~580 宽，但窗口仍是基准尺寸，不该触发窄屏
+  static bool isCompactWindow(double windowWidth) => windowWidth < compact;
+
   /// 给定宽度是否按窄屏排（`< compact`：基准宽度走正常排布）
   static bool isCompact(double width) => width < compact;
 

@@ -3,8 +3,9 @@
 渲染出来的对照图，一代一个目录，方便横向翻。**图是生成的，不要手改**；重新出图：
 
 > **标准设计尺寸：`760 × 450`**（桌面端最小窗口，≈ 手机横屏量级）。这个尺寸是**正常态**，
-> 不触发窄屏排布；比它窄（如抽屉 360）走窄屏、比 1100 宽走宽屏。断点统一取 `TemplateBreakpoints`；
-> 样张脚本默认就按 760 宽出图，宽屏 / 竖屏用 `WIDTH` / `PAGE_HEIGHT` 覆盖。
+> 不触发窄屏排布；窄屏按**窗口宽**判断（`< 760`），不看组件自身宽度。
+> 页面默认布局按「**左侧导航展开**（180）后的内容宽 = 窗口 − 180」设计（右侧抽屉是覆盖式）；
+> 样张脚本里 `WIDTH` 是**窗口宽**，页面按 `contentWidth` 渲染，与实际坐在侧栏右边一致。
 
 ```powershell
 $env:NO_PROXY='127.0.0.1,localhost'
@@ -109,10 +110,10 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/53-table-segments` | 表格组件（表头 + 固定列 + 弹性列 + 行分隔 + 横向滚动）、分段带图标与多选分段 |
 | `catalog/54-markdown` | 轻量 Markdown 渲染（标题 / 段落 / 列表 / 引用 / 代码块 / 分隔线 / 徽章 / 链接），模组页 Readme 已改用它 |
 | `catalog/55-readme-project` | Readme 改用**项目现有的 `ReadmeView`**（markdown AST + 直写 HTML + 图片 / 链接解析），只把皮肤翻成它要的 `AppColors` / `ThemeData` |
-| `screen/screen-mod-view` | 模组浏览页（`/template_mod_view`）第三版：去掉「已安装」、统计改**等宽四列随宽度拉伸**、三种视图（紧凑 / 列表 / 网格） |
-| `screen/screen-mod-view-compact` | 同页**紧凑视图**：一行一条（名称 + 下载 / 星标 / 适配 + 兼容 + 下载图标） |
-| `screen/screen-mod-view-grid` | 同页**网格视图**（2 列）：徽标补回（Java / Beta）+ 适配范围行 |
-| `screen/screen-mod-view-narrow` | 同页窄屏（600 宽）：只有「列表 / 网格」两档，列表即紧凑行；头卡操作收成图标 |
+| `screen/screen-mod-view` | 模组浏览页第四版：已安装做成下载旁标识（固定槽保对齐）、更多按钮挪到下载右边、统计按权重分宽；页面按**窗口−左导航**的内容宽渲染 |
+| `screen/screen-mod-view-compact` | 同页**紧凑视图**：一行一条（名称 + 下载 / 星标 / 适配 + 兼容 + 已安装勾 + 下载图标） |
+| `screen/screen-mod-view-grid` | 同页**网格视图**：logo 76（盖住标题+仓库+标签），已安装做在下载旁 |
+| `screen/screen-mod-view-narrow` | 同页**窄窗口**（窗口 700 → 内容 520）：只有「列表 / 网格」，列表 = 紧凑行 |
 | `screen/screen-mod` | **App 内页面**：模组下载新页（宽屏版，1000×700） |
 | `screen/screen-mod-base` | 同一页按**标准尺寸 760×450**（最小窗口首屏） |
 | `screen/screen-mod-base-tall` | 同上拉高到 900 看折线以下 |

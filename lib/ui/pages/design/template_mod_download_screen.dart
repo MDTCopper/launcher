@@ -77,10 +77,14 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
   @override
   Widget build(BuildContext context) {
     final skin = TemplateSkin.ofContext(context);
+    // 窄屏按**窗口宽**判断：页面坐在侧栏右边时自身变窄，但窗口仍是基准尺寸（用户 2026-11-07）
+    final windowWidth = MediaQuery.sizeOf(context).width;
+    final compact = TemplateBreakpoints.isCompactWindow(windowWidth);
+    // 头卡在内容宽（窗口 − 左导航）不够时也走堆叠版，否则标题会被挤断
+    final tightHead = TemplateBreakpoints.contentWidth(windowWidth) < 660;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = TemplateBreakpoints.isCompact(constraints.maxWidth);
         return ColoredBox(
           color: skin.page,
           child: TemplateScrollView(
@@ -92,7 +96,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: TemplateSpace.lg,
               children: [
-                _buildHead(skin, compact: compact),
+                _buildHead(skin, compact: compact, tight: tightHead),
                 TemplateTabBar(
                   skin: skin,
                   tabs: const ['版本列表', '模组介绍', 'Readme'],
@@ -122,8 +126,13 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
 
   // ── 头卡 ──
 
-  Widget _buildHead(TemplateSkin skin, {required bool compact}) {
-    final logoSize = compact ? 64.0 : 96.0;
+  Widget _buildHead(
+    TemplateSkin skin, {
+    required bool compact,
+    required bool tight,
+  }) {
+    final stacked = compact || tight;
+    final logoSize = stacked ? 64.0 : 96.0;
 
     Widget logo() => Container(
       width: logoSize,
@@ -153,7 +162,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (!compact) ...[
+        if (!stacked) ...[
           const Spacer(),
           Icon(Icons.download, size: 18, color: skin.textSecondary),
           Text(
@@ -206,7 +215,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
       label: '下载',
       icon: Icons.download,
       kind: TemplateButtonKind.solid,
-      expanded: compact,
+      expanded: stacked,
       onTap: _downloadLatestCompatible,
     );
 
@@ -220,8 +229,8 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
       ),
     );
 
-    if (compact) {
-      // 窄屏：图标 + 标题一行，描述单独一行，按钮在底部通栏 —— 抽屉 / 竖屏里也放得下
+    if (stacked) {
+      // 窄屏 / 内容宽不够：图标 + 标题一行，描述单独一行，按钮在底部通栏
       return TemplateCard(
         skin: skin,
         child: Column(
@@ -435,11 +444,12 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
       child: Row(
         spacing: TemplateSpace.md,
         children: [
-          cell(90, '版本', Icons.info_outline),
-          cell(110, '发布时间', Icons.calendar_today),
-          cell(150, '支持版本', Icons.check_circle),
-          cell(80, '体积', Icons.storage),
-          cell(70, '下载量', Icons.download),
+          // 列宽按「窗口 760 − 左导航 180」的内容宽定，留出卡片与页面内边距
+          cell(80, '版本', Icons.info_outline),
+          cell(100, '发布时间', Icons.calendar_today),
+          cell(130, '支持版本', Icons.check_circle),
+          cell(70, '体积', Icons.storage),
+          cell(60, '下载量', Icons.download),
         ],
       ),
     );
@@ -513,7 +523,7 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
         spacing: TemplateSpace.md,
         children: [
           SizedBox(
-            width: 90,
+            width: 80,
             child: Text(
               tag,
               style: TemplateType.item.copyWith(
@@ -523,14 +533,14 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
             ),
           ),
           SizedBox(
-            width: 110,
+            width: 100,
             child: Text(
               date,
               style: TemplateType.caption.copyWith(color: skin.textTertiary),
             ),
           ),
           SizedBox(
-            width: 150,
+            width: 130,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: TemplateSpace.sm,
@@ -547,14 +557,14 @@ class _TemplateModDownloadScreenState extends State<TemplateModDownloadScreen> {
           ),
 
           SizedBox(
-            width: 80,
+            width: 70,
             child: Text(
               size,
               style: TemplateType.caption.copyWith(color: skin.textTertiary),
             ),
           ),
           SizedBox(
-            width: 70,
+            width: 60,
             child: Text(
               downloads,
               style: TemplateType.caption.copyWith(color: skin.textTertiary),
