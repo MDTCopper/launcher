@@ -1,9 +1,13 @@
-import 'package:copper_launcher/ui/components/button/action_button.dart';
+﻿import 'package:copper_launcher/ui/components/button/action_button.dart';
+import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
 import 'package:copper_launcher/ui/components/copper_card.dart';
 import 'package:copper_launcher/ui/components/effect/border_progress.dart';
+import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/pager.dart';
 import 'package:copper_launcher/ui/components/percent_bar.dart';
 import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
@@ -11,6 +15,7 @@ import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
 import 'package:copper_launcher/ui/components/row/priority_row.dart';
 import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
@@ -37,6 +42,8 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
   bool _checkbox = true;
   double _slider = 0.35;
   int _segment = 1;
+  int _language = 0;
+  Color _pickedColor = const Color(0xFFC89958);
   TextEditingController? _settingText;
 
   TemplateSkin get skin => widget.skin;
@@ -111,6 +118,22 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
         _cards(),
         _diffCard('优先行', '设计版没有这个：窗口窄时按优先级依次丢弃次要信息，保证主信息不被挤断'),
         _priorityRow(),
+        _diffCard(
+          '下拉选择',
+          '设计版 `TemplateDropdown` 是简化面板；原组件 `DropdownLayer` 支持选项分组、'
+              '行内图标 / 说明、多选、弹出宽度与展开动画',
+        ),
+        _dropdown(),
+        _diffCard('颜色选择', '设计版只有预设色块 chips；原组件是取色面板 + 透明度 + 数值读数'),
+        _colorPicker(),
+        _diffCard(
+          '气泡提示',
+          '设计版用 Flutter `Tooltip` 一带而过；原组件 `HintLayer` 会按窗口空间自动选方位，'
+              '支持点击触发、自定义组件提示、长按显示',
+        ),
+        _hintLayer(),
+        _diffCard('胶囊操作条', '设计版没有这个形态：窄窗 / 移动端把一组图标操作收成一枚胶囊，点开展开、再点折叠'),
+        _capsuleBar(),
         _diffCard('侧栏条目', '设计版侧栏条目是独立实现；原组件 `NavigationTile` 支持收起态只剩图标、悬停提示'),
         _navigationTile(),
       ],
@@ -427,4 +450,98 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
       ),
     );
   }
+
+  Widget _dropdown() {
+    return _group(
+      OptionSettingBar<int>(
+        title: '界面语言',
+        initialValue: _language,
+        options: [
+          const DropdownOption(value: 0, label: '简体中文'),
+          const DropdownOption(value: 1, label: 'English'),
+          DropdownOption(
+            value: 2,
+            label: '日本語',
+            leading: Icon(Icons.translate, size: 18, color: skin.textSecondary),
+          ),
+        ],
+        onSelect: (value) => setState(() => _language = value),
+      ),
+    );
+  }
+
+  Widget _colorPicker() {
+    return _group(
+      Row(
+        spacing: TemplateSpace.md,
+        children: [
+          SizedBox(
+            width: 260,
+            height: 220,
+            child: ColorPicker(
+              color: _pickedColor,
+              onChanged: (color) => setState(() => _pickedColor = color),
+            ),
+          ),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _pickedColor,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: skin.border),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _hintLayer() {
+    return _group(
+      Wrap(
+        spacing: TemplateSpace.md,
+        runSpacing: TemplateSpace.sm,
+        children: [
+          HintLayer(
+            hint: '自动选方位的气泡提示',
+            child: ActionButton(
+              icon: const Icon(Icons.info_outline),
+              content: const Text('悬停看提示'),
+              onTap: () {},
+            ),
+          ),
+          HintLayer(
+            hint: '点击触发的提示',
+            showOnTap: true,
+            child: ActionButton(
+              icon: const Icon(Icons.touch_app_outlined),
+              content: const Text('点击看提示'),
+              onTap: () {},
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _capsuleBar() {
+    return _group(
+      Align(
+        alignment: Alignment.centerLeft,
+        child: SizedBox(
+          width: 48,
+          child: CapsuleActionBar(
+            actions: const [
+              CapsuleAction(icon: Icons.search, hint: '搜索', onTap: _noop),
+              CapsuleAction(icon: Icons.tune, hint: '筛选', onTap: _noop),
+              CapsuleAction(icon: Icons.refresh, hint: '刷新', onTap: _noop),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static void _noop() {}
 }
