@@ -1,11 +1,11 @@
-import 'package:copper_launcher/core/app_constant.dart';
+﻿import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/pages/cloud/version_cloud_save_page.dart';
 import 'package:copper_launcher/ui/pages/design/seed_lab_page.dart';
-import 'package:copper_launcher/ui/pages/design/template_catalog_screen.dart';
 import 'package:copper_launcher/ui/pages/design/template_mod_download_screen.dart';
 import 'package:copper_launcher/ui/pages/design/template_mod_view_screen.dart';
 import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
+import 'package:copper_launcher/ui/pages/gallery/component_design_page.dart';
 import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/overview/version_select.dart';
 import 'package:copper_launcher/ui/pages/overview/version_setting.dart';
@@ -29,8 +29,8 @@ import 'package:flutter/cupertino.dart';
 const Map<String, Widget> routeMap = {
   '/test': Test(),
   '/seed_lab': SeedLabPage(),
-  //设计层预览页（仅 debug 出现在导航里）：组件目录 / 模组下载新页面
-  '/template_catalog': TemplateCatalogScreen(),
+  //设计层预览页（仅 debug 出现在导航里）：组件设计 / 模组下载新页面
+  '/component_design': ComponentDesignPage(),
   '/template_mod_download': TemplateModDownloadScreen(),
   '/template_mod_view': TemplateModViewScreen(),
 

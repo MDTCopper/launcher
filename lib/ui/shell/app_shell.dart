@@ -130,9 +130,9 @@ class AppShellState extends State<AppShell> {
           ),
         if (kDebugMode)
           RailItem(
-            label: '组件目录',
+            label: '组件设计',
             icon: Icons.widgets_outlined,
-            route: '/template_catalog',
+            route: '/component_design',
           ),
       ],
     ),
@@ -283,10 +283,7 @@ class AppShellState extends State<AppShell> {
               onTap: isCurrent ? null : () => _jumpToRoute(route),
               current: isCurrent,
             ),
-          InPageBreadcrumb(:final label) => ShellBreadcrumb(
-            label,
-            boxed: true,
-          ),
+          InPageBreadcrumb(:final label) => ShellBreadcrumb(label, boxed: true),
         },
     ];
 

@@ -1,4 +1,4 @@
-﻿import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:material_color_utilities/hct/hct.dart';
 
@@ -84,18 +84,16 @@ class TemplateSkin {
     );
   }
 
-  /// 按当前 `Theme` 的亮暗取默认皮肤：给 App 里的设计层页面直接用
-  static TemplateSkin ofContext(BuildContext context) =>
-      TemplateSkin.tuned(dark: Theme.of(context).brightness == Brightness.dark);
+  /// 取当前 App 主题的皮肤：以 [AppColors] 里由种子解出的强调色为种子重算整套
+  /// 这样设计层组件与正式界面同源（换主题色 / 调色板参数时一起变）
+  static TemplateSkin ofContext(BuildContext context) => TemplateSkin.fromAppColors(
+    colors: AppColors.of(context),
+    dark: Theme.of(context).brightness == Brightness.dark,
+  );
 
   /// 以 Copper **现在的主题色**为种子，按 **A 路线**（第 6 版那套）重新生成整套皮肤
   ///
-  /// 用户 2026-11-03 的口径：「回到第 6 版配色种子算法，整体亮一点（接近现在配色）」，
-  /// 并澄清「亮色更亮、暗色更暗」说的是**实心**，不是表面
-  /// - 表面回到 A 路线的暖中性（`neutralChroma` 默认 3，不再压成纯灰）
-  /// - 铜色明度取现配色的 `interactive`（#B8863E，比反解出来的 #956220 亮），
-  ///   实心与卡面的最小对比度留 2
-  /// - `accentModeShift: 6`：实心在亮色下再亮 6 档、暗色下再暗 6 档（实验值，可调）
+  /// 与 `AppColors.seeded` 同一组参数：中性色度 2.6、实心按模式挪 −5、与卡面留 2
   factory TemplateSkin.fromAppColors({
     required AppColors colors,
     required bool dark,
@@ -105,8 +103,10 @@ class TemplateSkin {
       hue: seed.hue,
       dark: dark,
       chroma: seed.chroma,
+      neutralChroma: 2.6,
       accentTone: seed.tone,
       accentCardContrast: 2,
+      accentModeShift: -5,
     );
   }
 
