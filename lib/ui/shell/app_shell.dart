@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
@@ -934,12 +934,12 @@ class AppShellState extends State<AppShell> {
     // 刘海 / 挖孔与系统栏：取 viewPadding（不随输入法变）让开安全区；
     // 让开的那几条由各自那块的底色继续铺满，别在外围围出一圈生硬的边
     final safe = MediaQuery.viewPaddingOf(context);
-    // 试点：新外壳用设计层皮肤（侧栏底色 / 边框 / 宽度），其余布局不动
+    // 试点：新外壳用设计层皮肤（侧栏底色 / 边框 / 页面圆角），其余布局不动
     final skin = useNextShell ? TemplateSkin.ofContext(context) : null;
     final railBackground = skin?.surface ?? colors.cardBackground;
     final borderColor = skin?.border ?? colors.border;
 
-    return Row(
+    final body = Row(
       children: [
         // ── 左侧导航 ──
         // 挖孔落在这一侧时，栏里的内容往里让，条子仍铺导航栏自己的底色
@@ -960,7 +960,7 @@ class AppShellState extends State<AppShell> {
 
               onNavigate: _onRootNavigate,
 
-              width: skin != null ? 180 : 140,
+              width: 140,
               backgroundColor: skin?.surface,
               showCollapseButton: skin != null,
             ),
@@ -989,6 +989,26 @@ class AppShellState extends State<AppShell> {
           ),
         ),
       ],
+    );
+
+    if (skin == null) return body;
+
+    // 新外壳：整块页面收成一张圆角卡片（四周留一点缝露出底色），
+    // 与设计层 `TemplatePageFrame` 的窗口样张一致：卡面 + 1px 边 + 10 圆角
+    return ColoredBox(
+      color: skin.page,
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: skin.surface,
+            borderRadius: BorderRadius.circular(TemplateRadius.card),
+            border: Border.all(color: skin.border),
+          ),
+          child: body,
+        ),
+      ),
     );
   }
 
