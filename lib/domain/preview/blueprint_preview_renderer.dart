@@ -1,9 +1,10 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../../util/io/mindustry_save_file/schematic_file.dart';
 import 'blueprint_asset_pack.dart';
+import 'draw_rules/rules.dart';
+import 'plan_draw_rule.dart';
 
 /// 蓝图预览渲染结果
 class BlueprintPreviewResult {
@@ -24,7 +25,7 @@ class BlueprintPreviewResult {
 /// CPU 自绘蓝图预览
 ///
 /// 布局来自官方 `Schematics.getBuffer`：画布 `(w+2)*32 × (h+2)*32`，四周 1 格边距
-/// 顺序：阴影（1px/格剪影拉伸）→ 方块图标（按 tile 顺序）→ 配置图标
+/// 两批绘制：`drawPlanRegion`（方块本体，按声明类分派规则）→ `drawPlanConfigTop`（连线等）
 class BlueprintPreviewRenderer {
   BlueprintPreviewRenderer(this.assets);
 
@@ -33,37 +34,59 @@ class BlueprintPreviewRenderer {
   static const double tileSize = 32;
   static const double margin = 1;
 
-  final Map<String, ui.Image?> _blockIconCache = {};
-  final Map<String, ui.Image?> _genericIconCache = {};
+  final List<PlanDrawRule> _rules = buildPlanDrawRules();
+  final PlanDrawRule _fallbackRule = FallbackPlanDrawRule();
 
   Future<BlueprintPreviewResult> render(SchematicFile schematic) async {
     final unknownBlocks = <String>{};
-    final placed = <_PlacedBlock>[];
+    final placed = <PlanTile>[];
     for (final tile in schematic.tiles) {
       final info = assets.block(tile.blockName);
       if (info == null) {
         unknownBlocks.add(tile.blockName);
         continue;
       }
-      final blockIcon = await _blockIcon(tile.blockName);
-      final configMark = await _configMark(info, tile.config);
+      final size = info.size;
+      // 官方 drawx = x*8 + offset，偶数尺寸 offset 4；换算到像素与尺寸无关
+      final centerX = (tile.x + margin + (size.isOdd ? 0.5 : 1.0)) * tileSize;
+      final centerY =
+          (schematic.height - tile.y + (size.isOdd ? 0.5 : 0.0)) * tileSize;
       placed.add(
-        _PlacedBlock(
-          tile: tile,
-          info: info,
-          blockIcon: blockIcon,
-          configMark: configMark,
-        ),
+        PlanTile(tile: tile, info: info, centerX: centerX, centerY: centerY),
       );
+    }
+
+    final missingRegions = <String>{};
+    _collectRegions(schematic, placed, missingRegions);
+    if (missingRegions.isNotEmpty) {
+      await assets.ensureRegions(missingRegions);
     }
 
     final width = ((schematic.width + margin * 2) * tileSize).round();
     final height = ((schematic.height + margin * 2) * tileSize).round();
-
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
-    await _drawShadow(canvas, schematic, placed, width, height);
-    _drawBlocks(canvas, schematic, placed);
+    final context = PlanDrawContext(
+      canvas: canvas,
+      schematic: schematic,
+      assets: assets,
+      placed: placed,
+      collecting: false,
+      missingRegions: {},
+    );
+    _drawShadow(
+      canvas,
+      schematic,
+      width,
+      height,
+      await _createShadow(schematic),
+    );
+    for (final plan in placed) {
+      _blockRule(plan.info).drawBlock(context, plan);
+    }
+    for (final plan in placed) {
+      _configTopRule(plan.info)?.drawConfigTop(context, plan);
+    }
     final picture = recorder.endRecording();
     final image = await picture.toImage(width, height);
     return BlueprintPreviewResult(
@@ -73,26 +96,70 @@ class BlueprintPreviewRenderer {
     );
   }
 
-  /// 官方阴影：每个占用格在 (w+2)×(h+2) 的缓冲里画 1 像素，再整幅线性拉伸
-  Future<void> _drawShadow(
-    ui.Canvas canvas,
+  void _collectRegions(
     SchematicFile schematic,
-    List<_PlacedBlock> placed,
-    int width,
-    int height,
-  ) async {
+    List<PlanTile> placed,
+    Set<String> missingRegions,
+  ) {
+    final context = PlanDrawContext(
+      canvas: ui.Canvas(ui.PictureRecorder()),
+      schematic: schematic,
+      assets: assets,
+      placed: placed,
+      collecting: true,
+      missingRegions: missingRegions,
+    );
+    for (final plan in placed) {
+      _blockRule(plan.info).drawBlock(context, plan);
+    }
+    for (final plan in placed) {
+      _configTopRule(plan.info)?.drawConfigTop(context, plan);
+    }
+  }
+
+  PlanDrawRule _blockRule(BlueprintBlockInfo info) {
+    final declaringClass = info.regionRuleClass;
+    for (final rule in _rules) {
+      if (rule.blockClasses.contains(declaringClass)) return rule;
+      if (rule.blockClasses.contains(_simpleName(declaringClass))) return rule;
+    }
+    return _fallbackRule;
+  }
+
+  PlanDrawRule? _configTopRule(BlueprintBlockInfo info) {
+    final declaringClass = info.configTopRuleClass;
+    for (final rule in _rules) {
+      if (rule.configTopClasses.contains(declaringClass)) return rule;
+      if (rule.configTopClasses.contains(_simpleName(declaringClass))) {
+        return rule;
+      }
+    }
+    return null;
+  }
+
+  static String _simpleName(String className) => className.split('.').last;
+
+  /// 官方阴影：每个占用格在 (w+2)×(h+2) 的缓冲里画 1 像素，再整幅线性拉伸
+  Future<ui.Image> _createShadow(SchematicFile schematic) async {
     final shadowRecorder = ui.PictureRecorder();
     final shadowCanvas = ui.Canvas(shadowRecorder);
     final paint = ui.Paint()..color = const ui.Color(0xFFFFFFFF);
-    for (final block in placed) {
-      final size = block.info.size;
-      final topRow = schematic.height - block.tile.y - size + 1;
-      for (var i = 0; i < size; i++) {
-        for (var j = 0; j < size; j++) {
+    for (final tile in schematic.tiles) {
+      final info = assets.block(tile.blockName);
+      if (info == null) continue;
+      final size = info.size;
+      // 与官方阴影一致：从 x - (size-1)/2 起铺 size 格
+      final offset = (size - 1) ~/ 2;
+      final minX = tile.x - offset;
+      final maxX = minX + size - 1;
+      final minY = tile.y - offset;
+      final maxY = minY + size - 1;
+      for (var cellX = minX; cellX <= maxX; cellX++) {
+        for (var cellY = minY; cellY <= maxY; cellY++) {
           shadowCanvas.drawRect(
             ui.Rect.fromLTWH(
-              (block.tile.x + margin + i).toDouble(),
-              (topRow + j).toDouble(),
+              (cellX + margin).toDouble(),
+              (schematic.height - cellY).toDouble() * 1,
               1,
               1,
             ),
@@ -101,10 +168,19 @@ class BlueprintPreviewRenderer {
         }
       }
     }
-    final shadow = await shadowRecorder.endRecording().toImage(
+    return shadowRecorder.endRecording().toImage(
       (schematic.width + margin * 2).round(),
       (schematic.height + margin * 2).round(),
     );
+  }
+
+  void _drawShadow(
+    ui.Canvas canvas,
+    SchematicFile schematic,
+    int width,
+    int height,
+    ui.Image shadow,
+  ) {
     canvas.drawImageRect(
       shadow,
       ui.Rect.fromLTWH(0, 0, shadow.width.toDouble(), shadow.height.toDouble()),
@@ -118,145 +194,20 @@ class BlueprintPreviewRenderer {
     );
     shadow.dispose();
   }
-
-  void _drawBlocks(
-    ui.Canvas canvas,
-    SchematicFile schematic,
-    List<_PlacedBlock> placed,
-  ) {
-    for (final block in placed) {
-      final size = block.info.size;
-      final centerX = (block.tile.x + margin + size / 2.0) * tileSize;
-      final centerY =
-          (schematic.height - block.tile.y - size + margin + size / 2.0) *
-          tileSize;
-      final side = size * tileSize;
-      final rotate = block.info.rotate && block.info.rotateDraw
-          ? -block.tile.rotation * math.pi / 2
-          : 0.0;
-
-      canvas.save();
-      canvas.translate(centerX, centerY);
-      canvas.rotate(rotate);
-      final blockIcon = block.blockIcon;
-      if (blockIcon != null) {
-        canvas.drawImageRect(
-          blockIcon,
-          ui.Rect.fromLTWH(
-            0,
-            0,
-            blockIcon.width.toDouble(),
-            blockIcon.height.toDouble(),
-          ),
-          ui.Rect.fromLTWH(-side / 2, -side / 2, side, side),
-          ui.Paint()..filterQuality = ui.FilterQuality.none,
-        );
-      } else {
-        final color = block.info.mapColor ?? 0xFF888888;
-        canvas.drawRect(
-          ui.Rect.fromLTWH(-side / 2, -side / 2, side, side),
-          ui.Paint()..color = ui.Color(color),
-        );
-      }
-      final configMark = block.configMark;
-      if (configMark != null) {
-        final mark = configMark.image;
-        final markSide = math.min(mark.width, mark.height).toDouble();
-        final paint = ui.Paint()..filterQuality = ui.FilterQuality.none;
-        final color = configMark.color;
-        if (color != null) {
-          paint.colorFilter = ui.ColorFilter.mode(
-            ui.Color(color),
-            ui.BlendMode.modulate,
-          );
-        }
-        canvas.drawImageRect(
-          mark,
-          ui.Rect.fromLTWH(0, 0, mark.width.toDouble(), mark.height.toDouble()),
-          ui.Rect.fromLTWH(-markSide / 2, -markSide / 2, markSide, markSide),
-          paint,
-        );
-      }
-      canvas.restore();
-    }
-  }
-
-  Future<ui.Image?> _blockIcon(String blockName) async {
-    if (_blockIconCache.containsKey(blockName)) {
-      return _blockIconCache[blockName];
-    }
-    final bytes = assets.blockIconBytes(blockName);
-    final image = bytes == null ? null : await decodeImage(bytes);
-    _blockIconCache[blockName] = image;
-    return image;
-  }
-
-  /// config 标记：官方 `drawPlanConfigCenter` 的 CPU 复刻
-  ///
-  /// 排序器 / 卸载器 / 钻头 / 源头：画 center 图标并染成物品或液体颜色；无 config 画 cross
-  Future<_ConfigMark?> _configMark(
-    BlueprintBlockInfo info,
-    SchematicConfig? config,
-  ) async {
-    if (!_usesCenterMark(info.type)) return null;
-    if (config == null) {
-      final cross = await _genericIcon('cross');
-      return cross == null ? null : _ConfigMark(cross, null);
-    }
-    if (config.kind != SchematicConfigKind.content) return null;
-    final ref = config.value as SchematicContentRef;
-    final center = await _genericIcon('center');
-    if (center == null) return null;
-    if (ref.typeOrdinal == 0) {
-      return _ConfigMark(center, assets.itemColorOfId(ref.id));
-    }
-    if (ref.typeOrdinal == 4) {
-      return _ConfigMark(center, assets.liquidColorOfId(ref.id));
-    }
-    return null;
-  }
-
-  Future<ui.Image?> _genericIcon(String name) async {
-    if (_genericIconCache.containsKey(name)) return _genericIconCache[name];
-    final bytes = name == 'center'
-        ? assets.centerIconBytes()
-        : assets.crossIconBytes();
-    final image = bytes == null ? null : await decodeImage(bytes);
-    _genericIconCache[name] = image;
-    return image;
-  }
-
-  static bool _usesCenterMark(String type) {
-    return const {
-      'Sorter',
-      'Unloader',
-      'DirectionalUnloader',
-      'Drill',
-      'ItemSource',
-      'LiquidSource',
-    }.contains(type);
-  }
 }
 
-class _PlacedBlock {
-  _PlacedBlock({
-    required this.tile,
-    required this.info,
-    required this.blockIcon,
-    required this.configMark,
-  });
+/// 没有官方 drawPlanRegion 覆写的方块：默认按 fullIcon 画并处理旋转
+class FallbackPlanDrawRule extends PlanDrawRule {
+  @override
+  Set<String> get blockClasses => const {};
 
-  final SchematicTile tile;
-  final BlueprintBlockInfo info;
-  final ui.Image? blockIcon;
-  final _ConfigMark? configMark;
-}
-
-class _ConfigMark {
-  const _ConfigMark(this.image, this.color);
-
-  final ui.Image image;
-  final int? color;
+  @override
+  void drawBlock(PlanDrawContext context, PlanTile plan) {
+    final angle = plan.info.rotate && plan.info.rotateDraw
+        ? -plan.rotation * 90.0
+        : 0.0;
+    context.drawBlockIcon(plan, angleDegrees: angle);
+  }
 }
 
 Future<ui.Image> decodeImage(Uint8List bytes) async {
@@ -269,3 +220,6 @@ Future<Uint8List> encodePng(ui.Image image) async {
   final data = await image.toByteData(format: ui.ImageByteFormat.png);
   return data!.buffer.asUint8List();
 }
+
+/// 官方 rotation 值转屏幕角度
+double rotationToScreenDegrees(int rotation) => -rotation * 90.0;
