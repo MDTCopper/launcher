@@ -934,82 +934,77 @@ class AppShellState extends State<AppShell> {
     // 刘海 / 挖孔与系统栏：取 viewPadding（不随输入法变）让开安全区；
     // 让开的那几条由各自那块的底色继续铺满，别在外围围出一圈生硬的边
     final safe = MediaQuery.viewPaddingOf(context);
-    // 试点：新外壳用设计层皮肤（侧栏底色 / 边框 / 页面圆角），其余布局不动
+    // 试点：新外壳照设计层 `TemplatePageFrame` 的窗口规则——
+    // 外壳底 = 顶栏色（侧栏 + 顶栏 + 内容区左上角那圈），内容区底色单独一层
     final skin = useNextShell ? TemplateSkin.ofContext(context) : null;
     final railBackground = skin?.surface ?? colors.cardBackground;
-    final borderColor = skin?.border ?? colors.border;
 
-    final body = Row(
-      children: [
-        // ── 左侧导航 ──
-        // 挖孔落在这一侧时，栏里的内容往里让，条子仍铺导航栏自己的底色
-        ColoredBox(
-          color: railBackground,
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: safe.left,
-              top: safe.top,
-              bottom: safe.bottom,
-            ),
-            child: NavigationRail(
-              navigatorKey: _navigatorKey,
-              currentRoute: _currentRoute,
-              currentRootRoute: _currentRootRoute,
-              sections: _sections,
-              itemsAtBottom: _items,
-
-              onNavigate: _onRootNavigate,
-
-              width: 140,
-              backgroundColor: skin?.surface,
-              showCollapseButton: skin != null,
-            ),
-          ),
+    final rail = ColoredBox(
+      color: railBackground,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: safe.left,
+          top: safe.top,
+          bottom: safe.bottom,
         ),
+        child: NavigationRail(
+          navigatorKey: _navigatorKey,
+          currentRoute: _currentRoute,
+          currentRootRoute: _currentRootRoute,
+          sections: _sections,
+          itemsAtBottom: _items,
 
-        VerticalDivider(width: 1, thickness: 1, color: borderColor),
+          onNavigate: _onRootNavigate,
 
-        // ── 右侧内容区 ──
+          width: 140,
+          backgroundColor: skin?.surface,
+          showCollapseButton: skin != null,
+        ),
+      ),
+    );
+
+    // 页面本体：新外壳时顶栏在外壳层，页面单独一层，左上角切圆角
+    Widget page() => ColorfulBackground(
+      colorful: config.setting.personalizationOptions.colorfulBackground,
+      child: Padding(
+        padding: EdgeInsets.only(
+          top: safe.top,
+          right: safe.right,
+          bottom: safe.bottom,
+        ),
+        child: _buildNavigator(),
+      ),
+    );
+
+    final shellChrome = skin?.surface;
+    final content = Column(
+      children: [
+        _buildTopbar(),
         Expanded(
-          child: ColorfulBackground(
-            colorful: config.setting.personalizationOptions.colorfulBackground,
-            child: Padding(
-              padding: EdgeInsets.only(
-                top: safe.top,
-                right: safe.right,
-                bottom: safe.bottom,
-              ),
-              child: Column(
-                children: [
-                  _buildTopbar(),
-                  Expanded(child: _buildNavigator()),
-                ],
-              ),
-            ),
-          ),
+          child: skin == null
+              ? page()
+              // 圆角只给内容区左上角：露出来的那圈是外壳色，页面像被顶栏和侧栏包住
+              : ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                  ),
+                  child: page(),
+                ),
         ),
       ],
     );
 
-    if (skin == null) return body;
-
-    // 新外壳：整块页面收成一张圆角卡片（四周留一点缝露出底色），
-    // 与设计层 `TemplatePageFrame` 的窗口样张一致：卡面 + 1px 边 + 10 圆角
-    return ColoredBox(
-      color: skin.page,
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: skin.surface,
-            borderRadius: BorderRadius.circular(TemplateRadius.card),
-            border: Border.all(color: skin.border),
-          ),
-          child: body,
-        ),
-      ),
+    final body = Row(
+      children: [
+        rail,
+        if (skin == null)
+          VerticalDivider(width: 1, thickness: 1, color: colors.border),
+        Expanded(child: content),
+      ],
     );
+    return shellChrome == null
+        ? body
+        : ColoredBox(color: shellChrome, child: body);
   }
 
   // ── 页面过渡 ──
