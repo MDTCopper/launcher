@@ -46,6 +46,12 @@ class NavigationRail extends StatefulWidget {
   final double width;
   final double collapseWidth;
 
+  /// 新外壳试点：把「收纳菜单」按钮放进侧栏底部（顶部不再放）
+  final bool showCollapseButton;
+
+  /// 新外壳试点：侧栏底色（null = 沿用旧卡面色）
+  final Color? backgroundColor;
+
   const NavigationRail({
     super.key,
 
@@ -59,6 +65,8 @@ class NavigationRail extends StatefulWidget {
 
     this.width = 140,
     this.collapseWidth = 56,
+    this.showCollapseButton = false,
+    this.backgroundColor,
   });
 
   @override
@@ -312,6 +320,56 @@ class NavigationRailState extends State<NavigationRail> {
     );
   }
 
+  /// 新外壳：收纳 / 展开主菜单（放在侧栏底部，替代原来顶栏里那颗）
+  Widget _buildCollapseRow() {
+    final colors = AppColors.of(context);
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: HintLayer(
+        hint: collapse ? '展开主菜单' : '收纳主菜单',
+        preferPosition: .right,
+        child: ReboundButton(
+          backgroundColor: Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => setState(() => collapse = !collapse),
+          child: SizedBox(
+            height: 30,
+            child: Row(
+              mainAxisAlignment: collapse
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: EdgeInsets.only(left: collapse ? 0 : 4),
+                  child: Icon(
+                    collapse ? Icons.chevron_right : Icons.chevron_left,
+                    size: 18,
+                    color: colors.itemSecondary,
+                  ),
+                ),
+                if (!collapse)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Text(
+                        '收纳菜单',
+                        maxLines: 1,
+                        overflow: .ellipsis,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: colors.itemSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
@@ -321,11 +379,12 @@ class NavigationRailState extends State<NavigationRail> {
       curve: Curves.ease,
       width: collapse ? widget.collapseWidth : widget.width,
       child: ColoredBox(
-        color: colors.cardBackground,
+        color: widget.backgroundColor ?? colors.cardBackground,
         child: Column(
           children: [
             _buildTop(),
             Expanded(child: _buildMenuView()),
+            if (widget.showCollapseButton) _buildCollapseRow(),
             _buildVersionTile(),
           ],
         ),

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
@@ -17,6 +17,7 @@ import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
 import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/online/online_page.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
+import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:copper_launcher/ui/shell/next/next_shell_flag.dart';
 import 'package:copper_launcher/ui/shell/next/next_top_bar.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
@@ -472,8 +473,6 @@ class AppShellState extends State<AppShell> {
 
   /// 新外壳顶栏（试点 A）：数据、跳转、抽屉仍走原有实现，只把「壳」换成设计层皮肤
   Widget _buildNextTopbar() {
-    final navigationCollapse =
-        config.setting.personalizationOptions.navigationCollapse;
     final segments = _buildTrailSegments();
     final crumbs = <TemplateBreadcrumb>[
       for (final segment in segments)
@@ -501,14 +500,6 @@ class AppShellState extends State<AppShell> {
         final subCollapsed = subNavigationCollapseNotifier.value;
         return NextTopBar(
           crumbs: crumbs,
-          navigationCollapsed: navigationCollapse,
-          onToggleNavigation: () {
-            setState(() {
-              config.setting.personalizationOptions.navigationCollapse =
-                  !navigationCollapse;
-              config.save();
-            });
-          },
           subNavigationCollapsed: subCollapsed,
           onToggleSubNavigation: () => setSubNavigationCollapse(!subCollapsed),
           accountName: account.loggedIn ? (account.username ?? '已登录') : '未登录',
@@ -943,13 +934,17 @@ class AppShellState extends State<AppShell> {
     // 刘海 / 挖孔与系统栏：取 viewPadding（不随输入法变）让开安全区；
     // 让开的那几条由各自那块的底色继续铺满，别在外围围出一圈生硬的边
     final safe = MediaQuery.viewPaddingOf(context);
+    // 试点：新外壳用设计层皮肤（侧栏底色 / 边框 / 宽度），其余布局不动
+    final skin = useNextShell ? TemplateSkin.ofContext(context) : null;
+    final railBackground = skin?.surface ?? colors.cardBackground;
+    final borderColor = skin?.border ?? colors.border;
 
     return Row(
       children: [
         // ── 左侧导航 ──
         // 挖孔落在这一侧时，栏里的内容往里让，条子仍铺导航栏自己的底色
         ColoredBox(
-          color: colors.cardBackground,
+          color: railBackground,
           child: Padding(
             padding: EdgeInsets.only(
               left: safe.left,
@@ -964,11 +959,15 @@ class AppShellState extends State<AppShell> {
               itemsAtBottom: _items,
 
               onNavigate: _onRootNavigate,
+
+              width: skin != null ? 180 : 140,
+              backgroundColor: skin?.surface,
+              showCollapseButton: skin != null,
             ),
           ),
         ),
 
-        VerticalDivider(width: 1, thickness: 1, color: colors.border),
+        VerticalDivider(width: 1, thickness: 1, color: borderColor),
 
         // ── 右侧内容区 ──
         Expanded(

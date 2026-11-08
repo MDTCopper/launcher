@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
+﻿import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
@@ -16,8 +16,6 @@ class NextTopBar extends StatelessWidget {
   const NextTopBar({
     super.key,
     required this.crumbs,
-    required this.navigationCollapsed,
-    required this.onToggleNavigation,
     required this.subNavigationCollapsed,
     required this.onToggleSubNavigation,
     required this.accountName,
@@ -32,8 +30,6 @@ class NextTopBar extends StatelessWidget {
   /// 面包屑（越靠右越当前）
   final List<TemplateBreadcrumb> crumbs;
 
-  final bool navigationCollapsed;
-  final VoidCallback onToggleNavigation;
   final bool subNavigationCollapsed;
   final VoidCallback onToggleSubNavigation;
 
@@ -75,16 +71,7 @@ class NextTopBar extends StatelessWidget {
             ),
           Row(
             children: [
-              const SizedBox(width: 4),
-              _TopIconButton(
-                skin: skin,
-                icon: Symbols.dock_to_right,
-                hint: navigationCollapsed ? '点击展开主菜单' : '点击收纳主菜单',
-                active: !navigationCollapsed,
-                fillAlignment: const Alignment(-0.56, -0.08),
-                onTap: onToggleNavigation,
-              ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 8),
               _AccountChip(
                 skin: skin,
                 name: accountName,
