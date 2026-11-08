@@ -658,24 +658,31 @@ class _DotMatrixPainter extends CustomPainter {
     }
     if (pool.isEmpty) return const _BlinkSchedule([], 0);
 
-    const perWave = 3;
+    // 每波 3~5 颗（用户 2026-11-08）、留白 350ms
+    const minPerWave = 3;
+    const maxPerWave = 5;
     const staggerMs = 220.0;
     const lightMs = 760.0;
-    // 亮完一组后的留白：短一点，节奏更紧凑（用户 2026-11-08）
-    const pauseMs = 1100.0;
-    final waveMs = (perWave - 1) * staggerMs + lightMs + pauseMs;
-    final waves = math.max(1, (loopMs / waveMs).floor());
+    const pauseMs = 350.0;
 
     final lights = <_BlinkLight>[];
     Set<int> lastPick = {};
-    for (var w = 0; w < waves; w++) {
+    var timeMs = 0.0;
+    while (true) {
+      final want = math.min(
+        minPerWave + random.nextInt(maxPerWave - minPerWave + 1),
+        pool.length,
+      );
+      final waveEnd = timeMs + (want - 1) * staggerMs + lightMs;
+      // 这一波塞不进整圈就收工（尾部留白，接缝处回到第一波）
+      if (waveEnd > loopMs) break;
+
       Set<int> pick;
-      var tries = 0;
-      final want = math.min(perWave, pool.length);
       do {
         pick = <int>{};
-        while (pick.length < want && tries < 300) {
-          tries++;
+        var guard = 0;
+        while (pick.length < want && guard < 400) {
+          guard++;
           pick.add(random.nextInt(pool.length));
         }
       } while (pool.length > want &&
@@ -683,18 +690,19 @@ class _DotMatrixPainter extends CustomPainter {
           pick.difference(lastPick).isEmpty);
       lastPick = pick;
       final ordered = pick.toList()..sort();
-      final waveStart = w * waveMs;
       for (var i = 0; i < ordered.length; i++) {
         final cell = pool[ordered[i]];
         lights.add(
           _BlinkLight(
             col: cell.col,
             row: cell.row,
-            startMs: waveStart + i * staggerMs,
+            startMs: timeMs + i * staggerMs,
             durMs: lightMs,
           ),
         );
       }
+      timeMs = waveEnd + pauseMs;
+      if (timeMs >= loopMs) break;
     }
     return _BlinkSchedule(lights, loopMs);
   }
