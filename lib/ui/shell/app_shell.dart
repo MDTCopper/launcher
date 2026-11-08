@@ -16,6 +16,9 @@ import 'package:copper_launcher/ui/pages/cloud/cloud_overview_page.dart';
 import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
 import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/online/online_page.dart';
+import 'package:copper_launcher/ui/pages/design/template_shell.dart';
+import 'package:copper_launcher/ui/shell/next/next_shell_flag.dart';
+import 'package:copper_launcher/ui/shell/next/next_top_bar.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/route/route_trail.dart';
@@ -386,6 +389,9 @@ class AppShellState extends State<AppShell> {
   // ── 构建 ──
 
   Widget _buildTopbar() {
+    // 试点 A：新外壳顶栏（只在 debug + NEXT_SHELL 时启用，Release 永远走旧顶栏）
+    if (useNextShell) return _buildNextTopbar();
+
     final colors = AppColors.of(context);
     final navigationCollapse =
         config.setting.personalizationOptions.navigationCollapse;
@@ -461,6 +467,79 @@ class AppShellState extends State<AppShell> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 新外壳顶栏（试点 A）：数据、跳转、抽屉仍走原有实现，只把「壳」换成设计层皮肤
+  Widget _buildNextTopbar() {
+    final navigationCollapse =
+        config.setting.personalizationOptions.navigationCollapse;
+    final segments = _buildTrailSegments();
+    final crumbs = <TemplateBreadcrumb>[
+      for (final segment in segments)
+        switch (segment) {
+          RouteBreadcrumb(:final label, :final route, :final isCurrent) =>
+            TemplateBreadcrumb(
+              label,
+              onTap: isCurrent ? null : () => _jumpToRoute(route),
+            ),
+          InPageBreadcrumb(:final label) => TemplateBreadcrumb(
+            label,
+            boxed: true,
+          ),
+        },
+    ];
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        AccountManager.instance.snapshot,
+        MdtbbsNotificationService.instance.items,
+        subNavigationCollapseNotifier,
+      ]),
+      builder: (context, _) {
+        final account = AccountManager.instance.snapshot.value;
+        final subCollapsed = subNavigationCollapseNotifier.value;
+        return NextTopBar(
+          crumbs: crumbs,
+          navigationCollapsed: navigationCollapse,
+          onToggleNavigation: () {
+            setState(() {
+              config.setting.personalizationOptions.navigationCollapse =
+                  !navigationCollapse;
+              config.save();
+            });
+          },
+          subNavigationCollapsed: subCollapsed,
+          onToggleSubNavigation: () => setSubNavigationCollapse(!subCollapsed),
+          accountName: account.loggedIn ? (account.username ?? '已登录') : '未登录',
+          avatarUrl: account.avatarUrl,
+          unread: MdtbbsNotificationService.instance.unreadCount,
+          onAccountTap: () {
+            _scaffoldKey.currentState?.openDrawer();
+            // 头像在 /me 里，还没读过资料就先补一次
+            final accounts = AccountManager.instance;
+            if (accounts.isLoggedIn && accounts.account == null) {
+              unawaited(accounts.loadAccount());
+            }
+          },
+          taskOpener: const TaskDrawerOpener(),
+          windowControls: isDesktop
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ReboundButton(
+                      backgroundColor: Colors.transparent,
+                      onTap: () => windowManager.minimize(),
+                      child: const Icon(Icons.remove),
+                    ),
+                    const SizedBox(width: 4),
+                    const WindowCloseButton(),
+                  ],
+                )
+              : null,
+          onDragStart: isDesktop ? () => windowManager.startDragging() : null,
+        );
+      },
     );
   }
 
