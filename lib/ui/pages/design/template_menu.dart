@@ -57,7 +57,9 @@ Future<void> showTemplateMenu(
     context: context,
     position: position,
     color: skin.surface,
-    elevation: 0,
+    elevation: 8,
+    shadowColor: Colors.black,
+    surfaceTintColor: Colors.transparent,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(12),
       side: BorderSide(color: skin.border),
@@ -80,10 +82,12 @@ class TemplateDropdownItem<T> {
   final IconData? icon;
 }
 
-/// 真下拉：点一下在指针处弹菜单（单选）
+/// 真下拉：点一下弹出选项面板（单选）
 ///
-/// 覆盖度审计 P0-5：`TemplateSelectRow` 原先只是死框，这是能用的那支
-class TemplateDropdown<T> extends StatelessWidget {
+/// 2026-11-08：**下拉风格统一**——单选 / 多选 / 右键菜单面板共用一套
+/// （面板 `_PopupPanel`：12 圆角 + 1px 边 + 黑 30 投影；行 `_PopupRow`：32 高、圆角 8、
+/// 图标 16、行尾 16 宽勾选槽；触发器 `_DropdownTrigger`：凹槽底 + 控件圆角）
+class TemplateDropdown<T> extends StatefulWidget {
   const TemplateDropdown({
     super.key,
     required this.skin,
@@ -104,78 +108,95 @@ class TemplateDropdown<T> extends StatelessWidget {
   final String hint;
 
   @override
-  Widget build(BuildContext context) {
-    final current = items.where((item) => item.value == value).firstOrNull;
-    return SizedBox(
-      width: width,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: enabled
-            ? (details) => _open(context, details.globalPosition)
-            : null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: TemplateSpace.md,
-            vertical: TemplateSpace.sm,
-          ),
-          decoration: BoxDecoration(
-            color: enabled ? skin.sunken : skin.standardDisabledSurface,
-            borderRadius: BorderRadius.circular(TemplateRadius.control),
-            border: Border.all(
-              color: enabled ? skin.border : skin.controlBorderDisabled,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: width == null ? MainAxisSize.min : MainAxisSize.max,
-            spacing: TemplateSpace.sm,
-            children: [
-              if (current?.icon != null)
-                Icon(
-                  current!.icon,
-                  size: 16,
-                  color: enabled ? skin.textSecondary : skin.textDisabled,
-                ),
-              Expanded(
-                child: Text(
-                  current?.label ?? hint,
-                  style: TemplateType.item.copyWith(
-                    color: enabled
-                        ? (current == null
-                              ? skin.textTertiary
-                              : skin.textPrimary)
-                        : skin.textDisabled,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(
-                Icons.keyboard_arrow_down,
-                size: 18,
-                color: enabled ? skin.textTertiary : skin.textDisabled,
-              ),
-            ],
+  State<TemplateDropdown<T>> createState() => _TemplateDropdownState<T>();
+}
+
+class _TemplateDropdownState<T> extends State<TemplateDropdown<T>> {
+  final _link = LayerLink();
+  OverlayEntry? _entry;
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    super.dispose();
+  }
+
+  void _toggle() {
+    if (_entry != null) {
+      _removeOverlay();
+      return;
+    }
+    _entry = OverlayEntry(builder: _buildOverlay);
+    Overlay.of(context).insert(_entry!);
+  }
+
+  void _removeOverlay() {
+    _entry?.remove();
+    _entry = null;
+  }
+
+  Widget _buildOverlay(BuildContext context) {
+    final skin = widget.skin;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _removeOverlay,
           ),
         ),
-      ),
+        CompositedTransformFollower(
+          link: _link,
+          showWhenUnlinked: false,
+          offset: const Offset(0, 34),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: widget.width,
+              child: _PopupPanel(
+                skin: skin,
+                minWidth: widget.width ?? 180,
+                children: [
+                  for (final item in widget.items)
+                    _PopupRow(
+                      skin: skin,
+                      icon: item.icon,
+                      label: item.label,
+                      checked: item.value == widget.value,
+                      onTap: () {
+                        _removeOverlay();
+                        widget.onSelected(item.value);
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  Future<void> _open(BuildContext context, Offset position) async {
-    final menuItems = [
-      for (final item in items)
-        TemplateMenuItem(
-          label: item.label,
-          icon: item.icon,
-          checked: item.value == value,
-          onTap: () => onSelected(item.value),
+  @override
+  Widget build(BuildContext context) {
+    final skin = widget.skin;
+    final current = widget.items
+        .where((item) => item.value == widget.value)
+        .firstOrNull;
+    return CompositedTransformTarget(
+      link: _link,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: widget.enabled ? (_) => _toggle() : null,
+        child: _DropdownTrigger(
+          skin: skin,
+          width: widget.width,
+          enabled: widget.enabled,
+          icon: current?.icon,
+          label: current?.label ?? widget.hint,
+          muted: current == null,
         ),
-    ];
-    await showTemplateMenu(
-      context,
-      skin: skin,
-      globalPosition: position + const Offset(0, 28),
-      items: menuItems,
+      ),
     );
   }
 }
@@ -258,123 +279,69 @@ class _TemplateMultiDropdownState<T> extends State<TemplateMultiDropdown<T>> {
     // 面板内部自己 setState：外层 Select 的选中集合通过 onChanged 回写
     return StatefulBuilder(
       builder: (context, setPanelState) {
-        Widget row({
-          required String label,
-          IconData? icon,
-          bool? checked,
-          required VoidCallback onTap,
-        }) {
-          return ReboundContainer(
-            onTap: onTap,
-            pressedScale: 0.99,
-            borderRadius: BorderRadius.circular(TemplateRadius.control),
-            backgroundColor: Colors.transparent,
-            hoverColor: skin.hoverOn(skin.surface),
-            highlightColor: skin.pressed,
-            padding: const EdgeInsets.symmetric(
-              horizontal: TemplateSpace.sm,
-              vertical: TemplateSpace.sm,
-            ),
-            child: Row(
-              spacing: TemplateSpace.sm,
-              children: [
-                SizedBox(
-                  width: 18,
-                  child: icon == null
-                      ? null
-                      : Icon(icon, size: 16, color: skin.textSecondary),
-                ),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TemplateType.item.copyWith(color: skin.textPrimary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (checked != null)
-                  SizedBox(
-                    width: 16,
-                    child: checked
-                        ? Icon(Icons.check, size: 14, color: skin.accentText)
-                        : null,
-                  ),
-              ],
-            ),
+        void toggle(T value) {
+          final next = Set<T>.of(widget.values);
+          if (!next.remove(value)) next.add(value);
+          widget.onChanged(next);
+          setPanelState(() {});
+        }
+
+        void selectAllOrClear() {
+          widget.onChanged(
+            widget.values.length == widget.items.length
+                ? <T>{}
+                : widget.items.map((e) => e.value).toSet(),
           );
+          setPanelState(() {});
         }
 
         return SizedBox(
           width: widget.width,
-          child: Container(
-            padding: const EdgeInsets.all(TemplateSpace.xs),
-            decoration: BoxDecoration(
-              color: skin.surface,
-              borderRadius: BorderRadius.circular(TemplateRadius.card),
-              border: Border.all(color: skin.border),
-              boxShadow: [
-                BoxShadow(
-                  color: skin.shadow,
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
+          child: _PopupPanel(
+            skin: skin,
+            minWidth: widget.width,
+            children: [
+              // 头部：已选数量 + 全选/清除（与行同内衬，像一个操作条）
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: TemplateSpace.sm,
+                  vertical: TemplateSpace.xs,
                 ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: TemplateSpace.sm,
-                    vertical: TemplateSpace.xs,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '已选 ${widget.values.length} 项',
-                          style: TemplateType.micro.copyWith(
-                            color: skin.textTertiary,
-                          ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '已选 ${widget.values.length} 项',
+                        style: TemplateType.micro.copyWith(
+                          color: skin.textTertiary,
                         ),
                       ),
-                      Text(
-                        '全选',
+                    ),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: selectAllOrClear,
+                      child: Text(
+                        widget.values.length == widget.items.length
+                            ? '清除'
+                            : '全选',
                         style: TemplateType.micro.copyWith(
                           color: skin.accentText,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                for (final item in widget.items)
-                  row(
-                    label: item.label,
-                    icon: item.icon,
-                    checked: widget.values.contains(item.value),
-                    onTap: () {
-                      final next = Set<T>.of(widget.values);
-                      if (!next.remove(item.value)) next.add(item.value);
-                      widget.onChanged(next);
-                      setPanelState(() {});
-                    },
-                  ),
-                Container(height: 1, color: skin.border),
-                row(
-                  label: '全选 / 清除',
-                  icon: Icons.checklist,
-                  onTap: () {
-                    widget.onChanged(
-                      widget.values.length == widget.items.length
-                          ? <T>{}
-                          : widget.items.map((e) => e.value).toSet(),
-                    );
-                    setPanelState(() {});
-                  },
+              ),
+              Container(height: 1, color: skin.border),
+              for (final item in widget.items)
+                _PopupRow(
+                  skin: skin,
+                  icon: item.icon,
+                  label: item.label,
+                  checked: widget.values.contains(item.value),
+                  onTap: () => toggle(item.value),
                 ),
-              ],
-            ),
+            ],
           ),
         );
       },
@@ -390,41 +357,12 @@ class _TemplateMultiDropdownState<T> extends State<TemplateMultiDropdown<T>> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapDown: widget.enabled ? (_) => _toggle() : null,
-        child: Container(
+        child: _DropdownTrigger(
+          skin: skin,
           width: widget.width,
-          padding: const EdgeInsets.symmetric(
-            horizontal: TemplateSpace.md,
-            vertical: TemplateSpace.sm,
-          ),
-          decoration: BoxDecoration(
-            color: widget.enabled ? skin.sunken : skin.standardDisabledSurface,
-            borderRadius: BorderRadius.circular(TemplateRadius.control),
-            border: Border.all(
-              color: widget.enabled ? skin.border : skin.controlBorderDisabled,
-            ),
-          ),
-          child: Row(
-            spacing: TemplateSpace.sm,
-            children: [
-              Expanded(
-                child: Text(
-                  hasValue ? '已选 ${widget.values.length} 项' : widget.hint,
-                  style: TemplateType.item.copyWith(
-                    color: !widget.enabled
-                        ? skin.textDisabled
-                        : (hasValue ? skin.textPrimary : skin.textTertiary),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(
-                Icons.keyboard_arrow_down,
-                size: 18,
-                color: widget.enabled ? skin.textTertiary : skin.textDisabled,
-              ),
-            ],
-          ),
+          enabled: widget.enabled,
+          label: hasValue ? '已选 ${widget.values.length} 项' : widget.hint,
+          muted: !hasValue,
         ),
       ),
     );
@@ -449,7 +387,15 @@ List<PopupMenuEntry<void>> _menuEntries(
         padding: EdgeInsets.zero,
         enabled: item.enabled,
         onTap: item.onTap,
-        child: _TemplateMenuItemRow(skin: skin, item: item),
+        child: _PopupRow(
+          skin: skin,
+          icon: item.icon,
+          label: item.label,
+          checked: item.checked,
+          danger: item.danger,
+          enabled: item.enabled,
+          onTap: item.onTap,
+        ),
       ),
     ],
   ];
@@ -473,10 +419,58 @@ class TemplateMenuPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 静态面板要有确定宽度：行里的 Expanded 需要有限约束（弹出菜单那条由 showMenu 给）
+    // 与下拉面板同一套（_PopupPanel / _PopupRow），保证「菜单 / 下拉」风格一致
     return SizedBox(
       width: minWidth,
+      child: _PopupPanel(
+        skin: skin,
+        minWidth: minWidth,
+        children: [
+          for (final item in items) ...[
+            if (item.dividerBefore)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: TemplateSpace.xs),
+                child: Container(height: 1, color: skin.border),
+              ),
+            _PopupRow(
+              skin: skin,
+              icon: item.icon,
+              label: item.label,
+              shortcut: item.shortcut,
+              checked: item.checked,
+              danger: item.danger,
+              enabled: item.enabled,
+              onTap: item.onTap,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 统一的弹出面板：右键菜单 / 单选下拉 / 多选下拉共用
+///
+/// 12 圆角 + 1px 边 + 黑 30 投影，内衬 4（与 App 的 `ContextMenuPanel` 一致）
+class _PopupPanel extends StatelessWidget {
+  const _PopupPanel({
+    required this.skin,
+    required this.children,
+    required this.minWidth,
+  });
+
+  final TemplateSkin skin;
+  final List<Widget> children;
+  final double minWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    // Overlay 里的面板不在任何 Material 下面，DefaultTextStyle 没带主题字体
+    // （测试里就会掉回 Roboto → 中文变方块）；这里用 Material 把主题文字样式补上
+    return Material(
+      type: MaterialType.transparency,
       child: Container(
+        constraints: BoxConstraints(minWidth: minWidth, maxWidth: 320),
         padding: const EdgeInsets.all(TemplateSpace.xs),
         decoration: BoxDecoration(
           color: skin.surface,
@@ -493,31 +487,79 @@ class TemplateMenuPanel extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
+      ),
+    );
+  }
+}
+
+/// 统一的面板行：32 高、圆角 8、图标 16、行尾 16 宽槽（勾选 / 快捷键）
+class _PopupRow extends StatelessWidget {
+  const _PopupRow({
+    required this.skin,
+    required this.label,
+    required this.onTap,
+    this.icon,
+    this.checked,
+    this.shortcut,
+    this.danger = false,
+    this.enabled = true,
+  });
+
+  final TemplateSkin skin;
+  final String label;
+  final VoidCallback? onTap;
+  final IconData? icon;
+  final bool? checked;
+  final String? shortcut;
+  final bool danger;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = !enabled
+        ? skin.textDisabled
+        : danger
+        ? skin.dangerText
+        : skin.textSecondary;
+    return SizedBox(
+      height: 32,
+      child: ReboundContainer(
+        onTap: enabled ? onTap : null,
+        pressedScale: 0.98,
+        borderRadius: BorderRadius.circular(8),
+        backgroundColor: Colors.transparent,
+        hoverColor: skin.hoverOn(skin.surface),
+        highlightColor: skin.pressed,
+        padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.sm),
+        child: Row(
+          spacing: TemplateSpace.sm,
           children: [
-            for (final item in items) ...[
-              if (item.dividerBefore)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: TemplateSpace.xs,
-                  ),
-                  child: Container(height: 1, color: skin.border),
-                ),
-              SizedBox(
-                height: 32,
-                child: ReboundContainer(
-                  onTap: item.enabled ? item.onTap : null,
-                  pressedScale: 0.98,
-                  borderRadius: BorderRadius.circular(8),
-                  backgroundColor: Colors.transparent,
-                  hoverColor: skin.hoverOn(skin.surface),
-                  highlightColor: skin.pressed,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: TemplateSpace.sm,
-                  ),
-                  child: _TemplateMenuItemRow(skin: skin, item: item),
-                ),
+            SizedBox(
+              width: 16,
+              child: icon == null ? null : Icon(icon, size: 16, color: color),
+            ),
+            Expanded(
+              child: Text(
+                label,
+                style: TemplateType.item.copyWith(color: color),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
+            ),
+            if (shortcut != null)
+              Text(
+                shortcut!,
+                style: TemplateType.micro.copyWith(color: skin.textTertiary),
+              ),
+            // 行尾槽固定 16 宽：勾 / 箭头都钉在同一列
+            SizedBox(
+              width: 16,
+              child: checked == true
+                  ? Icon(Icons.check, size: 16, color: skin.accentText)
+                  : null,
+            ),
           ],
         ),
       ),
@@ -525,49 +567,72 @@ class TemplateMenuPanel extends StatelessWidget {
   }
 }
 
-class _TemplateMenuItemRow extends StatelessWidget {
-  const _TemplateMenuItemRow({required this.skin, required this.item});
+/// 统一的触发器（下拉按钮壳）：凹槽底 + 控件圆角 + 1px 边 + 右侧小箭头
+class _DropdownTrigger extends StatelessWidget {
+  const _DropdownTrigger({
+    required this.skin,
+    required this.label,
+    required this.enabled,
+    this.muted = false,
+    this.icon,
+    this.width,
+  });
 
   final TemplateSkin skin;
-  final TemplateMenuItem item;
+  final String label;
+  final bool enabled;
+
+  /// 占位文案（未选值）时字色降一档
+  final bool muted;
+  final IconData? icon;
+  final double? width;
 
   @override
   Widget build(BuildContext context) {
-    final color = !item.enabled
-        ? skin.textDisabled
-        : item.danger
-        ? skin.dangerText
-        : skin.textSecondary;
-    return Row(
-      spacing: TemplateSpace.sm,
-      children: [
-        SizedBox(
-          width: 16,
-          child: item.icon == null
-              ? null
-              : Icon(item.icon, size: 16, color: color),
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(
+        horizontal: TemplateSpace.md,
+        vertical: TemplateSpace.sm,
+      ),
+      decoration: BoxDecoration(
+        color: enabled ? skin.sunken : skin.standardDisabledSurface,
+        borderRadius: BorderRadius.circular(TemplateRadius.control),
+        border: Border.all(
+          color: enabled ? skin.border : skin.controlBorderDisabled,
         ),
-        Expanded(
-          child: Text(
-            item.label,
-            style: TemplateType.item.copyWith(color: color),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+      ),
+      child: Row(
+        mainAxisSize: width == null ? MainAxisSize.min : MainAxisSize.max,
+        spacing: TemplateSpace.sm,
+        children: [
+          if (icon != null)
+            Icon(
+              icon,
+              size: 16,
+              color: enabled ? skin.textSecondary : skin.textDisabled,
+            ),
+          Expanded(
+            child: Text(
+              label,
+              style: TemplateType.item.copyWith(
+                color: !enabled
+                    ? skin.textDisabled
+                    : muted
+                    ? skin.textTertiary
+                    : skin.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        ),
-        if (item.shortcut != null)
-          Text(
-            item.shortcut!,
-            style: TemplateType.micro.copyWith(color: skin.textTertiary),
+          Icon(
+            Icons.keyboard_arrow_down,
+            size: 18,
+            color: enabled ? skin.textTertiary : skin.textDisabled,
           ),
-        // 行尾槽固定 16 宽：勾 / 箭头都钉在同一列
-        SizedBox(
-          width: 16,
-          child: item.checked == true
-              ? Icon(Icons.check, size: 16, color: skin.accentText)
-              : null,
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
