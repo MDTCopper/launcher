@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
@@ -7,9 +7,6 @@ import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
 import 'package:copper_launcher/ui/shell/app_navigation.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
-import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
-import 'package:copper_launcher/ui/components/scroll/scroll_fade_mask.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/pages/cloud/cloud_overview_page.dart';
@@ -18,7 +15,6 @@ import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/online/online_page.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
-import 'package:copper_launcher/ui/shell/next/next_shell_flag.dart';
 import 'package:copper_launcher/ui/shell/next/next_top_bar.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
@@ -32,7 +28,6 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
-import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:window_manager/window_manager.dart';
 import 'parts/colorful_background.dart';
 import '../theme/app_colors.dart';
@@ -65,7 +60,6 @@ class AppShellState extends State<AppShell> {
   _AccountTab _accountTab = _AccountTab.profile;
 
   /// 顶栏面包屑的横向滚动：长了可以滚动查看整条路由栈
-  final _trailScrollController = ScrollController();
 
   // ── 导航配置 ──
 
@@ -267,117 +261,6 @@ class AppShellState extends State<AppShell> {
     return buildBreadcrumb(entries);
   }
 
-  Widget _buildBreadcrumb() {
-    final segments = _buildTrailSegments();
-    if (segments.isEmpty) {
-      return Text('主页', style: Theme.of(context).textTheme.labelMedium);
-    }
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Listener(
-        onPointerSignal: _handleTrailPointerSignal,
-        child: ScrollFadeMask(
-          controller: _trailScrollController,
-          scrollDirection: Axis.horizontal,
-          child: SingleChildScrollView(
-            controller: _trailScrollController,
-            scrollDirection: Axis.horizontal,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Row(
-                key: ValueKey(_trailSignature(segments)),
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var index = 0; index < segments.length; index++) ...[
-                    if (index > 0) _buildTrailSeparator(),
-                    _buildTrailSegment(segments[index]),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  static String _trailSignature(List<BreadcrumbSegment> segments) => segments
-      .map(
-        (segment) =>
-            '${segment is InPageBreadcrumb ? '[' : ''}${segment.label}',
-      )
-      .join('>');
-
-  /// 顶栏放不下时用滚轮横向看完整条栈
-  void _handleTrailPointerSignal(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent) return;
-    if (!_trailScrollController.hasClients) return;
-    final delta = event.scrollDelta.dy != 0
-        ? event.scrollDelta.dy
-        : event.scrollDelta.dx;
-    if (delta == 0) return;
-    final position = _trailScrollController.position;
-    _trailScrollController.jumpTo(
-      (_trailScrollController.offset + delta).clamp(
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      ),
-    );
-  }
-
-  Widget _buildTrailSeparator() {
-    final colors = AppColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Icon(Icons.chevron_right, size: 14, color: colors.itemHint),
-    );
-  }
-
-  Widget _buildTrailSegment(BreadcrumbSegment segment) {
-    final colors = AppColors.of(context);
-    final theme = Theme.of(context);
-    switch (segment) {
-      case RouteBreadcrumb(:final label, :final route, :final isCurrent):
-        final text = Text(
-          label,
-          maxLines: 1,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: isCurrent ? colors.itemPrimary : colors.itemSecondary,
-            fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
-          ),
-        );
-        if (isCurrent) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: text,
-          );
-        }
-        return ReboundContainer(
-          onTap: () => _jumpToRoute(route),
-          pressedScale: 0.96,
-          duration: const Duration(milliseconds: 120),
-          borderRadius: BorderRadius.circular(4),
-          hoverColor: colors.highBackgroundOnCard,
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          child: text,
-        );
-      case InPageBreadcrumb(:final label):
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-          decoration: BoxDecoration(
-            border: Border.all(color: colors.border),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            style: theme.textTheme.labelSmall?.copyWith(color: colors.itemHint),
-          ),
-        );
-    }
-  }
-
   void _handleDragFile(DropDoneDetails d) async {
     //拖入是全局入口，拿不到"正在看的版本"，目标跟随启动页当前选中的版本——
     //隔离版本会落到它自己的数据目录，未选版本才落默认数据目录
@@ -390,89 +273,6 @@ class AppShellState extends State<AppShell> {
   // ── 构建 ──
 
   Widget _buildTopbar() {
-    // 试点 A：新外壳顶栏（只在 debug + NEXT_SHELL 时启用，Release 永远走旧顶栏）
-    if (useNextShell) return _buildNextTopbar();
-
-    final colors = AppColors.of(context);
-    final navigationCollapse =
-        config.setting.personalizationOptions.navigationCollapse;
-
-    return Container(
-      height: 40,
-      decoration: BoxDecoration(
-        // 半透明背景，让背景光效透出，形成顶部光渗透效果
-        color: colors.cardBackground.withAlpha(70),
-        border: Border(bottom: BorderSide(color: colors.border, width: 1)),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (isDesktop)
-            Positioned.fill(
-              child: GestureDetector(
-                onPanStart: (_) => windowManager.startDragging(),
-              ),
-            ),
-          Row(
-            children: [
-              const SizedBox(width: 4),
-              _sidebarToggle(
-                hint: !navigationCollapse ? '点击收纳主菜单' : '点击展开主菜单',
-                icon: Symbols.dock_to_right,
-                fillAlignment: Alignment(-0.56, -0.08),
-                active: !navigationCollapse,
-                onTap: () {
-                  setState(() {
-                    config.setting.personalizationOptions.navigationCollapse =
-                        !navigationCollapse;
-                    config.save();
-                  });
-                },
-              ),
-
-              _buildAccountButton(),
-
-              const SizedBox(width: 8),
-
-              Expanded(child: _buildBreadcrumb()),
-
-              const TaskDrawerOpener(),
-              const SizedBox(width: 4),
-
-              ValueListenableBuilder<bool>(
-                valueListenable: subNavigationCollapseNotifier,
-                builder: (context, subNavigationCollapse, _) {
-                  return _sidebarToggle(
-                    hint: !subNavigationCollapse ? '点击收纳副菜单' : '点击展开副菜单',
-                    icon: Symbols.dock_to_left,
-                    fillAlignment: Alignment(0.60, -0.08),
-                    active: !subNavigationCollapse,
-                    onTap: () =>
-                        setSubNavigationCollapse(!subNavigationCollapse),
-                  );
-                },
-              ),
-
-              if (isDesktop) ...[
-                const SizedBox(width: 4),
-                ReboundButton(
-                  backgroundColor: Colors.transparent,
-                  onTap: () => windowManager.minimize(),
-                  child: Icon(Icons.remove),
-                ),
-                const SizedBox(width: 4),
-                WindowCloseButton(),
-                const SizedBox(width: 4),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 新外壳顶栏（试点 A）：数据、跳转、抽屉仍走原有实现，只把「壳」换成设计层皮肤
-  Widget _buildNextTopbar() {
     final segments = _buildTrailSegments();
     final crumbs = <TemplateBreadcrumb>[
       for (final segment in segments)
@@ -536,133 +336,6 @@ class AppShellState extends State<AppShell> {
                 )
               : null,
           onDragStart: isDesktop ? () => windowManager.startDragging() : null,
-        );
-      },
-    );
-  }
-
-  Widget _sidebarToggle({
-    required IconData icon,
-    required String hint,
-    required Alignment fillAlignment,
-    required bool active,
-    required VoidCallback onTap,
-  }) {
-    final colors = AppColors.of(context);
-
-    return HintLayer(
-      hint: hint,
-      preferPosition: .bottom,
-      child: ReboundButton(
-        backgroundColor: Colors.transparent,
-        onTap: onTap,
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: Stack(
-            children: [
-              // 面板半区填充色块（fade 过渡）；宽度/位置由用户微调
-              Positioned.fill(
-                child: Align(
-                  alignment: fillAlignment,
-                  child: FractionallySizedBox(
-                    widthFactor: 0.2,
-                    heightFactor: 0.72,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: active ? 1 : 0,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(color: colors.interactive),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              Positioned.fill(child: Icon(icon, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 顶栏的账户入口：一张小卡片（头像 + 用户名），点开左侧账户抽屉
-  Widget _buildAccountButton() {
-    final colors = AppColors.of(context);
-    final theme = Theme.of(context);
-    return AnimatedBuilder(
-      animation: Listenable.merge([
-        AccountManager.instance.snapshot,
-        MdtbbsNotificationService.instance.items,
-      ]),
-      builder: (context, _) {
-        final unread = MdtbbsNotificationService.instance.unreadCount;
-        final account = AccountManager.instance.snapshot.value;
-        final name = account.loggedIn ? (account.username ?? '已登录') : '未登录';
-        return HintLayer(
-          hint: '账户',
-          preferPosition: .bottom,
-          child: ReboundButton(
-            backgroundColor: Colors.transparent,
-            onTap: () {
-              _scaffoldKey.currentState?.openDrawer();
-              // 头像在 /me 里，还没读过资料就先补一次
-              final accounts = AccountManager.instance;
-              if (accounts.isLoggedIn && accounts.account == null) {
-                unawaited(accounts.loadAccount());
-              }
-            },
-            child: Container(
-              height: 26,
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              decoration: BoxDecoration(
-                color: colors.highBackgroundOnCard,
-                borderRadius: BorderRadius.circular(AppRadius.item),
-                border: Border.all(color: colors.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 6,
-                children: [
-                  UserAvatar(
-                    url: account.avatarUrl,
-                    size: 18,
-                    fallbackIcon: Icons.account_circle_outlined,
-                  ),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 96),
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelMedium,
-                    ),
-                  ),
-                  if (unread > 0)
-                    // 固定高度 + 圆角一半：不加尺寸约束的话会被行高挤成椭圆
-                    Container(
-                      height: 14,
-                      constraints: const BoxConstraints(minWidth: 14),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: colors.error,
-                        borderRadius: BorderRadius.circular(7),
-                      ),
-                      child: Text(
-                        '$unread',
-                        style: const TextStyle(
-                          fontSize: 9,
-                          color: Colors.white,
-                          height: 1,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
         );
       },
     );
@@ -897,7 +570,6 @@ class AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
-    _trailScrollController.dispose();
     super.dispose();
   }
 
@@ -911,23 +583,18 @@ class AppShellState extends State<AppShell> {
       resizeToAvoidBottomInset: false,
       backgroundColor: colors.pageBackground,
       drawer: _buildAccountDrawer(),
-      // 新外壳先撤掉右侧任务 / 日志抽屉，入口也一起隐藏
-      endDrawer: useNextShell
-          ? null
-          : Drawer(
-              backgroundColor: colors.pageBackground.withAlpha(230),
-              width: MediaQuery.of(context).size.width * 0.45,
-              elevation: 2,
-              shadowColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                side: BorderSide(color: colors.border),
-              ),
-              child: InfoList(),
-            ),
+      endDrawer: Drawer(
+        backgroundColor: colors.pageBackground.withAlpha(230),
+        width: MediaQuery.of(context).size.width * 0.45,
+        elevation: 2,
+        shadowColor: Colors.black,
+        shape: RoundedRectangleBorder(side: BorderSide(color: colors.border)),
+        child: InfoList(),
+      ),
       body: ValueListenableBuilder<bool>(
         valueListenable: LauncherTray.instance.isWindowHidden,
         builder: (context, isHidden, _) =>
-            TickerMode(enabled: !isHidden, child: _buildShellBody(colors)),
+            TickerMode(enabled: !isHidden, child: _buildShellBody()),
       ),
     );
 
@@ -942,14 +609,16 @@ class AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _buildShellBody(AppColors colors) {
+  Widget _buildShellBody() {
     // 刘海 / 挖孔与系统栏：取 viewPadding（不随输入法变）让开安全区；
     // 让开的那几条由各自那块的底色继续铺满，别在外围围出一圈生硬的边
     final safe = MediaQuery.viewPaddingOf(context);
-    final skin = useNextShell ? TemplateSkin.ofContext(context) : null;
+    final skin = TemplateSkin.ofContext(context);
+    // 内容区与外壳的分界圆角：只有左上角，描边跟着它走
+    const contentRadius = 12.0;
 
     final rail = ColoredBox(
-      color: skin?.surface ?? colors.cardBackground,
+      color: skin.surface,
       child: NavigationRail(
         navigatorKey: _navigatorKey,
         currentRoute: _currentRoute,
@@ -960,10 +629,10 @@ class AppShellState extends State<AppShell> {
         onNavigate: _onRootNavigate,
 
         width: 140,
-        backgroundColor: skin?.surface,
-        showVersionTile: skin == null,
+        backgroundColor: skin.surface,
+        showVersionTile: false,
         showCollapseButton: false,
-        iconSize: skin == null ? 24 : 20,
+        iconSize: 20,
       ),
     );
 
@@ -979,7 +648,6 @@ class AppShellState extends State<AppShell> {
       ),
     );
 
-    // 侧栏贯穿整高（顶部 logo / 返回 / 拖拽照旧），顶栏只在内容区里
     final body = Row(
       children: [
         Padding(
@@ -990,29 +658,36 @@ class AppShellState extends State<AppShell> {
           ),
           child: rail,
         ),
-        if (skin == null)
-          VerticalDivider(width: 1, thickness: 1, color: colors.border),
         Expanded(
           child: Column(
             children: [
               _buildTopbar(),
               Expanded(
-                child: skin == null
-                    ? page
-                    // 圆角只给内容区左上角：露出来的那圈是外壳色
-                    : ClipRRect(
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                        ),
-                        child: page,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(contentRadius),
                       ),
+                      child: page,
+                    ),
+                    // 内容容器描边：只压左边 + 上边，跟着左上圆角
+                    IgnorePointer(
+                      child: TemplateContentEdge(
+                        skin: skin,
+                        cornerRadius: contentRadius,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
       ],
     );
-    return skin == null ? body : ColoredBox(color: skin.surface, child: body);
+    return ColoredBox(color: skin.surface, child: body);
   }
 
   // ── 页面过渡 ──
