@@ -123,6 +123,8 @@ dart 'C:\Software\flutter\bin\cache\flutter_tools.snapshot' test test/design_lab
 | `catalog/78-blink-radius-live` | 光斑版全动画（随机闪烁默认自动用 16s 长循环） |
 | `catalog/79-blink-24s-frames` | 随机闪烁 v4：再放慢到**整圈 24s**（单次呼吸 12~24s） |
 | `catalog/80-blink-24s-live` | v4 全动画（随机闪烁默认 24s 长循环） |
+| `catalog/86-blink-rhythm3-frames` | 随机闪烁 v6：**节奏化**——每波 3 颗光点依次亮起（间隔 220ms、每颗亮 760ms）→ 留白 1.1s → 换另外 3 颗；整圈 18s，固定序列 |
+| `catalog/87-blink-rhythm3-live` | 节奏版全动画（18s 一圈）；`_PhaseLoop` 修了改时长不生效的问题 |
 | `screen/screen-mod-view` | 模组浏览页第五版：主行动按钮自己表达状态（**下载 / 更新 / 已安装**），列表 logo 84，紧凑行补描述 |
 | `screen/screen-mod-view-full` | 同页完整列表（1200 高），三种按钮状态都能看到 |
 | `screen/screen-mod-view-compact` | 同页**紧凑视图**：名称下面带一行描述 + 下载 / 星标 / 适配 + 状态图标 |

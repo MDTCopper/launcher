@@ -1380,9 +1380,9 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
                   size: size,
                   dots: size >= 56 ? 16 : 12,
                   pattern: pattern,
-                  // 随机闪烁是「长循环的固定序列」：整圈 24s，单次呼吸 12~24s
+                  // 随机闪烁是「长循环的固定节奏」：整圈 18s，3 颗依次亮 + 留白
                   duration: pattern == TemplateDotPattern.randomBlink
-                      ? const Duration(milliseconds: 24000)
+                      ? const Duration(milliseconds: 18000)
                       : const Duration(milliseconds: 1600),
                 ),
               ),
@@ -1429,32 +1429,39 @@ class _TemplateCatalogPageState extends State<TemplateCatalogPage> {
 
   /// 圆点矩阵帧序列：每种图案 8 帧静帧，样张里看「运动轨迹」
   Widget _buildDotMatrixFrames(TemplateSkin skin) {
-    Widget row(String label, TemplateDotPattern pattern) => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: TemplateSpace.xs,
-      children: [
-        _hint(skin, label),
-        Row(
-          spacing: TemplateSpace.sm,
-          children: [
-            for (var i = 0; i < 8; i++)
-              SizedBox(
-                width: 72,
-                height: 72,
-                child: Center(
-                  child: TemplateDotMatrix(
-                    skin: skin,
-                    size: 62,
-                    dots: 16,
-                    pattern: pattern,
-                    phase: i / 8,
+    Widget row(String label, TemplateDotPattern pattern) {
+      // 随机闪烁的整圈很长（18s），8 帧均分会几乎全落在留白里 →
+      // 这里改成专门取「一波连亮 + 留白」那一段
+      final phases = pattern == TemplateDotPattern.randomBlink
+          ? const [0.01, 0.03, 0.05, 0.07, 0.09, 0.11, 0.13, 0.16]
+          : [for (var i = 0; i < 8; i++) i / 8];
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: TemplateSpace.xs,
+        children: [
+          _hint(skin, label),
+          Row(
+            spacing: TemplateSpace.sm,
+            children: [
+              for (final phase in phases)
+                SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: Center(
+                    child: TemplateDotMatrix(
+                      skin: skin,
+                      size: 62,
+                      dots: 16,
+                      pattern: pattern,
+                      phase: phase,
+                    ),
                   ),
                 ),
-              ),
-          ],
-        ),
-      ],
-    );
+            ],
+          ),
+        ],
+      );
+    }
 
     return _section(
       skin,

@@ -44,6 +44,14 @@ class _PhaseLoopState extends State<_PhaseLoop>
   @override
   void didUpdateWidget(covariant _PhaseLoop oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 时长改了要同步给控制器：不然热重载 / 切参数后会保持旧速度
+    // （用户 2026-11-08 遇到的「频率突然变慢」就是这类状态没重置）
+    if (widget.duration != oldWidget.duration) {
+      _controller.duration = widget.duration;
+      if (widget.phase == null && !_controller.isAnimating) {
+        _controller.repeat();
+      }
+    }
     if (widget.phase == null && !_controller.isAnimating) {
       _controller.repeat();
     } else if (widget.phase != null && _controller.isAnimating) {
@@ -551,11 +559,11 @@ class TemplateDotMatrix extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 随机闪烁需要长的整圈才像「不重复」：没显式改 duration 时自动用 24s
+    // 随机闪烁：整圈放长才显得「每次都不一样」；节奏由 _BlinkSchedule 排好
     final loopDuration =
         pattern == TemplateDotPattern.randomBlink &&
             duration == const Duration(milliseconds: 1600)
-        ? const Duration(milliseconds: 24000)
+        ? const Duration(milliseconds: 18000)
         : duration;
     return SizedBox.square(
       dimension: size,
@@ -570,6 +578,7 @@ class TemplateDotMatrix extends StatelessWidget {
             sparkles: sparkles,
             spread: spread,
             seed: seed,
+            loopMs: loopDuration.inMilliseconds.toDouble(),
             accent: TemplateLoader.copper(skin),
             track: TemplateLoader.track(skin),
           ),
@@ -587,13 +596,15 @@ class _DotMatrixPainter extends CustomPainter {
     required this.sparkles,
     required this.spread,
     required this.seed,
+    required this.loopMs,
     required this.accent,
     required this.track,
-  }) : _sparkleCells = _buildSparkles(
+  }) : _blinkSchedule = _buildBlinkSchedule(
          dots: dots,
          count: sparkles,
          spread: spread,
          seed: seed,
+         loopMs: loopMs,
        );
 
   final double phase;
@@ -602,40 +613,39 @@ class _DotMatrixPainter extends CustomPainter {
   final int sparkles;
   final double spread;
   final int seed;
+
+  /// 整圈的毫秒数（随机闪烁用它把 phase 换算成时间轴）
+  final double loopMs;
   final Color accent;
   final Color track;
 
-  /// 每颗光点落在哪个格子上 + 各自的周期（整数分频，保证整条动画无缝循环）
-  final List<({int col, int row, int k, double offset})> _sparkleCells;
+  /// 闪烁节奏表：几颗点依次亮 → 一小段留白 → 换一组点继续（用户 2026-11-08 的想法）
+  final _BlinkSchedule _blinkSchedule;
 
-  /// 随机挑格子：同一个种子 → 同一批格子；k 是周期分频（整圈的 1/1、1/2）
+  /// 预生成一条「节奏表」：固定种子 → 固定序列，整圈长度的循环
   ///
-  /// 用户 2026-11-07：频率要慢、像呼吸；效果直接照「轨道光点」那套高斯光斑，
-  /// 只是光斑位置固定（不绕圈跑）；循环是不随机的固定序列，只是整圈很长
-  static List<({int col, int row, int k, double offset})> _buildSparkles({
+  /// 每「波」挑 3 个格子，间隔 [staggerMs] 依次亮起，每颗亮 [lightMs]；
+  /// 一波结束留 [pauseMs] 的空白，再换另外几个格子（不会连续两波重复同一组）
+  static _BlinkSchedule _buildBlinkSchedule({
     required int dots,
     required int count,
     required double spread,
     required int seed,
+    required double loopMs,
   }) {
     final random = math.Random(seed);
-    final cells = <({int col, int row, int k, double offset})>[];
-    final used = <int>{};
+    // 候选格子池：限定范围 + 相互至少隔 2 格
+    final pool = <({int col, int row})>[];
     var guard = 0;
-    while (cells.length < count && guard < count * 60) {
+    while (pool.length < count && guard < count * 60) {
       guard++;
       final col = random.nextInt(dots);
       final row = random.nextInt(dots);
-      final key = row * dots + col;
-      if (used.contains(key)) continue;
-      // 限定范围：只取圆内且半径不超过 spread 的格子
       final gx = (col + 0.5) / dots * 2 - 1;
       final gy = (row + 0.5) / dots * 2 - 1;
-      final r = math.sqrt(gx * gx + gy * gy);
-      if (r > spread) continue;
-      // 相互之间至少隔 2 格：光斑靠得紧但不糊成一团（用户 2026-11-07：再紧凑一点）
+      if (math.sqrt(gx * gx + gy * gy) > spread) continue;
       var tooClose = false;
-      for (final other in cells) {
+      for (final other in pool) {
         final ddx = (other.col - col).toDouble();
         final ddy = (other.row - row).toDouble();
         if (ddx * ddx + ddy * ddy < 4.0) {
@@ -644,16 +654,49 @@ class _DotMatrixPainter extends CustomPainter {
         }
       }
       if (tooClose) continue;
-      used.add(key);
-      cells.add((
-        col: col,
-        row: row,
-        // 1..2：一圈里呼吸 1~2 次（整圈 24s → 单次 12~24s）
-        k: 1 + random.nextInt(2),
-        offset: random.nextDouble(),
-      ));
+      pool.add((col: col, row: row));
     }
-    return cells;
+    if (pool.isEmpty) return const _BlinkSchedule([], 0);
+
+    const perWave = 3;
+    const staggerMs = 220.0;
+    const lightMs = 760.0;
+    // 亮完一组后的留白：短一点，节奏更紧凑（用户 2026-11-08）
+    const pauseMs = 1100.0;
+    final waveMs = (perWave - 1) * staggerMs + lightMs + pauseMs;
+    final waves = math.max(1, (loopMs / waveMs).floor());
+
+    final lights = <_BlinkLight>[];
+    Set<int> lastPick = {};
+    for (var w = 0; w < waves; w++) {
+      Set<int> pick;
+      var tries = 0;
+      final want = math.min(perWave, pool.length);
+      do {
+        pick = <int>{};
+        while (pick.length < want && tries < 300) {
+          tries++;
+          pick.add(random.nextInt(pool.length));
+        }
+      } while (pool.length > want &&
+          pick.length == lastPick.length &&
+          pick.difference(lastPick).isEmpty);
+      lastPick = pick;
+      final ordered = pick.toList()..sort();
+      final waveStart = w * waveMs;
+      for (var i = 0; i < ordered.length; i++) {
+        final cell = pool[ordered[i]];
+        lights.add(
+          _BlinkLight(
+            col: cell.col,
+            row: cell.row,
+            startMs: waveStart + i * staggerMs,
+            durMs: lightMs,
+          ),
+        );
+      }
+    }
+    return _BlinkSchedule(lights, loopMs);
   }
 
   @override
@@ -710,18 +753,18 @@ class _DotMatrixPainter extends CustomPainter {
     }
   }
 
-  /// 这一帧的闪烁表：每颗光点按**轨道光点同样的高斯光斑**铺到周围格子上
+  /// 这一帧的闪烁表：按**节奏表**逐颗亮起，再按轨道光点的高斯光斑铺开
   ///
-  /// 用户 2026-11-07：照抄轨道光点的光斑（不是模糊泛光），只是光斑位置固定在随机格子上；
-  /// 频率再放慢（整圈 16s、单次呼吸 8~16s），但仍是**固定序列**的循环
+  /// 用户 2026-11-08：要有节奏——几个点连续依次亮起 → 一小段留白 → 换另外几个点
   Map<int, double> _blinkFrame() {
     final table = <int, double>{};
-    for (final s in _sparkleCells) {
-      // 用「整数分频 × 整圈相位」保证循环接缝不跳
-      final local = (phase * s.k + s.offset) % 1.0;
-      // 呼吸：0.10 起步（不完全灭），峰值 1.0；余弦包络，慢慢吸/呼
-      final breath = 0.5 - 0.5 * math.cos(math.pi * 2 * local);
-      final pulse = 0.10 + 0.90 * math.pow(breath, 1.8).toDouble();
+    if (_blinkSchedule.loopMs <= 0) return table;
+    final nowMs = phase * _blinkSchedule.loopMs;
+    for (final light in _blinkSchedule.lights) {
+      final local = (nowMs - light.startMs) / light.durMs;
+      if (local <= 0 || local >= 1) continue;
+      // 亮起 / 淡出的钟形包络：看起来是「依次点亮」而不是硬闪
+      final pulse = math.pow(math.sin(math.pi * local), 1.1).toDouble();
       if (pulse <= 0.02) continue;
 
       // 光斑半径：σ ≈ 1.25 格 → 亮到 2~3 格，跟轨道光点一个观感
@@ -729,8 +772,8 @@ class _DotMatrixPainter extends CustomPainter {
       final reach = (sigma * 2.6).ceil();
       for (var dy = -reach; dy <= reach; dy++) {
         for (var dx = -reach; dx <= reach; dx++) {
-          final c = s.col + dx;
-          final r = s.row + dy;
+          final c = light.col + dx;
+          final r = light.row + dy;
           if (c < 0 || r < 0 || c >= dots || r >= dots) continue;
           final d2 = (dx * dx + dy * dy) / (sigma * sigma);
           final falloff = math.exp(-d2 / 2);
@@ -1087,4 +1130,27 @@ class _BeltPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _BeltPainter old) =>
       old.phase != phase || old.accent != accent;
+}
+
+/// 一颗「按节奏亮起」的光点：格子 + 在整圈里的起亮时间 / 亮多久（毫秒）
+class _BlinkLight {
+  const _BlinkLight({
+    required this.col,
+    required this.row,
+    required this.startMs,
+    required this.durMs,
+  });
+
+  final int col;
+  final int row;
+  final double startMs;
+  final double durMs;
+}
+
+/// 随机闪烁的整条节奏表（固定种子生成，整圈循环）
+class _BlinkSchedule {
+  const _BlinkSchedule(this.lights, this.loopMs);
+
+  final List<_BlinkLight> lights;
+  final double loopMs;
 }
