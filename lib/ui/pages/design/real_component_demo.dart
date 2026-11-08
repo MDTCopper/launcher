@@ -1,4 +1,4 @@
-﻿import 'package:copper_launcher/ui/components/button/action_button.dart';
+import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
@@ -15,6 +15,7 @@ import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
 import 'package:copper_launcher/ui/components/row/priority_row.dart';
 import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/setting_bar_row.dart';
 import 'package:copper_launcher/ui/components/setting_bar/option_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
 import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
@@ -107,13 +108,13 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
         _diffCard(
           '设置行',
           '设计版是按场景拼的行；原组件把「标题固定宽 + 右侧控件」封装成设置行，'
-              '多行之间标题能对齐',
+              '多行之间标题能对齐；已补 showDivider 支持行间分隔',
         ),
         _settingBars(),
         _diffCard(
           '卡片与列表',
           '设计版 `TemplateListCard` / `TemplateRow` 是静态行；'
-              '原组件卡片带抬升与长按、行带 leading/trailing/长按',
+              '按压已从「整体缩放」改为「变色」（AppPressable），因此行间分隔线可以加回来',
         ),
         _cards(),
         _diffCard('优先行', '设计版没有这个：窗口窄时按优先级依次丢弃次要信息，保证主信息不被挤断'),
@@ -360,6 +361,17 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
             value: _switch,
             onChanged: (value) => setState(() => _switch = value),
           ),
+          SettingBarRow(
+            title: '启动参数',
+            control: Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '-Xmx2G',
+                style: TemplateType.caption.copyWith(color: skin.textSecondary),
+              ),
+            ),
+            showDivider: true,
+          ),
           SliderSettingBar(
             title: '窗口缩放',
             value: _slider,
@@ -391,6 +403,7 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
               ),
             ),
           ),
+          // 行间带分隔线：按压只变色不缩放，所以线不会被挤出缝
           ReboundListTile(
             leading: Icon(Icons.extension_outlined, color: skin.textSecondary),
             title: Text(
@@ -398,12 +411,28 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
               style: TemplateType.item.copyWith(color: skin.textPrimary),
             ),
             subtitle: Text(
-              'leading / title / subtitle / trailing + 长按',
+              '按压 = 变色（不再是整体缩放），行底可加分隔线',
               style: TemplateType.caption.copyWith(color: skin.textTertiary),
             ),
             trailing: Icon(Icons.chevron_right, color: skin.textTertiary),
             onTap: () {},
             onLongTap: () {},
+            showDivider: true,
+          ),
+          ReboundListTile(
+            leading: Icon(Icons.push_pin_outlined, color: skin.textSecondary),
+            title: Text(
+              '选中态行',
+              style: TemplateType.item.copyWith(color: skin.textPrimary),
+            ),
+            subtitle: Text(
+              'selected 走强调色淡底',
+              style: TemplateType.caption.copyWith(color: skin.textTertiary),
+            ),
+            trailing: Icon(Icons.check, color: skin.textTertiary),
+            selected: true,
+            onTap: () {},
+            showDivider: true,
           ),
         ],
       ),

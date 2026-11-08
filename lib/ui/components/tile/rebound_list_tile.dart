@@ -1,11 +1,12 @@
-import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
+import 'package:copper_launcher/ui/components/core/app_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-/// 列表项（类似 ListTile），基于 [ReboundContainer]
+/// 列表项（类似 ListTile）
 ///
+/// - 按压反馈用 [AppPressable]：只变色、不缩放，行间可以安全地加分隔线
 /// - 有选中态：[selected] 驱动背景 / 前景的过渡动画（双模式背景同 [ActionButton]）
-/// - 有禁用态：[enable] 为 false 时不可点击、无浮出、前景置灰
+/// - 有禁用态：[enable] 为 false 时不可点击、前景置灰
 /// - 结构：leading / title / subtitle / trailing
 class ReboundListTile extends StatefulWidget {
   final Widget? leading;
@@ -16,14 +17,20 @@ class ReboundListTile extends StatefulWidget {
   final VoidCallback? onLongTap;
   final bool selected;
   final bool enable;
-  final double elevation;
-  final double hoverElevation;
-  final double pressedScale;
+
+  /// 行底 1px 分隔线；画在行内、不参与任何缩放
+  final bool showDivider;
+
   final Color? baseColor;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
   final BorderRadius? borderRadius;
   final double itemSpacing;
+
+  /// 保留参数以兼容旧调用点；按压反馈已改为变色，不再缩放
+  final double elevation;
+  final double hoverElevation;
+  final double pressedScale;
 
   const ReboundListTile({
     super.key,
@@ -35,13 +42,14 @@ class ReboundListTile extends StatefulWidget {
     this.onLongTap,
     this.selected = false,
     this.enable = true,
-    this.elevation = 0,
-    this.hoverElevation = 4,
+    this.showDivider = false,
     this.baseColor,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     this.margin,
     this.borderRadius,
     this.itemSpacing = 8,
+    this.elevation = 0,
+    this.hoverElevation = 4,
     this.pressedScale = 0.95,
   });
 
@@ -52,9 +60,6 @@ class ReboundListTile extends StatefulWidget {
 class _ReboundListTileState extends State<ReboundListTile>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  final GlobalKey _trailingKey = GlobalKey();
-
-  double _trailingWidth = 0;
 
   @override
   void initState() {
@@ -64,19 +69,6 @@ class _ReboundListTileState extends State<ReboundListTile>
       duration: const Duration(milliseconds: 200),
     );
     if (widget.selected) _controller.value = 1.0;
-    _measureTrailingWidth();
-  }
-
-  void _measureTrailingWidth() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final context = _trailingKey.currentContext;
-      final width = context?.size?.width ?? 0;
-      if (width != _trailingWidth) {
-        setState(() => _trailingWidth = width);
-      }
-      _measureTrailingWidth();
-    });
   }
 
   @override
@@ -105,12 +97,11 @@ class _ReboundListTileState extends State<ReboundListTile>
     final baseColor = widget.baseColor ?? colors.cardBackground;
     final enabled = widget.enable;
 
-    final beginBackground = baseColor;
     final endBackground = isDark
         ? colors.interactive.withAlpha(100)
         : Color.alphaBlend(colors.interactive.withAlpha(100), baseColor);
     final backgroundT = ColorTween(
-      begin: beginBackground,
+      begin: baseColor,
       end: endBackground,
     ).animate(_controller);
 
@@ -125,27 +116,19 @@ class _ReboundListTileState extends State<ReboundListTile>
       end: enabled ? colors.interactiveLow : colors.itemHint,
     ).animate(_controller);
 
-    return AnimatedBuilder(
+    final tile = AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         final foreground = foregroundT.value;
         final subForeground = subForegroundT.value;
-        return ReboundContainer(
-          pressedScale: widget.pressedScale,
-          elevation: widget.elevation,
-          hoverElevation: enabled ? widget.hoverElevation : widget.elevation,
+        return AppPressable(
+          enabled: enabled,
+          onTap: widget.onTap,
+          onLongTap: widget.onLongTap,
           borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
           padding: widget.padding,
           margin: widget.margin,
           backgroundColor: backgroundT.value,
-          onTap: enabled ? widget.onTap : null,
-          onLongTap: enabled ? widget.onLongTap : null,
-          // trailing 进 surfaceChild：交互隔离
-          // 挂在 GlobalKey 上帧后量宽，行内按 _trailingWidth 预留占位
-          surfaceChild: widget.trailing == null
-              ? null
-              : KeyedSubtree(key: _trailingKey, child: widget.trailing!),
-          surfaceAlignment: Alignment.centerRight,
           child: IconTheme(
             data: IconTheme.of(context).copyWith(color: foreground),
             child: Row(
@@ -179,12 +162,21 @@ class _ReboundListTileState extends State<ReboundListTile>
                     ],
                   ),
                 ),
-                if (_trailingWidth > 0) SizedBox(width: _trailingWidth),
+                if (widget.trailing != null) widget.trailing!,
               ],
             ),
           ),
         );
       },
+    );
+
+    if (!widget.showDivider) return tile;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        tile,
+        Divider(height: 1, thickness: 1, color: colors.border),
+      ],
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 /// 设置条行：标题(可完全挤压) + 控件(优先保 [controlMinWidth])
@@ -15,6 +16,9 @@ class SettingBarRow extends StatelessWidget {
   final double gap;
   final TextStyle? titleStyle;
 
+  /// 行底 1px 分隔线；行内画，不参与缩放
+  final bool showDivider;
+
   const SettingBarRow({
     super.key,
     required this.title,
@@ -23,11 +27,12 @@ class SettingBarRow extends StatelessWidget {
     this.controlMinWidth = 100,
     this.gap = 8,
     this.titleStyle,
+    this.showDivider = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
+    final row = LayoutBuilder(
       builder: (context, constraints) {
         final available = constraints.maxWidth;
         // 扣掉控件最小宽和间隙后，能留给标题的宽度(下限 0，可完全压没)
@@ -52,6 +57,15 @@ class SettingBarRow extends StatelessWidget {
           ],
         );
       },
+    );
+
+    if (!showDivider) return row;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        row,
+        Divider(height: 1, thickness: 1, color: AppColors.of(context).border),
+      ],
     );
   }
 }
