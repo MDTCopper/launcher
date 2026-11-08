@@ -18,8 +18,8 @@ class ReboundListTile extends StatefulWidget {
   final bool selected;
   final bool enable;
 
-  /// 行底 1px 分隔线；画在行内、不参与任何缩放
-  final bool showDivider;
+  /// 透传容器装饰（边框 / 描边等）；行底分隔线由调用方在这里传
+  final BoxDecoration? decoration;
 
   final Color? baseColor;
   final EdgeInsetsGeometry padding;
@@ -42,7 +42,7 @@ class ReboundListTile extends StatefulWidget {
     this.onLongTap,
     this.selected = false,
     this.enable = true,
-    this.showDivider = false,
+    this.decoration,
     this.baseColor,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     this.margin,
@@ -129,6 +129,7 @@ class _ReboundListTileState extends State<ReboundListTile>
           padding: widget.padding,
           margin: widget.margin,
           backgroundColor: backgroundT.value,
+          decoration: widget.decoration,
           child: IconTheme(
             data: IconTheme.of(context).copyWith(color: foreground),
             child: Row(
@@ -170,13 +171,6 @@ class _ReboundListTileState extends State<ReboundListTile>
       },
     );
 
-    if (!widget.showDivider) return tile;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        tile,
-        Divider(height: 1, thickness: 1, color: colors.border),
-      ],
-    );
+    return tile;
   }
 }

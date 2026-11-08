@@ -9,6 +9,9 @@ import 'package:flutter/material.dart';
 /// 只有独立的主行动按钮才保留轻微回弹。
 ///
 /// 状态优先级：禁用 > 按下 > 选中 > 悬停 > 常态
+///
+/// 颜色**瞬间切换**，不做隐式插值：隐式动画（AnimatedContainer 一类）在换主题时
+/// 会从旧色缓动到新色，看起来慢半拍
 class AppPressable extends StatefulWidget {
   const AppPressable({
     super.key,
@@ -25,7 +28,7 @@ class AppPressable extends StatefulWidget {
     this.hoverColor,
     this.pressedColor,
     this.selectedColor,
-    this.duration = const Duration(milliseconds: 90),
+    this.decoration,
     this.clipBehavior = Clip.none,
   });
 
@@ -47,8 +50,9 @@ class AppPressable extends StatefulWidget {
   final Color? pressedColor;
   final Color? selectedColor;
 
-  /// 变色过渡时长
-  final Duration duration;
+  /// 透传给底层的容器装饰（边框 / 描边等）；颜色与圆角仍由本组件接管。
+  /// 行底分隔线一类的事情由调用方在这里传，不在组件内部特判
+  final BoxDecoration? decoration;
 
   final Clip clipBehavior;
 
@@ -92,19 +96,15 @@ class _AppPressableState extends State<AppPressable> {
         onTapDown: active ? (_) => setState(() => _pressed = true) : null,
         onTapUp: active ? (_) => setState(() => _pressed = false) : null,
         onTapCancel: active ? () => setState(() => _pressed = false) : null,
-        child: AnimatedContainer(
-          duration: widget.duration,
-          curve: Curves.easeOut,
+        child: Container(
           margin: widget.margin,
           clipBehavior: widget.clipBehavior,
-          decoration: BoxDecoration(
+          decoration: (widget.decoration ?? const BoxDecoration()).copyWith(
             color: color,
             borderRadius: widget.borderRadius,
           ),
-          child: Padding(
-            padding: widget.padding ?? EdgeInsets.zero,
-            child: widget.child,
-          ),
+          padding: widget.padding,
+          child: widget.child,
         ),
       ),
     );

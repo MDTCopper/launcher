@@ -1,6 +1,6 @@
+import 'package:copper_launcher/ui/components/core/app_pressable.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:flutter/material.dart';
 
 class NavigationTile extends StatefulWidget {
@@ -118,11 +118,8 @@ class NavigationTileState extends State<NavigationTile>
       builder: (context, child) {
         final itemColor = itemColorT.value;
         final backgroundColor = backgroundColorT.value;
-        return ReboundButton(
-          pressedScale: 0.9,
-          elevation: 0.0,
-          hoverElevation: 0.0,
-          padding: EdgeInsets.all(8),
+        return AppPressable(
+          padding: const EdgeInsets.all(8),
           borderRadius: BorderRadius.circular(8),
           backgroundColor: backgroundColor,
           onTap: widget.onTap,

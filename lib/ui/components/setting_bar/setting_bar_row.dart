@@ -1,5 +1,4 @@
-import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 /// 设置条行：标题(可完全挤压) + 控件(优先保 [controlMinWidth])
 ///
@@ -17,7 +16,8 @@ class SettingBarRow extends StatelessWidget {
   final TextStyle? titleStyle;
 
   /// 行底 1px 分隔线；行内画，不参与缩放
-  final bool showDivider;
+  /// 透传容器装饰（边框 / 描边等）；行底分隔线由调用方在这里传
+  final BoxDecoration? decoration;
 
   const SettingBarRow({
     super.key,
@@ -27,7 +27,7 @@ class SettingBarRow extends StatelessWidget {
     this.controlMinWidth = 100,
     this.gap = 8,
     this.titleStyle,
-    this.showDivider = false,
+    this.decoration,
   });
 
   @override
@@ -59,13 +59,7 @@ class SettingBarRow extends StatelessWidget {
       },
     );
 
-    if (!showDivider) return row;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        row,
-        Divider(height: 1, thickness: 1, color: AppColors.of(context).border),
-      ],
-    );
+    if (decoration == null) return row;
+    return Container(decoration: decoration, child: row);
   }
 }

@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/button/action_button.dart';
+﻿import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
@@ -108,7 +108,7 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
         _diffCard(
           '设置行',
           '设计版是按场景拼的行；原组件把「标题固定宽 + 右侧控件」封装成设置行，'
-              '多行之间标题能对齐；已补 showDivider 支持行间分隔',
+              '多行之间标题能对齐；容器装饰（含行底分隔线）由调用方透传',
         ),
         _settingBars(),
         _diffCard(
@@ -370,7 +370,9 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
                 style: TemplateType.caption.copyWith(color: skin.textSecondary),
               ),
             ),
-            showDivider: true,
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: skin.border)),
+            ),
           ),
           SliderSettingBar(
             title: '窗口缩放',
@@ -417,7 +419,9 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
             trailing: Icon(Icons.chevron_right, color: skin.textTertiary),
             onTap: () {},
             onLongTap: () {},
-            showDivider: true,
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: skin.border)),
+            ),
           ),
           ReboundListTile(
             leading: Icon(Icons.push_pin_outlined, color: skin.textSecondary),
@@ -432,7 +436,9 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
             trailing: Icon(Icons.check, color: skin.textTertiary),
             selected: true,
             onTap: () {},
-            showDivider: true,
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: skin.border)),
+            ),
           ),
         ],
       ),

@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/core/app_pressable.dart';
 import 'package:flutter/material.dart';
 
 class Pager extends StatelessWidget {
@@ -34,23 +34,23 @@ class Pager extends StatelessWidget {
       text = '第 $index 页';
     }
 
+    Widget iconButton(IconData icon, VoidCallback? onTap) => AppPressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: SizedBox(width: 32, height: 32, child: Icon(icon, size: 18)),
+    );
+
     final goHomeButton = index > 2 && goHome != null
-        ? ReboundButton(
-            onTap: goHome,
-            child: Icon(Icons.keyboard_double_arrow_left),
-          )
+        ? iconButton(Icons.keyboard_double_arrow_left, goHome)
         : null;
     final onDownButton = index != 1
-        ? ReboundButton(onTap: onDown, child: Icon(Icons.keyboard_arrow_left))
+        ? iconButton(Icons.keyboard_arrow_left, onDown)
         : null;
     final onUpButton = !(endPage ?? false)
-        ? ReboundButton(onTap: onUp, child: Icon(Icons.keyboard_arrow_right))
+        ? iconButton(Icons.keyboard_arrow_right, onUp)
         : null;
     final goEndButton = endIndex != null && index != endIndex
-        ? ReboundButton(
-            onTap: goEnd,
-            child: Icon(Icons.keyboard_double_arrow_right),
-          )
+        ? iconButton(Icons.keyboard_double_arrow_right, goEnd)
         : null;
 
     SizedBox occupyBox(Widget? child) => SizedBox(width: 32, child: child);
