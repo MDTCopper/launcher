@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:material_color_utilities/hct/hct.dart';
 
 import 'palette.dart';
+import 'seed_tones.dart';
 
 @immutable
 class AppColors extends ThemeExtension<AppColors> {
@@ -104,6 +106,72 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.lowBackgroundOnCard,
     required this.highBackgroundOnCard,
   });
+
+  /// 种子色板：只给一个主题色，整套 token 由 HCT 解出来
+  ///
+  /// 与设计层 `TemplateSkin` 同一套算法（`TemplateTones`）：中性面色度 2.6、
+  /// 实心按模式挪 −5 档、与卡面留 2 的对比度；换主题色只换种子
+  factory AppColors.seeded({required Color seed, required bool dark}) {
+    final seedHct = Hct.fromInt(seed.toARGB32());
+    final tones = TemplateTones.of(
+      hue: seedHct.hue,
+      chroma: seedHct.chroma,
+      dark: dark,
+      neutralChroma: 2.6,
+      accentTone: seedHct.tone,
+      accentCardContrast: 2,
+      accentModeShift: -5,
+    );
+    final neutralRamp = ToneRamp(seedHct.hue, 2.6);
+    final accentRamp = ToneRamp(seedHct.hue, seedHct.chroma);
+    final accent = Color(tones.accent);
+    final accentTone = Hct.fromInt(tones.accent).tone;
+    // 三档强调：实心照解出来的明度，低一档往弱侧、高一档往强侧各挪一点
+    double shift(double delta) => (accentTone + delta).clamp(0.0, 100.0);
+    return AppColors(
+      pageBackground: Color(tones.page),
+      cardBackground: Color(tones.surface),
+      lowBackgroundOnCard: Color(tones.sunken),
+      highBackgroundOnCard: Color(tones.raised),
+      inputBackground: Color(tones.surface),
+      elevatedBackground: Color(tones.raised),
+
+      itemPrimary: Color(tones.textPrimary),
+      itemSecondary: Color(tones.textSecondary),
+      itemOnInteractive: Color(tones.onAccent),
+      itemHint: Color(tones.textTertiary),
+
+      interactiveLow: Color(accentRamp.at(shift(dark ? -7 : 7))),
+      interactive: accent,
+      interactiveHigh: Color(accentRamp.at(shift(dark ? 7 : -7))),
+      splash: dark ? const Color(0x1FFFFFFF) : const Color(0x1A000000),
+
+      border: Color(tones.border),
+      borderFocus: Color(tones.accentText),
+
+      contentBorder: Color(tones.borderStrong),
+      contentBorderHover: Color(tones.textTertiary),
+      contentBorderFocus: Color(tones.accentText),
+      contentBackgroundFocus: Color(tones.accentTint),
+
+      scrollbarThumb: Color(tones.borderStrong),
+      scrollbarThumbHover: Color(tones.textTertiary),
+      scrollbarThumbPressed: Color(tones.textSecondary),
+      scrollbarTrack: Color(tones.sunken),
+      scrollbarTrackHover: Color(tones.border),
+
+      error: Color(tones.danger),
+      success: Color(tones.success),
+      warning: Color(tones.warning),
+
+      indicator: accent,
+      indicatorBackground: Color(tones.accentTint),
+      barrier: dark ? const Color(0x99000000) : const Color(0x66000000),
+      shadow: dark
+          ? const Color(0x66000000)
+          : Color(neutralRamp.at(25)).withAlpha(26),
+    );
+  }
 
   //Copper默认主题色，黄铜
   static const light = AppColors(

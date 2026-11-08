@@ -28,25 +28,14 @@ void themeSwitchTo(ThemeMode mode, ThemeColor color) {
 /// [brightness] , [color] 决定 [ColorScheme] 的方向，
 ThemeData buildTheme(Brightness brightness, ThemeColor color) {
   final isDark = brightness == Brightness.dark;
-  final AppColors colors;
-  switch (color) {
-    case ThemeColor.copper:
-      colors = isDark ? AppColors.dark : AppColors.light;
-      break;
-    case ThemeColor.titanium:
-      colors = isDark
-          ? AppColors.titaniumBlueDark
-          : AppColors.titaniumBlueLight;
-      break;
-    case ThemeColor.thorium:
-      colors = isDark ? AppColors.thoriumPinkDark : AppColors.thoriumPinkLight;
-      break;
-    case ThemeColor.plastanium:
-      colors = isDark
-          ? AppColors.plastaniumGreenDark
-          : AppColors.plastaniumGreenLight;
-      break;
-  }
+  // 种子色板：一个主题色只给一个种子，其余 token 由 HCT 解出来
+  final seed = switch (color) {
+    ThemeColor.copper => const Color(0xFFD89148),
+    ThemeColor.titanium => Palette.titanium500,
+    ThemeColor.thorium => Palette.thorium500,
+    ThemeColor.plastanium => Palette.plastanium500,
+  };
+  final colors = AppColors.seeded(seed: seed, dark: isDark);
 
   final ui.Locale systemLocale = ui.PlatformDispatcher.instance.locale;
   final String languageCode = systemLocale.languageCode.toLowerCase();
@@ -192,7 +181,7 @@ ThemeData buildTheme(Brightness brightness, ThemeColor color) {
     cardTheme: CardThemeData(
       color: colors.cardBackground,
       elevation: 1,
-      shadowColor: Palette.barrier,
+      shadowColor: colors.barrier,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     ),
 

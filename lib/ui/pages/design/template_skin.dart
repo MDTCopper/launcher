@@ -1,9 +1,9 @@
-import 'package:copper_launcher/ui/theme/app_colors.dart';
+﻿import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:material_color_utilities/hct/hct.dart';
 
 import 'radix_colors.dart';
-import 'template_tones.dart';
+import 'package:copper_launcher/ui/theme/seed_tones.dart';
 
 /// Copper 四个主题色：**换一个种子，整套皮肤重算**
 ///
@@ -487,7 +487,7 @@ abstract final class TemplateBreakpoints {
 }
 
 /// WCAG 2.x 对比度（判定函数只能用它；APCA 仍是草案，只当诊断）
-/// 计算本身在纯 Dart 的 `template_tones.dart` 里，这里只是给 Flutter 的 [Color] 用
+/// 计算本身在纯 Dart 的 `seed_tones.dart` 里，这里只是给 Flutter 的 [Color] 用
 double templateContrast(Color a, Color b) =>
     toneContrast(a.toARGB32(), b.toARGB32());
 
