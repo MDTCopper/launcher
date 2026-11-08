@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';

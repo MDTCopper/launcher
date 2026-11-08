@@ -2,8 +2,11 @@
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/pages/cloud/version_cloud_save_page.dart';
 import 'package:copper_launcher/ui/pages/design/seed_lab_page.dart';
+import 'package:copper_launcher/ui/pages/design/template_account_screen.dart';
 import 'package:copper_launcher/ui/pages/design/template_mod_download_screen.dart';
 import 'package:copper_launcher/ui/pages/design/template_mod_view_screen.dart';
+import 'package:copper_launcher/ui/pages/design/template_online_screen.dart';
+import 'package:copper_launcher/ui/pages/design/template_version_select_screen.dart';
 import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
 import 'package:copper_launcher/ui/pages/gallery/component_design_page.dart';
 import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
@@ -33,6 +36,9 @@ const Map<String, Widget> routeMap = {
   '/component_design': ComponentDesignPage(),
   '/template_mod_download': TemplateModDownloadScreen(),
   '/template_mod_view': TemplateModViewScreen(),
+  '/template_online': TemplateOnlineScreen(),
+  '/template_account': TemplateAccountScreen(),
+  '/template_version_select': TemplateVersionSelectScreen(),
 
   //概览
   '/': LaunchPage(),
