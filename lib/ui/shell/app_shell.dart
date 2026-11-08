@@ -11,7 +11,6 @@ import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/scroll/scroll_fade_mask.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
-import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/pages/cloud/cloud_overview_page.dart';
 import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
@@ -513,8 +512,6 @@ class AppShellState extends State<AppShell> {
             }
           },
           taskOpener: const TaskDrawerOpener(),
-          brand: _buildNextBrand(),
-          backButton: _buildNextBackButton(),
           windowControls: isDesktop
               ? IconTheme(
                   data: const IconThemeData(size: 18),
@@ -541,50 +538,6 @@ class AppShellState extends State<AppShell> {
           onDragStart: isDesktop ? () => windowManager.startDragging() : null,
         );
       },
-    );
-  }
-
-  /// 新外壳的左侧品牌：logo + 名称（从侧栏顶部挪过来）
-  Widget _buildNextBrand() {
-    final skin = TemplateSkin.ofContext(context);
-    final themeColor = config.setting.personalizationOptions.themeColor;
-    final icon = switch (themeColor) {
-      ThemeColor.copper => Images.copper,
-      ThemeColor.titanium => Images.titanium,
-      ThemeColor.thorium => Images.thorium,
-      ThemeColor.plastanium => Images.plastanium,
-    };
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 6,
-      children: [
-        Image.asset(icon, width: 22, height: 22),
-        Text(
-          'Copper',
-          style: TemplateType.section.copyWith(
-            color: skin.accentText,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 新外壳顶栏的返回键：只有栈里还有上一级时才出现
-  Widget? _buildNextBackButton() {
-    final canPop = _navigatorKey.currentState?.canPop() ?? false;
-    if (!canPop) return null;
-    final skin = TemplateSkin.ofContext(context);
-    return SizedBox(
-      width: 24,
-      height: 24,
-      child: Center(
-        child: ReboundButton(
-          backgroundColor: Colors.transparent,
-          onTap: () => _navigatorKey.currentState?.maybePop(),
-          child: Icon(Icons.arrow_back, size: 16, color: skin.textSecondary),
-        ),
-      ),
     );
   }
 
@@ -1008,9 +961,6 @@ class AppShellState extends State<AppShell> {
 
         width: 140,
         backgroundColor: skin?.surface,
-        // 新外壳：顶栏横跨整个应用、logo 在左上角，侧栏顶部不再留 logo / 拖拽区
-        showTopArea: skin == null,
-        showLogo: skin == null,
         showVersionTile: skin == null,
         showCollapseButton: false,
         iconSize: skin == null ? 24 : 20,
@@ -1021,7 +971,7 @@ class AppShellState extends State<AppShell> {
       colorful: config.setting.personalizationOptions.colorfulBackground,
       child: Padding(
         padding: EdgeInsets.only(
-          top: skin == null ? safe.top : 0,
+          top: safe.top,
           right: safe.right,
           bottom: safe.bottom,
         ),
@@ -1029,63 +979,40 @@ class AppShellState extends State<AppShell> {
       ),
     );
 
-    // 旧外壳：顶栏在内容区里，侧栏贯穿整高
-    if (skin == null) {
-      return Row(
-        children: [
-          Padding(
-            padding: EdgeInsets.only(
-              left: safe.left,
-              top: safe.top,
-              bottom: safe.bottom,
-            ),
-            child: rail,
+    // 侧栏贯穿整高（顶部 logo / 返回 / 拖拽照旧），顶栏只在内容区里
+    final body = Row(
+      children: [
+        Padding(
+          padding: EdgeInsets.only(
+            left: safe.left,
+            top: safe.top,
+            bottom: safe.bottom,
           ),
+          child: rail,
+        ),
+        if (skin == null)
           VerticalDivider(width: 1, thickness: 1, color: colors.border),
-          Expanded(
-            child: Column(
-              children: [
-                _buildTopbar(),
-                Expanded(child: page),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
-    // 新外壳：顶栏横跨整个应用顶部，侧栏与内容区在其下方
-    return ColoredBox(
-      color: skin.surface,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: safe.left,
-          top: safe.top,
-          right: safe.right,
-          bottom: safe.bottom,
-        ),
-        child: Column(
-          children: [
-            _buildTopbar(),
-            Expanded(
-              child: Row(
-                children: [
-                  rail,
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(12),
+        Expanded(
+          child: Column(
+            children: [
+              _buildTopbar(),
+              Expanded(
+                child: skin == null
+                    ? page
+                    // 圆角只给内容区左上角：露出来的那圈是外壳色
+                    : ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                        ),
+                        child: page,
                       ),
-                      child: page,
-                    ),
-                  ),
-                ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+      ],
     );
+    return skin == null ? body : ColoredBox(color: skin.surface, child: body);
   }
 
   // ── 页面过渡 ──

@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
+﻿import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
@@ -20,8 +20,6 @@ class NextTopBar extends StatelessWidget {
     required this.unread,
     required this.onAccountTap,
     required this.taskOpener,
-    this.brand,
-    this.backButton,
     this.windowControls,
     this.onDragStart,
   });
@@ -33,12 +31,6 @@ class NextTopBar extends StatelessWidget {
   final String? avatarUrl;
   final int unread;
   final VoidCallback onAccountTap;
-
-  /// 左侧品牌（logo + 名称），从侧栏顶部挪过来
-  final Widget? brand;
-
-  /// 品牌右侧的返回键（子页面时出现）
-  final Widget? backButton;
 
   /// 右侧「任务 / 日志」抽屉入口（复用现有组件）
   final Widget taskOpener;
@@ -71,11 +63,6 @@ class NextTopBar extends StatelessWidget {
           Row(
             children: [
               const SizedBox(width: 8),
-              if (brand != null) ...[brand!, const SizedBox(width: 8)],
-              if (backButton != null) ...[
-                backButton!,
-                const SizedBox(width: 4),
-              ],
               _AccountChip(
                 skin: skin,
                 name: accountName,
