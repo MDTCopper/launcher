@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
@@ -11,6 +11,7 @@ import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/scroll/scroll_fade_mask.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
+import 'package:copper_launcher/ui/feature/images.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/pages/cloud/cloud_overview_page.dart';
 import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
@@ -481,6 +482,7 @@ class AppShellState extends State<AppShell> {
             TemplateBreadcrumb(
               label,
               onTap: isCurrent ? null : () => _jumpToRoute(route),
+              current: isCurrent,
             ),
           InPageBreadcrumb(:final label) => TemplateBreadcrumb(
             label,
@@ -513,24 +515,60 @@ class AppShellState extends State<AppShell> {
               unawaited(accounts.loadAccount());
             }
           },
-          taskOpener: const TaskDrawerOpener(),
+          taskOpener: const SizedBox.shrink(),
+          brand: _buildNextBrand(),
           windowControls: isDesktop
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ReboundButton(
-                      backgroundColor: Colors.transparent,
-                      onTap: () => windowManager.minimize(),
-                      child: const Icon(Icons.remove),
-                    ),
-                    const SizedBox(width: 4),
-                    const WindowCloseButton(),
-                  ],
+              ? IconTheme(
+                  data: const IconThemeData(size: 18),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Center(
+                          child: ReboundButton(
+                            backgroundColor: Colors.transparent,
+                            onTap: () => windowManager.minimize(),
+                            child: const Icon(Icons.remove),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const WindowCloseButton(),
+                    ],
+                  ),
                 )
               : null,
           onDragStart: isDesktop ? () => windowManager.startDragging() : null,
         );
       },
+    );
+  }
+
+  /// 新外壳的左侧品牌：logo + 名称（从侧栏顶部挪过来）
+  Widget _buildNextBrand() {
+    final skin = TemplateSkin.ofContext(context);
+    final themeColor = config.setting.personalizationOptions.themeColor;
+    final icon = switch (themeColor) {
+      ThemeColor.copper => Images.copper,
+      ThemeColor.titanium => Images.titanium,
+      ThemeColor.thorium => Images.thorium,
+      ThemeColor.plastanium => Images.plastanium,
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 6,
+      children: [
+        Image.asset(icon, width: 22, height: 22),
+        Text(
+          'Copper',
+          style: TemplateType.section.copyWith(
+            color: skin.accentText,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
     );
   }
 
@@ -904,14 +942,19 @@ class AppShellState extends State<AppShell> {
       resizeToAvoidBottomInset: false,
       backgroundColor: colors.pageBackground,
       drawer: _buildAccountDrawer(),
-      endDrawer: Drawer(
-        backgroundColor: colors.pageBackground.withAlpha(230),
-        width: MediaQuery.of(context).size.width * 0.45,
-        elevation: 2,
-        shadowColor: Colors.black,
-        shape: RoundedRectangleBorder(side: BorderSide(color: colors.border)),
-        child: InfoList(),
-      ),
+      // 新外壳先撤掉右侧任务 / 日志抽屉，入口也一起隐藏
+      endDrawer: useNextShell
+          ? null
+          : Drawer(
+              backgroundColor: colors.pageBackground.withAlpha(230),
+              width: MediaQuery.of(context).size.width * 0.45,
+              elevation: 2,
+              shadowColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                side: BorderSide(color: colors.border),
+              ),
+              child: InfoList(),
+            ),
       body: ValueListenableBuilder<bool>(
         valueListenable: LauncherTray.instance.isWindowHidden,
         builder: (context, isHidden, _) =>
@@ -959,6 +1002,10 @@ class AppShellState extends State<AppShell> {
           width: 140,
           backgroundColor: skin?.surface,
           showCollapseButton: false,
+          // 新外壳：logo 挪到顶栏、版本浮标撤掉、图标视觉缩小但占位不变
+          showLogo: skin == null,
+          showVersionTile: skin == null,
+          iconSize: skin == null ? 24 : 20,
         ),
       ),
     );

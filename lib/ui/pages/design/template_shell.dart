@@ -19,6 +19,7 @@ class TemplateBreadcrumb {
     this.tag,
     this.boxed = false,
     this.icon,
+    this.current = false,
   });
 
   final String label;
@@ -34,6 +35,9 @@ class TemplateBreadcrumb {
 
   /// 可选前置图标，如「（模组）下载」前的扩展图标
   final IconData? icon;
+
+  /// 当前所在页；页面内分项跟在它后面，所以不能靠「最后一段」判断
+  final bool current;
 }
 
 /// 页面骨架：**40 高的一行顶栏** + 内容区（默认带滚动）
@@ -206,10 +210,26 @@ class TemplateBreadcrumbBar extends StatefulWidget {
   State<TemplateBreadcrumbBar> createState() => _TemplateBreadcrumbBarState();
 }
 
+/// 面包屑的变化类型：决定切换动画
+enum _TrailTransition {
+  /// 没变化
+  none,
+
+  /// 往里压入一层：新段从左往右小位移淡入
+  add,
+
+  /// 弹出一层：旧段从右往左小位移淡出
+  remove,
+
+  /// 同层换内容（切换页面）：纯淡入淡出
+  switchOnly,
+}
+
 class _TemplateBreadcrumbBarState extends State<TemplateBreadcrumbBar> {
   final _controller = ScrollController();
   bool _moreLeft = false;
   bool _jumpedToEnd = false;
+  _TrailTransition _transition = _TrailTransition.none;
 
   @override
   void initState() {
@@ -221,11 +241,36 @@ class _TemplateBreadcrumbBarState extends State<TemplateBreadcrumbBar> {
   @override
   void didUpdateWidget(covariant TemplateBreadcrumbBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 换了一条栈：重新滚到「当前层」那一头
-    if (oldWidget.crumbs.length != widget.crumbs.length) {
-      _jumpedToEnd = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+    final oldLabels = oldWidget.crumbs.map((crumb) => crumb.label).toList();
+    final newLabels = widget.crumbs.map((crumb) => crumb.label).toList();
+    if (oldLabels.length == newLabels.length &&
+        oldLabels.join('>') == newLabels.join('>')) {
+      return;
     }
+    _transition = _detectTransition(oldLabels, newLabels);
+    // 换栈后对齐到「当前层」那一头
+    _jumpedToEnd = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.hasClients) return;
+      _controller.jumpTo(_controller.position.maxScrollExtent);
+    });
+  }
+
+  static _TrailTransition _detectTransition(
+    List<String> oldLabels,
+    List<String> newLabels,
+  ) {
+    if (newLabels.length > oldLabels.length) {
+      final appended =
+          newLabels.take(oldLabels.length).join('>') == oldLabels.join('>');
+      return appended ? _TrailTransition.add : _TrailTransition.switchOnly;
+    }
+    if (newLabels.length < oldLabels.length) {
+      final truncated =
+          oldLabels.take(newLabels.length).join('>') == newLabels.join('>');
+      return truncated ? _TrailTransition.remove : _TrailTransition.switchOnly;
+    }
+    return _TrailTransition.switchOnly;
   }
 
   @override
@@ -253,22 +298,74 @@ class _TemplateBreadcrumbBarState extends State<TemplateBreadcrumbBar> {
   Widget build(BuildContext context) {
     final skin = widget.skin;
     final fadeColor = widget.fadeColor ?? skin.surface;
+    final crumbs = widget.crumbs;
+    if (crumbs.isEmpty) return const SizedBox.shrink();
+    // 显式标了当前页就用它；老样张没标时退回「最后一段」
+    final hasExplicitCurrent = crumbs.any((crumb) => crumb.current);
+    bool isCurrent(int index) =>
+        hasExplicitCurrent ? crumbs[index].current : index == crumbs.length - 1;
+
+    Widget separator() =>
+        Icon(Icons.chevron_right, size: 14, color: skin.textTertiary);
+
+    // 根路由不参与动画：切页 / 压栈时它保持不动
+    final root = _BreadcrumbItem(
+      skin: skin,
+      item: crumbs.first,
+      current: isCurrent(0),
+    );
+
+    final restSignature = crumbs.skip(1).map((crumb) => crumb.label).join('>');
+    final rest = crumbs.length <= 1
+        ? const SizedBox.shrink()
+        : AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              // 同层切换只淡入淡出；压栈 / 弹栈加一点横向位移
+              if (_transition == _TrailTransition.switchOnly) {
+                return FadeTransition(opacity: animation, child: child);
+              }
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween(
+                    begin: const Offset(-0.04, 0),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              );
+            },
+            layoutBuilder: (currentChild, previousChildren) => Stack(
+              alignment: Alignment.centerLeft,
+              children: [...previousChildren, ?currentChild],
+            ),
+            child: Row(
+              key: ValueKey(restSignature),
+              mainAxisSize: MainAxisSize.min,
+              spacing: 2,
+              children: [
+                for (var index = 1; index < crumbs.length; index++) ...[
+                  separator(),
+                  _BreadcrumbItem(
+                    skin: skin,
+                    item: crumbs[index],
+                    current: isCurrent(index),
+                  ),
+                ],
+              ],
+            ),
+          );
+
     final row = SingleChildScrollView(
       controller: _controller,
       scrollDirection: Axis.horizontal,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         spacing: 2,
-        children: [
-          for (var i = 0; i < widget.crumbs.length; i++) ...[
-            if (i > 0)
-              Icon(Icons.chevron_right, size: 14, color: skin.textTertiary),
-            _BreadcrumbItem(
-              skin: skin,
-              item: widget.crumbs[i],
-              current: i == widget.crumbs.length - 1,
-            ),
-          ],
-        ],
+        children: [root, rest],
       ),
     );
     if (!_moreLeft) return row;
@@ -374,15 +471,21 @@ class _BreadcrumbItem extends StatelessWidget {
     );
 
     if (current || item.onTap == null) return content;
-    return ReboundContainer(
-      onTap: item.onTap,
-      pressedScale: 0.98,
-      borderRadius: BorderRadius.circular(TemplateRadius.control),
-      backgroundColor: Colors.transparent,
-      hoverColor: skin.hoverOn(skin.surface),
-      highlightColor: skin.pressed,
-      padding: const EdgeInsets.symmetric(horizontal: TemplateSpace.xs),
-      child: content,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: ReboundContainer(
+        onTap: item.onTap,
+        pressedScale: 0.97,
+        borderRadius: BorderRadius.circular(6),
+        backgroundColor: Colors.transparent,
+        hoverColor: skin.hoverOn(skin.surface),
+        highlightColor: skin.pressed,
+        padding: const EdgeInsets.symmetric(
+          horizontal: TemplateSpace.sm,
+          vertical: 2,
+        ),
+        child: content,
+      ),
     );
   }
 }

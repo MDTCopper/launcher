@@ -52,6 +52,15 @@ class NavigationRail extends StatefulWidget {
   /// 新外壳试点：侧栏底色（null = 沿用旧卡面色）
   final Color? backgroundColor;
 
+  /// 新外壳试点：图标视觉尺寸（条目占位高度不变）
+  final double iconSize;
+
+  /// 新外壳试点：底部版本号浮标
+  final bool showVersionTile;
+
+  /// 新外壳试点：顶部 logo（新外壳把它挪到顶栏，侧栏顶部只留返回键）
+  final bool showLogo;
+
   const NavigationRail({
     super.key,
 
@@ -67,6 +76,9 @@ class NavigationRail extends StatefulWidget {
     this.collapseWidth = 56,
     this.showCollapseButton = false,
     this.backgroundColor,
+    this.iconSize = 24,
+    this.showVersionTile = true,
+    this.showLogo = true,
   });
 
   @override
@@ -106,7 +118,11 @@ class NavigationRailState extends State<NavigationRail> {
                 children: [...previousChildren, ?currentChild],
               );
             },
-            child: canPop ? _buildBackButton() : _buildLogo(),
+            child: canPop
+                ? _buildBackButton()
+                : widget.showLogo
+                ? _buildLogo()
+                : const SizedBox.shrink(key: ValueKey('noLogo')),
           ),
         ),
       ],
@@ -247,7 +263,7 @@ class NavigationRailState extends State<NavigationRail> {
         _SectionHeader(section: section, collapse: collapse),
         ...section.items.map<Widget>(
           (item) => NavigationTile(
-            icon: Icon(item.icon),
+            icon: Icon(item.icon, size: widget.iconSize),
             content: item.label,
             collapse: collapse,
             selected: currentRoute == item.route,
@@ -287,7 +303,7 @@ class NavigationRailState extends State<NavigationRail> {
         children: [
           for (final item in widget.itemsAtBottom)
             NavigationTile(
-              icon: Icon(item.icon),
+              icon: Icon(item.icon, size: widget.iconSize),
               content: item.label,
               collapse: collapse,
               selected: currentRoute == item.route,
@@ -385,7 +401,7 @@ class NavigationRailState extends State<NavigationRail> {
             _buildTop(),
             Expanded(child: _buildMenuView()),
             if (widget.showCollapseButton) _buildCollapseRow(),
-            _buildVersionTile(),
+            if (widget.showVersionTile) _buildVersionTile(),
           ],
         ),
       ),
