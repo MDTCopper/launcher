@@ -1,10 +1,13 @@
-﻿import 'package:copper_launcher/ui/pages/design/template_catalog_page.dart';
+import 'package:copper_launcher/ui/pages/design/real_component_demo.dart';
+import 'package:copper_launcher/ui/pages/design/template_catalog_page.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:flutter/material.dart';
 
-/// 组件设计页（`/component_design`，仅 debug 出现）：设计层的全部组件按主题分组列在左边，
-/// 选中哪一类右边就渲染那一类；改 `lib/ui/pages/design/` 下的组件后热重载即可看效果
+/// 组件设计页（`/component_design`，仅 debug 出现）：左边选一类，右边看那一类的全部状态
+///
+/// 第一项是「原组件对照」（真实组件库本体 + 设计版还缺的能力），其余是设计层样张；
+/// 改 `lib/ui/pages/design/` 或 `lib/ui/components/` 后热重载即可看效果
 class ComponentDesignPage extends StatefulWidget {
   const ComponentDesignPage({super.key});
 
@@ -44,10 +47,13 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
 
   int _selected = 0;
 
+  /// 目录序号：0 = 原组件对照，1 = 全部设计样张，2 起 = 单节
+  static const _realIndex = 0;
+  static const _allIndex = 1;
+
   @override
   Widget build(BuildContext context) {
     final skin = TemplateSkin.ofContext(context);
-    final isAll = _selected == _sections.length;
 
     return Material(
       color: skin.page,
@@ -64,10 +70,7 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
                   child: TemplateScrollView(
                     skin: skin,
                     padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                    child: TemplateCatalogPage(
-                      skin: skin,
-                      onlySection: isAll ? null : _sections[_selected],
-                    ),
+                    child: _content(skin),
                   ),
                 ),
               ],
@@ -75,6 +78,14 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _content(TemplateSkin skin) {
+    if (_selected == _realIndex) return RealComponentDemo(skin: skin);
+    return TemplateCatalogPage(
+      skin: skin,
+      onlySection: _selected == _allIndex ? null : _sections[_selected - 2],
     );
   }
 
@@ -94,7 +105,7 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
             style: TemplateType.section.copyWith(color: skin.textPrimary),
           ),
           Text(
-            '左边选一类，右边看全部状态；直接改 lib/ui/pages/design/ 下组件，热重载生效',
+            '左边选一类；第一项是原组件对照（真实组件 + 设计版缺的能力），改完热重载生效',
             style: TemplateType.caption.copyWith(color: skin.textTertiary),
           ),
         ],
@@ -112,9 +123,10 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
       child: ListView(
         padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
         children: [
-          _indexItem(skin, '全部组件', _sections.length),
+          _indexItem(skin, '原组件对照（组件库）', _realIndex),
+          _indexItem(skin, '全部设计样张', _allIndex),
           for (var i = 0; i < _sections.length; i++)
-            _indexItem(skin, _sections[i], i),
+            _indexItem(skin, _sections[i], i + 2),
         ],
       ),
     );

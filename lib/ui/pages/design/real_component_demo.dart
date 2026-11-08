@@ -1,0 +1,430 @@
+import 'package:copper_launcher/ui/components/button/action_button.dart';
+import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
+import 'package:copper_launcher/ui/components/button/segment_button.dart';
+import 'package:copper_launcher/ui/components/copper_card.dart';
+import 'package:copper_launcher/ui/components/effect/border_progress.dart';
+import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
+import 'package:copper_launcher/ui/components/pager.dart';
+import 'package:copper_launcher/ui/components/percent_bar.dart';
+import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
+import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
+import 'package:copper_launcher/ui/components/row/priority_row.dart';
+import 'package:copper_launcher/ui/components/setting_bar/input_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/slider_setting_bar.dart';
+import 'package:copper_launcher/ui/components/setting_bar/switch_setting_bar.dart';
+import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
+import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
+import 'package:copper_launcher/ui/pages/design/template_skin.dart';
+import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
+import 'package:flutter/material.dart';
+
+/// 原组件（`lib/ui/components/` 里的真实组件）对照区
+///
+/// 每一组先列出「设计版少了什么」，再放原组件本体；改设计组件时对着这里补齐功能
+class RealComponentDemo extends StatefulWidget {
+  const RealComponentDemo({super.key, required this.skin});
+
+  final TemplateSkin skin;
+
+  @override
+  State<RealComponentDemo> createState() => _RealComponentDemoState();
+}
+
+class _RealComponentDemoState extends State<RealComponentDemo> {
+  final _text = TextEditingController(text: 'Copper Launcher');
+  bool _switch = true;
+  bool _checkbox = true;
+  double _slider = 0.35;
+  int _segment = 1;
+  TextEditingController? _settingText;
+
+  TemplateSkin get skin => widget.skin;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    _settingText?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: TemplateSpace.lg,
+      children: [
+        _lead(),
+        _diffCard(
+          '按钮',
+          '设计版 `TemplateButton` 只有 solid / plain / quiet 三种观感；'
+              '原组件还有「选中态持久高亮」「长按」「悬停抬升 / 按下缩放」「气泡提示」',
+        ),
+        _buttons(),
+        _diffCard(
+          '开关与复选',
+          '设计版 `TemplateSwitch` 只有开关本体；原组件还有带图标 / 文字标签的复选、'
+              '禁用态与悬停提示',
+        ),
+        _toggles(),
+        _diffCard(
+          '滑块',
+          '设计版 `TemplateSliderRow` 是「标题 + 标签 + 滑条」的行式；'
+              '原组件额外提供拖动开始 / 结束回调（停在哪个刻度上要落库时用）',
+        ),
+        _sliderRow(),
+        _diffCard(
+          '输入框',
+          '设计版 `TemplateTextField` 只有占位 / 错误文案；'
+              '原组件还有旁置 label 与固定宽度、错误态动画、自定义右键菜单、编辑完成回调',
+        ),
+        _inputs(),
+        _diffCard(
+          '分段按钮',
+          '设计版 `TemplateSegment` 是整条分段；原组件能单段禁用、单段带图标、'
+              '多选时回调整个集合',
+        ),
+        _segments(),
+        _diffCard(
+          '分页',
+          '设计版 `TemplatePager` 只有上一页 / 下一页；原组件支持首页 / 末页、'
+              '末页判断（能提前置灰）',
+        ),
+        _pager(),
+        _diffCard(
+          '进度',
+          '设计版只有单条 / 不确定两种进度条；原组件还有「边框进度」（包住内容走一圈）、'
+              '「多段占比条」',
+        ),
+        _progress(),
+        _diffCard(
+          '设置行',
+          '设计版是按场景拼的行；原组件把「标题固定宽 + 右侧控件」封装成设置行，'
+              '多行之间标题能对齐',
+        ),
+        _settingBars(),
+        _diffCard(
+          '卡片与列表',
+          '设计版 `TemplateListCard` / `TemplateRow` 是静态行；'
+              '原组件卡片带抬升与长按、行带 leading/trailing/长按',
+        ),
+        _cards(),
+        _diffCard('优先行', '设计版没有这个：窗口窄时按优先级依次丢弃次要信息，保证主信息不被挤断'),
+        _priorityRow(),
+        _diffCard('侧栏条目', '设计版侧栏条目是独立实现；原组件 `NavigationTile` 支持收起态只剩图标、悬停提示'),
+        _navigationTile(),
+      ],
+    );
+  }
+
+  Widget _lead() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: TemplateSpace.xs,
+      children: [
+        Text(
+          '原组件对照',
+          style: TemplateType.page.copyWith(color: skin.textPrimary),
+        ),
+        Text(
+          '这里的控件来自 lib/ui/components/，是真实现役组件；'
+          '每组上方写明设计版缺哪些能力，补齐后再替换原组件',
+          style: TemplateType.caption.copyWith(
+            color: skin.textTertiary,
+            height: 18 / 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _diffCard(String title, String diff) {
+    return TemplateNotice(
+      skin: skin,
+      tone: TemplateNoticeTone.note,
+      title: title,
+      text: diff,
+      icon: Icons.compare_arrows,
+    );
+  }
+
+  Widget _group(Widget child) {
+    return TemplateCard(
+      skin: skin,
+      padding: const EdgeInsets.all(TemplateSpace.md),
+      child: child,
+    );
+  }
+
+  Widget _buttons() {
+    return _group(
+      Wrap(
+        spacing: TemplateSpace.sm,
+        runSpacing: TemplateSpace.sm,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ActionButton(
+            icon: const Icon(Icons.play_arrow),
+            content: const Text('ActionButton'),
+            onTap: () {},
+          ),
+          ActionButton(
+            icon: const Icon(Icons.push_pin_outlined),
+            content: const Text('选中态'),
+            selected: true,
+            onTap: () {},
+          ),
+          ActionButton(
+            icon: const Icon(Icons.block),
+            content: const Text('禁用'),
+            enable: false,
+            onTap: () {},
+          ),
+          IconTextButton(
+            icon: Icons.folder_open,
+            content: '主按钮',
+            weight: ActionWeight.primary,
+            onTap: () {},
+          ),
+          IconTextButton(
+            icon: Icons.copy,
+            content: '次按钮',
+            weight: ActionWeight.secondary,
+            onTap: () {},
+          ),
+          IconTextButton(
+            icon: Icons.delete_outline,
+            content: '危险',
+            weight: ActionWeight.danger,
+            onTap: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggles() {
+    return _group(
+      Wrap(
+        spacing: TemplateSpace.xl,
+        runSpacing: TemplateSpace.sm,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ReboundSwitch(
+            value: _switch,
+            onChanged: (value) => setState(() => _switch = value),
+          ),
+          ReboundCheckbox(
+            value: _checkbox,
+            label: '带文字',
+            onChange: (value) => setState(() => _checkbox = value),
+          ),
+          ReboundCheckbox(
+            value: !_checkbox,
+            icon: Icons.star_outline,
+            hint: '带图标',
+            onChange: (value) => setState(() => _checkbox = !value),
+          ),
+          const ReboundCheckbox(value: false, label: '禁用', enable: false),
+        ],
+      ),
+    );
+  }
+
+  Widget _sliderRow() {
+    return _group(
+      CopperSlider(
+        value: _slider,
+        label: '${(_slider * 100).round()}%',
+        divisions: 20,
+        onChanged: (value) => setState(() => _slider = value),
+        onChangeEnd: (_) {},
+      ),
+    );
+  }
+
+  Widget _inputs() {
+    return _group(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.md,
+        children: [
+          OutlinedTextField(label: '名称', labelWidth: 64, controller: _text),
+          OutlinedTextField(
+            label: '错误',
+            labelWidth: 64,
+            controller: TextEditingController(text: '不合法的值'),
+            error: '这里填错了',
+          ),
+          const OutlinedTextField(label: '禁用', labelWidth: 64, enable: false),
+        ],
+      ),
+    );
+  }
+
+  Widget _segments() {
+    return _group(
+      SegmentedReboundButton<int>(
+        segments: [
+          ReboundButtonSegment(value: 0, content: '紧凑'),
+          ReboundButtonSegment(value: 1, content: '列表'),
+          ReboundButtonSegment(value: 2, content: '网格', enabled: false),
+        ],
+        selected: {_segment},
+        onChange: (selected) => setState(() => _segment = selected.first),
+      ),
+    );
+  }
+
+  Widget _pager() {
+    return _group(
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Pager(
+            2,
+            endIndex: 9,
+            endPage: false,
+            onDown: () {},
+            onUp: () {},
+            goHome: () {},
+            goEnd: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _progress() {
+    return _group(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.md,
+        children: [
+          BorderProgress(
+            progress: 0.45,
+            child: Container(
+              height: 40,
+              alignment: Alignment.center,
+              child: Text(
+                '边框进度 45%',
+                style: TemplateType.caption.copyWith(color: skin.textSecondary),
+              ),
+            ),
+          ),
+          PercentBar(
+            total: 100,
+            height: 12,
+            dataList: [
+              PercentBarData(value: 52, label: 'Java'),
+              PercentBarData(value: 28, label: '资源'),
+              PercentBarData(value: 20, label: '缓存'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingBars() {
+    return _group(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.sm,
+        children: [
+          SwitchSettingBar(
+            title: '自动更新',
+            value: _switch,
+            onChanged: (value) => setState(() => _switch = value),
+          ),
+          SliderSettingBar(
+            title: '窗口缩放',
+            value: _slider,
+            label: '${(_slider * 100).round()}%',
+            onChanged: (value) => setState(() => _slider = value),
+          ),
+          InputSettingBar(
+            title: '备注',
+            initialValue: '测试文本',
+            controller: _settingText,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cards() {
+    return _group(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: TemplateSpace.sm,
+        children: [
+          CopperCard(
+            child: Padding(
+              padding: const EdgeInsets.all(TemplateSpace.sm),
+              child: Text(
+                'CopperCard：带抬升与可选长按',
+                style: TemplateType.item.copyWith(color: skin.textPrimary),
+              ),
+            ),
+          ),
+          ReboundListTile(
+            leading: Icon(Icons.extension_outlined, color: skin.textSecondary),
+            title: Text(
+              'ReboundListTile',
+              style: TemplateType.item.copyWith(color: skin.textPrimary),
+            ),
+            subtitle: Text(
+              'leading / title / subtitle / trailing + 长按',
+              style: TemplateType.caption.copyWith(color: skin.textTertiary),
+            ),
+            trailing: Icon(Icons.chevron_right, color: skin.textTertiary),
+            onTap: () {},
+            onLongTap: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _priorityRow() {
+    return _group(
+      SizedBox(
+        width: 320,
+        child: PriorityRow(
+          items: [
+            PriorityRowItem.text(
+              text: '主信息',
+              priority: 0,
+              textStyle: TextStyle(color: skin.textPrimary),
+            ),
+            PriorityRowItem.text(
+              text: 'build 123',
+              priority: 1,
+              textStyle: TextStyle(color: skin.textSecondary),
+            ),
+            PriorityRowItem.text(
+              text: '78.4 MB',
+              priority: 2,
+              textStyle: TextStyle(color: skin.textTertiary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _navigationTile() {
+    return _group(
+      SizedBox(
+        width: 180,
+        child: NavigationTile(
+          icon: const Icon(Icons.home_outlined, size: 20),
+          content: '主页',
+          selected: true,
+          onTap: () {},
+        ),
+      ),
+    );
+  }
+}
