@@ -1,6 +1,4 @@
-import 'package:copper_launcher/core/app_config.dart';
-import 'package:copper_launcher/core/app_constant.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
+﻿import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
@@ -46,24 +44,6 @@ class NavigationRail extends StatefulWidget {
   final double width;
   final double collapseWidth;
 
-  /// 新外壳试点：把「收纳菜单」按钮放进侧栏底部（顶部不再放）
-  final bool showCollapseButton;
-
-  /// 新外壳试点：侧栏底色（null = 沿用旧卡面色）
-  final Color? backgroundColor;
-
-  /// 新外壳试点：图标视觉尺寸（条目占位高度不变）
-  final double iconSize;
-
-  /// 新外壳试点：底部版本号浮标
-  final bool showVersionTile;
-
-  /// 新外壳试点：顶部 logo（新外壳把它挪到顶栏，侧栏顶部只留返回键）
-  final bool showLogo;
-
-  /// 新外壳试点：顶部 40 高区域（logo / 返回 / 拖拽），新外壳把它整体交给顶栏
-  final bool showTopArea;
-
   const NavigationRail({
     super.key,
 
@@ -77,12 +57,6 @@ class NavigationRail extends StatefulWidget {
 
     this.width = 140,
     this.collapseWidth = 56,
-    this.showCollapseButton = false,
-    this.backgroundColor,
-    this.iconSize = 24,
-    this.showVersionTile = true,
-    this.showLogo = true,
-    this.showTopArea = true,
   });
 
   @override
@@ -122,11 +96,7 @@ class NavigationRailState extends State<NavigationRail> {
                 children: [...previousChildren, ?currentChild],
               );
             },
-            child: canPop
-                ? _buildBackButton()
-                : widget.showLogo
-                ? _buildLogo()
-                : const SizedBox.shrink(key: ValueKey('noLogo')),
+            child: canPop ? _buildBackButton() : _buildLogo(),
           ),
         ),
       ],
@@ -267,7 +237,7 @@ class NavigationRailState extends State<NavigationRail> {
         _SectionHeader(section: section, collapse: collapse),
         ...section.items.map<Widget>(
           (item) => NavigationTile(
-            icon: Icon(item.icon, size: widget.iconSize),
+            icon: Icon(item.icon, size: 20),
             content: item.label,
             collapse: collapse,
             selected: currentRoute == item.route,
@@ -307,7 +277,7 @@ class NavigationRailState extends State<NavigationRail> {
         children: [
           for (final item in widget.itemsAtBottom)
             NavigationTile(
-              icon: Icon(item.icon, size: widget.iconSize),
+              icon: Icon(item.icon, size: 20),
               content: item.label,
               collapse: collapse,
               selected: currentRoute == item.route,
@@ -322,74 +292,6 @@ class NavigationRailState extends State<NavigationRail> {
     );
   }
 
-  Widget _buildVersionTile() {
-    final theme = Theme.of(context);
-
-    return Container(
-      alignment: .centerLeft,
-      padding: EdgeInsets.only(left: 4, bottom: 3),
-      child: HintLayer(
-        hint: 'build $appBuildNumber at $appBuildTime',
-        child: Text(
-          appVersion,
-          maxLines: 1,
-          overflow: .ellipsis,
-          style: theme.textTheme.labelSmall,
-        ),
-      ),
-    );
-  }
-
-  /// 新外壳：收纳 / 展开主菜单（放在侧栏底部，替代原来顶栏里那颗）
-  Widget _buildCollapseRow() {
-    final colors = AppColors.of(context);
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: HintLayer(
-        hint: collapse ? '展开主菜单' : '收纳主菜单',
-        preferPosition: .right,
-        child: ReboundButton(
-          backgroundColor: Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          onTap: () => setState(() => collapse = !collapse),
-          child: SizedBox(
-            height: 30,
-            child: Row(
-              mainAxisAlignment: collapse
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(left: collapse ? 0 : 4),
-                  child: Icon(
-                    collapse ? Icons.chevron_right : Icons.chevron_left,
-                    size: 18,
-                    color: colors.itemSecondary,
-                  ),
-                ),
-                if (!collapse)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Text(
-                        '收纳菜单',
-                        maxLines: 1,
-                        overflow: .ellipsis,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: colors.itemSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
@@ -399,13 +301,11 @@ class NavigationRailState extends State<NavigationRail> {
       curve: Curves.ease,
       width: collapse ? widget.collapseWidth : widget.width,
       child: ColoredBox(
-        color: widget.backgroundColor ?? colors.cardBackground,
+        color: colors.cardBackground,
         child: Column(
           children: [
-            if (widget.showTopArea) _buildTop(),
+            _buildTop(),
             Expanded(child: _buildMenuView()),
-            if (widget.showCollapseButton) _buildCollapseRow(),
-            if (widget.showVersionTile) _buildVersionTile(),
           ],
         ),
       ),

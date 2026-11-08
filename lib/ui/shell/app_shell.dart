@@ -13,9 +13,9 @@ import 'package:copper_launcher/ui/pages/cloud/cloud_overview_page.dart';
 import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
 import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/online/online_page.dart';
-import 'package:copper_launcher/ui/pages/design/template_shell.dart';
-import 'package:copper_launcher/ui/pages/design/template_skin.dart';
-import 'package:copper_launcher/ui/shell/next/next_top_bar.dart';
+import 'package:copper_launcher/ui/shell/parts/shell_breadcrumb.dart';
+import 'package:copper_launcher/ui/shell/parts/shell_content_edge.dart';
+import 'package:copper_launcher/ui/shell/parts/shell_top_bar.dart';
 import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/route/route_trail.dart';
@@ -274,16 +274,16 @@ class AppShellState extends State<AppShell> {
 
   Widget _buildTopbar() {
     final segments = _buildTrailSegments();
-    final crumbs = <TemplateBreadcrumb>[
+    final crumbs = <ShellBreadcrumb>[
       for (final segment in segments)
         switch (segment) {
           RouteBreadcrumb(:final label, :final route, :final isCurrent) =>
-            TemplateBreadcrumb(
+            ShellBreadcrumb(
               label,
               onTap: isCurrent ? null : () => _jumpToRoute(route),
               current: isCurrent,
             ),
-          InPageBreadcrumb(:final label) => TemplateBreadcrumb(
+          InPageBreadcrumb(:final label) => ShellBreadcrumb(
             label,
             boxed: true,
           ),
@@ -298,7 +298,7 @@ class AppShellState extends State<AppShell> {
       ]),
       builder: (context, _) {
         final account = AccountManager.instance.snapshot.value;
-        return NextTopBar(
+        return ShellTopBar(
           crumbs: crumbs,
           accountName: account.loggedIn ? (account.username ?? '已登录') : '未登录',
           avatarUrl: account.avatarUrl,
@@ -613,27 +613,18 @@ class AppShellState extends State<AppShell> {
     // 刘海 / 挖孔与系统栏：取 viewPadding（不随输入法变）让开安全区；
     // 让开的那几条由各自那块的底色继续铺满，别在外围围出一圈生硬的边
     final safe = MediaQuery.viewPaddingOf(context);
-    final skin = TemplateSkin.ofContext(context);
+    final colors = AppColors.of(context);
     // 内容区与外壳的分界圆角：只有左上角，描边跟着它走
     const contentRadius = 12.0;
 
-    final rail = ColoredBox(
-      color: skin.surface,
-      child: NavigationRail(
-        navigatorKey: _navigatorKey,
-        currentRoute: _currentRoute,
-        currentRootRoute: _currentRootRoute,
-        sections: _sections,
-        itemsAtBottom: _items,
+    final rail = NavigationRail(
+      navigatorKey: _navigatorKey,
+      currentRoute: _currentRoute,
+      currentRootRoute: _currentRootRoute,
+      sections: _sections,
+      itemsAtBottom: _items,
 
-        onNavigate: _onRootNavigate,
-
-        width: 140,
-        backgroundColor: skin.surface,
-        showVersionTile: false,
-        showCollapseButton: false,
-        iconSize: 20,
-      ),
+      onNavigate: _onRootNavigate,
     );
 
     final page = ColorfulBackground(
@@ -673,11 +664,8 @@ class AppShellState extends State<AppShell> {
                       child: page,
                     ),
                     // 内容容器描边：只压左边 + 上边，跟着左上圆角
-                    IgnorePointer(
-                      child: TemplateContentEdge(
-                        skin: skin,
-                        cornerRadius: contentRadius,
-                      ),
+                    const IgnorePointer(
+                      child: ShellContentEdge(cornerRadius: contentRadius),
                     ),
                   ],
                 ),
@@ -687,7 +675,7 @@ class AppShellState extends State<AppShell> {
         ),
       ],
     );
-    return ColoredBox(color: skin.surface, child: body);
+    return ColoredBox(color: colors.cardBackground, child: body);
   }
 
   // ── 页面过渡 ──
