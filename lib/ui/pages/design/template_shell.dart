@@ -355,8 +355,8 @@ class _BreadcrumbItem extends StatelessWidget {
         Text(
           item.label,
           style: TemplateType.item.copyWith(
-            color: current ? skin.textPrimary : skin.textTertiary,
-            fontWeight: current ? FontWeight.w600 : FontWeight.w400,
+            color: current ? skin.textPrimary : skin.textSecondary,
+            fontWeight: current ? FontWeight.w600 : FontWeight.w500,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

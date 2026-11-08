@@ -1,4 +1,4 @@
-﻿import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
+import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
@@ -55,10 +55,7 @@ class NextTopBar extends StatelessWidget {
 
     return Container(
       height: 40,
-      decoration: BoxDecoration(
-        color: barColor,
-        border: Border(bottom: BorderSide(color: skin.border)),
-      ),
+      decoration: BoxDecoration(color: barColor),
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -80,11 +77,21 @@ class NextTopBar extends StatelessWidget {
                 onTap: onAccountTap,
               ),
               const SizedBox(width: 8),
+              // 面包屑只占内容宽度，右侧空白留给拖窗；同时整段都能起手拖窗口
               Expanded(
-                child: TemplateBreadcrumbBar(
-                  skin: skin,
-                  crumbs: crumbs,
-                  fadeColor: barColor,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onPanStart: onDragStart == null
+                      ? null
+                      : (_) => onDragStart!(),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: TemplateBreadcrumbBar(
+                      skin: skin,
+                      crumbs: crumbs,
+                      fadeColor: barColor,
+                    ),
+                  ),
                 ),
               ),
               taskOpener,

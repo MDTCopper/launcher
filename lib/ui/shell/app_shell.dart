@@ -958,7 +958,7 @@ class AppShellState extends State<AppShell> {
 
           width: 140,
           backgroundColor: skin?.surface,
-          showCollapseButton: skin != null,
+          showCollapseButton: false,
         ),
       ),
     );
