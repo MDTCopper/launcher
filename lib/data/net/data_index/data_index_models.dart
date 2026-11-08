@@ -53,6 +53,45 @@ class DataIndexSortOption {
   }
 }
 
+/// 索引预计算的分数组件；总分不落盘，由界面按自己的权重计算
+class DataIndexModScore {
+  const DataIndexModScore({
+    required this.downloadsScore,
+    required this.starsScore,
+    required this.updateScore,
+    required this.penaltyScore,
+    required this.newModMultiplier,
+    required this.recommendVisible,
+  });
+
+  final double downloadsScore;
+
+  final double starsScore;
+
+  final double updateScore;
+
+  /// 长期不更新扣分（0..1）
+  final double penaltyScore;
+
+  /// 新 mod 倍率（1..1.325）
+  final double newModMultiplier;
+
+  /// 是否进入「只看活跃」的默认列表
+  final bool recommendVisible;
+
+  static DataIndexModScore? fromJson(Object? json) {
+    if (json is! Map) return null;
+    return DataIndexModScore(
+      downloadsScore: _doubleOf(json['downloadsScore']),
+      starsScore: _doubleOf(json['starsScore']),
+      updateScore: _doubleOf(json['updateScore']),
+      penaltyScore: _doubleOf(json['penaltyScore']),
+      newModMultiplier: _doubleOf(json['newModMultiplier'], fallback: 1),
+      recommendVisible: json['recommendVisible'] != false,
+    );
+  }
+}
+
 /// 模组索引里的一条（`index.json` / `community/index.json` 的一项）
 class DataIndexModEntry {
   const DataIndexModEntry({
@@ -74,6 +113,7 @@ class DataIndexModEntry {
     required this.totalDownloads,
     required this.releaseUpdatedAt,
     required this.commitUpdatedAt,
+    required this.score,
     required this.ranks,
   });
 
@@ -122,9 +162,15 @@ class DataIndexModEntry {
 
   final DateTime? commitUpdatedAt;
 
-  /// 列表预计算好的排名（`heat` / `updated` / `downloads` / `stars` / `newest`），
+  /// 预计算的分数组件；旧索引没有该字段时为 null
+  final DataIndexModScore? score;
+
+  /// 列表预计算好的排名（`recommended` / `heat` / `updated` / `downloads` / `stars` / `newest`），
   /// 按排序项点的时候直接取，不再自己算
   final Map<String, int> ranks;
+
+  /// 是否进入「只看活跃」默认列表（没有 score 的旧索引一律可见）
+  bool get recommendVisible => score?.recommendVisible ?? true;
 
   /// 是不是 Java 模组（决定新版本要不要取编译好的 jar）
   bool get isJava => modType == 'java';
@@ -158,6 +204,7 @@ class DataIndexModEntry {
       totalDownloads: _intOf(json['totalDownloads']),
       releaseUpdatedAt: _dateOf(json['releaseUpdatedAt']),
       commitUpdatedAt: _dateOf(json['commitUpdatedAt']),
+      score: DataIndexModScore.fromJson(json['score']),
       ranks: _parseRanks(json['ranks']),
     );
   }
@@ -304,7 +351,8 @@ class DataIndexModReleases {
 
   final int? page;
 
-  final int? pages;
+  /// 分页元数据（page-1 文件带 `pages` 数组；单文件或更深页为空）
+  final List<DataIndexModPage> pages;
 
   static DataIndexModReleases? parse(String content) {
     final decoded = _decodeJson(content);
@@ -323,7 +371,7 @@ class DataIndexModReleases {
       versions: versions,
       gameVersionRanges: _parseRanges(decoded['gameVersionRanges']),
       page: rawPage is num ? rawPage.toInt() : null,
-      pages: decoded['pages'] is num ? (decoded['pages'] as num).toInt() : null,
+      pages: _parsePages(decoded['pages']),
     );
   }
 }
@@ -443,6 +491,9 @@ String? _nullableText(Object? value) {
 }
 
 int _intOf(Object? value) => value is num ? value.toInt() : 0;
+
+double _doubleOf(Object? value, {double fallback = 0}) =>
+    value is num ? value.toDouble() : fallback;
 
 int? _nullableIntOf(Object? value) => value is num ? value.toInt() : null;
 

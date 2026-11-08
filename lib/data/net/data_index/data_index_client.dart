@@ -28,13 +28,20 @@ class DataIndexClient {
   /// 游戏版本列表有效期：索引每约 30 分钟刷新一次
   static const Duration mindustryVersionsMaxAge = Duration(minutes: 30);
 
-  /// 模组索引：官方列表（默认可见项）/ 社区列表
+  /// 模组索引：官方列表 / 社区列表
+  ///
+  /// 默认读 `index.json`（已按 `recommendVisible` 过滤）；[full] 为 true 时读
+  /// `index-full.json`（全量，含隐藏模组，界面自己按 `score.recommendVisible` 过滤）
   static Future<DataIndexModIndex?> loadModIndex({
     bool community = false,
     bool refresh = false,
+    bool full = false,
   }) async {
+    final relativePath = full
+        ? (community ? 'community/index-full.json' : 'index-full.json')
+        : (community ? 'community/index.json' : 'index.json');
     final content = await loadText(
-      community ? 'community/index.json' : 'index.json',
+      relativePath,
       maxAge: modIndexMaxAge,
       refresh: refresh,
     );

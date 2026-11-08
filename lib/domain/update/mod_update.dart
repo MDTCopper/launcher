@@ -73,6 +73,8 @@ class ModUpdateService {
     final index = await DataIndexClient.loadModIndex(
       community: community,
       refresh: refresh,
+      // 已装模组可能不在「只看活跃」默认列表里，检查更新要用全量索引
+      full: true,
     );
     if (index == null) {
       return const ModUpdateCheck(error: '模组索引拉取失败');
