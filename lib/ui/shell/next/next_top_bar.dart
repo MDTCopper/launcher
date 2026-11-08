@@ -3,7 +3,6 @@ import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/material_symbols_icons.dart';
 
 /// 新外壳 · 顶栏（试点 A，2026-11-08）
 ///
@@ -16,23 +15,19 @@ class NextTopBar extends StatelessWidget {
   const NextTopBar({
     super.key,
     required this.crumbs,
-    required this.subNavigationCollapsed,
-    required this.onToggleSubNavigation,
     required this.accountName,
     required this.avatarUrl,
     required this.unread,
     required this.onAccountTap,
     required this.taskOpener,
     this.brand,
+    this.backButton,
     this.windowControls,
     this.onDragStart,
   });
 
   /// 面包屑（越靠右越当前）
   final List<TemplateBreadcrumb> crumbs;
-
-  final bool subNavigationCollapsed;
-  final VoidCallback onToggleSubNavigation;
 
   final String accountName;
   final String? avatarUrl;
@@ -41,6 +36,9 @@ class NextTopBar extends StatelessWidget {
 
   /// 左侧品牌（logo + 名称），从侧栏顶部挪过来
   final Widget? brand;
+
+  /// 品牌右侧的返回键（子页面时出现）
+  final Widget? backButton;
 
   /// 右侧「任务 / 日志」抽屉入口（复用现有组件）
   final Widget taskOpener;
@@ -74,6 +72,10 @@ class NextTopBar extends StatelessWidget {
             children: [
               const SizedBox(width: 8),
               if (brand != null) ...[brand!, const SizedBox(width: 8)],
+              if (backButton != null) ...[
+                backButton!,
+                const SizedBox(width: 4),
+              ],
               _AccountChip(
                 skin: skin,
                 name: accountName,
@@ -101,86 +103,11 @@ class NextTopBar extends StatelessWidget {
               ),
               taskOpener,
               const SizedBox(width: 4),
-              _TopIconButton(
-                skin: skin,
-                icon: Symbols.dock_to_left,
-                hint: subNavigationCollapsed ? '点击展开副菜单' : '点击收纳副菜单',
-                active: !subNavigationCollapsed,
-                fillAlignment: const Alignment(0.60, -0.08),
-                onTap: onToggleSubNavigation,
-              ),
-              if (windowControls != null) ...[
-                const SizedBox(width: 4),
-                windowControls!,
-              ],
+              if (windowControls != null) ...[windowControls!],
               const SizedBox(width: 4),
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// 顶栏的小图标按钮：24×24，悬停出底，激活时右侧（或左侧）亮一条提示块
-class _TopIconButton extends StatelessWidget {
-  const _TopIconButton({
-    required this.skin,
-    required this.icon,
-    required this.hint,
-    required this.active,
-    required this.fillAlignment,
-    required this.onTap,
-  });
-
-  final TemplateSkin skin;
-  final IconData icon;
-  final String hint;
-  final bool active;
-  final Alignment fillAlignment;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: hint,
-      preferBelow: false,
-      waitDuration: const Duration(milliseconds: 500),
-      child: ReboundButton(
-        backgroundColor: Colors.transparent,
-        onTap: onTap,
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: Stack(
-            children: [
-              // 激活提示块（面板半区）：颜色换成皮肤的强调色
-              Positioned.fill(
-                child: Align(
-                  alignment: fillAlignment,
-                  child: FractionallySizedBox(
-                    widthFactor: 0.2,
-                    heightFactor: 0.72,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: active ? 1 : 0,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(color: skin.accent),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                child: Icon(
-                  icon,
-                  size: 16,
-                  color: active ? skin.textPrimary : skin.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

@@ -61,6 +61,9 @@ class NavigationRail extends StatefulWidget {
   /// 新外壳试点：顶部 logo（新外壳把它挪到顶栏，侧栏顶部只留返回键）
   final bool showLogo;
 
+  /// 新外壳试点：顶部 40 高区域（logo / 返回 / 拖拽），新外壳把它整体交给顶栏
+  final bool showTopArea;
+
   const NavigationRail({
     super.key,
 
@@ -79,6 +82,7 @@ class NavigationRail extends StatefulWidget {
     this.iconSize = 24,
     this.showVersionTile = true,
     this.showLogo = true,
+    this.showTopArea = true,
   });
 
   @override
@@ -398,7 +402,7 @@ class NavigationRailState extends State<NavigationRail> {
         color: widget.backgroundColor ?? colors.cardBackground,
         child: Column(
           children: [
-            _buildTop(),
+            if (widget.showTopArea) _buildTop(),
             Expanded(child: _buildMenuView()),
             if (widget.showCollapseButton) _buildCollapseRow(),
             if (widget.showVersionTile) _buildVersionTile(),

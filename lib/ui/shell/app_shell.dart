@@ -499,11 +499,8 @@ class AppShellState extends State<AppShell> {
       ]),
       builder: (context, _) {
         final account = AccountManager.instance.snapshot.value;
-        final subCollapsed = subNavigationCollapseNotifier.value;
         return NextTopBar(
           crumbs: crumbs,
-          subNavigationCollapsed: subCollapsed,
-          onToggleSubNavigation: () => setSubNavigationCollapse(!subCollapsed),
           accountName: account.loggedIn ? (account.username ?? '已登录') : '未登录',
           avatarUrl: account.avatarUrl,
           unread: MdtbbsNotificationService.instance.unreadCount,
@@ -515,8 +512,9 @@ class AppShellState extends State<AppShell> {
               unawaited(accounts.loadAccount());
             }
           },
-          taskOpener: const SizedBox.shrink(),
+          taskOpener: const TaskDrawerOpener(),
           brand: _buildNextBrand(),
+          backButton: _buildNextBackButton(),
           windowControls: isDesktop
               ? IconTheme(
                   data: const IconThemeData(size: 18),
@@ -569,6 +567,24 @@ class AppShellState extends State<AppShell> {
           ),
         ),
       ],
+    );
+  }
+
+  /// 新外壳顶栏的返回键：只有栈里还有上一级时才出现
+  Widget? _buildNextBackButton() {
+    final canPop = _navigatorKey.currentState?.canPop() ?? false;
+    if (!canPop) return null;
+    final skin = TemplateSkin.ofContext(context);
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Center(
+        child: ReboundButton(
+          backgroundColor: Colors.transparent,
+          onTap: () => _navigatorKey.currentState?.maybePop(),
+          child: Icon(Icons.arrow_back, size: 16, color: skin.textSecondary),
+        ),
+      ),
     );
   }
 
@@ -977,45 +993,35 @@ class AppShellState extends State<AppShell> {
     // 刘海 / 挖孔与系统栏：取 viewPadding（不随输入法变）让开安全区；
     // 让开的那几条由各自那块的底色继续铺满，别在外围围出一圈生硬的边
     final safe = MediaQuery.viewPaddingOf(context);
-    // 试点：新外壳照设计层 `TemplatePageFrame` 的窗口规则——
-    // 外壳底 = 顶栏色（侧栏 + 顶栏 + 内容区左上角那圈），内容区底色单独一层
     final skin = useNextShell ? TemplateSkin.ofContext(context) : null;
-    final railBackground = skin?.surface ?? colors.cardBackground;
 
     final rail = ColoredBox(
-      color: railBackground,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: safe.left,
-          top: safe.top,
-          bottom: safe.bottom,
-        ),
-        child: NavigationRail(
-          navigatorKey: _navigatorKey,
-          currentRoute: _currentRoute,
-          currentRootRoute: _currentRootRoute,
-          sections: _sections,
-          itemsAtBottom: _items,
+      color: skin?.surface ?? colors.cardBackground,
+      child: NavigationRail(
+        navigatorKey: _navigatorKey,
+        currentRoute: _currentRoute,
+        currentRootRoute: _currentRootRoute,
+        sections: _sections,
+        itemsAtBottom: _items,
 
-          onNavigate: _onRootNavigate,
+        onNavigate: _onRootNavigate,
 
-          width: 140,
-          backgroundColor: skin?.surface,
-          showCollapseButton: false,
-          // 新外壳：logo 挪到顶栏、版本浮标撤掉、图标视觉缩小但占位不变
-          showLogo: skin == null,
-          showVersionTile: skin == null,
-          iconSize: skin == null ? 24 : 20,
-        ),
+        width: 140,
+        backgroundColor: skin?.surface,
+        // 新外壳：顶栏横跨整个应用、logo 在左上角，侧栏顶部不再留 logo / 拖拽区
+        showTopArea: skin == null,
+        showLogo: skin == null,
+        showVersionTile: skin == null,
+        showCollapseButton: false,
+        iconSize: skin == null ? 24 : 20,
       ),
     );
 
-    // 页面本体：新外壳时顶栏在外壳层，页面单独一层，左上角切圆角
-    Widget page() => ColorfulBackground(
+    final page = ColorfulBackground(
       colorful: config.setting.personalizationOptions.colorfulBackground,
       child: Padding(
         padding: EdgeInsets.only(
-          top: safe.top,
+          top: skin == null ? safe.top : 0,
           right: safe.right,
           bottom: safe.bottom,
         ),
@@ -1023,35 +1029,63 @@ class AppShellState extends State<AppShell> {
       ),
     );
 
-    final shellChrome = skin?.surface;
-    final content = Column(
-      children: [
-        _buildTopbar(),
-        Expanded(
-          child: skin == null
-              ? page()
-              // 圆角只给内容区左上角：露出来的那圈是外壳色，页面像被顶栏和侧栏包住
-              : ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                  ),
-                  child: page(),
-                ),
-        ),
-      ],
-    );
-
-    final body = Row(
-      children: [
-        rail,
-        if (skin == null)
+    // 旧外壳：顶栏在内容区里，侧栏贯穿整高
+    if (skin == null) {
+      return Row(
+        children: [
+          Padding(
+            padding: EdgeInsets.only(
+              left: safe.left,
+              top: safe.top,
+              bottom: safe.bottom,
+            ),
+            child: rail,
+          ),
           VerticalDivider(width: 1, thickness: 1, color: colors.border),
-        Expanded(child: content),
-      ],
+          Expanded(
+            child: Column(
+              children: [
+                _buildTopbar(),
+                Expanded(child: page),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 新外壳：顶栏横跨整个应用顶部，侧栏与内容区在其下方
+    return ColoredBox(
+      color: skin.surface,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: safe.left,
+          top: safe.top,
+          right: safe.right,
+          bottom: safe.bottom,
+        ),
+        child: Column(
+          children: [
+            _buildTopbar(),
+            Expanded(
+              child: Row(
+                children: [
+                  rail,
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(12),
+                      ),
+                      child: page,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
-    return shellChrome == null
-        ? body
-        : ColoredBox(color: shellChrome, child: body);
   }
 
   // ── 页面过渡 ──
