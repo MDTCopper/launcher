@@ -1,3 +1,4 @@
+﻿import 'package:copper_launcher/ui/components/animation/loop/dot_matrix_loading.dart';
 import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
@@ -98,11 +99,89 @@ class TestState extends State<Test> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _drillLoadingSection(),
+          _dotMatrixLoadingSection(),
           _contextMenuSection(),
           _p2pSection(),
           const SizedBox(height: 120),
         ],
       ),
+    );
+  }
+
+  // ════════ 20. 圆点矩阵闪烁（DotMatrixLoading） ════════
+
+  /// 圆点矩阵闪烁：几颗光点按节奏依次亮起 → 留白 → 换一组
+  Widget _dotMatrixLoadingSection() {
+    Widget plate(String label, Widget child) =>
+        _buildDrillPlate(label: label, child: child);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _sectionTitle('20. DotMatrixLoading（圆点矩阵闪烁）'),
+        _card(
+          title: '统一网格 + 高斯光斑：只让点的亮度变，网格不动',
+          desc:
+              '节奏：一波 3~5 颗光点、相隔 220ms 依次亮起、每颗亮 760ms，然后留白 350ms 换一组；'
+              '整圈 18s（固定种子 → 每次看到的位置序列一样）。尺寸小到 16 也能认出。',
+          child: Wrap(
+            spacing: 24,
+            runSpacing: 16,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              plate('16', const DotMatrixLoading(size: 16)),
+              plate('28', const DotMatrixLoading(size: 28)),
+              plate('56', const DotMatrixLoading(size: 56)),
+              plate('96', const DotMatrixLoading(size: 96)),
+            ],
+          ),
+        ),
+        _card(
+          title: '真实等待场景',
+          desc: '整页等待用 56，行内 / 列表用 20~28；配色自动取主题强调色与轨道色。',
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 20,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.of(context).cardBackground,
+                    borderRadius: const BorderRadius.all(Radius.circular(8)),
+                    border: Border.all(color: AppColors.of(context).border),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    spacing: 12,
+                    children: [
+                      const DotMatrixLoading(size: 56),
+                      Text(
+                        '正在读取版本列表…',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.of(context).itemSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              const DotMatrixLoading(size: 28),
+              const SizedBox(width: 8),
+              Text(
+                '行内加载',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.of(context).itemSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -456,7 +535,7 @@ class TestState extends State<Test> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle('20. ContextMenu（右键菜单）'),
+        _sectionTitle('21. ContextMenu（右键菜单）'),
         _card(
           title: '右键 / 长按弹出：一个全局控制器管住所有菜单实例',
           desc:
@@ -615,7 +694,7 @@ class TestState extends State<Test> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _sectionTitle('21. P2P 打洞诊断'),
+        _sectionTitle('22. P2P 打洞诊断'),
         _card(
           title: 'STUN + UDP 打洞',
           desc:
