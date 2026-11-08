@@ -105,14 +105,18 @@ class DataIndexModEntry {
     required this.minGameVersion,
     required this.gameVersionRanges,
     required this.iconUrl,
+    required this.hasIcon,
+    required this.iconHash,
     required this.releasesPath,
     required this.pages,
     required this.releaseCount,
     required this.tagCount,
     required this.stars,
     required this.totalDownloads,
+    required this.allAssetsDownloads,
     required this.releaseUpdatedAt,
     required this.commitUpdatedAt,
+    required this.releaseDataUpdatedAt,
     required this.score,
     required this.ranks,
   });
@@ -144,6 +148,12 @@ class DataIndexModEntry {
 
   final String? iconUrl;
 
+  /// 官方列表是否有图标；没有 iconUrl 时用于回退默认图
+  final bool? hasIcon;
+
+  /// 图标内容 hash，可作为图片缓存键
+  final String? iconHash;
+
   /// per-mod 版本文件的路径（相对数据索引根）；没有版本数据时为 null
   final String? releasesPath;
 
@@ -158,9 +168,15 @@ class DataIndexModEntry {
 
   final int totalDownloads;
 
+  /// 所有资产的累计下载量
+  final int allAssetsDownloads;
+
   final DateTime? releaseUpdatedAt;
 
   final DateTime? commitUpdatedAt;
+
+  /// per-mod 版本数据最后更新时间
+  final DateTime? releaseDataUpdatedAt;
 
   /// 预计算的分数组件；旧索引没有该字段时为 null
   final DataIndexModScore? score;
@@ -196,14 +212,18 @@ class DataIndexModEntry {
       minGameVersion: _text(json['minGameVersion']),
       gameVersionRanges: _parseRanges(json['gameVersionRanges']),
       iconUrl: _nullableText(json['iconUrl']),
+      hasIcon: json['hasIcon'] is bool ? json['hasIcon'] as bool : null,
+      iconHash: _nullableText(json['iconHash']),
       releasesPath: rawReleasesPath.isEmpty ? null : rawReleasesPath,
       pages: _parsePages(json['pages']),
       releaseCount: _intOf(json['releaseCount']),
       tagCount: _intOf(json['tagCount']),
       stars: _intOf(json['stars']),
       totalDownloads: _intOf(json['totalDownloads']),
+      allAssetsDownloads: _intOf(json['allAssetsDownloads']),
       releaseUpdatedAt: _dateOf(json['releaseUpdatedAt']),
       commitUpdatedAt: _dateOf(json['commitUpdatedAt']),
+      releaseDataUpdatedAt: _dateOf(json['releaseDataUpdatedAt']),
       score: DataIndexModScore.fromJson(json['score']),
       ranks: _parseRanks(json['ranks']),
     );
@@ -255,6 +275,7 @@ class DataIndexModVersion {
     required this.downloadCount,
     required this.prerelease,
     required this.removed,
+    required this.removedAt,
     required this.releasedAt,
     required this.committedAt,
   });
@@ -283,6 +304,9 @@ class DataIndexModVersion {
 
   /// 这个 tag 已从仓库删除，只留档不参与下载
   final bool removed;
+
+  /// 删除留档的时间
+  final String? removedAt;
 
   final String? releasedAt;
 
@@ -322,6 +346,7 @@ class DataIndexModVersion {
       downloadCount: _nullableIntOf(json['downloadCount']),
       prerelease: json['prerelease'] == true,
       removed: json['removed'] == true,
+      removedAt: _nullableText(json['removedAt']),
       releasedAt: _nullableText(json['releasedAt']),
       committedAt: _nullableText(json['committedAt']),
     );
@@ -331,13 +356,21 @@ class DataIndexModVersion {
 /// per-mod 版本文件（`releases/<owner>/<repo>.json` 或其中一页）
 class DataIndexModReleases {
   const DataIndexModReleases({
+    required this.formatVersion,
+    required this.generatedAt,
     required this.repo,
     required this.modType,
     required this.versions,
     required this.gameVersionRanges,
+    required this.count,
+    required this.meta,
     required this.page,
     required this.pages,
   });
+
+  final String formatVersion;
+
+  final DateTime? generatedAt;
 
   final String repo;
 
@@ -348,6 +381,12 @@ class DataIndexModReleases {
 
   /// 这一页（或这个文件）版本的适配区间并集
   final List<GameVersionRange> gameVersionRanges;
+
+  /// 这一页/这个文件的版本数（单文件可能没有）
+  final int? count;
+
+  /// per-mod 元数据（依赖、hidden、main、scripts 等，单文件或 page-1 才有）
+  final Map<String, dynamic>? meta;
 
   final int? page;
 
@@ -365,11 +404,16 @@ class DataIndexModReleases {
     ];
 
     final rawPage = decoded['page'];
+    final rawMeta = decoded['meta'];
     return DataIndexModReleases(
+      formatVersion: _text(decoded['formatVersion']),
+      generatedAt: _dateOf(decoded['generatedAt']),
       repo: _text(decoded['repo']),
       modType: _nullableText(decoded['modType']),
       versions: versions,
       gameVersionRanges: _parseRanges(decoded['gameVersionRanges']),
+      count: _nullableIntOf(decoded['count']),
+      meta: rawMeta is Map ? rawMeta.cast<String, dynamic>() : null,
       page: rawPage is num ? rawPage.toInt() : null,
       pages: _parsePages(decoded['pages']),
     );
