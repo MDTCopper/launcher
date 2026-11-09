@@ -274,6 +274,7 @@ class DrawerCompositionPlanRule extends PlanDrawRule {
   /// `DrawTurret.drawPlan`：base（不旋转）→ preview（`-preview`，缺省回退方块本体）→ top
   ///
   /// 官方角度是 `rotation*90 - 90`，y 翻到屏幕后取反
+  /// base 缺省回退 `block-<size>`，这是炮台底座共用的那张图
   void _drawTurret(
     PlanDrawContext context,
     PlanTile plan,
@@ -284,6 +285,7 @@ class DrawerCompositionPlanRule extends PlanDrawRule {
     final base = _firstExisting(context, <String>[
       '$name$basePrefix-base',
       '$name-base',
+      '${basePrefix}block-${plan.size}',
     ]);
     if (base != null) {
       context.drawRegion(base, centerX: plan.centerX, centerY: plan.centerY);
