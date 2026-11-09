@@ -229,11 +229,48 @@ abstract class PlanDrawRule {
   /// 本规则负责的 `drawPlanConfigTop` 声明类（如 `ItemBridge`）
   Set<String> get configTopClasses => const {};
 
+  /// 本规则负责的 `drawPlanConfig` 声明类（如 `Sorter` / `Unloader`）
+  Set<String> get configClasses => const {};
+
   /// 第一批：方块本体
   void drawBlock(PlanDrawContext context, PlanTile plan) {
     context.drawBlockIcon(plan);
   }
 
+  /// 方块本体之后、configTop 之前：官方默认区域绘制末尾会调用 drawPlanConfig
+  void drawConfig(PlanDrawContext context, PlanTile plan) {}
+
   /// 第二批：官方 `drawPlanConfigTop`，连线等画在所有方块之上
   void drawConfigTop(PlanDrawContext context, PlanTile plan) {}
+}
+
+/// 官方 `Block.drawPlanConfigCenter` 的 CPU 复刻
+///
+/// config 为空时按 [showNull] 画 `cross`；物品/液体按颜色染色画 [iconName]
+void drawPlanConfigCenter(
+  PlanDrawContext context,
+  PlanTile plan, {
+  required String iconName,
+  bool showNull = false,
+}) {
+  final config = plan.tile.config;
+  if (config == null || config.kind != SchematicConfigKind.content) {
+    if (showNull) {
+      context.drawRegion('cross', centerX: plan.centerX, centerY: plan.centerY);
+    }
+    return;
+  }
+  final content = config.value as SchematicContentRef;
+  final color = content.typeOrdinal == 0
+      ? context.assets.itemColorOfId(content.id)
+      : content.typeOrdinal == 4
+      ? context.assets.liquidColorOfId(content.id)
+      : null;
+  if (color == null) return;
+  context.drawRegion(
+    iconName,
+    centerX: plan.centerX,
+    centerY: plan.centerY,
+    tintColor: color,
+  );
 }

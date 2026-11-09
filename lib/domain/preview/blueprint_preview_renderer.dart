@@ -99,6 +99,7 @@ class BlueprintPreviewRenderer {
     );
     for (final plan in placed) {
       _blockRule(plan.info).drawBlock(context, plan);
+      _configRule(plan.info)?.drawConfig(context, plan);
     }
     for (final plan in placed) {
       _configTopRule(plan.info)?.drawConfigTop(context, plan);
@@ -129,6 +130,7 @@ class BlueprintPreviewRenderer {
     );
     for (final plan in placed) {
       _blockRule(plan.info).drawBlock(context, plan);
+      _configRule(plan.info)?.drawConfig(context, plan);
     }
     for (final plan in placed) {
       _configTopRule(plan.info)?.drawConfigTop(context, plan);
@@ -142,6 +144,15 @@ class BlueprintPreviewRenderer {
       if (rule.blockClasses.contains(_simpleName(declaringClass))) return rule;
     }
     return _fallbackRule;
+  }
+
+  PlanDrawRule? _configRule(BlueprintBlockInfo info) {
+    final declaringClass = info.configRuleClass;
+    for (final rule in _rules) {
+      if (rule.configClasses.contains(declaringClass)) return rule;
+      if (rule.configClasses.contains(_simpleName(declaringClass))) return rule;
+    }
+    return null;
   }
 
   PlanDrawRule? _configTopRule(BlueprintBlockInfo info) {
