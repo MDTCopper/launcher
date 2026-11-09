@@ -114,7 +114,7 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
         _diffCard(
           '卡片与列表',
           '设计版 `TemplateListCard` / `TemplateRow` 是静态行；'
-              '按压已从「整体缩放」改为「变色」（AppPressable），因此行间分隔线可以加回来',
+              '按压已从「整体缩放」改为「变色」（CopperPressable），因此行间分隔线可以加回来',
         ),
         _cards(),
         _diffCard('优先行', '设计版没有这个：窗口窄时按优先级依次丢弃次要信息，保证主信息不被挤断'),
