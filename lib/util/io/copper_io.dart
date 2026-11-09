@@ -1135,6 +1135,13 @@ class CopperIO {
     );
   }
 
+  ///整单重来的上限：一个分块把重试用尽后，值得带着已下部分再跑一遍
+  ///
+  ///单块预算只覆盖「同一个连接反复失败」，覆盖不了「这一段时间整条链路都不行」；
+  ///而 `.part` 里的水位是现成的续传现场，整单再来一次只补没下完的那几块。
+  ///实测真实链路 82MB 那次就是单块连着 4 次建连失败、整份白下
+  static const int _chunkedWholeRetryLimit = 1;
+
   ///走分块并发；服务端忽略 Range 时退化为单流整包
   ///
   ///「HEAD 广播 Accept-Ranges、带 Range 的 GET 却回 200」在代理 / 网关上并不罕见，
@@ -1153,38 +1160,57 @@ class CopperIO {
     HttpStatusCallback? onStatus,
     Map<String, String>? headers,
   }) async {
-    try {
-      await _downloadChunked(
-        url: url,
-        savePath: savePath,
-        totalSize: totalSize,
-        chunkCount: chunkCount,
-        speedLimit: speedLimit,
-        tempPath: tempPath,
-        etag: etag,
-        retryLimit: retryLimit,
-        cancelToken: cancelToken,
-        deleteOnError: deleteOnError,
-        onStatus: onStatus,
-        headers: headers,
-      );
-    } on _RangeIgnored {
-      addLog(
-        .debug,
-        '服务端忽略 Range（带 Range 的 GET 回了整包），退化为单流下载：$url',
-        tag: 'Download',
-      );
-      await _downloadSingleStream(
-        url: url,
-        savePath: savePath,
-        totalSize: totalSize,
-        speedLimit: speedLimit,
-        retryLimit: retryLimit,
-        cancelToken: cancelToken,
-        deleteOnError: deleteOnError,
-        onStatus: onStatus,
-        headers: headers,
-      );
+    for (var attempt = 0; ; attempt++) {
+      try {
+        await _downloadChunked(
+          url: url,
+          savePath: savePath,
+          totalSize: totalSize,
+          chunkCount: chunkCount,
+          speedLimit: speedLimit,
+          tempPath: tempPath,
+          etag: etag,
+          retryLimit: retryLimit,
+          cancelToken: cancelToken,
+          deleteOnError: deleteOnError,
+          //还有下一趟就保住续传现场，否则失败收尾照旧清掉
+          keepPartialOnFailure: attempt < _chunkedWholeRetryLimit,
+          onStatus: onStatus,
+          headers: headers,
+        );
+        return;
+      } on _RangeIgnored {
+        addLog(
+          .debug,
+          '服务端忽略 Range（带 Range 的 GET 回了整包），退化为单流下载：$url',
+          tag: 'Download',
+        );
+        await _downloadSingleStream(
+          url: url,
+          savePath: savePath,
+          totalSize: totalSize,
+          speedLimit: speedLimit,
+          retryLimit: retryLimit,
+          cancelToken: cancelToken,
+          deleteOnError: deleteOnError,
+          onStatus: onStatus,
+          headers: headers,
+        );
+        return;
+      } on _ChunkDownloadFailed catch (error) {
+        final canRetry =
+            !error.isWriteError &&
+            attempt < _chunkedWholeRetryLimit &&
+            cancelToken?.isCancelled != true &&
+            !_isCancelled(cancelToken, error.cause);
+        if (!canRetry) rethrow;
+        addLog(
+          .warning,
+          '分块 ${error.index + 1} 下载失败（${error.reason}），'
+          '带着已下部分整单再来一次：$url',
+          tag: 'Download',
+        );
+      }
     }
   }
 
@@ -1403,6 +1429,8 @@ class CopperIO {
     int retryLimit = 5,
     CancelToken? cancelToken,
     bool deleteOnError = true,
+    //真失败时是否保住续传现场（上层还要带着它整单重来时用）
+    bool keepPartialOnFailure = false,
     HttpStatusCallback? onStatus,
     Map<String, String>? headers,
   }) async {
@@ -1719,7 +1747,7 @@ class CopperIO {
             '（已收 ${chunk.received}/${chunk.size} 字节）',
             tag: 'Download',
           );
-          throw Exception('分块 [${chunk.index}] 下载失败：$reason');
+          throw _ChunkDownloadFailed(chunk.index, reason, cause: e);
         }
       } finally {
         chunk.file = null;
@@ -1980,7 +2008,9 @@ class CopperIO {
     ///
     ///用户取消也走这里 —— 状态要如实报成 `cancelled`
     Future<void> finishFailed({bool cancelled = false}) async {
-      if (deleteOnError) {
+      //取消不算「还要再来一趟」：该清的现场照旧清掉
+      final keepPartial = keepPartialOnFailure && !cancelled;
+      if (deleteOnError && !keepPartial) {
         await _cleanupPartial(partialFile, metaPath);
       } else {
         await saveMeta();
@@ -2229,6 +2259,26 @@ class _Chunk {
 ///**故意不是 [DioException]**：调用方（[_downloadChunkedWithFallback]）据此
 ///换成单流整包重下
 class _RangeIgnored implements Exception {}
+
+///某个分块把重试用尽了
+///
+///带上原因与原始错误：上层据此判断「要不要带着续传现场整单再来一次」，
+///写盘失败与用户取消都重试不了
+class _ChunkDownloadFailed implements Exception {
+  _ChunkDownloadFailed(this.index, this.reason, {required this.cause});
+
+  final int index;
+
+  ///给用户看的原因（状态码 / 失败类型 / 写盘失败说明）
+  final String reason;
+
+  final Object cause;
+
+  bool get isWriteError => cause is FileSystemException;
+
+  @override
+  String toString() => '分块 [$index] 下载失败：$reason';
+}
 
 ///这次失败是不是「用户取消」
 ///
