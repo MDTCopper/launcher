@@ -1,24 +1,69 @@
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/data/mindustry/settings/setting_metadata.dart';
+import 'package:copper_launcher/data/net/data_index/data_index_client.dart';
 import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:flutter/foundation.dart';
 
-/// 版本设置适配：按 build 从 remote 读 `setting_adapter/<min>-<max>.json`。
+/// 版本设置适配：优先读数据索引 `mindustry/setting-adapter/current.json`
+/// （跟随最新 Mindustry 的一张完整表，每项带 `name`/`description` 的中英译文）。
 ///
-/// 文件格式为「v136 基准 + 逐版本差量」（数据来自 Mindustry 版本考古记录）：
-/// - `base`：v136 起可用的设置，每项含 `categories`（可属多个分类）
-/// - `changes`：按 build 升序记录增删——`add` 为完整 spec（覆盖同名），
-///   `remove` 为键名列表；`build` 不高于目标版本时全部应用
-///
-/// 兼容旧格式：仅有平铺 `settings` 的文件按无差量处理。
-/// 解析结果按 build 缓存；索引 / 文件内容变化时自动失效。
+/// 新表不再区分 build 范围：所有版本共用同一份设置项；`minSupportedBuild` 返回 null。
+/// 数据索引不可用时回落到 launcher remote 的旧「base + changes」文件。
+/// 解析结果按内容缓存，数据变化时自动失效。
 class SettingAdapter {
+  /// 数据索引里的最新版完整设置表（跟随最新 Mindustry，不再按 build 区间）
+  static const String dataIndexTablePath =
+      'mindustry/setting-adapter/current.json';
+
+  static String? _tableContent;
+  static List<SettingSpec>? _tableCache;
+
   static String? _indexContent;
   static String? _fileContent;
   static final Map<int, List<SettingSpec>> _resolved = {};
 
-  /// 按 build 读取该版本的可设置列表；无适配文件时返回 null
+  /// 读取最新版完整设置表；数据索引不可用时回落到旧的 launcher remote 适配文件
   static Future<List<SettingSpec>?> loadForBuild(int build) async {
+    final content = await DataIndexClient.loadText(
+      dataIndexTablePath,
+      maxAge: DataIndexClient.mindustryVersionsMaxAge,
+    );
+    if (content != null) {
+      if (_tableContent != content) {
+        _tableCache = applyTable(content);
+        _tableContent = content;
+      }
+      if (_tableCache != null && _tableCache!.isNotEmpty) return _tableCache;
+    }
+    return _loadLegacy(build);
+  }
+
+  /// 最新完整表不再区分适配范围，所有版本共用；返回 null 表示不按 build 过滤
+  static Future<int?> minSupportedBuild() async => null;
+
+  /// 解析数据索引 current.json：`{settings:[{key,name:{en,zh_CN},description:{...}}]}`
+  @visibleForTesting
+  static List<SettingSpec>? applyTable(String content) {
+    final dynamic decoded;
+    try {
+      decoded = decodeRemote(content);
+    } catch (_) {
+      return null;
+    }
+    if (decoded is! Map<String, dynamic>) return null;
+    final settings = decoded['settings'];
+    if (settings is! List<dynamic>) return null;
+
+    final specs = <SettingSpec>[];
+    for (final item in settings) {
+      if (item is! Map<String, dynamic>) continue;
+      final spec = SettingSpec.fromJson(item);
+      if (spec != null) specs.add(spec);
+    }
+    return specs.isEmpty ? null : specs;
+  }
+
+  static Future<List<SettingSpec>?> _loadLegacy(int build) async {
     final indexContent = await RemoteData.load(settingAdapterIndexFile);
     if (indexContent == null) return null;
 
@@ -41,13 +86,6 @@ class SettingAdapter {
     _fileContent = content;
     _resolved[build] = specs;
     return specs;
-  }
-
-  /// 索引覆盖的最小 build；低于它的版本没有适配数据，settings 覆写也无效
-  static Future<int?> minSupportedBuild() async {
-    final indexContent = await RemoteData.load(settingAdapterIndexFile);
-    if (indexContent == null) return null;
-    return minBuildOf(indexContent);
   }
 
   /// 从索引内容里取最小的 `min_build`；无规则时返回 null

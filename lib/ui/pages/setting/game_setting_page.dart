@@ -175,12 +175,18 @@ class _GameSettingPageState extends State<GameSettingPage> {
 
   // ── 控件 ──
 
+  Widget _specTitle(SettingSpec spec) {
+    final text = Text(spec.title);
+    if (spec.description.isEmpty) return text;
+    return Tooltip(message: spec.description, child: text);
+  }
+
   Widget _buildBoolBar(SettingSpec spec) {
     final value = settings.getValue(spec.key) as bool?;
     return Row(
       spacing: 8,
       children: [
-        Text(spec.title),
+        _specTitle(spec),
         Expanded(child: SizedBox()),
         Container(
           padding: const EdgeInsets.all(4),
@@ -241,7 +247,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
 
     return Row(
       children: [
-        SizedBox(width: 170, child: Text(spec.title)),
+        SizedBox(width: 170, child: _specTitle(spec)),
         SizedBox(
           width: 90,
           child: AnimatedSwitcher(
@@ -294,7 +300,7 @@ class _GameSettingPageState extends State<GameSettingPage> {
     return Row(
       spacing: 8,
       children: [
-        Text(spec.title),
+        _specTitle(spec),
         Expanded(child: SizedBox()),
         DropdownButton<String>(
           value: value ?? 'default',

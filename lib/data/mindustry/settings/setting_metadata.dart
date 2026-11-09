@@ -60,6 +60,10 @@ enum SettingPlatform {
 class SettingSpec {
   final String key;
   final String title;
+
+  /// 设置说明（数据索引里的 zh_CN/en 描述取一个显示）；没有则为空串。
+  final String description;
+
   final List<SettingCategory> categories;
   final SettingType type;
 
@@ -86,6 +90,7 @@ class SettingSpec {
     required this.title,
     required this.categories,
     required this.type,
+    this.description = '',
     this.min,
     this.max,
     this.step,
@@ -99,12 +104,14 @@ class SettingSpec {
     String key,
     String title,
     List<SettingCategory> categories, {
+    String description = '',
     List<SettingPlatform> platforms = const [],
   }) : this._(
          key: key,
          title: title,
          categories: categories,
          type: SettingType.bool,
+         description: description,
          platforms: platforms,
        );
 
@@ -114,6 +121,7 @@ class SettingSpec {
     List<SettingCategory> categories, {
     required int min,
     required int max,
+    String description = '',
     int step = 1,
     String unit = '',
     double displayRatio = 1.0,
@@ -123,6 +131,7 @@ class SettingSpec {
          title: title,
          categories: categories,
          type: SettingType.int,
+         description: description,
          min: min,
          max: max,
          step: step,
@@ -136,12 +145,14 @@ class SettingSpec {
     String title,
     List<SettingCategory> categories, {
     required List<String> options,
+    String description = '',
     List<SettingPlatform> platforms = const [],
   }) : this._(
          key: key,
          title: title,
          categories: categories,
          type: SettingType.options,
+         description: description,
          options: options,
          platforms: platforms,
        );
@@ -149,6 +160,7 @@ class SettingSpec {
   Map<String, dynamic> toJson() => {
     'key': key,
     'title': title,
+    if (description.isNotEmpty) 'description': description,
     'categories': categories.map((c) => c.name).toList(),
     'type': type.name,
     if (min != null) 'min': min,
@@ -164,8 +176,21 @@ class SettingSpec {
   static SettingSpec? fromJson(Map<String, dynamic> json) {
     final type = SettingType.values.asNameMap()[json['type']];
     final key = json['key'] as String?;
-    final title = json['title'] as String?;
+    var title = json['title'] as String?;
+    // 数据索引新格式：name/description 是 {en, zh_CN} 的译文表
+    final name = json['name'];
+    if (title == null && name is Map) {
+      title = (name['zh_CN'] ?? name['en'])?.toString();
+    }
     if (key == null || title == null || type == null) return null;
+
+    var description = '';
+    final rawDescription = json['description'];
+    if (rawDescription is Map) {
+      description = (rawDescription['zh_CN'] ?? rawDescription['en'] ?? '').toString();
+    } else if (rawDescription is String) {
+      description = rawDescription;
+    }
 
     // categories 为列表；旧数据的单值 category 也兼容读取
     final names = <String>[
@@ -187,7 +212,13 @@ class SettingSpec {
 
     switch (type) {
       case SettingType.bool:
-        return SettingSpec.bool(key, title, categories, platforms: platforms);
+        return SettingSpec.bool(
+          key,
+          title,
+          categories,
+          description: description,
+          platforms: platforms,
+        );
       case SettingType.int:
         return SettingSpec.intSlider(
           key,
@@ -195,6 +226,7 @@ class SettingSpec {
           categories,
           min: (json['min'] as num?)?.toInt() ?? 0,
           max: (json['max'] as num?)?.toInt() ?? 100,
+          description: description,
           step: (json['step'] as num?)?.toInt() ?? 1,
           unit: (json['unit'] as String?) ?? '',
           displayRatio: (json['displayRatio'] as num?)?.toDouble() ?? 1.0,
@@ -208,6 +240,7 @@ class SettingSpec {
           options: (json['options'] as List<dynamic>? ?? const [])
               .map((e) => e.toString())
               .toList(),
+          description: description,
           platforms: platforms,
         );
     }
