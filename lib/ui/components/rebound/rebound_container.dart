@@ -1,15 +1,25 @@
+import 'package:copper_launcher/ui/components/core/app_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-///回弹容器，点击有回弹效果，视觉上有被点击的效果
-///在暗色主题禁用和透明背景禁用elevation
-class ReboundContainer extends StatefulWidget {
+/// 兼容外壳：历史调用点很多，内部已改成 [AppPressable]（变色、不缩放）
+///
+/// 2026-11-09 起按压反馈统一为「变色」：整块缩放会导致行内分隔线跟着缩、
+/// 密集列表排版不稳，所以 [pressedScale] / [hoverElevation] / [elevation] /
+/// [hoverDuration] 只做兼容，不再生效；需要轻微回弹的独立按钮由上层单独处理。
+///
+/// 其余参数语义保持不变：
+/// - [backgroundColor] 底色（null 取卡片底色）
+/// - [hoverColor] 悬停叠加色，[splashColor] 按下色
+/// - [surfaceChild] 交互隔离层，叠在表面，点击不触发本层 [onTap]
+/// - [shapeBorder] 形状（与 [borderRadius] 二选一）
+class ReboundContainer extends StatelessWidget {
   final double? pressedScale;
-  final Duration? duration; // 回弹持续时间
+  final Duration? duration; // 兼容保留，不再生效
   final Widget? child;
 
   /// 交互隔离层：叠在按钮表面，其中的组件接收自己的交互，
-  /// 点击不会透传到 InkWell，不会触发按钮回弹
+  /// 点击不会透传到 [onTap]
   final Widget? surfaceChild;
 
   /// [surfaceChild] 在按钮区域内的对齐方式
@@ -32,7 +42,7 @@ class ReboundContainer extends StatefulWidget {
   final Color? backgroundColor;
   final Color? shadowColor;
 
-  /// 悬浮色渐变时长，默认 200ms
+  /// 兼容保留，不再生效
   final Duration hoverDuration;
 
   const ReboundContainer({
@@ -59,207 +69,44 @@ class ReboundContainer extends StatefulWidget {
   });
 
   @override
-  State<StatefulWidget> createState() => _ReboundContainer();
-}
-
-class _ReboundContainer extends State<ReboundContainer>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pressController;
-  late final Animation<double> _pressScale;
-
-  bool isPressed = false;
-  bool isHover = false;
-
-  GestureTapDownCallback? onTapDown;
-  GestureTapUpCallback? onTapUp;
-  VoidCallback? onTapCancel;
-  GestureLongPressCallback? onLongTap;
-  ValueChanged<bool>? onHover;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // 按压回弹
-    _pressController =
-        AnimationController(vsync: this, duration: widget.duration)
-          ..addStatusListener((state) {
-            if (!isPressed && !state.isAnimating) {
-              _pressController.reverse();
-            }
-          });
-    _pressScale = Tween(begin: 1.0, end: widget.pressedScale ?? 0.90).animate(
-      CurvedAnimation(parent: _pressController, curve: Curves.easeInOut),
-    );
-
-    // 悬浮监听
-    onHover = (hover) {
-      setState(() {
-        isHover = hover;
-      });
-    };
-
-    _syncTapHandlers();
-  }
-
-  @override
-  void didUpdateWidget(covariant ReboundContainer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // onTap / onLongTap 可能从 null 变成有值（禁用 → 可用），
-    // 手势回调只在 initState 装一次的话按钮会一直点不动
-    _syncTapHandlers();
-  }
-
-  /// 按当前 [ReboundContainer.onTap] / [ReboundContainer.onLongTap] 装手势回调；
-  /// 为 null 时清掉，让 InkWell 不注册对应手势
-  void _syncTapHandlers() {
-    onTapDown = null;
-    onTapUp = null;
-    onTapCancel = null;
-    onLongTap = null;
-
-    // 按压
-    if (widget.onTap != null) {
-      onTapDown = (_) {
-        setState(() {
-          isPressed = true;
-          if (!_pressController.isForwardOrCompleted) {
-            _pressController.forward();
-          }
-        });
-      };
-
-      onTapUp = (_) {
-        setState(() {
-          isPressed = false;
-          if (!_pressController.isAnimating) {
-            _pressController.reverse();
-          }
-        });
-        widget.onTap?.call();
-      };
-
-      onTapCancel = () {
-        setState(() {
-          isPressed = false;
-          if (!_pressController.isAnimating) {
-            _pressController.reverse();
-          }
-        });
-      };
-    }
-
-    if (widget.onLongTap != null) {
-      onLongTap = () {
-        setState(() {
-          isPressed = false;
-          if (!_pressController.isForwardOrCompleted) {
-            _pressController.forward();
-          }
-        });
-        widget.onLongTap?.call();
-      };
-    }
-  }
-
-  @override
-  void dispose() {
-    _pressController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final light = theme.brightness == Brightness.light;
+    final colors = AppColors.of(context);
+    final background = backgroundColor ?? colors.cardBackground;
 
-    final backgroundColor =
-        widget.backgroundColor ?? AppColors.of(context).cardBackground;
-    theme.colorScheme.secondaryContainer;
-
-    final hoverColor = widget.hoverColor ?? AppColors.of(context).splash;
-
-    final double elevation;
-
-    //亮色且背景不透明情况下触发elevation
-    if (light && backgroundColor.a == 1.0) {
-      if (isHover && !isPressed) {
-        elevation = widget.hoverElevation;
-      } else {
-        elevation = widget.elevation;
-      }
-    } else {
-      elevation = 0.0;
-    }
-
-    Widget? child = widget.child;
-    var surfaceChild = widget.surfaceChild;
-    if (widget.padding != null) {
-      child = Padding(padding: widget.padding!, child: widget.child);
-      surfaceChild = Padding(
-        padding: widget.padding!,
-        child: widget.surfaceChild,
-      );
-    }
-
-    child = ScaleTransition(
-      alignment: Alignment.center,
-      scale: _pressScale,
-      child: Stack(
+    Widget content = child ?? const SizedBox.shrink();
+    if (surfaceChild != null) {
+      content = Stack(
         alignment: Alignment.center,
         fit: StackFit.passthrough,
         children: [
-          Material(
-            borderRadius: widget.borderRadius,
-            shape: widget.shapeBorder,
-            color: backgroundColor,
-            shadowColor: widget.shadowColor,
-            elevation: elevation,
-            child: InkWell(
-              autofocus: true,
-              borderRadius: widget.borderRadius,
-              customBorder: widget.shapeBorder,
-              focusColor: Colors.transparent,
-              hoverColor: Colors.transparent,
-              highlightColor: widget.highlightColor,
-              splashColor: widget.splashColor,
-              onTapDown: onTapDown,
-              onTapUp: onTapUp,
-              onTapCancel: onTapCancel,
-              onLongPress: onLongTap,
-              onHover: onHover,
-              child: child,
-            ),
-          ),
-          if (surfaceChild != null)
-            Positioned.fill(
-              child: Align(
-                alignment: widget.surfaceAlignment,
-                child: surfaceChild,
-              ),
-            ),
-          //todo 墨水层实现脱离，用MaterialInkController操控墨水
-          // 悬浮叠加层 —— 用动画控制透明度，暗色模式也能看见
+          content,
           Positioned.fill(
-            child: IgnorePointer(
-              child: AnimatedContainer(
-                duration: widget.hoverDuration,
-                curve: Curves.ease,
-                decoration: BoxDecoration(
-                  color: isHover ? hoverColor : hoverColor.withAlpha(0),
-                  borderRadius: widget.borderRadius,
-                ),
-              ),
-            ),
+            child: Align(alignment: surfaceAlignment, child: surfaceChild),
           ),
         ],
-      ),
-    );
-
-    if (widget.margin != null) {
-      child = Padding(padding: widget.margin!, child: child);
+      );
     }
 
-    return child;
+    Widget pressable = AppPressable(
+      onTap: onTap,
+      onLongTap: onLongTap,
+      borderRadius: borderRadius,
+      padding: padding,
+      margin: margin,
+      backgroundColor: shapeBorder == null ? background : Colors.transparent,
+      hoverColor: hoverColor,
+      pressedColor: splashColor ?? highlightColor,
+      child: content,
+    );
+
+    if (shapeBorder == null) return pressable;
+
+    return DecoratedBox(
+      decoration: ShapeDecoration(color: background, shape: shapeBorder!),
+      child: ClipPath(
+        clipper: ShapeBorderClipper(shape: shapeBorder!),
+        child: pressable,
+      ),
+    );
   }
 }

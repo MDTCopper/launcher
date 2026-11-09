@@ -1,11 +1,11 @@
-import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
+import 'package:copper_launcher/ui/components/core/app_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-/// 直接基于 [ReboundContainer]
-/// - 双模式外观：
-///   - 暗色：玻璃感——透明背景
-///   - 浅色：云母片浮动感——不透明背景（[backgroundColor]），hover 浮出 [hoverElevation]
+/// 兼容入口：历史调用点很多，内部已改为 [AppPressable]（变色、不缩放）
+///
+/// 保留原来的参数签名，避免大范围改调用点；`pressedScale` / `elevation` /
+/// `hoverElevation` / `shadowColor` 只做兼容，不再生效。
 class ReboundButton extends StatelessWidget {
   final Widget child;
   final VoidCallback? onTap;
@@ -46,18 +46,13 @@ class ReboundButton extends StatelessWidget {
     final backgroundColor =
         this.backgroundColor ?? AppColors.of(context).highBackgroundOnCard;
 
-    return ReboundContainer(
-      pressedScale: pressedScale,
-      elevation: elevation ?? 0.0,
-      hoverElevation: hoverElevation,
+    return AppPressable(
       borderRadius: borderRadius ?? BorderRadius.circular(4),
       padding: padding,
       margin: margin,
       backgroundColor: backgroundColor,
       hoverColor: hoverColor,
-      splashColor: splashColor,
-      highlightColor: highlightColor,
-      shadowColor: shadowColor,
+      pressedColor: splashColor,
       onTap: onTap,
       onLongTap: onLongTap,
       child: child,
