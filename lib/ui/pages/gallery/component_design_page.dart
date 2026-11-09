@@ -1,3 +1,4 @@
+import 'package:copper_launcher/ui/pages/design/core_component_demo.dart';
 import 'package:copper_launcher/ui/pages/design/real_component_demo.dart';
 import 'package:copper_launcher/ui/pages/design/template_catalog_page.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
@@ -49,7 +50,8 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
 
   /// 目录序号：0 = 原组件对照，1 = 全部设计样张，2 起 = 单节
   static const _realIndex = 0;
-  static const _allIndex = 1;
+  static const _coreIndex = 1;
+  static const _allIndex = 2;
 
   @override
   Widget build(BuildContext context) {
@@ -83,9 +85,10 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
 
   Widget _content(TemplateSkin skin) {
     if (_selected == _realIndex) return RealComponentDemo(skin: skin);
+    if (_selected == _coreIndex) return CoreComponentDemo(skin: skin);
     return TemplateCatalogPage(
       skin: skin,
-      onlySection: _selected == _allIndex ? null : _sections[_selected - 2],
+      onlySection: _selected == _allIndex ? null : _sections[_selected - 3],
     );
   }
 
@@ -105,7 +108,7 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
             style: TemplateType.section.copyWith(color: skin.textPrimary),
           ),
           Text(
-            '左边选一类；第一项是原组件对照（真实组件 + 设计版缺的能力），改完热重载生效',
+            '左边选一类；「原组件对照」看旧组件能力，「内核组件」看新 core 组件，改完热重载生效',
             style: TemplateType.caption.copyWith(color: skin.textTertiary),
           ),
         ],
@@ -124,9 +127,10 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
         padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
         children: [
           _indexItem(skin, '原组件对照（组件库）', _realIndex),
+          _indexItem(skin, '内核组件（core）', _coreIndex),
           _indexItem(skin, '全部设计样张', _allIndex),
           for (var i = 0; i < _sections.length; i++)
-            _indexItem(skin, _sections[i], i + 2),
+            _indexItem(skin, _sections[i], i + 3),
         ],
       ),
     );

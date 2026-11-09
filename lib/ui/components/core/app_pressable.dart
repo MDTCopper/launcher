@@ -30,6 +30,7 @@ class AppPressable extends StatefulWidget {
     this.selectedColor,
     this.decoration,
     this.clipBehavior = Clip.none,
+    this.onPressedChanged,
   });
 
   final Widget child;
@@ -55,6 +56,9 @@ class AppPressable extends StatefulWidget {
   final BoxDecoration? decoration;
 
   final Clip clipBehavior;
+
+  /// 按下状态变化（给需要轻微回弹的主按钮用；不要在回调里改颜色做动画）
+  final ValueChanged<bool>? onPressedChanged;
 
   @override
   State<AppPressable> createState() => _AppPressableState();
@@ -93,9 +97,24 @@ class _AppPressableState extends State<AppPressable> {
         onTap: active ? widget.onTap : null,
         onLongPress: active ? widget.onLongTap : null,
         onSecondaryTap: active ? widget.onSecondaryTap : null,
-        onTapDown: active ? (_) => setState(() => _pressed = true) : null,
-        onTapUp: active ? (_) => setState(() => _pressed = false) : null,
-        onTapCancel: active ? () => setState(() => _pressed = false) : null,
+        onTapDown: active
+            ? (_) {
+                setState(() => _pressed = true);
+                widget.onPressedChanged?.call(true);
+              }
+            : null,
+        onTapUp: active
+            ? (_) {
+                setState(() => _pressed = false);
+                widget.onPressedChanged?.call(false);
+              }
+            : null,
+        onTapCancel: active
+            ? () {
+                setState(() => _pressed = false);
+                widget.onPressedChanged?.call(false);
+              }
+            : null,
         child: Container(
           margin: widget.margin,
           clipBehavior: widget.clipBehavior,
