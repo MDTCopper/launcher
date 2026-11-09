@@ -1551,6 +1551,8 @@ class CopperIO {
           .length;
     }
 
+    //续传现场可能已经下了一部分：先按已收字节把进度算出来，别让界面从 0 开始
+    refreshChunkStats();
     onStatus?.call(state);
 
     //自适应调度：worker 池取「剩余最大」的块（快 worker 自然多干）；
@@ -1778,6 +1780,12 @@ class CopperIO {
           final chunk = claimNext();
           if (chunk == null) {
             if (rangeIgnored || cancelToken?.isCancelled == true) return;
+            //续传现场里可能所有块都已经下满：没有活可领也是一种「完成」，
+            //否则没人会去置 finished，整单就停在这里等一个永远不来的块
+            if (chunks.every((c) => c.status == HttpChunkStatus.complete)) {
+              if (!finished.isCompleted) finished.complete();
+              return;
+            }
             final waiter = Completer<void>();
             waitingWorkers.add(waiter);
             await Future.any([waiter.future, finished.future]);
@@ -2205,7 +2213,12 @@ class _Chunk {
     : nextOffset = start + received,
       //续传带过来的那段是上一轮记进元数据的，按定义已经落盘
       durableReceived = received,
-      status = HttpChunkStatus.pending;
+      //续传时已经下满的块直接算完成：`claimNext` 会跳过 remaining 为 0 的块，
+      //状态若还留在 pending，它就永远没被领走、也永远不算完成 ⇒ 整单收尾条件
+      //永远不成立，worker 全挂起、零字节零报错地卡死
+      status = received >= size
+          ? HttpChunkStatus.complete
+          : HttpChunkStatus.pending;
 
   ///还没下完的字节数
   int get remaining => end - nextOffset + 1;
