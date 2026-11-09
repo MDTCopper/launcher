@@ -8,6 +8,7 @@ import 'package:copper_launcher/ui/components/core/cu_segment.dart';
 import 'package:copper_launcher/ui/components/core/cu_switch.dart';
 import 'package:copper_launcher/ui/components/core/cu_text_field.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
+import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
 import 'package:flutter/material.dart';
 
@@ -199,6 +200,47 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
                 label: '禁用',
                 hint: '不可编辑',
                 enabled: false,
+              ),
+            ],
+          ),
+        ),
+        _note('通知样式', '三种通知：右上卡片 / 底部胶囊 toast / 顶部横条 banner（点按钮在真机里看动效）'),
+        _group(
+          Wrap(
+            spacing: TemplateSpace.sm,
+            runSpacing: TemplateSpace.sm,
+            children: [
+              CuButton(
+                label: '卡片通知',
+                icon: Icons.notifications_outlined,
+                kind: CuButtonKind.plain,
+                onTap: () => addNotice(
+                  icon: Icons.check_circle_outline,
+                  title: '已保存游戏内身份',
+                  content: 'Cubik65536',
+                ),
+              ),
+              CuButton(
+                label: 'Toast',
+                icon: Icons.notifications_active_outlined,
+                kind: CuButtonKind.plain,
+                onTap: () => addNotice(
+                  icon: Icons.copy,
+                  title: '房间码已复制',
+                  duration: const Duration(seconds: 3),
+                  style: NoticeStyle.toast,
+                ),
+              ),
+              CuButton(
+                label: 'Banner',
+                icon: Icons.campaign_outlined,
+                kind: CuButtonKind.plain,
+                onTap: () => addNotice(
+                  icon: Icons.info_outline,
+                  title: '有新版本可用',
+                  content: '当前 v160.7，最新 v161.2',
+                  style: NoticeStyle.banner,
+                ),
               ),
             ],
           ),

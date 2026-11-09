@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -17,28 +18,44 @@ final _failureNoticeIcons = <IconData>{
   Icons.delete_forever,
 };
 
+/// 通知样式
+enum NoticeStyle {
+  /// 右上角卡片（默认）：标题 + 正文，适合需要看清内容的结果提示
+  card,
+
+  /// 底部居中胶囊：单行短句，3 秒左右自动消失，适合「已复制」这类轻提示
+  toast,
+
+  /// 顶部居中横条：图标 + 标题 + 说明，适合页面级提示（有轻微干扰）
+  banner,
+}
+
 void addNotice({
   IconData? icon,
   String? title,
   String? content,
   VoidCallback? onTap,
   Duration duration = const Duration(seconds: 5),
+  NoticeStyle style = NoticeStyle.card,
 }) => NotificationManager.addNotice(
   content: content,
   title: title,
   icon: icon,
   onTap: onTap,
   duration: duration,
+  style: style,
 );
 
 void addNoticeWidget({
   required Widget widget,
   VoidCallback? onTap,
   Duration duration = const Duration(seconds: 5),
+  NoticeStyle style = NoticeStyle.card,
 }) => NotificationManager.addNoticeWidget(
   widget: widget,
   onTap: onTap,
   duration: duration,
+  style: style,
 );
 
 class NotificationManager {
@@ -67,6 +84,7 @@ class NotificationManager {
     String? content,
     VoidCallback? onTap,
     Duration duration = const Duration(seconds: 5),
+    NoticeStyle style = NoticeStyle.card,
   }) async {
     // 失败类通知同时落盘（消息先压成一行，异常原文常带换行）
     if (icon != null && _failureNoticeIcons.contains(icon)) {
@@ -81,7 +99,14 @@ class NotificationManager {
     //调用，异步里抛出来就是未捕获异常
     if (context == null) return;
     await _show(context).then((_) {
-      _globalKey.currentState?.addItem(icon, title, content, onTap, duration);
+      _globalKey.currentState?.addItem(
+        icon,
+        title,
+        content,
+        onTap,
+        duration,
+        style,
+      );
     });
   }
 
@@ -90,31 +115,40 @@ class NotificationManager {
     required Widget widget,
     VoidCallback? onTap,
     Duration duration = const Duration(seconds: 5),
+    NoticeStyle style = NoticeStyle.card,
   }) async {
     context ??= PageKeyProvider.shellKey.currentContext;
     //同 addNotice：没有 shell 就没人能收到这条通知，直接跳过而不是抛空指针
     if (context == null) return;
     await _show(context).then((_) {
-      _globalKey.currentState?.addItemWidget(widget, onTap, duration);
+      _globalKey.currentState?.addItemWidget(widget, onTap, duration, style);
     });
   }
 
-  static Future<void> _show(BuildContext context) async {
-    if (_overlayEntry == null || !(_overlayEntry?.mounted ?? false)) {
-      _overlayEntry = OverlayEntry(
-        builder: (_) {
-          //通知落在右上角：铺满整块再靠右上对齐，顶边让开 40 高的顶栏
-          return Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 56),
-              child: Align(alignment: Alignment.topRight, child: _widget),
-            ),
-          );
-        },
-      );
-      Overlay.of(context).insert(_overlayEntry!);
-      await WidgetsBinding.instance.endOfFrame; //等待第一帧加载
+  /// 正在插入 overlay 的 Future：同一帧里连发多条通知时共用它，
+  /// 否则每条都会看到 `mounted == false` 各插一份，同一 `_widget`
+  /// （带 GlobalKey）会被放进两个 OverlayEntry ⇒ GlobalKey 冲突
+  static Future<void>? _showFuture;
+
+  static Future<void> _show(BuildContext context) {
+    if (_overlayEntry != null && (_overlayEntry?.mounted ?? false)) {
+      return Future.value();
     }
+    return _showFuture ??= _insert(context).whenComplete(() {
+      _showFuture = null;
+    });
+  }
+
+  static Future<void> _insert(BuildContext context) async {
+    if (_overlayEntry != null && (_overlayEntry?.mounted ?? false)) return;
+    _overlayEntry = OverlayEntry(
+      builder: (_) {
+        // 铺满整块，由 NotificationWidget 自己按样式分配到三个位置
+        return Positioned.fill(child: _widget);
+      },
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+    await WidgetsBinding.instance.endOfFrame; //等待第一帧加载
   }
 }
 
@@ -138,57 +172,164 @@ class _NotificationWidgetState extends State<NotificationWidget> {
     String? content,
     VoidCallback? onTap,
     Duration duration,
+    NoticeStyle style,
   ) {
-    final theme = Theme.of(context);
-    Widget widget = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    final widget = switch (style) {
+      NoticeStyle.card => _buildCard(icon, title, content),
+      NoticeStyle.toast => _buildToast(icon, title, content),
+      NoticeStyle.banner => _buildBanner(icon, title, content),
+    };
+    addItemWidget(widget, onTap, duration, style);
+  }
+
+  /// 右上角卡片：图标 + 标题 + 正文（换成新皮肤：卡片底 + 1px 描边，不再用旧配色）
+  Widget _buildCard(IconData? icon, String? title, String? content) {
+    final colors = AppColors.of(context);
+    final textTheme = Theme.of(context).textTheme;
+
+    return Material(
+      color: colors.cardBackground,
+      elevation: 4,
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.hardEdge,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 300),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 10,
+          children: [
+            if (icon != null) Icon(icon, size: 20, color: colors.interactive),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: [
+                  if (title != null)
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colors.itemPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  if (content != null)
+                    Text(
+                      content,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colors.itemSecondary,
+                        height: 18 / 12,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 底部居中胶囊：单行短句（有标题优先标题，否则正文）
+  Widget _buildToast(IconData? icon, String? title, String? content) {
+    final colors = AppColors.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final text = title ?? content ?? '';
+
+    return Material(
+      color: colors.elevatedBackground,
+      elevation: 6,
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.hardEdge,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 420),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           spacing: 8,
           children: [
-            Icon(icon, size: 28),
-            if (title != null)
-              //标题没有宽度上限会撑破这行，交给 Flexible 按剩余宽度省略号收尾
-              Flexible(
-                child: Text(
-                  title,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
+            if (icon != null) Icon(icon, size: 16, color: colors.itemSecondary),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.bodySmall?.copyWith(color: colors.itemPrimary),
               ),
+            ),
           ],
         ),
-        if (content != null) Text(content, style: theme.textTheme.bodyMedium),
-      ],
-    );
-
-    widget = BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2, tileMode: TileMode.mirror),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.secondaryContainer,
-          borderRadius: const BorderRadius.all(Radius.circular(4)),
-        ),
-        child: widget,
       ),
     );
-
-    widget = Material(
-      color: Colors.transparent,
-      elevation: 4,
-      clipBehavior: Clip.hardEdge,
-      child: widget,
-    );
-    addItemWidget(widget, onTap, duration);
   }
 
-  void addItemWidget(Widget widget, VoidCallback? onTap, Duration duration) {
+  /// 顶部居中横条：图标 + 标题 + 说明
+  Widget _buildBanner(IconData? icon, String? title, String? content) {
+    final colors = AppColors.of(context);
+    final textTheme = Theme.of(context).textTheme;
+
+    return Material(
+      color: colors.cardBackground,
+      elevation: 4,
+      borderRadius: BorderRadius.circular(6),
+      clipBehavior: Clip.hardEdge,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 560),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          spacing: 10,
+          children: [
+            if (icon != null) Icon(icon, size: 18, color: colors.interactive),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: [
+                  if (title != null)
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colors.itemPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  if (content != null)
+                    Text(
+                      content,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colors.itemSecondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void addItemWidget(
+    Widget widget,
+    VoidCallback? onTap,
+    Duration duration,
+    NoticeStyle style,
+  ) {
     setState(() {
-      _itemList.add(_NoticeData(_uuid.v4(), widget, onTap, duration));
+      _itemList.add(_NoticeData(_uuid.v4(), widget, onTap, duration, style));
     });
   }
 
@@ -208,24 +349,71 @@ class _NotificationWidgetState extends State<NotificationWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: BoxConstraints(maxWidth: 300),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 右上角卡片：顶边让开 40 高的顶栏
+        Align(
+          alignment: Alignment.topRight,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 56),
+            child: _columnFor(NoticeStyle.card, _maxCard),
+          ),
+        ),
+        // 顶部居中横条
+        Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _columnFor(NoticeStyle.banner, _maxBanner),
+          ),
+        ),
+        // 底部居中胶囊
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _columnFor(NoticeStyle.toast, _maxToast),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _columnFor(NoticeStyle style, double maxWidth) {
+    final items = _itemList.where((item) => item.style == style).toList();
+    if (items.isEmpty) return const SizedBox.shrink();
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          for (final item in _itemList)
+          for (final item in items)
             // key 必须落在 Column 的直接 children 上：藏在包装里时，
             // 删中间一条会让后面那条按 index 复用包装层、被重建并重播入场动画
             _NoticeItem(
               key: ValueKey(item.id),
               item: item,
               onRemove: () => _removeById(item.id),
+              padding: style == NoticeStyle.toast
+                  ? const EdgeInsets.only(bottom: 8)
+                  : const EdgeInsets.only(right: 12, bottom: 12),
+              alignment: style == NoticeStyle.toast
+                  ? Alignment.bottomCenter
+                  : style == NoticeStyle.banner
+                  ? Alignment.topCenter
+                  : Alignment.topRight,
             ),
         ],
       ),
     );
   }
+
+  /// 各样式最大宽度
+  static const _maxCard = 300.0;
+  static const _maxToast = 420.0;
+  static const _maxBanner = 560.0;
 }
 
 /// 通知条目：自持入场 / 退场动画 + 右滑删除
@@ -240,7 +428,19 @@ class _NoticeItem extends StatefulWidget {
   final _NoticeData item;
   final VoidCallback onRemove;
 
-  const _NoticeItem({super.key, required this.item, required this.onRemove});
+  /// 外衬；toast 只留底部间距，card / banner 保留右侧间距
+  final EdgeInsets padding;
+
+  /// 收缩时的对齐（右对齐的卡片从右上收，toast 从底部收）
+  final Alignment alignment;
+
+  const _NoticeItem({
+    super.key,
+    required this.item,
+    required this.onRemove,
+    this.padding = const EdgeInsets.only(right: 12, bottom: 12),
+    this.alignment = Alignment.topRight,
+  });
 
   @override
   State<_NoticeItem> createState() => _NoticeItemState();
@@ -476,12 +676,9 @@ class _NoticeItemState extends State<_NoticeItem>
 
     return SizeTransition(
       sizeFactor: sizeFactor,
-      //纵向收缩不动宽度 ⇒ 这一层的盒子仍占满宽度，卡片得靠右对齐才贴住右边缘
-      alignment: Alignment(1.0, -1.0),
-      child: Padding(
-        padding: const EdgeInsets.only(right: 12),
-        child: Padding(padding: const EdgeInsets.only(bottom: 12), child: item),
-      ),
+      //纵向收缩不动宽度 ⇒ 这一层的盒子仍占满宽度，卡片得靠对齐方式贴住目标边缘
+      alignment: widget.alignment,
+      child: Padding(padding: widget.padding, child: item),
     );
   }
 }
@@ -491,6 +688,7 @@ class _NoticeData {
   final Widget widget;
   final VoidCallback? onTap;
   final Duration duration;
+  final NoticeStyle style;
 
-  _NoticeData(this.id, this.widget, this.onTap, this.duration);
+  _NoticeData(this.id, this.widget, this.onTap, this.duration, this.style);
 }
