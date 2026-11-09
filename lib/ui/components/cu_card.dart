@@ -1,7 +1,7 @@
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-class CopperCard extends StatelessWidget {
+class CuCard extends StatelessWidget {
   final Color? color;
   final double? elevation;
   final BorderRadius? borderRadius;
@@ -10,7 +10,7 @@ class CopperCard extends StatelessWidget {
   final EdgeInsets margin;
   final Widget child;
 
-  const CopperCard({
+  const CuCard({
     super.key,
     this.color,
     this.elevation,

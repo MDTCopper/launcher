@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:copper_launcher/ui/components/copper_card.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
+import 'package:copper_launcher/ui/components/core/cu_log_tile.dart';
+import 'package:copper_launcher/ui/components/cu_card.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
@@ -152,64 +152,26 @@ class _TaskLogListState extends State<TaskLogList> {
   }
 
   Widget _buildItem(LogEntry logEntry) {
-    final colors = AppColors.of(context);
-    final theme = Theme.of(context);
-
-    final describe = LayoutBuilder(
-      builder: (_, c) {
-        final describeP = TextPainter(
-          text: TextSpan(
-            text: logEntry.describe,
-            style: theme.textTheme.bodyMedium,
-          ),
-          textDirection: .ltr,
-        )..layout();
-        Widget describe = Text(
-          logEntry.describe,
-          style: theme.textTheme.bodyMedium,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
-        );
-        //超出大小添加hint
-        if (describeP.width > c.maxWidth) {
-          describe = HintLayer(
-            showOnTap: true,
-            preferPosition: .left,
-            gap: 30,
-            hint: logEntry.describe,
-            child: describe,
-          );
-        }
-
-        return describe;
-      },
-    );
-
-    return CopperCard(
+    return CuCard(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-
-      child: Row(
-        children: [
-          Icon(_typeIcon(logEntry.type), size: 18, color: colors.itemHint),
-          const SizedBox(width: 8),
-          Expanded(child: describe),
-          const SizedBox(width: 8),
-          Text(
-            _timeFormat.format(logEntry.time),
-            style: theme.textTheme.labelSmall,
-          ),
-        ],
+      padding: EdgeInsets.zero,
+      child: CuLogTile(
+        text: logEntry.describe,
+        level: _level(logEntry.type),
+        time: _timeFormat.format(logEntry.time),
+        detail: logEntry.detail,
+        progress: logEntry.progress,
+        mono: logEntry.mono,
       ),
     );
   }
 
-  IconData _typeIcon(LogType type) {
+  CuLogLevel _level(LogType type) {
     return switch (type) {
-      LogType.info => Icons.info_outline,
-      LogType.success => Icons.check_box_outlined,
-      LogType.error => Icons.error_outline,
-      LogType.warning => Icons.warning_amber,
+      LogType.info => CuLogLevel.info,
+      LogType.success => CuLogLevel.success,
+      LogType.error => CuLogLevel.error,
+      LogType.warning => CuLogLevel.warning,
     };
   }
 
@@ -295,5 +257,20 @@ class LogEntry {
   final String describe;
   final DateTime time;
 
-  LogEntry(this.type, this.describe) : time = DateTime.now();
+  /// 等宽详情（堆栈 / 命令输出），给了就能在日志条目里展开查看
+  final String? detail;
+
+  /// 0~1 的过程进度（下载 / 解压），给了就显示进度条
+  final double? progress;
+
+  /// 正文用等宽字体
+  final bool mono;
+
+  LogEntry(
+    this.type,
+    this.describe, {
+    this.detail,
+    this.progress,
+    this.mono = false,
+  }) : time = DateTime.now();
 }

@@ -2,7 +2,7 @@
 import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/segment_button.dart';
-import 'package:copper_launcher/ui/components/copper_card.dart';
+import 'package:copper_launcher/ui/components/cu_card.dart';
 import 'package:copper_launcher/ui/components/effect/border_progress.dart';
 import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/components/input/outlined_text_field.dart';
@@ -10,7 +10,7 @@ import 'package:copper_launcher/ui/components/overlay_layer/dropdown_layer.dart'
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/components/pager.dart';
 import 'package:copper_launcher/ui/components/percent_bar.dart';
-import 'package:copper_launcher/ui/components/rebound/copper_slider.dart';
+import 'package:copper_launcher/ui/components/rebound/cu_slider.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_checkbox.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_switch.dart';
 import 'package:copper_launcher/ui/components/row/priority_row.dart';
@@ -114,7 +114,7 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
         _diffCard(
           '卡片与列表',
           '设计版 `TemplateListCard` / `TemplateRow` 是静态行；'
-              '按压已从「整体缩放」改为「变色」（CopperPressable），因此行间分隔线可以加回来',
+              '按压已从「整体缩放」改为「变色」（CuPressable），因此行间分隔线可以加回来',
         ),
         _cards(),
         _diffCard('优先行', '设计版没有这个：窗口窄时按优先级依次丢弃次要信息，保证主信息不被挤断'),
@@ -257,7 +257,7 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
 
   Widget _sliderRow() {
     return _group(
-      CopperSlider(
+      CuSlider(
         value: _slider,
         label: '${(_slider * 100).round()}%',
         divisions: 20,
@@ -396,11 +396,11 @@ class _RealComponentDemoState extends State<RealComponentDemo> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: TemplateSpace.sm,
         children: [
-          CopperCard(
+          CuCard(
             child: Padding(
               padding: const EdgeInsets.all(TemplateSpace.sm),
               child: Text(
-                'CopperCard：带抬升与可选长按',
+                'CuCard：带抬升与可选长按',
                 style: TemplateType.item.copyWith(color: skin.textPrimary),
               ),
             ),

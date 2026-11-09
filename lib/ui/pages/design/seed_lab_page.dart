@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/copper_card.dart';
+import 'package:copper_launcher/ui/components/cu_card.dart';
 import 'package:copper_launcher/ui/components/input/color_picker.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
@@ -140,7 +140,7 @@ class _SeedLabPageState extends State<SeedLabPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: AppSpacing.group,
         children: [
-          CopperCard(
+          CuCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: AppSpacing.tight,
@@ -157,7 +157,7 @@ class _SeedLabPageState extends State<SeedLabPage> {
               ],
             ),
           ),
-          CopperCard(
+          CuCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: AppSpacing.tight,
@@ -203,7 +203,7 @@ class _SeedLabPageState extends State<SeedLabPage> {
               ],
             ),
           ),
-          CopperCard(
+          CuCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: AppSpacing.tight,

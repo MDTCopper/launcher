@@ -1,8 +1,8 @@
-import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
+import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-/// 兼容入口：历史调用点很多，内部已改为 [CopperPressable]（变色、不缩放）
+/// 兼容入口：历史调用点很多，内部已改为 [CuPressable]（变色、不缩放）
 ///
 /// 保留原来的参数签名，避免大范围改调用点；`pressedScale` / `elevation` /
 /// `hoverElevation` / `shadowColor` 只做兼容，不再生效。
@@ -46,7 +46,7 @@ class ReboundButton extends StatelessWidget {
     final backgroundColor =
         this.backgroundColor ?? AppColors.of(context).highBackgroundOnCard;
 
-    return CopperPressable(
+    return CuPressable(
       borderRadius: borderRadius ?? BorderRadius.circular(4),
       padding: padding,
       margin: margin,

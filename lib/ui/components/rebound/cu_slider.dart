@@ -7,7 +7,7 @@ import '../../theme/app_colors.dart';
 /// - 值域 [min] ~ [max]，拖动 / 点击按比例换算；[divisions] 非空时吸附刻度
 /// - 拖拽期间显示浮标 [label](值文本)，松手隐藏
 /// - 取色走 [AppColors]：已填部分 = 主题色，未填部分 = 边框色，滑块 = 卡片底
-class CopperSlider extends StatefulWidget {
+class CuSlider extends StatefulWidget {
   final double value;
   final double min;
   final double max;
@@ -17,7 +17,7 @@ class CopperSlider extends StatefulWidget {
   final ValueChanged<double>? onChangeStart;
   final ValueChanged<double>? onChangeEnd;
 
-  const CopperSlider({
+  const CuSlider({
     super.key,
     required this.value,
     this.label,
@@ -33,8 +33,7 @@ class CopperSlider extends StatefulWidget {
   State<StatefulWidget> createState() => _CopperSliderState();
 }
 
-class _CopperSliderState extends State<CopperSlider>
-    with TickerProviderStateMixin {
+class _CopperSliderState extends State<CuSlider> with TickerProviderStateMixin {
   static const _kTrackHeight = 6.0;
   static const _kThumbSize = 18.0;
   static const _kHitHeight = 28.0;
@@ -81,25 +80,26 @@ class _CopperSliderState extends State<CopperSlider>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
-    _jumpController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 180),
-    )
-      ..addListener(() {
-        // 位置连续插值(不吸附)，让滑块平滑滑到目标
-        final t = Curves.easeOutCubic.transform(_jumpController.value);
-        final ratio = _jumpStart + (_jumpTarget - _jumpStart) * t;
-        setState(() => _jumpValue = _ratioToValue(ratio));
-      })
-      ..addStatusListener((status) {
-        if (status != AnimationStatus.completed) return;
-        // 到位后提交吸附值并收浮标
-        final finalValue = _snapValue(_jumpTarget);
-        setState(() => _jumpValue = null);
-        widget.onChanged?.call(finalValue);
-        widget.onChangeEnd?.call(finalValue);
-        _labelController.reverse();
-      });
+    _jumpController =
+        AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 180),
+          )
+          ..addListener(() {
+            // 位置连续插值(不吸附)，让滑块平滑滑到目标
+            final t = Curves.easeOutCubic.transform(_jumpController.value);
+            final ratio = _jumpStart + (_jumpTarget - _jumpStart) * t;
+            setState(() => _jumpValue = _ratioToValue(ratio));
+          })
+          ..addStatusListener((status) {
+            if (status != AnimationStatus.completed) return;
+            // 到位后提交吸附值并收浮标
+            final finalValue = _snapValue(_jumpTarget);
+            setState(() => _jumpValue = null);
+            widget.onChanged?.call(finalValue);
+            widget.onChangeEnd?.call(finalValue);
+            _labelController.reverse();
+          });
   }
 
   @override
@@ -204,17 +204,14 @@ class _CopperSliderState extends State<CopperSlider>
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             // 点击：等手势竞技裁决(确认是 tap 而非 drag)后，从当前位置缓动跳转
-            onTapUp: (details) => _jumpTo(
-              (details.localPosition.dx / width).clamp(0.0, 1.0),
-            ),
+            onTapUp: (details) =>
+                _jumpTo((details.localPosition.dx / width).clamp(0.0, 1.0)),
             onTapCancel: () => _jumpController.stop(),
             // 拖动：实时跟手(优先于 tap 竞技胜出)
-            onHorizontalDragStart: (details) => _startDrag(
-              (details.localPosition.dx / width).clamp(0.0, 1.0),
-            ),
-            onHorizontalDragUpdate: (details) => _updateDrag(
-              (details.localPosition.dx / width).clamp(0.0, 1.0),
-            ),
+            onHorizontalDragStart: (details) =>
+                _startDrag((details.localPosition.dx / width).clamp(0.0, 1.0)),
+            onHorizontalDragUpdate: (details) =>
+                _updateDrag((details.localPosition.dx / width).clamp(0.0, 1.0)),
             onHorizontalDragEnd: (_) => _endDrag(_valueToRatio(_displayValue)),
             child: Stack(
               alignment: Alignment.center,

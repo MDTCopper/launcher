@@ -6,8 +6,8 @@ import 'package:flutter/material.dart';
 ///
 /// 颜色全部取 `AppColors`：底 = 输入面、悬停/聚焦换描边、错误换语义色。
 /// 不做颜色插值（聚焦态直接换色，换主题不慢半拍）。
-class CopperTextField extends StatefulWidget {
-  const CopperTextField({
+class CuTextField extends StatefulWidget {
+  const CuTextField({
     super.key,
     required this.controller,
     this.label,
@@ -40,10 +40,10 @@ class CopperTextField extends StatefulWidget {
   final bool autofocus;
 
   @override
-  State<CopperTextField> createState() => _CopperTextFieldState();
+  State<CuTextField> createState() => _CopperTextFieldState();
 }
 
-class _CopperTextFieldState extends State<CopperTextField> {
+class _CopperTextFieldState extends State<CuTextField> {
   late final FocusNode _focus = FocusNode()..addListener(_onFocusChanged);
   bool _focused = false;
 

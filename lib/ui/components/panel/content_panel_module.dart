@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/copper_card.dart';
+import 'package:copper_launcher/ui/components/cu_card.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
@@ -16,7 +16,7 @@ class ContentPanelModule extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final colors = AppColors.of(context);
 
-    return CopperCard(
+    return CuCard(
       margin: const EdgeInsets.all(0),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       borderRadius: const BorderRadius.all(Radius.circular(8)),

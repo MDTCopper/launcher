@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
+import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
@@ -118,7 +118,7 @@ class NavigationTileState extends State<NavigationTile>
       builder: (context, child) {
         final itemColor = itemColorT.value;
         final backgroundColor = backgroundColorT.value;
-        return CopperPressable(
+        return CuPressable(
           padding: const EdgeInsets.all(8),
           borderRadius: BorderRadius.circular(8),
           backgroundColor: backgroundColor,

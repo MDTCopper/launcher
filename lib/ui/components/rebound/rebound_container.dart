@@ -1,8 +1,8 @@
-import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
+import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
-/// 兼容外壳：历史调用点很多，内部已改成 [CopperPressable]（变色、不缩放）
+/// 兼容外壳：历史调用点很多，内部已改成 [CuPressable]（变色、不缩放）
 ///
 /// 2026-11-09 起按压反馈统一为「变色」：整块缩放会导致行内分隔线跟着缩、
 /// 密集列表排版不稳，所以 [pressedScale] / [hoverElevation] / [elevation] /
@@ -87,7 +87,7 @@ class ReboundContainer extends StatelessWidget {
       );
     }
 
-    Widget pressable = CopperPressable(
+    Widget pressable = CuPressable(
       onTap: onTap,
       onLongTap: onLongTap,
       borderRadius: borderRadius,

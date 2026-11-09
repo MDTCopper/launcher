@@ -12,8 +12,8 @@ import 'package:flutter/material.dart';
 ///
 /// 颜色**瞬间切换**，不做隐式插值：隐式动画（AnimatedContainer 一类）在换主题时
 /// 会从旧色缓动到新色，看起来慢半拍
-class CopperPressable extends StatefulWidget {
-  const CopperPressable({
+class CuPressable extends StatefulWidget {
+  const CuPressable({
     super.key,
     required this.child,
     this.onTap,
@@ -61,10 +61,10 @@ class CopperPressable extends StatefulWidget {
   final ValueChanged<bool>? onPressedChanged;
 
   @override
-  State<CopperPressable> createState() => _AppPressableState();
+  State<CuPressable> createState() => _AppPressableState();
 }
 
-class _AppPressableState extends State<CopperPressable> {
+class _AppPressableState extends State<CuPressable> {
   bool _hovered = false;
   bool _pressed = false;
 

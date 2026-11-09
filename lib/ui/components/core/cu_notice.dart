@@ -1,20 +1,20 @@
-import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
+import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
 /// 提示条语气
-enum CopperNoticeTone { info, success, warning, danger, note }
+enum CuNoticeTone { info, success, warning, danger, note }
 
 /// 内核提示条：左侧一道语义色 + 淡底，可带标题 / 图标 / 行内动作 / 关闭
 ///
 /// 替代 `buildWarningBar` 的视觉表现（「按 key 记住关闭」的行为仍由调用方负责）。
-class CopperNotice extends StatelessWidget {
-  const CopperNotice({
+class CuNotice extends StatelessWidget {
+  const CuNotice({
     super.key,
     required this.text,
     this.title,
-    this.tone = CopperNoticeTone.info,
+    this.tone = CuNoticeTone.info,
     this.icon,
     this.action,
     this.onClose,
@@ -22,7 +22,7 @@ class CopperNotice extends StatelessWidget {
 
   final String text;
   final String? title;
-  final CopperNoticeTone tone;
+  final CuNoticeTone tone;
   final IconData? icon;
 
   /// 行内动作（右对齐）
@@ -31,11 +31,11 @@ class CopperNotice extends StatelessWidget {
   final VoidCallback? onClose;
 
   Color _toneColor(AppColors colors) => switch (tone) {
-    CopperNoticeTone.info => colors.interactive,
-    CopperNoticeTone.success => colors.success,
-    CopperNoticeTone.warning => colors.warning,
-    CopperNoticeTone.danger => colors.error,
-    CopperNoticeTone.note => colors.itemSecondary,
+    CuNoticeTone.info => colors.interactive,
+    CuNoticeTone.success => colors.success,
+    CuNoticeTone.warning => colors.warning,
+    CuNoticeTone.danger => colors.error,
+    CuNoticeTone.note => colors.itemSecondary,
   };
 
   @override
@@ -86,7 +86,7 @@ class CopperNotice extends StatelessWidget {
           ),
           if (action != null) action!,
           if (onClose != null)
-            CopperPressable(
+            CuPressable(
               onTap: onClose,
               borderRadius: BorderRadius.circular(AppRadius.control),
               child: Icon(

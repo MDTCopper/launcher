@@ -1,8 +1,8 @@
-import 'package:copper_launcher/ui/components/core/copper_checkbox.dart';
+import 'package:copper_launcher/ui/components/core/cu_checkbox.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:flutter/material.dart';
 
-/// copper 风格复选：兼容外壳，内部是 [CopperCheckbox]（方框 + 勾）
+/// copper 风格复选：兼容外壳，内部是 [CuCheckbox]（方框 + 勾）
 ///
 /// 参数与旧版一致：`label` / `icon` / `hint` / `enable` / `itemColor` 映射到新组件。
 class ReboundCheckbox extends StatelessWidget {
@@ -33,7 +33,7 @@ class ReboundCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CopperCheckbox(
+    return CuCheckbox(
       value: value,
       label: label,
       icon: icon,

@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 ///
 /// 颜色不插值（换主题不慢半拍），只有圆球位置做 200ms 位移；
 /// 点击热区按原生开关的 48 高取，方便与设置行对齐。
-class CopperSwitch extends StatelessWidget {
-  const CopperSwitch({
+class CuSwitch extends StatelessWidget {
+  const CuSwitch({
     super.key,
     required this.value,
     this.onChanged,

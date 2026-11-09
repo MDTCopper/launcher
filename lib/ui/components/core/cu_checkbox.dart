@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
+import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 /// 内核复选：方框 + 勾，可带文字 / 图标
 ///
 /// 点击整行都能切；按压只变色。
-class CopperCheckbox extends StatelessWidget {
-  const CopperCheckbox({
+class CuCheckbox extends StatelessWidget {
+  const CuCheckbox({
     super.key,
     required this.value,
     this.label,
@@ -88,7 +88,7 @@ class CopperCheckbox extends StatelessWidget {
       ],
     );
 
-    Widget pressable = CopperPressable(
+    Widget pressable = CuPressable(
       enabled: canTap,
       onTap: canTap ? () => onChanged!(!value) : null,
       borderRadius: BorderRadius.circular(AppRadius.control),
