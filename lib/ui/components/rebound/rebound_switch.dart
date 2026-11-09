@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 
 /// copper 风格开关：兼容外壳，内部是 [CuSwitch]（M3 形制）
 ///
-/// 旧的 48×26 轨道 + 颜色渐变实现已退役；现在只有圆球位移动画，颜色瞬切。
-/// [onChanged] 为 null 即禁用态。
+/// 只有圆球位移动画，颜色瞬切
+/// [onChanged] 为 null 即禁用态
 class ReboundSwitch extends StatelessWidget {
   const ReboundSwitch({super.key, required this.value, this.onChanged});
 

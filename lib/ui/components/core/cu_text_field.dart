@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 /// 内核输入框：单行 / 多行、标签、错误态、前后缀图标
 ///
-/// 颜色全部取 `AppColors`：底 = 输入面、悬停/聚焦换描边、错误换语义色。
-/// 不做颜色插值（聚焦态直接换色，换主题不慢半拍）。
+/// 颜色全部取 `AppColors`：底 = 输入面、悬停/聚焦换描边、错误换语义色
+/// 不做颜色插值（聚焦态直接换色，换主题不慢半拍）
 class CuTextField extends StatefulWidget {
   const CuTextField({
     super.key,

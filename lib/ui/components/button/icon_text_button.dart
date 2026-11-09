@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 /// 动作的重量：一个视图里只该有一个 [ActionWeight.primary]
 ///
 /// 四级只差底色与前景，几何完全一样；依据见 `.project_status/components.md`
-/// 的「视觉重心与动作分级」。注意 [danger] 是**语义**（破坏性）借了这一档表达，
+/// 的「视觉重心与动作分级」；注意 [danger] 是**语义**（破坏性）借了这一档表达，
 /// 将来若要「轻量的危险」（红字不实心）再拆成独立的语义参数
 enum ActionWeight { primary, secondary, tertiary, danger }
 
@@ -52,7 +52,7 @@ class IconTextButton extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
     final (weightBackground, weightForeground) = switch (weight) {
-      // 实心档就用 interactive：浅色 copper700 / 暗色 copper600。
+      // 实心档就用 interactive：浅色 copper700 / 暗色 copper600
       // 它的白字对比只有 2.95:1（不达标），但换成更深的 interactiveHigh 会发闷，
       // 用户 2026-10-05 选「宁可发白也不要发闷」；两头兼顾要 copper800，见 components.md
       ActionWeight.primary => (colors.interactive, colors.itemOnInteractive),

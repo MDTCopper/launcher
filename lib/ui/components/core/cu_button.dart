@@ -10,7 +10,7 @@ enum CuButtonKind { solid, plain, quiet }
 /// 内核按钮：吃 `AppColors` + `DesignSystem` 几何，按压只变色
 ///
 /// 只有 [CuButtonKind.solid] 带 0.97 的轻微回弹（主行动按钮的确认感），
-/// 其余两档不做几何变化，方便放进列表 / 工具条 / 表单里。
+/// 其余两档不做几何变化，方便放进列表 / 工具条 / 表单里
 class CuButton extends StatefulWidget {
   const CuButton({
     super.key,

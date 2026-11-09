@@ -1,4 +1,4 @@
-/// 自定设置分类（不照搬游戏内分类，按使用频率 / 用途划分）。
+/// 自定设置分类（不照搬游戏内分类，按使用频率 / 用途划分）
 enum SettingCategory {
   common('常用'),
   game('游戏'),
@@ -20,20 +20,20 @@ enum SettingCategory {
   static SettingCategory? tryParse(String name) => _byName[name];
 }
 
-/// 设置值类型。
+/// 设置值类型
 enum SettingType {
   bool,
   int,
   options, // 固定字符串选项（如语言）
 }
 
-/// 设置所属平台。
+/// 设置所属平台
 ///
 /// - [desktop]：任意桌面系统（Windows / Linux / macOS）
 /// - [macos]：仅 macOS（如刘海屏适配）
 /// - [android]：仅 Android
 ///
-/// 列表为空表示全平台；iOS 不在考虑范围（上游 iOS 专属项不纳入数据）。
+/// 列表为空表示全平台；iOS 不在考虑范围（上游 iOS 专属项不纳入数据）
 enum SettingPlatform {
   desktop('桌面端'),
   macos('macOS'),
@@ -51,35 +51,35 @@ enum SettingPlatform {
   static SettingPlatform? tryParse(String name) => _byName[name];
 }
 
-/// 单条设置元数据：驱动 game_setting_page 数据化渲染。
+/// 单条设置元数据：驱动 game_setting_page 数据化渲染
 ///
 /// key 为 Mindustry settings.bin 的原始键名；title 为中文标题；
 /// [categories] 决定归属哪些分类——同一设置可属于多个分类
 /// （如 screenshake 同时在游戏与图像），「常用」栏也是靠它叠加出来的；
-/// type 决定渲染控件。
+/// type 决定渲染控件
 class SettingSpec {
   final String key;
   final String title;
 
-  /// 设置说明（数据索引里的 zh_CN/en 描述取一个显示）；没有则为空串。
+  /// 设置说明（数据索引里的 zh_CN/en 描述取一个显示）；没有则为空串
   final String description;
 
   final List<SettingCategory> categories;
   final SettingType type;
 
-  /// 整数滑块的取值范围；非 int 类型为 null。
+  /// 整数滑块的取值范围；非 int 类型为 null
   final int? min;
   final int? max;
   final int? step;
 
-  /// 显示单位（如 `%`、`x`、`秒`）；仅 int 类型有意义。
+  /// 显示单位（如 `%`、`x`、`秒`）；仅 int 类型有意义
   final String unit;
 
   /// 显示比率：显示值 = 原始值 × [displayRatio]（如屏幕抖动 0.25 显示为 x）；
-  /// 仅 int 类型有意义，默认 1。
+  /// 仅 int 类型有意义，默认 1
   final double displayRatio;
 
-  /// options 类型的候选项；其它类型为 null。
+  /// options 类型的候选项；其它类型为 null
   final List<String>? options;
 
   /// 归属平台；空列表 = 全平台
@@ -247,13 +247,13 @@ class SettingSpec {
   }
 }
 
-/// 最新版本（跟随当前 Mindustry）的完整设置目录。
+/// 最新版本（跟随当前 Mindustry）的完整设置目录
 ///
 /// key 对齐 Mindustry `SettingsMenuDialog` 注册的键与默认值；
 /// 分类按本项目自定规则划分，可多分类重复出现；
 /// 「常用」栏由 remote 数据作者挑选（给键的 categories 加 common 即可），
-/// 各版本差异由 remote/setting_adapter/136-999999.json 的基准 + 差量表达，
-/// 此目录只代表最新版本，作为无适配数据时的兜底。
+/// 各版本差异由 remote/setting_adapter 的完整表 + 差量表表达，
+/// 此目录只代表最新版本，作为无适配数据时的兜底
 const List<SettingSpec> mindustrySettingCatalog = [
   // ── 游戏 ──
   SettingSpec.intSlider(

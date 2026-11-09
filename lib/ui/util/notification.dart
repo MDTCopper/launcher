@@ -182,7 +182,7 @@ class _NotificationWidgetState extends State<NotificationWidget> {
     addItemWidget(widget, onTap, duration, style);
   }
 
-  /// 右上角卡片：图标 + 标题 + 正文（换成新皮肤：卡片底 + 1px 描边，不再用旧配色）
+  /// 右上角卡片：图标 + 标题 + 正文（卡片底 + 1px 描边）
   Widget _buildCard(IconData? icon, String? title, String? content) {
     final colors = AppColors.of(context);
     final textTheme = Theme.of(context).textTheme;

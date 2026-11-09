@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// 分段控件：凹槽底 + 选中格，单选
 ///
 /// 与设计层 `TemplateSegment` 同一形制，但只吃 `AppColors` + 几何令牌；
-/// 按压只变色，不做整格缩放。单段可禁用。
+/// 按压只变色，不做整格缩放；单段可禁用
 class CuSegment extends StatelessWidget {
   const CuSegment({
     super.key,

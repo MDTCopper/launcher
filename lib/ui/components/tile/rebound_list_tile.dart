@@ -27,7 +27,7 @@ class ReboundListTile extends StatefulWidget {
   final BorderRadius? borderRadius;
   final double itemSpacing;
 
-  /// 保留参数以兼容旧调用点；按压反馈已改为变色，不再缩放
+  /// 保留参数以兼容调用点；按压反馈为变色、不缩放
   final double elevation;
   final double hoverElevation;
   final double pressedScale;

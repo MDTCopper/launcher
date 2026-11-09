@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 /// 内核进度条：线性（确定进度）/ 不确定（来回滑动）
 ///
-/// 多段占比（旧 `PercentBar`）与边框进度（旧 `BorderProgress`）后续以
-/// `CuProgress.segments` / `.border` 形式补，先满足下载/任务卡。
+/// 多段占比（`PercentBar`）与边框进度（`BorderProgress`）后续以
+/// `CuProgress.segments` / `.border` 形式补，先满足下载/任务卡
 class CuProgress extends StatelessWidget {
   const CuProgress({
     super.key,

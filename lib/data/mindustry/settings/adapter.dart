@@ -5,13 +5,13 @@ import 'package:copper_launcher/util/io/remote_data.dart';
 import 'package:flutter/foundation.dart';
 
 /// 版本设置适配：优先读数据索引 `mindustry/setting-adapter/current.json`
-/// （跟随最新 Mindustry 的一张完整表，每项带 `name`/`description` 的中英译文）。
+/// （跟随最新 Mindustry 的一张完整表，每项带 `name`/`description` 的中英译文）
 ///
-/// 新表不再区分 build 范围：所有版本共用同一份设置项；`minSupportedBuild` 返回 null。
-/// 数据索引不可用时回落到 launcher remote 的旧「base + changes」文件。
-/// 解析结果按内容缓存，数据变化时自动失效。
+/// 所有版本共用同一份设置项；`minSupportedBuild` 返回 null
+/// 数据索引不可用时回落到 launcher remote 的「base + changes」文件
+/// 解析结果按内容缓存，数据变化时自动失效
 class SettingAdapter {
-  /// 数据索引里的最新版完整设置表（跟随最新 Mindustry，不再按 build 区间）
+  /// 数据索引里的最新版完整设置表（跟随最新 Mindustry，不按 build 区间）
   static const String dataIndexTablePath =
       'mindustry/setting-adapter/current.json';
 
@@ -38,7 +38,7 @@ class SettingAdapter {
     return _loadLegacy(build);
   }
 
-  /// 最新完整表不再区分适配范围，所有版本共用；返回 null 表示不按 build 过滤
+  /// 最新完整表不区分适配范围，所有版本共用；返回 null 表示不按 build 过滤
   static Future<int?> minSupportedBuild() async => null;
 
   /// 解析数据索引 current.json：`{settings:[{key,name:{en,zh_CN},description:{...}}]}`

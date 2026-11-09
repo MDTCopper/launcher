@@ -8,7 +8,7 @@ enum CuNoticeTone { info, success, warning, danger, note }
 
 /// 内核提示条：左侧一道语义色 + 淡底，可带标题 / 图标 / 行内动作 / 关闭
 ///
-/// 替代 `buildWarningBar` 的视觉表现（「按 key 记住关闭」的行为仍由调用方负责）。
+/// 替代 `buildWarningBar` 的视觉表现（「按 key 记住关闭」的行为仍由调用方负责）
 class CuNotice extends StatelessWidget {
   const CuNotice({
     super.key,

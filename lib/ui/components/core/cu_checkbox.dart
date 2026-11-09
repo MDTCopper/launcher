@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 
 /// 内核复选：方框 + 勾，可带文字 / 图标
 ///
-/// 点击整行都能切；按压只变色。
+/// 点击整行都能切；按压只变色
 class CuCheckbox extends StatelessWidget {
   const CuCheckbox({
     super.key,

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 /// copper 风格复选：兼容外壳，内部是 [CuCheckbox]（方框 + 勾）
 ///
-/// 参数与旧版一致：`label` / `icon` / `hint` / `enable` / `itemColor` 映射到新组件。
+/// 参数与旧签名一致：`label` / `icon` / `hint` / `enable` / `itemColor` 映射到新组件
 class ReboundCheckbox extends StatelessWidget {
   final String? label;
   final IconData? icon;

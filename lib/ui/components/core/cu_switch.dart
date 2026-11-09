@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 /// 内核开关：M3 形制（槽实色、圆球亮/暗、球内 开=勾 / 关=叉）
 ///
 /// 颜色不插值（换主题不慢半拍），只有圆球位置做 200ms 位移；
-/// 点击热区按原生开关的 48 高取，方便与设置行对齐。
+/// 点击热区按原生开关的 48 高取，方便与设置行对齐
 class CuSwitch extends StatelessWidget {
   const CuSwitch({
     super.key,

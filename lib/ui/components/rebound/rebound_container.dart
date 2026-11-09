@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 ///
 /// 2026-11-09 起按压反馈统一为「变色」：整块缩放会导致行内分隔线跟着缩、
 /// 密集列表排版不稳，所以 [pressedScale] / [hoverElevation] / [elevation] /
-/// [hoverDuration] 只做兼容，不再生效；需要轻微回弹的独立按钮由上层单独处理。
+/// [hoverDuration] 只做兼容、不生效；需要轻微回弹的独立按钮由上层单独处理
 ///
 /// 其余参数语义保持不变：
 /// - [backgroundColor] 底色（null 取卡片底色）
@@ -42,7 +42,7 @@ class ReboundContainer extends StatelessWidget {
   final Color? backgroundColor;
   final Color? shadowColor;
 
-  /// 兼容保留，不再生效
+  /// 兼容保留、不生效
   final Duration hoverDuration;
 
   const ReboundContainer({
