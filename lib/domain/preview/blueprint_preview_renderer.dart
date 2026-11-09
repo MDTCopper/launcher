@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -57,9 +58,23 @@ class BlueprintPreviewRenderer {
     }
 
     final missingRegions = <String>{};
-    _collectRegions(schematic, placed, missingRegions);
+    final imageRequests = <String, PendingPixelImage>{};
+    _collectRegions(schematic, placed, missingRegions, imageRequests);
     if (missingRegions.isNotEmpty) {
       await assets.ensureRegions(missingRegions);
+    }
+    final decodedImages = <String, ui.Image>{};
+    for (final entry in imageRequests.entries) {
+      final pending = entry.value;
+      final completer = Completer<ui.Image>();
+      ui.decodeImageFromPixels(
+        pending.rgba,
+        pending.width,
+        pending.height,
+        ui.PixelFormat.rgba8888,
+        completer.complete,
+      );
+      decodedImages[entry.key] = await completer.future;
     }
 
     final width = ((schematic.width + margin * 2) * tileSize).round();
@@ -73,6 +88,7 @@ class BlueprintPreviewRenderer {
       placed: placed,
       collecting: false,
       missingRegions: {},
+      decodedImages: decodedImages,
     );
     _drawShadow(
       canvas,
@@ -100,6 +116,7 @@ class BlueprintPreviewRenderer {
     SchematicFile schematic,
     List<PlanTile> placed,
     Set<String> missingRegions,
+    Map<String, PendingPixelImage> imageRequests,
   ) {
     final context = PlanDrawContext(
       canvas: ui.Canvas(ui.PictureRecorder()),
@@ -108,6 +125,7 @@ class BlueprintPreviewRenderer {
       placed: placed,
       collecting: true,
       missingRegions: missingRegions,
+      imageRequests: imageRequests,
     );
     for (final plan in placed) {
       _blockRule(plan.info).drawBlock(context, plan);

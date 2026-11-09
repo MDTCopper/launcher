@@ -1,7 +1,17 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../../util/io/mindustry_save_file/schematic_file.dart';
 import 'blueprint_asset_pack.dart';
+
+/// 收集阶段登记的动态像素图
+class PendingPixelImage {
+  const PendingPixelImage(this.rgba, this.width, this.height);
+
+  final Uint8List rgba;
+  final int width;
+  final int height;
+}
 
 /// 预览绘制过程中一个已定位的方块
 class PlanTile {
@@ -46,6 +56,8 @@ class PlanDrawContext {
     required this.placed,
     required this.collecting,
     required this.missingRegions,
+    this.decodedImages = const {},
+    this.imageRequests,
   }) : _originIndex = {
          for (final plan in placed) _cellKey(plan.x, plan.y): plan,
        };
@@ -61,7 +73,29 @@ class PlanDrawContext {
   /// 收集阶段登记到的 region 名
   final Set<String> missingRegions;
 
+  /// 收集阶段登记的动态像素图（key → RGBA），渲染前由 renderer 统一解码
+  final Map<String, PendingPixelImage>? imageRequests;
+
+  /// 收集阶段结束后已解码的动态像素图
+  final Map<String, ui.Image> decodedImages;
+
   final Map<int, PlanTile> _originIndex;
+
+  /// 运行时生成的像素图（canvas 像素画等）
+  ///
+  /// 收集阶段登记、真实渲染阶段按 key 取；两阶段必须用同样的 key
+  ui.Image? requestPixelImage(
+    String key,
+    Uint8List rgba,
+    int width,
+    int height,
+  ) {
+    if (collecting) {
+      imageRequests?[key] = PendingPixelImage(rgba, width, height);
+      return null;
+    }
+    return decodedImages[key];
+  }
 
   static int _cellKey(int x, int y) => (x << 8) | y;
 
