@@ -1,12 +1,12 @@
-import 'package:copper_launcher/ui/components/core/app_pressable.dart';
+import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
 /// 纯图标按钮：方形热区 + 变色反馈，用于工具栏 / 侧栏 / 卡片右上角
-class AppIconButton extends StatelessWidget {
-  const AppIconButton({
+class CopperIconButton extends StatelessWidget {
+  const CopperIconButton({
     super.key,
     required this.icon,
     this.onTap,
@@ -34,7 +34,7 @@ class AppIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
 
-    Widget child = AppPressable(
+    Widget child = CopperPressable(
       enabled: enabled,
       onTap: onTap,
       selected: selected,

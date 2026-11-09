@@ -1,5 +1,5 @@
 ﻿import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
-import 'package:copper_launcher/ui/components/core/app_pressable.dart';
+import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
@@ -111,7 +111,7 @@ class _ActionButtonState extends State<ActionButton>
       animation: _controller,
       builder: (context, child) {
         final itemColor = foregroundT.value;
-        return AppPressable(
+        return CopperPressable(
           borderRadius: BorderRadius.circular(4),
           padding: widget.padding ?? const EdgeInsets.all(8),
           margin: widget.margin,

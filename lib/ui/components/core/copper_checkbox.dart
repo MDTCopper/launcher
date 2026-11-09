@@ -1,4 +1,5 @@
-import 'package:copper_launcher/ui/components/core/app_pressable.dart';
+import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
@@ -6,14 +7,16 @@ import 'package:flutter/material.dart';
 /// 内核复选：方框 + 勾，可带文字 / 图标
 ///
 /// 点击整行都能切；按压只变色。
-class AppCheckbox extends StatelessWidget {
-  const AppCheckbox({
+class CopperCheckbox extends StatelessWidget {
+  const CopperCheckbox({
     super.key,
     required this.value,
     this.label,
     this.icon,
     this.onChanged,
     this.enabled = true,
+    this.hint,
+    this.iconColor,
   });
 
   final bool value;
@@ -21,6 +24,12 @@ class AppCheckbox extends StatelessWidget {
   final IconData? icon;
   final ValueChanged<bool>? onChanged;
   final bool enabled;
+
+  /// 悬停提示
+  final String? hint;
+
+  /// 图标着色（默认取次要文字色）
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -72,12 +81,14 @@ class AppCheckbox extends StatelessWidget {
           Icon(
             icon,
             size: AppIconSize.inline,
-            color: enabled ? colors.itemSecondary : colors.itemHint,
+            color: enabled
+                ? (iconColor ?? colors.itemSecondary)
+                : colors.itemHint,
           ),
       ],
     );
 
-    return AppPressable(
+    Widget pressable = CopperPressable(
       enabled: canTap,
       onTap: canTap ? () => onChanged!(!value) : null,
       borderRadius: BorderRadius.circular(AppRadius.control),
@@ -87,5 +98,11 @@ class AppCheckbox extends StatelessWidget {
       ),
       child: content,
     );
+
+    final hint = this.hint;
+    if (hint != null) {
+      pressable = HintLayer(hint: hint, child: pressable);
+    }
+    return pressable;
   }
 }

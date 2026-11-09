@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/core/app_pressable.dart';
+import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
 import 'package:flutter/material.dart';
 
 class Pager extends StatelessWidget {
@@ -34,7 +34,7 @@ class Pager extends StatelessWidget {
       text = '第 $index 页';
     }
 
-    Widget iconButton(IconData icon, VoidCallback? onTap) => AppPressable(
+    Widget iconButton(IconData icon, VoidCallback? onTap) => CopperPressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(4),
       child: SizedBox(width: 32, height: 32, child: Icon(icon, size: 18)),

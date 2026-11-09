@@ -1,12 +1,10 @@
+import 'package:copper_launcher/ui/components/core/copper_checkbox.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:flutter/material.dart';
 
-/// copper 风格复选：基于 [ActionButton] 封装，风格与选中态/禁用态统一
+/// copper 风格复选：兼容外壳，内部是 [CopperCheckbox]（方框 + 勾）
 ///
-/// - [value] 受控选中态(与 ActionButton.selected 同构)
-/// - [onChange] 点击回调(传翻转后的值)
-/// - [label]/[icon] 映射为 ActionButton 的 content/icon(Widget 形式)
-/// - 可选 [hint] 悬停提示、[enable] 禁用态
+/// 参数与旧版一致：`label` / `icon` / `hint` / `enable` / `itemColor` 映射到新组件。
 class ReboundCheckbox extends StatelessWidget {
   final String? label;
   final IconData? icon;
@@ -17,7 +15,7 @@ class ReboundCheckbox extends StatelessWidget {
   final bool enable;
   final double? pressedScale;
 
-  /// 图标着色(未选中时)；ActionButton 选中前景走主题色体系
+  /// 图标着色（未选中时）
   final Color? itemColor;
 
   const ReboundCheckbox({
@@ -35,24 +33,22 @@ class ReboundCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ActionButton(
-      icon: icon == null ? null : Icon(icon, size: 18, color: itemColor),
-      content: label == null ? null : Text(label!),
+    return CopperCheckbox(
+      value: value,
+      label: label,
+      icon: icon,
+      onChanged: onChange,
+      enabled: enable,
       hint: hint,
-      selected: value,
-      padding:
-          padding ?? const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
-      enable: enable,
-      onTap: onChange == null ? null : () => onChange!(!value),
-      pressedScale: pressedScale,
+      iconColor: itemColor,
     );
   }
 }
 
-/// 勾选图标切换版复选：未选显示 [icon](默认 ✕)、选中翻转动画切换为 [activeIcon](默认 ✓)
+/// 勾选图标切换版复选：未选显示 [icon]（默认 ✕）、选中切换为 [activeIcon]（默认 ✓）
 ///
-/// 与 [ReboundCheckbox] 的区别在内容表现：这里是图标本身随选中态切换
-/// (带旋转 + 淡入动画)，适合 trailing 等紧凑场景；按钮外壳同样走 ActionButton
+/// 与 [ReboundCheckbox] 的区别在内容表现：图标本身随选中态切换（淡入过渡），
+/// 适合 trailing 等紧凑场景
 class ReboundCheckChangeBox extends StatefulWidget {
   final String? label;
   final bool value;
@@ -83,7 +79,6 @@ class _ReboundCheckChangeBoxState extends State<ReboundCheckChangeBox> {
     final icon = widget.icon ?? const Icon(Icons.close, size: 16);
     final activeIcon = widget.activeIcon ?? const Icon(Icons.check, size: 16);
 
-    // 图标随选中态切换：旋转 + 淡入动画(AnimatedSwitcher)
     final switcherIcon = AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       transitionBuilder: (child, animation) {

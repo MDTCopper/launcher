@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/core/app_pressable.dart';
+import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 ///
 /// 与设计层 `TemplateSegment` 同一形制，但只吃 `AppColors` + 几何令牌；
 /// 按压只变色，不做整格缩放。单段可禁用。
-class AppSegment extends StatelessWidget {
-  const AppSegment({
+class CopperSegment extends StatelessWidget {
+  const CopperSegment({
     super.key,
     required this.options,
     required this.value,
@@ -90,7 +90,7 @@ class _SegmentCell extends StatelessWidget {
         ? colors.itemPrimary
         : colors.itemSecondary;
 
-    return AppPressable(
+    return CopperPressable(
       enabled: enabled,
       selected: selected,
       onTap: onTap,

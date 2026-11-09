@@ -1,5 +1,5 @@
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
-import 'package:copper_launcher/ui/components/core/app_pressable.dart';
+import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
@@ -135,7 +135,7 @@ class _CapsuleActionBarState extends State<CapsuleActionBar> {
     return HintLayer(
       hint: hint,
       preferPosition: HintPosition.left,
-      child: AppPressable(
+      child: CopperPressable(
         backgroundColor: Colors.transparent,
         borderRadius: BorderRadius.circular(widget.buttonSize / 2),
         onTap: onTap,

@@ -1,22 +1,22 @@
-import 'package:copper_launcher/ui/components/core/app_pressable.dart';
+import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
 
 /// 按钮观感：实心（主行动）/ 面（次级）/ 静音（弱化）
-enum AppButtonKind { solid, plain, quiet }
+enum CopperButtonKind { solid, plain, quiet }
 
 /// 内核按钮：吃 `AppColors` + `DesignSystem` 几何，按压只变色
 ///
-/// 只有 [AppButtonKind.solid] 带 0.97 的轻微回弹（主行动按钮的确认感），
+/// 只有 [CopperButtonKind.solid] 带 0.97 的轻微回弹（主行动按钮的确认感），
 /// 其余两档不做几何变化，方便放进列表 / 工具条 / 表单里。
-class AppButton extends StatefulWidget {
-  const AppButton({
+class CopperButton extends StatefulWidget {
+  const CopperButton({
     super.key,
     required this.label,
     this.icon,
-    this.kind = AppButtonKind.solid,
+    this.kind = CopperButtonKind.solid,
     this.danger = false,
     this.onTap,
     this.enabled = true,
@@ -26,7 +26,7 @@ class AppButton extends StatefulWidget {
 
   final String label;
   final IconData? icon;
-  final AppButtonKind kind;
+  final CopperButtonKind kind;
 
   /// 危险标识：底色 / 文字换成错误语义色
   final bool danger;
@@ -41,10 +41,10 @@ class AppButton extends StatefulWidget {
   final String? hint;
 
   @override
-  State<AppButton> createState() => _AppButtonState();
+  State<CopperButton> createState() => _AppButtonState();
 }
 
-class _AppButtonState extends State<AppButton> {
+class _AppButtonState extends State<CopperButton> {
   bool _pressed = false;
 
   @override
@@ -53,7 +53,7 @@ class _AppButtonState extends State<AppButton> {
     final textTheme = Theme.of(context).textTheme;
 
     final (Color background, Color foreground) = switch (widget.kind) {
-      AppButtonKind.solid =>
+      CopperButtonKind.solid =>
         widget.enabled
             ? (
                 widget.danger ? colors.error : colors.interactive,
@@ -65,7 +65,7 @@ class _AppButtonState extends State<AppButton> {
                     : colors.lowBackgroundOnCard,
                 colors.itemHint,
               ),
-      AppButtonKind.plain => (
+      CopperButtonKind.plain => (
         widget.enabled
             ? colors.highBackgroundOnCard
             : colors.lowBackgroundOnCard,
@@ -73,7 +73,7 @@ class _AppButtonState extends State<AppButton> {
             ? (widget.danger ? colors.error : colors.itemPrimary)
             : colors.itemHint,
       ),
-      AppButtonKind.quiet => (
+      CopperButtonKind.quiet => (
         Colors.transparent,
         widget.enabled
             ? (widget.danger ? colors.error : colors.itemSecondary)
@@ -81,23 +81,23 @@ class _AppButtonState extends State<AppButton> {
       ),
     };
 
-    final solid = widget.kind == AppButtonKind.solid && widget.enabled;
+    final solid = widget.kind == CopperButtonKind.solid && widget.enabled;
     final hoverColor = switch (widget.kind) {
-      AppButtonKind.solid => Color.alphaBlend(
+      CopperButtonKind.solid => Color.alphaBlend(
         Colors.black.withAlpha(18),
         background,
       ),
       _ => colors.highBackgroundOnCard,
     };
     final pressedColor = switch (widget.kind) {
-      AppButtonKind.solid => Color.alphaBlend(
+      CopperButtonKind.solid => Color.alphaBlend(
         Colors.black.withAlpha(30),
         background,
       ),
       _ => colors.splash,
     };
 
-    Widget child = AppPressable(
+    Widget child = CopperPressable(
       enabled: widget.enabled,
       onTap: widget.onTap,
       onPressedChanged: solid

@@ -1,4 +1,4 @@
-import 'package:copper_launcher/ui/components/core/app_pressable.dart';
+import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 /// 将来若要「轻量的危险」（红字不实心）再拆成独立的语义参数
 enum ActionWeight { primary, secondary, tertiary, danger }
 
-/// 无状态的图标 + 文本按钮（基于 [AppPressable]，变色反馈、不缩放）
+/// 无状态的图标 + 文本按钮（基于 [CopperPressable]，变色反馈、不缩放）
 ///
 /// 与 [ActionButton]（有选中态）区分：无选中状态，适合不持久的操作入口
 /// 图标与文本共色（按 [weight] 取），尺寸按内容收缩
@@ -76,7 +76,7 @@ class IconTextButton extends StatelessWidget {
         : (backgroundColor ?? weightBackground);
     final itemColor = enabled ? weightForeground : colors.itemHint;
 
-    Widget child = AppPressable(
+    Widget child = CopperPressable(
       backgroundColor: background,
       padding: padding,
       margin: margin,

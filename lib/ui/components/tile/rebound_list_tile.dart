@@ -1,10 +1,10 @@
-import 'package:copper_launcher/ui/components/core/app_pressable.dart';
+import 'package:copper_launcher/ui/components/core/copper_pressable.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 /// 列表项（类似 ListTile）
 ///
-/// - 按压反馈用 [AppPressable]：只变色、不缩放，行间可以安全地加分隔线
+/// - 按压反馈用 [CopperPressable]：只变色、不缩放，行间可以安全地加分隔线
 /// - 有选中态：[selected] 驱动背景 / 前景的过渡动画（双模式背景同 [ActionButton]）
 /// - 有禁用态：[enable] 为 false 时不可点击、前景置灰
 /// - 结构：leading / title / subtitle / trailing
@@ -121,7 +121,7 @@ class _ReboundListTileState extends State<ReboundListTile>
       builder: (context, child) {
         final foreground = foregroundT.value;
         final subForeground = subForegroundT.value;
-        return AppPressable(
+        return CopperPressable(
           enabled: enabled,
           onTap: widget.onTap,
           onLongTap: widget.onLongTap,
