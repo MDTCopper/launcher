@@ -14,6 +14,7 @@ import 'package:copper_launcher/ui/components/core/cu_list_tile.dart';
 import 'package:copper_launcher/ui/components/core/cu_menu.dart';
 import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/components/core/cu_segment.dart';
+import 'package:copper_launcher/ui/components/scroll/list_view.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
@@ -803,7 +804,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
                 ? _buildEmptyPage()
                 : ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: ListView.builder(
+                    // 用项目滚动容器：桌面自绘滚动条 + 滚轮/触控板处理 + 上下渐隐遮罩
+                    child: CopperListView.builder(
                       itemCount: versions.length,
                       itemBuilder: (context, index) =>
                           _buildVersionRow(versions[index]),

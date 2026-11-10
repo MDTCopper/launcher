@@ -1,4 +1,5 @@
 import 'package:copper_launcher/ui/pages/design/core_component_demo.dart';
+import 'package:copper_launcher/ui/components/scroll/list_view.dart';
 import 'package:copper_launcher/ui/pages/design/real_component_demo.dart';
 import 'package:copper_launcher/ui/pages/design/template_catalog_page.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
@@ -123,7 +124,7 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
         color: skin.surface,
         border: Border(right: BorderSide(color: skin.border)),
       ),
-      child: ListView(
+      child: CopperListView(
         padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
         children: [
           _indexItem(skin, '原组件对照（组件库）', _realIndex),
