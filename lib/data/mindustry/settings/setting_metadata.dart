@@ -157,6 +157,23 @@ class SettingSpec {
          platforms: platforms,
        );
 
+  /// 用人工元数据覆盖分类 / 平台 / 选项 / 单位与显示参数；
+  /// 标题、描述与类型保持数据表的值
+  SettingSpec overlayWith(SettingSpec human) => SettingSpec._(
+    key: key,
+    title: title,
+    description: description,
+    categories: human.categories,
+    type: type,
+    min: human.min ?? min,
+    max: human.max ?? max,
+    step: human.step ?? step,
+    unit: human.unit.isNotEmpty ? human.unit : unit,
+    displayRatio: human.displayRatio != 1.0 ? human.displayRatio : displayRatio,
+    options: human.options ?? options,
+    platforms: human.platforms,
+  );
+
   Map<String, dynamic> toJson() => {
     'key': key,
     'title': title,

@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 /// （跟随最新 Mindustry 的一张完整表，每项带 `name`/`description` 的中英译文）
 ///
 /// 所有版本共用同一份设置项；`minSupportedBuild` 返回 null
+/// 表里的分类 / 平台 / 选项按内置人工目录补齐，数据表里没有的人工项追加在后面
 /// 数据索引不可用时回落到 launcher remote 的「base + changes」文件
 /// 解析结果按内容缓存，数据变化时自动失效
 class SettingAdapter {
@@ -30,7 +31,8 @@ class SettingAdapter {
     );
     if (content != null) {
       if (_tableContent != content) {
-        _tableCache = applyTable(content);
+        final table = applyTable(content);
+        _tableCache = table == null ? null : mergeWithCatalog(table);
         _tableContent = content;
       }
       if (_tableCache != null && _tableCache!.isNotEmpty) return _tableCache;
@@ -61,6 +63,27 @@ class SettingAdapter {
       if (spec != null) specs.add(spec);
     }
     return specs.isEmpty ? null : specs;
+  }
+
+  /// 数据表与内置人工目录按 key 合并：分类 / 平台 / 选项 / 单位与显示参数
+  /// 用人工值，标题、描述与类型保留数据表的值；数据表里没有的人工项追加在后面
+  @visibleForTesting
+  static List<SettingSpec> mergeWithCatalog(
+    List<SettingSpec> table, [
+    List<SettingSpec> catalog = mindustrySettingCatalog,
+  ]) {
+    final humanByKey = {for (final spec in catalog) spec.key: spec};
+    final tableKeys = {for (final spec in table) spec.key};
+
+    final merged = <SettingSpec>[];
+    for (final spec in table) {
+      final human = humanByKey[spec.key];
+      merged.add(human == null ? spec : spec.overlayWith(human));
+    }
+    for (final spec in catalog) {
+      if (!tableKeys.contains(spec.key)) merged.add(spec);
+    }
+    return merged;
   }
 
   static Future<List<SettingSpec>?> _loadLegacy(int build) async {
