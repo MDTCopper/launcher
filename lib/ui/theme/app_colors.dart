@@ -72,6 +72,9 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color barrier;
   final Color shadow;
 
+  /// 当前是否暗色（派生状态色要用到方向）
+  final bool isDark;
+
   const AppColors({
     required this.pageBackground,
     required this.cardBackground,
@@ -105,6 +108,7 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.shadow,
     required this.lowBackgroundOnCard,
     required this.highBackgroundOnCard,
+    this.isDark = false,
   });
 
   /// 种子色板：只给一个主题色，整套 token 由 HCT 解出来
@@ -170,7 +174,59 @@ class AppColors extends ThemeExtension<AppColors> {
       shadow: dark
           ? const Color(0x66000000)
           : Color(neutralRamp.at(25)).withAlpha(26),
+      isDark: dark,
     );
+  }
+
+  /// 状态叠层：与 [TemplateSkin] 同一套算法（亮暗方向 + 位移不足时翻转），
+  /// 返回**半透明叠层色**，由调用方叠在底色上（CuPressable 的反馈层就是它）
+  Color hoverOn(Color base, {Color? on}) =>
+      stateOn(base, on ?? cardBackground, isDark ? 0.10 : 0.08, flipped: 0.5);
+
+  Color pressedOn(Color base, {Color? on}) =>
+      stateOn(base, on ?? cardBackground, isDark ? 0.16 : 0.13, flipped: 1);
+
+  /// 实心按钮：一律压暗（其上文字是近白），幅度更大一档
+  Color solidHoverOn(Color base) =>
+      Colors.black.withAlpha(((isDark ? 0.16 : 0.14) * 255).round());
+
+  Color solidPressedOn(Color base) =>
+      Colors.black.withAlpha(((isDark ? 0.24 : 0.22) * 255).round());
+
+  Color stateOn(
+    Color base,
+    Color backdrop,
+    double amount, {
+    required double flipped,
+  }) {
+    if (base.a < 1) {
+      return (isDark ? Colors.white : Colors.black).withAlpha(
+        (amount * 255).round(),
+      );
+    }
+    final lighter =
+        toneLuminance(base.toARGB32()) > toneLuminance(backdrop.toARGB32());
+    var overlay = lighter ? Colors.white : Colors.black;
+    var applied = amount;
+    if (_shift(base, overlay, applied) < 3) {
+      overlay = lighter ? Colors.black : Colors.white;
+      applied = amount * flipped;
+    }
+    return overlay.withAlpha((applied * 255).round());
+  }
+
+  double _shift(Color base, Color overlay, double amount) {
+    final channels = [
+      (base.r * 255, overlay.r * 255),
+      (base.g * 255, overlay.g * 255),
+      (base.b * 255, overlay.b * 255),
+    ];
+    var shift = 0.0;
+    for (final (b, o) in channels) {
+      final moved = (o * amount + b * (1 - amount) - b).abs();
+      if (moved > shift) shift = moved;
+    }
+    return shift;
   }
 
   //Copper默认主题色，黄铜

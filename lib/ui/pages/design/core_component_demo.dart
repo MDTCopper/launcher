@@ -157,7 +157,6 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
                   Icons.new_releases_outlined,
                 ],
                 value: _iconTab,
-                disabled: const {2},
                 onChanged: (index) => setState(() => _iconTab = index),
               ),
               CuSegment(
@@ -281,36 +280,36 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
                 subtitle: '修改后下次启动生效',
                 trailing: CuButton(
                   label: '重置',
+                  icon: Icons.refresh,
                   kind: CuButtonKind.quiet,
                   onTap: () {},
                 ),
-                children: [
-                  CuSettingRow(
-                    title: '自动更新',
-                    control: Align(
-                      alignment: Alignment.centerRight,
-                      child: CuSwitch(
-                        value: _switchOn,
-                        onChanged: (v) => setState(() => _switchOn = v),
-                      ),
-                    ),
-                  ),
-                  CuSettingRow(
-                    title: '窗口缩放',
-                    control: CuSlider(
-                      value: _scale,
-                      label: '${(_scale * 100).round()}%',
-                      divisions: 20,
-                      onChanged: (v) => setState(() => _scale = v),
-                    ),
-                  ),
-                ],
+                // children: [
+                //   CuSettingRow(
+                //     title: '自动更新',
+                //     control: Align(
+                //       alignment: Alignment.centerRight,
+                //       child: CuSwitch(
+                //         value: _switchOn,
+                //         onChanged: (v) => setState(() => _switchOn = v),
+                //       ),
+                //     ),
+                //   ),
+                //   CuSettingRow(
+                //     title: '窗口缩放',
+                //     control: CuSlider(
+                //       value: _scale,
+                //       label: '${(_scale * 100).round()}%',
+                //       divisions: 20,
+                //       onChanged: (v) => setState(() => _scale = v),
+                //     ),
+                //   ),
+                // ],
               ),
               CuContentPanel(
                 title: '版本列表',
                 subtitle: '共 3 个 · 整块列表用 flush',
                 flush: true,
-                headerDivider: true,
                 child: Column(
                   children: [
                     CuListTile(

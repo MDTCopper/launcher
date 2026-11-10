@@ -77,7 +77,7 @@ class CuListTile extends StatelessWidget {
       selected: selected,
       onTap: onTap,
       onLongTap: onLongPress,
-      borderRadius: borderRadius ?? BorderRadius.circular(AppRadius.control),
+      borderRadius: borderRadius ?? BorderRadius.circular(AppRadius.item),
       padding: padding,
       margin: margin,
       decoration: decoration,
@@ -87,7 +87,7 @@ class CuListTile extends StatelessWidget {
         child: Row(
           spacing: itemSpacing,
           children: [
-            if (leading != null) leading!,
+            ?leading,
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -113,7 +113,7 @@ class CuListTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (trailing != null) trailing!,
+            ?trailing,
           ],
         ),
       ),

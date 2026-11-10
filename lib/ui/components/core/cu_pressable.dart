@@ -139,8 +139,10 @@ class _AppPressableState extends State<CuPressable>
     // - 底色始终不变，不会出现「底色忽明忽暗」
     // - 悬停层 → 按下层是相加关系，按下时只是在悬停结果上再压一档，不会互相顶掉
     // - 颜色端点每帧从 AppColors 重取，换主题仍然瞬切
-    final hoverColor = widget.hoverColor ?? colors.highBackgroundOnCard;
-    final pressColor = widget.pressedColor ?? colors.splash;
+    // 默认状态色按「底色 + 叠层」算出来：悬停 / 按下一定与底色不同，
+    // 不透明的 raised 当悬停色在 plain 面上会看不出变化（用户 2026-11-10 反馈次按钮没反馈）
+    final hoverColor = widget.hoverColor ?? colors.hoverOn(base);
+    final pressColor = widget.pressedColor ?? colors.pressedOn(base);
 
     Widget overlay(Color color, double t) {
       final alpha = (color.a * t).clamp(0.0, 1.0);

@@ -670,12 +670,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
       selected: _likeOnly,
       onTap: () => setState(() => _likeOnly = !_likeOnly),
       borderRadius: BorderRadius.circular(4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: _likeOnly ? colors.interactive : colors.border,
-        ),
-      ),
+
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -709,7 +704,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
         version.tag,
         style: theme.textTheme.bodyMedium?.copyWith(
           color: colors.itemPrimary,
-          fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
+          fontWeight: isCurrent ? FontWeight.w600 : null,
         ),
       ),
       subtitle: isDesktop
@@ -785,9 +780,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   }
 
   Widget _buildVersionViewPage() {
-    final colors = AppColors.of(context);
     final versions = _visibleVersions();
-    const names = ['全部', '原版', 'Copper', '测试'];
 
     // 项目惯例：页头信息不钉在顶上，跟着内容一起滚（列表 / 信息条 / 筛选都在同一条滚动链里）
     return CopperListView(
@@ -808,28 +801,17 @@ class _VersionSelectPageState extends State<VersionSelectPage>
           ],
         ),
         const SizedBox(height: 12),
-        CuContentPanel(
-          flush: true,
-          headerDivider: versions.isNotEmpty,
-          title: '${names[_category]}版本',
-          subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
-          child: versions.isEmpty
-              ? _buildEmptyPage()
-              : Column(
+        versions.isEmpty
+            ? _buildEmptyPage()
+            : CuContentPanel(
+                flush: true,
+                title: 'nininini',
+                child: Column(
                   children: [
                     for (final version in versions) _buildVersionRow(version),
                   ],
                 ),
-        ),
-        if (versions.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text(
-            '路径 ${formatPathForWrap(_versionFolds[_index].resolvedPath)}',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: colors.itemHint),
-          ),
-        ],
+              ),
       ],
     );
   }
@@ -843,6 +825,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
         mainAxisSize: MainAxisSize.min,
         spacing: 10,
         children: [
+          const SizedBox(height: 20),
           Icon(Icons.inbox_outlined, size: 40, color: colors.itemHint),
           Text(
             '这个分类下还没有版本',
