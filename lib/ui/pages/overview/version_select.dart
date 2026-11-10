@@ -8,18 +8,18 @@ import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/core/app_paths.dart';
-import 'package:copper_launcher/ui/components/panel/list_content_panel.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/action_slide_layer.dart';
+import 'package:copper_launcher/ui/components/core/cu_button.dart';
+import 'package:copper_launcher/ui/components/cu_card.dart';
+import 'package:copper_launcher/ui/components/core/cu_list_tile.dart';
+import 'package:copper_launcher/ui/components/core/cu_menu.dart';
+import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
+import 'package:copper_launcher/ui/components/core/cu_segment.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
-import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/util/route/route_trail.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
-
-import 'package:copper_launcher/ui/components/animation/animated_expansion.dart';
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 
 import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
 import 'package:copper_launcher/ui/components/input/tag_input_dialog.dart';
@@ -55,6 +55,12 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   final List<VersionFold> _versionFolds = config.versionOptions.versionFolds;
 
   static int _index = 0;
+
+  /// 分类：0 全部 / 1 原版 / 2 Copper / 3 测试
+  int _category = 0;
+
+  /// 只看收藏
+  bool _likeOnly = false;
 
   /// 当前目录是页内分项：作为顶栏在「版本选择」段之后追加的方框
   void _reportFold() {
@@ -473,143 +479,346 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     );
   }
 
-  Widget _buildVersionTile(Mindustry version) {
+  /// 当前分类 + 收藏过滤后的版本（按添加时间倒序）
+  List<Mindustry> _visibleVersions() {
+    final all = List<Mindustry>.of(_versionFolds[_index].versions)
+      ..sort((a, b) => -a.addTime.compareTo(b.addTime));
+    return all.where((version) {
+      if (_likeOnly && !version.like) return false;
+      return switch (_category) {
+        1 => !version.isBe && version.launcher != LauncherType.copper,
+        2 => version.launcher == LauncherType.copper,
+        3 => version.isBe,
+        _ => true,
+      };
+    }).toList();
+  }
+
+  int _countCategory(int category) {
+    return _versionFolds[_index].versions.where((version) {
+      return switch (category) {
+        1 => !version.isBe && version.launcher != LauncherType.copper,
+        2 => version.launcher == LauncherType.copper,
+        3 => version.isBe,
+        _ => true,
+      };
+    }).length;
+  }
+
+  /// 顶部信息条：当前文件夹的名称 / 路径 / 数量 / 来源
+  Widget _buildFoldInfoBar() {
+    final colors = AppColors.of(context);
     final theme = Theme.of(context);
+    final fold = _versionFolds[_index];
+    final liked = fold.versions.where((version) => version.like).length;
+    final isDefault = _index == 0;
 
-    final tile = ReboundListTile(
-      padding: EdgeInsets.all(8),
-      borderRadius: BorderRadius.circular(4),
-      leading: VersionIcon(version: version, height: 48, fallbackScale: 0.8),
-      title: Text(version.tag, style: theme.textTheme.bodyLarge),
-      subtitle: isDesktop ? _buildVersionSubtitle(version) : null,
-      onTap: () => _select(version),
-    );
-
-    // 右键 / 长按 + 左滑 组合菜单：删除 / 收藏 / 设置
-    return ContextMenuActionField(
-      menuBuilder: (context) => [
-        ContextMenuAction(
-          icon: Icons.delete_outline,
-          label: '删除',
-          danger: true,
-          onSelected: () => _delete(version),
-        ),
-        ContextMenuAction(
-          icon: version.like ? Icons.star : Icons.star_outline,
-          color: version.like ? Colors.amber : null,
-          label: version.like ? '已收藏' : '收藏',
-          onSelected: () => _collect(version),
-        ),
-        ContextMenuAction(
-          icon: Icons.copy_all,
-          label: '新建变体',
-          onSelected: () async {
-            final created = await createVersionVariant(
-              source: version,
-              context: context,
-            );
-            if (created == null || !mounted) return;
-            _updateView();
-          },
-        ),
-        ContextMenuAction(
-          icon: Icons.settings,
-          label: '设置',
-          onSelected: () => _popToSettingOf(version),
-        ),
-      ],
-      actions: [
-        SlideActionButton(
-          icon: Icon(Icons.delete_outline),
-          label: '删除',
-          onTap: () => _delete(version),
-        ),
-        const SizedBox(width: 4),
-        SlideActionButton(
-          icon: Icon(
-            version.like ? Icons.star : Icons.star_outline,
-            color: version.like ? Colors.amber : null,
+    return CuCard(
+      margin: EdgeInsets.zero,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        spacing: 12,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: colors.elevatedBackground,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.border),
+            ),
+            child: Icon(
+              Icons.folder_outlined,
+              size: 22,
+              color: colors.itemSecondary,
+            ),
           ),
-          label: version.like ? '已收藏' : '收藏',
-          onTap: () => _collect(version),
-        ),
-        const SizedBox(width: 4),
-        SlideActionButton(
-          icon: Icon(Icons.settings),
-          label: '设置',
-          onTap: () => _popToSettingOf(version),
-        ),
-      ],
-      child: tile,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: [
+                Row(
+                  spacing: 8,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        fold.tag,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: colors.itemPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (isDefault)
+                      _badge(colors, '默认', colors.interactive)
+                    else
+                      _badge(colors, '自定义', colors.itemSecondary),
+                  ],
+                ),
+                Text(
+                  formatPathForWrap(fold.resolvedPath),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.itemHint,
+                    fontFamily: 'Consolas',
+                    fontFamilyFallback: const ['Courier New', 'monospace'],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            spacing: 2,
+            children: [
+              Text(
+                '${fold.versions.length} 个版本',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.itemPrimary,
+                ),
+              ),
+              Text(
+                '${liked} 个收藏',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.itemHint,
+                ),
+              ),
+            ],
+          ),
+          CuMenuButton(
+            items: [
+              CuMenuItem(
+                icon: Icons.drive_file_rename_outline,
+                label: '重命名目录',
+                onSelected: () => _renameFold(_index),
+              ),
+              if (_index != 0)
+                CuMenuItem(
+                  icon: Icons.delete_outline,
+                  label: '删除目录',
+                  danger: true,
+                  onSelected: () => _deleteFold(_index),
+                ),
+              CuMenuItem(
+                icon: Icons.create_new_folder_outlined,
+                label: isDesktop ? '添加新目录' : '新建分类',
+                onSelected: isDesktop ? _addNewFold : _addNewCategory,
+              ),
+              if (isDesktop) ...[
+                CuMenuItem(
+                  icon: Icons.file_upload_outlined,
+                  label: '导入本地游戏',
+                  onSelected: _importLocalGame,
+                ),
+                CuMenuItem(
+                  icon: Icons.sports_esports,
+                  label: '扫描 Steam 版',
+                  onSelected: _scanSteamVersions,
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildVersionViewPage(List<Mindustry> versions) {
-    versions.sort((a, b) => -a.addTime.compareTo(b.addTime));
-    final List<Widget> likes = [];
-    final List<Widget> mindustrys = [];
-    final List<Widget> coppers = [];
-    final List<Widget> betas = [];
+  Widget _badge(AppColors colors, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withAlpha(28),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withAlpha(90)),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+      ),
+    );
+  }
 
-    for (int i = 0; i < versions.length; i++) {
-      final version = versions[i];
+  /// 分类切换 + 收藏筛选
+  Widget _buildFilterBar() {
+    final colors = AppColors.of(context);
+    final theme = Theme.of(context);
 
-      final child = _buildVersionTile(version);
-
-      if (version.like) likes.add(child);
-
-      if (version.launcher == LauncherType.copper) {
-        coppers.add(child);
-        continue;
-      }
-      if (version.isBe) {
-        betas.add(child);
-        continue;
-      }
-      mindustrys.add(child);
-    }
-
-    if (likes.isEmpty &&
-        mindustrys.isEmpty &&
-        coppers.isEmpty &&
-        betas.isEmpty) {
-      return KeyedSubtree(
-        key: Key(_versionFolds[_index].path),
-        child: _buildEmptyPage(),
-      );
-    }
-
-    return KeyedSubtree(
-      key: Key(_versionFolds[_index].path),
-      child: ListContentPanel(
-        delay: 250,
-        items: [
-          if (isDesktop)
-            Text(
-              '详细路径 ${formatPathForWrap(_versionFolds[_index].resolvedPath)}',
-              style: Theme.of(context).textTheme.labelMedium,
+    return Row(
+      spacing: 12,
+      children: [
+        SizedBox(
+          width: 420,
+          child: CuSegment(
+            options: [
+              '全部 (${_countCategory(0)})',
+              '原版 (${_countCategory(1)})',
+              'Copper (${_countCategory(2)})',
+              '测试 (${_countCategory(3)})',
+            ],
+            value: _category,
+            onChanged: (index) => setState(() => _category = index),
+          ),
+        ),
+        const Spacer(),
+        CuPressable(
+          selected: _likeOnly,
+          onTap: () => setState(() => _likeOnly = !_likeOnly),
+          borderRadius: BorderRadius.circular(4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: _likeOnly ? colors.interactive : colors.border,
             ),
-          if (likes.isNotEmpty)
-            AnimatedExpansion(
-              initExpanded: true,
-              title: Text('收藏(${likes.length})'),
-              children: likes,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            spacing: 6,
+            children: [
+              Icon(
+                _likeOnly ? Icons.star : Icons.star_outline,
+                size: 16,
+                color: _likeOnly ? colors.interactive : colors.itemSecondary,
+              ),
+              Text(
+                '收藏',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: _likeOnly ? colors.itemPrimary : colors.itemSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVersionRow(Mindustry version) {
+    final colors = AppColors.of(context);
+    final theme = Theme.of(context);
+    final isCurrent = config.versionOptions.selectedVersion == version;
+
+    return CuListTile(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      leading: VersionIcon(version: version, height: 36, fallbackScale: 0.8),
+      title: Text(
+        version.tag,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: colors.itemPrimary,
+          fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
+        ),
+      ),
+      subtitle: isDesktop
+          ? DefaultTextStyle(
+              style: theme.textTheme.bodySmall!.copyWith(
+                color: colors.itemHint,
+              ),
+              child: _buildVersionSubtitle(version),
+            )
+          : null,
+      onTap: () => _select(version),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 4,
+        children: [
+          if (isCurrent)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: colors.indicatorBackground,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '当前',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.interactive,
+                ),
+              ),
             ),
-          if (mindustrys.isNotEmpty)
-            AnimatedExpansion(
-              initExpanded: likes.isEmpty,
-              title: Text('原版(${mindustrys.length})'),
-              children: mindustrys,
+          CuPressable(
+            onTap: () => _collect(version),
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: Icon(
+                version.like ? Icons.star : Icons.star_outline,
+                size: 18,
+                color: version.like ? colors.interactive : colors.itemHint,
+              ),
             ),
-          if (coppers.isNotEmpty)
-            AnimatedExpansion(
-              title: Text('Copper(${coppers.length})'),
-              children: coppers,
-            ),
-          if (betas.isNotEmpty)
-            AnimatedExpansion(
-              title: Text('预览版(${betas.length})'),
-              children: betas,
+          ),
+          CuMenuButton(
+            items: [
+              CuMenuItem(
+                icon: Icons.settings_outlined,
+                label: '版本设置',
+                onSelected: () => _popToSettingOf(version),
+              ),
+              CuMenuItem(
+                icon: Icons.copy_all,
+                label: '新建变体',
+                onSelected: () async {
+                  final created = await createVersionVariant(
+                    source: version,
+                    context: context,
+                  );
+                  if (created == null || !mounted) return;
+                  _updateView();
+                },
+              ),
+              CuMenuItem(
+                icon: Icons.delete_outline,
+                label: '删除版本',
+                danger: true,
+                onSelected: () => _delete(version),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVersionViewPage() {
+    final colors = AppColors.of(context);
+    final versions = _visibleVersions();
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
+        children: [
+          _buildFoldInfoBar(),
+          _buildFilterBar(),
+          Expanded(
+            child: versions.isEmpty
+                ? _buildEmptyPage()
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: ListView.builder(
+                      itemCount: versions.length,
+                      itemBuilder: (context, index) =>
+                          _buildVersionRow(versions[index]),
+                    ),
+                  ),
+          ),
+          if (versions.isNotEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '共 ${versions.length} 个版本 · 单击切换，右侧 ⋯ 做更多操作',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: colors.itemHint),
+              ),
             ),
         ],
       ),
@@ -617,57 +826,45 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   }
 
   Widget _buildEmptyPage() {
+    final colors = AppColors.of(context);
     final theme = Theme.of(context);
-    return _EmptyPageEntrance(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Material(
-          color: theme.colorScheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(8),
-          elevation: 4,
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Column(
-              spacing: 4,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('~(～￣▽￣)～', style: theme.textTheme.bodyLarge),
-                Text('没有找到任何游戏版本', style: theme.textTheme.headlineLarge),
 
-                Text('可以添加其他游戏目录或者直接下载游戏', style: theme.textTheme.labelLarge),
-                SizedBox(height: 2),
-                ReboundButton(
-                  elevation: 2,
-                  hoverElevation: 4,
-                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  onTap: () {
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      '/mindustry_download',
-                      (_) => false,
-                    );
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 8,
-                    children: [
-                      Icon(Icons.download, color: theme.colorScheme.onSurface),
-                      Text(
-                        '下载游戏',
-                        style: TextStyle(color: theme.colorScheme.onSurface),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isDesktop)
-                  Text(
-                    '详细路径 ${formatPathForWrap(_versionFolds[_index].resolvedPath)}',
-                    style: theme.textTheme.labelMedium,
-                  ),
-              ],
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 10,
+        children: [
+          Icon(Icons.inbox_outlined, size: 40, color: colors.itemHint),
+          Text(
+            '这个分类下还没有版本',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.itemPrimary,
             ),
           ),
-        ),
+          Text(
+            '可以导入本地游戏，或添加一个已有游戏目录',
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.itemHint),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 8,
+            children: [
+              if (isDesktop)
+                CuButton(
+                  label: '导入本地游戏',
+                  icon: Icons.file_upload_outlined,
+                  onTap: _importLocalGame,
+                ),
+              CuButton(
+                label: isDesktop ? '添加新目录' : '新建分类',
+                icon: Icons.create_new_folder_outlined,
+                kind: CuButtonKind.plain,
+                onTap: isDesktop ? _addNewFold : _addNewCategory,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -749,7 +946,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
           ],
         ],
       ),
-      page: _buildVersionViewPage(_versionFolds[_index].versions),
+      page: _buildVersionViewPage(),
     );
   }
 }
