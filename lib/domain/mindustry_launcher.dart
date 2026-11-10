@@ -179,6 +179,7 @@ class MindustryLauncher {
         windowSize: windowSize,
         maximize: maximize,
         extraArgs: extraArgs ?? const [],
+        loaderArgs: _loaderArgsOf(mindustry),
       );
 
       final javaCmd = javaExecutable ?? 'java';
@@ -409,6 +410,7 @@ class MindustryLauncher {
       jvmArgs: jvmArgs,
       loaderJars: loaderJars,
       loaderMainClass: loaderMainClass,
+      loaderArgs: _loaderArgsOf(mindustry),
       // Android 上的「使用高性能显卡」就是向桥要 OpenGL ES 3（关掉退 ES 2）
       gl3:
           mindustry.useBetterGPU ??
@@ -534,7 +536,7 @@ class MindustryLauncher {
   /// 组装启动参数（纯函数，方便用例覆盖两种启动方式）
   ///
   /// 官方 Jar：`-jar <游戏本体> <游戏参数>`
-  /// 走加载器：`-jar <loader> -G <游戏本体> -D <数据目录> -- <游戏参数>`，
+  /// 走加载器：`-jar <loader> -G <游戏本体> -D <数据目录> [loader 参数] -- <游戏参数>`，
   /// 数据目录交给加载器（它自己把目录注入游戏），所以不再塞 `-Dmindustry.data.dir`
   @visibleForTesting
   static List<String> buildLaunchArguments({
@@ -544,6 +546,7 @@ class MindustryLauncher {
     WindowSize? windowSize,
     bool? maximize,
     List<String> extraArgs = const [],
+    List<String> loaderArgs = const [],
   }) {
     return [
       if (maxMemory != null && maxMemory.inGB > 0.1)
@@ -560,6 +563,7 @@ class MindustryLauncher {
         mindustry.resolvedJarPath,
         '-D',
         mindustry.dataDirOverridePath,
+        ...loaderArgs,
         '--',
       ],
       ..._buildMindustryArgs(windowSize: windowSize, maximize: maximize),
@@ -569,6 +573,13 @@ class MindustryLauncher {
   /// 取这个版本可用的 loader：优先它自己指定的，其次库里第一个；都没有返回 null
   static String? usableLoaderPath(Mindustry mindustry) =>
       LoaderLibrary.usablePath(mindustry.resolvedLauncherPath);
+
+  /// 版本里填的加载器参数：空格分隔，空项丢掉
+  static List<String> _loaderArgsOf(Mindustry version) =>
+      (version.loaderArgs ?? '')
+          .split(RegExp(r'\s+'))
+          .where((arg) => arg.isNotEmpty)
+          .toList();
 
   static List<String> _buildMindustryArgs({
     WindowSize? windowSize,

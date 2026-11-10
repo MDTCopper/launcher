@@ -995,6 +995,11 @@ class _SettingState extends State<_Setting> {
   late final TextEditingController jvmParameterController =
       TextEditingController(text: _mindustry.jvmParameter ?? '');
 
+  /// 加载器参数输入框 controller：进入页面时以当前值为初值
+  late final TextEditingController loaderArgsController = TextEditingController(
+    text: _mindustry.loaderArgs ?? '',
+  );
+
   String _formatRam(double ram) {
     return (ram).toStringAsFixed(1);
   }
@@ -1007,6 +1012,13 @@ class _SettingState extends State<_Setting> {
     });
   }
 
+  /// 加载器参数输入完成后写回配置：空串存 null，免得配置里留个空字段
+  void _saveLoaderArgs() {
+    final text = loaderArgsController.text.trim();
+    _mindustry.loaderArgs = text.isEmpty ? null : text;
+    config.save();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1017,6 +1029,11 @@ class _SettingState extends State<_Setting> {
   void dispose() {
     _getMemoryTimer?.cancel();
     jvmParameterController.dispose();
+    // 填了没回车就离开页面：把加载器参数补存一次
+    if (loaderArgsController.text.trim() != (_mindustry.loaderArgs ?? '')) {
+      _saveLoaderArgs();
+    }
+    loaderArgsController.dispose();
     super.dispose();
   }
 
@@ -1308,6 +1325,12 @@ class _SettingState extends State<_Setting> {
                 controller: jvmParameterController,
                 onEditingComplete: _saveJvmParameter,
               ),
+              if (_mindustry.isViaLoader)
+                InputSettingBar(
+                  title: '加载器参数',
+                  controller: loaderArgsController,
+                  onEditingComplete: _saveLoaderArgs,
+                ),
             ],
           ),
         ),

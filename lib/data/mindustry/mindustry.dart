@@ -86,6 +86,9 @@ class Mindustry {
   ///记录形态：loader 收在 `<数据根>/copper_loader/` 里，多版本复用同一份
   String? launcherPath;
 
+  ///走加载器时额外传给 loader 的命令行参数，空格分隔
+  String? loaderArgs;
+
   ///是不是 **Steam 版**（本体里有 `version.properties: modifier=steam`）
   ///
   ///Steam 版要特化：本体原地引用、数据目录绑安装目录下的 `saves/`（见 [externalDataPath]）、
@@ -283,6 +286,7 @@ class Mindustry {
     this.versionNumber,
     this.bodyIsUserFile = false,
     this.launcherPath,
+    this.loaderArgs,
     this.steam = false,
     this.externalDataPath,
     this.iconPath,

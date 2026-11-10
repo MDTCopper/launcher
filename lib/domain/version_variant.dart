@@ -114,6 +114,7 @@ Future<Mindustry?> createVersionVariant({
     id: const Uuid().v4(),
     launcher: targetLauncher,
     launcherPath: targetLauncherPath,
+    loaderArgs: source.loaderArgs,
     tag: options.tag,
     jarPath: source.jarPath,
     isBe: source.isBe,
