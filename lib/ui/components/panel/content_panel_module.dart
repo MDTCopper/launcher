@@ -1,10 +1,11 @@
-import 'package:copper_launcher/ui/components/cu_card.dart';
-import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/components/core/cu_content_panel.dart';
 import 'package:flutter/material.dart';
 
 /// 分类面板模块：纯装饰外壳，用于区分不同区域
 ///
-/// 不做动画、不承载列表——内容多时用 [ContentListPanelModule] / [ContentGridPanelModule]
+/// 2026-11-10 重构：以 `CuContentPanel` 为标准（`CuCard` 地基 + 标题行 + 内衬规范），
+/// 这里只做兼容外壳；新页面直接用 `CuContentPanel`，内容多时配合
+/// `ContentListPanelModule` / `ContentGridPanelModule`
 class ContentPanelModule extends StatelessWidget {
   final Widget? child;
   final String? title;
@@ -13,31 +14,6 @@ class ContentPanelModule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final colors = AppColors.of(context);
-
-    return CuCard(
-      margin: const EdgeInsets.all(0),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-      borderRadius: const BorderRadius.all(Radius.circular(8)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
-        children: [
-          if (title != null)
-            Text(
-              title!,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                color: colors.interactive,
-              ),
-            ),
-          if (child != null)
-            DefaultTextStyle(
-              style: theme.textTheme.bodyMedium ?? TextStyle(),
-              child: IconTheme(data: theme.iconTheme, child: child!),
-            ),
-        ],
-      ),
-    );
+    return CuContentPanel(title: title, child: child);
   }
 }

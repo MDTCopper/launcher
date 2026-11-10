@@ -19,12 +19,12 @@ final _failureNoticeIcons = <IconData>{
 };
 
 /// 通知样式
+///
+/// 轻提示（toast）不在这里：它走 `ui/util/toast.dart` 的 `showToast`，
+/// 是独立浮层，不堆叠、不进通知列表。
 enum NoticeStyle {
   /// 右上角卡片（默认）：标题 + 正文，适合需要看清内容的结果提示
   card,
-
-  /// 底部居中胶囊：单行短句，3 秒左右自动消失，适合「已复制」这类轻提示
-  toast,
 
   /// 顶部居中横条：图标 + 标题 + 说明，适合页面级提示（有轻微干扰）
   banner,
@@ -176,7 +176,6 @@ class _NotificationWidgetState extends State<NotificationWidget> {
   ) {
     final widget = switch (style) {
       NoticeStyle.card => _buildCard(icon, title, content),
-      NoticeStyle.toast => _buildToast(icon, title, content),
       NoticeStyle.banner => _buildBanner(icon, title, content),
     };
     addItemWidget(widget, onTap, duration, style);
@@ -239,40 +238,6 @@ class _NotificationWidgetState extends State<NotificationWidget> {
     );
   }
 
-  /// 底部居中胶囊：单行短句（有标题优先标题，否则正文）
-  Widget _buildToast(IconData? icon, String? title, String? content) {
-    final colors = AppColors.of(context);
-    final textTheme = Theme.of(context).textTheme;
-    final text = title ?? content ?? '';
-
-    return Material(
-      color: colors.elevatedBackground,
-      elevation: 6,
-      borderRadius: BorderRadius.circular(8),
-      clipBehavior: Clip.hardEdge,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 420),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 8,
-          children: [
-            if (icon != null) Icon(icon, size: 16, color: colors.itemSecondary),
-            Flexible(
-              child: Text(
-                text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(color: colors.itemPrimary),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 顶部居中横条：图标 + 标题 + 说明
   Widget _buildBanner(IconData? icon, String? title, String? content) {
     final colors = AppColors.of(context);
     final textTheme = Theme.of(context).textTheme;
@@ -368,14 +333,6 @@ class _NotificationWidgetState extends State<NotificationWidget> {
             child: _columnFor(NoticeStyle.banner, _maxBanner),
           ),
         ),
-        // 底部居中胶囊
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: _columnFor(NoticeStyle.toast, _maxToast),
-          ),
-        ),
       ],
     );
   }
@@ -396,12 +353,8 @@ class _NotificationWidgetState extends State<NotificationWidget> {
               key: ValueKey(item.id),
               item: item,
               onRemove: () => _removeById(item.id),
-              padding: style == NoticeStyle.toast
-                  ? const EdgeInsets.only(bottom: 8)
-                  : const EdgeInsets.only(right: 12, bottom: 12),
-              alignment: style == NoticeStyle.toast
-                  ? Alignment.bottomCenter
-                  : style == NoticeStyle.banner
+              padding: const EdgeInsets.only(right: 12, bottom: 12),
+              alignment: style == NoticeStyle.banner
                   ? Alignment.topCenter
                   : Alignment.topRight,
             ),
@@ -412,7 +365,6 @@ class _NotificationWidgetState extends State<NotificationWidget> {
 
   /// 各样式最大宽度
   static const _maxCard = 300.0;
-  static const _maxToast = 420.0;
   static const _maxBanner = 560.0;
 }
 

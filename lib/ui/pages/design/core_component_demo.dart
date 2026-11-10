@@ -1,5 +1,6 @@
 import 'package:copper_launcher/ui/components/core/cu_button.dart';
 import 'package:copper_launcher/ui/components/core/cu_checkbox.dart';
+import 'package:copper_launcher/ui/components/core/cu_content_panel.dart';
 import 'package:copper_launcher/ui/components/core/cu_icon_button.dart';
 import 'package:copper_launcher/ui/components/core/cu_list_tile.dart';
 import 'package:copper_launcher/ui/components/core/cu_log_tile.dart';
@@ -13,6 +14,7 @@ import 'package:copper_launcher/ui/components/core/cu_switch.dart';
 import 'package:copper_launcher/ui/components/core/cu_text_field.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
+import 'package:copper_launcher/ui/util/toast.dart';
 import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
 import 'package:flutter/material.dart';
 
@@ -210,7 +212,7 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
             ],
           ),
         ),
-        _note('通知样式', '三种通知：右上卡片 / 底部胶囊 toast / 顶部横条 banner（点按钮在真机里看动效）'),
+        _note('通知样式', '通知（会堆叠、要看清内容）：右上卡片 / 顶部横条 banner；轻提示 toast 已独立出去'),
         _group(
           Wrap(
             spacing: TemplateSpace.sm,
@@ -227,17 +229,6 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
                 ),
               ),
               CuButton(
-                label: 'Toast',
-                icon: Icons.notifications_active_outlined,
-                kind: CuButtonKind.plain,
-                onTap: () => addNotice(
-                  icon: Icons.copy,
-                  title: '房间码已复制',
-                  duration: const Duration(seconds: 3),
-                  style: NoticeStyle.toast,
-                ),
-              ),
-              CuButton(
                 label: 'Banner',
                 icon: Icons.campaign_outlined,
                 kind: CuButtonKind.plain,
@@ -246,6 +237,98 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
                   title: '有新版本可用',
                   content: '当前 v160.7，最新 v161.2',
                   style: NoticeStyle.banner,
+                ),
+              ),
+            ],
+          ),
+        ),
+        _note('Toast（轻提示）', '独立浮层，一次一条、底部居中、自动消失；不堆叠、不进通知列表'),
+        _group(
+          Wrap(
+            spacing: TemplateSpace.sm,
+            runSpacing: TemplateSpace.sm,
+            children: [
+              CuButton(
+                label: '轻提示',
+                icon: Icons.copy,
+                kind: CuButtonKind.plain,
+                onTap: () => showToast(icon: Icons.copy, text: '房间码已复制'),
+              ),
+              CuButton(
+                label: '长一点',
+                icon: Icons.info_outline,
+                kind: CuButtonKind.plain,
+                onTap: () => showToast(
+                  icon: Icons.info_outline,
+                  text: '已开始下载 Mindustry 6.0，可在任务里查看进度',
+                  duration: const Duration(seconds: 4),
+                ),
+              ),
+            ],
+          ),
+        ),
+        _note(
+          'CuContentPanel',
+          '标准页面内容卡：CuCard 地基 + 标题行（标题 / 说明 / 右侧动作）+ 统一内衬；flush 用于整块列表',
+        ),
+        _group(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: TemplateSpace.md,
+            children: [
+              CuContentPanel(
+                title: '启动设置',
+                subtitle: '修改后下次启动生效',
+                trailing: CuButton(
+                  label: '重置',
+                  kind: CuButtonKind.quiet,
+                  onTap: () {},
+                ),
+                children: [
+                  CuSettingRow(
+                    title: '自动更新',
+                    control: Align(
+                      alignment: Alignment.centerRight,
+                      child: CuSwitch(
+                        value: _switchOn,
+                        onChanged: (v) => setState(() => _switchOn = v),
+                      ),
+                    ),
+                  ),
+                  CuSettingRow(
+                    title: '窗口缩放',
+                    control: CuSlider(
+                      value: _scale,
+                      label: '${(_scale * 100).round()}%',
+                      divisions: 20,
+                      onChanged: (v) => setState(() => _scale = v),
+                    ),
+                  ),
+                ],
+              ),
+              CuContentPanel(
+                title: '版本列表',
+                subtitle: '共 3 个 · 整块列表用 flush',
+                flush: true,
+                headerDivider: true,
+                child: Column(
+                  children: [
+                    CuListTile(
+                      title: const Text('v160.7 Copper'),
+                      subtitle: const Text('v160.7'),
+                      trailing: const Icon(Icons.chevron_right, size: 18),
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: skin.border)),
+                      ),
+                      onTap: () {},
+                    ),
+                    CuListTile(
+                      title: const Text('6.0 Build 123'),
+                      subtitle: const Text('v123'),
+                      trailing: const Icon(Icons.chevron_right, size: 18),
+                      onTap: () {},
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -289,7 +372,10 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
             ],
           ),
         ),
-        _note('CuSelect', '下拉选择：复用项目 DropdownLayer（展开面板 / 选中态 / 外点关闭都在它那），只套 AppColors 配色'),
+        _note(
+          'CuSelect',
+          '下拉选择：复用项目 DropdownLayer（展开面板 / 选中态 / 外点关闭都在它那），只套 AppColors 配色',
+        ),
         _group(
           Row(
             spacing: TemplateSpace.md,

@@ -9,6 +9,7 @@ import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/ui/components/core/cu_button.dart';
+import 'package:copper_launcher/ui/components/core/cu_content_panel.dart';
 import 'package:copper_launcher/ui/components/cu_card.dart';
 import 'package:copper_launcher/ui/components/core/cu_list_tile.dart';
 import 'package:copper_launcher/ui/components/core/cu_menu.dart';
@@ -643,57 +644,56 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     );
   }
 
-  /// 分类切换 + 收藏筛选
+  /// 分类切换（收藏筛选挪到内容卡标题行右侧）
   Widget _buildFilterBar() {
+    return SizedBox(
+      width: 420,
+      child: CuSegment(
+        options: [
+          '全部 (${_countCategory(0)})',
+          '原版 (${_countCategory(1)})',
+          'Copper (${_countCategory(2)})',
+          '测试 (${_countCategory(3)})',
+        ],
+        value: _category,
+        onChanged: (index) => setState(() => _category = index),
+      ),
+    );
+  }
+
+  /// 收藏筛选开关（内容卡标题行右侧）
+  Widget _buildLikeToggle() {
     final colors = AppColors.of(context);
     final theme = Theme.of(context);
 
-    return Row(
-      spacing: 12,
-      children: [
-        SizedBox(
-          width: 420,
-          child: CuSegment(
-            options: [
-              '全部 (${_countCategory(0)})',
-              '原版 (${_countCategory(1)})',
-              'Copper (${_countCategory(2)})',
-              '测试 (${_countCategory(3)})',
-            ],
-            value: _category,
-            onChanged: (index) => setState(() => _category = index),
-          ),
+    return CuPressable(
+      selected: _likeOnly,
+      onTap: () => setState(() => _likeOnly = !_likeOnly),
+      borderRadius: BorderRadius.circular(4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: _likeOnly ? colors.interactive : colors.border,
         ),
-        const Spacer(),
-        CuPressable(
-          selected: _likeOnly,
-          onTap: () => setState(() => _likeOnly = !_likeOnly),
-          borderRadius: BorderRadius.circular(4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: _likeOnly ? colors.interactive : colors.border,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 6,
+        children: [
+          Icon(
+            _likeOnly ? Icons.star : Icons.star_outline,
+            size: 16,
+            color: _likeOnly ? colors.interactive : colors.itemSecondary,
+          ),
+          Text(
+            '收藏',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: _likeOnly ? colors.itemPrimary : colors.itemSecondary,
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            spacing: 6,
-            children: [
-              Icon(
-                _likeOnly ? Icons.star : Icons.star_outline,
-                size: 16,
-                color: _likeOnly ? colors.interactive : colors.itemSecondary,
-              ),
-              Text(
-                '收藏',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: _likeOnly ? colors.itemPrimary : colors.itemSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -721,9 +721,6 @@ class _VersionSelectPageState extends State<VersionSelectPage>
             )
           : null,
       onTap: () => _select(version),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: 4,
@@ -790,40 +787,50 @@ class _VersionSelectPageState extends State<VersionSelectPage>
   Widget _buildVersionViewPage() {
     final colors = AppColors.of(context);
     final versions = _visibleVersions();
+    const names = ['全部', '原版', 'Copper', '测试'];
 
-    return Padding(
+    // 项目惯例：页头信息不钉在顶上，跟着内容一起滚（列表 / 信息条 / 筛选都在同一条滚动链里）
+    return CopperListView(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 12,
-        children: [
-          _buildFoldInfoBar(),
-          _buildFilterBar(),
-          Expanded(
-            child: versions.isEmpty
-                ? _buildEmptyPage()
-                : ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    // 用项目滚动容器：桌面自绘滚动条 + 滚轮/触控板处理 + 上下渐隐遮罩
-                    child: CopperListView.builder(
-                      itemCount: versions.length,
-                      itemBuilder: (context, index) =>
-                          _buildVersionRow(versions[index]),
-                    ),
-                  ),
-          ),
-          if (versions.isNotEmpty)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '共 ${versions.length} 个版本 · 单击切换，右侧 ⋯ 做更多操作',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: colors.itemHint),
+      children: [
+        _buildFoldInfoBar(),
+        const SizedBox(height: 12),
+        Row(
+          spacing: 12,
+          children: [
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildFilterBar(),
               ),
             ),
+            _buildLikeToggle(),
+          ],
+        ),
+        const SizedBox(height: 12),
+        CuContentPanel(
+          flush: true,
+          headerDivider: versions.isNotEmpty,
+          title: '${names[_category]}版本',
+          subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
+          child: versions.isEmpty
+              ? _buildEmptyPage()
+              : Column(
+                  children: [
+                    for (final version in versions) _buildVersionRow(version),
+                  ],
+                ),
+        ),
+        if (versions.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            '路径 ${formatPathForWrap(_versionFolds[_index].resolvedPath)}',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.itemHint),
+          ),
         ],
-      ),
+      ],
     );
   }
 
