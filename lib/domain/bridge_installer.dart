@@ -634,8 +634,7 @@ class BridgeInstaller {
 
   /// 装 loader-wrapper（走 mod 时才需要）：已装好就直接复用，否则按固定链接下
   ///
-  /// 返回装好的 jar 路径；**版本对不上返回 null**（wrapper 是与某一版 loader 一起编的，
-  /// 与将要用的桌面 jar 不一致时 classpath 会错，宁可不起）
+  /// 返回装好的 jar 路径；桌面 loader 缺失才返回 null（版本不一致只记日志，wrapper 自适配任意 loader 版本）
   static Future<String?> ensureLoaderWrapper({
     required String? desktopLoaderPath,
     CancelToken? cancelToken,
@@ -659,9 +658,12 @@ class BridgeInstaller {
       }
     }
 
-    final desktopLoaderVersion = desktopLoaderPath == null
-        ? null
-        : LoaderLibrary.versionOf(File(desktopLoaderPath));
+    // 没有桌面 loader 就没法注入（调用方按原版起）
+    if (desktopLoaderPath == null) return null;
+
+    final desktopLoaderVersion = LoaderLibrary.versionOf(
+      File(desktopLoaderPath),
+    );
     final wrapperLoaderVersion = await BridgeLauncher.wrapperLoaderVersionOf(
       target.path,
     );
@@ -671,20 +673,19 @@ class BridgeInstaller {
     )) {
       addLogAndPrint(
         .warning,
-        '模组加载器适配层版本对不上：适配层针对 loader '
-        '${wrapperLoaderVersion ?? '（读不出）'}、桌面 jar 是 '
-        '${desktopLoaderVersion ?? '（没有）'}',
+        '模组加载器适配层版本不一致：适配层针对 loader '
+        '${wrapperLoaderVersion ?? '（读不出）'}、当前 loader '
+        '${desktopLoaderVersion ?? '（读不出）'}；wrapper 自适配任意 loader 版本，继续注入',
         tag: 'Bridge',
       );
-      return null;
+    } else {
+      addLogAndPrint(
+        .info,
+        'Android 桥：模组加载器适配层就绪（wrapper '
+        '${BridgePayload.loaderWrapperVersion} ↔ loader $desktopLoaderVersion）',
+        tag: 'Bridge',
+      );
     }
-
-    addLogAndPrint(
-      .info,
-      'Android 桥：模组加载器适配层就绪（wrapper '
-      '${BridgePayload.loaderWrapperVersion} ↔ loader $desktopLoaderVersion）',
-      tag: 'Bridge',
-    );
     return target.path;
   }
 

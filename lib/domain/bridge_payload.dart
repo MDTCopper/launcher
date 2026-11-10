@@ -93,9 +93,9 @@ class BridgePayload {
         loaderWrapperJarFileName(version ?? loaderWrapperVersion),
       );
 
-  /// wrapper 能不能配这个 loader 版本用：jar 里记的 `loaderVersion` 要与桌面 jar 一致
+  /// wrapper 记的 `loaderVersion` 与桌面 jar 是否一致
   ///
-  /// 对不上就是「wrapper 编的时候针对另一版 loader」——运行期 classpath 会错，宁可不起
+  /// 版本是否一致仅用于提示，不阻断启动；wrapper 自适配任意 loader 版本
   static bool wrapperMatchesLoader({
     required String? wrapperLoaderVersion,
     required String? desktopLoaderVersion,
