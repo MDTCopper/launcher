@@ -64,9 +64,63 @@ class CuPressable extends StatefulWidget {
   State<CuPressable> createState() => _AppPressableState();
 }
 
-class _AppPressableState extends State<CuPressable> {
+class _AppPressableState extends State<CuPressable>
+    with TickerProviderStateMixin {
+  /// 悬停 / 按下的插值进度（0~1）
+  ///
+  /// 只插值这两个交互态；颜色端点每次 build 从 [AppColors] 重新取，
+  /// 所以换主题时颜色**立刻**变成新色，不会被这两条曲线拖慢
+  late final AnimationController _hover = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 120),
+  );
+  late final AnimationController _press = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 90),
+  );
+
   bool _hovered = false;
   bool _pressed = false;
+
+  @override
+  void dispose() {
+    _hover.dispose();
+    _press.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant CuPressable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled) {
+      _hovered = false;
+      _pressed = false;
+      _hover.stop();
+      _press.stop();
+      _hover.value = 0;
+      _press.value = 0;
+    }
+  }
+
+  void _setHovered(bool value) {
+    if (_hovered == value) return;
+    setState(() => _hovered = value);
+    if (value) {
+      _hover.forward();
+    } else {
+      _hover.reverse();
+    }
+  }
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+    if (value) {
+      _press.forward();
+    } else {
+      _press.reverse();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,23 +129,18 @@ class _AppPressableState extends State<CuPressable> {
     final active =
         enabled && (widget.onTap != null || widget.onLongTap != null);
 
-    final Color color;
-    if (!enabled) {
-      color = widget.backgroundColor ?? Colors.transparent;
-    } else if (_pressed) {
-      color = widget.pressedColor ?? colors.splash;
-    } else if (widget.selected) {
-      color = widget.selectedColor ?? colors.indicatorBackground;
-    } else if (_hovered) {
-      color = widget.hoverColor ?? colors.highBackgroundOnCard;
-    } else {
-      color = widget.backgroundColor ?? Colors.transparent;
-    }
+    final base = !enabled
+        ? (widget.backgroundColor ?? Colors.transparent)
+        : widget.selected
+        ? (widget.selectedColor ?? colors.indicatorBackground)
+        : (widget.backgroundColor ?? Colors.transparent);
+    final hoverTarget = widget.hoverColor ?? colors.highBackgroundOnCard;
+    final pressTarget = widget.pressedColor ?? colors.splash;
 
     return MouseRegion(
       cursor: active ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: active ? (_) => setState(() => _hovered = true) : null,
-      onExit: active ? (_) => setState(() => _hovered = false) : null,
+      onEnter: active ? (_) => _setHovered(true) : null,
+      onExit: active ? (_) => _setHovered(false) : null,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: active ? widget.onTap : null,
@@ -99,31 +148,42 @@ class _AppPressableState extends State<CuPressable> {
         onSecondaryTap: active ? widget.onSecondaryTap : null,
         onTapDown: active
             ? (_) {
-                setState(() => _pressed = true);
+                _setPressed(true);
                 widget.onPressedChanged?.call(true);
               }
             : null,
         onTapUp: active
             ? (_) {
-                setState(() => _pressed = false);
+                _setPressed(false);
                 widget.onPressedChanged?.call(false);
               }
             : null,
         onTapCancel: active
             ? () {
-                setState(() => _pressed = false);
+                _setPressed(false);
                 widget.onPressedChanged?.call(false);
               }
             : null,
-        child: Container(
-          margin: widget.margin,
-          clipBehavior: widget.clipBehavior,
-          decoration: (widget.decoration ?? const BoxDecoration()).copyWith(
-            color: color,
-            borderRadius: widget.borderRadius,
-          ),
-          padding: widget.padding,
-          child: widget.child,
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_hover, _press]),
+          builder: (context, child) {
+            var color = base;
+            if (enabled) {
+              color = Color.lerp(color, hoverTarget, _hover.value)!;
+              // 选中行悬停只叠一点，避免整行颜色跳
+              color = Color.lerp(color, pressTarget, _press.value)!;
+            }
+            return Container(
+              margin: widget.margin,
+              clipBehavior: widget.clipBehavior,
+              decoration: (widget.decoration ?? const BoxDecoration()).copyWith(
+                color: color,
+                borderRadius: widget.borderRadius,
+              ),
+              padding: widget.padding,
+              child: widget.child,
+            );
+          },
         ),
       ),
     );
