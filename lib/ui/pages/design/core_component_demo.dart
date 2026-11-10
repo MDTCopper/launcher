@@ -1,10 +1,14 @@
 import 'package:copper_launcher/ui/components/core/cu_button.dart';
 import 'package:copper_launcher/ui/components/core/cu_checkbox.dart';
 import 'package:copper_launcher/ui/components/core/cu_icon_button.dart';
+import 'package:copper_launcher/ui/components/core/cu_list_tile.dart';
 import 'package:copper_launcher/ui/components/core/cu_log_tile.dart';
 import 'package:copper_launcher/ui/components/core/cu_notice.dart';
 import 'package:copper_launcher/ui/components/core/cu_progress.dart';
 import 'package:copper_launcher/ui/components/core/cu_segment.dart';
+import 'package:copper_launcher/ui/components/core/cu_select.dart';
+import 'package:copper_launcher/ui/components/rebound/cu_slider.dart';
+import 'package:copper_launcher/ui/components/core/cu_setting_row.dart';
 import 'package:copper_launcher/ui/components/core/cu_switch.dart';
 import 'package:copper_launcher/ui/components/core/cu_text_field.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';
@@ -30,6 +34,8 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
   bool _checked = true;
   int _tab = 1;
   int _iconTab = 0;
+  String _sort = '最新发布';
+  double _scale = 0.5;
   final _search = TextEditingController(text: 'Mindustry');
   final _error = TextEditingController(text: 'v999');
   final _disabled = TextEditingController(text: '不可编辑');
@@ -283,6 +289,127 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
             ],
           ),
         ),
+        _note('CuSelect', '下拉选择：锚点 + 弹出菜单（键盘 / 关闭交给 MenuAnchor），选项 hover 只换底色'),
+        _group(
+          Row(
+            spacing: TemplateSpace.md,
+            children: [
+              Expanded(
+                child: CuSelect<String>(
+                  expanded: true,
+                  value: _sort,
+                  hint: '排序方式',
+                  options: const [
+                    CuSelectOption(value: '最新发布', label: '最新发布'),
+                    CuSelectOption(
+                      value: '下载最多',
+                      label: '下载最多',
+                      icon: Icons.trending_down,
+                    ),
+                    CuSelectOption(
+                      value: '最近更新',
+                      label: '最近更新',
+                      icon: Icons.update,
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => _sort = value),
+                ),
+              ),
+              const SizedBox(
+                width: 220,
+                child: CuSelect<String>(
+                  enabled: false,
+                  value: null,
+                  hint: '禁用状态',
+                  options: [],
+                  onChanged: _noopString,
+                ),
+              ),
+            ],
+          ),
+        ),
+        _note(
+          'CuListTile',
+          'leading / 标题 / 副标题 / trailing；可选中、可禁用；分隔线用 decoration 透传',
+        ),
+        _group(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CuListTile(
+                leading: const Icon(Icons.view_in_ar, size: 20),
+                title: const Text('Mindustry 6.0'),
+                subtitle: const Text('build 123 · 78.4 MB'),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: skin.border)),
+                ),
+                onTap: () {},
+              ),
+              CuListTile(
+                leading: const Icon(Icons.push_pin_outlined, size: 20),
+                title: const Text('选中行'),
+                subtitle: const Text('selected 走强调色淡底'),
+                trailing: const Icon(Icons.check, size: 18),
+                selected: true,
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: skin.border)),
+                ),
+                onTap: () {},
+              ),
+              const CuListTile(
+                leading: Icon(Icons.block, size: 20),
+                title: Text('禁用行'),
+                subtitle: Text('enable = false'),
+                enabled: false,
+              ),
+            ],
+          ),
+        ),
+        _note('CuSettingRow', '标题固定宽 + 右侧控件；窄窗时标题被挤压，设置行之间标题对齐'),
+        _group(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: TemplateSpace.md,
+            children: [
+              CuSettingRow(
+                title: '自动更新',
+                control: Align(
+                  alignment: Alignment.centerRight,
+                  child: CuSwitch(
+                    value: _switchOn,
+                    onChanged: (v) => setState(() => _switchOn = v),
+                  ),
+                ),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: skin.border)),
+                ),
+              ),
+              CuSettingRow(
+                title: '窗口缩放',
+                control: CuSlider(
+                  value: _scale,
+                  label: '${(_scale * 100).round()}%',
+                  divisions: 20,
+                  onChanged: (v) => setState(() => _scale = v),
+                ),
+              ),
+              CuSettingRow(
+                title: '备注',
+                description: '仅本地生效',
+                control: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '—',
+                    style: TemplateType.caption.copyWith(
+                      color: skin.textTertiary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         _note('CuLogTile', '日志多样化：四种等级（彩色图标）、可展开等宽详情（可复制）、过程进度、等宽命令输出'),
         _group(
           Column(
@@ -387,6 +514,8 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
       ],
     );
   }
+
+  static void _noopString(String _) {}
 
   Widget _note(String title, String desc) {
     return TemplateNotice(
