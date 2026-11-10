@@ -468,7 +468,7 @@ class CopperIO {
           mirror.markDirectOk(url);
           return result;
         } catch (e) {
-          if (!_shouldFallbackToMirror(e, url)) rethrow;
+          if (!shouldFallbackToMirror(e, url)) rethrow;
           if (e is DioException && isTransportFailure(e)) {
             mirror.markDirectFailed(url);
           }
@@ -634,19 +634,6 @@ class CopperIO {
       }
     }
     throw MirrorUnavailable(lastError, attempts: failures);
-  }
-
-  ///是否值得回退镜像：网络类错误一律回退；GitHub 的 401/403（空/失效 token、
-  ///匿名限流）也回退——镜像请求不带 token，换 IP 常能绕过
-  bool _shouldFallbackToMirror(Object error, String url) {
-    if (error is! DioException) return false;
-    if (isTransportFailure(error)) return true;
-    if (error.type == DioExceptionType.badResponse &&
-        GithubMirror.isGithubUrl(url)) {
-      final status = error.response?.statusCode;
-      return status == 401 || status == 403;
-    }
-    return false;
   }
 
   String? _detectSystemProxy(Uri url) {
@@ -1197,7 +1184,7 @@ class CopperIO {
           headers: headers,
         );
         return;
-      } on _ChunkDownloadFailed catch (error) {
+      } on ChunkDownloadFailed catch (error) {
         final canRetry =
             !error.isWriteError &&
             attempt < _chunkedWholeRetryLimit &&
@@ -1747,7 +1734,7 @@ class CopperIO {
             '（已收 ${chunk.received}/${chunk.size} 字节）',
             tag: 'Download',
           );
-          throw _ChunkDownloadFailed(chunk.index, reason, cause: e);
+          throw ChunkDownloadFailed(chunk.index, reason, cause: e);
         }
       } finally {
         chunk.file = null;
@@ -2262,10 +2249,10 @@ class _RangeIgnored implements Exception {}
 
 ///某个分块把重试用尽了
 ///
-///带上原因与原始错误：上层据此判断「要不要带着续传现场整单再来一次」，
-///写盘失败与用户取消都重试不了
-class _ChunkDownloadFailed implements Exception {
-  _ChunkDownloadFailed(this.index, this.reason, {required this.cause});
+///带上原因与原始错误：上层据此判断「要不要带着续传现场整单再来一次」、
+///「直连这条路要不要换镜像」，写盘失败与用户取消都重试不了
+class ChunkDownloadFailed implements Exception {
+  ChunkDownloadFailed(this.index, this.reason, {required this.cause});
 
   final int index;
 
@@ -2316,6 +2303,27 @@ bool isNetworkFailure(DioException error) => switch (error.type) {
 bool isTransportFailure(DioException error) =>
     !CancelToken.isCancel(error) &&
     (isNetworkFailure(error) || error.type == DioExceptionType.unknown);
+
+/// 直连失败要不要改走镜像：网络类错误一律回退；GitHub 的 401/403（空/失效 token、
+/// 匿名限流）也回退——镜像请求不带 token，换 IP 常能绕过
+///
+/// 分块下载的失败要看成因：传输类（连接 / 接收 / 超时 / 被掐断）才值得换条路，
+/// 写盘失败与上游真实答复换哪个源都一样
+@visibleForTesting
+bool shouldFallbackToMirror(Object error, String url) {
+  if (error is ChunkDownloadFailed) {
+    final cause = error.cause;
+    return cause is DioException && isTransportFailure(cause);
+  }
+  if (error is! DioException) return false;
+  if (isTransportFailure(error)) return true;
+  if (error.type == DioExceptionType.badResponse &&
+      GithubMirror.isGithubUrl(url)) {
+    final status = error.response?.statusCode;
+    return status == 401 || status == 403;
+  }
+  return false;
+}
 
 /// 镜像节点这次失败该不该换节点：连接类失败，或节点回 403 / 429 / 5xx
 ///

@@ -140,8 +140,71 @@ class StartupBackgroundTask extends Task {
     }
   }
 
+  ///分块残留的保留期：目标 jar 都不在了还放着这么久，只能是孤儿
+  static const _stalePartAge = Duration(days: 7);
+
+  ///旧格式分块临时文件名：`<目标>.jar.temp.<i>`，当前代码不再生成
+  static final RegExp _legacyTempName = RegExp(r'\.jar\.temp\.');
+
+  ///现行分块残留对应的目标 jar 名；不是 `.part` / `.part.json` 返回 null
+  static String? _partTargetName(String fileName) {
+    if (fileName.endsWith('.part.json')) {
+      return fileName.substring(0, fileName.length - '.part.json'.length);
+    }
+    if (fileName.endsWith('.part')) {
+      return fileName.substring(0, fileName.length - '.part'.length);
+    }
+    return null;
+  }
+
+  ///清扫本体库里的下载残留
+  ///
+  ///旧格式 `<目标>.jar.temp.<i>` 早就不再生成了，见一个删一个；
+  ///现行 `<目标>.jar.part` / `.part.json` 可能是还没下完的续传现场，
+  ///只有目标 jar 已不存在且过期很久才算孤儿
+  static Future<void> cleanupStaleDownloadParts({Directory? libraryDir}) async {
+    final dir = libraryDir ?? Directory(AppPaths.mindustrys);
+    if (!await dir.exists()) return;
+
+    final now = DateTime.now();
+    var removed = 0;
+    await for (final entity in dir.list()) {
+      if (entity is! File) continue;
+      final fileName = p.basename(entity.path);
+      final isLegacyTemp = _legacyTempName.hasMatch(fileName);
+      final targetName = _partTargetName(fileName);
+      if (!isLegacyTemp && targetName == null) continue;
+
+      try {
+        if (!isLegacyTemp) {
+          //目标 jar 还在 ⇒ 活的续传现场；没过期也可能还在下
+          final targetPath = p.join(dir.path, targetName!);
+          final targetExists = await File(targetPath).exists();
+          final expired =
+              now.difference(await entity.lastModified()) > _stalePartAge;
+          if (targetExists || !expired) continue;
+        }
+        await entity.delete();
+        removed++;
+      } catch (e) {
+        addLog(
+          .warning,
+          '下载残留删除失败：${entity.path}，${removeNewlines('$e')}',
+          tag: 'Startup',
+        );
+      }
+    }
+
+    if (removed > 0) {
+      addLog(.info, '已清理 $removed 个下载残留文件', tag: 'Startup');
+    }
+  }
+
   ///检查缺失目录/版本，引用检测出孤儿本体，一并询问是否删除
   Future<void> _checkAndPromptGameIssues() async {
+    //先清下载残留：残留文件不该混进下面的引用检测
+    await cleanupStaleDownloadParts();
+
     final folds = config.versionOptions.versionFolds;
 
     final missingFolds = <VersionFold>[];
@@ -211,7 +274,7 @@ class StartupBackgroundTask extends Task {
     // 本体库里的孤儿：库内文件必然是启动器放的，没被任何记录引用就能清
     //
     // 只认启动器自己的命名（`mindustry-<身份>-<hash8>.jar`）：下载的临时 / 分块文件
-    // （`<目标>.temp.<i>`）也落在这个目录里，它们不是本体，也不该被列成「无引用」——
+    // （`<目标>.part` / `<目标>.part.json`）也落在这个目录里，它们不是本体，也不该被列成「无引用」——
     // 删了等于丢掉续传缓存
     final libraryDir = Directory(AppPaths.mindustrys);
     if (await libraryDir.exists()) {

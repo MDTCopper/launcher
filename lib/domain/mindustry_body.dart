@@ -32,7 +32,7 @@ class MindustryBody {
 
   /// 文件名是不是库里的本体（[fileName] 那个形态）
   ///
-  /// 下载的临时 / 分块文件（`<目标>.temp.<i>`）与半截文件也落在同一个目录里，
+  /// 下载的临时 / 分块文件（`<目标>.part` / `<目标>.part.json`）也落在同一个目录里，
   /// 判断「库内孤儿」时不能把目录里每个文件都算进来（见启动自检）
   static bool isLibraryBodyName(String fileName) =>
       _bodyNamePattern.hasMatch(fileName);
