@@ -2521,6 +2521,8 @@ class CloudSaveService {
   ///
   /// 给页面显示「这次约 X MB」用；走哈希缓存（真数据热扫约 0.67 s）；
   /// 真上传时还会再扫一次 —— 那次要的就是哈希，这里只为显示
+  ///
+  /// 能按来源链接装回的模组不算上传字节，与自备份收字节用同一份判定
   static Future<CloudUploadEstimate> estimateUpload(
     Mindustry version, {
     bool Function(CloudModEntry mod)? includeBytesWhen,
@@ -2531,7 +2533,9 @@ class CloudSaveService {
         version: version,
         deviceName: deviceName,
         cache: cache,
-        includeBytesWhen: includeBytesWhen,
+        includeBytesWhen: includeBytesWhen == null
+            ? null
+            : (mod) => includeBytesWhen(mod) && !mod.hasSourceLink,
       );
       var bytes = 0;
       for (final entry in manifest.includedFiles) {
@@ -2761,6 +2765,8 @@ class CloudSaveService {
   }
 
   /// 恢复前留的底：把本机这份按云包格式导出到该数据目录自己的备份目录
+  ///
+  /// 没有来源链接的模组连字节一起收，备份才算完整退路；能按链接装回的不收，不重复占空间
   static Future<CloudArchiveExport> _backupForRestore(Mindustry version) async {
     final dirPath = _profileBackupDirPath(version);
     final directory = Directory(dirPath);
@@ -2775,6 +2781,8 @@ class CloudSaveService {
         version: version,
         outputPath: p.join(dirPath, '$backupFilePrefix$stamp.zip'),
         deviceName: deviceName,
+        // 备份即完整退路：没有来源链接的模组只能靠包里这份字节找回来
+        includeBytesWhen: (mod) => !mod.hasSourceLink,
       );
       // 有文件没进备份（被跳过 / 读不了）就等于没有完整退路，直接中止
       if (export.dropped.isNotEmpty) {

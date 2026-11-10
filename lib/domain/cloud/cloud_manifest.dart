@@ -291,6 +291,9 @@ class CloudModEntry {
   /// 是否随包带字节（私有模组只能这样备份）
   bool includeBytes;
 
+  /// 带来源链接的模组恢复时能按链接重新装上，字节不必随包带
+  bool get hasSourceLink => (source ?? '').trim().isNotEmpty;
+
   Map<String, dynamic> toJson() => {
     'fileName': fileName,
     'size': size,
