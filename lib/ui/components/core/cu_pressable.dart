@@ -134,8 +134,26 @@ class _AppPressableState extends State<CuPressable>
         : widget.selected
         ? (widget.selectedColor ?? colors.indicatorBackground)
         : (widget.backgroundColor ?? Colors.transparent);
-    final hoverTarget = widget.hoverColor ?? colors.highBackgroundOnCard;
-    final pressTarget = widget.pressedColor ?? colors.splash;
+
+    // 悬停 / 按下都画成**叠在底上的半透明层**，只动画各层自己的 alpha：
+    // - 底色始终不变，不会出现「底色忽明忽暗」
+    // - 悬停层 → 按下层是相加关系，按下时只是在悬停结果上再压一档，不会互相顶掉
+    // - 颜色端点每帧从 AppColors 重取，换主题仍然瞬切
+    final hoverColor = widget.hoverColor ?? colors.highBackgroundOnCard;
+    final pressColor = widget.pressedColor ?? colors.splash;
+
+    Widget overlay(Color color, double t) {
+      final alpha = (color.a * t).clamp(0.0, 1.0);
+      if (alpha <= 0) return const SizedBox.shrink();
+      return IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: color.withAlpha((alpha * 255).round()),
+            borderRadius: widget.borderRadius,
+          ),
+        ),
+      );
+    }
 
     return MouseRegion(
       cursor: active ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -167,21 +185,28 @@ class _AppPressableState extends State<CuPressable>
         child: AnimatedBuilder(
           animation: Listenable.merge([_hover, _press]),
           builder: (context, child) {
-            var color = base;
-            if (enabled) {
-              color = Color.lerp(color, hoverTarget, _hover.value)!;
-              // 选中行悬停只叠一点，避免整行颜色跳
-              color = Color.lerp(color, pressTarget, _press.value)!;
-            }
             return Container(
               margin: widget.margin,
               clipBehavior: widget.clipBehavior,
               decoration: (widget.decoration ?? const BoxDecoration()).copyWith(
-                color: color,
+                color: base,
                 borderRadius: widget.borderRadius,
               ),
-              padding: widget.padding,
-              child: widget.child,
+              child: Stack(
+                fit: StackFit.passthrough,
+                children: [
+                  // 反馈层必须画在内容**下面**：悬停色是不透明面（raised）时
+                  // 画在上面会把文字/图标整块盖住
+                  if (enabled)
+                    Positioned.fill(child: overlay(hoverColor, _hover.value)),
+                  if (enabled)
+                    Positioned.fill(child: overlay(pressColor, _press.value)),
+                  Padding(
+                    padding: widget.padding ?? EdgeInsets.zero,
+                    child: widget.child,
+                  ),
+                ],
+              ),
             );
           },
         ),

@@ -289,7 +289,7 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
             ],
           ),
         ),
-        _note('CuSelect', '下拉选择：锚点 + 弹出菜单（键盘 / 关闭交给 MenuAnchor），选项 hover 只换底色'),
+        _note('CuSelect', '下拉选择：复用项目 DropdownLayer（展开面板 / 选中态 / 外点关闭都在它那），只套 AppColors 配色'),
         _group(
           Row(
             spacing: TemplateSpace.md,
@@ -318,6 +318,7 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
               const SizedBox(
                 width: 220,
                 child: CuSelect<String>(
+                  expanded: true,
                   enabled: false,
                   value: null,
                   hint: '禁用状态',

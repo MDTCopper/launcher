@@ -1,4 +1,6 @@
 import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
+import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
@@ -18,10 +20,11 @@ class CuMenuItem {
   final bool danger;
 }
 
-/// 图标菜单按钮：点开 [MenuAnchor] 菜单，键盘 / 关闭交给框架
+/// 图标菜单按钮：点开项目已有的全局右键菜单（[ContextMenu]）
 ///
-/// 行尾「⋯」、目录操作这类轻量菜单用它，不再用一排按钮 + 下拉框。
-class CuMenuButton extends StatefulWidget {
+/// 行尾「⋯」、目录操作这类轻量菜单用它；菜单本体、定位、动画、外点关闭
+/// 全走项目现成的 `CopperContextMenuController`，不再另起一套。
+class CuMenuButton extends StatelessWidget {
   const CuMenuButton({
     super.key,
     required this.items,
@@ -37,95 +40,47 @@ class CuMenuButton extends StatefulWidget {
   final bool enabled;
   final double size;
 
-  @override
-  State<CuMenuButton> createState() => _CuMenuButtonState();
-}
-
-class _CuMenuButtonState extends State<CuMenuButton> {
-  final _controller = MenuController();
+  void _open(BuildContext context) {
+    if (!enabled || items.isEmpty) return;
+    ContextMenu.showBelow(
+      context: context,
+      entries: [
+        for (final item in items)
+          ContextMenuAction(
+            label: item.label,
+            icon: item.icon,
+            danger: item.danger,
+            onSelected: item.onSelected,
+          ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final textTheme = Theme.of(context).textTheme;
 
-    return MenuAnchor(
-      controller: _controller,
-      style: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(colors.cardBackground),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        elevation: const WidgetStatePropertyAll(4),
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(vertical: AppSpacing.tight),
-        ),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.item),
-            side: BorderSide(color: colors.border),
-          ),
-        ),
-      ),
-      menuChildren: [
-        for (final item in widget.items)
-          MenuItemButton(
-            onPressed: item.onSelected,
-            style: ButtonStyle(
-              padding: const WidgetStatePropertyAll(
-                EdgeInsets.symmetric(
-                  horizontal: AppSpacing.group,
-                  vertical: AppSpacing.related,
-                ),
-              ),
-              backgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.hovered) ||
-                    states.contains(WidgetState.focused)) {
-                  return colors.highBackgroundOnCard;
-                }
-                return Colors.transparent;
-              }),
-              foregroundColor: WidgetStatePropertyAll(
-                item.danger ? colors.error : colors.itemPrimary,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: AppSpacing.related,
-              children: [
-                if (item.icon != null)
-                  Icon(
-                    item.icon,
-                    size: AppIconSize.inline,
-                    color: item.danger ? colors.error : colors.itemSecondary,
-                  ),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 220),
-                  child: Text(
-                    item.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: item.danger ? colors.error : colors.itemPrimary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-      builder: (context, controller, child) => CuPressable(
-        enabled: widget.enabled,
-        onTap: () => controller.isOpen ? controller.close() : controller.open(),
+    Widget button = Builder(
+      builder: (context) => CuPressable(
+        enabled: enabled,
+        onTap: () => _open(context),
         borderRadius: BorderRadius.circular(AppRadius.control),
         child: SizedBox(
-          width: widget.size,
-          height: widget.size,
+          width: size,
+          height: size,
           child: Icon(
-            widget.icon,
+            icon,
             size: AppIconSize.inline,
             color: colors.itemSecondary,
           ),
         ),
       ),
     );
+
+    final hintText = hint;
+    if (hintText != null) {
+      button = HintLayer(hint: hintText, child: button);
+    }
+    return button;
   }
 }
