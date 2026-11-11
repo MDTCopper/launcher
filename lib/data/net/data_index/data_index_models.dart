@@ -531,6 +531,7 @@ class DataIndexDependencyNode {
 class DataIndexDependencyIndex {
   DataIndexDependencyIndex({
     required this.mods,
+    required this.aliases,
     required this.reverse,
     required this.missing,
   });
@@ -538,22 +539,39 @@ class DataIndexDependencyIndex {
   /// internalName → 节点
   final Map<String, DataIndexDependencyNode> mods;
 
+  /// 规范化 id（去分隔符）→ 真实 internalName
+  final Map<String, String> aliases;
+
   /// 依赖 internalName → 依赖它的模组 internalName 列表
   final Map<String, List<String>> reverse;
 
   /// `[{id, repo, source, dependency}]`
   final List<Map<String, String>> missing;
 
+  static String _aliasKey(String value) =>
+      value.toLowerCase().replaceAll(RegExp('[^a-z0-9]+'), '');
+
+  /// 按 internalName 或别名找节点
+  DataIndexDependencyNode? findNode(String internalName) {
+    final exact = mods[internalName.toLowerCase()];
+    if (exact != null) return exact;
+    final canonical = aliases[_aliasKey(internalName)];
+    return canonical == null ? null : mods[canonical];
+  }
+
   /// 解析一个模组声明的依赖链（按广度优先，去重，不含自己）
   List<String> resolveDependencies(String internalName) {
+    final start = findNode(internalName);
+    if (start == null) return const [];
     final result = <String>[];
-    final queue = <String>[...?mods[internalName]?.dependencies];
-    final seen = <String>{internalName};
+    final queue = <String>[...start.dependencies];
+    final seen = <String>{start.internalName};
     while (queue.isNotEmpty) {
-      final id = queue.removeAt(0);
+      final declared = queue.removeAt(0);
+      final node = findNode(declared);
+      final id = node?.internalName ?? declared.toLowerCase();
       if (!seen.add(id)) continue;
       result.add(id);
-      final node = mods[id];
       if (node != null) queue.addAll(node.dependencies);
     }
     return result;
@@ -577,9 +595,15 @@ class DataIndexDependencyIndex {
         for (final entry in rawReverse.entries)
           '${entry.key}': _stringList(entry.value),
     };
+    final rawAliases = decoded['aliases'];
+    final aliases = <String, String>{
+      if (rawAliases is Map)
+        for (final entry in rawAliases.entries) '${entry.key}': '${entry.value}',
+    };
     final rawMissing = decoded['missing'];
     return DataIndexDependencyIndex(
       mods: mods,
+      aliases: aliases,
       reverse: reverse,
       missing: [
         if (rawMissing is List)
