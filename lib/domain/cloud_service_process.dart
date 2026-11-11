@@ -286,8 +286,9 @@ class CloudServiceProcess {
 
   /// 服务启动：接管还活着的游戏会话，其余按已结束补做退出上传
   ///
-  /// 只按 phase / gamePid 判活：认领不到 pid 的启动中会话接不住，留着它会一直是
-  /// 活跃会话，挡住同一个版本之后的启动，所以按已结束收尾
+  /// 只按 phase / gamePid 判活：`phase=launching` 的会话一律按已结束收尾——
+  /// 留着它会一直占住活跃会话、挡住同一个版本之后的启动；这类会补做一次退出上传
+  /// （多传一份没变的存档，代价小于卡住启动）
   Future<void> _adoptAll() async {
     for (final session in await GameSessionStore.active()) {
       if (session.phase == 'running' &&
