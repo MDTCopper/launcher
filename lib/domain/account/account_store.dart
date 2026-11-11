@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/log.dart';
+import 'package:copper_launcher/util/io/process_lock.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -299,6 +301,21 @@ class AccountStore {
 
   static String get filePath =>
       p.join(directoryOverride ?? AppPaths.copperLauncher, fileName);
+
+  /// 跨进程写账号文件的锁文件：与账号文件同目录
+  static String get lockPath => '$filePath.lock';
+
+  /// 在进程锁内执行 [body]，并把盘上最新的账号态交给它
+  ///
+  /// 进锁后重新 [load]，不要拿调用方手里的内存快照；
+  /// **body 里不要发网络请求**，等锁上限压在 1.5 s，小于云服务等令牌的 4 s 预算
+  static Future<T> locked<T>(
+    FutureOr<T> Function(StoredAccount? disk) body, {
+    Duration timeout = const Duration(milliseconds: 1500),
+  }) => ProcessFileLock.run(lockPath, () {
+    final disk = load();
+    return body(disk);
+  }, timeout: timeout);
 
   static StoredAccount? load() {
     final file = File(filePath);
