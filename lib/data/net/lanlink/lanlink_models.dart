@@ -4,6 +4,8 @@
 /// 字段名以此为准，控制面新增字段一律当可选处理
 library;
 
+import 'dart:io';
+
 /// 房间码：形如 `MDT-XXXXXX`
 ///
 /// 官方定义 6 位、字母表剔除易混的 `0O1I`；控制面按不透明字符串处理，
@@ -60,6 +62,22 @@ class LanLinkDirectCandidate {
   final int udpPort;
 
   bool get isValid => addr.isNotEmpty && udpPort > 0 && udpPort <= 65535;
+
+  /// 地址指向「本机」：loopback 与未指定地址
+  ///
+  /// 房主发布的候选是他自己那台机器的地址，客人连 loopback 只会连到客人自己，
+  /// 连 `0.0.0.0` 则根本没有落点
+  bool get isLocalAddress {
+    final text = addr.trim().toLowerCase();
+    final parsed = InternetAddress.tryParse(text);
+    if (parsed == null) return text == 'localhost';
+    return parsed.isLoopback ||
+        parsed.address == '0.0.0.0' ||
+        parsed.address == '::';
+  }
+
+  /// 客人能不能拿它试直连
+  bool get isUsableByGuest => isValid && !isLocalAddress;
 
   /// 旧控制面只给单一 `port` 字段，这里按协议兼容规则补齐另一侧
   factory LanLinkDirectCandidate.fromJson(Map<String, dynamic> json) {
@@ -118,6 +136,12 @@ class LanLinkRoom {
   final int roomPort;
 
   final List<LanLinkDirectCandidate> directCandidates;
+
+  /// 客人可以试的直连候选：房主的本机地址对客人没有意义
+  List<LanLinkDirectCandidate> get usableDirectCandidates => [
+    for (final candidate in directCandidates)
+      if (candidate.isUsableByGuest) candidate,
+  ];
 
   /// 原版客户端（含本项目）加入用的地址；节点房间端口就是原生 Mindustry 端口
   String get relayAddress => '$nodeAddr:$roomPort';

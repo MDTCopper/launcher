@@ -205,7 +205,8 @@ class LanLinkService {
   /// 不需要我们自己打洞；试连超时给得短，别让用户等
   Future<({String host, int tcpPort, int udpPort, bool direct})>
   _chooseUpstream(LanLinkRoom room) async {
-    final candidates = room.directCandidates.where((it) => it.isValid).toList();
+    // 房主发布的 loopback / 未指定地址不作为候选：客人连过去只会连到自己
+    final candidates = room.usableDirectCandidates;
     if (candidates.isNotEmpty) {
       // **并行**试连：串行会按 1.5 秒 × 候选数加在加入耗时上，
       // 而实测基本都回落中继，不值得让用户等
