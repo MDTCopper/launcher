@@ -16,7 +16,7 @@ import 'package:copper_launcher/util/io/log.dart';
 /// - `ui → service`：UI 退出/关窗时交接；写 session 后拉起 `--cloud-service --adopt-all`
 ///
 /// 服务进程内部的 `_transferToUi` 是第一条迁移的另一半；`_adoptAll` 是服务启动时
-/// 把已写好的 owner=service 会话接回内存，不改变 owner。UI 的 monitor 只在
+/// 把已写好的会话接回内存：还在跑的标回 owner=service，其余补做退出上传。UI 的 monitor 只在
 /// 「服务已死」时直接把 owner 改成 ui，这个兜底不在正常交接路径上。
 class SessionOwnership {
   SessionOwnership._();
