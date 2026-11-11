@@ -77,6 +77,23 @@ class DataIndexClient {
     return releases;
   }
 
+  /// 全局依赖图（`dependencies.json`）：节点、反向依赖与缺失依赖
+  static Future<DataIndexDependencyIndex?> loadDependencies({
+    bool refresh = false,
+  }) async {
+    final content = await loadText(
+      'dependencies.json',
+      maxAge: mindustryVersionsMaxAge,
+      refresh: refresh,
+    );
+    if (content == null) return null;
+    final index = DataIndexDependencyIndex.parse(content);
+    if (index == null) {
+      addLog(.warning, '依赖图解析失败', tag: 'DataIndex');
+    }
+    return index;
+  }
+
   /// 游戏版本列表（正式版全量 + 最新 BE），字段与启动器快照同构，直接复用同一份解析
   static Future<List<MindustryRelease>?> loadMindustryVersions({
     bool refresh = false,

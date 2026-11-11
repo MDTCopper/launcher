@@ -119,6 +119,8 @@ class DataIndexModEntry {
     required this.releaseDataUpdatedAt,
     required this.score,
     required this.ranks,
+    this.dependencies = const [],
+    this.mindustryDependency,
   });
 
   /// 模组仓库 `owner/name`
@@ -185,6 +187,12 @@ class DataIndexModEntry {
   /// 按排序项点的时候直接取，不再自己算
   final Map<String, int> ranks;
 
+  /// 模组依赖的内部名列表（不含 mindustry/loader）
+  final List<String> dependencies;
+
+  /// Copper 的 `dependencies.mindustry` 原始版本过滤表达式
+  final String? mindustryDependency;
+
   /// 是否进入「只看活跃」默认列表（没有 score 的旧索引一律可见）
   bool get recommendVisible => score?.recommendVisible ?? true;
 
@@ -226,6 +234,8 @@ class DataIndexModEntry {
       releaseDataUpdatedAt: _dateOf(json['releaseDataUpdatedAt']),
       score: DataIndexModScore.fromJson(json['score']),
       ranks: _parseRanks(json['ranks']),
+      dependencies: _stringList(json['dependencies']),
+      mindustryDependency: _nullableText(json['mindustryDependency']),
     );
   }
 }
@@ -484,6 +494,106 @@ class DataIndexModIndex {
   }
 }
 
+/// 依赖图里的一个模组节点（`dependencies.json` 的 `mods[internalName]`）
+class DataIndexDependencyNode {
+  const DataIndexDependencyNode({
+    required this.internalName,
+    required this.repo,
+    required this.source,
+    required this.name,
+    required this.version,
+    required this.dependencies,
+  });
+
+  final String internalName;
+  final String repo;
+  final String source;
+  final String? name;
+  final String? version;
+  final List<String> dependencies;
+
+  static DataIndexDependencyNode? fromJson(String id, Object? json) {
+    if (json is! Map) return null;
+    final repo = _text(json['repo']);
+    if (repo.isEmpty) return null;
+    return DataIndexDependencyNode(
+      internalName: id,
+      repo: repo,
+      source: _text(json['source']),
+      name: _nullableText(json['name']),
+      version: _nullableText(json['version']),
+      dependencies: _stringList(json['dependencies']),
+    );
+  }
+}
+
+/// 全局依赖图（`dependencies.json`）：节点、反向依赖、缺失依赖
+class DataIndexDependencyIndex {
+  DataIndexDependencyIndex({
+    required this.mods,
+    required this.reverse,
+    required this.missing,
+  });
+
+  /// internalName → 节点
+  final Map<String, DataIndexDependencyNode> mods;
+
+  /// 依赖 internalName → 依赖它的模组 internalName 列表
+  final Map<String, List<String>> reverse;
+
+  /// `[{id, repo, source, dependency}]`
+  final List<Map<String, String>> missing;
+
+  /// 解析一个模组声明的依赖链（按广度优先，去重，不含自己）
+  List<String> resolveDependencies(String internalName) {
+    final result = <String>[];
+    final queue = <String>[...?mods[internalName]?.dependencies];
+    final seen = <String>{internalName};
+    while (queue.isNotEmpty) {
+      final id = queue.removeAt(0);
+      if (!seen.add(id)) continue;
+      result.add(id);
+      final node = mods[id];
+      if (node != null) queue.addAll(node.dependencies);
+    }
+    return result;
+  }
+
+  static DataIndexDependencyIndex? parse(String content) {
+    final decoded = _decodeJson(content);
+    if (decoded is! Map) return null;
+    final rawMods = decoded['mods'];
+    final mods = <String, DataIndexDependencyNode>{};
+    if (rawMods is Map) {
+      for (final entry in rawMods.entries) {
+        final id = '${entry.key}';
+        final node = DataIndexDependencyNode.fromJson(id, entry.value);
+        if (node != null) mods[id] = node;
+      }
+    }
+    final rawReverse = decoded['reverse'];
+    final reverse = <String, List<String>>{
+      if (rawReverse is Map)
+        for (final entry in rawReverse.entries)
+          '${entry.key}': _stringList(entry.value),
+    };
+    final rawMissing = decoded['missing'];
+    return DataIndexDependencyIndex(
+      mods: mods,
+      reverse: reverse,
+      missing: [
+        if (rawMissing is List)
+          for (final item in rawMissing)
+            if (item is Map)
+              {
+                for (final entry in item.entries)
+                  '${entry.key}': '${entry.value}',
+              },
+      ],
+    );
+  }
+}
+
 Object? _decodeJson(String content) {
   try {
     return jsonDecode(content);
@@ -515,6 +625,14 @@ String _preferPlain(Map json, String field) {
   final plain = _text(json['${field}Plain']);
   if (plain.isNotEmpty) return plain;
   return _text(json[field]);
+}
+
+List<String> _stringList(Object? raw) {
+  if (raw is! List) return const [];
+  return [
+    for (final item in raw)
+      if (item != null && item.toString().trim().isNotEmpty) item.toString().trim(),
+  ];
 }
 
 String _internalNameOf(Map json, String name) {
