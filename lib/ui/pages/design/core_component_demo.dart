@@ -1,7 +1,11 @@
 import 'package:copper_launcher/ui/components/core/cu_button.dart';
+import 'package:copper_launcher/ui/components/core/cu_badges.dart';
 import 'package:copper_launcher/ui/components/core/cu_checkbox.dart';
 import 'package:copper_launcher/ui/components/core/cu_content_panel.dart';
 import 'package:copper_launcher/ui/components/core/cu_icon_button.dart';
+import 'package:copper_launcher/ui/components/core/cu_states.dart';
+import 'package:copper_launcher/ui/components/core/cu_tab_bar.dart';
+import 'package:copper_launcher/ui/components/core/cu_widgets.dart';
 import 'package:copper_launcher/ui/components/core/cu_list_tile.dart';
 import 'package:copper_launcher/ui/components/core/cu_log_tile.dart';
 import 'package:copper_launcher/ui/components/core/cu_notice.dart';
@@ -191,11 +195,7 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: TemplateSpace.md,
             children: [
-              CuTextField(
-                controller: _search,
-                hint: '搜索模组 / 版本',
-                prefixIcon: Icons.search,
-              ),
+              CuTextField(controller: _search, hint: '搜索模组 / 版本'),
               CuTextField(
                 controller: _error,
                 label: '版本号',
@@ -551,7 +551,7 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
             children: [
               const CuProgress(value: 0.42, label: '42%'),
               const CuProgress(value: 0.78),
-              const CuProgress(),
+              const CuProgress(value: 0, indeterminate: true),
             ],
           ),
         ),
@@ -576,6 +576,129 @@ class _CoreComponentDemoState extends State<CoreComponentDemo> {
             ],
           ),
         ),
+        _migrated(),
+      ],
+    );
+  }
+
+  Widget _migrated() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: TemplateSpace.lg,
+      children: [
+        _note(
+          '设计层搬运组件',
+          'CuRow / CuTwoLine / CuKeyRow / CuFieldBlock / CuSwitchRow / CuSettingTile / '
+              'CuShortcut / CuSelectRow / CuSliderRow / CuPager / CuCollapse / CuListCard / CuGridCard / '
+              'CuInputRow / CuTabBar / CuBadge / CuChip / CuStatusDot / CuCountBadge / 三态',
+        ),
+        _group(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: TemplateSpace.sm,
+            children: [
+              CuTabBar(
+                tabs: const ['版本列表', '介绍', 'Readme'],
+                value: _tab,
+                onTap: (index) => setState(() => _tab = index),
+              ),
+              CuRow(
+                onTap: () {},
+                child: Row(
+                  spacing: TemplateSpace.sm,
+                  children: [
+                    const Icon(Icons.folder_outlined, size: 18),
+                    const Expanded(child: Text('CuRow：可点行')),
+                    CuBadge(label: '默认', tone: CuBadgeTone.accent),
+                  ],
+                ),
+              ),
+              const CuTwoLine(title: 'CuTwoLine', desc: '标题 + 说明'),
+              const CuKeyRow(title: '路径', value: 'C:/Games/Mindustry'),
+              CuSwitchRow(
+                title: '自动更新',
+                desc: '已在开关行里',
+                value: _switchOn,
+                onTap: () => setState(() => _switchOn = !_switchOn),
+              ),
+              CuSettingTile(
+                title: 'CuSettingTile',
+                trailing: const CuCountBadge(count: 3),
+              ),
+              Wrap(
+                spacing: TemplateSpace.sm,
+                runSpacing: TemplateSpace.sm,
+                children: [
+                  CuShortcut(
+                    icon: Icons.download,
+                    label: 'CuShortcut',
+                    onTap: () {},
+                  ),
+                  CuShortcut(icon: Icons.extension, label: '模组', onTap: () {}),
+                ],
+              ),
+              const CuSelectRow(title: 'CuSelectRow', value: '列表'),
+              CuCollapse(
+                title: 'CuCollapse',
+                subtitle: '展开看内容',
+                child: const CuTwoLine(title: '折叠内容', desc: '可以放任意组件'),
+              ),
+              Row(
+                spacing: TemplateSpace.sm,
+                children: const [
+                  CuBadge(label: 'neutral'),
+                  CuBadge(label: 'accent', tone: CuBadgeTone.accent),
+                  CuBadge(label: 'success', tone: CuBadgeTone.success),
+                  CuBadge(label: 'danger', tone: CuBadgeTone.danger),
+                  CuStatusDot(label: '在线'),
+                  CuChip(label: 'Chip', selected: true),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _group(
+          CuListCard(
+            title: 'CuListCard',
+            subtitle: '行内卡片：图标 + 标题 + 副标题 + 徽标',
+            icon: Icons.extension_outlined,
+            badge: const CuBadge(label: 'Java'),
+            onTap: () {},
+          ),
+        ),
+        _group(
+          Row(
+            spacing: TemplateSpace.md,
+            children: [
+              Expanded(
+                child: CuGridCard(
+                  title: 'CuGridCard',
+                  subtitle: '网格卡',
+                  icon: Icons.view_in_ar,
+                  onTap: () {},
+                ),
+              ),
+              Expanded(
+                child: CuInputRow(
+                  title: 'CuInputRow',
+                  controller: _search,
+                  hint: '输入文本',
+                ),
+              ),
+            ],
+          ),
+        ),
+        _group(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: TemplateSpace.md,
+            children: [
+              CuPager(page: 2, pageCount: 9, onPage: (_) {}, firstLast: true),
+              const CuProgress(value: 0.6),
+            ],
+          ),
+        ),
+        _group(const CuEmptyState(title: 'CuEmptyState', message: '空态说明文字')),
       ],
     );
   }

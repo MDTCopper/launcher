@@ -1,107 +1,54 @@
-import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/ui/theme/design_system.dart';
+import 'package:copper_launcher/ui/components/core/cu_skin.dart';
+import 'package:copper_launcher/ui/pages/design/template_skin.dart';
+import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
 import 'package:flutter/material.dart';
 
-/// 内核进度条：线性（确定进度）/ 不确定（来回滑动）
-///
-/// 多段占比（`PercentBar`）与边框进度（`BorderProgress`）后续以
-/// `CuProgress.segments` / `.border` 形式补，先满足下载/任务卡
+/// 进度条：搬运设计层 [TemplateProgressBar]
+/// （细轨 + 实心填充，默认高 12；支持不确定态与双段「已分配 / 已用」）
 class CuProgress extends StatelessWidget {
   const CuProgress({
     super.key,
-    this.value,
+    required this.value,
     this.label,
-    this.height = 6,
-    this.color,
+    this.height = 12,
+    this.enabled = true,
+    this.indeterminate = false,
+    this.secondary,
   });
 
-  /// 0~1；null 表示不确定进度
-  final double? value;
+  /// 0~1
+  final double value;
 
   /// 右侧文字（如「42%」），为 null 时不显示
   final String? label;
 
   final double height;
-
-  /// 进度色，默认主题色
-  final Color? color;
+  final bool enabled;
+  final bool indeterminate;
+  final double? secondary;
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    final textTheme = Theme.of(context).textTheme;
-    final barColor = color ?? colors.interactive;
-
-    final bar = ClipRRect(
-      borderRadius: BorderRadius.circular(height / 2),
-      child: SizedBox(
-        height: height,
-        child: Stack(
-          children: [
-            Positioned.fill(child: ColoredBox(color: colors.inputBackground)),
-            if (value != null)
-              FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: value!.clamp(0.0, 1.0),
-                heightFactor: 1,
-                child: ColoredBox(color: barColor),
-              )
-            else
-              const _IndeterminateBar(),
-          ],
-        ),
-      ),
+    final skin = cuSkinOf(context);
+    final bar = TemplateProgressBar(
+      skin: skin,
+      value: value,
+      height: height,
+      enabled: enabled,
+      indeterminate: indeterminate,
+      secondary: secondary,
     );
 
     if (label == null) return bar;
-
     return Row(
-      spacing: AppSpacing.related,
+      spacing: TemplateSpace.sm,
       children: [
         Expanded(child: bar),
         Text(
           label!,
-          style: textTheme.bodySmall?.copyWith(color: colors.itemSecondary),
+          style: TemplateType.caption.copyWith(color: skin.textSecondary),
         ),
       ],
-    );
-  }
-}
-
-/// 不确定进度：一条 30% 宽的高亮块来回滑动（只动位置，颜色不插值）
-class _IndeterminateBar extends StatefulWidget {
-  const _IndeterminateBar();
-
-  @override
-  State<_IndeterminateBar> createState() => _IndeterminateBarState();
-}
-
-class _IndeterminateBarState extends State<_IndeterminateBar>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1200),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return FractionallySizedBox(
-          alignment: Alignment(-1 + 1.4 * _controller.value, 0),
-          widthFactor: 0.3,
-          heightFactor: 1,
-          child: ColoredBox(color: colors.interactive),
-        );
-      },
     );
   }
 }

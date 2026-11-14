@@ -1,12 +1,10 @@
-import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
+import 'package:copper_launcher/ui/components/core/cu_skin.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
-import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/ui/theme/design_system.dart';
+import 'package:copper_launcher/ui/pages/design/template_shell.dart';
+import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:flutter/material.dart';
 
-/// 内核复选：方框 + 勾，可带文字 / 图标
-///
-/// 点击整行都能切；按压只变色
+/// 复选：搬运设计层 [TemplateCheckbox]，可带文字 / 图标 / 提示
 class CuCheckbox extends StatelessWidget {
   const CuCheckbox({
     super.key,
@@ -24,85 +22,50 @@ class CuCheckbox extends StatelessWidget {
   final IconData? icon;
   final ValueChanged<bool>? onChanged;
   final bool enabled;
-
-  /// 悬停提示
   final String? hint;
-
-  /// 图标着色（默认取次要文字色）
   final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    final textTheme = Theme.of(context).textTheme;
+    final skin = cuSkinOf(context);
     final canTap = enabled && onChanged != null;
 
-    final box = Container(
-      width: 18,
-      height: 18,
-      decoration: BoxDecoration(
-        color: !enabled
-            ? colors.lowBackgroundOnCard
-            : value
-            ? colors.interactive
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.control),
-        border: Border.all(
-          width: value ? 1 : 1.5,
-          color: !enabled
-              ? colors.lowBackgroundOnCard
-              : value
-              ? colors.interactive
-              : colors.itemHint.withAlpha(170),
-        ),
-      ),
-      child: value
-          ? Icon(
-              Icons.check,
-              size: 14,
-              color: enabled ? colors.itemOnInteractive : colors.itemHint,
-            )
-          : null,
-    );
-
-    final content = Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: AppSpacing.related,
-      children: [
-        box,
-        if (label != null)
-          Text(
-            label!,
-            style: textTheme.bodyMedium?.copyWith(
-              color: enabled ? colors.itemPrimary : colors.itemHint,
-            ),
-          ),
-        if (icon != null)
-          Icon(
-            icon,
-            size: AppIconSize.inline,
-            color: enabled
-                ? (iconColor ?? colors.itemSecondary)
-                : colors.itemHint,
-          ),
-      ],
-    );
-
-    Widget pressable = CuPressable(
-      enabled: canTap,
+    Widget check = TemplateCheckbox(
+      skin: skin,
+      value: value,
+      enabled: enabled,
       onTap: canTap ? () => onChanged!(!value) : null,
-      borderRadius: BorderRadius.circular(AppRadius.control),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.tight,
-        vertical: AppSpacing.tight,
-      ),
-      child: content,
     );
 
-    final hint = this.hint;
-    if (hint != null) {
-      pressable = HintLayer(hint: hint, child: pressable);
+    if (label != null || icon != null) {
+      check = Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: TemplateSpace.sm,
+        children: [
+          check,
+          if (label != null)
+            Text(
+              label!,
+              style: TemplateType.item.copyWith(
+                color: enabled ? skin.textPrimary : skin.textDisabled,
+              ),
+            ),
+          if (icon != null)
+            Icon(
+              icon,
+              size: TemplateSpace.sm * 2 + 2,
+              color: enabled
+                  ? (iconColor ?? skin.textSecondary)
+                  : skin.textDisabled,
+            ),
+        ],
+      );
     }
-    return pressable;
+
+    final hintText = hint;
+    if (hintText != null) {
+      check = HintLayer(hint: hintText, child: check);
+    }
+    return check;
   }
 }

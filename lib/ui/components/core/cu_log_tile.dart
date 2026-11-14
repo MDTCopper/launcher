@@ -132,7 +132,7 @@ class _CuLogTileState extends State<CuLogTile> {
           headline,
           if (widget.progress != null)
             CuProgress(
-              value: widget.progress,
+              value: widget.progress!,
               label: '${(widget.progress! * 100).round()}%',
             ),
           if (widget.detail != null && _expanded)

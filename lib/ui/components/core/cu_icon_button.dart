@@ -1,10 +1,8 @@
-import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/hint_layer.dart';
-import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/ui/theme/design_system.dart';
+import 'package:copper_launcher/ui/components/core/cu_skin.dart';
+import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:flutter/material.dart';
 
-/// 纯图标按钮：方形热区 + 变色反馈，用于工具栏 / 侧栏 / 卡片右上角
+/// 图标按钮：搬运设计层 [TemplateIconButton]（圆形热区 + 悬停反馈 + 提示）
 class CuIconButton extends StatelessWidget {
   const CuIconButton({
     super.key,
@@ -12,9 +10,11 @@ class CuIconButton extends StatelessWidget {
     this.onTap,
     this.enabled = true,
     this.selected = false,
-    this.size = AppControlHeight.compact,
+    this.size = 32,
+    this.iconSize = 18,
     this.plain = false,
     this.hint,
+    this.rotationTurns = 0.0,
   });
 
   final IconData icon;
@@ -25,38 +25,27 @@ class CuIconButton extends StatelessWidget {
   /// 热区边长，默认 32
   final double size;
 
-  /// 有底色（面）还是纯静音
+  final double iconSize;
+
+  /// 是否带底色（设计层的 plain 由 TemplateIconButton 的 selected/背景表达）
   final bool plain;
 
   final String? hint;
 
+  final double rotationTurns;
+
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-
-    Widget child = CuPressable(
-      enabled: enabled,
+    return TemplateIconButton(
+      skin: cuSkinOf(context),
+      icon: icon,
       onTap: onTap,
-      selected: selected,
-      borderRadius: BorderRadius.circular(AppRadius.control),
-      backgroundColor: plain ? colors.highBackgroundOnCard : Colors.transparent,
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Icon(
-          icon,
-          size: AppIconSize.inline,
-          color: enabled
-              ? (selected ? colors.interactive : colors.itemSecondary)
-              : colors.itemHint,
-        ),
-      ),
+      tooltip: hint,
+      iconSize: iconSize,
+      size: size,
+      selected: selected || plain,
+      enabled: enabled,
+      rotationTurns: rotationTurns,
     );
-
-    final hint = this.hint;
-    if (hint != null) {
-      child = HintLayer(hint: hint, child: child);
-    }
-    return child;
   }
 }
