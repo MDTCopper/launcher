@@ -9,14 +9,17 @@ import 'package:path/path.dart' as p;
 /// - [jreBuild]：爪住的 Java 运行环境构建号（release 里 `version` 文件的值），
 ///   钉住后即使远端出了新构建也不自动重下
 /// - [bridgeTag]：钉住的桥版本（`snapshot` / `0.1.3`…）
+/// - [wrapperVersion]：钉住的模组加载器适配层版本（`0.1.0`…），留空就自动挑与当前
+///   loader 兼容的最新一份
 ///
 /// 存在 `<数据根>/bridge/runtime.json`（与它描述的那份载荷放一起，
 /// 清了运行环境这条记录留着也无妨 —— 下次装完还是这个选择）
 class BridgeRuntimeOptions {
-  BridgeRuntimeOptions({this.jreBuild, this.bridgeTag});
+  BridgeRuntimeOptions({this.jreBuild, this.bridgeTag, this.wrapperVersion});
 
   String? jreBuild;
   String? bridgeTag;
+  String? wrapperVersion;
 
   static String filePath({String? bridgeDirPath}) =>
       p.join(bridgeDirPath ?? AppPaths.bridge, 'runtime.json');
@@ -36,6 +39,7 @@ class BridgeRuntimeOptions {
       return BridgeRuntimeOptions(
         jreBuild: read('jreBuild'),
         bridgeTag: read('bridgeTag'),
+        wrapperVersion: read('wrapperVersion'),
       );
     } catch (_) {
       return BridgeRuntimeOptions();
@@ -48,10 +52,12 @@ class BridgeRuntimeOptions {
     final data = <String, dynamic>{
       if (jreBuild != null) 'jreBuild': jreBuild,
       if (bridgeTag != null) 'bridgeTag': bridgeTag,
+      if (wrapperVersion != null) 'wrapperVersion': wrapperVersion,
     };
     await file.writeAsString(jsonEncode(data));
   }
 
   /// 有没有钉住任何一项
-  bool get hasPin => jreBuild != null || bridgeTag != null;
+  bool get hasPin =>
+      jreBuild != null || bridgeTag != null || wrapperVersion != null;
 }

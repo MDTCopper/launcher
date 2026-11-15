@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:copper_launcher/core/app_paths.dart';
+import 'package:copper_launcher/domain/bridge_library.dart';
 import 'package:copper_launcher/util/version_strings.dart' as version_strings;
 import 'package:path/path.dart' as p;
 
@@ -106,24 +107,12 @@ class BridgePayload {
     return wrapperLoaderVersion.trim() == desktopLoaderVersion.trim();
   }
 
-  /// 已装好的桥 jar（库里**版本最高**的那个）；一个都没有返回 null
+  /// 已装好的桥 jar（用哪一份由 [BridgeLibrary.selectedBridgeJar] 决定：
+  /// 钉住的版本优先，没钉才挑最新）；一份都没装返回 null
   ///
   /// 首次运行的「装没装完」检查用它 —— 那一刻还不知道该用哪个 tag，所以按目录里现成的找
-  static File? installedBridgeJar({String? directory}) {
-    final bridgeDir = Directory(directory ?? AppPaths.bridge);
-    if (!bridgeDir.existsSync()) return null;
-    final jars = [
-      for (final entity in bridgeDir.listSync())
-        if (entity is File &&
-            _bridgeJarPattern.hasMatch(p.basename(entity.path)))
-          entity,
-    ];
-    if (jars.isEmpty) return null;
-    jars.sort(
-      (a, b) => compareVersionTags(bridgeTagOf(b.path), bridgeTagOf(a.path)),
-    );
-    return jars.first;
-  }
+  static File? installedBridgeJar({String? directory}) =>
+      BridgeLibrary.selectedBridgeJar(bridgeDirPath: directory);
 
   /// `.../bridge-0.1.3.jar` → `0.1.3`、`.../bridge-snapshot.jar` → `snapshot`；
   /// 命名不对返回 null
