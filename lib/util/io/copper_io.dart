@@ -469,13 +469,14 @@ class CopperIO {
           return result;
         } catch (e) {
           if (!shouldFallbackToMirror(e, url)) rethrow;
-          if (e is DioException && isTransportFailure(e)) {
-            mirror.markDirectFailed(url);
-          }
+          //分块失败也是「直连这条路过不去」：记下来，窗口内先走镜像，别再白等直连
+          final directBroken = e is DioException
+              ? isTransportFailure(e)
+              : e is ChunkDownloadFailed && !e.isWriteError;
+          if (directBroken) mirror.markDirectFailed(url);
           addLog(
             .debug,
-            '直连失败（${e is DioException ? e.type.name : e.runtimeType}），'
-            '改走镜像：$url',
+            '直连失败（${_routeFailureReason(e)}），改走镜像：$url',
             tag: 'Mirror',
           );
           try {
@@ -2304,6 +2305,16 @@ bool isTransportFailure(DioException error) =>
     !CancelToken.isCancel(error) &&
     (isNetworkFailure(error) || error.type == DioExceptionType.unknown);
 
+/// 日志里一句「直连为什么失败」：分块失败要带上块号与原因，只看到类名不好查
+String _routeFailureReason(Object error) {
+  if (error is ChunkDownloadFailed) {
+    return '分块 ${error.index + 1} ${error.reason}';
+  }
+  return error is DioException
+      ? error.type.name
+      : error.runtimeType.toString();
+}
+
 /// 直连失败要不要改走镜像：网络类错误一律回退；GitHub 的 401/403（空/失效 token、
 /// 匿名限流）也回退——镜像请求不带 token，换 IP 常能绕过
 ///
@@ -2312,8 +2323,11 @@ bool isTransportFailure(DioException error) =>
 @visibleForTesting
 bool shouldFallbackToMirror(Object error, String url) {
   if (error is ChunkDownloadFailed) {
+    if (error.isWriteError) return false;
     final cause = error.cause;
-    return cause is DioException && isTransportFailure(cause);
+    //流被对端掐断时 dio 把原始异常（HttpException / SocketException）直接抛给响应流，
+    //不是 DioException —— 那同样是链路问题；上游真实答复走的是 badResponse，不会被认成链路问题
+    return cause is! DioException || isTransportFailure(cause);
   }
   if (error is! DioException) return false;
   if (isTransportFailure(error)) return true;
@@ -2325,8 +2339,7 @@ bool shouldFallbackToMirror(Object error, String url) {
   return false;
 }
 
-/// 镜像节点这次失败该不该换节点：连接类失败，或节点回 403 / 429 / 5xx
-///
+/// 镜像节点这次失败该不该换节点：连接类失败，或节点回 403 / 429 / 5xx///
 /// 403 常是节点自己拒绝（限流 / 不服务境外 IP）而不是上游答复，换一个节点往往就好；
 /// 404 这类是上游真实答复，换谁都一样，所以不算节点失败（镜像 404 不当故障）
 bool isMirrorNodeFailure(DioException error) {
