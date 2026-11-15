@@ -8,6 +8,8 @@ import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/be_version.dart';
 import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
+import 'package:copper_launcher/domain/launch_exit.dart';
+import 'package:copper_launcher/domain/launch_record.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/domain/shortcut_session.dart';
@@ -560,6 +562,18 @@ class LaunchMindustryTask extends Task {
       return;
     }
 
+    // 启动成功先落一份开始记录：退出码要留到事后诊断
+    unawaited(
+      LaunchRecordStore.recordLaunchStart(
+        versionId: mindustry.id,
+        tag: mindustry.tag,
+        startedAt: _launchStartTime!,
+        gamePid: launcher.processId,
+        fromShortcut: fromShortcut,
+        viaLoader: mindustry.isViaLoader,
+      ),
+    );
+
     //监听游戏状态
     addLog(.info, '时间线：游戏进程已创建 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
     launcher.logStream!.listen((log) {
@@ -576,8 +590,9 @@ class LaunchMindustryTask extends Task {
         //托盘模式下收进系统托盘
         LauncherTray.instance.hideIfTrayMode();
       }
-      if (log.contains('exit')) {
-        unawaited(_handleExit(log));
+      // 只认锚定的退出行，游戏 stdout 里带 exit 的普通日志不算退出
+      if (parseExitCodeLine(log) != null) {
+        unawaited(_handleExit(log.trim()));
       }
     });
   }
@@ -701,6 +716,11 @@ class LaunchMindustryTask extends Task {
     if (_finished) return;
     _finished = true;
 
+    // 退出码落盘：通知几秒就没了，事后诊断靠这份记录
+    final exitCode = parseExitCodeLine(exitLog);
+    final exitKind = classifyExitCode(exitCode);
+    unawaited(LaunchRecordStore.recordLaunchEnd(exitCode: exitCode));
+
     // 交接中：等服务拉起结果；服务接手就跳过，拉起失败则自己收尾
     if (await waitHandoffDecision()) {
       addLog(.info, '启动任务：服务已接手，跳过 UI 侧收尾', tag: 'Launch');
@@ -746,14 +766,14 @@ class LaunchMindustryTask extends Task {
     } else if (!AppRuntime.headless) {
       _handleShortcutExit();
     }
-    if (exitLog.contains('0')) {
+    if (exitKind == LaunchExitKind.normal) {
       NotificationManager.addNotice(
         icon: Icons.info_outline,
         title: '退出',
         content: '正常游戏退出',
       );
       TaskLogManager.addLog(LogEntry(LogType.info, '正常游戏退出'));
-    } else if (exitLog.contains('-1')) {
+    } else if (exitKind == LaunchExitKind.stopped) {
       NotificationManager.addNotice(
         icon: Icons.info_outline,
         title: '退出',
