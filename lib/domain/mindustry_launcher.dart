@@ -364,21 +364,32 @@ class MindustryLauncher {
       }
     }
 
-    final arcRef = await BridgeLauncher.arcRefOf(mindustry);
+    final nativePlan = await BridgeLauncher.nativePlanOf(
+      mindustry,
+      onStatus: (status) =>
+          addLogAndPrint(.info, 'Android 桥：$status', tag: 'Bridge'),
+    );
     String? arcDirPath;
-    if (arcRef == null) {
+    if (nativePlan == null) {
       addLogAndPrint(
         .warning,
-        '查不到这个版本用的 arc：不带 arc 原生库启动，游戏很可能起不来',
+        '查不到这个版本用的原生库：不带原生库启动，游戏很可能起不来',
         tag: 'Launch',
       );
     } else {
-      arcDirPath = AppPaths.bridgeArcDirPath(arcRef, abi);
-      final arcFolder = Directory(arcDirPath);
-      if (!arcFolder.existsSync() || arcFolder.listSync().isEmpty) {
+      final nativeDirPath = AppPaths.bridgeArcDirPath(nativePlan.ref, abi);
+      arcDirPath = nativeDirPath;
+      final nativeFolder = Directory(nativeDirPath);
+      // GDX 的两个文件是固定名单：缺一个就补装（上次下载 / 解压失败留下的半份）
+      final needsInstall = nativePlan.isGdx
+          ? BridgePayload.gdxAndroidLibNames.any(
+              (name) => !File(p.join(nativeDirPath, name)).existsSync(),
+            )
+          : (!nativeFolder.existsSync() || nativeFolder.listSync().isEmpty);
+      if (needsInstall) {
         try {
-          await BridgeInstaller.installArcNatives(
-            arcRef: arcRef,
+          await BridgeInstaller.installNatives(
+            plan: nativePlan,
             abi: abi,
             onStatus: (status) =>
                 addLogAndPrint(.info, 'Android 桥：$status', tag: 'Bridge'),
@@ -386,7 +397,7 @@ class MindustryLauncher {
         } catch (error) {
           addLogAndPrint(
             .warning,
-            'arc 原生库装不上：${removeNewlines('$error')}（先照起）',
+            '原生库装不上：${removeNewlines('$error')}（先照起）',
             tag: 'Launch',
           );
         }

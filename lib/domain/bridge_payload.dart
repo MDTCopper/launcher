@@ -25,14 +25,11 @@ class BridgePayload {
 
   /// loader-wrapper 的仓库与**钉住的版本**（Android 走 mod 时注入 loader 用）
   ///
-  /// wrapper 是薄适配器：把桥给的 classpath 转成 CopperLoader 的命令行。它按
-  /// `loaderVersion` 编译，**那份 loader 桌面 jar 运行期必须在**，版本也要与它一致
+  /// wrapper 是薄适配器：把桥给的 classpath 转成 CopperLoader 的命令行。
+  /// **运行期不检查它和 loader / 游戏版本是否匹配**：wrapper 自适配任意 loader 版本，
+  /// 只要桌面 loader jar 在就注入
   static const loaderWrapperRepo = 'MDTCopper/loader-wrapper';
   static const loaderWrapperVersion = '0.1.0';
-
-  /// 这份 wrapper 编译时针对的 loader 版本（jar 里 `wrapper-version.properties` 的
-  /// `loaderVersion`）；装了别的 loader 版本时要重新编 wrapper
-  static const loaderWrapperLoaderVersion = '0.2.0';
 
   /// wrapper 的主类：桥用 `--main` 指定它接管启动（桥自己的选项，不是位置参数）
   static const wrapperMainClass = 'copper.wrapper.Main';
@@ -93,19 +90,6 @@ class BridgePayload {
         loaderWrapperJarFileName(version ?? loaderWrapperVersion),
       );
 
-  /// wrapper 记的 `loaderVersion` 与桌面 jar 是否一致
-  ///
-  /// 版本是否一致仅用于提示，不阻断启动；wrapper 自适配任意 loader 版本
-  static bool wrapperMatchesLoader({
-    required String? wrapperLoaderVersion,
-    required String? desktopLoaderVersion,
-  }) {
-    if (wrapperLoaderVersion == null || desktopLoaderVersion == null) {
-      return false;
-    }
-    return wrapperLoaderVersion.trim() == desktopLoaderVersion.trim();
-  }
-
   /// 已装好的桥 jar（库里**版本最高**的那个）；一个都没有返回 null
   ///
   /// 首次运行的「装没装完」检查用它 —— 那一刻还不知道该用哪个 tag，所以按目录里现成的找
@@ -158,6 +142,57 @@ class BridgePayload {
     'natives-freetype-android',
   ];
 
+  /// v105–v126.2 的 box2d 还单独占一个 natives 模块；v127 起不再带这份库
+  static const arcBox2dNativeModule = 'natives-box2d-android';
+
+  /// GDX 时代（Mindustry v65–v104.6）的 Android 原生库仓库
+  ///
+  /// 这些版本直接用 libGDX 的 Android 包，原生库不来自 Arc 仓库；两个版本线的
+  /// release zip 由 `MDTCopper/android-gdx` 按 `libgdx-<版本>-android.zip` 提供，
+  /// 解压后就是 `armeabi/`、`arm64-v8a/` 这类 ABI 目录。
+  static const gdxRepo = 'MDTCopper/android-gdx';
+
+  /// GDX zip 里每个 ABI 目录下需要的文件
+  static const gdxAndroidLibNames = ['libgdx.so', 'libgdx-freetype.so'];
+
+  /// GDX 两个版本线：v65–v82.x 用 1.9.9，v83–v104.6 用 1.9.10
+  static const gdxVersion199 = '1.9.9';
+  static const gdxVersion1910 = '1.9.10';
+
+  /// GDX 原生库的 release zip 地址
+  static String gdxAndroidZipUrl(String version) =>
+      'https://github.com/$gdxRepo/releases/download/$version/'
+      'libgdx-$version-android.zip';
+
+  /// GDX 库目录的 ref：和 arc ref 共用 `bridge/arc/<ref>/<abi>` 这套落点
+  static String gdxRef(String version) => 'gdx-$version';
+
+  /// 这个版本是不是 GDX 时代、该用哪版 GDX；不是返回 null
+  ///
+  /// 范围来自原生库归档表：
+  /// - 正式版 65.0–82.x → 1.9.9；83.0–104.6 → 1.9.10
+  /// - BE 4975–8090 → 1.9.10（1.9.9 没有可用 BE 归档）
+  ///
+  /// 范围外（更老的 Classic、BE 4975 之前）仍按老的 arc 查询流程走，保持原行为
+  static String? gdxVersionFor({required double build, required bool isBe}) {
+    if (build <= 0) return null;
+    if (isBe) {
+      return build >= 4975 && build <= 8090 ? gdxVersion1910 : null;
+    }
+    if (build >= 65 && build < 83) return gdxVersion199;
+    if (build >= 83 && build < 105) return gdxVersion1910;
+    return null;
+  }
+
+  /// arc 时代要不要额外装 `libarc-box2d.so`
+  ///
+  /// 正式版 105.0–126.2、BE 8108–21312 带 box2d；v127 / BE 21313 起不再有这一份
+  static bool arcNeedsBox2d({required double build, required bool isBe}) {
+    if (build <= 0) return false;
+    if (isBe) return build >= 8108 && build <= 21312;
+    return build >= 105 && build <= 126.2;
+  }
+
   /// v9 起 arc 并入本体仓库：ref 记成 `mindustry-<提交或 tag>`，原生库也从本体仓库取
   ///
   /// 老版本仍是 Anuken/Arc 仓库的一份 `archash`；两种 ref 在 [arcNativeLibUrl] 里分流
@@ -176,9 +211,15 @@ class BridgePayload {
 
   /// 这个 ref 要装哪些 natives 模块
   ///
-  /// v9 的 `arc/natives` 只有 `natives-android`；老版本两个模块都要
-  static List<String> arcNativeModulesFor(String arcRef) =>
-      isMergedArcRef(arcRef) ? const ['natives-android'] : arcNativeModules;
+  /// v9 的 `arc/natives` 只有 `natives-android`；老版本两个模块都要。
+  /// [includeBox2d] 由调用方按**游戏版本**给（v105–v126.2 才多这份库），
+  /// 合并形态的 ref 里没有独立 box2d 模块，给了也不加。
+  static List<String> arcNativeModulesFor(String arcRef, {
+    bool includeBox2d = false,
+  }) => [
+    ...(isMergedArcRef(arcRef) ? const ['natives-android'] : arcNativeModules),
+    if (includeBox2d && !isMergedArcRef(arcRef)) arcBox2dNativeModule,
+  ];
 
   /// arc 原生库所在仓库
   static String _arcRepo(String arcRef) =>
@@ -198,10 +239,11 @@ class BridgePayload {
   ///
   /// 列目录走 GitHub contents API，镜像节点常常不代理 api 或共享 IP 被限流 ——
   /// 所以「列目录」只当**补充**，常规名单才是保底（列目录成功时会补上多出来的库）
-  static List<String> arcNativeDefaultLibs(String module) =>
-      module == 'natives-freetype-android'
-      ? const ['libarc-freetype.so']
-      : const ['libarc.so'];
+  static List<String> arcNativeDefaultLibs(String module) => switch (module) {
+    'natives-freetype-android' => const ['libarc-freetype.so'],
+    'natives-box2d-android' => const ['libarc-box2d.so'],
+    _ => const ['libarc.so'],
+  };
 
   /// 列某个模块 / ABI 下有哪些文件（GitHub contents API）
   static String arcNativeContentsUrl(
@@ -328,6 +370,43 @@ class BridgePayload {
       arcLibNames: arcLibNames,
     );
   }
+}
+
+/// 一个游戏版本的原生库获取方案
+///
+/// GDX 时代（v65–v104.6）从 `android-gdx` 的 release zip 取 `libgdx.so` /
+/// `libgdx-freetype.so`；arc 时代仍按 arc ref 从 GitHub 仓库取（v105–v126.2 多一份
+/// `libarc-box2d.so`）。两种来源共用 [AppPaths.bridgeArcDirPath] 这套落点，
+/// 目录名用 [ref] 区分，桥只负责把目录里的 `.so` 按原文件名交给 arc。
+class NativeLibPlan {
+  const NativeLibPlan._({
+    required this.ref,
+    this.gdxVersion,
+    this.arcRef,
+    this.includeBox2d = false,
+  });
+
+  /// GDX 方案：`gdx-<版本>`
+  factory NativeLibPlan.gdx(String version) =>
+      NativeLibPlan._(ref: BridgePayload.gdxRef(version), gdxVersion: version);
+
+  /// arc 方案：目录名就是 arc ref
+  factory NativeLibPlan.arc(String arcRef, {bool includeBox2d = false}) =>
+      NativeLibPlan._(ref: arcRef, arcRef: arcRef, includeBox2d: includeBox2d);
+
+  /// 库目录名：GDX 是 `gdx-<版本>`，arc 就是 arc ref
+  final String ref;
+
+  /// 非 null 表示走 GDX 的 release zip
+  final String? gdxVersion;
+
+  /// 非 null 表示走 arc 仓库
+  final String? arcRef;
+
+  /// arc 时代是否额外取 box2d（v105–v126.2 / 对应 BE 区间）
+  final bool includeBox2d;
+
+  bool get isGdx => gdxVersion != null;
 }
 
 /// 载荷在磁盘上的落点 + 「齐没齐」的检查
