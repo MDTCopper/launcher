@@ -194,7 +194,7 @@ class MindustryDownloadTask extends Task {
           }
           isFreshDownload = true;
 
-          addLog(.info, '下载游戏 [$tag]：$candidateUrl', tag: 'GameDownload');
+          addLog(.info, '下载游戏 [$tag]：${logSafeUrl(candidateUrl)}', tag: 'GameDownload');
 
           await cio.download(
             url: candidateUrl,
@@ -402,7 +402,7 @@ class MindustryDownloadTask extends Task {
     progress = 0;
     updateDisplay();
     TaskLogManager.addLog(LogEntry(LogType.info, '正在下载加载器 ${remote.tag}'));
-    addLog(.info, '下载加载器 [${remote.tag}]：${remote.url}', tag: 'Loader');
+    addLog(.info, '下载加载器 [${remote.tag}]：${logSafeUrl(remote.url)}', tag: 'Loader');
 
     try {
       final path = await LoaderLibrary.downloadDesktop(

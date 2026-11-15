@@ -305,10 +305,14 @@ class LanLinkApi {
     }
     if (message.isEmpty) message = error.message ?? '';
 
-    // 路径与方法一起记，哪个请求挂的一眼能看出来
+    // 保留错误文案；URL 只去掉凭证类 query，方便定位
     addLog(
       .warning,
-      'LanLink 请求失败 ${error.requestOptions.method} ${error.requestOptions.path}：$message',
+      'LanLink 请求失败 ${error.requestOptions.method} '
+      '${logSafeUrl(error.requestOptions.uri.toString())}'
+      '：$message'
+      '（status=${status ?? '无响应'}'
+      '${code.isEmpty ? '' : '，code=$code'}）',
       tag: 'LanLink',
     );
     return LanLinkException(statusCode: status, code: code, message: message);

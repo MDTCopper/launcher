@@ -109,7 +109,9 @@ class LanLinkHostSession {
     _running = true;
     addLog(
       .info,
-      '开房隧道已就绪：房间 ${room.code}，公网地址 ${room.publicAddress}',
+      // 房间码是加入凭证：保留前缀 / 后缀便于定位，中段打码
+      '开房隧道已就绪：房间 ${maskForLog(room.code)}，'
+      '公网地址 ${room.publicAddress}',
       tag: 'LanLink',
     );
   }
@@ -132,7 +134,7 @@ class LanLinkHostSession {
     _control = null;
     _udpTunnel?.close();
     _udpTunnel = null;
-    addLog(.info, '开房隧道已关闭（房间 ${room.code}）', tag: 'LanLink');
+    addLog(.info, '开房隧道已关闭（房间 ${maskForLog(room.code)}）', tag: 'LanLink');
   }
 
   // -- 控制链 ------------------------------------------------------------

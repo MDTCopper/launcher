@@ -475,7 +475,7 @@ class CopperIO {
           addLog(
             .debug,
             '直连失败（${e is DioException ? e.type.name : e.runtimeType}），'
-            '改走镜像：$url',
+            '改走镜像：${logSafeUrl(url)}',
             tag: 'Mirror',
           );
           try {
@@ -521,7 +521,7 @@ class CopperIO {
     addLog(
       .debug,
       '并行探测：${isMirrorFaster ? '镜像' : '直连'}先答复，这次走'
-      '${isMirrorFaster ? '镜像' : '直连'}：$url',
+      '${isMirrorFaster ? '镜像' : '直连'}：${logSafeUrl(url)}',
       tag: 'Mirror',
     );
     if (isMirrorFaster) {
@@ -784,12 +784,10 @@ class CopperIO {
 
   bool get hasCustomProxy => _hasValidCustomProxy;
 
+  /// 日志 / 设置页展示用的代理描述：**不带用户名**，凭证不落日志
   String get proxyInfo {
     if (!_hasValidCustomProxy) return _proxyOff ? 'off' : 'system';
-    final auth = (_proxyUsername?.isNotEmpty ?? false)
-        ? '$_proxyUsername@'
-        : '';
-    return '$auth$_proxyHost:$_proxyPort';
+    return '$_proxyHost:$_proxyPort';
   }
 
   void setTimeout({
@@ -1026,7 +1024,7 @@ class CopperIO {
     final retryLimit = maxRetries ?? _maxRetries;
     addLog(
       .debug,
-      '开始下载：$url → $savePath'
+      '开始下载：${logSafeUrl(url)} → $savePath'
       '（镜像策略 ${_mirrorStrategy.name}，重试上限 $retryLimit）',
       tag: 'Download',
     );
@@ -1169,7 +1167,7 @@ class CopperIO {
       } on _RangeIgnored {
         addLog(
           .debug,
-          '服务端忽略 Range（带 Range 的 GET 回了整包），退化为单流下载：$url',
+          '服务端忽略 Range（带 Range 的 GET 回了整包），退化为单流下载：${logSafeUrl(url)}',
           tag: 'Download',
         );
         await _downloadSingleStream(
@@ -1194,7 +1192,7 @@ class CopperIO {
         addLog(
           .warning,
           '分块 ${error.index + 1} 下载失败（${error.reason}），'
-          '带着已下部分整单再来一次：$url',
+          '带着已下部分整单再来一次：${logSafeUrl(url)}',
           tag: 'Download',
         );
       }
@@ -1386,9 +1384,9 @@ class CopperIO {
           addLog(
             .error,
             '单流下载失败：'
-            '${e is FileSystemException ? '写盘失败（${e.osError?.message ?? e.message}）' : (e is DioException ? dioFailureText(e) : e)}'
+            '${e is FileSystemException ? '写盘失败（${e.osError?.message ?? e.message}）' : (e is DioException ? dioFailureText(e) : e.runtimeType)}'
             '${e is DioException && isNetworkFailure(e) ? '（网络不通或代理不可用）' : ''}'
-            '（$url）',
+            '（${logSafeUrl(url)}）',
             tag: 'Download',
           );
           rethrow;
@@ -2345,14 +2343,14 @@ String mirrorFailureReason(Object error) {
   return error.runtimeType.toString();
 }
 
-/// 单条日志里的 dio 失败描述：类型 + 消息
-///
-/// 消息里可能带着直连 / 镜像两半的原因（见 [combineRouteFailure]），只打类型会丢
+/// 日志里的网络失败描述：类型 + 状态码 + 消息（消息是排查依据，URL 已在调用点脱敏）
 String dioFailureText(DioException error) {
+  final status = error.response?.statusCode;
+  final statusText = status == null ? '' : '（HTTP $status）';
   final message = error.message;
   return message == null || message.isEmpty
-      ? error.type.name
-      : '${error.type.name}（$message）';
+      ? '${error.type.name}$statusText'
+      : '${error.type.name}$statusText（$message）';
 }
 
 /// 该族的镜像节点全部失败

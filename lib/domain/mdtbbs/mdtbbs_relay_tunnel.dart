@@ -175,7 +175,12 @@ class MdtbbsRelayTunnel {
     final completer = Completer<MdtbbsRelayAuthOk>();
     _authCompleter = completer;
     try {
-      await _connect();
+      try {
+        await _connect();
+      } on Object catch (error) {
+        // WebSocket 异常可能带着完整 endpoint（含凭证）：只保留类型再往外抛
+        throw MdtbbsRelayException('中继连接失败（${_relayErrorText(error)}）');
+      }
       addLogAndPrint(
         .info,
         '已发送中继认证（op=auth，agent=${_allocation!.agentId}，凭证不落日志）',
@@ -200,18 +205,19 @@ class MdtbbsRelayTunnel {
 
   Future<void> _connect() async {
     final endpoint = _allocation!.endpoint;
-    addLogAndPrint(.info, '连接官方中继：$endpoint', tag: 'Multiplayer');
+    final endpointForLog = logSafeUrl(endpoint);
+    addLogAndPrint(.info, '连接官方中继：$endpointForLog', tag: 'Multiplayer');
     final socket = await WebSocket.connect(endpoint).timeout(
       authTimeout,
       onTimeout: () {
-        throw MdtbbsRelayException('连接中继超时（$endpoint）');
+        throw MdtbbsRelayException('连接中继超时（$endpointForLog）');
       },
     );
     _socket = socket;
     _subscription = socket.listen(
       _onMessage,
       onDone: () => _finish('中继连接已断开'),
-      onError: (Object error) => _finish('中继连接异常：$error'),
+      onError: (Object error) => _finish('中继连接异常（${_relayErrorText(error)}）'),
       cancelOnError: true,
     );
   }
@@ -565,7 +571,7 @@ class MdtbbsRelayTunnel {
       if (secondsLeft < 8) {
         addLogAndPrint(
           .error,
-          '续签失败且凭证即将到期（剩 $secondsLeft 秒）：$error',
+          '续签失败且凭证即将到期（剩 $secondsLeft 秒）：${_relayErrorText(error)}',
           tag: 'Multiplayer',
         );
         _finish('中继凭证续签失败');
@@ -573,7 +579,7 @@ class MdtbbsRelayTunnel {
       }
       addLogAndPrint(
         .warning,
-        '续签失败（剩 $secondsLeft 秒），稍后重试：$error',
+        '续签失败（剩 $secondsLeft 秒），稍后重试：${_relayErrorText(error)}',
         tag: 'Multiplayer',
       );
       _renewTimer?.cancel();
@@ -591,7 +597,7 @@ class MdtbbsRelayTunnel {
     try {
       socket.add(jsonEncode(payload));
     } on Object catch (error) {
-      addLogAndPrint(.warning, '中继信令发送失败：$error', tag: 'Multiplayer');
+      addLogAndPrint(.warning, '中继信令发送失败：${_relayErrorText(error)}', tag: 'Multiplayer');
     }
   }
 
@@ -615,6 +621,18 @@ class MdtbbsRelayTunnel {
     addLogAndPrint(.warning, '中继连接结束：$reason', tag: 'Multiplayer');
     _emit(MdtbbsRelayClosed(reason: reason));
   }
+}
+
+/// 中继 / WebSocket 异常日志：保留类型与 message；message 里的 URL 按 query 打码，
+/// 不会把 endpoint 凭证原样带出去。
+String _relayErrorText(Object error) {
+  if (error is WebSocketException) {
+    final message = error.message.trim();
+    return message.isEmpty
+        ? 'WebSocketException'
+        : 'WebSocketException（${maskUrlsInText(message)}）';
+  }
+  return error.runtimeType.toString();
 }
 
 class MdtbbsRelayFrameMaxTtl {

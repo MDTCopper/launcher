@@ -614,7 +614,7 @@ class SourceModDownloadTask extends Task {
       final status = response.statusCode;
       return status != null && status >= 200 && status < 400;
     } on Object catch (error) {
-      addLog(.warning, '探测源码归档失败：$url（$error）', tag: 'ModDownload');
+      addLog(.warning, '探测源码归档失败：${logSafeUrl(url)}（${error.runtimeType}）', tag: 'ModDownload');
       return false;
     }
   }

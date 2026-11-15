@@ -27,6 +27,7 @@ import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_friends_api.dart';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/format/time_since.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:flutter/material.dart';
@@ -1852,7 +1853,8 @@ class _OnlinePageState extends State<OnlinePage> {
       'session=${state.session?.id ?? '—'}',
       'peer=${state.self?.peerId ?? '—'}',
       'role=${state.self?.role ?? '—'}',
-      'joinCode=${state.joinCode ?? '—'}',
+      // 房间码是加入凭证：保留前缀 / 后缀便于对照，中段打码
+      'joinCode=${state.joinCode == null ? '—' : maskForLog(state.joinCode!)}',
       'proxy=${state.proxyRunning}',
       'local=${state.localAddress ?? '—'}',
       'reconnect=${state.reconnectAttempt}',
