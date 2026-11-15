@@ -284,8 +284,11 @@ class StoredAccount {
   );
 }
 
-/// 账号态的读写：落在数据根的 `mdtbbs_account.json`
+/// 账号态的读写：Android 上落在应用内部目录的 `mdtbbs_account.json`
 ///
+/// - **token 文件不能放外部专属目录**：`/sdcard/Android/data/...` 通过数据线 / 文件管理器
+///   就能取，而这里存的是能换 access token 的 refresh token。Android 上固定写进
+///   `/data/data/<包名>/files`（[AppPaths.internalRoot]）；桌面端仍跟数据根走
 /// - refresh token 经 [TokenEncryptor] 加密（Linux 无 keyring 时该项目已有的
 ///   降级路径会让它明文保存，与 GitHub token 同一套口径）
 /// - 读写都**不抛**：账号态坏了只该是「未登录」，不该拦住启动
@@ -295,15 +298,98 @@ class AccountStore {
 
   static const fileName = 'mdtbbs_account.json';
 
-  /// 用例可指定目录，默认数据根
+  /// 用例可指定目录，默认 Android 用内部目录、其余平台用数据根
   @visibleForTesting
   static String? directoryOverride;
 
+  /// 账号文件所在目录
+  static String get directoryPath =>
+      directoryOverride ??
+      (Platform.isAndroid ? AppPaths.internalRoot : AppPaths.copperLauncher);
+
   static String get filePath =>
-      p.join(directoryOverride ?? AppPaths.copperLauncher, fileName);
+      p.join(directoryPath, fileName);
+
+  /// 旧位置（Android 早期版本把账号文件放在外部专属目录）
+  static String get legacyFilePath => p.join(AppPaths.copperLauncher, fileName);
 
   /// 跨进程写账号文件的锁文件：与账号文件同目录
   static String get lockPath => '$filePath.lock';
+
+  /// 把 Android 旧位置里的账号文件搬进应用内部目录
+  ///
+  /// 账号文件里有 refresh token，留在 `/sdcard/Android/data/...` 等于把长期凭证公开；
+  /// 启动时先搬再读。内部已有文件说明已经搬过（或重新登录过），旧文件直接删掉，
+  /// 不能让两份凭证并存。搬运用 rename，跨文件系统时退回复制 + 删除。
+  ///
+  /// 同时清掉旧位置的 `.lock` / `*.tmp`：它们也可能带着半份 token。
+  static Future<void> migrateLegacyLocation() async {
+    if (!Platform.isAndroid || directoryOverride != null) return;
+    final legacyPath = p.normalize(legacyFilePath);
+    final targetPath = p.normalize(filePath);
+    if (legacyPath == targetPath) return;
+
+    // 大多数设备上没有任何要搬的东西：别为了拿锁在外部目录里创建 / 删除锁文件
+    if (!File(legacyPath).existsSync()) {
+      _deleteLegacyScratchFiles(legacyPath);
+      return;
+    }
+
+    // 启动器 UI 与云服务进程会同时走到这里：锁住再搬，避免两边各搬一份
+    await ProcessFileLock.run('$legacyPath.migrate', () {
+      _deleteLegacyScratchFiles(legacyPath);
+      final legacy = File(legacyPath);
+      if (!legacy.existsSync()) return;
+
+      try {
+        Directory(p.dirname(targetPath)).createSync(recursive: true);
+        if (File(targetPath).existsSync()) {
+          // 内部目录已经有账号态：以它为准，旧位置那份必须清掉
+          legacy.deleteSync();
+          addLog(.info, '旧的账号文件已迁到应用内部目录，外部那份清掉了', tag: 'Account');
+          return;
+        }
+        try {
+          legacy.renameSync(targetPath);
+        } on FileSystemException {
+          // 外部存储与内部存储可能不在同一个文件系统上，rename 会失败
+          legacy.copySync(targetPath);
+          legacy.deleteSync();
+        }
+        addLog(.info, '账号文件已从外部目录迁到应用内部目录：$targetPath', tag: 'Account');
+      } catch (error) {
+        // 迁移失败不该拦住启动：读取仍会去内部目录找，找不到就是未登录
+        addLog(
+          .warning,
+          '账号文件迁移失败：${removeNewlines('$error')}',
+          tag: 'Account',
+        );
+      }
+    }, timeout: const Duration(milliseconds: 500));
+  }
+
+  /// 清掉旧位置里账号文件的锁与临时文件（它们不是账号态本体）
+  static void _deleteLegacyScratchFiles(String legacyPath) {
+    final directory = Directory(p.dirname(legacyPath));
+    if (!directory.existsSync()) return;
+    final prefix = '$fileName.';
+    try {
+      for (final entity in directory.listSync()) {
+        if (entity is! File) continue;
+        final name = p.basename(entity.path);
+        if (name == '$fileName.lock' ||
+            (name.startsWith(prefix) && name.endsWith('.tmp'))) {
+          entity.deleteSync();
+        }
+      }
+    } catch (error) {
+      addLog(
+        .warning,
+        '清理旧账号临时文件失败：${removeNewlines('$error')}',
+        tag: 'Account',
+      );
+    }
+  }
 
   /// 在进程锁内执行 [body]，并把盘上最新的账号态交给它
   ///
@@ -478,6 +564,20 @@ class AccountStore {
       if (temporary.existsSync()) temporary.deleteSync();
     } catch (error) {
       addLog(.warning, '账号态清除失败：${removeNewlines('$error')}', tag: 'Account');
+    }
+    // 升级前留在外部目录里的旧账号文件也要一起清掉，别让登出后还留着一份凭证
+    if (Platform.isAndroid) {
+      try {
+        final legacy = File(legacyFilePath);
+        if (legacy.existsSync()) legacy.deleteSync();
+        _deleteLegacyScratchFiles(legacyFilePath);
+      } catch (error) {
+        addLog(
+          .warning,
+          '旧账号文件清除失败：${removeNewlines('$error')}',
+          tag: 'Account',
+        );
+      }
     }
   }
 

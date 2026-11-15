@@ -61,11 +61,15 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
-            <!-- 登录回调：浏览器授权完由系统把 copperlauncher://oauth/callback?code=… 交回来 -->
+            <!-- 登录回调：浏览器授权完由系统把 copper://oauth/callback?code=… 交回来。
+                 本 App 挂起后 loopback 收不到回调，所以 Android 默认走这条系统协议。
+                 copperlauncher:// 保留为兼容入口：MindAuth 回调白名单切到 copper:// 期间
+                 旧链接仍能回到同一个 Activity。 -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="copper" android:host="oauth"/>
                 <data android:scheme="copperlauncher" android:host="oauth"/>
             </intent-filter>
         </activity>

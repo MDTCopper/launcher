@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 /// MDTBBS 社区的接入配置
@@ -68,12 +70,35 @@ class MdtbbsConfig {
 
   /// 「URL 回到软件」用的回调地址（需要 MindAuth 把这条登记进客户端回调白名单）
   ///
-  /// 用 `--dart-define=COPPER_OAUTH_SCHEME=true` 打开；没登记时保持 loopback
-  static const schemeRedirectUri = 'copperlauncher://oauth/callback';
+  /// Android 默认走这条：跳去浏览器授权时本 App 会被系统挂起，本地 loopback
+  /// 服务器收不到回调；授权完成后由系统按 `copper://` 把启动器拉回来。
+  /// 桌面端仍默认 loopback，只有显式 `--dart-define=COPPER_OAUTH_SCHEME=true`
+  /// 时才改走自定义协议。
+  ///
+  /// **服务端也要把 `copper://oauth/callback` 登记进回调白名单**，否则授权页
+  /// 会以 `redirect_uri` 不匹配拒绝；旧的 `copperlauncher://` 仍被 manifest 接住，
+  /// 便于服务端切换期间平滑过渡。
+  static const scheme = 'copper';
+  static const legacyScheme = 'copperlauncher';
 
-  static const bool useSchemeRedirect = bool.fromEnvironment(
+  static const schemeRedirectUri = '$scheme://oauth/callback';
+
+  static const bool _forceSchemeRedirect = bool.fromEnvironment(
     'COPPER_OAUTH_SCHEME',
   );
+
+  /// Android 上默认用自定义协议；其它平台保持 loopback（除非构建时强制打开）
+  static bool get useSchemeRedirect =>
+      _forceSchemeRedirect || Platform.isAndroid;
+
+  /// 这个 URI 是不是登录回调（新协议与旧协议都认）
+  ///
+  /// 只校验 scheme + host：服务端可能少写 / 多写末尾斜杠，没必要因此丢回调
+  static bool isAuthCallback(Uri uri) {
+    final callbackScheme = uri.scheme.toLowerCase();
+    return (callbackScheme == scheme || callbackScheme == legacyScheme) &&
+        uri.host == 'oauth';
+  }
 
   /// 运行时回调地址：主机 / path / query 必须与登记值一致，只把端口换成实际绑定的那个
   static String redirectUriFor(int port) =>

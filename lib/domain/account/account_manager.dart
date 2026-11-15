@@ -357,7 +357,8 @@ class AccountManager {
     final state = Pkce.createState();
 
     // 走「URL 回到软件」时不需要本地回调服务器：浏览器授权完由系统唤起启动器
-    // （需要 MindAuth 那边把 copperlauncher://oauth/callback 登记为回调地址）
+    // （需要 MindAuth 那边把 copper://oauth/callback 登记为回调地址）
+    // Android 默认走这条：跳到浏览器后本 App 会被系统挂起，loopback 收不到回调
     final useScheme = MdtbbsConfig.useSchemeRedirect;
     OAuthLoopbackServer? loopback;
     final String redirectUri;
@@ -391,7 +392,7 @@ class AccountManager {
         final uri = await AuthCallbackBridge.wait(
           timeout: const Duration(minutes: 3),
           accept: (uri) =>
-              uri.scheme == 'copperlauncher' && uri.queryParameters['state'] == state,
+              MdtbbsConfig.isAuthCallback(uri) && uri.queryParameters['state'] == state,
         );
         result = uri == null
             ? const OAuthCallbackResult(error: 'timeout', errorDescription: '没等到回调')

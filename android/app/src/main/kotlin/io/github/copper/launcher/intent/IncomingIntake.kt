@@ -42,7 +42,13 @@ object IncomingIntake {
 
         if (intent.action == Intent.ACTION_VIEW) {
             val data = intent.data
-            if (data != null && data.scheme == "copperlauncher" && data.host == "oauth") {
+            // 新协议 copper://；copperlauncher:// 是旧清单留下的兼容入口，
+            // 服务端回调白名单切换期间两个都接
+            val scheme = data?.scheme?.lowercase()
+            if (data != null &&
+                (scheme == "copper" || scheme == "copperlauncher") &&
+                data.host == "oauth"
+            ) {
                 pendingAuthUri = data.toString()
                 return Incoming.Auth
             }

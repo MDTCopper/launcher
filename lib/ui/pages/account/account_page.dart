@@ -44,6 +44,12 @@ class _AccountPageState extends State<AccountPage> {
   bool _busy = false;
   MdtbbsAccount? _account;
 
+  /// 本次登录生成的授权链接：**不自动写剪贴板**，只在用户点「复制登录链接」时复制
+  ///
+  /// 浏览器起不来 / 用户想换设备登录时才会用到；链接里有 PKCE challenge 与
+  /// state，换一次登录就作废，所以下一次 [_login] 开头会清掉
+  String? _authorizeUrl;
+
   AccountManager get _accounts => AccountManager.instance;
 
   @override
@@ -158,10 +164,20 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   Future<void> _login() async {
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      // 新的一次登录换新的 PKCE 值，上一条链接已经作废
+      _authorizeUrl = null;
+    });
     try {
-      await _accounts.login(onAuthorizeUrl: _copyAuthorizeUrl);
+      await _accounts.login(
+        onAuthorizeUrl: (url) {
+          if (!mounted) return;
+          setState(() => _authorizeUrl = url);
+        },
+      );
       if (!mounted) return;
+      setState(() => _authorizeUrl = null);
       // 登录在系统浏览器里完成，回来时把启动器拉回前台
       await LauncherTray.instance.showMainWindow();
       addNotice(icon: Icons.check, title: '已登录 BBS');
@@ -179,15 +195,20 @@ class _AccountPageState extends State<AccountPage> {
     }
   }
 
-  /// 授权链接先放剪贴板：系统浏览器起不来时，粘贴到浏览器里也能完成登录
-  Future<void> _copyAuthorizeUrl(String url) async {
-    addLog(.info, '授权链接：$url', tag: 'Account');
+  /// 只给「复制登录链接」按钮用：不再在发起登录时主动写剪贴板
+  ///
+  /// 系统浏览器起不来、或用户想自己把链接贴到别处时点它；链接自带 state 与
+  /// PKCE challenge，只能在本次登录期间使用。
+  Future<void> _copyAuthorizeUrl() async {
+    final url = _authorizeUrl;
+    if (url == null) return;
+    addLog(.info, '复制授权链接', tag: 'Account');
     await Clipboard.setData(ClipboardData(text: url));
     if (!mounted) return;
     addNotice(
       icon: Icons.link,
-      title: '授权链接已复制',
-      content: '浏览器没弹出来的话，把它粘贴到浏览器地址栏',
+      title: '登录链接已复制',
+      content: '粘贴到浏览器地址栏即可继续登录；链接只在本次登录期间有效',
     );
   }
 
@@ -298,8 +319,10 @@ class _AccountPageState extends State<AccountPage> {
                 color: colors.itemSecondary,
               ),
             ),
-            Row(
+            Wrap(
               spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 IconTextButton(
                   icon: loggedIn ? Icons.refresh : Icons.login,
@@ -308,6 +331,13 @@ class _AccountPageState extends State<AccountPage> {
                       ? null
                       : (loggedIn ? _loadAccount : _login),
                 ),
+                // 浏览器没弹出来时的退路：登录地址不再自动写剪贴板，用户点了才复制
+                if (!loggedIn && _authorizeUrl != null)
+                  IconTextButton(
+                    icon: Icons.copy,
+                    content: '复制登录链接',
+                    onTap: _copyAuthorizeUrl,
+                  ),
                 if (_busy)
                   const SizedBox(
                     width: 14,
