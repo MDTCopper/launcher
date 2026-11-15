@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
@@ -25,12 +26,19 @@ class CloudServiceProcess {
   /// 服务空闲多久后自己退
   static const idleExit = Duration(seconds: 30);
 
+  /// 一局卡在 `launching` 多久算死：云同步 + 起进程的正常耗时远小于它
+  static const staleLaunchTimeout = Duration(seconds: 120);
+
+  /// 会话扫描间隔，每轮轮询都读一遍 sessions 目录没必要
+  static const _sweepInterval = Duration(seconds: 5);
+
   final Map<String, LaunchMindustryTask> _tasks = {};
   final Map<String, GameSession> _sessions = {};
 
   Timer? _timer;
   bool _exiting = false;
   DateTime _lastActive = DateTime.now();
+  DateTime _lastSweep = DateTime.fromMillisecondsSinceEpoch(0);
 
   static Future<void> start({
     String? launchVersionId,
@@ -48,6 +56,8 @@ class CloudServiceProcess {
     );
     final service = CloudServiceProcess._();
     addLog(.info, '时间线：云服务就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
+    // 先清掉上一次进程留下的卡死会话，否则下面这局会被它当成「已在运行」拦掉
+    await service._sweepStaleLaunches();
     if (launchVersionId != null) {
       await service._launch(launchVersionId, 'service_launch');
     }
@@ -62,6 +72,8 @@ class CloudServiceProcess {
   Future<void> _tick() async {
     if (_exiting) return;
     try {
+      await _sweepStaleLaunches();
+      _dropFinishedTasks();
       // UI 请求完全接管：把会话所有权交给 UI，本服务退位（游戏进程不动）
       for (final sessionId in await GameSessionStore.takeTakeoverRequests()) {
         await _transferToUi(sessionId);
@@ -105,6 +117,8 @@ class CloudServiceProcess {
     }
     // 文件里的活跃会话可能来自「服务死了但游戏还在跑」：别起第二局
     for (final active in await GameSessionStore.active()) {
+      // 卡在 launching 的会话按死亡收尾，它不该挡住这次启动
+      if (await _recoverStaleLaunch(active)) continue;
       final other = config.versionOptions.findVersionById(active.versionId);
       if (active.versionId == version.id) {
         addLog(
@@ -157,29 +171,66 @@ class CloudServiceProcess {
     }
     _tasks[version.id] = task;
     _watch(task, session);
+    // 进程可能已经起来了，先推进一次会话，别等下一轮轮询
+    await _syncRunningSessions();
   }
 
-  LaunchMindustryTask? _findTask(String versionId) {
-    for (final task
-        in taskManager.currentTasks.whereType<LaunchMindustryTask>()) {
-      if (task.mindustry.id == versionId) return task;
+  /// 取这次启动真正对应的任务
+  ///
+  /// 任务表不清理已结束的任务，按版本找第一个会拿到上一局那个已完结的任务，
+  /// 监听它再也等不到通知，`_tasks` 会一直挡住这个版本
+  LaunchMindustryTask? _findTask(String versionId) =>
+      findRunningTask(taskManager.currentTasks, versionId);
+
+  @visibleForTesting
+  static LaunchMindustryTask? findRunningTask(
+    Iterable<Task> tasks,
+    String versionId,
+  ) {
+    for (final task in tasks.whereType<LaunchMindustryTask>()) {
+      if (task.mindustry.id == versionId && isTaskRunning(task.status)) {
+        return task;
+      }
     }
     return null;
   }
 
+  /// 任务还能不能代表「这一局在跑」：pending 还没起进程，process 已经起了
+  @visibleForTesting
+  static bool isTaskRunning(TaskStatus status) =>
+      status == TaskStatus.pending || status == TaskStatus.process;
+
   void _watch(LaunchMindustryTask task, GameSession session) {
     void listener() {
-      final status = task.status;
-      if (status == TaskStatus.pending || status == TaskStatus.process) return;
+      if (isTaskRunning(task.status)) return;
       task.removeListener(listener);
       unawaited(_onTaskEnd(task, session));
     }
 
     task.addListener(listener);
+    // 拿到时已经结束的任务不会再发通知，直接按结束收尾
+    if (!isTaskRunning(task.status)) {
+      task.removeListener(listener);
+      unawaited(_onTaskEnd(task, session));
+    }
+  }
+
+  /// 兜底：任务已经结束却没收到通知时也要收尾，否则 `_tasks` 会一直挡住这个版本
+  void _dropFinishedTasks() {
+    for (final entry in _tasks.entries.toList()) {
+      final task = entry.value;
+      if (isTaskRunning(task.status)) continue;
+      _tasks.remove(entry.key);
+      final session = _sessions[entry.key];
+      if (session == null) continue;
+      unawaited(_onTaskEnd(task, session));
+    }
   }
 
   Future<void> _onTaskEnd(LaunchMindustryTask task, GameSession session) async {
     final version = task.mindustry;
+    // 同一版本后来可能又起了一局：只收尾自己这一局，别动新的
+    if (!identical(_sessions[version.id], session)) return;
     _tasks.remove(version.id);
     _sessions.remove(version.id);
 
@@ -270,19 +321,98 @@ class CloudServiceProcess {
       final session = entry.value;
       final task = _tasks[entry.key];
       if (task == null) continue;
-      final gamePid = task.gamePid;
-      var changed = false;
-      if (gamePid != null && gamePid != session.gamePid) {
-        session.gamePid = gamePid;
-        changed = true;
+      if (advanceSession(
+        session,
+        gamePid: task.gamePid,
+        taskStatus: task.status,
+      )) {
+        await GameSessionStore.save(session);
       }
-      if (task.status == TaskStatus.process && session.phase == 'launching') {
-        session.phase = 'running';
-        changed = true;
-      }
-      if (changed) await GameSessionStore.save(session);
     }
   }
+
+  /// 把任务侧看到的状态推进到会话；返回会话是否有变化
+  @visibleForTesting
+  static bool advanceSession(
+    GameSession session, {
+    required int? gamePid,
+    required TaskStatus taskStatus,
+  }) {
+    var changed = false;
+    if (gamePid != null && gamePid != session.gamePid) {
+      session.gamePid = gamePid;
+      changed = true;
+    }
+    if (taskStatus == TaskStatus.process && session.phase == 'launching') {
+      session.phase = 'running';
+      changed = true;
+    }
+    return changed;
+  }
+
+  /// 会话是否卡在 `launching`：进程没建起来就再也不会推进
+  ///
+  /// 口径同 [_adoptAll]：这类会话占着活跃会话会挡住这个版本之后的启动
+  @visibleForTesting
+  static bool isStaleLaunch(
+    GameSession session, {
+    required DateTime now,
+    Duration timeout = staleLaunchTimeout,
+  }) =>
+      session.phase == 'launching' &&
+      session.gamePid == null &&
+      now.difference(session.startedAt) >= timeout;
+
+  /// 自愈：卡在 `launching` 的会话按已结束收尾，别让它永久挡住后续启动
+  ///
+  /// 返回收尾了几个，调用方不看返回值
+  Future<int> _sweepStaleLaunches() async {
+    final now = DateTime.now();
+    if (now.difference(_lastSweep) < _sweepInterval) return 0;
+    _lastSweep = now;
+    var recovered = 0;
+    for (final session in await GameSessionStore.active()) {
+      if (await _recoverStaleLaunch(session, now: now)) recovered++;
+    }
+    return recovered;
+  }
+
+  /// 单个会话的卡死判定与收尾；返回是否把它按已结束处理了
+  Future<bool> _recoverStaleLaunch(GameSession session, {DateTime? now}) async {
+    if (!isStaleLaunch(session, now: now ?? DateTime.now())) return false;
+    _tasks.remove(session.versionId);
+    _sessions.remove(session.versionId);
+    addLog(
+      .warning,
+      '云服务：启动会话卡在 launching，按已结束收尾 [${session.tag}]',
+      tag: 'CloudService',
+    );
+    try {
+      await _recoverSession(session);
+    } catch (error) {
+      // 补上传失败也得收尾，否则这个版本还是被卡住
+      session.phase = 'done';
+      session.completedAt ??= DateTime.now();
+      await GameSessionStore.save(session);
+      addLog(
+        .warning,
+        '云服务：卡死会话补上传失败 ${error.toString()}',
+        tag: 'CloudService',
+      );
+    }
+    return true;
+  }
+
+  /// 测试用：跑一次卡死会话自愈，返回收尾的会话数
+  @visibleForTesting
+  Future<int> sweepStaleLaunchesForTest() async {
+    _lastSweep = DateTime.fromMillisecondsSinceEpoch(0);
+    return _sweepStaleLaunches();
+  }
+
+  /// 测试用：拿一个能调实例方法的服务对象，不走 start 的进程/定时器
+  @visibleForTesting
+  static CloudServiceProcess debugCreate() => CloudServiceProcess._();
 
   /// 服务启动：接管还活着的游戏会话，其余按已结束补做退出上传
   ///
