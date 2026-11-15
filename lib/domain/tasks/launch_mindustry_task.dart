@@ -6,10 +6,16 @@ import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/be_version.dart';
+import 'package:copper_launcher/domain/bridge_installer.dart';
 import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/cloud/cloud_auto_sync.dart';
+import 'package:copper_launcher/domain/crash/crash_diagnosis.dart';
+import 'package:copper_launcher/domain/crash/crash_diagnoser.dart';
+import 'package:copper_launcher/domain/crash/crash_evidence.dart';
+import 'package:copper_launcher/domain/crash/launch_evidence.dart';
 import 'package:copper_launcher/domain/launch_exit.dart';
 import 'package:copper_launcher/domain/launch_record.dart';
+import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/domain/mindustry_launcher.dart';
 import 'package:copper_launcher/domain/mdtbbs/mdtbbs_multiplayer_service.dart';
 import 'package:copper_launcher/domain/shortcut_session.dart';
@@ -102,6 +108,16 @@ class LaunchMindustryTask extends Task {
 
   /// 桥侧「取消启动」收尾；和手动结束进程区分开
   bool _launchCanceled = false;
+
+  /// 本次启动真正生效的 Java 与堆，退出诊断按这份事实判
+  String? _launchJavaPath;
+  int? _launchMemoryMb;
+
+  /// 游戏 stdout 尾部，只留最近若干行给诊断
+  final _stdoutTail = StdoutTailBuffer();
+
+  /// 这次启动到过主菜单（日志里出现过 `Total time to load`）
+  bool _reachedMainMenu = false;
 
   /// 自更新重启后接管的新进程 PID（null 表示没接管）
   int? _adoptedPid;
@@ -525,6 +541,10 @@ class LaunchMindustryTask extends Task {
     // 记录本次启动时刻，游戏退出时回写 lastLaunchTime 与 playTime
     _launchStartTime = DateTime.now();
 
+    // 诊断要用这次真正生效的 Java 与堆，取值点定在起进程之前
+    _launchJavaPath = javaPath;
+    _launchMemoryMb = maxMemory.mb;
+
     final isLaunchStarted = await launcher.start(
       mindustry,
       maximize: maximize,
@@ -577,7 +597,10 @@ class LaunchMindustryTask extends Task {
     //监听游戏状态
     addLog(.info, '时间线：游戏进程已创建 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
     launcher.logStream!.listen((log) {
+      // 尾部只给退出诊断用；现有通知与日志照旧
+      _stdoutTail.add(log);
       if (log.contains('Total time to load')) {
+        _reachedMainMenu = true;
         addLog(.info, '时间线：游戏可交互 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
         final index = log.indexOf(':');
         final time = log.substring(index);
@@ -716,10 +739,16 @@ class LaunchMindustryTask extends Task {
     if (_finished) return;
     _finished = true;
 
-    // 退出码落盘：通知几秒就没了，事后诊断靠这份记录
+    // 退出码与诊断结论一起落盘：通知几秒就没了，事后诊断靠这份记录
     final exitCode = parseExitCodeLine(exitLog);
     final exitKind = classifyExitCode(exitCode);
-    unawaited(LaunchRecordStore.recordLaunchEnd(exitCode: exitCode));
+    final diagnosis = await _diagnoseRun(exitLog);
+    unawaited(
+      LaunchRecordStore.recordLaunchEnd(
+        exitCode: exitCode,
+        diagnosis: diagnosis?.code,
+      ),
+    );
 
     // 交接中：等服务拉起结果；服务接手就跳过，拉起失败则自己收尾
     if (await waitHandoffDecision()) {
@@ -788,9 +817,96 @@ class LaunchMindustryTask extends Task {
       );
       TaskLogManager.addLog(LogEntry(LogType.error, '游戏异常退出，退出码 ($exitLog)'));
     }
+    _reportDiagnosis(diagnosis);
     progress = 1.0;
     status = TaskStatus.completed;
     updateDisplay();
+  }
+
+  /// 退出时组装证据并诊断；读盘或判定的异常都不挡收尾
+  Future<CrashDiagnosis?> _diagnoseRun(String exitLog) async {
+    try {
+      return diagnose(await _buildCrashEvidence(exitLog));
+    } catch (error) {
+      addLog(.warning, '崩溃诊断失败：${removeNewlines('$error')}', tag: 'Crash');
+      return null;
+    }
+  }
+
+  /// 采集本局事实，再补上崩溃报告与 `last_log`
+  Future<CrashEvidence> _buildCrashEvidence(String exitLog) async {
+    final isAndroid = Platform.isAndroid;
+    final viaLoader = mindustry.isViaLoader;
+    final loaderPath = viaLoader
+        ? MindustryLauncher.usableLoaderPath(mindustry)
+        : null;
+    final javaPath = _launchJavaPath;
+    return assembleCrashEvidence(
+      LaunchEvidenceInput(
+        exitLog: exitLog,
+        // 桥侧只补 `exit 0`，拿不到真实退出码
+        exitCodeUnavailable: isAndroid,
+        canceledByUser: _cancelled || _launchCanceled,
+        reachedMainMenu: _reachedMainMenu,
+        logTail: _stdoutTail.text,
+        dataDirPath: mindustry.dataPath,
+        defaultCrashesPath: mindustry.crashesPath,
+        versionTag: mindustry.tag,
+        versionRelease: mindustry.release,
+        isBleedingEdge: mindustry.isBe,
+        steam: mindustry.steam,
+        fromShortcut: ShortcutSession.isLaunchedFromShortcut,
+        viaLoader: viaLoader,
+        loaderReady: !viaLoader || loaderPath != null,
+        loaderVersion: loaderPath == null
+            ? null
+            : LoaderLibrary.versionOf(File(loaderPath)),
+        bridgeReady: isAndroid ? BridgeInstaller.isRuntimeReady() : true,
+        bridgeAbi: isAndroid ? await BridgeInstaller.detectDeviceAbi() : null,
+        // Android 上的 Java 由桥载荷里的 JRE 提供，可用性归 bridgeReady 判
+        javaReady:
+            isAndroid || (javaPath != null && File(javaPath).existsSync()),
+        javaPath: javaPath,
+        memoryMb: _launchMemoryMb,
+        launchSentinelLeft: _launchSentinelLeft(),
+      ),
+    );
+  }
+
+  /// `launchid.dat` 还留着表示上次没正常退出；只看不删，清理行为不变
+  bool _launchSentinelLeft() {
+    try {
+      return File(p.join(mindustry.dataPath, 'launchid.dat')).existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 致命结论发一条通知，非致命只进日志；诊断里的动作不在这里执行
+  void _reportDiagnosis(CrashDiagnosis? diagnosis) {
+    if (diagnosis == null) return;
+    final summary = '${diagnosis.code} ${diagnosis.title}';
+    if (!diagnosis.fatal) {
+      addLog(.info, '崩溃诊断：$summary', tag: 'Crash');
+      return;
+    }
+    addLog(
+      .error,
+      '崩溃诊断：$summary；${removeNewlines(diagnosis.detail)}',
+      tag: 'Crash',
+    );
+    final suggestion = diagnosis.suggestions.isEmpty
+        ? null
+        : diagnosis.suggestions.first;
+    NotificationManager.addNotice(
+      icon: Icons.warning_amber_rounded,
+      title: diagnosis.title,
+      // 诊断正文是给日志看的多行文本，通知里压成一行再补一句建议
+      content: [
+        diagnosis.detail.replaceAll('\n', '；'),
+        if (suggestion != null) '可以先试：$suggestion',
+      ].join('\r\n'),
+    );
   }
 
   /// 快捷方式启动失败 / 被取消时把静默启动的界面还回来
