@@ -6,6 +6,7 @@ import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/bridge_installer.dart';
 import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/bridge_payload.dart';
+import 'package:copper_launcher/domain/jre_library.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/domain/steam_client.dart';
 import 'package:copper_launcher/domain/steam_library.dart';
@@ -405,7 +406,7 @@ class MindustryLauncher {
       gameJar: mindustry.resolvedJarPath,
       dataPath: mindustry.dataPath,
       cacheDirPath: BridgeLauncher.cacheDirPathFor(mindustry),
-      jreDirPath: AppPaths.bridgeJre,
+      jreDirPath: JreLibrary.selectedJreRoot(),
       arcDirPath: arcDirPath,
       jvmArgs: jvmArgs,
       loaderJars: loaderJars,

@@ -101,7 +101,9 @@ abstract class AppPaths {
   /// 例：`<桥载荷根>\bridge\bridge-snapshot.jar`
   static late String bridge;
 
-  /// 桥用的 Android JRE 根：`--java` 传它下面的 `bin/java`
+  /// 桥用的 Android JRE 根（**旧装法 / 兼容用**）：新布局按构建号放在 [bridge] 下的
+  /// `java/<build>/`，取哪个根由 `JreLibrary.selectedJreRoot` 决定
+  /// `--java` 传它下面的 `bin/java`
   /// 例：`<桥载荷根>\bridge\jre\bin\java`
   static late String bridgeJre;
 

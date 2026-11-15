@@ -6,11 +6,11 @@ import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/bridge_payload.dart';
 import 'package:copper_launcher/domain/bridge_runtime_options.dart';
+import 'package:copper_launcher/domain/jre_library.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/domain/payload_import.dart';
 import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
-import 'package:copper_launcher/util/io/archive_extract.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/git_refs.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -31,7 +31,9 @@ import 'package:path/path.dart' as p;
 class BridgeLibrary {
   BridgeLibrary._();
 
-  /// 本地记的 JRE 版本（远端 `version` 文件变没变，用来判断要不要重装）
+  /// 旧装法那份 JRE 的版本标记（`bridge/jre/.installed-version`）
+  ///
+  /// 新布局里每份 JRE 在自己的根下带一份，落点由 [JreLibrary] 定
   static String get jreVersionMarker =>
       p.join(AppPaths.bridgeJre, '.installed-version');
 
@@ -386,14 +388,11 @@ class BridgeLibrary {
 
   /// 首次运行的「装没装完」检查（**不联网**）：JRE 两个包都在 + 桥 jar 在
   ///
+  /// JRE 的落点与选择由 [JreLibrary] 定（多版本里有选中那份；只剩旧装法就用旧目录）
+  ///
   /// [bridgeDirPath] 只为用例注入，正常走 [AppPaths.bridge]
   static bool isRuntimeReady({String? bridgeDirPath}) {
-    final jreDir = Directory(
-      bridgeDirPath == null ? AppPaths.bridgeJre : p.join(bridgeDirPath, 'jre'),
-    );
-    final hasJre =
-        File(p.join(jreDir.path, 'bin', 'java')).existsSync() &&
-        File(p.join(jreDir.path, 'lib', 'modules')).existsSync();
+    final hasJre = JreLibrary.isReady(bridgeDirPath: bridgeDirPath);
     final bridgeJar = selectedBridgeJar(bridgeDirPath: bridgeDirPath);
     if (!hasJre || bridgeJar == null) return false;
     // 用例注入目录不依赖启动器构建号；真机要保证运行期桥与本 APK 编译期桥匹配
@@ -533,75 +532,13 @@ class BridgeLibrary {
 
   /// 本地导入 Java 运行环境：压缩包（zip / tar.xz）或已经解压好的目录
   ///
-  /// 先收进与 JRE 同层的临时目录，验过 `bin/java` 与 `lib/modules` 才替换旧的；
-  /// 中途失败旧的那份原样留着，返回 JRE 根路径
+  /// 主体在 [JreLibrary.importJre]（落到 `bridge/java/<build>/`，验过才换，失败保留旧）；
+  /// 这里留着同名入口，旧调用点不用改。[build] 不给就按导入内容里的版本标记定
   static Future<String> importJre(
     String sourcePath, {
+    String? build,
     void Function(String status)? onStatus,
-  }) async {
-    final sourceType = FileSystemEntity.typeSync(sourcePath);
-    if (sourceType == FileSystemEntityType.notFound) {
-      throw const PayloadImportException('选的路径不在了，重新选一次');
-    }
-    if (sourceType == FileSystemEntityType.file &&
-        !_jreArchiveSuffixes.any(
-          (suffix) => sourcePath.toLowerCase().endsWith(suffix),
-        )) {
-      throw const PayloadImportException('只收 zip / tar.xz 压缩包，或者已经解压好的 JRE 目录');
-    }
-
-    final bridgeDir = Directory(AppPaths.bridge)..createSync(recursive: true);
-    // 临时目录与 jre 同一层：换到位靠改名，不跨文件系统复制
-    final stagingDir = Directory(
-      p.join(bridgeDir.path, 'tmp', 'jre-importing'),
-    );
-    _deleteQuietly(stagingDir);
-    stagingDir.createSync(recursive: true);
-
-    try {
-      late String stagedJreRootPath;
-      if (sourceType == FileSystemEntityType.directory) {
-        onStatus?.call('正在收集本地 Java 运行环境…');
-        final sourceJreRootPath = _jreRootIn(sourcePath);
-        if (sourceJreRootPath == null) {
-          throw const PayloadImportException(
-            '这个目录里没有 bin/java 和 lib/modules，不是可用的 Java 运行环境',
-          );
-        }
-        await _copyDirectoryContents(Directory(sourceJreRootPath), stagingDir);
-        stagedJreRootPath = stagingDir.path;
-      } else {
-        onStatus?.call('正在解压 Java 运行环境…');
-        await extractArchive(sourcePath, stagingDir.path);
-        final extractedJreRootPath = _jreRootIn(stagingDir.path);
-        if (extractedJreRootPath == null) {
-          throw const PayloadImportException(
-            '这个压缩包里没有 bin/java 和 lib/modules，不是可用的 Java 运行环境',
-          );
-        }
-        stagedJreRootPath = extractedJreRootPath;
-      }
-
-      onStatus?.call('正在替换 Java 运行环境…');
-      await _replaceJreDirectory(stagedJreRootPath);
-    } on PayloadImportException {
-      rethrow;
-    } catch (error) {
-      addLogAndPrint(
-        .warning,
-        '本地导入 Java 运行环境失败：${removeNewlines('$error')}',
-        tag: 'Bridge',
-      );
-      throw const PayloadImportException('这份文件收不进来：解压或复制出错，换一份再试');
-    } finally {
-      // 换到位后这里只剩空壳或压缩包自带的散件
-      _deleteQuietly(stagingDir);
-    }
-
-    await _ensureJavaExecutable();
-    addLogAndPrint(.info, 'Android 桥：本地导入了 Java 运行环境', tag: 'Bridge');
-    return AppPaths.bridgeJre;
-  }
+  }) => JreLibrary.importJre(sourcePath, build: build, onStatus: onStatus);
 
   /// 本地导入模组加载器适配层：校验 jar 里的 `loaderVersion` 读得出来，
   /// 落到 `loader-wrapper-<版本>.jar`（钉了适配层版本就按钉的那个名字收）
@@ -629,15 +566,6 @@ class BridgeLibrary {
     return targetPath;
   }
 
-  /// 能当 JRE 导入的压缩包后缀：与 [extractArchive] 支持的形态一致
-  static const _jreArchiveSuffixes = [
-    '.zip',
-    '.tar.xz',
-    '.txz',
-    '.tar.gz',
-    '.tgz',
-  ];
-
   /// 从参数或文件名认出桥的版本号：`bridge-0.1.3.jar` → `0.1.3`、`snapshot` 原样
   ///
   /// 认不出来返回 null：落盘名字必须是 `bridge-<版本>.jar`，
@@ -650,84 +578,6 @@ class BridgeLibrary {
     if (name.startsWith('bridge-')) name = name.substring('bridge-'.length);
     if (name == BridgePayload.bridgeSnapshot) return name;
     return RegExp(r'^\d+(?:\.\d+)*$').hasMatch(name) ? name : null;
-  }
-
-  /// 找 JRE 根：含 `bin/java` 与 `lib/modules` 的那一层，压缩包里常还套一层目录
-  static String? _jreRootIn(String rootPath) {
-    if (_looksLikeJre(rootPath)) return rootPath;
-    final rootDir = Directory(rootPath);
-    if (!rootDir.existsSync()) return null;
-    for (final entity in rootDir.listSync()) {
-      if (entity is Directory && _looksLikeJre(entity.path)) {
-        return entity.path;
-      }
-    }
-    return null;
-  }
-
-  /// 这一层是不是 JRE：`bin/java`（ABI 分包给的）与 `lib/modules`（ABI 无关包给的）都在
-  static bool _looksLikeJre(String dirPath) =>
-      File(p.join(dirPath, 'bin', 'java')).existsSync() &&
-      File(p.join(dirPath, 'lib', 'modules')).existsSync();
-
-  /// 把 [sourceDir] 里的内容按相对结构复制到 [targetDir]
-  static Future<void> _copyDirectoryContents(
-    Directory sourceDir,
-    Directory targetDir,
-  ) async {
-    await targetDir.create(recursive: true);
-    await for (final entity in sourceDir.list(
-      recursive: true,
-      followLinks: false,
-    )) {
-      final relativePath = p.relative(entity.path, from: sourceDir.path);
-      final targetPath = p.join(targetDir.path, relativePath);
-      if (entity is Directory) {
-        await Directory(targetPath).create(recursive: true);
-      } else if (entity is File) {
-        await Directory(p.dirname(targetPath)).create(recursive: true);
-        await entity.copy(targetPath);
-      }
-    }
-  }
-
-  /// 把验过的 JRE 目录换到 [AppPaths.bridgeJre]：旧的先挪到临时目录，新的挪过去再删旧的
-  static Future<void> _replaceJreDirectory(String stagedRootPath) async {
-    final jreDir = Directory(AppPaths.bridgeJre);
-    final backupDir = Directory(p.join(AppPaths.bridge, 'tmp', 'jre-old'));
-    _deleteQuietly(backupDir);
-
-    final hasOldJre = jreDir.existsSync();
-    if (hasOldJre) await jreDir.rename(backupDir.path);
-    try {
-      await Directory(stagedRootPath).rename(jreDir.path);
-    } catch (error) {
-      // 新的没挪过去就把旧的挪回来，别让运行环境凭空没了
-      if (hasOldJre && backupDir.existsSync()) {
-        await backupDir.rename(jreDir.path);
-      }
-      rethrow;
-    }
-    if (hasOldJre) _deleteQuietly(backupDir);
-  }
-
-  /// 解压 / 复制都不带权限位，非 Windows 上给 `bin/java` 补个可执行位
-  static Future<void> _ensureJavaExecutable() async {
-    if (Platform.isWindows) return;
-    final javaPath = p.join(AppPaths.bridgeJre, 'bin', 'java');
-    if (!File(javaPath).existsSync()) return;
-
-    try {
-      final result = await Process.run('chmod', ['755', javaPath]);
-      if (result.exitCode == 0) return;
-    } catch (_) {
-      // 没有 chmod 的环境（沙箱）不让导入因此失败
-    }
-    addLogAndPrint(
-      .warning,
-      'Java 运行环境的 bin/java 没补上可执行位，启动前要确认权限',
-      tag: 'Bridge',
-    );
   }
 
   /// 可选的版本列表（设置页的下拉用）：两边仓库的 tag
@@ -784,25 +634,29 @@ class BridgeLibrary {
 
   /// 读一遍运行环境的现状（给设置页看）：各项版本与占用空间
   ///
-  /// 不联网、只读本地；[bridgeDirPath] 只为用例注入，正常走 [AppPaths.bridge]
+  /// 不联网、只读本地；JRE 取 [JreLibrary] 选中的那份（钉住的优先，否则最新）。
+  /// [bridgeDirPath] 只为用例注入，正常走 [AppPaths.bridge]
   static Future<BridgeRuntimeStatus> readRuntimeStatus({
     String? bridgeDirPath,
   }) async {
-    final rootPath = bridgeDirPath ?? AppPaths.bridge;
-
-    final jreDir = Directory(p.join(rootPath, 'jre'));
+    final jreRootPath = JreLibrary.selectedJreRoot(
+      bridgeDirPath: bridgeDirPath,
+    );
+    final jreBuild = JreLibrary.selectedBuild(bridgeDirPath: bridgeDirPath);
     final bridgeJar = selectedBridgeJar(bridgeDirPath: bridgeDirPath);
     final wrapperJar = await selectedLoaderWrapper(
       bridgeDirPath: bridgeDirPath,
     );
-    final markerFile = File(p.join(jreDir.path, '.installed-version'));
+    final markerFile = File(p.join(jreRootPath, '.installed-version'));
 
     return BridgeRuntimeStatus(
       isReady: isRuntimeReady(bridgeDirPath: bridgeDirPath),
       jreVersion: markerFile.existsSync()
           ? markerFile.readAsStringSync().trim()
-          : null,
-      jreBytes: _sizeOf(jreDir.path),
+          : (jreBuild == null || jreBuild == JreLibrary.legacyBuild
+                ? null
+                : jreBuild),
+      jreBytes: _sizeOf(jreRootPath),
       bridgeTag: bridgeJar == null
           ? null
           : BridgePayload.bridgeTagOf(bridgeJar.path),
@@ -812,7 +666,8 @@ class BridgeLibrary {
     );
   }
 
-  /// 清掉**与游戏版本无关**的那份载荷：JRE + 桥 jar + 适配层 + 临时目录
+  /// 清掉**与游戏版本无关**的那份载荷：JRE（新布局的整库 + 旧装法那份）+ 桥 jar +
+  /// 适配层 + 临时目录
   ///
   /// 留着 arc 原生库（它按游戏版本的 arc ref 分目录，清了要按版本重下）；
   /// 清完 [isRuntimeReady] 会变 false，下次启动会重新走安装页。
@@ -821,6 +676,7 @@ class BridgeLibrary {
   static Future<void> clearRuntime({String? bridgeDirPath}) async {
     final rootPath = bridgeDirPath ?? AppPaths.bridge;
 
+    _deleteQuietly(Directory(p.join(rootPath, 'java')));
     _deleteQuietly(Directory(p.join(rootPath, 'jre')));
     _deleteQuietly(Directory(p.join(rootPath, 'tmp')));
     _deleteQuietly(File(p.join(rootPath, 'jre-version')));
@@ -875,10 +731,10 @@ class BridgeLibrary {
     }
   }
 
-  /// JRE：两个包（ABI 无关 + 该 ABI 的分包）都要，叠在同一棵树解压
+  /// JRE：两个包（ABI 无关 + 该 ABI 的分包）都要，解到 `bridge/java/<build>/`
   ///
   /// [pinnedBuild] 是设置里钉住的构建号（不给就跟随远端最新的 `version`）；
-  /// [force] 为 true 时无条件重下
+  /// [force] 为 true 时无条件重下；解包与换目录交给 [JreLibrary.installJreFromArchive]
   static Future<void> _installJre({
     required String packageName,
     required String abi,
@@ -888,11 +744,6 @@ class BridgeLibrary {
     void Function(String status)? onStatus,
     void Function(HttpDownloadState state)? onProgress,
   }) async {
-    final jreDir = Directory(AppPaths.bridgeJre);
-    final javaExe = File(p.join(jreDir.path, 'bin', 'java'));
-    final moduleFile = File(p.join(jreDir.path, 'lib', 'modules'));
-    final marker = File(jreVersionMarker);
-
     // 远端构建号：读不到就当「不用重装」（载荷是齐的，别为一次网络抖动重下几百 MB）
     String? remoteVersion;
     try {
@@ -905,17 +756,13 @@ class BridgeLibrary {
       remoteVersion = '${response.data}'.trim();
     } catch (_) {}
 
-    final localVersion = marker.existsSync()
-        ? marker.readAsStringSync().trim()
-        : null;
-    final isReady = javaExe.existsSync() && moduleFile.existsSync();
-    final targetVersion = pinnedBuild ?? remoteVersion;
-    if (!force &&
-        isReady &&
-        !BridgePayload.shouldRefreshJre(
-          localVersion: localVersion,
-          remoteVersion: targetVersion,
-        )) {
+    final targetBuild = pinnedBuild ?? remoteVersion;
+    if (!force && targetBuild != null && JreLibrary.hasBuild(targetBuild)) {
+      onStatus?.call('Java 运行环境已就绪');
+      return;
+    }
+    // 远端读不到、库里已经有一份能用的：不重下
+    if (!force && targetBuild == null && JreLibrary.isReady()) {
       onStatus?.call('Java 运行环境已就绪');
       return;
     }
@@ -937,20 +784,11 @@ class BridgeLibrary {
       archivePaths.add(savePath);
     }
 
-    // 换载荷先删旧文件：旧的已被桥改成只读，覆盖写不进去
-    if (jreDir.existsSync()) jreDir.deleteSync(recursive: true);
-    jreDir.createSync(recursive: true);
-
-    onStatus?.call('正在解压 Java 运行环境…');
-    for (final archivePath in archivePaths) {
-      // 两个包都对着 JRE 根打的，直接叠在同一棵树
-      await extractArchive(archivePath, jreDir.path);
-      File(archivePath).deleteSync();
-    }
-
-    if (remoteVersion != null && remoteVersion.isNotEmpty) {
-      marker.writeAsStringSync(remoteVersion);
-    }
+    await JreLibrary.installJreFromArchive(
+      build: targetBuild ?? 'local-${DateTime.now().millisecondsSinceEpoch}',
+      archivePaths: archivePaths,
+      onStatus: onStatus,
+    );
     addLogAndPrint(.info, 'Android 桥：Java 运行环境装好了（$abi）', tag: 'Bridge');
   }
 
