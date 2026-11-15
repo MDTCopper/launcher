@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.BinaryMessenger
@@ -72,6 +73,8 @@ open class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        // 回到启动器时重新向系统要一次高刷新率（见 requestHighestRefreshRate）
+        requestHighestRefreshRate()
         // 无界面快捷启动：从游戏回到空 Activity 时直接退后台，
         // 不在黑屏上等 Dart 收尾；上传由后台进程继续
         if (SilentLaunchOverlay.isHeadlessSilent() && leftForHeadlessGame) {
@@ -85,6 +88,40 @@ open class MainActivity : FlutterActivity() {
                 }
             }, 600)
         }
+    }
+
+    /**
+     * 把窗口的刷新率偏好指到屏幕支持的最高档。
+     *
+     * 这是排查「从游戏 / 浏览器等别的界面切回启动器后帧率被锁」的落点：Flutter 只跟随
+     * Choreographer 的 vsync，不主动向系统表达刷新率偏好；而游戏 / 浏览器可能把 display
+     * 留在 60Hz 的 mode 上，回到启动器后系统不会自动替我们切回 120Hz，于是所有动画都只有
+     * 60 帧。这里在每次 onResume / 重新拿到焦点时把 `preferredRefreshRate` 指到最高档：
+     * 60Hz 屏上最高档就是 60，等于不改变；用户系统里主动把刷新率锁到 60 时，系统仍可
+     * 忽略这个 hint（它是偏好，不是强制切换）。
+     */
+    @Suppress("DEPRECATION")
+    private fun requestHighestRefreshRate() {
+        val display = display ?: return
+        val best = display.supportedModes.maxByOrNull { it.refreshRate } ?: return
+        val current = display.mode?.refreshRate ?: 0f
+        if (current >= best.refreshRate - 0.01f) return
+
+        val attributes = window.attributes
+        if (attributes.preferredRefreshRate == best.refreshRate) return
+        attributes.preferredRefreshRate = best.refreshRate
+        window.attributes = attributes
+        Log.i(
+            TAG,
+            "refresh rate: ${current}Hz (mode ${display.mode?.modeId}) -> " +
+                "request ${best.refreshRate}Hz (mode ${best.modeId})",
+        )
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // 从别的 Activity 回来时 onResume 可能早于窗口重新拿到焦点，焦点事件再补一次
+        if (hasFocus) requestHighestRefreshRate()
     }
 
     override fun onDestroy() {
@@ -133,5 +170,9 @@ open class MainActivity : FlutterActivity() {
             Incoming.Auth -> AndroidEvent.sendAuthCallback()
             is Incoming.Share -> AndroidEvent.sendSharedFiles(incoming.files)
         }
+    }
+
+    private companion object {
+        const val TAG = "CopperLauncher"
     }
 }
