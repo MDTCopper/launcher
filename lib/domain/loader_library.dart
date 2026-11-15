@@ -10,6 +10,7 @@ import '../util/io/copper_io.dart';
 import '../util/io/git_refs.dart';
 import '../util/io/log.dart';
 import '../util/version_strings.dart' as version_strings;
+import 'payload_import.dart';
 
 /// 加载器选择的**结果**（只表达"选了什么"，不负责落地）
 ///
@@ -217,6 +218,33 @@ class LoaderLibrary {
     }
     return target.path;
   }
+
+  /// 本地导入桌面 loader jar：校验版本读得出来，收成 `desktop-<版本>.jar`
+  ///
+  /// 版本以 jar 里 `version.properties` 的 `version` 为准，用户给的文件名不必带版本；
+  /// 返回库内路径，写进版本记录时再用 [storedPathForRecord] 转一次
+  static Future<String> importDesktopJar(File source) async {
+    final version = await readJarProperty(
+      source.path,
+      'version.properties',
+      'version',
+    );
+    if (version == null || !_versionTagPattern.hasMatch(version)) {
+      throw const PayloadImportException(
+        '这个 jar 里读不到可用的 loader 版本（version.properties 的 version），'
+        '不是 Copper 的桌面 loader',
+      );
+    }
+
+    final targetPath = p.join(AppPaths.copperLoader, 'desktop-$version.jar');
+    await copyFileAtomically(source, targetPath);
+    addLogAndPrint(.info, '加载器库：本地导入了 desktop-$version.jar', tag: 'Loader');
+    return targetPath;
+  }
+
+  /// 版本记录的 `launcherPath` 该写什么形态：数据根里记相对路径，换盘 / 搬家后还能用
+  static String storedPathForRecord(String libraryPath) =>
+      AppPaths.toStoredPath(libraryPath);
 
   /// 库里现有的 loader jar（按文件名升序）
   static List<File> list() {

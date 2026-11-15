@@ -7,6 +7,7 @@ import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/bridge_payload.dart';
 import 'package:copper_launcher/domain/bridge_runtime_options.dart';
 import 'package:copper_launcher/domain/loader_library.dart';
+import 'package:copper_launcher/domain/payload_import.dart';
 import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/archive_extract.dart';
@@ -331,6 +332,232 @@ class BridgeInstaller {
       tag: 'Bridge',
     );
     return target.path;
+  }
+
+  /// 本地导入桥 jar：校验像个 jar，落到 `bridge-<tag>.jar`
+  ///
+  /// [tag] 不给就从文件名读（`bridge-0.1.3.jar` / `0.1.3.jar` / `bridge-snapshot.jar`）；
+  /// 与联网安装一样记下启动器构建号，[isRuntimeReady] 才认这份载荷
+  static Future<String> importBridgeJar(File source, {String? tag}) async {
+    final entries = await readJarEntryNames(source.path);
+    final looksLikeBridge =
+        entries.contains('META-INF/MANIFEST.MF') &&
+        entries.any((name) => name.endsWith('.class'));
+    if (!looksLikeBridge) {
+      throw const PayloadImportException(
+        '这个 jar 不像是桥：里面缺 MANIFEST.MF 或 class 文件',
+      );
+    }
+
+    final resolvedTag = _bridgeTagOf(tag ?? p.basename(source.path));
+    if (resolvedTag == null) {
+      throw const PayloadImportException(
+        '读不出桥的版本：文件名要写成 bridge-<版本>.jar（如 bridge-0.1.3.jar），'
+        '或导入时指定版本',
+      );
+    }
+
+    final targetPath = BridgePayload.bridgeJarFilePath(resolvedTag);
+    await copyFileAtomically(source, targetPath);
+    _writeBridgeBuildMarker();
+    addLogAndPrint(.info, 'Android 桥：本地导入了桥 $resolvedTag', tag: 'Bridge');
+    return targetPath;
+  }
+
+  /// 本地导入 Java 运行环境：压缩包（zip / tar.xz）或已经解压好的目录
+  ///
+  /// 先收进与 JRE 同层的临时目录，验过 `bin/java` 与 `lib/modules` 才替换旧的；
+  /// 中途失败旧的那份原样留着，返回 JRE 根路径
+  static Future<String> importJre(
+    String sourcePath, {
+    void Function(String status)? onStatus,
+  }) async {
+    final sourceType = FileSystemEntity.typeSync(sourcePath);
+    if (sourceType == FileSystemEntityType.notFound) {
+      throw const PayloadImportException('选的路径不在了，重新选一次');
+    }
+    if (sourceType == FileSystemEntityType.file &&
+        !_jreArchiveSuffixes.any(
+          (suffix) => sourcePath.toLowerCase().endsWith(suffix),
+        )) {
+      throw const PayloadImportException('只收 zip / tar.xz 压缩包，或者已经解压好的 JRE 目录');
+    }
+
+    final bridgeDir = Directory(AppPaths.bridge)..createSync(recursive: true);
+    // 临时目录与 jre 同一层：换到位靠改名，不跨文件系统复制
+    final stagingDir = Directory(
+      p.join(bridgeDir.path, 'tmp', 'jre-importing'),
+    );
+    _deleteQuietly(stagingDir);
+    stagingDir.createSync(recursive: true);
+
+    try {
+      late String stagedJreRootPath;
+      if (sourceType == FileSystemEntityType.directory) {
+        onStatus?.call('正在收集本地 Java 运行环境…');
+        final sourceJreRootPath = _jreRootIn(sourcePath);
+        if (sourceJreRootPath == null) {
+          throw const PayloadImportException(
+            '这个目录里没有 bin/java 和 lib/modules，不是可用的 Java 运行环境',
+          );
+        }
+        await _copyDirectoryContents(Directory(sourceJreRootPath), stagingDir);
+        stagedJreRootPath = stagingDir.path;
+      } else {
+        onStatus?.call('正在解压 Java 运行环境…');
+        await extractArchive(sourcePath, stagingDir.path);
+        final extractedJreRootPath = _jreRootIn(stagingDir.path);
+        if (extractedJreRootPath == null) {
+          throw const PayloadImportException(
+            '这个压缩包里没有 bin/java 和 lib/modules，不是可用的 Java 运行环境',
+          );
+        }
+        stagedJreRootPath = extractedJreRootPath;
+      }
+
+      onStatus?.call('正在替换 Java 运行环境…');
+      await _replaceJreDirectory(stagedJreRootPath);
+    } on PayloadImportException {
+      rethrow;
+    } catch (error) {
+      addLogAndPrint(
+        .warning,
+        '本地导入 Java 运行环境失败：${removeNewlines('$error')}',
+        tag: 'Bridge',
+      );
+      throw const PayloadImportException('这份文件收不进来：解压或复制出错，换一份再试');
+    } finally {
+      // 换到位后这里只剩空壳或压缩包自带的散件
+      _deleteQuietly(stagingDir);
+    }
+
+    await _ensureJavaExecutable();
+    addLogAndPrint(.info, 'Android 桥：本地导入了 Java 运行环境', tag: 'Bridge');
+    return AppPaths.bridgeJre;
+  }
+
+  /// 本地导入模组加载器适配层：校验 jar 里的 `loaderVersion` 读得出来，落到固定落点
+  static Future<String> importLoaderWrapper(File source) async {
+    final loaderVersion = await readJarProperty(
+      source.path,
+      'wrapper-version.properties',
+      'loaderVersion',
+    );
+    if (loaderVersion == null) {
+      throw const PayloadImportException(
+        '这个 jar 不是模组加载器适配层：读不到 wrapper-version.properties 里的 loaderVersion',
+      );
+    }
+
+    final targetPath = BridgePayload.loaderWrapperJarFilePath();
+    await copyFileAtomically(source, targetPath);
+    addLogAndPrint(
+      .info,
+      'Android 桥：本地导入了模组加载器适配层（针对 loader $loaderVersion）',
+      tag: 'Bridge',
+    );
+    return targetPath;
+  }
+
+  /// 能当 JRE 导入的压缩包后缀：与 [extractArchive] 支持的形态一致
+  static const _jreArchiveSuffixes = [
+    '.zip',
+    '.tar.xz',
+    '.txz',
+    '.tar.gz',
+    '.tgz',
+  ];
+
+  /// 从参数或文件名认出桥的版本号：`bridge-0.1.3.jar` → `0.1.3`、`snapshot` 原样
+  ///
+  /// 认不出来返回 null：落盘名字必须是 `bridge-<版本>.jar`，
+  /// [BridgePayload.installedBridgeJar] 才认得出这份载荷
+  static String? _bridgeTagOf(String raw) {
+    var name = p.basename(raw.trim());
+    if (name.toLowerCase().endsWith('.jar')) {
+      name = name.substring(0, name.length - '.jar'.length);
+    }
+    if (name.startsWith('bridge-')) name = name.substring('bridge-'.length);
+    if (name == BridgePayload.bridgeSnapshot) return name;
+    return RegExp(r'^\d+(?:\.\d+)*$').hasMatch(name) ? name : null;
+  }
+
+  /// 找 JRE 根：含 `bin/java` 与 `lib/modules` 的那一层，压缩包里常还套一层目录
+  static String? _jreRootIn(String rootPath) {
+    if (_looksLikeJre(rootPath)) return rootPath;
+    final rootDir = Directory(rootPath);
+    if (!rootDir.existsSync()) return null;
+    for (final entity in rootDir.listSync()) {
+      if (entity is Directory && _looksLikeJre(entity.path)) {
+        return entity.path;
+      }
+    }
+    return null;
+  }
+
+  /// 这一层是不是 JRE：`bin/java`（ABI 分包给的）与 `lib/modules`（ABI 无关包给的）都在
+  static bool _looksLikeJre(String dirPath) =>
+      File(p.join(dirPath, 'bin', 'java')).existsSync() &&
+      File(p.join(dirPath, 'lib', 'modules')).existsSync();
+
+  /// 把 [sourceDir] 里的内容按相对结构复制到 [targetDir]
+  static Future<void> _copyDirectoryContents(
+    Directory sourceDir,
+    Directory targetDir,
+  ) async {
+    await targetDir.create(recursive: true);
+    await for (final entity in sourceDir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      final relativePath = p.relative(entity.path, from: sourceDir.path);
+      final targetPath = p.join(targetDir.path, relativePath);
+      if (entity is Directory) {
+        await Directory(targetPath).create(recursive: true);
+      } else if (entity is File) {
+        await Directory(p.dirname(targetPath)).create(recursive: true);
+        await entity.copy(targetPath);
+      }
+    }
+  }
+
+  /// 把验过的 JRE 目录换到 [AppPaths.bridgeJre]：旧的先挪到临时目录，新的挪过去再删旧的
+  static Future<void> _replaceJreDirectory(String stagedRootPath) async {
+    final jreDir = Directory(AppPaths.bridgeJre);
+    final backupDir = Directory(p.join(AppPaths.bridge, 'tmp', 'jre-old'));
+    _deleteQuietly(backupDir);
+
+    final hasOldJre = jreDir.existsSync();
+    if (hasOldJre) await jreDir.rename(backupDir.path);
+    try {
+      await Directory(stagedRootPath).rename(jreDir.path);
+    } catch (error) {
+      // 新的没挪过去就把旧的挪回来，别让运行环境凭空没了
+      if (hasOldJre && backupDir.existsSync()) {
+        await backupDir.rename(jreDir.path);
+      }
+      rethrow;
+    }
+    if (hasOldJre) _deleteQuietly(backupDir);
+  }
+
+  /// 解压 / 复制都不带权限位，非 Windows 上给 `bin/java` 补个可执行位
+  static Future<void> _ensureJavaExecutable() async {
+    if (Platform.isWindows) return;
+    final javaPath = p.join(AppPaths.bridgeJre, 'bin', 'java');
+    if (!File(javaPath).existsSync()) return;
+
+    try {
+      final result = await Process.run('chmod', ['755', javaPath]);
+      if (result.exitCode == 0) return;
+    } catch (_) {
+      // 没有 chmod 的环境（沙箱）不让导入因此失败
+    }
+    addLogAndPrint(
+      .warning,
+      'Java 运行环境的 bin/java 没补上可执行位，启动前要确认权限',
+      tag: 'Bridge',
+    );
   }
 
   /// 可选的版本列表（设置页的下拉用）：两边仓库的 tag
