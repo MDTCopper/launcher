@@ -17,8 +17,8 @@ class FlutterWindow : public Win32Window {
   explicit FlutterWindow(const flutter::DartProject& project);
   virtual ~FlutterWindow();
 
-  // 无界面进程（--launch-version / --cloud-service）不在第一帧显示窗口，
-  // 需要时由 Dart 侧显式 show（见 lib/domain/sync_proxy.dart 的 runSyncProxy）
+  // 无界面进程（--sync-proxy / --cloud-service / 带值的 --launch-version）不在
+  // 第一帧显示窗口，需要时由 Dart 侧显式 show（见 lib/domain/sync_proxy.dart 的 runSyncProxy）
   void SetSuppressInitialShow(bool suppress) { suppress_initial_show_ = suppress; }
 
  protected:

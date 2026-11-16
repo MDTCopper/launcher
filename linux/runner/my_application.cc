@@ -67,12 +67,27 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
+// 本次进程是否无界面：口径以 lib/main.dart 的 CLI 分流为准，三平台共用这一份判定
+//
+// 无界面形态只有三种：--sync-proxy（云同步代理，首帧后由 Dart 显示小窗）、
+// --cloud-service（云存档服务，--adopt-all / --recover 只跟着它出现）、
+// --launch-version <id>（快捷启动触发进程）；--launch-version 要带值才算，
+// 取值失败时 Dart 会走界面，所以不能按裸标志压制；--resume-launch 与无参数都要建界面
 static gboolean has_headless_argument(gchar** arguments) {
-  for (gchar** arg = arguments; *arg != nullptr; ++arg) {
-    if (g_strcmp0(*arg, "--launch-version") == 0 ||
-        g_strcmp0(*arg, "--cloud-service") == 0 ||
-        g_strcmp0(*arg, "--sync-proxy") == 0 ||
-        g_str_has_prefix(*arg, "--launch-version=") == 0) {
+  for (gchar** arg = arguments; arg != nullptr && *arg != nullptr; ++arg) {
+    if (g_strcmp0(*arg, "--sync-proxy") == 0 ||
+        g_strcmp0(*arg, "--cloud-service") == 0) {
+      return TRUE;
+    }
+    if (g_strcmp0(*arg, "--launch-version") == 0) {
+      gchar* next = *(arg + 1);
+      if (next != nullptr && !g_str_has_prefix(next, "--")) {
+        return TRUE;
+      }
+      continue;
+    }
+    if (g_str_has_prefix(*arg, "--launch-version=") &&
+        g_strcmp0(*arg, "--launch-version=") != 0) {
       return TRUE;
     }
   }
@@ -84,7 +99,7 @@ static gboolean my_application_local_command_line(GApplication* application, gch
   MyApplication* self = MY_APPLICATION(application);
   // Strip out the first argument as it is the binary name.
   self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
-  self->suppress_initial_show = has_headless_argument(*arguments);
+  self->suppress_initial_show = has_headless_argument(self->dart_entrypoint_arguments);
 
   g_autoptr(GError) error = nullptr;
   if (!g_application_register(application, nullptr, &error)) {

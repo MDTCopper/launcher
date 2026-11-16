@@ -5,6 +5,35 @@
 #include "flutter_window.h"
 #include "utils.h"
 
+// 本次进程是否无界面：口径以 lib/main.dart 的 CLI 分流为准，三平台共用这一份判定
+//
+// 无界面形态只有三种：--sync-proxy（云同步代理，首帧后由 Dart 显示小窗）、
+// --cloud-service（云存档服务，--adopt-all / --recover 只跟着它出现）、
+// --launch-version <id>（快捷启动触发进程）；--launch-version 要带值才算，
+// 取值失败时 Dart 会走界面，所以不能按裸标志压制；--resume-launch 与无参数都要建界面
+bool IsHeadlessLaunch(const std::vector<std::string>& arguments) {
+  const std::string launch_version_prefix = "--launch-version=";
+  for (size_t index = 0; index < arguments.size(); ++index) {
+    const std::string& argument = arguments[index];
+    if (argument == "--sync-proxy" || argument == "--cloud-service") {
+      return true;
+    }
+    if (argument == "--launch-version") {
+      const bool has_version = index + 1 < arguments.size() &&
+                               arguments[index + 1].rfind("--", 0) != 0;
+      if (has_version) {
+        return true;
+      }
+      continue;
+    }
+    if (argument.rfind(launch_version_prefix, 0) == 0 &&
+        argument.size() > launch_version_prefix.size()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   // Attach to console when present (e.g., 'flutter run') or create a
@@ -22,17 +51,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
 
-  // 无界面进程：首帧不显示窗口，需要时由 Dart 侧显式 show（云同步代理窗口，见 flutter_window.h）
-  // 同步代理进程带 --launch-version，所以这里不必单列 --sync-proxy
-  bool suppress_initial_show = false;
-  for (const auto& argument : command_line_arguments) {
-    if (argument == "--launch-version" ||
-        argument.rfind("--launch-version=", 0) == 0 ||
-        argument == "--cloud-service") {
-      suppress_initial_show = true;
-      break;
-    }
-  }
+  // 无界面进程：首帧不显示窗口，需要时由 Dart 侧显式 show（见 flutter_window.h）
+  const bool suppress_initial_show = IsHeadlessLaunch(command_line_arguments);
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
