@@ -180,7 +180,7 @@ class BridgeLauncher {
 
   /// 这个版本该从哪取原生库
   ///
-  /// 先按版本号判定 GDX 时代（v65–v104.6 / BE 4975–8090）—— 这些版本的原生库
+  /// 先按版本号判定 GDX 时代（v33–v104.6 / BE 4975–8090）—— 这些版本的原生库
   /// 不在 Arc 仓库里，直接下 `android-gdx` 的 Android zip。其余版本仍按
   /// [arcRefOf] 查 arc；v105–v126.2 额外带 box2d。
   static Future<NativeLibPlan?> nativePlanOf(

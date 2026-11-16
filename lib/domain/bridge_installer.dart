@@ -566,7 +566,7 @@ class BridgeInstaller {
 
   /// 按 [plan] 取这个版本需要的原生库，返回装好的文件名
   ///
-  /// GDX 时代（v65–v104.6）下 `android-gdx` 的 release zip，解出当前 ABI 的
+  /// GDX 时代（v33–v104.6）下 `android-gdx` 的 release zip，解出当前 ABI 的
   /// `libgdx.so` / `libgdx-freetype.so`；arc 时代走 [installArcNatives]。
   static Future<List<String>> installNatives({
     required NativeLibPlan plan,

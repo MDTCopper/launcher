@@ -145,9 +145,9 @@ class BridgePayload {
   /// v105–v126.2 的 box2d 还单独占一个 natives 模块；v127 起不再带这份库
   static const arcBox2dNativeModule = 'natives-box2d-android';
 
-  /// GDX 时代（Mindustry v65–v104.6）的 Android 原生库仓库
+  /// GDX 时代（Mindustry v33–v104.6）的 Android 原生库仓库
   ///
-  /// 这些版本直接用 libGDX 的 Android 包，原生库不来自 Arc 仓库；两个版本线的
+  /// 这些版本直接用 libGDX 的 Android 包，原生库不来自 Arc 仓库；各版本线的
   /// release zip 由 `MDTCopper/android-gdx` 按 `libgdx-<版本>-android.zip` 提供，
   /// 解压后就是 `armeabi/`、`arm64-v8a/` 这类 ABI 目录。
   static const gdxRepo = 'MDTCopper/android-gdx';
@@ -155,7 +155,8 @@ class BridgePayload {
   /// GDX zip 里每个 ABI 目录下需要的文件
   static const gdxAndroidLibNames = ['libgdx.so', 'libgdx-freetype.so'];
 
-  /// GDX 两个版本线：v65–v82.x 用 1.9.9，v83–v104.6 用 1.9.10
+  /// GDX 三个版本线：v33–v57 用 1.9.8，v65–v82.x 用 1.9.9，v83–v104.6 用 1.9.10
+  static const gdxVersion198 = '1.9.8';
   static const gdxVersion199 = '1.9.9';
   static const gdxVersion1910 = '1.9.10';
 
@@ -170,15 +171,16 @@ class BridgePayload {
   /// 这个版本是不是 GDX 时代、该用哪版 GDX；不是返回 null
   ///
   /// 范围来自原生库归档表：
-  /// - 正式版 65.0–82.x → 1.9.9；83.0–104.6 → 1.9.10
+  /// - 正式版 33–57 → 1.9.8；65.0–82.x → 1.9.9；83.0–104.6 → 1.9.10
   /// - BE 4975–8090 → 1.9.10（1.9.9 没有可用 BE 归档）
   ///
-  /// 范围外（更老的 Classic、BE 4975 之前）仍按老的 arc 查询流程走，保持原行为
+  /// 范围外（BE 4975 之前）仍按老的 arc 查询流程走，保持原行为
   static String? gdxVersionFor({required double build, required bool isBe}) {
     if (build <= 0) return null;
     if (isBe) {
       return build >= 4975 && build <= 8090 ? gdxVersion1910 : null;
     }
+    if (build >= 33 && build <= 57) return gdxVersion198;
     if (build >= 65 && build < 83) return gdxVersion199;
     if (build >= 83 && build < 105) return gdxVersion1910;
     return null;
@@ -214,7 +216,8 @@ class BridgePayload {
   /// v9 的 `arc/natives` 只有 `natives-android`；老版本两个模块都要。
   /// [includeBox2d] 由调用方按**游戏版本**给（v105–v126.2 才多这份库），
   /// 合并形态的 ref 里没有独立 box2d 模块，给了也不加。
-  static List<String> arcNativeModulesFor(String arcRef, {
+  static List<String> arcNativeModulesFor(
+    String arcRef, {
     bool includeBox2d = false,
   }) => [
     ...(isMergedArcRef(arcRef) ? const ['natives-android'] : arcNativeModules),
@@ -374,7 +377,7 @@ class BridgePayload {
 
 /// 一个游戏版本的原生库获取方案
 ///
-/// GDX 时代（v65–v104.6）从 `android-gdx` 的 release zip 取 `libgdx.so` /
+/// GDX 时代（v33–v104.6）从 `android-gdx` 的 release zip 取 `libgdx.so` /
 /// `libgdx-freetype.so`；arc 时代仍按 arc ref 从 GitHub 仓库取（v105–v126.2 多一份
 /// `libarc-box2d.so`）。两种来源共用 [AppPaths.bridgeArcDirPath] 这套落点，
 /// 目录名用 [ref] 区分，桥只负责把目录里的 `.so` 按原文件名交给 arc。
