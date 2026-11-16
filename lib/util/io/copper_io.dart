@@ -822,6 +822,80 @@ class CopperIO {
 
   // ---- HTTP methods ----
 
+  ///限流时最多等多久：等太久不如直接告诉用户什么时候恢复，别把界面挂住
+  static const Duration _maxRateLimitWait = Duration(seconds: 30);
+
+  ///限流后最多再试几次
+  static const int _rateLimitRetryLimit = 2;
+
+  ///GitHub 限流的等待时长：只认服务端明确给出的两种信号
+  ///
+  ///GitHub 文档要求：有 `retry-after` 就照它等；`x-ratelimit-remaining` 为 0 时
+  ///等到 `x-ratelimit-reset`（UTC 纪元秒）。没有这两个头的 403 / 429 不算限流，
+  ///交给上层原有逻辑（镜像回退 / 报错）
+  @visibleForTesting
+  static Duration? rateLimitWait(DioException error) {
+    final response = error.response;
+    if (response == null) return null;
+    final status = response.statusCode;
+    final headers = response.headers;
+    final isRateLimited =
+        status == 429 ||
+        status == 503 ||
+        (status == 403 && headers.value('x-ratelimit-remaining')?.trim() == '0');
+    if (!isRateLimited) return null;
+
+    final retryAfter = int.tryParse(headers.value('retry-after')?.trim() ?? '');
+    if (retryAfter != null) {
+      return Duration(seconds: max(0, retryAfter));
+    }
+    final reset = int.tryParse(headers.value('x-ratelimit-reset')?.trim() ?? '');
+    if (reset != null) {
+      final wait = DateTime.fromMillisecondsSinceEpoch(
+        reset * 1000,
+      ).difference(DateTime.now());
+      return wait.isNegative ? Duration.zero : wait;
+    }
+    return null;
+  }
+
+  ///把「这个请求」包一层限流等待：服务端说等多久就等多久，等不起就直接说清楚
+  ///
+  ///只包请求类方法，不包下载（大文件不该为了限流头空等）
+  Future<R> _withRateLimitRetry<R>(String url, Future<R> Function() send) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await send();
+      } on DioException catch (e) {
+        final wait = rateLimitWait(e);
+        if (wait == null) rethrow;
+        if (wait > _maxRateLimitWait || attempt >= _rateLimitRetryLimit) {
+          throw _rateLimitedError(e, wait);
+        }
+        addLog(
+          .warning,
+          'GitHub 限流：服务端要求等 ${wait.inSeconds} 秒，之后再试一次（$url）',
+          tag: 'GitHub',
+        );
+        await Future<void>.delayed(wait);
+      }
+    }
+  }
+
+  ///限流等不起时的错误：保留原类型（镜像回退 / 调用方判断照旧），消息说清恢复时间
+  DioException _rateLimitedError(DioException cause, Duration wait) {
+    final minutes = (wait.inSeconds / 60).ceil();
+    final waitText = wait.inMinutes >= 1 ? '约 $minutes 分钟' : '约 ${wait.inSeconds} 秒';
+    return DioException(
+      requestOptions: cause.requestOptions,
+      response: cause.response,
+      type: cause.type,
+      error: cause.error,
+      stackTrace: cause.stackTrace,
+      message: 'GitHub 限流：$waitText后才能再请求（${cause.message ?? '无详情'}）',
+    );
+  }
+
   Future<Response<T>> get<T>(
     String url, {
     Map<String, String>? headers,
@@ -830,13 +904,16 @@ class CopperIO {
     ResponseType responseType = ResponseType.json,
   }) async {
     _ensureInit();
-    return _githubFallback(
+    return _withRateLimitRetry(
       url,
-      (effectiveUrl) => _dio!.get<T>(
-        effectiveUrl,
-        options: Options(headers: headers, responseType: responseType),
-        queryParameters: queryParameters,
-        cancelToken: cancelToken,
+      () => _githubFallback(
+        url,
+        (effectiveUrl) => _dio!.get<T>(
+          effectiveUrl,
+          options: Options(headers: headers, responseType: responseType),
+          queryParameters: queryParameters,
+          cancelToken: cancelToken,
+        ),
       ),
     );
   }
@@ -848,12 +925,15 @@ class CopperIO {
     ResponseType responseType = ResponseType.json,
   }) async {
     _ensureInit();
-    return _githubFallback(
+    return _withRateLimitRetry(
       uri.toString(),
-      (effectiveUrl) => _dio!.getUri<T>(
-        Uri.parse(effectiveUrl),
-        options: Options(headers: headers, responseType: responseType),
-        cancelToken: cancelToken,
+      () => _githubFallback(
+        uri.toString(),
+        (effectiveUrl) => _dio!.getUri<T>(
+          Uri.parse(effectiveUrl),
+          options: Options(headers: headers, responseType: responseType),
+          cancelToken: cancelToken,
+        ),
       ),
     );
   }
@@ -864,17 +944,20 @@ class CopperIO {
     CancelToken? cancelToken,
   }) async {
     _ensureInit();
-    return _githubFallback(
+    return _withRateLimitRetry(
       url,
-      (effectiveUrl) => _dio!.head(
-        effectiveUrl,
-        //HEAD 基本都是探针（探大小 / Range / 可达性）：按探针那档给超时
-        options: Options(
-          headers: headers,
-          connectTimeout: _probeConnectTimeout,
-          receiveTimeout: _probeReceiveTimeout,
+      () => _githubFallback(
+        url,
+        (effectiveUrl) => _dio!.head(
+          effectiveUrl,
+          //HEAD 基本都是探针（探大小 / Range / 可达性）：按探针那档给超时
+          options: Options(
+            headers: headers,
+            connectTimeout: _probeConnectTimeout,
+            receiveTimeout: _probeReceiveTimeout,
+          ),
+          cancelToken: cancelToken,
         ),
-        cancelToken: cancelToken,
       ),
     );
   }
@@ -888,14 +971,17 @@ class CopperIO {
     ResponseType responseType = ResponseType.json,
   }) async {
     _ensureInit();
-    return _githubFallback(
+    return _withRateLimitRetry(
       url,
-      (effectiveUrl) => _dio!.post<T>(
-        effectiveUrl,
-        data: data,
-        options: Options(headers: headers, responseType: responseType),
-        queryParameters: queryParameters,
-        cancelToken: cancelToken,
+      () => _githubFallback(
+        url,
+        (effectiveUrl) => _dio!.post<T>(
+          effectiveUrl,
+          data: data,
+          options: Options(headers: headers, responseType: responseType),
+          queryParameters: queryParameters,
+          cancelToken: cancelToken,
+        ),
       ),
     );
   }
@@ -969,19 +1055,22 @@ class CopperIO {
     ProgressCallback? onSendProgress,
   }) async {
     _ensureInit();
-    return _githubFallback(
+    return _withRateLimitRetry(
       url,
-      (effectiveUrl) => _dio!.request<T>(
-        effectiveUrl,
-        data: data,
-        options: Options(
-          method: method,
-          headers: headers,
-          responseType: responseType,
+      () => _githubFallback(
+        url,
+        (effectiveUrl) => _dio!.request<T>(
+          effectiveUrl,
+          data: data,
+          options: Options(
+            method: method,
+            headers: headers,
+            responseType: responseType,
+          ),
+          queryParameters: queryParameters,
+          cancelToken: cancelToken,
+          onSendProgress: onSendProgress,
         ),
-        queryParameters: queryParameters,
-        cancelToken: cancelToken,
-        onSendProgress: onSendProgress,
       ),
     );
   }
