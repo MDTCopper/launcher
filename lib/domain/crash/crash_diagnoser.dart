@@ -39,8 +39,8 @@ bool _looksCrashed(CrashEvidence evidence) {
   if (report != null && report.trim().isNotEmpty) {
     return true;
   }
-  // Java 或缺桥时游戏进程压根没起来，这也是一次失败的启动
-  if (!evidence.javaReady) return true;
+  // Java 不可用要能确定才算「游戏进程没起来」；桥 / 无界面路径下判不了时不据此算崩
+  if (javaUnavailableHit(evidence) != null) return true;
   if (!evidence.bridgeReady) return true;
   final code = evidence.exitCode;
   // 桥那条路不给退出码；-1 是启动器主动停止

@@ -804,10 +804,10 @@ class MdtbbsMultiplayerService {
       unawaited(refreshPeers());
       unawaited(_autoPrepareProxy());
       return true;
-    } on Object {
+    } on Object catch (error) {
       if (!_isAccountEpochCurrent(epoch)) return false;
       _set(_current.copyWith(joining: false));
-      _notify('加入房间失败：', isError: true);
+      _notify('加入房间失败：${describeMdtbbsError(error)}', isError: true);
       return false;
     }
   }
@@ -2077,7 +2077,7 @@ class MdtbbsMultiplayerService {
   String _describeProxyError(Object error) {
     final text = '$error';
     if (text.contains('AUTH_INVALID')) {
-      return '连不上联机服务器，请稍后再试';
+      return '登录状态已失效，请到账户页重新登录后再联机';
     }
     if (text.contains('RELAY_LIMIT_REACHED') || text.contains('额度已满')) {
       return '联机服务器还有一份你的旧连接，等 1 分钟再试';

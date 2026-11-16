@@ -305,12 +305,39 @@ final _arcNativeMissingPatterns = [
   RegExp(r'UnsatisfiedLinkError: .*liblwjgl'),
 ];
 
-final _dataDirNotWritablePatterns = [
+/// 游戏已经明说写不进去，不用再找旁证
+final _dataDirWriteFailurePatterns = [
   RegExp(r'Error writing file:'),
-  RegExp(r'Access is denied'),
-  RegExp(r'Permission denied'),
-  RegExp(r'Read-only file system'),
   RegExp(r'(There is not enough space|No space left on device)'),
+];
+
+/// 权限类报错太常见，单凭出现一次说明不了任何问题
+final _permissionDeniedPatterns = [
+  RegExp(r'Permission denied'),
+  RegExp(r'Access is denied'),
+  RegExp(r'Read-only file system'),
+];
+
+/// 数据目录与存档里的固定入口，路径落到这里才算本规则的语境
+final _dataDirFilePatterns = [
+  RegExp(r'settings\.bin'),
+  RegExp(r'saves[/\\]'),
+  RegExp(r'\.msav'),
+  RegExp(r'launchid\.dat'),
+  RegExp(r'keybinds\.bin'),
+];
+
+/// 写盘动作与写盘异常类型，出现在报错行前后才算真的落在写盘那一步
+final _writeContextPatterns = [
+  RegExp(r'Error writing file'),
+  RegExp(r'Failed to (write|create|save)', caseSensitive: false),
+  RegExp(r'(writing|saving|creating)', caseSensitive: false),
+  RegExp(
+    r'createFileExclusively|createNewFile|FileOutputStream|RandomAccessFile',
+  ),
+  RegExp(r'java\.io\.\w*Exception'),
+  RegExp(r'ArcRuntimeException'),
+  RegExp(r'FileSystemException'),
 ];
 
 final _bridgeRuntimePatterns = [
@@ -371,10 +398,21 @@ final _modNoisePatterns = [
   RegExp(r'Audio file not found'),
 ];
 
-String? _matchJavaMissing(CrashEvidence evidence) {
-  if (!evidence.javaReady) return 'Java 状态：不可用';
-  return _matchPatterns(evidence.diagnosticText, _javaMissingPatterns);
+/// Java 确定不可用的信号行，判不了时为空
+///
+/// 桥 / 无界面路径的 Java 由 JRE 提供，启动器拿不到结论；只认两种确定信号：
+/// 日志里明说没有 Java，或者选过的 Java 路径已经用不了
+String? javaUnavailableHit(CrashEvidence evidence) {
+  final hit = _matchPatterns(evidence.diagnosticText, _javaMissingPatterns);
+  if (hit != null) return hit;
+  if (evidence.javaReady) return null;
+  final javaPath = evidence.javaPath;
+  if (javaPath == null || javaPath.isEmpty) return null;
+  return 'Java 路径不可用：$javaPath';
 }
+
+String? _matchJavaMissing(CrashEvidence evidence) =>
+    javaUnavailableHit(evidence);
 
 String? _matchOutOfMemory(CrashEvidence evidence) =>
     _matchPatterns(evidence.diagnosticText, _outOfMemoryPatterns);
@@ -407,8 +445,42 @@ String? _matchModRuntimeError(CrashEvidence evidence) {
 String? _matchArcNativeMissing(CrashEvidence evidence) =>
     _matchPatterns(evidence.diagnosticText, _arcNativeMissingPatterns);
 
-String? _matchDataDirNotWritable(CrashEvidence evidence) =>
-    _matchPatterns(evidence.diagnosticText, _dataDirNotWritablePatterns);
+String? _matchDataDirNotWritable(CrashEvidence evidence) {
+  final text = evidence.diagnosticText;
+  final writeFailure = _matchPatterns(text, _dataDirWriteFailurePatterns);
+  if (writeFailure != null) return writeFailure;
+  return _matchPermissionDeniedNearWrite(text);
+}
+
+/// 权限报错要和数据目录的写盘语境挨着才判命中
+String? _matchPermissionDeniedNearWrite(String text) {
+  if (text.isEmpty) return null;
+  final lines = text.split('\n');
+  for (var index = 0; index < lines.length; index++) {
+    final line = lines[index];
+    if (!_permissionDeniedPatterns.any((pattern) => pattern.hasMatch(line))) {
+      continue;
+    }
+    if (_hasWriteContextNear(lines, index)) return line.trim();
+  }
+  return null;
+}
+
+/// 命中行前后各一行：路径常在前一行，写盘栈帧常在后一行，都算同一处失败
+bool _hasWriteContextNear(List<String> lines, int index) {
+  final start = index > 0 ? index - 1 : 0;
+  final end = index + 1 < lines.length ? index + 1 : index;
+  for (var cursor = start; cursor <= end; cursor++) {
+    final line = lines[cursor];
+    if (_dataDirFilePatterns.any((pattern) => pattern.hasMatch(line))) {
+      return true;
+    }
+    if (_writeContextPatterns.any((pattern) => pattern.hasMatch(line))) {
+      return true;
+    }
+  }
+  return false;
+}
 
 String? _matchBridgeRuntime(CrashEvidence evidence) {
   if (!evidence.bridgeReady) return '桥运行环境：不可用';

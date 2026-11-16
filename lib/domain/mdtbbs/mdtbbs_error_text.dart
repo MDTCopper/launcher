@@ -36,6 +36,7 @@ String? _cloudSaveDetail(MdtbbsException error) {
 const Map<String, String> _byCode = {
   // ── 账号与权限 ──
   'AUTH_REQUIRED': '请先登录社区账号',
+  'AUTH_INVALID': '登录状态已失效，请到账户页重新登录',
   'TOKEN_INVALID': '登录状态无效，请到账户页重新登录',
   'TOKEN_EXPIRED': '登录状态已过期，请到账户页重新登录',
   'INSUFFICIENT_SCOPE': '这个应用还没有这项权限',

@@ -325,18 +325,27 @@ class CloudAutoSync {
         return true;
       case CloudConflictChoice.useLocal:
         addLog(.info, '云存档冲突：玩家选择用本机覆盖云端 [${version.tag}]', tag: 'Cloud');
-        final result = await CloudSaveService.upload(
-          accessToken: token,
-          version: version,
-          reason: CloudSaveUploadReason.conflict,
-          conflictPolicy: CloudSaveConflictPolicy.forceReplaceHead,
-          confirmCurrentSnapshotId: snapshotId,
-        );
-        addNotice(
-          icon: Icons.cloud_upload_outlined,
-          title: '已用本机覆盖云端',
-          content: '云包 ${result.archiveBytes} 字节',
-        );
+        try {
+          final result = await CloudSaveService.upload(
+            accessToken: token,
+            version: version,
+            reason: CloudSaveUploadReason.conflict,
+            conflictPolicy: CloudSaveConflictPolicy.forceReplaceHead,
+            confirmCurrentSnapshotId: snapshotId,
+          );
+          addNotice(
+            icon: Icons.cloud_upload_outlined,
+            title: '已用本机覆盖云端',
+            content: '云包 ${result.archiveBytes} 字节',
+          );
+        } on Object catch (error) {
+          addLog(
+            .warning,
+            '云存档冲突：上传冲突包失败，这次没覆盖云端 [${version.tag}]：'
+            '${removeNewlines('$error')}',
+            tag: 'Cloud',
+          );
+        }
         return true;
       case CloudConflictChoice.skipAndLaunch:
         _skipAutoSync.add(_skipKey(version));

@@ -178,6 +178,20 @@ class BlueprintAssetPack {
 
   ui.Image? decodedBlockIcon(String name) => _blockIconImages[name];
 
+  /// 释放已解码的 region 与方块图标
+  ///
+  /// 包按需缓存解码结果，换版本或退出预览时由持有者调一次
+  void dispose() {
+    for (final image in _regionImages.values) {
+      image?.dispose();
+    }
+    for (final image in _blockIconImages.values) {
+      image?.dispose();
+    }
+    _regionImages.clear();
+    _blockIconImages.clear();
+  }
+
   /// region 原始像素尺寸，从 PNG 头读，不需要完整解码
   ui.Size? regionSize(String name) {
     if (_regionSizes.containsKey(name)) return _regionSizes[name];
@@ -210,10 +224,15 @@ class BlueprintAssetPack {
     return File(path).readAsBytesSync();
   }
 
+  /// 解码一张 PNG；编解码器用完即还，图像由包缓存持有
   static Future<ui.Image> _decode(Uint8List bytes) async {
     final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    return frame.image;
+    try {
+      final frame = await codec.getNextFrame();
+      return frame.image;
+    } finally {
+      codec.dispose();
+    }
   }
 
   static ui.Size? _pngSize(Uint8List bytes) {

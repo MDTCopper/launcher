@@ -15,6 +15,7 @@ class BlueprintPreviewResult {
     required this.unknownBlocks,
   });
 
+  /// 预览大图；所有权交给调用方，用完要 dispose
   final ui.Image image;
 
   /// 含内容表里没有的方块（mod / 旧版本方块），列表应标注「含 mod 内容」
@@ -64,53 +65,60 @@ class BlueprintPreviewRenderer {
       await assets.ensureRegions(missingRegions);
     }
     final decodedImages = <String, ui.Image>{};
-    for (final entry in imageRequests.entries) {
-      final pending = entry.value;
-      final completer = Completer<ui.Image>();
-      ui.decodeImageFromPixels(
-        pending.rgba,
-        pending.width,
-        pending.height,
-        ui.PixelFormat.rgba8888,
-        completer.complete,
-      );
-      decodedImages[entry.key] = await completer.future;
-    }
+    try {
+      for (final entry in imageRequests.entries) {
+        final pending = entry.value;
+        final completer = Completer<ui.Image>();
+        ui.decodeImageFromPixels(
+          pending.rgba,
+          pending.width,
+          pending.height,
+          ui.PixelFormat.rgba8888,
+          completer.complete,
+        );
+        decodedImages[entry.key] = await completer.future;
+      }
 
-    final width = ((schematic.width + margin * 2) * tileSize).round();
-    final height = ((schematic.height + margin * 2) * tileSize).round();
-    final recorder = ui.PictureRecorder();
-    final canvas = ui.Canvas(recorder);
-    final context = PlanDrawContext(
-      canvas: canvas,
-      schematic: schematic,
-      assets: assets,
-      placed: placed,
-      collecting: false,
-      missingRegions: {},
-      decodedImages: decodedImages,
-    );
-    _drawShadow(
-      canvas,
-      schematic,
-      width,
-      height,
-      await _createShadow(schematic),
-    );
-    for (final plan in placed) {
-      _blockRule(plan.info).drawBlock(context, plan);
-      _configRule(plan.info)?.drawConfig(context, plan);
+      final width = ((schematic.width + margin * 2) * tileSize).round();
+      final height = ((schematic.height + margin * 2) * tileSize).round();
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+      final context = PlanDrawContext(
+        canvas: canvas,
+        schematic: schematic,
+        assets: assets,
+        placed: placed,
+        collecting: false,
+        missingRegions: {},
+        decodedImages: decodedImages,
+      );
+      _drawShadow(
+        canvas,
+        schematic,
+        width,
+        height,
+        await _createShadow(schematic),
+      );
+      for (final plan in placed) {
+        _blockRule(plan.info).drawBlock(context, plan);
+        _configRule(plan.info)?.drawConfig(context, plan);
+      }
+      for (final plan in placed) {
+        _configTopRule(plan.info)?.drawConfigTop(context, plan);
+      }
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(width, height);
+      return BlueprintPreviewResult(
+        image: image,
+        hasUnknownContent: unknownBlocks.isNotEmpty,
+        unknownBlocks: unknownBlocks,
+      );
+    } finally {
+      // 动态像素图只服务本次绘制，栅格化结束后统一释放
+      for (final decoded in decodedImages.values) {
+        decoded.dispose();
+      }
     }
-    for (final plan in placed) {
-      _configTopRule(plan.info)?.drawConfigTop(context, plan);
-    }
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(width, height);
-    return BlueprintPreviewResult(
-      image: image,
-      hasUnknownContent: unknownBlocks.isNotEmpty,
-      unknownBlocks: unknownBlocks,
-    );
   }
 
   void _collectRegions(
@@ -210,18 +218,27 @@ class BlueprintPreviewRenderer {
     int height,
     ui.Image shadow,
   ) {
-    canvas.drawImageRect(
-      shadow,
-      ui.Rect.fromLTWH(0, 0, shadow.width.toDouble(), shadow.height.toDouble()),
-      ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
-      ui.Paint()
-        ..colorFilter = const ui.ColorFilter.mode(
-          ui.Color(0xB3000000),
-          ui.BlendMode.srcIn,
-        )
-        ..filterQuality = ui.FilterQuality.low,
-    );
-    shadow.dispose();
+    try {
+      canvas.drawImageRect(
+        shadow,
+        ui.Rect.fromLTWH(
+          0,
+          0,
+          shadow.width.toDouble(),
+          shadow.height.toDouble(),
+        ),
+        ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+        ui.Paint()
+          ..colorFilter = const ui.ColorFilter.mode(
+            ui.Color(0xB3000000),
+            ui.BlendMode.srcIn,
+          )
+          ..filterQuality = ui.FilterQuality.low,
+      );
+    } finally {
+      // 阴影只画这一次，画完就还掉
+      shadow.dispose();
+    }
   }
 }
 
@@ -239,16 +256,18 @@ class FallbackPlanDrawRule extends PlanDrawRule {
   }
 }
 
+/// 解一份 PNG 成图像；编解码器用完即还，图像交给调用方释放
 Future<ui.Image> decodeImage(Uint8List bytes) async {
   final codec = await ui.instantiateImageCodec(bytes);
-  final frame = await codec.getNextFrame();
-  return frame.image;
+  try {
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  } finally {
+    codec.dispose();
+  }
 }
 
 Future<Uint8List> encodePng(ui.Image image) async {
   final data = await image.toByteData(format: ui.ImageByteFormat.png);
   return data!.buffer.asUint8List();
 }
-
-/// 官方 rotation 值转屏幕角度
-double rotationToScreenDegrees(int rotation) => -rotation * 90.0;
