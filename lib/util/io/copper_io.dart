@@ -432,10 +432,13 @@ class CopperIO {
         } catch (e) {
           //镜像拿到真实 HTTP 响应（404 等）就原样抛出，别再回退直连：
           //否则「资源不存在」会被伪装成连接错误，且直连 raw 在部分网络注定失败
+          if (e is DownloadBudgetExceeded) rethrow;
           if (e is DioException && !isTransportFailure(e)) rethrow;
           //镜像不可用 / 无可用节点 → 回退官方源兜底；直连也没成时把镜像那半带进消息
           try {
             return await send(url);
+          } on DownloadBudgetExceeded {
+            rethrow;
           } catch (directError) {
             throw combineRouteFailure(directError, e);
           }
@@ -451,7 +454,8 @@ class CopperIO {
             return await _sendViaMirror(url, send, preferRange: preferRange);
           } catch (e) {
             //镜像不可用 → 下面直连兜底；镜像拿到真实答复（404 等）仍原样抛
-            if (e is DioException && !isTransportFailure(e)) rethrow;
+            if (e is DownloadBudgetExceeded) rethrow;
+          if (e is DioException && !isTransportFailure(e)) rethrow;
           }
         } else if (mirror.enabled && !mirror.isDirectVerified(url)) {
           //这一族还没有结论：直连与镜像**同时探一次**，谁先答复谁赢 ——
@@ -461,7 +465,8 @@ class CopperIO {
             try {
               return await _sendViaMirror(url, send, preferRange: preferRange);
             } catch (e) {
-              if (e is DioException && !isTransportFailure(e)) rethrow;
+              if (e is DownloadBudgetExceeded) rethrow;
+          if (e is DioException && !isTransportFailure(e)) rethrow;
             }
           }
         }
@@ -470,6 +475,7 @@ class CopperIO {
           mirror.markDirectOk(url);
           return result;
         } catch (e) {
+          if (e is DownloadBudgetExceeded) rethrow;
           if (!shouldFallbackToMirror(e, url)) rethrow;
           //分块失败也是「直连这条路过不去」：记下来，窗口内先走镜像，别再白等直连
           final directBroken = e is DioException
@@ -627,6 +633,7 @@ class CopperIO {
         mirror.promoteMirror(url, prefix);
         return result;
       } catch (error) {
+        if (error is DownloadBudgetExceeded) rethrow;
         if (error is DioException && !isMirrorNodeFailure(error)) rethrow;
         lastError = error;
         mirror.demoteMirror(url, prefix);
@@ -1132,6 +1139,12 @@ class CopperIO {
   }) async {
     _ensureInit();
     const retryLimit = _defaultRetryLimit;
+    final session = _DownloadSession(
+      url: url,
+      savePath: savePath,
+      cancelToken: cancelToken,
+      deleteOnError: deleteOnError,
+    );
     addLog(
       .debug,
       '开始下载：$url → $savePath'
@@ -1142,45 +1155,40 @@ class CopperIO {
       await _githubFallback(
         url,
         (effectiveUrl) => _downloadOnce(
+          session: session,
           url: effectiveUrl,
-          savePath: savePath,
-          //续传现场按**原始 URL** 记：换镜像后 effectiveUrl 多了前缀，不能拿它当键
-          resumeUrl: url,
           speedLimit: speedLimit,
           chunkCount: chunkCount,
           retryLimit: retryLimit,
-          cancelToken: cancelToken,
-          deleteOnError: deleteOnError,
           onStatus: onStatus,
           headers: headers,
         ),
         //下载优先找支持 Range 的节点：能分块并发 + 断点续传
         preferRange: true,
       );
-    } catch (_) {
-      //所有路由都失败才清现场：中途失败要留着给镜像回退 / 用户重试接着下
-      if (deleteOnError && cancelToken?.isCancelled != true) {
-        final partialPath = _partialPathOf(savePath);
-        await _cleanupPartial(File(partialPath), '$partialPath.json');
+    } catch (e) {
+      //所有路由都失败才清现场：中途失败要留着给镜像回退 / 用户重试接着下。
+      //预算用尽属于「网络太差、下次接着下」：它记着的水位最有价值，别清
+      final keepPartial = e is DownloadBudgetExceeded;
+      if (session.deleteOnError && !session.cancelled && !keepPartial) {
+        await _cleanupPartial(File(session.partialPath), session.metaPath);
       }
       rethrow;
     }
   }
 
   Future<void> _downloadOnce({
+    required _DownloadSession session,
     required String url,
-    required String savePath,
-
-    ///续传现场里记的「原始 URL」：换镜像时 [url] 会带前缀，不能拿它当键
-    required String resumeUrl,
     int? speedLimit,
     int? chunkCount,
     int retryLimit = 5,
-    CancelToken? cancelToken,
-    bool deleteOnError = true,
     HttpStatusCallback? onStatus,
     Map<String, String>? headers,
   }) async {
+    //每开始一条路由就记一次预算：死链路上最多试几次就得放弃
+    session.budget.noteAttempt('连接 ${Uri.tryParse(url)?.host ?? url}');
+    final cancelToken = session.cancelToken;
     final effectiveSpeedLimit = speedLimit ?? _defaultSpeedLimitBytes;
     final effectiveChunkCount = max(1, chunkCount ?? _defaultChunkCount);
 
@@ -1226,15 +1234,16 @@ class CopperIO {
       // 405 / 501 这类「不认 HEAD」不是链路问题：退化为单流，大小改由 GET 响应头补齐
     }
 
+    //探到大小后按体积放宽预算时限：大文件天然要下很久
+    session.budget.applySize(totalSize);
+
     if (totalSize <= 0 || !rangeSupported || totalSize < 2 * MB) {
       await _downloadSingleStream(
+        session: session,
         url: url,
-        savePath: savePath,
         totalSize: totalSize,
         speedLimit: effectiveSpeedLimit,
         retryLimit: retryLimit,
-        cancelToken: cancelToken,
-        deleteOnError: deleteOnError,
         //HEAD 已经判过这条链路不行：单流只给一次机会（1 = 再试一趟），
         //不给 0 是因为非 GitHub 单源没有镜像可换，一次抖动就判死太狠
         transportRetryLimit: headLinkBroken ? 1 : null,
@@ -1245,16 +1254,13 @@ class CopperIO {
     }
 
     await _downloadChunkedWithFallback(
+      session: session,
       url: url,
-      savePath: savePath,
-      resumeUrl: resumeUrl,
       totalSize: totalSize,
       chunkCount: effectiveChunkCount,
       speedLimit: effectiveSpeedLimit,
       etag: etag,
       retryLimit: retryLimit,
-      cancelToken: cancelToken,
-      deleteOnError: deleteOnError,
       onStatus: onStatus,
       headers: headers,
     );
@@ -1272,35 +1278,28 @@ class CopperIO {
   ///「HEAD 广播 Accept-Ranges、带 Range 的 GET 却回 200」在代理 / 网关上并不罕见，
   ///那种响应不能往分块区间里写，只能整包重下
   Future<void> _downloadChunkedWithFallback({
+    required _DownloadSession session,
     required String url,
-    required String savePath,
-    required String resumeUrl,
     required int totalSize,
     required int chunkCount,
     int? speedLimit,
     String? etag,
     int retryLimit = 5,
-    CancelToken? cancelToken,
-    bool deleteOnError = true,
     HttpStatusCallback? onStatus,
     Map<String, String>? headers,
   }) async {
     for (var attempt = 0; ; attempt++) {
+      //整单重来也要花预算：死链路上最多几次，别四层相乘
+      if (attempt > 0) session.budget.noteAttempt('整单重来');
       try {
         await _downloadChunked(
+          session: session,
           url: url,
-          savePath: savePath,
-          resumeUrl: resumeUrl,
           totalSize: totalSize,
           chunkCount: chunkCount,
           speedLimit: speedLimit,
           etag: etag,
           retryLimit: retryLimit,
-          cancelToken: cancelToken,
-          deleteOnError: deleteOnError,
-          //失败先保住现场：交给最外层（download）在所有路由都失败后统一清，
-          //这样镜像回退 / 用户重试都能接着下
-          keepPartialOnFailure: true,
           onStatus: onStatus,
           headers: headers,
         );
@@ -1311,24 +1310,28 @@ class CopperIO {
           '服务端忽略 Range（带 Range 的 GET 回了整包），退化为单流下载：$url',
           tag: 'Download',
         );
+        session.budget.noteAttempt('忽略 Range 后退化为单流');
         await _downloadSingleStream(
+          session: session,
           url: url,
-          savePath: savePath,
           totalSize: totalSize,
           speedLimit: speedLimit,
           retryLimit: retryLimit,
-          cancelToken: cancelToken,
-          deleteOnError: deleteOnError,
           onStatus: onStatus,
           headers: headers,
         );
         return;
       } on ChunkDownloadFailed catch (error) {
+        //统一分类：取消 / 预算 / 写盘 / 上游答复都不值得整单再来一遍
+        final kind = _classifyDownloadError(
+          error,
+          cancelToken: session.cancelToken,
+        );
         final canRetry =
-            !error.isWriteError &&
-            attempt < _chunkedWholeRetryLimit &&
-            cancelToken?.isCancelled != true &&
-            !_isCancelled(cancelToken, error.cause);
+            kind != _DownloadErrorKind.cancelled &&
+            kind != _DownloadErrorKind.budget &&
+            kind != _DownloadErrorKind.write &&
+            attempt < _chunkedWholeRetryLimit;
         if (!canRetry) rethrow;
         addLog(
           .warning,
@@ -1345,20 +1348,18 @@ class CopperIO {
   ///无 Range 的站点（只认 GET 的接口、把 Range 裁掉的网关）也要扛得住弱网：
   ///不能一断就整单失败。服务器不认 Range（回 200 而不是 206）时整份重来
   Future<void> _downloadSingleStream({
+    required _DownloadSession session,
     required String url,
-    required String savePath,
     required int totalSize,
     int? speedLimit,
     int retryLimit = 5,
-    CancelToken? cancelToken,
-    bool deleteOnError = true,
     //连接类失败的重试上限（null = 用默认那档；HEAD 已判链路不通时传 1）
     int? transportRetryLimit,
     HttpStatusCallback? onStatus,
     Map<String, String>? headers,
   }) async {
     //单流也走「先写 .part 再改名」：直接截断目标文件的话，下载失败会把原来那份好文件毁掉
-    final partialPath = _partialPathOf(savePath);
+    final partialPath = session.partialPath;
     final partialFile = File(partialPath);
     await partialFile.parent.create(recursive: true);
 
@@ -1432,7 +1433,7 @@ class CopperIO {
         //每趟自己的取消令牌：低速看门狗断这条连接时不能当成用户取消
         attemptCancel = CancelToken();
         final thisAttemptCancel = attemptCancel;
-        cancelToken?.whenCancel.then((_) {
+        session.cancelToken?.whenCancel.then((_) {
           if (!thisAttemptCancel.isCancelled) thisAttemptCancel.cancel();
         });
         lowSpeedWindowAt = DateTime.now();
@@ -1497,7 +1498,7 @@ class CopperIO {
                 : FileMode.write,
           );
           await for (final chunk in (response.data as ResponseBody).stream) {
-            if (cancelToken?.isCancelled == true) break;
+            if (session.cancelToken?.isCancelled == true) break;
 
             if (rateLimiter != null) {
               await rateLimiter.throttle(chunk.length);
@@ -1505,6 +1506,8 @@ class CopperIO {
 
             sink.add(chunk);
             state.downloaded += chunk.length;
+            //有进展就记一下：预算里的「停滞」判定靠它
+            session.budget.noteProgress(state.downloaded);
             if (state.total > 0) {
               state.progress = state.downloaded / state.total;
             }
@@ -1515,13 +1518,13 @@ class CopperIO {
           await sink.close();
           sink = null;
 
-          if (cancelToken?.isCancelled == true) {
+          if (session.cancelToken?.isCancelled == true) {
             state.status = HttpDownloadStatus.cancelled;
-            if (deleteOnError) await _deleteQuietly(partialFile);
+            if (session.deleteOnError) await _deleteQuietly(partialFile);
             notify();
             //取消要抛出去：调用方靠 `CancelToken.isCancel` 认它，
             //静默返回会被当成「这个来源没下成」，于是自动换下一个源接着下
-            throw _cancelError(cancelToken, url);
+            throw _cancelError(session.cancelToken, url);
           }
 
           //知道总长就必须下满：短了说明对端提前收了连接，放任成功就是静默缺数据
@@ -1532,7 +1535,7 @@ class CopperIO {
           }
 
           //原子收尾：改名转正（失败再删旧目标重试）
-          await _promotePartial(partialFile, savePath);
+          await _promotePartial(partialFile, session.savePath);
           await _deleteQuietly(File('$partialPath.json'));
 
           state.progress = 1.0;
@@ -1541,7 +1544,7 @@ class CopperIO {
           notify();
           addLog(
             .debug,
-            '单流下载完成：$savePath（${state.downloaded} 字节）',
+            '单流下载完成：${session.savePath}（${state.downloaded} 字节）',
             tag: 'Download',
           );
           return;
@@ -1553,15 +1556,15 @@ class CopperIO {
           final lowSpeed = lowSpeedAborted;
           lowSpeedAborted = false;
           //低速看门狗断的连接不算用户取消：按链路问题重试
-          final cancelled = _isCancelled(cancelToken, e) && !lowSpeed;
+          final cancelled = _isCancelled(session.cancelToken, e) && !lowSpeed;
           if (cancelled) {
             state.status = HttpDownloadStatus.cancelled;
-            if (deleteOnError) await _deleteQuietly(partialFile);
+            if (session.deleteOnError) await _deleteQuietly(partialFile);
             notify();
             //已经是取消异常就原样抛；否则按取消现场造一个（同样要抛，别静默返回）
             throw e is DioException && CancelToken.isCancel(e)
                 ? e
-                : _cancelError(cancelToken, url);
+                : _cancelError(session.cancelToken, url);
           }
 
           //读到一半被掐断时 dio 把原始错误直接抛给流，不是 DioException
@@ -1581,6 +1584,8 @@ class CopperIO {
             final reason = lowSpeed
                 ? '速率过低'
                 : (e is DioException ? e.type.name : e.runtimeType.toString());
+            //退避之前先看预算：太久没新字节就别再耗下去
+            session.budget.checkStall('单流重试（$reason）');
             final delay = _retryDelay(attempt);
             addLog(
               .debug,
@@ -1593,7 +1598,7 @@ class CopperIO {
           }
 
           state.status = HttpDownloadStatus.failed;
-          if (deleteOnError) await _deleteQuietly(partialFile);
+          if (session.deleteOnError) await _deleteQuietly(partialFile);
           notify();
           //低速看门狗断的这条连接：收尾要给「链路问题」的错误（不是用户取消），
           //否则上层 `CancelToken.isCancel` 会把它当成用户自己停的
@@ -1628,22 +1633,15 @@ class CopperIO {
   ///
   ///不再「每块一个临时文件 + 收尾合并」：省掉收尾那整轮读一遍写一遍与 2× 磁盘
   ///占用，慢块拆分也只是改区间。续传现场在 `.part.json`（区间 + 已收字节 + ETag），
-  ///下完把 `.part` 改名成 [savePath]
+  ///下完把 `.part` 改名成 [CopperIO.download] 的 savePath
   Future<void> _downloadChunked({
+    required _DownloadSession session,
     required String url,
-    required String savePath,
-
-    ///续传现场里记的原始 URL（换镜像后 [url] 带前缀，不能当键）
-    required String resumeUrl,
     required int totalSize,
     int chunkCount = 8,
     int? speedLimit,
     String? etag,
     int retryLimit = 5,
-    CancelToken? cancelToken,
-    bool deleteOnError = true,
-    //真失败时是否保住续传现场（上层还要带着它整单重来时用）
-    bool keepPartialOnFailure = false,
     HttpStatusCallback? onStatus,
     Map<String, String>? headers,
   }) async {
@@ -1654,16 +1652,17 @@ class CopperIO {
     }
     chunkCount = max(1, chunkCount);
 
-    final partialPath = _partialPathOf(savePath);
-    final metaPath = '$partialPath.json';
+    final partialPath = session.partialPath;
+    final metaPath = session.metaPath;
     final partialFile = File(partialPath);
+    final cancelToken = session.cancelToken;
 
     List<_Chunk> chunks;
     try {
       chunks = await _planChunks(
         partialFile: partialFile,
         metaPath: metaPath,
-        url: resumeUrl,
+        url: session.url,
         totalSize: totalSize,
         chunkCount: chunkCount,
         etag: etag,
@@ -1739,7 +1738,7 @@ class CopperIO {
       try {
         await File(metaPath).writeAsString(
           jsonEncode({
-            'url': resumeUrl,
+            'url': session.url,
             'total': totalSize,
             'etag': metaEtag,
             'chunks': [
@@ -1922,6 +1921,8 @@ class CopperIO {
           chunk.received += piece.length;
           chunk.nextOffset = writeOffset;
           state.downloaded += piece.length;
+          //有进展就记一下：预算里的「停滞」判定靠它
+          session.budget.noteProgress(state.downloaded);
           if (state.total > 0) state.progress = state.downloaded / state.total;
           pendingReport += piece.length;
           if (pendingReport >= _progressReportBytes) {
@@ -1979,6 +1980,8 @@ class CopperIO {
                   ? (delivered > 0 ? _abortedRetryLimit : _connectRetryLimit)
                   : retryLimit);
         if (tryTime < limit) {
+          //退避之前先看预算：太久没新字节就别再耗下去
+          session.budget.checkStall('分块 ${chunk.index + 1} 重试');
           await Future.delayed(_retryDelay(tryTime));
           await downloadPiece(chunk, tryTime: tryTime + 1);
         } else {
@@ -2338,13 +2341,13 @@ class CopperIO {
       ).timeout(const Duration(seconds: 30), onTimeout: () => const <void>[]);
     }
 
-    ///失败收尾：按 [deleteOnError] / [keepPartialOnFailure] 决定清掉还是保住续传现场
+    ///失败收尾：失败先保住现场（交给最外层在所有路由都失败后统一清），
+    ///取消 / [session.deleteOnError] 才当场清掉
     ///
     ///用户取消也走这里 —— 状态要如实报成 `cancelled`
     Future<void> settleFailed({required bool cancelled}) async {
       await stopAndDrain();
-      final keepPartial = keepPartialOnFailure && !cancelled;
-      if (deleteOnError && !keepPartial) {
+      if (cancelled && session.deleteOnError) {
         await _cleanupPartial(partialFile, metaPath);
       } else {
         await saveMeta();
@@ -2371,7 +2374,7 @@ class CopperIO {
       notify();
 
       //收尾：`.part` 改名成目标文件，续传现场作废（改名是元数据操作，不搬字节）
-      await _promotePartial(partialFile, savePath);
+      await _promotePartial(partialFile, session.savePath);
       await _deleteQuietly(File(metaPath));
 
       state.status = HttpDownloadStatus.completed;
@@ -2380,7 +2383,7 @@ class CopperIO {
       notify();
       addLog(
         .debug,
-        '分块下载完成：${chunks.length} 个分块 → $savePath'
+        '分块下载完成：${chunks.length} 个分块 → ${session.savePath}'
         '（${state.downloaded} 字节）',
         tag: 'Download',
       );
@@ -2503,9 +2506,6 @@ class CopperIO {
       return null;
     }
   }
-
-  ///续传现场路径：与目标同目录、同名加 `.part`，收尾靠改名转正
-  String _partialPathOf(String savePath) => '$savePath.part';
 
   ///读既有 meta 里的 ETag（镜像不回 ETag 时用它保住源变更保护）
   Future<String?> _readMetaEtag(String metaPath) async {
@@ -2839,4 +2839,176 @@ Future<Object?> fetchJsonBody(
 String previewResponseBody(String raw) {
   final text = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
   return text.length <= 120 ? text : '${text.substring(0, 120)}…';
+}
+
+
+/// 一次下载会话：原始 URL（续传键）、目标与临时路径、取消令牌、预算
+///
+///四层重试（单块 / 整单 / 路由 / 镜像节点）以前各自持有一半参数，
+///分类判据也各写一套；现在都从这一个对象取，预算也只有它一份
+class _DownloadSession {
+  _DownloadSession({
+    required this.url,
+    required this.savePath,
+    this.cancelToken,
+    this.deleteOnError = true,
+    DownloadBudget? budget,
+  }) : partialPath = '$savePath.part',
+       metaPath = '$savePath.part.json',
+       budget = budget ?? DownloadBudget();
+
+  ///用户传进来的原始 URL：换镜像后请求地址带前缀，续传键仍用它
+  final String url;
+  final String savePath;
+  final String partialPath;
+  final String metaPath;
+  final CancelToken? cancelToken;
+  final bool deleteOnError;
+  final DownloadBudget budget;
+
+  bool get cancelled => cancelToken?.isCancelled == true;
+}
+
+/// 一次下载的预算：总尝试次数 + 停滞上限 + 总时限
+///
+///防的是「四层重试相乘」：节点轮换 3 × 整单重来 2 × 单块重试 4 …
+///以前最坏要十几分钟、几百次 GET 才报错，界面全程只有「下载中」。
+///公开只是为了单测能直接构造（下载路径内部只 new 一次）
+@visibleForTesting
+class DownloadBudget {
+  DownloadBudget({DateTime? startedAt})
+    : startedAt = startedAt ?? DateTime.now(),
+      lastProgressAt = startedAt ?? DateTime.now(),
+      deadline = (startedAt ?? DateTime.now()).add(_maxWallClock);
+
+  final DateTime startedAt;
+
+  ///最后一次「下载字节数变多」的时刻：停滞判定的依据
+  DateTime lastProgressAt;
+
+  ///总时限：大小探出来后按体积放宽（大文件天然要久）
+  DateTime deadline;
+
+  ///已经开始的「整次下载尝试」（整单重来 / 单流重来 / 换路由各算一次）
+  int attempts = 0;
+
+  int _lastProgressBytes = 0;
+
+  ///总尝试次数上限：直连 + 最多 3 个镜像节点，各自再整单重来一次也够用；
+  ///再多就是在死链路上空转
+  static const int _maxAttempts = 6;
+
+  ///多久没有任何新字节就算「卡死」：比单块的停滞看门狗宽，
+  ///因为整单重试 / 换路由期间本来就有退避等待
+  static const Duration _stallLimit = Duration(seconds: 90);
+
+  ///兜底总时限：正常下载不该超过它；按体积放宽后另说
+  static const Duration _maxWallClock = Duration(minutes: 10);
+
+  ///探到文件大小后按体积放宽时限：按 48KB/s 的「很慢但可用」估算，再留一倍余量
+  void applySize(int totalSize) {
+    if (totalSize <= 0) return;
+    final estimate = Duration(
+      seconds: max(120, (totalSize ~/ (48 * KB)) * 2),
+    );
+    final current = deadline.difference(startedAt);
+    if (estimate > current) deadline = startedAt.add(estimate);
+  }
+
+  ///有进展就更新「最后动过」的时刻；只在字节数真的变多时更新
+  void noteProgress(int bytes) {
+    if (bytes <= _lastProgressBytes) return;
+    _lastProgressBytes = bytes;
+    lastProgressAt = DateTime.now();
+  }
+
+  ///开始一次整下载尝试：次数或总时限超了就抛出去，不再让四层相乘
+  void noteAttempt(String phase) {
+    attempts++;
+    final elapsed = DateTime.now().difference(startedAt);
+    if (attempts > _maxAttempts || DateTime.now().isAfter(deadline)) {
+      throw DownloadBudgetExceeded(
+        attempts: attempts,
+        elapsed: elapsed,
+        phase: phase,
+        reason: attempts > _maxAttempts ? '尝试次数过多' : '总用时过长',
+      );
+    }
+  }
+
+  ///重试退避 / 换路由之前调用：太久没有新字节就别再空转
+  void checkStall(String phase) {
+    final idle = DateTime.now().difference(lastProgressAt);
+    if (idle <= _stallLimit) return;
+    throw DownloadBudgetExceeded(
+      attempts: attempts,
+      elapsed: DateTime.now().difference(startedAt),
+      phase: phase,
+      reason: '${idle.inSeconds} 秒没有任何新数据',
+    );
+  }
+}
+
+/// 预算用尽：直接冒泡到最外层，不再被镜像回退/整单重试吞掉
+@visibleForTesting
+class DownloadBudgetExceeded implements Exception {
+  DownloadBudgetExceeded({
+    required this.attempts,
+    required this.elapsed,
+    required this.phase,
+    required this.reason,
+  });
+
+  final int attempts;
+  final Duration elapsed;
+  final String phase;
+  final String reason;
+
+  @override
+  String toString() =>
+      '下载已停止：$reason（已尝试 $attempts 次，用时 ${elapsed.inSeconds} 秒，'
+      '最后一步：$phase）。网络恢复后重新开始即可，已下部分会接着续传';
+}
+
+/// 下载层的统一错误分类：四层重试 / 回退都看它，避免各写一套判据
+enum _DownloadErrorKind {
+  ///用户取消
+  cancelled,
+
+  ///预算用尽（次数 / 停滞 / 总时限）
+  budget,
+
+  ///写盘失败（磁盘满 / 路径不可写）：换源重试没用
+  write,
+
+  ///链路问题（建连 / 接收 / 超时 / 被掐断）：值得换条路再试
+  transport,
+
+  ///上游真实答复（404 / 403 等）：换谁都一样
+  upstream,
+}
+
+_DownloadErrorKind _classifyDownloadError(
+  Object error, {
+  CancelToken? cancelToken,
+}) {
+  if (error is DownloadBudgetExceeded) return _DownloadErrorKind.budget;
+  if (error is ChunkDownloadFailed) {
+    if (error.isWriteError) return _DownloadErrorKind.write;
+    //分块失败把原始异常包在 cause 里：按成因分类才准
+    return _classifyDownloadError(error.cause, cancelToken: cancelToken);
+  }
+  if (error is FileSystemException) return _DownloadErrorKind.write;
+  if (cancelToken?.isCancelled == true) return _DownloadErrorKind.cancelled;
+  if (error is DioException) {
+    if (CancelToken.isCancel(error)) return _DownloadErrorKind.cancelled;
+    return isTransportFailure(error)
+        ? _DownloadErrorKind.transport
+        : _DownloadErrorKind.upstream;
+  }
+  //流被对端掐断时 dio 会把原始异常直接抛给响应体流，不是 DioException
+  if (error is HttpException || error is SocketException) {
+    return _DownloadErrorKind.transport;
+  }
+  return _DownloadErrorKind.upstream;
 }
