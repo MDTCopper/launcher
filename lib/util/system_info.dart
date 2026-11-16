@@ -28,7 +28,7 @@ class SysInfo {
   /// 总物理内存
   static Future<int> getTotalPhysicalMemory() async {
     if (Platform.isWindows) {
-      return _totalMemoryCache ??= _windowsMemory().ullTotalPhys;
+      return _totalMemoryCache ??= _windowsMemory().totalBytes;
     }
     if (Platform.isAndroid) {
       final total = (await _androidMemoryInfo())?.totalMem;
@@ -44,7 +44,7 @@ class SysInfo {
   /// 可用物理内存（字节）：实时查询
   static Future<int> getFreePhysicalMemory() async {
     if (Platform.isWindows) {
-      return _windowsMemory().ullAvailPhys;
+      return _windowsMemory().availableBytes;
     }
     if (Platform.isAndroid) {
       final available = (await _androidMemoryInfo())?.availMem;
@@ -75,7 +75,7 @@ class SysInfo {
   /// - macOS 及其它：system_info2 的 available（isolate 执行）
   static Future<int> getUsablePhysicalMemory() async {
     if (Platform.isWindows) {
-      return _windowsMemory().ullAvailPhys;
+      return _windowsMemory().availableBytes;
     }
     if (Platform.isLinux || Platform.isAndroid) {
       final info = _readProcMeminfo();
@@ -130,12 +130,18 @@ class SysInfo {
   }
 
   /// Windows：调用 [GlobalMemoryStatusEx] 原生 API，一次拿到内存状态
-  static MEMORYSTATUSEX _windowsMemory() {
+  ///
+  /// 原生结构体在 finally 里就归还了；必须在 free 前把字段读成 Dart 数值，
+  /// 不能把结构体引用带出去，否则调用方拿到的是已释放内存
+  static ({int totalBytes, int availableBytes}) _windowsMemory() {
     final status = calloc<MEMORYSTATUSEX>();
     try {
       status.ref.dwLength = sizeOf<MEMORYSTATUSEX>();
       GlobalMemoryStatusEx(status);
-      return status.ref;
+      return (
+        totalBytes: status.ref.ullTotalPhys,
+        availableBytes: status.ref.ullAvailPhys,
+      );
     } finally {
       calloc.free(status);
     }

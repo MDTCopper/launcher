@@ -42,6 +42,64 @@ import 'package:flutter_single_instance/flutter_single_instance.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
+/// 初始化路径表；失败不静默崩：记日志，有界面时给一个可读的失败页
+///
+/// [withUi] 为 true 表示这是带界面的形态，失败后要把原因画出来
+Future<bool> _initPaths({bool withUi = false}) async {
+  try {
+    await AppPaths.init();
+    return true;
+  } on Object catch (error) {
+    final message = removeNewlines('$error');
+    addLogAndPrint(.error, '数据目录初始化失败：$message', tag: 'Startup');
+    stderr.writeln('数据目录初始化失败：$message');
+    if (withUi) {
+      runApp(_StartupFailureApp(message: message));
+    }
+    return false;
+  }
+}
+
+/// 启动失败的兜底页：总比静默退出留一个黑窗口好
+class _StartupFailureApp extends StatelessWidget {
+  const _StartupFailureApp({required this.message});
+
+  /// 失败原因
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48),
+                const SizedBox(height: 16),
+                const Text(
+                  '启动失败：无法初始化数据目录',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(message, textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => exit(1),
+                  child: const Text('关闭'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 void main(List<String> args) async {
   AppRuntime.startedAt = DateTime.now();
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,7 +141,7 @@ void main(List<String> args) async {
 ///
 /// 只初始化路径 + 日志，判 UI / 服务是否在线；都不在才补完配置、本进程转为云服务。
 Future<void> _runQuickLaunch(LaunchArgs cli) async {
-  await AppPaths.init();
+  if (!await _initPaths()) return;
   await Log.init();
   addLog(
     .info,
@@ -117,7 +175,7 @@ Future<void> _runQuickLaunch(LaunchArgs cli) async {
       // 需要本进程接手：补完配置 / 网络初始化再进服务
       break;
   }
-  await _initializeCore(pathsReady: true, logReady: true);
+  if (!await _initializeCore(pathsReady: true, logReady: true)) return;
   AppRuntime.form = AppForm.cloudService;
   addLog(.info, '形态切换：触发进程转为无界面云服务', tag: 'Startup');
   await CloudServiceProcess.start(launchVersionId: cli.launchVersionId);
@@ -132,9 +190,9 @@ Future<void> _runAndroidSilentShortcut(LaunchArgs cli) async {
   // 无界面形态也要画一帧：Flutter 不画首帧时 Android 的启动图会一直挂着
   runApp(const AndroidSyncProxyPage());
   await WidgetsBinding.instance.endOfFrame;
-  await AppPaths.init();
+  if (!await _initPaths()) return;
   await Log.init();
-  await _initializeCore(pathsReady: true, logReady: true);
+  if (!await _initializeCore(pathsReady: true, logReady: true)) return;
 
   final online = await AndroidCall.isNetworkAvailable();
   final quickCloudSync =
@@ -181,7 +239,7 @@ Future<void> _runAndroidSilentShortcut(LaunchArgs cli) async {
 
 /// 形态二：无界面云存档服务（UI 二次启动 / 接管 / 补上传）
 Future<void> _runCloudService(LaunchArgs cli) async {
-  await _initializeCore();
+  if (!await _initializeCore()) return;
   addLog(.info, '云服务：命令行要求进入服务模式', tag: 'Startup');
   await CloudServiceProcess.start(
     launchVersionId: cli.launchVersionId,
@@ -198,11 +256,11 @@ Future<void> _runLauncherUi(LaunchArgs cli) async {
   final fromService = cli.resumeVersionId != null;
 
   // 先判单实例再读配置：第二个实例只写日志就退，不能并发改写 config
-  await AppPaths.init();
+  if (!await _initPaths(withUi: true)) return;
   await Log.init();
   if (!await _initSingleInstance(launchRequest)) return;
 
-  await _initializeCore(pathsReady: true, logReady: true);
+  if (!await _initializeCore(pathsReady: true, logReady: true)) return;
   await _initializeUi(launchRequest, fromService: fromService);
   // 桌面图标跟配置里的主题对齐；headless 形态没有桌面入口，不调
   unawaited(applyLauncherIcon(config.setting.personalizationOptions.themeColor));
@@ -212,13 +270,14 @@ Future<void> _runLauncherUi(LaunchArgs cli) async {
 /// 路径 / 日志 / 配置 / 网络：所有角色都要，服务模式也走这里
 ///
 /// [pathsReady] / [logReady]：快捷启动预检已经初始化过路径与日志，别重复 init
-Future<void> _initializeCore({
+/// 返回 false 表示路径初始化失败，调用方应直接收尾
+Future<bool> _initializeCore({
   bool pathsReady = false,
   bool logReady = false,
 }) async {
   if (!pathsReady) {
     _checkPlatform();
-    await AppPaths.init();
+    if (!await _initPaths(withUi: !AppRuntime.headless)) return false;
   }
   if (!logReady) await Log.init();
   if (!logReady) {
@@ -267,6 +326,7 @@ Future<void> _initializeCore({
     'GitHub token：${config.setting.githubToken.isEmpty ? '未设置' : '已设置'}',
     tag: 'Startup',
   );
+  return true;
 }
 
 /// 基础初始化完成后进入界面初始化

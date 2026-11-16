@@ -3,6 +3,11 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+/// 崩溃报告的有效时间窗往前留的余量
+///
+/// 文件 mtime 与启动时刻可能有秒级偏差，留几分钟免得把本局刚写的报告漏掉
+const Duration kCrashReportWindowMargin = Duration(minutes: 2);
+
 /// 一次启动能拿到的全部事实
 ///
 /// 只放数据；读盘由本文件的辅助函数做，诊断器只读这份对象
@@ -15,6 +20,8 @@ class CrashEvidence {
     this.lastLog,
     this.crashReport,
     this.crashReportPath,
+    this.crashReportModifiedAt,
+    this.launchStartedAt,
     this.viaLoader = false,
     this.loaderReady = true,
     this.loaderVersion,
@@ -51,6 +58,12 @@ class CrashEvidence {
 
   /// 那份崩溃报告的路径，给「查看全部」用
   final String? crashReportPath;
+
+  /// 那份崩溃报告的修改时刻，用来判断是不是本局写下的
+  final DateTime? crashReportModifiedAt;
+
+  /// 本局启动时刻，用来把历史崩溃报告排除在外
+  final DateTime? launchStartedAt;
 
   /// 走 Copper 加载器
   final bool viaLoader;
@@ -94,10 +107,23 @@ class CrashEvidence {
   /// `launchid.dat` 残留，等于上次没正常退出
   final bool launchSentinelLeft;
 
+  /// 本局时间窗内的崩溃报告
+  ///
+  /// 早于启动时刻写下的属于历史报告，不能算到这一局头上；缺时刻时按缺省处理
+  String? get crashReportOfThisLaunch {
+    final report = crashReport;
+    if (report == null) return null;
+    final startedAt = launchStartedAt;
+    final modifiedAt = crashReportModifiedAt;
+    if (startedAt == null || modifiedAt == null) return report;
+    final earliest = startedAt.subtract(kCrashReportWindowMargin);
+    return modifiedAt.isBefore(earliest) ? null : report;
+  }
+
   /// 三份证据文本，按可信度排序：崩溃报告 → last_log → stdout 尾部
   List<String> get evidenceTexts {
     final texts = <String>[];
-    for (final text in [crashReport, lastLog, logTail]) {
+    for (final text in [crashReportOfThisLaunch, lastLog, logTail]) {
       if (text == null) continue;
       final trimmed = text.trim();
       if (trimmed.isEmpty) continue;
@@ -114,6 +140,7 @@ class CrashEvidence {
     String? lastLog,
     String? crashReport,
     String? crashReportPath,
+    DateTime? crashReportModifiedAt,
   }) {
     return CrashEvidence(
       exitCode: exitCode,
@@ -123,6 +150,9 @@ class CrashEvidence {
       lastLog: lastLog ?? this.lastLog,
       crashReport: crashReport ?? this.crashReport,
       crashReportPath: crashReportPath ?? this.crashReportPath,
+      crashReportModifiedAt:
+          crashReportModifiedAt ?? this.crashReportModifiedAt,
+      launchStartedAt: launchStartedAt,
       viaLoader: viaLoader,
       loaderReady: loaderReady,
       loaderVersion: loaderVersion,
@@ -158,7 +188,12 @@ List<String> crashReportDirPaths({
 }
 
 /// 最新一份崩溃报告的路径；两个目录都找，按修改时间取
-String? latestCrashReportPath(List<String> crashesDirPaths) {
+///
+/// [notBefore] 给了就只算这个时刻之后写下的报告，历史报告一律跳过
+String? latestCrashReportPath(
+  List<String> crashesDirPaths, {
+  DateTime? notBefore,
+}) {
   String? newestPath;
   DateTime? newestTime;
   for (final dirPath in crashesDirPaths) {
@@ -171,6 +206,7 @@ String? latestCrashReportPath(List<String> crashesDirPaths) {
         if (!name.startsWith('crash-report-')) continue;
         if (!name.endsWith('.txt')) continue;
         final modified = entity.lastModifiedSync();
+        if (notBefore != null && modified.isBefore(notBefore)) continue;
         if (newestTime != null && !modified.isAfter(newestTime)) continue;
         newestTime = modified;
         newestPath = entity.path;
@@ -180,6 +216,16 @@ String? latestCrashReportPath(List<String> crashesDirPaths) {
     }
   }
   return newestPath;
+}
+
+/// 文件修改时刻；读不出来返回空
+DateTime? lastModifiedOf(String? filePath) {
+  if (filePath == null) return null;
+  try {
+    return File(filePath).lastModifiedSync();
+  } on Object {
+    return null;
+  }
 }
 
 /// 游戏自己的 `last_log.txt` 路径
@@ -221,20 +267,25 @@ String lastLines(String text, {int maxLines = 200}) =>
 /// 把磁盘上的崩溃报告与 `last_log.txt` 补进证据
 ///
 /// 只读；读不到就保持原样，让诊断按「没拿到」处理
+/// [launchStartedAt] 是本局启动时刻，早于它的报告不读，免得历史报告被判成本局崩溃
 CrashEvidence readEvidenceFiles({
   required CrashEvidence evidence,
   required String dataDirPath,
   required String defaultCrashesPath,
+  DateTime? launchStartedAt,
 }) {
+  final earliestReport = launchStartedAt?.subtract(kCrashReportWindowMargin);
   final reportPath = latestCrashReportPath(
     crashReportDirPaths(
       dataDirPath: dataDirPath,
       defaultCrashesPath: defaultCrashesPath,
     ),
+    notBefore: earliestReport,
   );
   return evidence.copyWithCrashFiles(
     crashReportPath: reportPath,
     crashReport: reportPath == null ? null : readTextHead(reportPath),
+    crashReportModifiedAt: lastModifiedOf(reportPath),
     lastLog: readGameLastLog(dataDirPath),
   );
 }

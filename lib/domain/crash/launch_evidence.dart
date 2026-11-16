@@ -29,6 +29,7 @@ class LaunchEvidenceInput {
     this.javaPath,
     this.memoryMb,
     this.launchSentinelLeft = false,
+    this.launchStartedAt,
   });
 
   /// 退出事件行，形如 `exit 0`；退出码从它解析
@@ -93,6 +94,9 @@ class LaunchEvidenceInput {
 
   /// `launchid.dat` 残留，等于上次没正常退出
   final bool launchSentinelLeft;
+
+  /// 本局启动时刻；崩溃报告只认这个时刻之后写下的
+  final DateTime? launchStartedAt;
 }
 
 /// 组装诊断用的证据，再把崩溃报告与 `last_log` 读进来
@@ -120,11 +124,13 @@ CrashEvidence assembleCrashEvidence(LaunchEvidenceInput input) {
     steam: input.steam,
     fromShortcut: input.fromShortcut,
     launchSentinelLeft: input.launchSentinelLeft,
+    launchStartedAt: input.launchStartedAt,
   );
   return readEvidenceFiles(
     evidence: evidence,
     dataDirPath: input.dataDirPath,
     defaultCrashesPath: input.defaultCrashesPath,
+    launchStartedAt: input.launchStartedAt,
   );
 }
 

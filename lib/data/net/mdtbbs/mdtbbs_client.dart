@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:copper_launcher/data/net/mdtbbs/mdtbbs_config.dart';
@@ -453,6 +454,8 @@ class MdtbbsClient {
   }
 
   /// 写请求的 [MdtbbsEnvelope] 版本：要读 `meta.request_id` 时用它
+  ///
+  /// [timeout] 会一路下传到真正发请求的地方，不给就沿用 cio 的 600 秒
   static Future<MdtbbsEnvelope> postEnvelope(
     String path, {
     Object? body,
@@ -467,6 +470,7 @@ class MdtbbsClient {
     accessToken: accessToken,
     headers: headers,
     cancelToken: cancelToken,
+    timeout: timeout,
   );
 
   /// 读请求的 [MdtbbsEnvelope] 版本：要读 `meta`（翻页游标 / request_id）时用它
@@ -495,8 +499,36 @@ class MdtbbsClient {
     CancelToken? cancelToken,
     Duration? timeout,
   }) async {
-    // cio 的 receive 超时是 600 秒，挂一次就把 UI 卡十分钟——调用方可收紧
-    final future = _sendEnvelope(
+    // cio 的 receive 超时是 600 秒，挂一次就把 UI 卡十分钟——调用方可收紧；
+    // 超时在 _sendEnvelope 里落地并归成 MdtbbsException
+    final envelope = await _sendEnvelope(
+      method,
+      path,
+      body: body,
+      accessToken: accessToken,
+      headers: headers,
+      queryParameters: queryParameters,
+      cancelToken: cancelToken,
+      timeout: timeout,
+    );
+    return envelope.data;
+  }
+
+  /// 发一次 V1 信封请求
+  ///
+  /// [timeout] 是整次调用的总预算，含 CSRF 引导与 401 / CSRF 的重放；
+  /// 超时归成 [MdtbbsException]，调用方不用再单独认 TimeoutException
+  static Future<MdtbbsEnvelope> _sendEnvelope(
+    String method,
+    String path, {
+    Object? body,
+    String? accessToken,
+    Map<String, String>? headers,
+    Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+    Duration? timeout,
+  }) async {
+    final attempt = _sendEnvelopeAttempt(
       method,
       path,
       body: body,
@@ -505,13 +537,16 @@ class MdtbbsClient {
       queryParameters: queryParameters,
       cancelToken: cancelToken,
     );
-    final envelope = timeout == null
-        ? await future
-        : await future.timeout(timeout);
-    return envelope.data;
+    if (timeout == null) return attempt;
+    try {
+      return await attempt.timeout(timeout);
+    } on TimeoutException catch (error) {
+      throw _asTimeoutException(method, path, timeout, error);
+    }
   }
 
-  static Future<MdtbbsEnvelope> _sendEnvelope(
+  /// 真正发请求：写请求先引 CSRF，401 与 CSRF 失败各重放一次
+  static Future<MdtbbsEnvelope> _sendEnvelopeAttempt(
     String method,
     String path, {
     Object? body,
@@ -539,39 +574,14 @@ class MdtbbsClient {
       ...?_csrfHeadersIfSameOrigin(url),
     };
     try {
-      final Response<Object?> response;
-      switch (method) {
-        case 'GET':
-          response = await cio.get<Object?>(
-            url,
-            headers: mergedHeaders,
-            queryParameters: queryParameters,
-            cancelToken: cancelToken,
-          );
-        case 'POST':
-          response = await cio.post<Object?>(
-            url,
-            data: body,
-            headers: mergedHeaders,
-            cancelToken: cancelToken,
-          );
-        case 'PATCH':
-          response = await cio.patch<Object?>(
-            url,
-            data: body,
-            headers: mergedHeaders,
-            cancelToken: cancelToken,
-          );
-        case 'DELETE':
-          response = await cio.delete<Object?>(
-            url,
-            data: body,
-            headers: mergedHeaders,
-            cancelToken: cancelToken,
-          );
-        default:
-          throw ArgumentError('不支持的方法：$method');
-      }
+      final response = await _sendOnce(
+        method,
+        url,
+        body: body,
+        headers: mergedHeaders,
+        queryParameters: queryParameters,
+        cancelToken: cancelToken,
+      );
       _captureCsrf(response.headers);
       return MdtbbsEnvelope.fromBody(response.data);
     } on DioException catch (error) {
@@ -584,7 +594,7 @@ class MdtbbsClient {
           _replayable(method, headers)) {
         final fresh = await _renewOnUnauthorized();
         if (fresh != null && fresh.isNotEmpty) {
-          return _sendEnvelope(
+          return _sendEnvelopeAttempt(
             method,
             path,
             body: body,
@@ -600,7 +610,7 @@ class MdtbbsClient {
       // 令牌过期（Max-Age 一天）或服务端换了令牌：丢掉重新引一次，只重试一次
       if (isWrite && !retriedCsrf && failure.isCsrfFailure) {
         _csrfToken = null;
-        return _sendEnvelope(
+        return _sendEnvelopeAttempt(
           method,
           path,
           body: body,
@@ -613,6 +623,57 @@ class MdtbbsClient {
       }
       throw failure;
     }
+  }
+
+  /// 按方法发一次请求；超时由调用方在外面套
+  static Future<Response<Object?>> _sendOnce(
+    String method,
+    String url, {
+    Object? body,
+    required Map<String, String> headers,
+    Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+  }) {
+    return switch (method) {
+      'GET' => cio.get<Object?>(
+        url,
+        headers: headers,
+        queryParameters: queryParameters,
+        cancelToken: cancelToken,
+      ),
+      'POST' => cio.post<Object?>(
+        url,
+        data: body,
+        headers: headers,
+        cancelToken: cancelToken,
+      ),
+      'PATCH' => cio.patch<Object?>(
+        url,
+        data: body,
+        headers: headers,
+        cancelToken: cancelToken,
+      ),
+      'DELETE' => cio.delete<Object?>(
+        url,
+        data: body,
+        headers: headers,
+        cancelToken: cancelToken,
+      ),
+      _ => throw ArgumentError('不支持的方法：$method'),
+    };
+  }
+
+  /// 超时也归成 [MdtbbsException]：调用方只认这一种失败，不另外 catch TimeoutException
+  static MdtbbsException _asTimeoutException(
+    String method,
+    String path,
+    Duration? timeout,
+    TimeoutException error,
+  ) {
+    final limit = timeout == null ? '' : '（${timeout.inSeconds} 秒）';
+    final message = '请求超时$limit：${error.message ?? '$error'}';
+    addLog(.warning, '请求超时 $method $path：$message', tag: 'Mdtbbs');
+    return MdtbbsException(message: message, retryable: true);
   }
 
   static Map<String, String>? _authHeader(String? accessToken) {

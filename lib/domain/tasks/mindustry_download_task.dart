@@ -29,6 +29,18 @@ class LoaderSetupException implements Exception {
   String toString() => message;
 }
 
+/// 本体下好了但建不出版本记录（目标版本目录找不到等）
+///
+/// 单独一个类型是为了让收尾给出明确中文原因，并且**保留已下好的本体**
+class VersionCreateException implements Exception {
+  VersionCreateException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// 下载完成后要建的版本记录
 ///
 /// 启动方式由 [loaderPath] 决定：选了 loader 就建 Copper 版本（loader 按记录形态存），
@@ -265,6 +277,12 @@ class MindustryDownloadTask extends Task {
       addTaskLog(LogEntry(LogType.error, '$e'));
       notice(icon: Icons.close, title: '加载器没配好', content: '$e');
       addLog(.error, '加载器没配好：${removeNewlines('$e')}', tag: 'Loader');
+    } on VersionCreateException catch (e) {
+      // 本体已经下好了，缺的是版本目录：只报「没建出版本」，不删本体、也不报下载完成
+      status = TaskStatus.failed;
+      addTaskLog(LogEntry(LogType.error, '$e'));
+      notice(icon: Icons.error_outline, title: '创建版本失败', content: '$e');
+      addLog(.error, '创建版本失败：${removeNewlines('$e')}', tag: 'GameDownload');
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         if (e.toString().contains('paused')) {
@@ -300,6 +318,9 @@ class MindustryDownloadTask extends Task {
     }
   }
 
+  /// 把这次的结果记进配置：找到目标 fold 就把版本加进去
+  ///
+  /// 找不到 fold 抛 [VersionCreateException]，任务据它收尾成失败
   Future<void> _addIntoConfig({String? bodyFilePath}) async {
     // 复用本体库里已有本体时，文件路径由调用方给进来（此时 file 不由本次下载产生）；
     // 读文件要绝对路径，写进配置走记录形态（数据根内记相对）
@@ -366,6 +387,10 @@ class MindustryDownloadTask extends Task {
     } else {
       //todo 新的路径可以询问玩家是否创建，不创建就移入默认文件夹
       addLogAndPrint(.error, '无法同步配置文件', tag: 'GameDownload');
+      // 找不到要放版本的 fold 就不能算下载成功，抛出去让任务收尾成失败
+      throw VersionCreateException(
+        '没有找到版本目录，[$tag] 没能建出来；到「版本设置」里新建这个目录后重试',
+      );
     }
   }
 

@@ -32,9 +32,11 @@ CrashDiagnosis? diagnose(CrashEvidence evidence) {
 /// 有没有「真的崩了」的证据
 ///
 /// 退出码 0 且没报告、没残留哨兵、Java 与桥都正常 ⇒ 不算崩
+/// 崩溃报告只认本局时间窗内的那份，历史报告不算信号
 bool _looksCrashed(CrashEvidence evidence) {
   if (evidence.launchSentinelLeft) return true;
-  if (evidence.crashReport != null && evidence.crashReport!.trim().isNotEmpty) {
+  final report = evidence.crashReportOfThisLaunch;
+  if (report != null && report.trim().isNotEmpty) {
     return true;
   }
   // Java 或缺桥时游戏进程压根没起来，这也是一次失败的启动
@@ -86,7 +88,7 @@ String _detailOf(CrashRule rule, CrashEvidence evidence) {
     if (evidence.versionTag.isNotEmpty) '版本 ${evidence.versionTag}',
     if (evidence.versionRelease.isNotEmpty) evidence.versionRelease,
     if (evidence.exitCode != null) '退出码 ${evidence.exitCode}',
-    if (evidence.crashReport != null) '有新崩溃报告',
+    if (evidence.crashReportOfThisLaunch != null) '有新崩溃报告',
     if (evidence.viaLoader) '走了加载器',
     if (evidence.viaLoader && !evidence.loaderReady) '加载器不可用',
     if (evidence.memoryMb != null) '堆 ${evidence.memoryMb} MB',

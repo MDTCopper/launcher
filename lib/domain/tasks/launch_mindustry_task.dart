@@ -869,6 +869,7 @@ class LaunchMindustryTask extends Task {
         javaPath: javaPath,
         memoryMb: _launchMemoryMb,
         launchSentinelLeft: _launchSentinelLeft(),
+        launchStartedAt: _launchStartTime,
       ),
     );
   }

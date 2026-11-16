@@ -537,6 +537,7 @@ class MdtbbsMultiplayerApi {
       body: const {},
       accessToken: accessToken,
       cancelToken: cancelToken,
+      timeout: _callTimeout,
     );
     final map = _map(envelope.data);
     if (envelope.requestId != null) map['_requestId'] = envelope.requestId;

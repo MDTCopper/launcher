@@ -644,13 +644,16 @@ class MindustryLauncher {
 /// 崩掉）后启动器回到前台 ⇒ 只认「离开过前台、又回到前台」这一条。
 ///
 /// 回到前台不一定就是游戏结束了（用户从最近任务切回来、游戏还在跑），所以有
-/// [isGameProcessRunning] 时先问一句；它返回 null 表示判不了，按已退出处理，保持旧行为。
+/// [isGameProcessRunning] 时先问一句；它返回 null 表示判不了，先按间隔有限重问，
+/// 仍是判不了才按已退出兜底 —— 判不了不等于已退出，不能直接上报
 ///
 /// **一次桥运行只报一次**：重复报会让任务侧把退出收尾（含退出后云存档上传）做两遍
 class BridgeGameExitWatcher {
   BridgeGameExitWatcher({
     required void Function() onGameExit,
     this.isGameProcessRunning,
+    this.undecidedRetryCount = 3,
+    this.undecidedRetryInterval = const Duration(seconds: 1),
   }) : _onGameExit = onGameExit;
 
   final void Function() _onGameExit;
@@ -658,9 +661,18 @@ class BridgeGameExitWatcher {
   /// 问宿主游戏进程还在不在；null = 这个平台上判不了
   final Future<bool?> Function()? isGameProcessRunning;
 
+  /// 判不了时最多再问几次
+  final int undecidedRetryCount;
+
+  /// 判不了时两次询问之间的间隔
+  final Duration undecidedRetryInterval;
+
   AppLifecycleListener? _listener;
 
   bool _leftForeground = false;
+
+  /// 有一次询问还在进行，避免前后台来回切时叠出多条重试链
+  bool _checking = false;
 
   /// 报过就收手（`start()` 会重置；一次桥运行一份 watcher）
   bool _reported = false;
@@ -677,6 +689,7 @@ class BridgeGameExitWatcher {
     _listener?.dispose();
     _listener = null;
     _leftForeground = false;
+    _checking = false;
   }
 
   /// 判据本体，用例直接喂状态
@@ -699,15 +712,39 @@ class BridgeGameExitWatcher {
   }
 
   /// 回到前台先问宿主：游戏进程还在就只是切了应用，继续等下一次
+  ///
+  /// 判不了时按间隔重问有限次，期间一律不报退出；最后一次仍判不了才走旧兜底
   Future<void> _reportAfterCheck(Future<bool?> Function() check) async {
-    bool? running;
+    if (_checking) return;
+    _checking = true;
     try {
-      running = await check();
+      for (var attempt = 0; attempt <= undecidedRetryCount; attempt++) {
+        if (_reported || _listener == null) return;
+        final running = await _askRunning(check);
+        if (running == true) return;
+        if (running == false) {
+          _report();
+          return;
+        }
+        if (attempt < undecidedRetryCount) {
+          await Future<void>.delayed(undecidedRetryInterval);
+        }
+      }
+      addLog(.warning, '多次查不到游戏进程状态，按已退出处理', tag: 'Launch');
+      _report();
+    } finally {
+      _checking = false;
+    }
+  }
+
+  /// 问一次宿主；异常按判不了处理
+  Future<bool?> _askRunning(Future<bool?> Function() check) async {
+    try {
+      return await check();
     } on Object catch (error) {
       addLog(.warning, '查询游戏进程失败：${removeNewlines('$error')}', tag: 'Launch');
+      return null;
     }
-    if (running == true) return;
-    _report();
   }
 
   void _report() {

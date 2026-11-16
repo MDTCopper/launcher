@@ -293,6 +293,10 @@ abstract class AppPaths {
     }
   }
 
+  /// 游戏默认数据目录
+  ///
+  /// 各平台：Windows 是 `%APPDATA%\Mindustry`、Linux 是 `~/.local/share/Mindustry`、
+  /// Android 放数据根下的 `.mindustry`、macOS 放 `~/Library/Application Support/Copper`
   static Future<void> initDefaultDataPath() async {
     if (Platform.isWindows) {
       final roamingPath = Platform.environment['APPDATA'];
@@ -306,8 +310,20 @@ abstract class AppPaths {
       if (homePath != null) {
         _defaultGameDataPath = p.join(homePath, '.local', 'share', 'Mindustry');
       }
+    } else if (Platform.isMacOS) {
+      final homePath = Platform.environment['HOME'];
+      if (homePath != null) {
+        _defaultGameDataPath = p.join(
+          homePath,
+          'Library',
+          'Application Support',
+          'Copper',
+        );
+      }
     }
-    if (_defaultGameDataPath == null) throw ('无法获取默认游戏数据存储位置');
+    if (_defaultGameDataPath == null) {
+      throw StateError('无法获取默认游戏数据存储位置（平台：${Platform.operatingSystem}）');
+    }
   }
 
   // ---------------------------------------------------------------------------
