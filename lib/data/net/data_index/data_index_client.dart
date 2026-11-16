@@ -47,7 +47,7 @@ class DataIndexClient {
     );
     if (content == null) return null;
 
-    final index = DataIndexModIndex.parse(content);
+    final index = _parseSafely(DataIndexModIndex.parse, content);
     if (index == null) {
       addLog(
         .warning,
@@ -70,7 +70,7 @@ class DataIndexClient {
     );
     if (content == null) return null;
 
-    final releases = DataIndexModReleases.parse(content);
+    final releases = _parseSafely(DataIndexModReleases.parse, content);
     if (releases == null) {
       addLog(.warning, '模组版本文件解析失败：$releasesPath', tag: 'DataIndex');
     }
@@ -87,7 +87,7 @@ class DataIndexClient {
       refresh: refresh,
     );
     if (content == null) return null;
-    final index = DataIndexDependencyIndex.parse(content);
+    final index = _parseSafely(DataIndexDependencyIndex.parse, content);
     if (index == null) {
       addLog(.warning, '依赖图解析失败', tag: 'DataIndex');
     }
@@ -105,7 +105,9 @@ class DataIndexClient {
     );
     if (content == null) return null;
 
-    final releases = MindustryReleaseListSnapshot.parse(content);
+    final releases =
+        _parseSafely(MindustryReleaseListSnapshot.parse, content) ??
+        const <MindustryRelease>[];
     if (releases.isEmpty) {
       addLog(.warning, '游戏版本列表解析失败', tag: 'DataIndex');
       return null;
@@ -156,12 +158,17 @@ class DataIndexClient {
       return content;
     } catch (error) {
       if (hasCache) {
-        addLog(
-          .warning,
-          '拉取数据索引失败，改用旧缓存（$safePath）：${removeNewlines('$error')}',
-          tag: 'DataIndex',
-        );
-        return cacheFile.readAsString();
+        try {
+          final cachedContent = await cacheFile.readAsString();
+          addLog(
+            .warning,
+            '拉取数据索引失败，改用旧缓存（$safePath）：${removeNewlines('$error')}',
+            tag: 'DataIndex',
+          );
+          return cachedContent;
+        } catch (_) {
+          // 旧缓存也读不出来（被占用 / 写坏了）就当没有缓存，别把异常抛给调用方
+        }
       }
       addLog(
         .warning,
@@ -185,18 +192,39 @@ class DataIndexClient {
     return normalized;
   }
 
+  /// 解析坏缓存不往外抛：解析异常一律按「解析失败」返回 null
+  static T? _parseSafely<T>(T? Function(String content) parse, String content) {
+    try {
+      return parse(content);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static final RegExp _driveLetterPath = RegExp(r'^[A-Za-z]:/');
 
+  /// 先写同目录临时文件再 rename：中途失败只留一个临时文件，不会送出半截缓存
   static Future<void> _writeCache(File cacheFile, String content) async {
+    // 带 pid：启动器与后台服务可能同时刷新，各写各的临时文件，不互相踩
+    final tempFile = File('${cacheFile.path}.$pid.tmp');
     try {
       await cacheFile.parent.create(recursive: true);
-      await cacheFile.writeAsString(content, flush: true);
+      await tempFile.writeAsString(content, flush: true);
+      await tempFile.rename(cacheFile.path);
     } catch (error) {
       addLog(
         .warning,
         '写数据索引缓存失败：${cacheFile.path}，${removeNewlines('$error')}',
         tag: 'DataIndex',
       );
+      await _deleteQuietly(tempFile);
     }
+  }
+
+  /// 清临时文件失败只能忽略（不能把写缓存的结果搅坏）
+  static Future<void> _deleteQuietly(File file) async {
+    try {
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
   }
 }

@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/archive_extract.dart' as archive_extract;
 import 'package:copper_launcher/util/io/copper_io.dart';
+import 'package:copper_launcher/util/io/log.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
@@ -145,6 +147,8 @@ class JavaDownloader {
 
     await Directory(installDirPath).create(recursive: true);
 
+    // 解压出 java 可执行文件才算装好；没装好才清临时包与半份目录
+    var installSucceeded = false;
     try {
       await cio.download(
         url: info.downloadUrl,
@@ -158,25 +162,39 @@ class JavaDownloader {
       onStatus?.call('正在解压Java...');
       await extractArchive(archivePath, extractDirPath);
 
-      await File(archivePath).delete();
-
       final javaExe = _findJavaExecutable(extractDirPath);
       if (javaExe == null) {
         onStatus?.call('解压完成但未找到Java可执行文件');
         return null;
       }
+      installSucceeded = true;
+
+      // 先确认解出来的 JDK 可用再清临时包：删不掉只是留一个垃圾文件，不能连累装好的 JDK
+      await _deleteQuietly(File(archivePath));
 
       onStatus?.call('Java ${info.version} 安装完成');
       return javaExe;
     } catch (e) {
       onStatus?.call('安装失败：$e');
-      if (await File(archivePath).exists()) {
-        await File(archivePath).delete();
-      }
-      if (await Directory(extractDirPath).exists()) {
-        await Directory(extractDirPath).delete(recursive: true);
-      }
       return null;
+    } finally {
+      if (!installSucceeded) {
+        await _deleteQuietly(File(archivePath));
+        await _deleteQuietly(Directory(extractDirPath));
+      }
+    }
+  }
+
+  /// 清理失败只记警告：清理本身再抛会把已经装好的 JDK 一起带走
+  static Future<void> _deleteQuietly(FileSystemEntity entity) async {
+    try {
+      if (entity is Directory) {
+        if (await entity.exists()) await entity.delete(recursive: true);
+      } else if (await entity.exists()) {
+        await entity.delete();
+      }
+    } catch (error) {
+      addLog(.warning, 'Java 安装清理失败：${removeNewlines('$error')}', tag: 'Java');
     }
   }
 
@@ -300,11 +318,9 @@ class JavaDownloader {
       if (await file.exists()) {
         try {
           final content = await file.readAsString();
+          // 只追加导出语句本身；连 content 一起写会把整个配置文件翻倍
           if (!content.contains('JAVA_HOME')) {
-            await file.writeAsString(
-              '$content$exportLine',
-              mode: FileMode.append,
-            );
+            await file.writeAsString(exportLine, mode: FileMode.append);
           }
         } catch (_) {}
       }

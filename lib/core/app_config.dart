@@ -32,19 +32,34 @@ String? configRecoveredFromBackup;
 Future<void> initAppConfig() async {
   final loaded = await _readConfigFile();
 
+  AppConfig? loadedConfig;
   if (loaded != null) {
-    config = AppConfig.fromJson(loaded);
+    try {
+      loadedConfig = AppConfig.fromJson(loaded);
+    } catch (error) {
+      // JSON 本身能解、字段类型对不上时 fromJson 会抛：不能让它把启动流程带走
+      addLogAndPrint(
+        .error,
+        '配置内容解析失败：${removeNewlines('$error')}',
+        tag: 'Config',
+      );
+    }
+  }
+
+  if (loadedConfig != null) {
+    config = loadedConfig;
   } else {
     // 配置读不出来（写坏了 / 被手改坏）：先用备份顶上，一份可用备份都没有才用默认配置
     final backup = ConfigBackups.newestReadable(AppPaths.copperLauncher);
-    if (backup != null) {
-      configRecoveredFromBackup = p.basename(backup.file.path);
+    final recovered = _restoreFromBackup(backup);
+    if (recovered != null) {
+      configRecoveredFromBackup = p.basename(backup!.file.path);
       addLogAndPrint(
         .warning,
         '配置读不出来，已用备份 $configRecoveredFromBackup 恢复',
         tag: 'Config',
       );
-      config = AppConfig.fromJson(backup.json);
+      config = recovered;
     } else {
       addLogAndPrint(.error, '配置读不出来且没有可用备份，按默认配置启动', tag: 'Config');
       config = AppConfig(version: appVersion);
@@ -62,6 +77,23 @@ Future<void> initAppConfig() async {
   // 拿到一份能用的配置之后再留底：一次运行最多一份，与 config.save 的调用频率无关
   ConfigBackups.write(rootPath: AppPaths.copperLauncher, json: config.toJson());
   await config.save();
+}
+
+/// 从备份里还原配置；备份内容解析失败当这份备份不能用，返回 null
+AppConfig? _restoreFromBackup(
+  ({File file, Map<String, dynamic> json})? backup,
+) {
+  if (backup == null) return null;
+  try {
+    return AppConfig.fromJson(backup.json);
+  } catch (error) {
+    addLogAndPrint(
+      .error,
+      '备份配置解析失败：${p.basename(backup.file.path)}，${removeNewlines('$error')}',
+      tag: 'Config',
+    );
+    return null;
+  }
 }
 
 /// 读当前形态的配置文件（debug 是 json、release 是 bin），读不出来给 null
