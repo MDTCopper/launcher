@@ -1785,6 +1785,13 @@ class CopperIO {
       }
     }
 
+    ///安全通知：界面回调抛异常不该把下载带走
+    void notify() {
+      try {
+        onStatus?.call(state);
+      } catch (_) {}
+    }
+
     final periodicTimer = Timer.periodic(const Duration(milliseconds: 100), (
       _,
     ) {
@@ -1800,7 +1807,7 @@ class CopperIO {
             ),
           )
           .toList();
-      onStatus?.call(state);
+      notify();
       //续传要扛得住进程被杀（安卓上很常见）：下载途中也定期落一次进度
       if (DateTime.now().difference(lastMetaAt) >= const Duration(seconds: 2) &&
           state.downloaded != lastMetaBytes) {
@@ -1826,7 +1833,7 @@ class CopperIO {
 
     //续传现场可能已经下了一部分：先按已收字节把进度算出来，别让界面从 0 开始
     refreshChunkStats();
-    onStatus?.call(state);
+    notify();
 
     //自适应调度：worker 池取「剩余最大」的块（快 worker 自然多干）；
     //≥32MB 的文件先只开 1 个连接探带宽，按增益扩容；明显慢的块拆一半让出去
@@ -2323,11 +2330,27 @@ class CopperIO {
         ? null
         : Timer.periodic(_lowSpeedCheckInterval, (_) => checkLowSpeed());
 
-    ///收尾：按 [deleteOnError] 决定清掉续传现场还是保住进度
+    var settled = false;
+
+    ///停掉所有定时器并等 worker 收手（可能还有 worker 正占着 `.part` 的句柄）
+    ///
+    ///幂等：成功、失败、取消、忽略 Range 四条路径都先走它，保证「收尾一定发生、
+    ///且只发生一次」—— 之前这段在 4 个 catch 里各抄一遍，「取消」那条还漏了
+    Future<void> stopAndDrain() async {
+      if (settled) return;
+      settled = true;
+      periodicTimer.cancel();
+      speedCalc.cancel();
+      sampleTimer.cancel();
+      lowSpeedTimer?.cancel();
+      await Future.wait(workerFutures);
+    }
+
+    ///失败收尾：按 [deleteOnError] / [keepPartialOnFailure] 决定清掉还是保住续传现场
     ///
     ///用户取消也走这里 —— 状态要如实报成 `cancelled`
-    Future<void> finishFailed({bool cancelled = false}) async {
-      //取消不算「还要再来一趟」：该清的现场照旧清掉
+    Future<void> settleFailed({required bool cancelled}) async {
+      await stopAndDrain();
       final keepPartial = keepPartialOnFailure && !cancelled;
       if (deleteOnError && !keepPartial) {
         await _cleanupPartial(partialFile, metaPath);
@@ -2337,7 +2360,7 @@ class CopperIO {
       state.status = cancelled
           ? HttpDownloadStatus.cancelled
           : HttpDownloadStatus.failed;
-      onStatus?.call(state);
+      notify();
     }
 
     try {
@@ -2349,17 +2372,11 @@ class CopperIO {
       }
 
       await finished.future;
-      //等所有 worker 收手再收尾：可能还有 worker 正占着 `.part` 的句柄
-      await Future.wait(workerFutures);
-
-      periodicTimer.cancel();
-      speedCalc.cancel();
-      sampleTimer.cancel();
-      lowSpeedTimer?.cancel();
+      await stopAndDrain();
 
       state.status = HttpDownloadStatus.merging;
       state.speed = 0;
-      onStatus?.call(state);
+      notify();
 
       //收尾：`.part` 改名成目标文件，续传现场作废（改名是元数据操作，不搬字节）
       final target = File(savePath);
@@ -2370,7 +2387,7 @@ class CopperIO {
       state.status = HttpDownloadStatus.completed;
       state.progress = 1.0;
       state.completedChunks = chunks.length;
-      onStatus?.call(state);
+      notify();
       addLog(
         .debug,
         '分块下载完成：${chunks.length} 个分块 → $savePath'
@@ -2379,28 +2396,18 @@ class CopperIO {
       );
     } on _RangeIgnored {
       //换个下载形态重来，不算失败：`.part` 与元数据一律清掉，单流会整份重写
-      periodicTimer.cancel();
-      speedCalc.cancel();
-      sampleTimer.cancel();
-      lowSpeedTimer?.cancel();
-      await Future.wait(workerFutures);
+      await stopAndDrain();
       await _cleanupPartial(partialFile, metaPath);
       rethrow;
-    } on DioException catch (e) {
-      periodicTimer.cancel();
-      speedCalc.cancel();
-      sampleTimer.cancel();
-      lowSpeedTimer?.cancel();
-      await Future.wait(workerFutures);
-      await finishFailed(cancelled: _isCancelled(cancelToken, e));
-      rethrow;
     } catch (e) {
-      periodicTimer.cancel();
-      speedCalc.cancel();
-      sampleTimer.cancel();
-      lowSpeedTimer?.cancel();
-      await Future.wait(workerFutures);
-      await finishFailed(cancelled: _isCancelled(cancelToken, e));
+      //先判「忽略 Range」：兄弟块被 abort 打断会抛 cancel 错误，若它先抢到
+      //finished，就会把「该退化为单流」误报成用户取消
+      if (rangeIgnored) {
+        await stopAndDrain();
+        await _cleanupPartial(partialFile, metaPath);
+        throw _RangeIgnored();
+      }
+      await settleFailed(cancelled: _isCancelled(cancelToken, e));
       rethrow;
     }
   }
