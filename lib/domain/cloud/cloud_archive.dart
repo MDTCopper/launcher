@@ -43,7 +43,8 @@ class CloudArchive {
 
   /// 打包：扫一遍版本的数据目录，按清单勾选落成 zip
   ///
-  /// [outputPath] 先写 `<outputPath>.importing` 再改名（中途出错不留半个包）；
+  /// [outputPath] 先写 `<outputPath>.<pid>.importing` 再改名（中途出错不留半个包，
+  /// 已有同名包也不会被写坏）；
   /// **别把云包存进游戏数据目录** —— Steam 云对 `saves/`、`maps`、`mods` 等的规则是
   /// `*`，临时文件也会被传上去占配额
   /// 扫完到打包之间文件被改过（哈希对不上）就**宁可不打包**，记进
@@ -647,22 +648,104 @@ String? _safeName(String name) {
   return name;
 }
 
+/// 覆盖写的临时文件路径：带进程号，两个实例同时写同一个目标不会撞在一起
+String _stagingPathFor(String targetPath, String directoryPath) =>
+    p.join(directoryPath, '${p.basename(targetPath)}.$pid.importing');
+
+/// 清临时文件；清不掉也不影响目标
+void _deleteQuietly(File file) {
+  try {
+    if (file.existsSync()) file.deleteSync();
+  } on FileSystemException {
+    // 临时文件留给下次清理
+  }
+}
+
+/// 改名替换目标
+///
+/// 改名盖不住已有文件（Windows 上只读 / 被占用）时先把旧文件挪开再换，
+/// 换成功才删旧文件；中途失败把旧文件还原，并清掉临时文件
+void _replaceByRename(
+  File stagingFile,
+  String targetPath, {
+  String? backupDirPath,
+}) {
+  try {
+    stagingFile.renameSync(targetPath);
+    return;
+  } on FileSystemException {
+    // 落到下面的「挪开旧的再改名」
+  }
+
+  final targetFile = File(targetPath);
+  final backupFile = File(
+    p.join(
+      backupDirPath ?? targetFile.parent.path,
+      '${p.basename(targetPath)}.$pid.old',
+    ),
+  );
+  final hadOldFile = targetFile.existsSync();
+  try {
+    if (hadOldFile) targetFile.renameSync(backupFile.path);
+    stagingFile.renameSync(targetPath);
+  } catch (_) {
+    if (hadOldFile && backupFile.existsSync() && !targetFile.existsSync()) {
+      try {
+        backupFile.renameSync(targetPath);
+      } on FileSystemException {
+        // 还原不了只能把旧文件留在备份名下
+      }
+    }
+    _deleteQuietly(stagingFile);
+    rethrow;
+  }
+  if (hadOldFile) _deleteQuietly(backupFile);
+}
+
 Future<void> _writeAtomically(File target, List<int> bytes) async {
   target.parent.createSync(recursive: true);
-  final temporary = File('${target.path}.importing');
-  await temporary.writeAsBytes(bytes, flush: true);
-  if (target.existsSync()) target.deleteSync();
-  await temporary.rename(target.path);
+  final stagingFile = File(_stagingPathFor(target.path, target.parent.path));
+  try {
+    await stagingFile.writeAsBytes(bytes, flush: true);
+  } catch (_) {
+    _deleteQuietly(stagingFile);
+    rethrow;
+  }
+  _replaceByRename(stagingFile, target.path);
 }
 
 void _writeAtomicallySync(File target, List<int> bytes, {String? tempDirPath}) {
   target.parent.createSync(recursive: true);
-  final directory = tempDirPath ?? target.parent.path;
-  Directory(directory).createSync(recursive: true);
-  final temporary = File(
-    p.join(directory, '${p.basename(target.path)}.importing'),
-  );
-  temporary.writeAsBytesSync(bytes, flush: true);
-  if (target.existsSync()) target.deleteSync();
-  temporary.renameSync(target.path);
+  final directoryPath = tempDirPath ?? target.parent.path;
+  Directory(directoryPath).createSync(recursive: true);
+  final stagingFile = File(_stagingPathFor(target.path, directoryPath));
+  try {
+    stagingFile.writeAsBytesSync(bytes, flush: true);
+  } catch (_) {
+    _deleteQuietly(stagingFile);
+    rethrow;
+  }
+  _replaceByRename(stagingFile, target.path, backupDirPath: directoryPath);
+}
+
+/// 覆盖复制：先把 [sourceFile] 复制到临时文件（默认目标同目录），再改名替换
+///
+/// 复制或改名失败只清临时文件，目标保持原样
+Future<void> copyFileReplacing(
+  File sourceFile,
+  String targetPath, {
+  String? tempDirPath,
+}) async {
+  final targetFile = File(targetPath);
+  await targetFile.parent.create(recursive: true);
+  final directoryPath = tempDirPath ?? targetFile.parent.path;
+  await Directory(directoryPath).create(recursive: true);
+  final stagingFile = File(_stagingPathFor(targetPath, directoryPath));
+  try {
+    await sourceFile.copy(stagingFile.path);
+  } catch (_) {
+    _deleteQuietly(stagingFile);
+    rethrow;
+  }
+  _replaceByRename(stagingFile, targetPath, backupDirPath: directoryPath);
 }

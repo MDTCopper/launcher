@@ -2173,7 +2173,12 @@ class CloudSaveService {
         final target = File(destination);
         target.parent.createSync(recursive: true);
         final existed = target.existsSync();
-        File(tempFiles[file.sha256]!).copySync(destination);
+        // 中转文件放数据目录的 tmp/（不在 Steam 云的同步规则里），写完再改名替换
+        await copyFileReplacing(
+          File(tempFiles[file.sha256]!),
+          destination,
+          tempDirPath: p.join(dataPath, 'tmp'),
+        );
         report.written.add(destination);
         if (existed) {
           report.overwritten.add(destination);

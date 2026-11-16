@@ -620,7 +620,11 @@ class AccountManager {
     });
   }
 
-  Future<bool> _refreshOnce(CancelToken? cancelToken) async {
+  /// 真正跑一次刷新；[mayAdoptDiskToken] 只允许第一次尝试换成盘上的凭证再试
+  Future<bool> _refreshOnce(
+    CancelToken? cancelToken, {
+    bool mayAdoptDiskToken = true,
+  }) async {
     final stored = _stored;
     if (stored == null || !stored.isLoggedIn) return false;
     final epoch = _epoch;
@@ -676,7 +680,17 @@ class AccountManager {
           _stored = disk;
           _accessToken = null;
           _accessTokenExpiresAt = null;
-          return refresh(cancelToken: cancelToken);
+          if (!mayAdoptDiskToken) {
+            // 换了盘上这份还是被拒：它就是本进程用的那份，重试没有意义
+            addLogAndPrint(
+              .warning,
+              '盘上的凭证刷新也被拒，这次放弃（不替另一个进程登出）',
+              tag: 'Account',
+            );
+            return false;
+          }
+          // 不能再 `return refresh()`：此时 `_refreshing` 就是本 future，会自己等自己
+          return _refreshOnce(cancelToken, mayAdoptDiskToken: false);
         }
         addLogAndPrint(.warning, '登录已失效，需要重新登录', tag: 'Account');
         _forget();

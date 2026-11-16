@@ -1671,14 +1671,10 @@ class MdtbbsMultiplayerService {
   Future<void> _endBecauseSessionClosed() async {
     if (_current.session == null) return;
     addLogAndPrint(.warning, '房间已关闭，退出本地会话', tag: 'Multiplayer');
-    forgetSession();
-    _set(_current.copyWith(
-      clearSession: true,
-      clearSelf: true,
-      peers: const [],
-      clearJoinRequests: true,
-    ));
-    _accounts.clearMultiplayerSession();
+    final epoch = _accountEpoch;
+    // 走退房同一套收尾：代理、重连定时器、proxyRunning 一并停
+    await _finishLeaveLocally(epoch);
+    if (!_isAccountEpochCurrent(epoch)) return;
     _notify('房主已离开，房间已关闭', isError: true, title: '已退出房间');
   }
 
@@ -1707,14 +1703,10 @@ class MdtbbsMultiplayerService {
       '断网超过 ${_offlineGiveUp.inSeconds} 秒，本地退出房间',
       tag: 'Multiplayer',
     );
-    forgetSession();
-    _set(_current.copyWith(
-      clearSession: true,
-      clearSelf: true,
-      peers: const [],
-      clearJoinRequests: true,
-    ));
-    _accounts.clearMultiplayerSession();
+    final epoch = _accountEpoch;
+    // 走退房同一套收尾：代理、重连定时器、proxyRunning 一并停
+    await _finishLeaveLocally(epoch);
+    if (!_isAccountEpochCurrent(epoch)) return;
     _notify('与服务器断开超过 60 秒，已退出房间', isError: true, title: '网络中断');
   }
 
