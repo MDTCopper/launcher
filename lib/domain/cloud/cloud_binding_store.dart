@@ -347,19 +347,3 @@ class CloudBindingRequiredException implements Exception {
   @override
   String toString() => message;
 }
-
-class CloudAlreadyBoundException implements Exception {
-  const CloudAlreadyBoundException(this.tag);
-
-  final String? tag;
-
-  @override
-  String toString() => '这份云存档已经绑定在 tag ${tag ?? '未知'} 上，先解绑';
-}
-
-class CloudBindCancelledException implements Exception {
-  const CloudBindCancelledException();
-
-  @override
-  String toString() => '已取消绑定';
-}

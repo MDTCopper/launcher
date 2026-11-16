@@ -31,12 +31,6 @@ import 'package:path/path.dart' as p;
 class BridgeLibrary {
   BridgeLibrary._();
 
-  /// 旧装法那份 JRE 的版本标记（`bridge/jre/.installed-version`）
-  ///
-  /// 新布局里每份 JRE 在自己的根下带一份，落点由 [JreLibrary] 定
-  static String get jreVersionMarker =>
-      p.join(AppPaths.bridgeJre, '.installed-version');
-
   /// 上次装桥时的启动器构建号：APK 更新后宿主类的编译期桥可能已变，
   /// 旧运行期 bridge.jar 必须重装，否则会出现 NoSuchFieldError
   static String get bridgeBuildMarkerPath =>

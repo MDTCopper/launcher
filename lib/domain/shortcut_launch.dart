@@ -34,17 +34,13 @@ class ShortcutLaunch {
   /// 正在处理的版本 id：同一次快捷方式的事件 + 冷启动 take 只处理一份
   static String? _lastVersionId;
   static DateTime? _lastLaunchedAt;
-  static Future<bool> Function()? _waitForShell;
 
   /// 启动时调一次：把冷启动那次请求取回来
   ///
-  /// 通道接线（`AndroidEvent.start()`）由启动流程统一做，这里只管取数据；
-  /// [waitForShell] 给界面就绪信号：启动前可能还有冲突弹窗之类的界面动作，
-  /// 拿不到界面时这次请求只记日志、不启动
-  static Future<void> start({Future<bool> Function()? waitForShell}) async {
+  /// 通道接线（`AndroidEvent.start()`）由启动流程统一做，这里只管取数据
+  static Future<void> start() async {
     if (!Platform.isAndroid || _started) return;
     _started = true;
-    _waitForShell = waitForShell;
     await _consume();
   }
 
@@ -63,11 +59,6 @@ class ShortcutLaunch {
     if (versionId == null) return;
     _handling = true;
     try {
-      final ready = await _waitForShell?.call() ?? true;
-      if (!ready) {
-        addLog(.warning, '快捷方式启动：界面没起来，忽略这次请求', tag: 'Shortcut');
-        return;
-      }
       // 统一入口：Android 分支只做路由，真正的启动执行器仍留在本类
       await QuickLaunchEntry.dispatch(
         LaunchRequest(versionId),
@@ -281,33 +272,6 @@ class ShortcutLaunch {
       addLog(
         .warning,
         '请求桌面快捷方式失败：${removeNewlines('$error')}',
-        tag: 'Shortcut',
-      );
-      return false;
-    }
-  }
-
-  /// 请求给版本建一个桌面小组件（目前保留备用，版本设置页走快捷方式）
-  ///
-  /// 返回 false 表示这台设备的桌面不支持一键添加，需要引导用户去小组件面板
-  static Future<bool> requestPinWidget(Mindustry version) async {
-    try {
-      final result = await AndroidCall.requestPinWidget(
-        version.id,
-        version.tag,
-        version.resolvedJarPath,
-        version.resolvedIconPath ?? '',
-      );
-      addLog(
-        .info,
-        '请求桌面小组件 [${version.tag}]：${result ? '已提交' : '桌面不支持'}',
-        tag: 'Shortcut',
-      );
-      return result;
-    } on Object catch (error) {
-      addLog(
-        .warning,
-        '请求桌面小组件失败：${removeNewlines('$error')}',
         tag: 'Shortcut',
       );
       return false;

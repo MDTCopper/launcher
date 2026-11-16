@@ -334,7 +334,7 @@ Future<void> _initializeUi(
   LaunchRequest? launchRequest, {
   required bool fromService,
 }) async {
-  await _initPlatformView(quiet: false);
+  await _initPlatformView();
   //窗口就绪后应用托盘模式（依赖 config + windowManager）
   await LauncherTray.instance.applyMode();
   //后台初始化任务，不阻塞，进任务抽屉自跑
@@ -355,13 +355,7 @@ Future<void> _initializeUi(
   ShareIn.onFiles((files) => unawaited(_importSharedFiles(files)));
   await ShareIn.start();
   //桌面快捷方式「直接启动」：把冷启动那次请求取回来，启动器起来后拉起对应版本
-  //
-  //安卓上不等界面就绪：静默启动本来就不该让人看到界面，等 shell 只会白白多等 1 秒左右
-  unawaited(
-    ShortcutLaunch.start(
-      waitForShell: Platform.isAndroid ? null : _waitForShell,
-    ),
-  );
+  unawaited(ShortcutLaunch.start());
 
   // UI 在线标记：快捷启动触发进程靠它决定「交给 UI」还是「自己进服务」
   await GameSessionStore.writeUiPid();
@@ -525,15 +519,15 @@ Future<void> _quitProcess() async {
 }
 
 /// 平台视图初始化：桌面端建窗口，移动端设置系统 UI
-Future<void> _initPlatformView({required bool quiet}) async {
+Future<void> _initPlatformView() async {
   if (Platform.isAndroid) {
     await _initAndroidView();
   } else {
-    await _initWindows(quiet: quiet);
+    await _initWindows();
   }
 }
 
-Future<void> _initWindows({required bool quiet}) async {
+Future<void> _initWindows() async {
   await windowManager.ensureInitialized();
 
   const windowOptions = WindowOptions(
@@ -542,15 +536,6 @@ Future<void> _initWindows({required bool quiet}) async {
     center: true,
     titleBarStyle: TitleBarStyle.hidden,
   );
-
-  if (quiet) {
-    // 只应用窗口参数，不显示；快捷启动的界面由 runner 按参数跳过首帧显示。
-    // 不要在这里 setSkipTaskbar(true)：窗口从没显示过，任务栏本来就没有按钮，
-    // 删一次反而会让后面 show() 补不回来（表现为回到启动器后任务栏没图标）
-    await windowManager.waitUntilReadyToShow(windowOptions, null);
-    addLog(.info, '快捷启动：主窗口保持隐藏', tag: 'Startup');
-    return;
-  }
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
     // 不要在这里 show：Windows runner 会在 Flutter 第一帧渲染完后才 Show；

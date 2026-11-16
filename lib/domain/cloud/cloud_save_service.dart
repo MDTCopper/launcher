@@ -704,20 +704,6 @@ class CloudSaveService {
     });
   }
 
-  /// 按发布号或 tag 找本机已有的版本
-  static Mindustry? findInstalledVersion(String releaseOrTag) {
-    final wanted = releaseOrTag.trim();
-    if (wanted.isEmpty) return null;
-    for (final fold in config.versionOptions.versionFolds) {
-      for (final version in fold.versions) {
-        if (version.release.trim() == wanted || version.tag.trim() == wanted) {
-          return version;
-        }
-      }
-    }
-    return null;
-  }
-
   /// 槽位名里的发布号
   ///
   /// 名字是 `设备名 · release[ · boundTag] #短码`，默认存档是 `设备名 · 默认存档 #短码`；

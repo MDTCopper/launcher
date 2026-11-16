@@ -156,33 +156,11 @@ class LauncherTray extends TrayListener with WindowListener {
     return null;
   }
 
-  /// 快捷启动的隐藏窗口会话：托盘先不常驻，需要露面时再恢复用户设置
-  bool _quietMode = false;
-
   /// 关窗 / 退出流程只走一次：先交接给云服务再真正退出
   bool _closing = false;
 
   ///按 config 应用托盘模式
-  ///
-  ///[quiet] 给快捷启动用：不建托盘图标、不接管关窗行为，窗口由 runner 侧保持隐藏；
-  ///之后 [showMainWindow] 会把用户设置恢复回来
-  Future<void> applyMode({bool quiet = false}) async {
-    _quietMode = quiet;
-    if (quiet) {
-      _trayMode = false;
-      _closeToTray = false;
-      _gameRunningCloseToTray = false;
-      _postLaunchToTray = false;
-      _cloudSyncMenuTimer?.cancel();
-      _cloudSyncMenuTimer = null;
-      await _taskSubscription?.cancel();
-      _taskSubscription = null;
-      await windowManager.setPreventClose(false);
-      await trayManager.destroy();
-      addLog(.info, '快捷启动：托盘暂不常驻', tag: 'Tray');
-      return;
-    }
-
+  Future<void> applyMode() async {
     final personalization = config.setting.personalizationOptions;
     final traySupported = await resolveTraySupport();
     //托盘不可用时所有托盘行为都按未开启算，否则关窗会把窗口藏进一个点不到的地方
@@ -328,8 +306,8 @@ class LauncherTray extends TrayListener with WindowListener {
 
   ///游戏启动成功后调用：按「游戏启动后」的行为处理启动器
   Future<void> hideIfTrayMode() async {
-    //无界面服务与移动端没有窗口 / 托盘；快捷启动的隐藏会话由 ShortcutExitAction 收尾
-    if (!isDesktop || AppRuntime.headless || _quietMode) return;
+    //无界面服务与移动端没有窗口 / 托盘
+    if (!isDesktop || AppRuntime.headless) return;
     switch (config.setting.personalizationOptions.launcherPostLaunchBehavior) {
       case LauncherPostLaunchBehavior.none:
         return;
@@ -374,22 +352,18 @@ class LauncherTray extends TrayListener with WindowListener {
 
   ///把主窗口叫回来：托盘隐藏 / 最小化状态都能拉回前台
   ///
-  ///单实例守护收到第二个实例的通知时调它；快捷启动的隐藏会话也靠它露出界面
+  ///单实例守护收到第二个实例的通知时调它
   Future<void> showMainWindow() async {
     if (!isDesktop) return;
-    if (_quietMode) {
-      // 快捷启动期间没建托盘；现在要显示界面了，按用户设置恢复
-      await applyMode();
-    }
     if (await windowManager.isMinimized()) {
       await windowManager.restore();
     }
     await _showFromTray();
   }
 
-  /// 需要弹窗 / 出错时保证主窗口可见（快捷启动的隐藏会话专用）
+  /// 需要弹窗 / 出错时保证主窗口可见
   ///
-  /// 已经可见时不打扰；隐藏时走 [showMainWindow]（会恢复托盘设置）
+  /// 已经可见时不打扰；隐藏时走 [showMainWindow]
   Future<void> ensureVisibleForPrompt() async {
     if (!isDesktop) return;
     // 无界面服务：窗口不存在，交给 CloudServiceProcess 拉起 UI

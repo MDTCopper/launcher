@@ -335,14 +335,6 @@ class SyncProxyGate {
 
   static SyncProxyGate? _active;
 
-  /// 当前服务端 gate（诊断用）
-  static SyncProxyGate? get active => _active;
-
-  static bool get isActive {
-    final gate = _active;
-    return gate != null && !gate._closed;
-  }
-
   /// 无界面服务的启动前同步开始时调用；UI 进程返回 null（不写状态文件）
   ///
   /// 写状态失败一律吞掉：代理窗口是可选的，绝不能因为它拦住游戏启动

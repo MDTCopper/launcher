@@ -260,10 +260,6 @@ String? readTextTail(
   return _takeLines(text, maxLines: maxLines, fromHead: false);
 }
 
-/// 取一段文本的最后若干行
-String lastLines(String text, {int maxLines = 200}) =>
-    _takeLines(text, maxLines: maxLines, fromHead: false);
-
 /// 把磁盘上的崩溃报告与 `last_log.txt` 补进证据
 ///
 /// 只读；读不到就保持原样，让诊断按「没拿到」处理
