@@ -200,6 +200,20 @@ class CopperIO {
   ///慢传输由停滞看门狗（[_downloadIdleTimeout]）管。实测放到 30s 只会让死链路多等 15 秒
   static const Duration _downloadConnectTimeout = Duration(seconds: 15);
 
+  ///单条下载连接的最低速率：低于它持续 [_lowSpeedWindow] 就断开重连
+  ///
+  ///「停滞看门狗」只管一个字节都没有的情况，对 2KB/s 的涓流永远不触发 ——
+  ///用户在界面上看到的是进度几乎不动、也不报错。业界同款是「速度阈值 + 持续时间」
+  ///（aria2 `--lowest-speed-limit`、curl `--speed-limit` + `--speed-time`）；
+  ///阈值取得很低是故意的：只抓病态涓流，不碰正常慢链路
+  static const int _minChunkRateBytes = 16 * KB;
+
+  ///低速判定的观察窗口
+  static const Duration _lowSpeedWindow = Duration(seconds: 20);
+
+  ///低速检查的轮询间隔：必须比窗口小得多，否则定时器抖动会错过整轮判定
+  static const Duration _lowSpeedCheckInterval = Duration(seconds: 5);
+
   Duration _connectTimeout = const Duration(seconds: 10);
   Duration _receiveTimeout = const Duration(seconds: 60);
 
@@ -1629,6 +1643,14 @@ class CopperIO {
       }
 
       RandomAccessFile? raf;
+      //每趟一条自己的取消令牌：低速看门狗断这条连接时不能连累其它块
+      final chunkCancel = CancelToken();
+      chunk.cancelToken = chunkCancel;
+      chunk.rateCheckAt = DateTime.now();
+      chunk.rateCheckBytes = chunk.received;
+      unawaited(abortToken.whenCancel.then((_) {
+        if (!chunkCancel.isCancelled) chunkCancel.cancel();
+      }));
       try {
         final resp = await _dio!.get(
           url,
@@ -1640,7 +1662,7 @@ class CopperIO {
             receiveTimeout: _downloadIdleTimeout,
             headers: {...?headers, ...rangeHeader},
           ),
-          cancelToken: abortToken,
+          cancelToken: chunkCancel,
         );
 
         //带 Range 只认 206：回 200 说明服务端没看 Range（或源已变），
@@ -1719,14 +1741,18 @@ class CopperIO {
       } on _RangeIgnored {
         rethrow;
       } catch (e) {
+        //低速看门狗断开的连接不算用户取消：按链路问题重试
+        final lowSpeedAbort = chunk.lowSpeedAborted;
+        chunk.lowSpeedAborted = false;
         //用户取消照旧往外抛
         if (cancelToken?.isCancelled == true ||
-            (e is DioException && CancelToken.isCancel(e))) {
+            (e is DioException && CancelToken.isCancel(e) && !lowSpeedAbort)) {
           rethrow;
         }
         //读到一半被对端掐断时，dio 把原始错误（HttpException）直接抛给响应体流，
         //不是 DioException —— 那同样是弱网断连，要按一样的退避重试接着下
-        final isTransport = e is! DioException || isTransportFailure(e);
+        final isTransport =
+            lowSpeedAbort || e is! DioException || isTransportFailure(e);
         // 断网时不再空转多轮：连接类失败只再试一次；其它错误（服务端抖动等）按上限重试；
         // 写盘失败（磁盘满 / 路径不可写）一次都别重试 —— 退避几轮也一样满。
         // 但「这趟收到过数据」是另一回事：链路是通的、只是中途被掐，
@@ -1744,9 +1770,11 @@ class CopperIO {
           //写盘失败的说明要能直接看懂：磁盘满 / 路径不可写，跟网络无关
           final reason = e is FileSystemException
               ? '写盘失败（${e.osError?.message ?? e.message}）'
-              : (e is DioException
-                    ? e.type.name
-                    : e.runtimeType.toString());
+              : (lowSpeedAbort
+                    ? '速率过低'
+                    : (e is DioException
+                          ? e.type.name
+                          : e.runtimeType.toString()));
           chunk.status = HttpChunkStatus.failed;
           refreshChunkStats();
           addLog(
@@ -1758,6 +1786,7 @@ class CopperIO {
           throw ChunkDownloadFailed(chunk.index, reason, cause: e);
         }
       } finally {
+        chunk.cancelToken = null;
         chunk.file = null;
         if (raf != null) {
           try {
@@ -2012,6 +2041,40 @@ class CopperIO {
       scaleIfNeeded(smoothed);
     });
 
+    ///低速看门狗：单条连接在观察窗口里的平均速率低于阈值就断开重连
+    ///
+    ///窗口从这一趟连接建立时算起（[downloadPiece] 里重置），所以不会被别的块的
+    ///进度带偏；只断这一条连接（各块有自己的取消令牌），重试按 Range 从水位续
+    void checkLowSpeed() {
+      final now = DateTime.now();
+      for (final chunk in chunks) {
+        if (chunk.status != HttpChunkStatus.downloading) continue;
+        final since = chunk.rateCheckAt;
+        if (since == null) continue;
+        final seconds = now.difference(since).inMilliseconds / 1000;
+        if (seconds < _lowSpeedWindow.inSeconds) continue;
+        final bytes = chunk.received - chunk.rateCheckBytes;
+        chunk.rateCheckAt = now;
+        chunk.rateCheckBytes = chunk.received;
+        final rate = bytes / seconds;
+        if (rate >= _minChunkRateBytes) continue;
+        chunk.lowSpeedAborted = true;
+        final token = chunk.cancelToken;
+        if (token != null && !token.isCancelled) token.cancel('低速');
+        addLog(
+          .debug,
+          '分块 ${chunk.index + 1} 速率过低（${(rate / KB).toStringAsFixed(0)}KB/s '
+          '持续 ${_lowSpeedWindow.inSeconds}s），断开重连',
+          tag: 'Download',
+        );
+      }
+    }
+
+    final lowSpeedTimer = Timer.periodic(
+      _lowSpeedCheckInterval,
+      (_) => checkLowSpeed(),
+    );
+
     ///收尾：按 [deleteOnError] 决定清掉续传现场还是保住进度
     ///
     ///用户取消也走这里 —— 状态要如实报成 `cancelled`
@@ -2044,6 +2107,7 @@ class CopperIO {
       periodicTimer.cancel();
       speedCalc.cancel();
       sampleTimer.cancel();
+      lowSpeedTimer.cancel();
 
       state.status = HttpDownloadStatus.merging;
       state.speed = 0;
@@ -2070,6 +2134,7 @@ class CopperIO {
       periodicTimer.cancel();
       speedCalc.cancel();
       sampleTimer.cancel();
+      lowSpeedTimer.cancel();
       await Future.wait(workerFutures);
       await _cleanupPartial(partialFile, metaPath);
       rethrow;
@@ -2077,6 +2142,7 @@ class CopperIO {
       periodicTimer.cancel();
       speedCalc.cancel();
       sampleTimer.cancel();
+      lowSpeedTimer.cancel();
       await Future.wait(workerFutures);
       await finishFailed(cancelled: _isCancelled(cancelToken, e));
       rethrow;
@@ -2084,6 +2150,7 @@ class CopperIO {
       periodicTimer.cancel();
       speedCalc.cancel();
       sampleTimer.cancel();
+      lowSpeedTimer.cancel();
       await Future.wait(workerFutures);
       await finishFailed(cancelled: _isCancelled(cancelToken, e));
       rethrow;
@@ -2244,6 +2311,16 @@ class _Chunk {
 
   ///正在写这个块的句柄（没有在写时为 null）：写元数据前要拿它 flush
   RandomAccessFile? file;
+
+  ///这一趟连接自己的取消令牌：低速看门狗只断这一条，不影响别的块
+  CancelToken? cancelToken;
+
+  ///刚才是不是被低速看门狗断的（是的话按链路问题重试，不当用户取消）
+  bool lowSpeedAborted = false;
+
+  ///低速观察窗口的起点与起点字节数
+  DateTime? rateCheckAt;
+  int rateCheckBytes = 0;
 
   HttpChunkStatus status;
 
