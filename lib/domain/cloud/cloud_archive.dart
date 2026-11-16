@@ -14,11 +14,12 @@ import 'package:path/path.dart' as p;
 /// 目录约定 —— 既是打包时的落点，也是解包时的**白名单**，清单一律说了算：
 /// ```
 /// copper-save.json          清单（唯一真相来源）
+/// settings.bin              整份设置（键位 / UI / 存档标题），当普通文件逐字节同步
 /// saves/<名字>.msav         存档（不含游戏自己写的 *-backup.msav）
 /// maps/<名字>.msav          地图
 /// schematics/<名字>.msch    蓝图
 /// previews/<名字>.png       预览图（勾了才带）
-/// settings/progress.json    只带模组启用状态，不整包搬 settings.bin
+/// settings/progress.json    只带模组启用状态，是 settings.bin 的白名单投影
 /// mods/manifest.json        模组清单的独立投影，方便单独看
 /// mods/files/<sha256>.jar   只有「随包带字节」的模组才有（私有 / 已下架的那种）
 /// ```
@@ -547,7 +548,7 @@ class CloudImportReport {
 
   int writtenBytes = 0;
 
-  /// 合回本机 `settings.bin` 的模组启用状态条数（见 [CloudArchiveReader.mergeModStates]）
+  /// 合回本机 `settings.bin` 的模组启用状态条数
   int appliedModStates = 0;
 
   /// 一个文件都没落地、也没被拒 —— 说明本机已经是这个包的样子了
@@ -624,7 +625,7 @@ String? _backupLocalFile({
     source.copySync(target.path);
     return target.path;
   } catch (_) {
-    // 备份失败不拦覆盖：调用方（restore）还有整目录备份；这里只记日志没必要
+    // 备份失败不拦覆盖：调用方 restore 还有整目录备份，这里只当没留这一份
     return null;
   }
 }

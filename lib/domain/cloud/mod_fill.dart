@@ -212,7 +212,6 @@ ModFillPlan? _planFor({
   );
 }
 
-/// release 的 tag 或名字里有没有提到这个版本号（`1.2.3` / `v1.2.3` / `Release 1.2.3` 都算）
 /// 这个 release 的 tag / 名字与清单版本对到几成：2 = 完全一致，1 = 数字版本前缀一致，0 = 对不上
 ///
 /// mod.hjson 里的 `version` 和 GitHub 的 tag 经常不是同一个写法（`3.0` vs `v3.0`、

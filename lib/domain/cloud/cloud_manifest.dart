@@ -132,7 +132,7 @@ class CloudGameInfo {
     this.loaderVersion,
   });
 
-  /// 版本记录里的 tag（`v8 Build 160.5`），也是云包的身份
+  /// 启动器内部的 tag（`v8 Build 160.5`）；判版本以 [release] 为准
   final String tag;
 
   /// 官方发布号（`v160.5`）或 BE 的构建号（`27898`）
@@ -442,6 +442,7 @@ class CloudManifest {
   /// 扫一遍这个版本的数据目录，生成清单（**纯本地，不联网**）
   ///
   /// [includeModBytes] 为 true 时把模组字节也算成「随包带」（私有模组没法重新下载）；
+  /// [includeBytesWhen] 按模组逐条判，返回 true 的才带字节；
   /// [includePreviews] 为 true 时把游戏生成的预览图也带上；
   /// [cache] 传了就复用没变过的文件的哈希（见 [CloudHashCache]）
   static Future<CloudManifest> scan({

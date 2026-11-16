@@ -14,10 +14,6 @@ import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
-/// MDTBBS 账号：登录、保活、退出
-///
-/// 登录用 Authorization Code + PKCE，**在系统浏览器里完成**（启动器不接触密码）；
-/// access token 只在内存，refresh token 落盘。刷新的幂等规则见 [refresh]
 /// 账号态的快照：界面订阅它就够，不必自己去问、也不必每次进页面重拉
 class AccountSnapshot {
   const AccountSnapshot({
@@ -45,6 +41,10 @@ class AccountSnapshot {
   final bool hasMultiplayerSession;
 }
 
+/// MDTBBS 账号：登录、保活、退出
+///
+/// 登录用 Authorization Code + PKCE，**在系统浏览器里完成**（启动器不接触密码）；
+/// access token 只在内存，refresh token 落盘。刷新的幂等规则见 [refresh]
 class AccountManager {
   AccountManager._() {
     // 401 时让网络层回来续期一次：提前刷新挡不住「服务端提前吊销」
@@ -103,7 +103,6 @@ class AccountManager {
     _publish();
   }
 
-  /// 同步读盘（只在还没 restore 过时走）：与 [restore] 同一套校验，只是不 await
   /// 用账号文件里缓存的资料先拼一份账号态
   ///
   /// 冷启动不该等 `/me`：资料超过 [profileMaxAge] 才在后台补拉
@@ -119,6 +118,7 @@ class AccountManager {
     );
   }
 
+  /// 同步读盘（只在还没 restore 过时走）：与 [restore] 同一套校验，只是不 await
   void _loadFromDiskSync() {
     _restored = true;
     final stored = AccountStore.load();
@@ -781,7 +781,7 @@ class AccountManager {
     }
     _accessToken = access;
     // 提前 30 秒认定过期，别卡在边界上；`expires_in` 缺失就给个保守值，
-    // 否则「永不过期」= 永不刷新，只能等 401（而这条链路没有 401 自愈）
+    // 否则「永不过期」= 永不刷新，只能等 401 回来触发续期
     final expiresIn = tokens.expiresIn ?? 300;
     final effective = expiresIn - accessTokenMargin.inSeconds;
     _accessTokenExpiresAt = DateTime.now().add(

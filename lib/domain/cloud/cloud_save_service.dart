@@ -1206,8 +1206,9 @@ class CloudSaveService {
     return sha256.convert(utf8.encode(raw)).toString();
   }
 
-  /// 上传中途被强关的痕迹：进程没跑完就会留在这里，下次启动据此说一声并清干净
   /// 上传中途标记的位置（排查 / 用例用）
+  ///
+  /// 进程被强杀时标记会留下，下次启动由 cleanupUploadLeftovers 提示一次并清掉
   static String get uploadMarkerPath =>
       p.join(_root, 'cloud-upload-pending.json');
 
@@ -2555,10 +2556,7 @@ class CloudSaveService {
     }
   }
 
-  /// 列出本机自备份，**最新在前**
-  ///
-  /// 文件名里就是时间戳（`cloud-backup-2026-10-15T19-30-00.zip`），所以按名字倒序
-  /// 就是时间倒序 —— 与 [_pruneBackups] 的清理顺序同一套口径
+  /// 当前账号的备份根目录；没登录时退回共用目录
   static String get _accountBackupDirPath {
     final account = currentAccountId;
     return account == null ? backupDirPath : p.join(backupDirPath, account);
@@ -2578,6 +2576,10 @@ class CloudSaveService {
       .toString()
       .substring(0, 12);
 
+  /// 列出本机自备份，**最新在前**
+  ///
+  /// 文件名里就是时间戳（`cloud-backup-2026-10-15T19-30-00.zip`），所以按名字倒序
+  /// 就是时间倒序 —— 与 [_pruneBackups] 的清理顺序同一套口径
   static List<CloudBackupFile> backups(Mindustry version) {
     final directory = Directory(_profileBackupDirPath(version));
     if (!directory.existsSync()) return const [];
@@ -3198,7 +3200,6 @@ class CloudSaveService {
     }
   }
 
-  /// 记下「这个数据目录同步到哪个槽位 / 哪个快照 / 哪些文件」
   /// 记下「同步到这个快照」的基线；绑定的读改写走文件锁，避免两个进程互相覆盖
   static Future<void> _rememberSynced(
     Mindustry version, {

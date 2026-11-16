@@ -10,14 +10,10 @@ import 'package:copper_launcher/util/io/token_encryptor.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
-/// 落盘的账号态
-///
-/// **access token 只在内存**（一小时就过期，没必要写盘）；这里存的是能换回它的
-/// refresh token，以及与刷新幂等性有关的那笔「未决尝试」
 /// 联机会话的持久化片段
 ///
-/// 状态曾经只存在页面里 ⇒ 切页就丢；而 **加入码服务端只在创建响应里给一次**，
-/// 丢了找不回；恢复令牌又是一次性的、绑定用户与 OAuth 客户端，重启后恢复也要它
+/// 加入码服务端只在创建响应里给一次，丢了找不回；恢复令牌又是一次性的、
+/// 绑定用户与 OAuth 客户端，重启后恢复也要它
 class StoredMultiplayerSession {
   const StoredMultiplayerSession({
     required this.sessionId,
@@ -87,6 +83,10 @@ class StoredMultiplayerSession {
       );
 }
 
+/// 落盘的账号态
+///
+/// **access token 只在内存**（一小时就过期，没必要写盘）；这里存的是能换回它的
+/// refresh token，以及与刷新幂等性有关的那笔「未决尝试」
 class StoredAccount {
   const StoredAccount({
     this.clientId,

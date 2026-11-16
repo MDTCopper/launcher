@@ -152,7 +152,7 @@ class CloudAutoSync {
         tag: 'Cloud',
       );
     } on TimeoutException {
-      //超时：问玩家要不要直接启动（与 Steam 云一致）
+      // 超时：问玩家要不要直接启动（与 Steam 云一致）
       addLog(
         .warning,
         '云存档检查超时（${syncTimeout.inSeconds} 秒），问玩家要不要直接启动',
@@ -529,7 +529,7 @@ class CloudAutoSync {
     } on TimeoutException {
       addLog(.warning, '云存档自动同步超时（${timeout.inSeconds} 秒），先关启动器', tag: 'Cloud');
     } catch (error) {
-      //退出路径上绝不能因为同步失败而卡住
+      // 退出路径上绝不能因为同步失败而卡住
       addLog(.warning, '云存档自动同步收尾异常：${removeNewlines('$error')}', tag: 'Cloud');
     }
   }

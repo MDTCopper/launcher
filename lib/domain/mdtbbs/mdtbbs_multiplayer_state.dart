@@ -15,8 +15,7 @@ enum MultiplayerPhase {
 
 /// 联机（官方 multiplayer）在界面上的唯一状态源
 ///
-/// 这些数据曾经散在页面 State 里 ⇒ 切页就丢、每次进页面都要重新拉四个接口。
-/// 现在由 [MdtbbsMultiplayerService] 持有，页面只订阅
+/// 由 [MdtbbsMultiplayerService] 持有、页面只订阅：切页不会丢、也不用每次进页面重拉四个接口
 class MultiplayerState {
   const MultiplayerState({
     this.capabilities,
