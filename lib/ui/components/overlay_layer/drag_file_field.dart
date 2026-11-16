@@ -52,6 +52,14 @@ class _DragFileFieldState extends State<DragFileField> {
   }
 
   @override
+  void dispose() {
+    // 拖拽中切页时 overlay 挂在全局 Overlay 上，不主动摘掉会留一层全屏模糊
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return DropTarget(
       onDragEntered: (details) {

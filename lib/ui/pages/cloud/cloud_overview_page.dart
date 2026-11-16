@@ -341,6 +341,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
             await CloudSaveService.discardProfileBinding(profile);
           }
           addNotice(icon: Icons.link_off, title: '已解绑云存档');
+          if (!mounted) return;
           setState(() {});
         } catch (error) {
           addNotice(
@@ -399,6 +400,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
     try {
       if (choice == CloudTagChoice.useCloud) {
         await CloudSaveService.adoptCloudTag(version, cloudTag);
+        if (!mounted) return false;
         setState(() {});
       } else {
         await CloudSaveService.renameCloudSlotToLocalTag(

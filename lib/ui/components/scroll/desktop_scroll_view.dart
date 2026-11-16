@@ -747,6 +747,8 @@ class _DesktopScrollViewContainerState extends State<DesktopScrollViewContainer>
 
   @override
   void dispose() {
+    // 手势中途卸载：静态 owner 还指着已销毁的 State，下一个实例就抢不到处理权
+    if (_panZoomOwner == this) _panZoomOwner = null;
     _autoHideTimer?.cancel();
     _innerScrollTimer?.cancel();
     _fadeController.dispose();

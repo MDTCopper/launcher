@@ -605,6 +605,13 @@ class _ThemeOptionWidgetState extends State<_ThemeOptionWidget>
   }
 
   @override
+  void dispose() {
+    // 动画控制器绑着 vsync：不释放会随切页一直留到最后
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);

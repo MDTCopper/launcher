@@ -1023,6 +1023,7 @@ class _VersionCloudSavePageState extends State<VersionCloudSavePage> {
                       );
                       return;
                     }
+                    if (!mounted) return;
                     setState(() {});
                     addLog(
                       .info,

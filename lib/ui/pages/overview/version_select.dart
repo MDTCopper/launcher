@@ -103,7 +103,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
           debugPrint('删除失败：无法删除游戏文件 $tag');
           return;
         }
-        setState(() {});
+        // 页面先退也要把删除结果落盘，所以只守重建这一步
+        if (mounted) setState(() {});
         await config.save();
         _updateView();
       },

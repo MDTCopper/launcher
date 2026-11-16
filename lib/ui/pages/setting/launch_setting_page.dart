@@ -91,7 +91,7 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
   /// 自动分配内存：当前估算出的分配值（随可用内存刷新）
   Memory _autoMemoryEstimate = const Memory(gb: 1);
 
-  late Timer _getMemoryTimer;
+  Timer? _getMemoryTimer;
 
   void _getRam() async {
     final free = await SysInfo.getFreePhysicalMemory();
@@ -100,7 +100,9 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
     totalMemory = Memory(bytes: total);
     await _loadAutoModTotal();
     await _refreshAutoMemoryEstimate();
-    if (mounted) setState(() {});
+    // 上面的读取有多次 await：页面先退了就不要再建定时器
+    if (!mounted) return;
+    setState(() {});
     _getMemoryTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       final free = await SysInfo.getFreePhysicalMemory();
       freeMemory = Memory(bytes: free);
@@ -254,7 +256,8 @@ class _LaunchSettingPageState extends State<LaunchSettingPage> {
 
   @override
   void dispose() {
-    _getMemoryTimer.cancel();
+    // _getRam 可能还没走到建定时器那一步，可空调用
+    _getMemoryTimer?.cancel();
     widthController.dispose();
     heightController.dispose();
     super.dispose();

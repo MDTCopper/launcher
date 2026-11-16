@@ -99,6 +99,7 @@ class _ModViewPageState extends State<ModViewPage> {
       curve: Curves.ease,
     );
     await Future.delayed(const Duration(milliseconds: 250));
+    if (!mounted) return;
     setState(() {
       index = to;
     });
