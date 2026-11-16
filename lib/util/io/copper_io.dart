@@ -1069,6 +1069,8 @@ class CopperIO {
     // 此时退化为单流，大小改由 GET 响应头补齐（见 _downloadSingleStream）
     var totalSize = 0;
     var rangeSupported = false;
+    //HEAD 因为链路问题没答：单流只给一次机会，别在死链路上耗满一轮重试
+    var headLinkBroken = false;
     String? etag;
     try {
       final headResp = await _dio!.head(
@@ -1088,8 +1090,21 @@ class CopperIO {
       //续传/重试带 If-Range 用：源一变服务器就回整包，避免新旧数据拼在一起
       etag = headResp.headers.value('etag');
     } on DioException catch (e) {
-      // 用户取消照旧抛出；HEAD 被拒 / 网络类失败则退化为单流，不在这里终止
       if (CancelToken.isCancel(e)) rethrow;
+      if (isTransportFailure(e)) {
+        final mirror = GithubMirror.instance;
+        //有别的路可走就尽快换路：直连 HEAD 不通但镜像可用，或这次本来就是某个镜像节点。
+        //否则（单源、没有镜像可换）别判死：有的源 HEAD 慢、GET 却能在 30 秒里吐出数据
+        final canSwitchSource =
+            (GithubMirror.isGithubUrl(url) &&
+                mirror.enabled &&
+                mirror.allNodes.isNotEmpty) ||
+            mirror.isMirrorUrl(url);
+        if (canSwitchSource) rethrow;
+        //没有镜像可换：只给单流一次机会，别在死链路上耗满一轮重试（实测要 134s）
+        headLinkBroken = true;
+      }
+      // 405 / 501 这类「不认 HEAD」不是链路问题：退化为单流，大小改由 GET 响应头补齐
     }
 
     if (totalSize <= 0 || !rangeSupported || totalSize < 2 * MB) {
@@ -1101,6 +1116,8 @@ class CopperIO {
         retryLimit: retryLimit,
         cancelToken: cancelToken,
         deleteOnError: deleteOnError,
+        //HEAD 已经判过这条链路不行：连接类失败不再重试（0 = 只下一趟）
+        transportRetryLimit: headLinkBroken ? 0 : null,
         onStatus: onStatus,
         headers: headers,
       );
@@ -1214,6 +1231,8 @@ class CopperIO {
     int retryLimit = 5,
     CancelToken? cancelToken,
     bool deleteOnError = true,
+    //连接类失败的重试上限（null = 用默认那档；HEAD 已判链路不通时传 0）
+    int? transportRetryLimit,
     HttpStatusCallback? onStatus,
     Map<String, String>? headers,
   }) async {
@@ -1361,10 +1380,11 @@ class CopperIO {
           // 其它错误（服务端抖动等）按上限重试；写盘失败（磁盘满 / 路径不可写）
           // 一次都别重试 —— 退避几轮也一样满
           final delivered = state.downloaded - attemptStartDownloaded;
+          final connectLimit = transportRetryLimit ?? _connectRetryLimit;
           final limit = e is FileSystemException
               ? 0
               : (isTransport
-                    ? (delivered > 0 ? _abortedRetryLimit : _connectRetryLimit)
+                    ? (delivered > 0 ? _abortedRetryLimit : connectLimit)
                     : retryLimit);
           if (attempt < limit) {
             final reason = e is DioException
