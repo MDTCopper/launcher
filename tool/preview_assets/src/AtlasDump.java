@@ -166,6 +166,11 @@ public class AtlasDump {
             if (line.isEmpty() || line.startsWith("#")) continue;
             names.add(line);
         }
+        extract(d, outDir, names, exact);
+    }
+
+    /** 按名单裁切 region；PackBuilder 直接用内存里的名单复用这条 */
+    static void extract(AtlasData d, Path outDir, List<String> names, boolean exact) throws IOException {
         Files.createDirectories(outDir);
         int written = 0, skippedRotate = 0;
         for (var r : d.regions) {

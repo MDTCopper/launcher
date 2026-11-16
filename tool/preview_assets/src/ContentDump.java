@@ -67,7 +67,7 @@ public class ContentDump {
             sb.append(",\"variants\":").append(b.variants);
             sb.append(",\"drawArrow\":").append(b.drawArrow);
             sb.append(",\"drawTeamOverlay\":").append(b.drawTeamOverlay);
-            sb.append(",\"buildVisibility\":").append(Boot.q(b.buildVisibility == null ? null : b.buildVisibility.toString()));
+            sb.append(",\"buildVisibility\":").append(Boot.q(Boot.staticName(b.buildVisibility)));
             sb.append(",\"health\":").append(b.health);
             sb.append(",\"itemCapacity\":").append(b.itemCapacity);
             sb.append(",\"liquidCapacity\":").append(b.liquidCapacity);
@@ -83,7 +83,7 @@ public class ContentDump {
             sb.append(",\"outputsPower\":").append(b.outputsPower);
             sb.append(",\"buildTime\":").append(b.buildTime);
             sb.append(",\"buildCostMultiplier\":").append(b.buildCostMultiplier);
-            sb.append(",\"cacheLayer\":").append(Boot.q(b.cacheLayer == null ? null : b.cacheLayer.toString()));
+            sb.append(",\"cacheLayer\":").append(Boot.q(Boot.staticName(b.cacheLayer)));
             sb.append(",\"group\":").append(Boot.q(b.group == null ? null : b.group.name()));
             sb.append(",\"offset\":").append(b.offset);
             sb.append(",\"clipSize\":").append(b.clipSize);

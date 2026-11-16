@@ -54,6 +54,33 @@ pwsh -File tool/preview_assets/build_pack.ps1 `
    - `icons/generic`：`center`、`cross` 两个标记图
 6. 复制 json、写 `meta.json`
 
+## 运行时工具（PackBuilder / MapPreviewExport）
+
+启动器运行时不再调用 `build_pack.ps1`：先用 `build_tools.ps1` 把 `src/*.java` 打包成
+`assets/preview_tools/preview_tools.jar`，再由 Dart 侧解出 jar、用游戏 JRE 跑里面的 main。
+
+```powershell
+# 重新生成工具 jar（JDK 17+，默认用 data/mindustrys 下的 v160.7 作编译 classpath）
+.\tool\preview_assets\build_tools.ps1
+.\tool\preview_assets\build_tools.ps1 -GameJarPath <游戏 jar> -OutJarPath <输出 jar>
+
+# 一次进程内构建整套资产包（outDir 会被整体重建）
+java -cp "<游戏 jar>;assets\preview_tools\preview_tools.jar" PackBuilder <gameJar> <outDir> [version]
+# 也可省掉 gameJar，用 classpath 里第一个 jar
+java -cp "<游戏 jar>;assets\preview_tools\preview_tools.jar" PackBuilder <outDir> [version]
+
+# 地图 .msav → 预览 PNG（纯 CPU，与游戏 previews/*_v2.png 逐字节一致）
+java -cp "<游戏 jar>;assets\preview_tools\preview_tools.jar" MapPreviewExport <msav> <outPng>
+```
+
+- **classpath 顺序必须 `游戏 jar;工具 jar`**：`Boot.locateJar()` 取 classpath 里第一个 `.jar` 当游戏 jar，
+  同时工具 jar 里不能有游戏类
+- `PackBuilder` 计数与 `build_pack.ps1` 完全一致（同一套裁切代码，PNG 逐字节相同），v160.7 约 5~6 秒；
+  `meta.json` 字段同上一节
+- 失败时进程 exit≠0，stdout/stderr 带原因；Dart 封装见 `lib/util/io/java/preview_tools.dart`
+  （解 jar 到 `<数据根>/preview_cache/tools/`、Java 17+ 解析、超时/退出码/输出）
+- Android 不在此工具范围（后续走桥），当前只服务桌面端
+
 ## 产物结构
 
 ```
@@ -111,5 +138,8 @@ v160.7 的参考计数：`blocks=447`（content 方块总数；meta 的 `blockIc
 | `src/CanvasDump.java` | 导出 `canvas.json` |
 | `src/DrawerDump.java` | 导出 `drawer-spec.json`（drawer 树） |
 | `src/AtlasDump.java` | 图集 `index` / `extract`（CPU 解析 AATLS、裁切 PNG） |
+| `src/PackBuilder.java` | 单进程构建整套资产包（运行时由 Dart 调用） |
+| `src/MapPreviewExport.java` | `.msav` → 预览 PNG（纯 CPU） |
+| `build_tools.ps1` | 编译 `src/*.java` 并打包 `assets/preview_tools/preview_tools.jar` |
 
 所有 Java 工具都需要把游戏 jar 放在 classpath 最前面（`Boot.locateJar()` 取第一个 `.jar`）。

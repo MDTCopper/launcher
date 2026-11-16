@@ -61,6 +61,10 @@ abstract class AppPaths {
   /// 例：`<数据根>\java\jdk-17\jdk-17.0.20.1+1\bin\java.exe`
   static late String java;
 
+  /// 蓝图/地图预览的运行时缓存：工具 jar 与按版本生成的资产包
+  /// 例：`<数据根>\preview_cache\tools\preview_tools.jar`
+  static late String previewCache;
+
   /// 远程数据源缓存（`remote/` 的本地副本：启动拉取覆盖，离线用缓存 / 内置 assets 兜底）
   /// 例：`<数据根>\remote_data\mindustry_versions.json`
   static late String remoteData;
@@ -179,6 +183,7 @@ abstract class AppPaths {
     copperLoader = p.join(rootPath, 'copper_loader');
     logs = p.join(rootPath, 'logs');
     java = p.join(rootPath, 'java');
+    previewCache = p.join(rootPath, 'preview_cache');
     remoteData = p.join(rootPath, 'remote_data');
     dataIndexCache = p.join(remoteData, 'data_index');
     configJson = p.join(rootPath, 'config.json');
