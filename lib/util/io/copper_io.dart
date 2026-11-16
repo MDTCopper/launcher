@@ -455,7 +455,7 @@ class CopperIO {
           } catch (e) {
             //镜像不可用 → 下面直连兜底；镜像拿到真实答复（404 等）仍原样抛
             if (e is DownloadBudgetExceeded) rethrow;
-          if (e is DioException && !isTransportFailure(e)) rethrow;
+            if (e is DioException && !isTransportFailure(e)) rethrow;
           }
         } else if (mirror.enabled && !mirror.isDirectVerified(url)) {
           //这一族还没有结论：直连与镜像**同时探一次**，谁先答复谁赢 ——
@@ -466,7 +466,7 @@ class CopperIO {
               return await _sendViaMirror(url, send, preferRange: preferRange);
             } catch (e) {
               if (e is DownloadBudgetExceeded) rethrow;
-          if (e is DioException && !isTransportFailure(e)) rethrow;
+              if (e is DioException && !isTransportFailure(e)) rethrow;
             }
           }
         }
@@ -490,6 +490,8 @@ class CopperIO {
           try {
             return await _sendViaMirror(url, send, preferRange: preferRange);
           } catch (mirrorError) {
+            //预算用尽要原样往上抛，别被下面的「合成两半」吞掉
+            if (mirrorError is DownloadBudgetExceeded) rethrow;
             //镜像拿到真实答复（404 等）照旧原样抛；两边都不通时合成一条，别只留镜像那半
             if (mirrorError is DioException &&
                 !isTransportFailure(mirrorError)) {
@@ -1170,7 +1172,7 @@ class CopperIO {
       //所有路由都失败才清现场：中途失败要留着给镜像回退 / 用户重试接着下。
       //预算用尽属于「网络太差、下次接着下」：它记着的水位最有价值，别清
       final keepPartial = e is DownloadBudgetExceeded;
-      if (session.deleteOnError && !session.cancelled && !keepPartial) {
+      if (session.deleteOnError && !session.userCancelled && !keepPartial) {
         await _cleanupPartial(File(session.partialPath), session.metaPath);
       }
       rethrow;
@@ -1187,6 +1189,7 @@ class CopperIO {
     Map<String, String>? headers,
   }) async {
     //每开始一条路由就记一次预算：死链路上最多试几次就得放弃
+    session.budget.notePhaseStart();
     session.budget.noteAttempt('连接 ${Uri.tryParse(url)?.host ?? url}');
     final cancelToken = session.cancelToken;
     final effectiveSpeedLimit = speedLimit ?? _defaultSpeedLimitBytes;
@@ -1234,8 +1237,8 @@ class CopperIO {
       // 405 / 501 这类「不认 HEAD」不是链路问题：退化为单流，大小改由 GET 响应头补齐
     }
 
-    //探到大小后按体积放宽预算时限：大文件天然要下很久
-    session.budget.applySize(totalSize);
+    //探到大小后按体积放宽预算时限（用户限速更低时按限速估）
+    session.budget.applySize(totalSize, speedLimit: effectiveSpeedLimit);
 
     if (totalSize <= 0 || !rangeSupported || totalSize < 2 * MB) {
       await _downloadSingleStream(
@@ -1290,7 +1293,10 @@ class CopperIO {
   }) async {
     for (var attempt = 0; ; attempt++) {
       //整单重来也要花预算：死链路上最多几次，别四层相乘
-      if (attempt > 0) session.budget.noteAttempt('整单重来');
+      if (attempt > 0) {
+        session.budget.notePhaseStart();
+        session.budget.noteAttempt('整单重来');
+      }
       try {
         await _downloadChunked(
           session: session,
@@ -1310,6 +1316,7 @@ class CopperIO {
           '服务端忽略 Range（带 Range 的 GET 回了整包），退化为单流下载：$url',
           tag: 'Download',
         );
+        session.budget.notePhaseStart();
         session.budget.noteAttempt('忽略 Range 后退化为单流');
         await _downloadSingleStream(
           session: session,
@@ -1474,6 +1481,7 @@ class CopperIO {
             if (rangeStart != null && rangeStart != resumeFrom) {
               state.downloaded = 0;
               notifier.value = 0;
+              session.budget.resetProgress();
               throw HttpException(
                 'Content-Range 起点不符（要 $resumeFrom，回 $rangeStart）',
               );
@@ -1482,6 +1490,7 @@ class CopperIO {
           if (resumeFrom > 0 && !isPartial) {
             state.downloaded = 0;
             notifier.value = 0;
+            session.budget.resetProgress();
           }
 
           state.status = HttpDownloadStatus.downloading;
@@ -1536,7 +1545,7 @@ class CopperIO {
 
           //原子收尾：改名转正（失败再删旧目标重试）
           await _promotePartial(partialFile, session.savePath);
-          await _deleteQuietly(File('$partialPath.json'));
+          await _deleteQuietly(File(session.metaPath));
 
           state.progress = 1.0;
           state.speed = 0;
@@ -1598,7 +1607,8 @@ class CopperIO {
           }
 
           state.status = HttpDownloadStatus.failed;
-          if (session.deleteOnError) await _deleteQuietly(partialFile);
+          //失败不删现场：交给最外层（download）在所有路由都失败后统一清，
+          //与分块路一致；这样镜像回退 / 用户重试都能接着下
           notify();
           //低速看门狗断的这条连接：收尾要给「链路问题」的错误（不是用户取消），
           //否则上层 `CancelToken.isCancel` 会把它当成用户自己停的
@@ -1633,7 +1643,7 @@ class CopperIO {
   ///
   ///不再「每块一个临时文件 + 收尾合并」：省掉收尾那整轮读一遍写一遍与 2× 磁盘
   ///占用，慢块拆分也只是改区间。续传现场在 `.part.json`（区间 + 已收字节 + ETag），
-  ///下完把 `.part` 改名成 [CopperIO.download] 的 savePath
+  ///下完把 `.part` 改名成 `session.savePath`
   Future<void> _downloadChunked({
     required _DownloadSession session,
     required String url,
@@ -2400,6 +2410,9 @@ class CopperIO {
         await _cleanupPartial(partialFile, metaPath);
         throw _RangeIgnored();
       }
+      //收尾前先把兄弟块叫停：预算中断 / 写盘失败等终局错误也要走这条，
+      //否则 stopAndDrain 的 30 秒兜底超时后它们还在开新连接、写 `.part`
+      if (!abortToken.isCancelled) abortToken.cancel();
       await settleFailed(cancelled: _isCancelled(cancelToken, e));
       rethrow;
     }
@@ -2702,7 +2715,15 @@ bool shouldFallbackToMirror(Object error, String url) {
     final cause = error.cause;
     //流被对端掐断时 dio 把原始异常（HttpException / SocketException）直接抛给响应流，
     //不是 DioException —— 那同样是链路问题；上游真实答复走的是 badResponse，不会被认成链路问题
-    return cause is! DioException || isTransportFailure(cause);
+    if (cause is! DioException || isTransportFailure(cause)) return true;
+    //GitHub 的 401/403（匿名限流 / token 失效）与单流路同口径：镜像不带 token，
+    //换个 IP 常能绕过，所以分块路也该回退，而不是「既不重试也不换路」
+    if (cause.type == DioExceptionType.badResponse &&
+        GithubMirror.isGithubUrl(url)) {
+      final status = cause.response?.statusCode;
+      return status == 401 || status == 403;
+    }
+    return false;
   }
   if (error is! DioException) return false;
   if (isTransportFailure(error)) return true;
@@ -2789,6 +2810,9 @@ class MirrorUnavailable implements Exception {
 /// 只是消息里补上镜像那半 —— 原来镜像失败会整条盖掉直连的真因，用户只看到
 /// 「无可用镜像节点」，分不清是网线断了还是镜像都挂了
 Object combineRouteFailure(Object directError, Object mirrorError) {
+  //预算用尽不是「路由失败」：它要原样冒到最外层（决定保不保 .part、怎么提示），
+  //不能被合成消息包成普通网络错误
+  if (mirrorError is DownloadBudgetExceeded) return mirrorError;
   if (directError is! DioException) return directError;
   final directReason = mirrorFailureReason(directError);
   return DioException(
@@ -2841,7 +2865,6 @@ String previewResponseBody(String raw) {
   return text.length <= 120 ? text : '${text.substring(0, 120)}…';
 }
 
-
 /// 一次下载会话：原始 URL（续传键）、目标与临时路径、取消令牌、预算
 ///
 ///四层重试（单块 / 整单 / 路由 / 镜像节点）以前各自持有一半参数，
@@ -2852,10 +2875,9 @@ class _DownloadSession {
     required this.savePath,
     this.cancelToken,
     this.deleteOnError = true,
-    DownloadBudget? budget,
   }) : partialPath = '$savePath.part',
        metaPath = '$savePath.part.json',
-       budget = budget ?? DownloadBudget();
+       budget = DownloadBudget();
 
   ///用户传进来的原始 URL：换镜像后请求地址带前缀，续传键仍用它
   final String url;
@@ -2866,7 +2888,8 @@ class _DownloadSession {
   final bool deleteOnError;
   final DownloadBudget budget;
 
-  bool get cancelled => cancelToken?.isCancelled == true;
+  ///只看用户令牌（不是 `_isCancelled` 那套「含内部取消」的判定）
+  bool get userCancelled => cancelToken?.isCancelled == true;
 }
 
 /// 一次下载的预算：总尝试次数 + 停滞上限 + 总时限
@@ -2894,9 +2917,9 @@ class DownloadBudget {
 
   int _lastProgressBytes = 0;
 
-  ///总尝试次数上限：直连 + 最多 3 个镜像节点，各自再整单重来一次也够用；
-  ///再多就是在死链路上空转
-  static const int _maxAttempts = 6;
+  ///总尝试次数上限：直连 1 + 最多 3 个镜像节点，每路还可能整单重来 + 退化单流；
+  ///按「4 路 × 2 次 + 2 次余量」给到 10，再多就是在死链路上空转
+  static const int _maxAttempts = 10;
 
   ///多久没有任何新字节就算「卡死」：比单块的停滞看门狗宽，
   ///因为整单重试 / 换路由期间本来就有退避等待
@@ -2905,14 +2928,25 @@ class DownloadBudget {
   ///兜底总时限：正常下载不该超过它；按体积放宽后另说
   static const Duration _maxWallClock = Duration(minutes: 10);
 
-  ///探到文件大小后按体积放宽时限：按 48KB/s 的「很慢但可用」估算，再留一倍余量
-  void applySize(int totalSize) {
+  ///探到大小/限速后按时速放宽时限：「很慢但可用」按 48KB/s 估，再留一倍余量；
+  ///用户自己把限速设得更低时按限速估（不然会被自己设的限速逼到超时）
+  void applySize(int totalSize, {int? speedLimit}) {
     if (totalSize <= 0) return;
+    final assumedRate = (speedLimit != null && speedLimit > 0)
+        ? min(48 * KB, speedLimit)
+        : 48 * KB;
     final estimate = Duration(
-      seconds: max(120, (totalSize ~/ (48 * KB)) * 2),
+      seconds: max(120, (totalSize ~/ assumedRate) * 2),
     );
     final current = deadline.difference(startedAt);
     if (estimate > current) deadline = startedAt.add(estimate);
+  }
+
+  ///开始一条新路由 / 一次整单重来：还没收到过字节时把停滞计时重置，
+  ///否则「排名探测 + 并行探针 + HEAD」这几段耗时会被算进「停滞」
+  void notePhaseStart() {
+    if (_lastProgressBytes > 0) return;
+    lastProgressAt = DateTime.now();
   }
 
   ///有进展就更新「最后动过」的时刻；只在字节数真的变多时更新
@@ -2922,27 +2956,46 @@ class DownloadBudget {
     lastProgressAt = DateTime.now();
   }
 
-  ///开始一次整下载尝试：次数或总时限超了就抛出去，不再让四层相乘
+  ///进度归零（回 200 整包重下 / 206 起点不符 / 分块退化为单流）时同步归零水位，
+  ///否则新进度全会因为「没有比旧水位大」被丢掉，停滞计时跟着冻结
+  void resetProgress() {
+    _lastProgressBytes = 0;
+    lastProgressAt = DateTime.now();
+  }
+
+  ///开始一次整下载尝试：次数或总时限超了就抛出去，不再让四层相乘。
+  ///没真正开始的这次不计入 [attempts]（消息里的次数要如实）
   void noteAttempt(String phase) {
-    attempts++;
-    final elapsed = DateTime.now().difference(startedAt);
-    if (attempts > _maxAttempts || DateTime.now().isAfter(deadline)) {
+    final now = DateTime.now();
+    final wouldBe = attempts + 1;
+    if (wouldBe > _maxAttempts || now.isAfter(deadline)) {
       throw DownloadBudgetExceeded(
         attempts: attempts,
-        elapsed: elapsed,
+        elapsed: now.difference(startedAt),
         phase: phase,
-        reason: attempts > _maxAttempts ? '尝试次数过多' : '总用时过长',
+        reason: wouldBe > _maxAttempts ? '尝试次数过多' : '总用时过长',
       );
     }
+    attempts = wouldBe;
   }
 
   ///重试退避 / 换路由之前调用：太久没有新字节就别再空转
   void checkStall(String phase) {
-    final idle = DateTime.now().difference(lastProgressAt);
+    final now = DateTime.now();
+    final elapsed = now.difference(startedAt);
+    if (now.isAfter(deadline)) {
+      throw DownloadBudgetExceeded(
+        attempts: attempts,
+        elapsed: elapsed,
+        phase: phase,
+        reason: '总用时过长',
+      );
+    }
+    final idle = now.difference(lastProgressAt);
     if (idle <= _stallLimit) return;
     throw DownloadBudgetExceeded(
       attempts: attempts,
-      elapsed: DateTime.now().difference(startedAt),
+      elapsed: elapsed,
       phase: phase,
       reason: '${idle.inSeconds} 秒没有任何新数据',
     );
@@ -2971,6 +3024,10 @@ class DownloadBudgetExceeded implements Exception {
 }
 
 /// 下载层的统一错误分类：四层重试 / 回退都看它，避免各写一套判据
+///
+///[transport] 与 [upstream] 目前在「要不要整单重来」上是等价的（都值得再试一次），
+///分开是为了以后按类型给不同预算；[budget] 是防御性分支 —— 预算异常按设计直接冒泡，
+///不会包进 [ChunkDownloadFailed]
 enum _DownloadErrorKind {
   ///用户取消
   cancelled,
