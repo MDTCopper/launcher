@@ -60,7 +60,6 @@ class MdtbbsFriendsApi {
     return MdtbbsFriendRequestPage.fromJson(_map(data));
   }
 
-  /// 发好友请求；[targetUserId] 是**论坛整数用户 ID**（文档写死是 number，别传字符串）
   /// 按 ID 读公开资料（`GET /users/{id}`）：联机房间里显示成员名字用
   static Future<MdtbbsFriendUser> userProfile({
     required String accessToken,
@@ -100,6 +99,8 @@ class MdtbbsFriendsApi {
         .map((e) => MdtbbsFriendUser.fromJson(e.cast<String, dynamic>()))
         .toList();
   }
+
+  /// 发好友请求；[targetUserId] 是**论坛整数用户 ID**（契约写死是 number，别传字符串）
   static Future<void> sendRequest({
     required String accessToken,
     required int targetUserId,

@@ -21,7 +21,7 @@ import 'package:path/path.dart' as p;
 
 part 'app_config.g.dart';
 
-/// 用于存储应用的全局配置，更改完成后需调用`save`，同步配置文件
+/// 应用的全局配置；改完调 [AppConfig.save]，写盘带延迟合并
 late AppConfig config;
 
 /// 这次启动是不是从备份里救回来的；非 null 时值是那份备份的文件名
@@ -35,8 +35,7 @@ Future<void> initAppConfig() async {
   if (loaded != null) {
     config = AppConfig.fromJson(loaded);
   } else {
-    // 配置读不出来（写坏了 / 被手改坏了）：先用备份顶上，一份可用备份都没有才用默认配置。
-    // 原来这里是直接抛异常的 —— 配置一坏启动器就起不来，只能自己去删文件
+    // 配置读不出来（写坏了 / 被手改坏）：先用备份顶上，一份可用备份都没有才用默认配置
     final backup = ConfigBackups.newestReadable(AppPaths.copperLauncher);
     if (backup != null) {
       configRecoveredFromBackup = p.basename(backup.file.path);
@@ -52,8 +51,7 @@ Future<void> initAppConfig() async {
     }
   }
 
-  //配置里记的启动器版本要跟上当前构建：`AppConfig.version` 原先只在首次创建配置时写入一次
-  //（构造函数默认值），之后一直被文件里的旧值覆盖，永远停在那个版本
+  //配置里记的启动器版本要跟上当前构建（文件里存的是建配置那一刻的版本）
   config.version = appVersion;
   // 老配置里数据根内的路径可能是绝对形态，这里统一洗成记录形态（幂等）
   if (config.normalizeStoredPaths()) {
@@ -130,7 +128,7 @@ class AppConfig {
   Timer? _saveTimer;
 
   Future<void> save() async {
-    //计时器活跃就跳过这次的保存，等待计时器的延迟保存
+    //计时器还活跃说明刚存过：这次不立即写，交给到点的定时器统一落盘
     if (_saveTimer == null || !_saveTimer!.isActive) {
       if (kDebugMode) await saveAsJson();
       await saveAsBin();
@@ -525,7 +523,7 @@ class JavaInfo {
 
 @JsonSerializable()
 class JavaOptions {
-  ///{ 版本 : java路径 }
+  ///可用的 java 列表（`selectedJava` 为 `auto` 时自动挑，否则按路径选）
   @JsonKey(defaultValue: [])
   List<JavaInfo> javas;
 

@@ -6,6 +6,7 @@ import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
+/// 一个 JDK 版本的下载信息（地址 / 体积 / 语义化版本）
 class JavaReleaseInfo {
   final int majorVersion;
   final String version;
@@ -20,6 +21,7 @@ class JavaReleaseInfo {
   });
 }
 
+/// 配置 JAVA_HOME / PATH 的结果：哪些是这次写进去的、哪些本来就有
 class EnvironmentConfigResult {
   bool javaHomeSet = false;
   bool javaHomeAlreadySet = false;
@@ -31,6 +33,8 @@ class EnvironmentConfigResult {
       (javaHomeSet || javaHomeAlreadySet) && pathUpdated;
 }
 
+/// 从 Adoptium 取 JDK 下载地址、下载解压到启动器的 java 目录；
+/// 另带一份「把 java 写进 JAVA_HOME / PATH」的环境配置
 class JavaDownloader {
   static const String _apiBase = 'https://api.adoptium.net/v3';
 

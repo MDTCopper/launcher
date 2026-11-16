@@ -175,7 +175,7 @@ class Mindustry {
   ///本体就在版本自己的目录 `[foldPath]` 里：老布局的下载 / 导入落点，
   ///以及「添加目录」扫到的 `<目录>/<tag>/xxx.jar` 形态
   ///
-  ///两种都算**库外**——文件是用户自己的，删版本时本体和目录都要避开
+  ///都算**库外**；删版本时动不动文件由 [bodyIsUserFile] 决定（扫来的是用户自己的，只删记录）
   bool get isBodyInOwnFolder => _isPathWithin(foldPath, resolvedJarPath);
 
   ///游戏数据路径mods,saves,maps,schematics

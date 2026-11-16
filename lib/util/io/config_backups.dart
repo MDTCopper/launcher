@@ -101,7 +101,7 @@ class ConfigBackups {
     return files;
   }
 
-  /// 2026-10-05T11-20-33 这种形态（能被名字排序直接当时间用）
+  /// `20261005-112033` 这种形态（按名字排序即按时间排序）
   static String _stamp(DateTime time) {
     String two(int value) => value.toString().padLeft(2, '0');
     return '${time.year}${two(time.month)}${two(time.day)}-'

@@ -327,7 +327,6 @@ class MdtbbsMultiplayerApi {
     return MdtbbsInvite.fromJson(_map(data));
   }
 
-  /// 列出收到的邀请（含会话摘要）；5 分钟过期
   /// 联机会话列表（公开大厅 / 好友在玩的房间）
   ///
   /// 1.8.0 起支持 `game_id` / `game_version` 精确筛选；分页与隐私范围不变。
@@ -353,9 +352,8 @@ class MdtbbsMultiplayerApi {
       cancelToken: cancelToken,
       timeout: _callTimeout,
     );
-    // 实测（2026-10-26）：这个接口的 data 是对象而不是数组，里面才装列表，
-    // 具体键名先按常见的几个试，试不出来就把键名记下来
-    // 实测（2026-10-26）：这个接口回的是完整信封 {data:[...], total, page, limit}
+    // 实测（2026-10-26）：回的是完整信封 {data:[...], total, page, limit}，
+    // 键名变体按下面几个兜底
     final raw = data is Map
         ? data['data'] ?? data['sessions'] ?? data['items']
         : data;
@@ -365,6 +363,7 @@ class MdtbbsMultiplayerApi {
     return _list(raw).map(MdtbbsSession.fromJson).toList();
   }
 
+  /// 列出收到的邀请（含会话摘要）；5 分钟过期
   static Future<List<MdtbbsInvite>> invites({
     required String accessToken,
     CancelToken? cancelToken,

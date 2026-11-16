@@ -2,7 +2,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'github_release.g.dart';
 
-///api.github返回格式
+/// api.github 返回格式
 @JsonSerializable()
 class GithubApiRelease {
   final String name;

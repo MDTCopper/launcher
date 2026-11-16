@@ -24,8 +24,8 @@ import 'package:copper_launcher/util/format/string_cleaner.dart';
 class RemoteData {
   /// 每次启动异步拉取 remote 数据到本地缓存
   ///
-  /// 先拉索引，再按索引的 `file` 字段拉 `setting_adapter/<file>` 各版本配置；
-  /// 失败静默（保持旧缓存），不阻塞启动流程；
+  /// 先拉索引，再拉 github_mirrors / mmgvm / 版本快照，最后按索引的 `file` 字段
+  /// 拉 `setting_adapter/<file>` 各版本配置；失败静默（保持旧缓存），不阻塞启动流程
   /// debug 模式直接跳过（本地 `remote/` 优先，见 [load]）
   static Future<void> refresh() async {
     if (kDebugMode) {

@@ -414,7 +414,7 @@ class CloudSaveSnapshot {
     );
   }
 
-  /// 取云端记录：新近程度看 [createdAt]（服务端生成，比本机 mtime 可信）
+  /// 回传服务端用的精简形态（只写服务端认的字段）
   Map<String, dynamic> toJson() => {
     'id': id,
     if (slotId != null) 'slot_id': slotId,

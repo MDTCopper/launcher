@@ -1,3 +1,4 @@
+/// 距今多久的粗略描述：刚刚 / 小时前 / 天前 / 月前 / 年前
 String timeSince(DateTime past) {
   final now = DateTime.now();
   if (past.isAfter(now)) {
@@ -8,7 +9,7 @@ String timeSince(DateTime past) {
   int months = now.month - past.month;
   int days = now.day - past.day;
 
-  //这里是时间借位扣除
+  //借位：天数不足整月则月份减一，月份不足则年份减一
   if (days < 0) months--;
   if (months < 0) {
     years--;

@@ -122,7 +122,7 @@ class _SettingsBinReader {
   int _readInt64() {
     final high = _readInt32();
     final low = _readInt32();
-    // BigInt 转 int（低32位可能丢失，但 Mindustry 设置值不会超过 int32 范围）
+    //拼回 64 位整数（设置值本身都落在 int32 范围内）
     return (high << 32) | (low & 0xFFFFFFFF);
   }
 

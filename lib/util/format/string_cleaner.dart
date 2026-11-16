@@ -2,7 +2,7 @@ import 'package:xml/xml.dart';
 
 /// 去除 Mindustry / Arc 的颜色标记（markup）标签，保留可见文本
 ///
-/// 贪婪匹配：从 `[` 开始，内部 `[` 计入嵌套深度、`[[` 视为转义跳过，
+/// 括号配对：从 `[` 开始，内部 `[` 计入嵌套深度、`[[` 视为转义跳过，
 /// 直到配对 `]` 闭合；若整段内容判定为「颜色相关」（含 #hex、颜色名、
 /// `[]` 弹栈等），整段剥离，否则按普通字面保留
 String removeColorTags(String input) {
@@ -81,6 +81,7 @@ String sanitizeText(String input) {
   return input.replaceAll(regex, '');
 }
 
+/// 通用清洗：去控制字符与颜色标签，[removeNewLine] 为真时再压掉换行
 String generalizeText(String str, {bool removeNewLine = false}) {
   if (str.isEmpty) return str;
   str = removeColorTags(sanitizeText(str));
@@ -191,7 +192,7 @@ String fixSvgTextScale(String svgString) {
   }
 }
 
-///修复不规范的json格式
+/// 宽松修复 JSON 文本：去注释、压空白、补漏掉的逗号
 String parseBrokenJson(String json) {
   return json
       .replaceAll(RegExp(r'//.*$', multiLine: true), '')

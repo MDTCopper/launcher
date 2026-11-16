@@ -102,7 +102,8 @@ class P2pProbe {
   Future<StunDiscovery> discover({
     List<String> servers = defaultServers,
     Duration timeout = const Duration(seconds: 3),
-  }) async {    await _ensureSocket();
+  }) async {
+    await _ensureSocket();
     final found = <StunEndpoint>[];
     for (final server in servers) {
       try {

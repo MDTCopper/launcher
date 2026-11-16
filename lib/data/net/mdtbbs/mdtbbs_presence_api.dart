@@ -91,7 +91,7 @@ class MdtbbsPresenceApi {
     );
   }
 
-  /// 关掉连接。失败不抛给调用方 —— 退出登录时连接自己会过期
+  /// 关掉连接；失败会抛出（退出登录时连接自己会过期，调用方可忽略）
   static Future<void> deleteConnection({
     required String accessToken,
     required String connectionId,

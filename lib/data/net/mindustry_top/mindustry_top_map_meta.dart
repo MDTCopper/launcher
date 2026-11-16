@@ -1,7 +1,7 @@
 /// mindustry.top 资源站的地图数据模型。
 ///
 /// 接口基址见 `mindustryTopApiBase`（app_constant.dart），请求封装见
-/// `lib/util/io/mindustry_top_map_api.dart`。
+/// `lib/data/net/mindustry_top/mindustry_top_map_api.dart`。
 ///
 /// 接口形态：
 /// - 列表 `GET /maps/list?begin=<offset>&search=<关键词>` 每页 15 条，
