@@ -1361,6 +1361,39 @@ class CopperIO {
     );
 
     Timer? periodicTimer;
+
+    //低速看门狗：单流只有一条连接，涓流时没有别的连接可比，只能按自身速率判
+    CancelToken? attemptCancel;
+    var lowSpeedAborted = false;
+    var lowSpeedWindowAt = DateTime.now();
+    var lowSpeedWindowBytes = 0;
+
+    void checkLowSpeed() {
+      final current = attemptCancel;
+      if (current == null || current.isCancelled) return;
+      final seconds =
+          DateTime.now().difference(lowSpeedWindowAt).inMilliseconds / 1000;
+      if (seconds < _lowSpeedWindow.inSeconds) return;
+      final bytes = state.downloaded - lowSpeedWindowBytes;
+      lowSpeedWindowAt = DateTime.now();
+      lowSpeedWindowBytes = state.downloaded;
+      final rate = bytes / seconds;
+      if (rate >= _minChunkRateBytes) return;
+      lowSpeedAborted = true;
+      current.cancel('低速');
+      addLog(
+        .debug,
+        '单流速率过低（${(rate / KB).toStringAsFixed(0)}KB/s 持续 '
+        '${_lowSpeedWindow.inSeconds}s），断开重连',
+        tag: 'Download',
+      );
+    }
+
+    final lowSpeedTimer = Timer.periodic(
+      _lowSpeedCheckInterval,
+      (_) => checkLowSpeed(),
+    );
+
     try {
       onStatus?.call(state);
 
@@ -1369,6 +1402,14 @@ class CopperIO {
         IOSink? sink;
         //这一趟开始时的已收字节：判断「这趟到底收到过数据没有」
         final attemptStartDownloaded = state.downloaded;
+        //每趟自己的取消令牌：低速看门狗断这条连接时不能当成用户取消
+        attemptCancel = CancelToken();
+        final thisAttemptCancel = attemptCancel;
+        cancelToken?.whenCancel.then((_) {
+          if (!thisAttemptCancel.isCancelled) thisAttemptCancel.cancel();
+        });
+        lowSpeedWindowAt = DateTime.now();
+        lowSpeedWindowBytes = state.downloaded;
         try {
           final resumeFrom = attemptStartDownloaded;
           final response = await _dio!.get(
@@ -1385,7 +1426,7 @@ class CopperIO {
                 if (resumeFrom > 0) 'Range': 'bytes=$resumeFrom-',
               },
             ),
-            cancelToken: cancelToken,
+            cancelToken: thisAttemptCancel,
           );
 
           if (state.total <= 0) {
@@ -1466,7 +1507,11 @@ class CopperIO {
           sink = null;
 
           //读到一半被掐断时 dio 把原始错误直接抛给流，不是 DioException
-          final cancelled = _isCancelled(cancelToken, e);
+          final lowSpeed = lowSpeedAborted;
+          lowSpeedAborted = false;
+          //低速看门狗断的连接不算用户取消：按链路问题重试
+          final cancelled =
+              _isCancelled(cancelToken, e) && !lowSpeed;
           if (cancelled) {
             state.status = HttpDownloadStatus.cancelled;
             if (deleteOnError && await file.exists()) await file.delete();
@@ -1478,7 +1523,8 @@ class CopperIO {
           }
 
           //读到一半被掐断时 dio 把原始错误直接抛给流，不是 DioException
-          final isTransport = e is! DioException || isTransportFailure(e);
+          final isTransport =
+              lowSpeed || e is! DioException || isTransportFailure(e);
           // 连接类失败按场景分预算（收到过数据⇒断流，没收到⇒建连失败）；
           // 其它错误（服务端抖动等）按上限重试；写盘失败（磁盘满 / 路径不可写）
           // 一次都别重试 —— 退避几轮也一样满
@@ -1490,9 +1536,11 @@ class CopperIO {
                     ? (delivered > 0 ? _abortedRetryLimit : connectLimit)
                     : retryLimit);
           if (attempt < limit) {
-            final reason = e is DioException
-                ? e.type.name
-                : e.runtimeType.toString();
+            final reason = lowSpeed
+                ? '速率过低'
+                : (e is DioException
+                      ? e.type.name
+                      : e.runtimeType.toString());
             final delay = _retryDelay(attempt);
             addLog(
               .debug,
@@ -1507,19 +1555,30 @@ class CopperIO {
           state.status = HttpDownloadStatus.failed;
           if (deleteOnError && await file.exists()) await file.delete();
           onStatus?.call(state);
+          //低速看门狗断的这条连接：收尾要给「链路问题」的错误（不是用户取消），
+          //否则上层 `CancelToken.isCancel` 会把它当成用户自己停的
+          final failure = lowSpeed
+              ? DioException(
+                  requestOptions: RequestOptions(path: url),
+                  type: DioExceptionType.receiveTimeout,
+                  message: '单流速率过低（低于 ${(_minChunkRateBytes / KB).round()}KB/s '
+                      '持续 ${_lowSpeedWindow.inSeconds} 秒）',
+                )
+              : e;
           addLog(
             .error,
             '单流下载失败：'
-            '${e is FileSystemException ? '写盘失败（${e.osError?.message ?? e.message}）' : (e is DioException ? dioFailureText(e) : e)}'
-            '${e is DioException && isNetworkFailure(e) ? '（网络不通或代理不可用）' : ''}'
+            '${lowSpeed ? '速率过低' : (failure is FileSystemException ? '写盘失败（${failure.osError?.message ?? failure.message}）' : (failure is DioException ? dioFailureText(failure) : failure))}'
+            '${failure is DioException && isNetworkFailure(failure) ? '（网络不通或代理不可用）' : ''}'
             '（$url）',
             tag: 'Download',
           );
-          rethrow;
+          throw failure;
         }
       }
     } finally {
       periodicTimer?.cancel();
+      lowSpeedTimer.cancel();
       speedCalc.cancel();
     }
   }
