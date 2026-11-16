@@ -456,9 +456,10 @@ class CopperIO {
 
       case MirrorStrategy.githubFirst:
         //直连这一族最近失败过（链路问题）就别再白等一次：直接走镜像；
-        //窗口很短、只在内存里，直连成功或改设置即清（见 GithubMirror.shouldSkipDirect）
+        //或者上次并行探测发现镜像明显更快 —— 这两种记忆分开存，别把「慢」记成「坏」
         final mirror = GithubMirror.instance;
-        if (mirror.enabled && mirror.shouldSkipDirect(url)) {
+        if (mirror.enabled &&
+            (mirror.shouldSkipDirect(url) || mirror.shouldPreferMirror(url))) {
           try {
             return await _sendViaMirror(url, send, preferRange: preferRange);
           } catch (e) {
@@ -540,7 +541,9 @@ class CopperIO {
       tag: 'Mirror',
     );
     if (isMirrorFaster) {
-      mirror.markDirectFailed(url);
+      //只记「这族先偏镜像」，**不能**记成「直连坏了」：直连刚刚答过 probes，
+      //把它当故障会让 5 分钟内所有 GitHub 请求（含 API）都绕道镜像
+      mirror.markMirrorPreferred(url);
     } else {
       mirror.markDirectOk(url);
     }

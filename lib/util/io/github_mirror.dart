@@ -98,6 +98,15 @@ class GithubMirror {
   ///每族「直连刚被验证可用」的时刻：有了它就不必每次都并行探测
   final Map<MirrorFamily, DateTime> _directOkAt = {};
 
+  ///每族「上次探测发现镜像更快」的时刻：只影响这一小段时间的路径选择
+  final Map<MirrorFamily, DateTime> _mirrorPreferredAt = {};
+
+  ///「镜像更快」的记忆保留多久
+  ///
+  ///比 [_directFailureTtl] 短：链路好坏变化快，而且这只是一个性能偏好，
+  ///不是「直连坏了」的结论
+  static const _mirrorPreferredTtl = Duration(minutes: 2);
+
   ///排名表缓存有效期
   static const _rankingTtl = Duration(minutes: 10);
 
@@ -177,6 +186,29 @@ class GithubMirror {
     return true;
   }
 
+  ///上一轮并行探测发现镜像更快：这一族短时间内先走镜像
+  ///
+  ///和 [markDirectFailed] 分开记：那个意思是「直连坏了（别等它）」，
+  ///这个只表示「直连慢一点」—— 混用会让 API 之类的小请求也白绕镜像
+  void markMirrorPreferred(String url) {
+    final family = mirrorFamilyOf(url);
+    if (family == null) return;
+    _mirrorPreferredAt[family] = DateTime.now();
+  }
+
+  ///这一族要不要先走镜像（上次探测镜像更快，且还在窗口内）
+  bool shouldPreferMirror(String url) {
+    final family = mirrorFamilyOf(url);
+    if (family == null) return false;
+    final at = _mirrorPreferredAt[family];
+    if (at == null) return false;
+    if (DateTime.now().difference(at) > _mirrorPreferredTtl) {
+      _mirrorPreferredAt.remove(family);
+      return false;
+    }
+    return true;
+  }
+
   ///直连通了：忘掉失败记忆，下次还是直连优先
   void forgetDirectFailure(String url) {
     final family = mirrorFamilyOf(url);
@@ -247,6 +279,7 @@ class GithubMirror {
     // 换了网络设置（开关 / 代理策略）就当链路情况变了，忘掉旧的记忆
     _directFailedAt.clear();
     _directOkAt.clear();
+    _mirrorPreferredAt.clear();
   }
 
   ///仅供测试：直接塞预设节点（正常走 [load] 从 remote 读）
@@ -284,6 +317,7 @@ class GithubMirror {
     _rankingAt.clear();
     _directFailedAt.clear();
     _directOkAt.clear();
+    _mirrorPreferredAt.clear();
     _enabled = true;
   }
 
