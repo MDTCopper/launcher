@@ -1280,6 +1280,7 @@ class CopperIO {
         //HEAD 已经判过这条链路不行：单流只给一次机会（1 = 再试一趟），
         //不给 0 是因为非 GitHub 单源没有镜像可换，一次抖动就判死太狠
         transportRetryLimit: headLinkBroken ? 1 : null,
+        tempPath: tempPath,
         onStatus: onStatus,
         headers: headers,
       );
@@ -1364,6 +1365,7 @@ class CopperIO {
           retryLimit: retryLimit,
           cancelToken: cancelToken,
           deleteOnError: deleteOnError,
+          tempPath: tempPath,
           onStatus: onStatus,
           headers: headers,
         );
@@ -1399,11 +1401,15 @@ class CopperIO {
     bool deleteOnError = true,
     //连接类失败的重试上限（null = 用默认那档；HEAD 已判链路不通时传 0）
     int? transportRetryLimit,
+    //临时文件路径：默认 `<目标>.part`，与分块路一致
+    String? tempPath,
     HttpStatusCallback? onStatus,
     Map<String, String>? headers,
   }) async {
-    final file = File(savePath);
-    await file.parent.create(recursive: true);
+    //单流也走「先写 .part 再改名」：直接截断目标文件的话，下载失败会把原来那份好文件毁掉
+    final partialPath = tempPath ?? '$savePath.part';
+    final partialFile = File(partialPath);
+    await partialFile.parent.create(recursive: true);
 
     final rateLimiter = speedLimit != null && speedLimit > 0
         ? _RateLimiter(speedLimit)
@@ -1501,7 +1507,16 @@ class CopperIO {
           }
 
           //续传请求只有真回了 206 才能接着写；回 200 说明整包重发过来了
-          final isPartial = response.statusCode == 206;
+          var isPartial = response.statusCode == 206;
+          if (resumeFrom > 0 && isPartial) {
+            //网关可能回 206 但区间起点不对：那不能往旧数据后面拼，整份重来
+            final rangeStart = _contentRangeStart(
+              response.headers.value('content-range'),
+            );
+            if (rangeStart != null && rangeStart != resumeFrom) {
+              isPartial = false;
+            }
+          }
           if (resumeFrom > 0 && !isPartial) {
             state.downloaded = 0;
             notifier.value = 0;
@@ -1515,7 +1530,7 @@ class CopperIO {
           });
 
           //续上了就 append（保住已下那段），否则 truncate 整份重写
-          sink = file.openWrite(
+          sink = partialFile.openWrite(
             mode: resumeFrom > 0 && isPartial
                 ? FileMode.append
                 : FileMode.write,
@@ -1541,7 +1556,7 @@ class CopperIO {
 
           if (cancelToken?.isCancelled == true) {
             state.status = HttpDownloadStatus.cancelled;
-            if (deleteOnError) await file.delete();
+            if (deleteOnError) await _deleteQuietly(partialFile);
             onStatus?.call(state);
             //取消要抛出去：调用方靠 `CancelToken.isCancel` 认它，
             //静默返回会被当成「这个来源没下成」，于是自动换下一个源接着下
@@ -1554,6 +1569,13 @@ class CopperIO {
               '单流下载提前结束（${state.downloaded}/${state.total} 字节）',
             );
           }
+
+          //原子收尾：改名前先把旧目标删掉（Windows 上 rename 不允许目标存在），
+          //与分块路的口径一致 —— 失败时旧目标不会被截断成半截
+          final target = File(savePath);
+          if (await target.exists()) await _deleteWithRetry(target);
+          await partialFile.rename(savePath);
+          await _deleteQuietly(File('$partialPath.json'));
 
           state.progress = 1.0;
           state.speed = 0;
@@ -1577,7 +1599,7 @@ class CopperIO {
               _isCancelled(cancelToken, e) && !lowSpeed;
           if (cancelled) {
             state.status = HttpDownloadStatus.cancelled;
-            if (deleteOnError && await file.exists()) await file.delete();
+            if (deleteOnError) await _deleteQuietly(partialFile);
             onStatus?.call(state);
             //已经是取消异常就原样抛；否则按取消现场造一个（同样要抛，别静默返回）
             throw e is DioException && CancelToken.isCancel(e)
@@ -1616,7 +1638,7 @@ class CopperIO {
           }
 
           state.status = HttpDownloadStatus.failed;
-          if (deleteOnError && await file.exists()) await file.delete();
+          if (deleteOnError) await _deleteQuietly(partialFile);
           onStatus?.call(state);
           //低速看门狗断的这条连接：收尾要给「链路问题」的错误（不是用户取消），
           //否则上层 `CancelToken.isCancel` 会把它当成用户自己停的
@@ -2708,6 +2730,16 @@ bool isMirrorNodeFailure(DioException error) {
   final status = error.response?.statusCode;
   if (status == null) return false;
   return status == 403 || status == 429 || status >= 500;
+}
+
+/// 解析 `Content-Range: bytes 100-199/1000` 的区间起点；解析不了返回 null
+///
+/// 单流续传只看 206 不够：网关可能回 206 但区间起点不是我们要的位置，
+/// 那种响应拼进旧数据后面就是静默坏文件
+int? _contentRangeStart(String? header) {
+  if (header == null || header.isEmpty) return null;
+  final match = RegExp(r'bytes\s+(\d+)-').firstMatch(header);
+  return match == null ? null : int.tryParse(match.group(1)!);
 }
 
 /// 节点失败原因（写日志用）：有状态码就报状态码，否则报 dio 的失败类型
