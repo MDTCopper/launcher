@@ -3,14 +3,13 @@ import 'dart:io';
 
 import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/generated/android_call.g.dart';
-import 'package:copper_launcher/domain/bridge_launcher.dart';
 import 'package:copper_launcher/domain/bridge_payload.dart';
 import 'package:copper_launcher/domain/bridge_runtime_options.dart';
 import 'package:copper_launcher/domain/jre_library.dart';
-import 'package:copper_launcher/domain/loader_library.dart';
 import 'package:copper_launcher/domain/payload_import.dart';
 import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
+import 'package:copper_launcher/util/io/archive_extract.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/git_refs.dart';
 import 'package:copper_launcher/util/io/log.dart';
@@ -19,7 +18,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 /// Android 桥的**库形态**（`<数据根>/bridge/`）：JRE / 桥 jar / 适配层集中放这里，
-/// 多版本复用同一份，与 [LoaderLibrary] 是同一套思路
+/// 多版本复用同一份，与 LoaderLibrary 是同一套思路
 ///
 /// 库里可以有多份桥、多份适配层，**用哪一份由 `runtime.json` 的钉版本决定**
 /// （没钉就自动挑）：[selectedBridgeJar] 与 [selectedLoaderWrapper] 是唯一的选法，
@@ -137,15 +136,11 @@ class BridgeLibrary {
     r'^loader-wrapper-(\d+(?:\.\d+)*)\.jar$',
   );
 
-  /// 当前选中的适配层 jar：钉住的版本在库里就用它，否则自动挑与当前 loader 兼容的最新
+  /// 当前选中的适配层 jar：钉住的版本在库里就用它，否则用库里最新的那份
   ///
-  /// 兼容按 jar 里记的 `loaderVersion` 判；一份都兼容不了退回最新那份并只记一条警告
-  /// （wrapper 自适配任意 loader 版本，不阻断启动）。[desktopLoaderPath] 不给就不比兼容，
-  /// 直接用库里最新的那份（设置页展示用得上）
-  static Future<File?> selectedLoaderWrapper({
-    String? desktopLoaderPath,
-    String? bridgeDirPath,
-  }) async {
+  /// 不再按 loader 版本挑兼容：wrapper 是薄适配层，自适配任意 loader 版本，
+  /// 读两份 jar 的版本属性再比对只会多两次 IO 和一张误报
+  static File? selectedLoaderWrapper({String? bridgeDirPath}) {
     final jars = _localWrapperJars(bridgeDirPath: bridgeDirPath);
     if (jars.isEmpty) return null;
 
@@ -157,34 +152,13 @@ class BridgeLibrary {
         if (wrapperVersionOf(wrapper) == pinned) return wrapper;
       }
     }
-
-    final desktopLoaderVersion = desktopLoaderPath == null
-        ? null
-        : LoaderLibrary.versionOf(File(desktopLoaderPath));
-    if (desktopLoaderVersion == null) return jars.first;
-
-    final wrapperLoaderVersions = <String, String?>{};
-    for (final wrapper in jars) {
-      wrapperLoaderVersions[wrapper.path] =
-          await BridgeLauncher.wrapperLoaderVersionOf(wrapper.path);
-    }
-    final compatible = pickWrapperForLoader(
-      wrappers: jars,
-      wrapperLoaderVersions: wrapperLoaderVersions,
-      desktopLoaderVersion: desktopLoaderVersion,
-    );
-    if (compatible != null) return compatible;
-
-    addLogAndPrint(
-      .warning,
-      '库里的模组加载器适配层都不针对 loader $desktopLoaderVersion，'
-      '退回最新的 ${wrapperVersionOf(jars.first) ?? '（读不出版本）'}',
-      tag: 'Bridge',
-    );
     return jars.first;
   }
 
   /// 从按版本倒序的适配层里挑第一份与桌面 loader 兼容的（纯函数）
+  ///
+  /// 只按 jar 里记的 `loaderVersion` 与桌面 loader 版本是否相同判；
+  /// 当前选法已不按 loader 版本比对，这个函数只为既有用例保留
   @visibleForTesting
   static File? pickWrapperForLoader({
     required List<File> wrappers,
@@ -192,16 +166,18 @@ class BridgeLibrary {
     required String? desktopLoaderVersion,
   }) {
     for (final wrapper in wrappers) {
-      final matches = BridgePayload.wrapperMatchesLoader(
-        wrapperLoaderVersion: wrapperLoaderVersions[wrapper.path],
-        desktopLoaderVersion: desktopLoaderVersion,
-      );
-      if (matches) return wrapper;
+      final wrapperLoaderVersion = wrapperLoaderVersions[wrapper.path];
+      if (wrapperLoaderVersion == null || desktopLoaderVersion == null) {
+        continue;
+      }
+      if (wrapperLoaderVersion.trim() == desktopLoaderVersion.trim()) {
+        return wrapper;
+      }
     }
     return null;
   }
 
-  /// 钉住适配层版本（[version] 为 null = 自动挑兼容的最新）：只写 runtime.json
+  /// 钉住适配层版本（[version] 为 null = 自动用库里最新的）：只写 runtime.json
   static Future<void> selectLoaderWrapperVersion(
     String? version, {
     String? bridgeDirPath,
@@ -638,9 +614,7 @@ class BridgeLibrary {
     );
     final jreBuild = JreLibrary.selectedBuild(bridgeDirPath: bridgeDirPath);
     final bridgeJar = selectedBridgeJar(bridgeDirPath: bridgeDirPath);
-    final wrapperJar = await selectedLoaderWrapper(
-      bridgeDirPath: bridgeDirPath,
-    );
+    final wrapperJar = selectedLoaderWrapper(bridgeDirPath: bridgeDirPath);
     final markerFile = File(p.join(jreRootPath, '.installed-version'));
 
     return BridgeRuntimeStatus(
@@ -786,6 +760,111 @@ class BridgeLibrary {
     addLogAndPrint(.info, 'Android 桥：Java 运行环境装好了（$abi）', tag: 'Bridge');
   }
 
+  /// 按 [plan] 取这个版本需要的原生库，返回装好的文件名
+  ///
+  /// GDX 时代（v33–v104.6）下 `android-gdx` 的 release zip，解出当前 ABI 的
+  /// `libgdx.so` / `libgdx-freetype.so`；arc 时代走 [installArcNatives]
+  static Future<List<String>> installNatives({
+    required NativeLibPlan plan,
+    required String abi,
+    CancelToken? cancelToken,
+    void Function(String status)? onStatus,
+  }) {
+    final gdxVersion = plan.gdxVersion;
+    if (gdxVersion != null) {
+      return _installGdxNatives(
+        gdxVersion: gdxVersion,
+        abi: abi,
+        cancelToken: cancelToken,
+        onStatus: onStatus,
+      );
+    }
+    return installArcNatives(
+      arcRef: plan.arcRef!,
+      abi: abi,
+      includeBox2d: plan.includeBox2d,
+      cancelToken: cancelToken,
+      onStatus: onStatus,
+    );
+  }
+
+  /// GDX 原生库：下载 `libgdx-<版本>-android.zip`，只解当前 ABI 的两个 `.so`
+  ///
+  /// zip 里已经是 `arm64-v8a/`、`armeabi-v7a/`、`x86_64/` 这样的目录，不需要
+  /// 按 Maven 的 natives jar 再拆；下载走统一网络层，镜像节点同样生效
+  static Future<List<String>> _installGdxNatives({
+    required String gdxVersion,
+    required String abi,
+    CancelToken? cancelToken,
+    void Function(String status)? onStatus,
+  }) async {
+    final ref = BridgePayload.gdxRef(gdxVersion);
+    final targetDir = Directory(AppPaths.bridgeArcDirPath(ref, abi));
+    await targetDir.create(recursive: true);
+
+    final installed = <String>[];
+    for (final name in BridgePayload.gdxAndroidLibNames) {
+      if (File(p.join(targetDir.path, name)).existsSync()) installed.add(name);
+    }
+    if (installed.length == BridgePayload.gdxAndroidLibNames.length) {
+      return installed;
+    }
+
+    // 临时目录放桥根下：Android 上系统临时目录不一定可写，桥根一定在应用内部
+    final temp = Directory(p.join(AppPaths.bridgeRoot, 'tmp'))
+      ..createSync(recursive: true);
+    final work = temp.createTempSync('gdx-$gdxVersion-');
+    try {
+      final zipPath = p.join(work.path, 'libgdx-$gdxVersion-android.zip');
+      onStatus?.call('正在下载 GDX $gdxVersion 原生库…');
+      await cio.download(
+        url: BridgePayload.gdxAndroidZipUrl(gdxVersion),
+        savePath: zipPath,
+        cancelToken: cancelToken,
+      );
+
+      final extractDir = p.join(work.path, 'extract');
+      await Directory(extractDir).create(recursive: true);
+      await extractArchive(zipPath, extractDir);
+
+      for (final name in BridgePayload.gdxAndroidLibNames) {
+        final target = File(p.join(targetDir.path, name));
+        if (target.existsSync()) {
+          if (!installed.contains(name)) installed.add(name);
+          continue;
+        }
+        final source = File(p.join(extractDir, abi, name));
+        if (!source.existsSync()) {
+          addLogAndPrint(
+            .warning,
+            'GDX $gdxVersion 的 zip 里没有 $abi/$name',
+            tag: 'Bridge',
+          );
+          continue;
+        }
+        await source.copy(target.path);
+        installed.add(name);
+      }
+      addLogAndPrint(
+        .info,
+        'Android 桥：GDX $gdxVersion 原生库装好了（$abi：${installed.join('、')}）',
+        tag: 'Bridge',
+      );
+    } finally {
+      // 解压出来的文件可能只读；删不掉也不影响下次，只是别把错误抛到启动路径
+      try {
+        work.deleteSync(recursive: true);
+      } catch (error) {
+        addLogAndPrint(
+          .warning,
+          '清理 GDX 下载临时目录失败：${removeNewlines('$error')}',
+          tag: 'Bridge',
+        );
+      }
+    }
+    return installed;
+  }
+
   /// arc 原生库：按 ref + ABI 取进共享库目录，返回装好的文件名
   ///
   /// 名单先按**常规文件名**铺底（`libarc.so` / `libarc-freetype.so`），再尽力列一次
@@ -793,10 +872,12 @@ class BridgeLibrary {
   /// 所以它失败只记一条警告，不能因此一个 `.so` 都不下
   ///
   /// 跟具体游戏版本走（v8 是该版本的 `archash`、v9 起是本体提交，见
-  /// [BridgePayload.arcNativeLibUrl]），所以不在首次运行的安装页里做
+  /// [BridgePayload.arcNativeLibUrl]），所以不在首次运行的安装页里做。
+  /// [includeBox2d] 由 [NativeLibPlan] 按版本给（v105–v126.2 才多这份库）。
   static Future<List<String>> installArcNatives({
     required String arcRef,
     required String abi,
+    bool includeBox2d = false,
     CancelToken? cancelToken,
     void Function(String status)? onStatus,
   }) async {
@@ -804,7 +885,10 @@ class BridgeLibrary {
     await arcDir.create(recursive: true);
 
     final names = <String>[];
-    for (final module in BridgePayload.arcNativeModulesFor(arcRef)) {
+    for (final module in BridgePayload.arcNativeModulesFor(
+      arcRef,
+      includeBox2d: includeBox2d,
+    )) {
       final moduleNames = <String>{
         ...BridgePayload.arcNativeDefaultLibs(module),
       };
@@ -852,19 +936,17 @@ class BridgeLibrary {
     return names;
   }
 
-  /// 装 loader-wrapper（走 mod 时才需要）：库里挑一份能用的，一份都没有才下
+  /// 装 loader-wrapper（走 mod 时才需要）：库里已有一份就直接复用，一份都没有才下
   ///
-  /// 挑法由 [selectedLoaderWrapper] 决定（钉住的版本优先，否则挑与当前 loader 兼容的最新）；
-  /// 返回挑中的 jar 路径；桌面 loader 缺失才返回 null
-  /// （版本不一致只记日志，wrapper 自适配任意 loader 版本）
+  /// 返回可用的 jar 路径；桌面 loader 缺失才返回 null。
+  /// **不再检查 wrapper 与 loader / 游戏版本的匹配**：wrapper 是薄适配层，
+  /// 自适配任意 loader 版本，读两份 jar 的版本属性再比对只会多两次 IO 和一张误报
   static Future<String?> ensureLoaderWrapper({
     required String? desktopLoaderPath,
     CancelToken? cancelToken,
     void Function(String status)? onStatus,
   }) async {
-    var wrapper = await selectedLoaderWrapper(
-      desktopLoaderPath: desktopLoaderPath,
-    );
+    var wrapper = selectedLoaderWrapper();
     if (wrapper == null) {
       try {
         await installLoaderWrapper(
@@ -880,40 +962,19 @@ class BridgeLibrary {
         );
         return null;
       }
-      wrapper = await selectedLoaderWrapper(
-        desktopLoaderPath: desktopLoaderPath,
-      );
+      wrapper = selectedLoaderWrapper();
     }
     if (wrapper == null) return null;
 
     // 没有桌面 loader 就没法注入（调用方按原版起）
     if (desktopLoaderPath == null) return null;
 
-    final desktopLoaderVersion = LoaderLibrary.versionOf(
-      File(desktopLoaderPath),
+    addLogAndPrint(
+      .info,
+      'Android 桥：模组加载器适配层就绪'
+      '（wrapper ${wrapperVersionOf(wrapper) ?? '（读不出版本）'}）',
+      tag: 'Bridge',
     );
-    final wrapperLoaderVersion = await BridgeLauncher.wrapperLoaderVersionOf(
-      wrapper.path,
-    );
-    if (!BridgePayload.wrapperMatchesLoader(
-      wrapperLoaderVersion: wrapperLoaderVersion,
-      desktopLoaderVersion: desktopLoaderVersion,
-    )) {
-      addLogAndPrint(
-        .warning,
-        '模组加载器适配层版本不一致：适配层针对 loader '
-        '${wrapperLoaderVersion ?? '（读不出）'}、当前 loader '
-        '${desktopLoaderVersion ?? '（读不出）'}；wrapper 自适配任意 loader 版本，继续注入',
-        tag: 'Bridge',
-      );
-    } else {
-      addLogAndPrint(
-        .info,
-        'Android 桥：模组加载器适配层就绪（wrapper '
-        '${wrapperVersionOf(wrapper) ?? '（读不出版本）'} ↔ loader $desktopLoaderVersion）',
-        tag: 'Bridge',
-      );
-    }
     return wrapper.path;
   }
 

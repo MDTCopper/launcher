@@ -7,4 +7,8 @@
     <string name="copied_stacktrace">Copied error message</string>
     <string name="game_widget_label">Mindustry launch</string>
     <string name="game_widget_description">Tap to start the game directly</string>
+    <string name="documents_provider_description">Browse Copper\'s app files</string>
+    <string name="documents_root_title">Copper Launcher</string>
+    <string name="documents_root_summary">Browse Copper\'s app files</string>
+    <string name="documents_storage_unavailable">Storage unavailable</string>
 </resources>

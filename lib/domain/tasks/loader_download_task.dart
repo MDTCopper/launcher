@@ -74,7 +74,7 @@ class LoaderDownloadTask extends Task {
   @override
   Future<void> runTask() async {
     addTaskLog(LogEntry(LogType.info, '开始下载加载器 $tag'));
-    addLog(.info, '下载加载器 [$tag]：$url', tag: 'Loader');
+    addLog(.info, '下载加载器 [$tag]：${logSafeUrl(url)}', tag: 'Loader');
 
     try {
       final download = downloader;

@@ -1,6 +1,4 @@
 import 'dart:io';
-
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:path/path.dart' as p;
@@ -33,7 +31,7 @@ String _withLogPrefix(String header, String message) {
   final isNewDay = day != _lastLogDay;
   _lastLogDay = day;
 
-  final lines = redactSecrets(message).split('\n');
+  final lines = message.split('\n');
   final buffer = StringBuffer();
   if (isNewDay) buffer.writeln('[$day]');
   buffer.write('$header ${lines.first}');
@@ -43,36 +41,104 @@ String _withLogPrefix(String header, String message) {
   return buffer.toString();
 }
 
-/// 日志脱敏：凭证类内容不落盘
+/// 日志只做格式化，**不做脱敏兜底**：
+/// token、Authorization / Cookie、请求体、带 query 的 URL 都不能进日志，
+/// 必须在调用点拼消息时就不传进来（需要记 URL 时用 [logSafeUrl]）。
 ///
-/// 日志会被用户导出 / 分享，服务端下发的 URL 与响应体偶尔会把 token 带进来
-String redactSecrets(String message) => _applyRedactions(message);
+/// 日志里会带凭证的 query 键：这些键的值一律不打印
+const _sensitiveQueryKeys = {
+  'access_token',
+  'refresh_token',
+  'id_token',
+  'token',
+  'code',
+  'state',
+  'ticket',
+  'client_secret',
+  'password',
+  'passwd',
+  'code_verifier',
+  'authorization',
+  'cookie',
+  'api_key',
+  'x-api-key',
+  'join_code',
+  'room_token',
+  'resume_token',
+  'lanlink_token',
+  'session_token',
+  'pending_refresh_token',
+  'pending_refresh_key',
+};
 
-final RegExp _bearerPattern = RegExp(r'(Bearer\s+)[A-Za-z0-9\-._~+/=]{8,}');
-final RegExp _credentialFieldPattern = RegExp(
-  r'("(?:access_token|refresh_token|id_token|resume_token|ticket|lanlink_?token)"\s*:\s*")[^"]{4,}"',
-);
-final RegExp _longHexPattern = RegExp(r'\b[0-9a-fA-F]{64,}\b');
+/// 凭证类值的中段打码：保留前 2 / 后 2 个字符，中间换成 `***`。
+///
+/// 不整段删除：既保留“有没有值、大致长度、前后缀”的排查信息，
+/// 又不把完整 token / 房间码写进日志。
+String maskForLog(String value) {
+  if (value.isEmpty) return value;
+  if (value.length <= 4) return '***';
+  return '${value.substring(0, 2)}***${value.substring(value.length - 2)}';
+}
 
-/// 本机路径里的用户名也抹掉：日志常被贴到群里 / issue 里
-final RegExp _winHomePattern = RegExp(
-  r'([A-Za-z]:\\Users\\)[^\\/\r\n"]+',
+/// 写日志时的 URL 文本：userinfo 的密码、敏感 query 参数只打码中段，
+/// 其余部分（包括普通 query）原样保留，方便排查。
+///
+/// 调用方在拼日志消息时显式用它；这是按 key 精确打码，不是对整条日志做兜底。
+String logSafeUrl(String rawUrl) {
+  final uri = Uri.tryParse(rawUrl);
+  if (uri == null || uri.scheme.isEmpty || uri.host.isEmpty) {
+    // 解析不了就不要回写原文：原文本身可能带凭证
+    return '<url>';
+  }
+  final buffer = StringBuffer('${uri.scheme}://');
+  final userInfo = uri.userInfo;
+  if (userInfo.isNotEmpty) {
+    final separator = userInfo.indexOf(':');
+    if (separator < 0) {
+      buffer.write('${maskForLog(userInfo)}@');
+    } else {
+      buffer.write(
+        '${userInfo.substring(0, separator)}:'
+        '${maskForLog(userInfo.substring(separator + 1))}@',
+      );
+    }
+  }
+  buffer.write(uri.host);
+  if (uri.hasPort) buffer.write(':${uri.port}');
+  buffer.write(uri.path.isEmpty ? '/' : uri.path);
+
+  final safeQuery = <String, String>{};
+  uri.queryParameters.forEach((key, value) {
+    safeQuery[key] = _sensitiveQueryKeys.contains(key.toLowerCase())
+        ? maskForLog(value)
+        : value;
+  });
+  if (safeQuery.isNotEmpty) {
+    final query = safeQuery.entries
+        .map(
+          (entry) =>
+              '${Uri.encodeQueryComponent(entry.key)}='
+              '${Uri.encodeQueryComponent(entry.value)}',
+        )
+        .join('&')
+        // Uri 的 query 编码会把 *** 变成 %2A%2A%2A；日志里保留可读的 ***
+        .replaceAll('%2A', '*');
+    buffer.write('?$query');
+  }
+  if (uri.hasFragment) buffer.write('#${uri.fragment}');
+  return buffer.toString();
+}
+
+/// 把一段文本里的 URL 逐个按 [logSafeUrl] 打码；用于 WebSocket 异常文案，
+/// 既保留错误描述，又不会把 `?ticket=…` 原样带出去。
+final RegExp _urlInTextPattern = RegExp(
+  r'[a-z][a-z0-9+.-]*://[^\s]+',
   caseSensitive: false,
 );
-final RegExp _posixHomePattern = RegExp(r'(/home/|/Users/)[^/\r\n"]+');
 
-String _applyRedactions(String message) {
-  var text = message;
-  text = text.replaceAllMapped(_bearerPattern, (match) => '${match[1]}***');
-  text = text.replaceAllMapped(
-    _credentialFieldPattern,
-    (match) => '${match[1]}***"',
-  );
-  text = text.replaceAll(_longHexPattern, '***');
-  text = text.replaceAllMapped(_winHomePattern, (match) => '${match[1]}***');
-  text = text.replaceAllMapped(_posixHomePattern, (match) => '${match[1]}***');
-  return text;
-}
+String maskUrlsInText(String text) =>
+    text.replaceAllMapped(_urlInTextPattern, (match) => logSafeUrl(match[0]!));
 
 ///一条日志的固定格式：`[时间]-[级别]-[模块] 内容`（模块可缺省）
 String _logLine(RunTimeLogType type, String message, String? tag) {

@@ -339,9 +339,9 @@ abstract class AppPaths {
   /// 例：`<桥载荷根>\bridge\bridge-0.2.0.jar`
   static String bridgeJarFile(String fileName) => p.join(bridge, fileName);
 
-  /// arc 原生库目录 [*\bridge\arc\<arcRef>\<abi>\]：必须按 arc ref 分（不同游戏版本
-  /// 可能用不同 arc），按 ABI 分目录（平铺布局只能放一个 ABI 的库）
-  /// 例：`<桥载荷根>\bridge\arc\93033a05\arm64-v8a`
+  /// 原生库目录 [*\bridge\arc\<ref>\<abi>\]：必须按 ref 分（不同游戏版本可能用不同
+  /// arc；GDX 时代用 `gdx-<版本>`），按 ABI 分目录（平铺布局只能放一个 ABI 的库）
+  /// 例：`<桥载荷根>\bridge\arc\93033a05\arm64-v8a`、`<桥载荷根>\bridge\arc\gdx-1.9.10\arm64-v8a`
   static String bridgeArcDirPath(String arcRef, String abi) =>
       p.join(bridge, 'arc', arcRef, abi);
 

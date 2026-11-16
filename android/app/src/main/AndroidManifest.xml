@@ -61,11 +61,15 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
-            <!-- 登录回调：浏览器授权完由系统把 copperlauncher://oauth/callback?code=… 交回来 -->
+            <!-- 登录回调：浏览器授权完由系统把 copper://oauth/callback?code=… 交回来。
+                 本 App 挂起后 loopback 收不到回调，所以 Android 默认走这条系统协议。
+                 copperlauncher:// 保留为兼容入口：MindAuth 回调白名单切到 copper:// 期间
+                 旧链接仍能回到同一个 Activity。 -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="copper" android:host="oauth"/>
                 <data android:scheme="copperlauncher" android:host="oauth"/>
             </intent-filter>
         </activity>
@@ -171,6 +175,22 @@
             android:process=":mdt_process"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|density|smallestScreenSize">
         </activity>
+
+        <!-- 文件提供器：把应用自己的内部 / 外部 files 目录暴露给系统文件选择器（SAF）。
+             两个根分别在 /data/data/<包名>/files 与 /sdcard/Android/data/<包名>/files；
+             账号 token、config 与 config 备份在 provider 里被过滤掉。
+             只用 MANAGE_DOCUMENTS 保护：那是系统签名权限，普通第三方应用拿不到 URI 就进不来。 -->
+        <provider
+            android:name=".provider.CopperDocumentsProvider"
+            android:authorities="${applicationId}.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS"
+            android:description="@string/documents_provider_description">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER"/>
+            </intent-filter>
+        </provider>
 
         <!-- 1x1 桌面小组件：外观自己画，没有桌面白卡片与来源角标，点一下直接启动游戏 -->
         <receiver

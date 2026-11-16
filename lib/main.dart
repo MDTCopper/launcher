@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/core/app_runtime.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
+import 'package:copper_launcher/domain/account/account_store.dart';
 import 'package:copper_launcher/domain/bridge_installer.dart';
 import 'package:copper_launcher/domain/cloud_service_process.dart';
 import 'package:copper_launcher/domain/game_session.dart';
@@ -315,6 +316,9 @@ Future<bool> _initializeCore({
   }
 
   await TokenEncryptor.init();
+  // 账号文件（refresh token）在 Android 上要从外部专属目录搬进 /data/data：
+  // 先搬再读配置 / 账号，否则这一轮会按「未登录」处理
+  await AccountStore.migrateLegacyLocation();
   await initAppConfig();
   addLog(.info, '时间线：配置就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
   //config 就绪后同步网络设置（代理/token/限速/线程/镜像），此后新建请求即生效

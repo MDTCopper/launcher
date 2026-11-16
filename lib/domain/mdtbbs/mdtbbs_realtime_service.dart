@@ -138,6 +138,12 @@ class MdtbbsRealtimeService {
         return;
       }
       final ticket = await MdtbbsRealtimeApi.ticket(accessToken: token);
+      // ticket 只在 query 里，logSafeUrl 会把它去掉，保留 host/path 方便定位
+      addLogAndPrint(
+        .info,
+        '实时通道连接：${logSafeUrl(ticket.socketUrl)}',
+        tag: 'Realtime',
+      );
       final socket = await WebSocket.connect(ticket.socketUrl);
       _socket = socket;
       connected.value = true;
@@ -151,14 +157,15 @@ class MdtbbsRealtimeService {
           _scheduleReconnect();
         },
         onError: (Object error) {
-          addLog(.warning, '实时通道出错：$error', tag: 'Realtime');
+          // 不打印 WebSocket 异常原文：里面可能带 ?ticket=… 的连接 URL
+          addLog(.warning, '实时通道出错：${_socketErrorText(error)}', tag: 'Realtime');
           connected.value = false;
           _scheduleReconnect();
         },
         cancelOnError: true,
       );
     } on Object catch (error) {
-      addLog(.debug, '实时通道连接失败：$error', tag: 'Realtime');
+      addLog(.debug, '实时通道连接失败：${_socketErrorText(error)}', tag: 'Realtime');
       _scheduleReconnect();
     } finally {
       _connecting = false;
@@ -181,7 +188,7 @@ class MdtbbsRealtimeService {
     try {
       socket.add(jsonEncode(payload));
     } on Object catch (error) {
-      addLog(.debug, '实时通道发送失败：$error', tag: 'Realtime');
+      addLog(.debug, '实时通道发送失败：${_socketErrorText(error)}', tag: 'Realtime');
     }
   }
 
@@ -239,4 +246,16 @@ class MdtbbsRealtimeService {
       _send({'type': 'heartbeat'});
     });
   }
+}
+
+/// WebSocket 异常保留类型与 message；message 里的 URL 会按 query 打码，
+/// 不会把 `?ticket=…` 原样带出去。
+String _socketErrorText(Object error) {
+  if (error is WebSocketException) {
+    final message = error.message.trim();
+    return message.isEmpty
+        ? 'WebSocketException'
+        : 'WebSocketException（${maskUrlsInText(message)}）';
+  }
+  return error.runtimeType.toString();
 }

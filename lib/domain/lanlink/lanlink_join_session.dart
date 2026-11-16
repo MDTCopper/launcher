@@ -85,7 +85,7 @@ class LanLinkJoinSession {
     addLog(
       .info,
       '联机桥已启动：$localAddress → $remoteHost:$remotePort'
-      '（房间 $roomCode，${direct ? '直连' : '经节点中继'}）',
+      '（房间 ${maskForLog(roomCode)}，${direct ? '直连' : '经节点中继'}）',
       tag: 'LanLink',
     );
   }
@@ -113,7 +113,7 @@ class LanLinkJoinSession {
     }
     _closers.clear();
     _gameUdpAddress = null;
-    addLog(.info, '联机桥已关闭（房间 $roomCode）', tag: 'LanLink');
+    addLog(.info, '联机桥已关闭（房间 ${maskForLog(roomCode)}）', tag: 'LanLink');
   }
 
   // -- TCP 转发 ----------------------------------------------------------

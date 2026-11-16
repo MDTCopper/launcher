@@ -178,6 +178,52 @@ class BridgeLauncher {
     return ref;
   }
 
+  /// 这个版本该从哪取原生库
+  ///
+  /// 先按版本号判定 GDX 时代（v33–v104.6 / BE 4975–8090）—— 这些版本的原生库
+  /// 不在 Arc 仓库里，直接下 `android-gdx` 的 Android zip。其余版本仍按
+  /// [arcRefOf] 查 arc；v105–v126.2 额外带 box2d。
+  static Future<NativeLibPlan?> nativePlanOf(
+    Mindustry version, {
+    void Function(String status)? onStatus,
+  }) async {
+    final gdxVersion = BridgePayload.gdxVersionFor(
+      build: version.releaseDouble,
+      isBe: version.isBe,
+    );
+    if (gdxVersion != null) {
+      addLogAndPrint(
+        .info,
+        'Android 桥：这个版本用 GDX $gdxVersion 原生库（${version.release}）',
+        tag: 'Bridge',
+      );
+      return NativeLibPlan.gdx(gdxVersion);
+    }
+
+    // GDX 1.9.9 没有可用的 BE 归档：BE 4975 之前不用再白跑一次 arc 查询，
+    // 那些构建本来就不属于 arc 仓库，按「没有原生库」启动
+    if (version.isBe &&
+        version.releaseDouble > 0 &&
+        version.releaseDouble < 4975) {
+      addLogAndPrint(
+        .warning,
+        'BE ${version.release} 早于 GDX 原生库归档范围（4975），不带原生库启动',
+        tag: 'Bridge',
+      );
+      return null;
+    }
+
+    final arcRef = await arcRefOf(version, onStatus: onStatus);
+    if (arcRef == null) return null;
+    return NativeLibPlan.arc(
+      arcRef,
+      includeBox2d: BridgePayload.arcNeedsBox2d(
+        build: version.releaseDouble,
+        isBe: version.isBe,
+      ),
+    );
+  }
+
   /// 读 Mindustry 的 `gradle.properties` 判 arc 从哪来
   ///
   /// 有 `archash` 就是 v8 及以前；没有就是 v9 起（arc 并进本体仓库），ref 记本体提交 / tag。
@@ -214,10 +260,6 @@ class BridgeLauncher {
     return commit;
   }
 
-  /// wrapper jar 里 `wrapper-version.properties` 的 `loaderVersion`（它编时针对哪版 loader）
-  static Future<String?> wrapperLoaderVersionOf(String jarPath) =>
-      jarPropertyOf(jarPath, 'loaderVersion');
-
   /// 从 jar 里读某个 properties 条目的值；读不到返回 null
   ///
   /// 用 zip 的流式解码只读这几个小条目（本体几十 MB，别整包读进内存）。
@@ -253,10 +295,6 @@ class BridgeLauncher {
     }
   }
 
-  /// 版本信息可能落在哪个条目：本体是 `version.properties`，wrapper 是
-  /// `wrapper-version.properties`（两边都试一次，省得调用方各记一份）
-  static const _propertiesEntries = [
-    'version.properties',
-    'wrapper-version.properties',
-  ];
+  /// 版本信息落在本体的 `version.properties`
+  static const _propertiesEntries = ['version.properties'];
 }

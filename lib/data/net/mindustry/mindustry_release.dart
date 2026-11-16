@@ -68,6 +68,24 @@ class MindustryRelease {
     return null;
   }
 
+  /// classic-mindustry-builds 的仓库与 release：33–57 的 tag 在 Anuken 仓库里没有资产，
+  /// 桌面 jar 由这个 release 按固定名字提供
+  static const classicRepo = 'MDTCopper/classic-mindustry-builds';
+  static const classicReleaseTag = 'classic-33-57';
+
+  /// tag 属于 33–57 时返回 build 号，否则 null
+  static String? classicBuildOf(String tag) {
+    final match = RegExp(r'^v(3[3-9]|4[0-9]|5[0-7])$').firstMatch(tag);
+    return match?.group(1);
+  }
+
+  static String classicDesktopJarName(String build) =>
+      'Mindustry-Desktop-$build.jar';
+
+  static String classicDesktopJarUrl(String build) =>
+      'https://github.com/$classicRepo/releases/download/$classicReleaseTag/'
+      '${classicDesktopJarName(build)}';
+
   /// 是否是本体候选：jar 且不是服务端包（server-release.jar）
   static bool _isGameJarCandidate(String assetName) {
     final name = assetName.toLowerCase();
@@ -84,6 +102,21 @@ class MindustryRelease {
     final rawAssets = json['assets'];
     if (rawAssets is! List) throw const FormatException('release 缺 assets');
 
+    final assets = [
+      for (final raw in rawAssets) ?MindustryReleaseAsset.fromGithubJson(raw),
+    ];
+    // 33–57 的官方 release 只有 tag、没有资产：桌面 jar 在 classic 仓库的同一个 release 里
+    final classicBuild = classicBuildOf(tag);
+    if (classicBuild != null && assets.isEmpty) {
+      assets.add(
+        MindustryReleaseAsset(
+          name: classicDesktopJarName(classicBuild),
+          officialUrl: classicDesktopJarUrl(classicBuild),
+          size: 0,
+        ),
+      );
+    }
+
     return MindustryRelease(
       tag: tag,
       // release 名会带尾随空格，原样当默认版本名会带进版本目录名
@@ -92,9 +125,7 @@ class MindustryRelease {
       describe: json['body']?.toString() ?? '',
       // GitHub 的 release 带 reactions，BE（MindustryBuilds）那份不带
       isBe: json['reactions'] == null,
-      assets: [
-        for (final raw in rawAssets) ?MindustryReleaseAsset.fromGithubJson(raw),
-      ],
+      assets: assets,
     );
   }
 
@@ -140,6 +171,7 @@ class MindustryReleaseAsset {
 
   /// 国内源（论坛 MDTBBS）地址
   final String? domesticUrl;
+
   /// 官方 GitHub 地址
   final String? officialUrl;
 

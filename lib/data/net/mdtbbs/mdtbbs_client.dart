@@ -109,6 +109,7 @@ class MdtbbsException implements Exception {
 
   @override
   String toString() {
+    // 保留服务端文案：它是排查问题时最有用的信息；凭证类内容不会出现在这里。
     final status = statusCode == null ? '' : 'HTTP $statusCode ';
     final codeText = code.isEmpty ? '' : '$code ';
     final request = requestId == null ? '' : '（request_id: $requestId）';
@@ -559,7 +560,8 @@ class MdtbbsClient {
   }) async {
     final url = urlOf(path);
     final isWrite = method != 'GET';
-    addLog(.debug, '$method $url', tag: 'Mdtbbs');
+    // 只记方法和去掉 query 的 URL：query 里常带 state / code 等一次性凭证
+    addLog(.debug, '$method ${logSafeUrl(url)}', tag: 'Mdtbbs');
     // 写请求先确保手里有 CSRF 令牌，否则会被守卫直接 403
     //
     // 只对同源写请求做：跨域（换 token 的 auth 域）不带 CSRF，也不该为了它
@@ -738,14 +740,17 @@ class MdtbbsClient {
       details: (errorBody?['details'] as List?) ?? const [],
     );
 
-    // 路径与方法一起记：哪个请求挂的、服务端说了什么，日志里一眼能看出来；
-    // 追踪 ID 不论从哪来都记上 —— 报障时靠的就是这一行
+    // URL 只去掉 userinfo 与凭证类 query；错误文案 / details / request_id 都保留，
+    // 这些是报障定位的主要线索，且不含 token
     addLog(
       .warning,
-      '请求失败 ${error.requestOptions.method} ${error.requestOptions.path}'
+      '请求失败 ${error.requestOptions.method} '
+      '${logSafeUrl(error.requestOptions.uri.toString())}'
       '：${failure.message}'
       '${failure.details.isEmpty ? '' : '；details: ${failure.details.join('; ')}'}'
-      '${requestId == null ? '' : '（request_id: $requestId）'}',
+      '（status=${failure.statusCode ?? '无响应'}'
+      '${failure.code.isEmpty ? '' : '，code=${failure.code}'}'
+      '${requestId == null ? '' : '，request_id: $requestId'}）',
       tag: 'Mdtbbs',
     );
     return failure;

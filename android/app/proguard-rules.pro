@@ -4,6 +4,7 @@
 -keep class io.github.copper.launcher.game.MindustryActivity { *; }
 -keep class io.github.copper.launcher.MainActivity { *; }
 -keep class io.github.copper.launcher.SilentLaunchActivity { *; }
+-keep class io.github.copper.launcher.provider.** { *; }
 
 # 生成的桥（AndroidCall / AndroidEvent）：通道名是字符串，handler 走 MethodChannel 反射式接线。
 -keep class io.github.copper.launcher.generated.** { *; }
