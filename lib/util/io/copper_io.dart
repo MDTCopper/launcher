@@ -200,13 +200,13 @@ class CopperIO {
   ///慢传输由停滞看门狗（[_downloadIdleTimeout]）管。实测放到 30s 只会让死链路多等 15 秒
   static const Duration _downloadConnectTimeout = Duration(seconds: 15);
 
-  ///单条下载连接的最低速率：低于它持续 [_lowSpeedWindow] 就断开重连
+  ///整单下载的最低速率：低于它持续 [_lowSpeedWindow] 就断开重连
   ///
   ///「停滞看门狗」只管一个字节都没有的情况，对 2KB/s 的涓流永远不触发 ——
   ///用户在界面上看到的是进度几乎不动、也不报错。业界同款是「速度阈值 + 持续时间」
-  ///（aria2 `--lowest-speed-limit`、curl `--speed-limit` + `--speed-time`）；
-  ///阈值取得很低是故意的：只抓病态涓流，不碰正常慢链路
-  static const int _minChunkRateBytes = 16 * KB;
+  ///（aria2 `--lowest-speed-limit`、curl `--speed-limit` + `--speed-time`），
+  ///**两者都是按整单（一次传输）算的**：分块并发下逐块比较会把「多块均分带宽」误判成涓流
+  static const int _minDownloadRateBytes = 16 * KB;
 
   ///低速判定的观察窗口
   static const Duration _lowSpeedWindow = Duration(seconds: 20);
@@ -828,27 +828,28 @@ class CopperIO {
   ///限流后最多再试几次
   static const int _rateLimitRetryLimit = 2;
 
-  ///GitHub 限流的等待时长：只认服务端明确给出的两种信号
+  ///限流的等待时长：只认服务端明确给出的信号
   ///
   ///GitHub 文档要求：有 `retry-after` 就照它等；`x-ratelimit-remaining` 为 0 时
-  ///等到 `x-ratelimit-reset`（UTC 纪元秒）。没有这两个头的 403 / 429 不算限流，
-  ///交给上层原有逻辑（镜像回退 / 报错）
+  ///等到 `x-ratelimit-reset`（UTC 纪元秒）。429 / 带 Retry-After 的 503 也算。
+  ///没有这些头的 403 / 503 不算限流，交给上层原有逻辑（镜像回退 / 报错）
   @visibleForTesting
   static Duration? rateLimitWait(DioException error) {
     final response = error.response;
     if (response == null) return null;
     final status = response.statusCode;
     final headers = response.headers;
+    final retryAfterRaw = headers.value('retry-after')?.trim();
+    final retryAfter = _parseRetryAfter(retryAfterRaw);
     final isRateLimited =
         status == 429 ||
-        status == 503 ||
-        (status == 403 && headers.value('x-ratelimit-remaining')?.trim() == '0');
+        (status == 403 &&
+            (headers.value('x-ratelimit-remaining')?.trim() == '0' ||
+                retryAfter != null)) ||
+        (status == 503 && retryAfter != null);
     if (!isRateLimited) return null;
 
-    final retryAfter = int.tryParse(headers.value('retry-after')?.trim() ?? '');
-    if (retryAfter != null) {
-      return Duration(seconds: max(0, retryAfter));
-    }
+    if (retryAfter != null) return retryAfter;
     final reset = int.tryParse(headers.value('x-ratelimit-reset')?.trim() ?? '');
     if (reset != null) {
       final wait = DateTime.fromMillisecondsSinceEpoch(
@@ -859,31 +860,63 @@ class CopperIO {
     return null;
   }
 
+  ///`retry-after` 两种形态都认：秒数，或 HTTP-date（RFC 7231）
+  static Duration? _parseRetryAfter(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final seconds = int.tryParse(raw);
+    if (seconds != null) return Duration(seconds: max(0, seconds));
+    try {
+      final at = HttpDate.parse(raw);
+      final wait = at.difference(DateTime.now());
+      return wait.isNegative ? Duration.zero : wait;
+    } on FormatException {
+      return null;
+    }
+  }
+
   ///把「这个请求」包一层限流等待：服务端说等多久就等多久，等不起就直接说清楚
   ///
-  ///只包请求类方法，不包下载（大文件不该为了限流头空等）
-  Future<R> _withRateLimitRetry<R>(String url, Future<R> Function() send) async {
+  ///只包请求类方法，不包下载（大文件不该为了限流头空等）。
+  ///[replay] 只对幂等方法打开（GET / HEAD）：PUT / POST / PATCH / DELETE 重放会产生
+  ///重复副作用（重复建槽、重复发帖、整包重传），这类只把「什么时候能再来」告诉调用方
+  Future<R> _withRateLimitRetry<R>(
+    String url,
+    Future<R> Function() send, {
+    required bool replay,
+    CancelToken? cancelToken,
+  }) async {
     for (var attempt = 0; ; attempt++) {
       try {
         return await send();
       } on DioException catch (e) {
         final wait = rateLimitWait(e);
         if (wait == null) rethrow;
-        if (wait > _maxRateLimitWait || attempt >= _rateLimitRetryLimit) {
-          throw _rateLimitedError(e, wait);
+        if (!replay ||
+            wait > _maxRateLimitWait ||
+            attempt >= _rateLimitRetryLimit) {
+          throw _rateLimitedError(e, wait, url);
         }
         addLog(
           .warning,
-          'GitHub 限流：服务端要求等 ${wait.inSeconds} 秒，之后再试一次（$url）',
-          tag: 'GitHub',
+          '${Uri.tryParse(url)?.host ?? url} 限流：服务端要求等 '
+          '${wait.inSeconds} 秒，之后再试一次',
+          tag: 'Network',
         );
-        await Future<void>.delayed(wait);
+        //等待也要能被用户取消：别让「点了取消」还老老实实睡满 30 秒
+        await Future.any([
+          Future<void>.delayed(wait),
+          if (cancelToken != null) cancelToken.whenCancel,
+        ]);
+        if (cancelToken?.isCancelled == true) {
+          throw _cancelError(cancelToken, url);
+        }
       }
     }
   }
 
   ///限流等不起时的错误：保留原类型（镜像回退 / 调用方判断照旧），消息说清恢复时间
-  DioException _rateLimitedError(DioException cause, Duration wait) {
+  DioException _rateLimitedError(DioException cause, Duration wait, String url) {
+    final host = Uri.tryParse(url)?.host ?? url;
     final minutes = (wait.inSeconds / 60).ceil();
     final waitText = wait.inMinutes >= 1 ? '约 $minutes 分钟' : '约 ${wait.inSeconds} 秒';
     return DioException(
@@ -892,7 +925,7 @@ class CopperIO {
       type: cause.type,
       error: cause.error,
       stackTrace: cause.stackTrace,
-      message: 'GitHub 限流：$waitText后才能再请求（${cause.message ?? '无详情'}）',
+      message: '$host 限流：$waitText后才能再请求（${cause.message ?? '无详情'}）',
     );
   }
 
@@ -915,6 +948,8 @@ class CopperIO {
           cancelToken: cancelToken,
         ),
       ),
+      replay: true,
+      cancelToken: cancelToken,
     );
   }
 
@@ -935,6 +970,8 @@ class CopperIO {
           cancelToken: cancelToken,
         ),
       ),
+      replay: true,
+      cancelToken: cancelToken,
     );
   }
 
@@ -959,6 +996,8 @@ class CopperIO {
           cancelToken: cancelToken,
         ),
       ),
+      replay: true,
+      cancelToken: cancelToken,
     );
   }
 
@@ -983,6 +1022,9 @@ class CopperIO {
           cancelToken: cancelToken,
         ),
       ),
+      //写请求重放会产生重复副作用：只把「什么时候能再来」报给调用方
+      replay: false,
+      cancelToken: cancelToken,
     );
   }
 
@@ -1072,6 +1114,9 @@ class CopperIO {
           onSendProgress: onSendProgress,
         ),
       ),
+      //写动词重放会产生重复副作用：只把「什么时候能再来」报给调用方
+      replay: false,
+      cancelToken: cancelToken,
     );
   }
 
@@ -1134,28 +1179,41 @@ class CopperIO {
       '（镜像策略 ${_mirrorStrategy.name}，重试上限 $retryLimit）',
       tag: 'Download',
     );
-    await _githubFallback(
-      url,
-      (effectiveUrl) => _downloadOnce(
-        url: effectiveUrl,
-        savePath: savePath,
-        speedLimit: speedLimit,
-        chunkCount: chunkCount,
-        tempPath: tempPath,
-        retryLimit: retryLimit,
-        cancelToken: cancelToken,
-        deleteOnError: deleteOnError,
-        onStatus: onStatus,
-        headers: headers,
-      ),
-      //下载优先找支持 Range 的节点：能分块并发 + 断点续传
-      preferRange: true,
-    );
+    try {
+      await _githubFallback(
+        url,
+        (effectiveUrl) => _downloadOnce(
+          url: effectiveUrl,
+          savePath: savePath,
+          //续传现场按**原始 URL** 记：换镜像后 effectiveUrl 多了前缀，不能拿它当键
+          resumeUrl: url,
+          speedLimit: speedLimit,
+          chunkCount: chunkCount,
+          tempPath: tempPath,
+          retryLimit: retryLimit,
+          cancelToken: cancelToken,
+          deleteOnError: deleteOnError,
+          onStatus: onStatus,
+          headers: headers,
+        ),
+        //下载优先找支持 Range 的节点：能分块并发 + 断点续传
+        preferRange: true,
+      );
+    } catch (_) {
+      //所有路由都失败才清现场：中途失败要留着给镜像回退 / 用户重试接着下
+      if (deleteOnError && cancelToken?.isCancelled != true) {
+        final partialPath = tempPath ?? '$savePath.part';
+        await _cleanupPartial(File(partialPath), '$partialPath.json');
+      }
+      rethrow;
+    }
   }
 
   Future<void> _downloadOnce({
     required String url,
     required String savePath,
+    ///续传现场里记的「原始 URL」：换镜像时 [url] 会带前缀，不能拿它当键
+    String? resumeUrl,
     int? speedLimit,
     int? chunkCount,
     String? tempPath,
@@ -1219,8 +1277,9 @@ class CopperIO {
         retryLimit: retryLimit,
         cancelToken: cancelToken,
         deleteOnError: deleteOnError,
-        //HEAD 已经判过这条链路不行：连接类失败不再重试（0 = 只下一趟）
-        transportRetryLimit: headLinkBroken ? 0 : null,
+        //HEAD 已经判过这条链路不行：单流只给一次机会（1 = 再试一趟），
+        //不给 0 是因为非 GitHub 单源没有镜像可换，一次抖动就判死太狠
+        transportRetryLimit: headLinkBroken ? 1 : null,
         onStatus: onStatus,
         headers: headers,
       );
@@ -1230,6 +1289,7 @@ class CopperIO {
     await _downloadChunkedWithFallback(
       url: url,
       savePath: savePath,
+      resumeUrl: resumeUrl ?? url,
       totalSize: totalSize,
       chunkCount: effectiveChunkCount,
       speedLimit: effectiveSpeedLimit,
@@ -1257,6 +1317,7 @@ class CopperIO {
   Future<void> _downloadChunkedWithFallback({
     required String url,
     required String savePath,
+    required String resumeUrl,
     required int totalSize,
     required int chunkCount,
     int? speedLimit,
@@ -1273,6 +1334,7 @@ class CopperIO {
         await _downloadChunked(
           url: url,
           savePath: savePath,
+          resumeUrl: resumeUrl,
           totalSize: totalSize,
           chunkCount: chunkCount,
           speedLimit: speedLimit,
@@ -1281,8 +1343,9 @@ class CopperIO {
           retryLimit: retryLimit,
           cancelToken: cancelToken,
           deleteOnError: deleteOnError,
-          //还有下一趟就保住续传现场，否则失败收尾照旧清掉
-          keepPartialOnFailure: attempt < _chunkedWholeRetryLimit,
+          //失败先保住现场：交给最外层（download）在所有路由都失败后统一清，
+          //这样镜像回退 / 用户重试都能接着下
+          keepPartialOnFailure: true,
           onStatus: onStatus,
           headers: headers,
         );
@@ -1378,7 +1441,7 @@ class CopperIO {
       lowSpeedWindowAt = DateTime.now();
       lowSpeedWindowBytes = state.downloaded;
       final rate = bytes / seconds;
-      if (rate >= _minChunkRateBytes) return;
+      if (rate >= _minDownloadRateBytes) return;
       lowSpeedAborted = true;
       current.cancel('低速');
       addLog(
@@ -1389,10 +1452,10 @@ class CopperIO {
       );
     }
 
-    final lowSpeedTimer = Timer.periodic(
-      _lowSpeedCheckInterval,
-      (_) => checkLowSpeed(),
-    );
+    //用户自己限了速就别开看门狗：慢是用户要求的（aria2 的 lowest-speed-limit 同理）
+    final lowSpeedTimer = (speedLimit != null && speedLimit > 0)
+        ? null
+        : Timer.periodic(_lowSpeedCheckInterval, (_) => checkLowSpeed());
 
     try {
       onStatus?.call(state);
@@ -1561,7 +1624,7 @@ class CopperIO {
               ? DioException(
                   requestOptions: RequestOptions(path: url),
                   type: DioExceptionType.receiveTimeout,
-                  message: '单流速率过低（低于 ${(_minChunkRateBytes / KB).round()}KB/s '
+                  message: '单流速率过低（低于 ${(_minDownloadRateBytes / KB).round()}KB/s '
                       '持续 ${_lowSpeedWindow.inSeconds} 秒）',
                 )
               : e;
@@ -1578,7 +1641,7 @@ class CopperIO {
       }
     } finally {
       periodicTimer?.cancel();
-      lowSpeedTimer.cancel();
+      lowSpeedTimer?.cancel();
       speedCalc.cancel();
     }
   }
@@ -1591,6 +1654,8 @@ class CopperIO {
   Future<void> _downloadChunked({
     required String url,
     required String savePath,
+    ///续传现场里记的原始 URL（换镜像后 [url] 带前缀，不能当键）
+    required String resumeUrl,
     required int totalSize,
     int chunkCount = 8,
     int? speedLimit,
@@ -1620,7 +1685,7 @@ class CopperIO {
       chunks = await _planChunks(
         partialFile: partialFile,
         metaPath: metaPath,
-        url: url,
+        url: resumeUrl,
         totalSize: totalSize,
         chunkCount: chunkCount,
         etag: etag,
@@ -1675,6 +1740,7 @@ class CopperIO {
     var lastMetaAt = DateTime.now();
     var lastMetaBytes = -1;
     var metaWriting = false;
+    var metaDirty = false;
 
     ///把续传现场写进元数据：块完成时、以及下载中每 2 秒一次
     ///
@@ -1682,12 +1748,16 @@ class CopperIO {
     ///字节 —— 掉电后那就是文件里的一个洞（长度对、内容是 0）。这里**不碰句柄**，
     ///免得跟正在写的块抢同一个 [RandomAccessFile]（并发操作会直接抛异常）
     Future<void> saveMeta() async {
-      if (metaWriting) return;
+      if (metaWriting) {
+        //失败收尾撞上周期保存时不能把这次丢掉：置脏，等当前写完后补一次
+        metaDirty = true;
+        return;
+      }
       metaWriting = true;
       try {
         await File(metaPath).writeAsString(
           jsonEncode({
-            'url': url,
+            'url': resumeUrl,
             'total': totalSize,
             'etag': etag,
             'chunks': [
@@ -1707,6 +1777,11 @@ class CopperIO {
         //写不进元数据不影响这次下载，只是下次续传要从零开始
       } finally {
         metaWriting = false;
+        //期间有人要求保存（典型是失败收尾）：补写一次，别把最新水位丢了
+        if (metaDirty) {
+          metaDirty = false;
+          await saveMeta();
+        }
       }
     }
 
@@ -1772,6 +1847,19 @@ class CopperIO {
     final finished = Completer<void>();
     final workerFutures = <Future<void>>[];
 
+    //取消兜底：worker 可能先看到取消标志就静默 return（尤其在途还有缓冲数据），
+    //那样没有任何人会再完成 finished，主流程会永久挂在 `await finished.future`。
+    //这里直接把取消交出去，保证收尾一定发生
+    cancelToken?.whenCancel.then((_) {
+      if (!finished.isCompleted) {
+        finished.completeError(_cancelError(cancelToken, url));
+      }
+    });
+
+    //低速看门狗的整单窗口（按聚合字节算，不逐块比）
+    var lowSpeedWindowAt = DateTime.now();
+    var lowSpeedWindowBytes = 0;
+
     Future<void> downloadPiece(_Chunk chunk, {int tryTime = 0}) async {
       if (rangeIgnored) return;
       //这一趟开始时的已收字节：判断「这趟到底收到过数据没有」
@@ -1794,8 +1882,6 @@ class CopperIO {
       //每趟一条自己的取消令牌：低速看门狗断这条连接时不能连累其它块
       final chunkCancel = CancelToken();
       chunk.cancelToken = chunkCancel;
-      chunk.rateCheckAt = DateTime.now();
-      chunk.rateCheckBytes = chunk.received;
       unawaited(abortToken.whenCancel.then((_) {
         if (!chunkCancel.isCancelled) chunkCancel.cancel();
       }));
@@ -1931,7 +2017,18 @@ class CopperIO {
             '（已收 ${chunk.received}/${chunk.size} 字节）',
             tag: 'Download',
           );
-          throw ChunkDownloadFailed(chunk.index, reason, cause: e);
+          //低速看门狗断的这条连接：终局 cause 要换成「链路问题」，
+          //否则上层把它当成用户取消 ⇒ 整单重来与镜像回退都不会发生
+          final cause = lowSpeedAbort
+              ? DioException(
+                  requestOptions: RequestOptions(path: url),
+                  type: DioExceptionType.receiveTimeout,
+                  message: '分块 ${chunk.index + 1} 速率过低（整单低于 '
+                      '${(_minDownloadRateBytes / KB).round()}KB/s 持续 '
+                      '${_lowSpeedWindow.inSeconds} 秒）',
+                )
+              : e;
+          throw ChunkDownloadFailed(chunk.index, reason, cause: cause);
         }
       } finally {
         chunk.cancelToken = null;
@@ -2189,39 +2286,42 @@ class CopperIO {
       scaleIfNeeded(smoothed);
     });
 
-    ///低速看门狗：单条连接在观察窗口里的平均速率低于阈值就断开重连
+    ///低速看门狗：整单在观察窗口里的平均速率低于阈值就断开重连
     ///
-    ///窗口从这一趟连接建立时算起（[downloadPiece] 里重置），所以不会被别的块的
-    ///进度带偏；只断这一条连接（各块有自己的取消令牌），重试按 Range 从水位续
+    ///按**整单聚合**算，不逐块比（同 aria2 / curl 的口径）：分块并发时每块只分到
+    ///总带宽的几分之一，逐块比会把「多块均分」误判成涓流。命中时把所有在跑的
+    ///连接一起断掉，让重试带 Range 从各自水位续
     void checkLowSpeed() {
       final now = DateTime.now();
+      final seconds = now.difference(lowSpeedWindowAt).inMilliseconds / 1000;
+      if (seconds < _lowSpeedWindow.inSeconds) return;
+      final bytes = state.downloaded - lowSpeedWindowBytes;
+      lowSpeedWindowAt = now;
+      lowSpeedWindowBytes = state.downloaded;
+      final rate = bytes / seconds;
+      if (rate >= _minDownloadRateBytes) return;
+
+      var aborted = 0;
       for (final chunk in chunks) {
         if (chunk.status != HttpChunkStatus.downloading) continue;
-        final since = chunk.rateCheckAt;
-        if (since == null) continue;
-        final seconds = now.difference(since).inMilliseconds / 1000;
-        if (seconds < _lowSpeedWindow.inSeconds) continue;
-        final bytes = chunk.received - chunk.rateCheckBytes;
-        chunk.rateCheckAt = now;
-        chunk.rateCheckBytes = chunk.received;
-        final rate = bytes / seconds;
-        if (rate >= _minChunkRateBytes) continue;
         chunk.lowSpeedAborted = true;
         final token = chunk.cancelToken;
         if (token != null && !token.isCancelled) token.cancel('低速');
-        addLog(
-          .debug,
-          '分块 ${chunk.index + 1} 速率过低（${(rate / KB).toStringAsFixed(0)}KB/s '
-          '持续 ${_lowSpeedWindow.inSeconds}s），断开重连',
-          tag: 'Download',
-        );
+        aborted++;
       }
+      if (aborted == 0) return;
+      addLog(
+        .debug,
+        '整单速率过低（${(rate / KB).toStringAsFixed(0)}KB/s 持续 '
+        '${_lowSpeedWindow.inSeconds}s），断开 $aborted 条连接重连',
+        tag: 'Download',
+      );
     }
 
-    final lowSpeedTimer = Timer.periodic(
-      _lowSpeedCheckInterval,
-      (_) => checkLowSpeed(),
-    );
+    //用户自己限了速就别开看门狗：慢是用户要求的（aria2 的 lowest-speed-limit 同理）
+    final lowSpeedTimer = (speedLimit != null && speedLimit > 0)
+        ? null
+        : Timer.periodic(_lowSpeedCheckInterval, (_) => checkLowSpeed());
 
     ///收尾：按 [deleteOnError] 决定清掉续传现场还是保住进度
     ///
@@ -2255,7 +2355,7 @@ class CopperIO {
       periodicTimer.cancel();
       speedCalc.cancel();
       sampleTimer.cancel();
-      lowSpeedTimer.cancel();
+      lowSpeedTimer?.cancel();
 
       state.status = HttpDownloadStatus.merging;
       state.speed = 0;
@@ -2282,7 +2382,7 @@ class CopperIO {
       periodicTimer.cancel();
       speedCalc.cancel();
       sampleTimer.cancel();
-      lowSpeedTimer.cancel();
+      lowSpeedTimer?.cancel();
       await Future.wait(workerFutures);
       await _cleanupPartial(partialFile, metaPath);
       rethrow;
@@ -2290,7 +2390,7 @@ class CopperIO {
       periodicTimer.cancel();
       speedCalc.cancel();
       sampleTimer.cancel();
-      lowSpeedTimer.cancel();
+      lowSpeedTimer?.cancel();
       await Future.wait(workerFutures);
       await finishFailed(cancelled: _isCancelled(cancelToken, e));
       rethrow;
@@ -2298,7 +2398,7 @@ class CopperIO {
       periodicTimer.cancel();
       speedCalc.cancel();
       sampleTimer.cancel();
-      lowSpeedTimer.cancel();
+      lowSpeedTimer?.cancel();
       await Future.wait(workerFutures);
       await finishFailed(cancelled: _isCancelled(cancelToken, e));
       rethrow;
@@ -2373,15 +2473,28 @@ class CopperIO {
       final rawChunks = meta['chunks'];
       if (rawChunks is! List || rawChunks.isEmpty) return null;
 
+      //按起点排序再校验：慢块拆分出来的 tail 是追加在列表末尾的，
+      //不排序的话「区间必须首尾相接」这条会把拆过块的现场整份判废
+      final sorted = rawChunks
+          .map((item) {
+            if (item is! Map<String, dynamic>) return null;
+            final start = item['start'];
+            final end = item['end'];
+            final received = item['received'];
+            if (start is! int || end is! int || received is! int) return null;
+            return (start: start, end: end, received: received);
+          })
+          .toList();
+      if (sorted.any((item) => item == null)) return null;
+      sorted.sort((a, b) => a!.start.compareTo(b!.start));
+
       final chunks = <_Chunk>[];
       var cursor = 0;
-      for (var i = 0; i < rawChunks.length; i++) {
-        final item = rawChunks[i];
-        if (item is! Map<String, dynamic>) return null;
-        final start = item['start'];
-        final end = item['end'];
-        final received = item['received'];
-        if (start is! int || end is! int || received is! int) return null;
+      for (var i = 0; i < sorted.length; i++) {
+        final item = sorted[i]!;
+        final start = item.start;
+        final end = item.end;
+        final received = item.received;
         //区间必须严丝合缝地拼满整个文件：对不上说明元数据是上一轮留下的
         if (start != cursor || end < start || end >= totalSize) return null;
         if (received < 0 || received > end - start + 1) return null;
@@ -2465,10 +2578,6 @@ class _Chunk {
 
   ///刚才是不是被低速看门狗断的（是的话按链路问题重试，不当用户取消）
   bool lowSpeedAborted = false;
-
-  ///低速观察窗口的起点与起点字节数
-  DateTime? rateCheckAt;
-  int rateCheckBytes = 0;
 
   HttpChunkStatus status;
 
