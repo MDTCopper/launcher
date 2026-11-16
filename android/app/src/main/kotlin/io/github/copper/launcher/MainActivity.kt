@@ -121,9 +121,13 @@ open class MainActivity : FlutterActivity() {
         dispatchIncoming(intent)
     }
 
-    /** 外部 intent 分流：数据由 [IncomingIntake] 收下，这里只做界面动作和通知 Dart。 */
+    /**
+     * 外部 intent 分流：数据由 [IncomingIntake] 收下，这里只做界面动作和通知 Dart
+     *
+     * 分享的文件在后台复制，复制完由回调推给 Dart
+     */
     private fun dispatchIncoming(intent: Intent?) {
-        when (val incoming = IncomingIntake.handle(intent)) {
+        when (val incoming = IncomingIntake.handle(intent, AndroidEvent::sendSharedFiles)) {
             Incoming.None -> Unit
             is Incoming.Launch -> {
                 if (incoming.silent) SilentLaunchOverlay.show(this)
@@ -131,7 +135,6 @@ open class MainActivity : FlutterActivity() {
             }
             // 登录回调：URI 由 [IncomingIntake] 攒着，事件只当敲门声；Dart 收到后自己去取
             Incoming.Auth -> AndroidEvent.sendAuthCallback()
-            is Incoming.Share -> AndroidEvent.sendSharedFiles(incoming.files)
         }
     }
 }

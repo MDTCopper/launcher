@@ -2,7 +2,6 @@ package io.github.copper.launcher.intent
 
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import io.github.copper.launcher.channel.DartCall
 import io.github.copper.launcher.shortcut.GameShortcut
 
@@ -28,8 +27,12 @@ object IncomingIntake {
         }
     }
 
-    /** 处理一次外部 intent；返回非 [Incoming.None] 时调用方负责通知 Dart / 处理界面。 */
-    fun handle(intent: Intent?): Incoming {
+    /**
+     * 处理一次外部 intent；返回非 [Incoming.None] 时调用方负责通知 Dart / 处理界面
+     *
+     * 分享的文件要在后台复制，所以这类 intent 返回 [Incoming.None]：复制完在主线程回调 [onShared]
+     */
+    fun handle(intent: Intent?, onShared: (List<String>) -> Unit): Incoming {
         if (intent == null) return Incoming.None
 
         if (intent.action == GameShortcut.ACTION_LAUNCH_GAME) {
@@ -48,10 +51,9 @@ object IncomingIntake {
             }
         }
 
-        val files = shareHandler?.accept(intent).orEmpty()
-        if (files.isEmpty()) return Incoming.None
-        Log.i(TAG, "收到系统分享：${files.size} 个文件")
-        return Incoming.Share(files)
+        // 复制与通知都在 accept 里排好：界面动作与通知 Dart 都留在调用方的 [onShared]
+        shareHandler?.accept(intent, onShared)
+        return Incoming.None
     }
 
     /** 取走待处理的登录回调 URI；没有就 null */
@@ -73,8 +75,6 @@ object IncomingIntake {
     /** 取走攒着的分享文件（本机缓存路径） */
     @DartCall
     fun takeSharedFiles(): List<String> = shareHandler?.takePending().orEmpty()
-
-    private const val TAG = "IncomingIntake"
 }
 
 /** 一次外部 intent 的去向；只描述发生了什么，界面动作留给 Activity。 */
@@ -85,7 +85,4 @@ sealed interface Incoming {
     data class Launch(val versionId: String, val silent: Boolean) : Incoming
 
     data object Auth : Incoming
-
-    /** [files] 随事件送给 Dart：热启动时文件已经复制好了 */
-    data class Share(val files: List<String>) : Incoming
 }

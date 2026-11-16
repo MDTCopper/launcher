@@ -1072,6 +1072,9 @@ Future<File?> _packageTarball(
   return archiveFile;
 }
 
+/// AppImage 主程序的可执行位：属主 / 组 / 其他三段的 x（0o111）
+const _executableBits = 0x49;
+
 /// 打包 Linux 产物为 AppImage
 ///
 /// 使用 appimagetool 将 Flutter bundle 打包成 AppImage 格式。
@@ -1112,12 +1115,32 @@ Future<File?> _packageAppImage(
   stdout.writeln('\n正在打包 AppImage：$baseName.AppImage');
 
   try {
-    // 创建 bin 目录并复制可执行文件
+    // AppDir 规范：AppRun 在根，主程序与它的 data / lib 一起放 bin 下（AppRun 按这个路径 exec）
     final binDir = Directory('${appDir.path}${Platform.pathSeparator}bin');
     await binDir.create(recursive: true);
 
-    // 复制整个 bundle 到 AppDir
-    await _copyDirectory(sourceFolder, appDir);
+    // 整个 bundle 进 bin：File.copy 不带权限位，主程序的可执行位下面单独补
+    await _copyDirectory(sourceFolder, binDir);
+
+    // 自检：主程序必须在且可执行，否则打出来的 AppImage 双击没反应（返回 null 让打包失败）
+    final mainBinary = File(
+      '${binDir.path}${Platform.pathSeparator}copper_launcher',
+    );
+    if (!await mainBinary.exists()) {
+      stderr.writeln(
+        'AppDir 自检失败：没有主程序 ${_normalizePath(mainBinary.path)}',
+      );
+      return null;
+    }
+    final chmodResult = await Process.run('chmod', ['+x', mainBinary.path]);
+    final mode = (await mainBinary.stat()).mode;
+    if (chmodResult.exitCode != 0 || (mode & _executableBits) == 0) {
+      stderr.writeln(
+        'AppDir 自检失败：${_normalizePath(mainBinary.path)} 不可执行'
+        '（chmod 退出码 ${chmodResult.exitCode}，mode=$mode）',
+      );
+      return null;
+    }
 
     // 复制 .desktop 文件
     final desktopSrc = File('linux/copper_launcher.desktop');
@@ -1163,14 +1186,6 @@ exec "\$HERE/bin/copper_launcher" "\$@"
 ''');
     // 设置可执行权限
     await Process.run('chmod', ['+x', appRun.path]);
-
-    // 确保主可执行文件有执行权限
-    final mainBinary = File(
-      '${appDir.path}${Platform.pathSeparator}bin${Platform.pathSeparator}copper_launcher',
-    );
-    if (await mainBinary.exists()) {
-      await Process.run('chmod', ['+x', mainBinary.path]);
-    }
 
     // 使用 appimagetool 打包
     final result = await Process.run(
@@ -1281,14 +1296,25 @@ String _appDisplayName(Directory appBundle) {
 const _runtimeDataNames = <String>{
   'config.json',
   'config.bin',
-  'control.lock',
-  'single_instance.port',
+  'cloud-enabled.json',
+  'cloud-manifest-cache.json',
+  'java_check_cache.json',
+  'mdtbbs_account.json',
+  'mdtbbs_cloud_slots.json',
   'logs',
   'remote_data',
   'versions',
   'versionsFolds',
   'mindustrys',
   'java',
+  'version_icons',
+  'copper_loader',
+  'cloud-service',
+  'cloud-backups',
+  'config-backups',
+  'cache',
+  'tmp',
+  'bridge',
 };
 
 /// [path] 是否落在启动器运行时数据里：任一层目录名 / 文件名命中就算

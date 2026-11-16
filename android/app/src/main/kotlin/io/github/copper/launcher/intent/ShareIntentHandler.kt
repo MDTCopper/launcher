@@ -4,9 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.OpenableColumns
 import android.util.Log
 import java.io.File
+import java.util.concurrent.Executors
 
 /**
  * 系统送进来的文件（ACTION_SEND / ACTION_SEND_MULTIPLE / ACTION_VIEW）。
@@ -21,36 +24,64 @@ class ShareIntentHandler(context: Context) {
     private val appContext = context.applicationContext
     private val pending = mutableListOf<String>()
 
+    /** 复制串行做：一次分享可能好几份，排同一个线程也不会互相覆盖时间戳目录 */
+    private val copyExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "share-copy").apply { isDaemon = true }
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Dart 启动时那次取有没有发生：发生之后，新分享只能靠事件推过去 */
+    private var startupTakeDone = false
+
     /** 取走攒着的本机路径（Dart 启动时来取一次，之后每次新分享也会来取） */
     @Synchronized
     fun takePending(): List<String> {
+        startupTakeDone = true
         val files = pending.toList()
         pending.clear()
         return files
     }
 
     /**
-     * 收下一次分享：复制到缓存目录并攒起来。
+     * 这次复制好的文件往哪儿交：true 表示由事件推给 Dart，false 表示攒着等启动时那次取
      *
-     * 返回这次复制成功的路径；不是分享、或者一份都读不出来时返回空列表。
+     * 与 [takePending] 同一把锁：判断与交接必须原子，否则会漏一份或者推两次
      */
     @Synchronized
-    fun accept(intent: Intent?): List<String> {
-        if (intent == null) return emptyList()
+    private fun deliverByEvent(files: List<String>): Boolean {
+        if (startupTakeDone) return true
+        pending.addAll(files)
+        return false
+    }
+
+    /**
+     * 收下一次分享：复制到缓存目录并攒起来。
+     *
+     * 复制放后台线程做完再回主线程交 [onReady]（大文件在主线程复制会把分享进来的界面卡成 ANR）；
+     * 一份都没复制成功时只记日志、不回调。
+     */
+    fun accept(intent: Intent?, onReady: (List<String>) -> Unit) {
+        if (intent == null) return
         // 排查用：分享面板里不出现 Copper 时这条什么都不会打，所以真机上「有没有这条日志」本身也是结论
         Log.i(TAG, "收到分享：action=${intent.action} type=${intent.type}")
 
         val uris = sharedUris(intent)
-        if (uris.isEmpty()) return emptyList()
+        if (uris.isEmpty()) return
 
-        val targetDir = prepareTargetDir()
-        val copied = mutableListOf<String>()
-        for (uri in uris) {
-            Log.i(TAG, "分享文件：$uri（type=${appContext.contentResolver.getType(uri)}）")
-            copyToCache(uri, targetDir)?.let { copied.add(it) }
+        copyExecutor.execute {
+            val targetDir = prepareTargetDir()
+            val copied = mutableListOf<String>()
+            for (uri in uris) {
+                Log.i(TAG, "分享文件：$uri（type=${appContext.contentResolver.getType(uri)}）")
+                copyToCache(uri, targetDir)?.let { copied.add(it) }
+            }
+            if (copied.isEmpty()) {
+                Log.w(TAG, "分享文件一份都没复制成功：${uris.size} 个")
+                return@execute
+            }
+            if (deliverByEvent(copied)) mainHandler.post { onReady(copied) }
         }
-        pending.addAll(copied)
-        return copied
     }
 
     private fun sharedUris(intent: Intent): List<Uri> {

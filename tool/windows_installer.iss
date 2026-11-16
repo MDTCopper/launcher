@@ -62,7 +62,7 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 ; 整个 Release 目录（exe + dll + data）都装进去
 ; Excludes：不带构建目录里的启动器运行时数据（config 等本机调试残留，
 ; 打进包会让安装后的启动器把数据目录落到安装目录，版本路径指向构建机）
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "config.json,config.bin,control.lock,single_instance.port,logs,remote_data,versions,versionsFolds,mindustrys,java"
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "config.json,config.bin,cloud-enabled.json,cloud-manifest-cache.json,java_check_cache.json,mdtbbs_account.json,mdtbbs_cloud_slots.json,logs,remote_data,versions,versionsFolds,mindustrys,java,version_icons,copper_loader,cloud-service,cloud-backups,config-backups,cache,tmp,bridge"
 
 [Icons]
 Name: "{group}\Copper Launcher"; Filename: "{app}\copper_launcher.exe"
