@@ -47,7 +47,7 @@ class JreLibrary {
   static String javaDirPath({String? bridgeDirPath}) =>
       p.join(bridgeDirPath ?? AppPaths.bridge, 'java');
 
-  /// 旧装法的 JRE 根 `bridge/jre`（兼容用，不删）
+  /// 旧装法的 JRE 根 `bridge/jre`（兼容用；联网安装与本地导入都不清理它）
   static String legacyJreRootPath({String? bridgeDirPath}) =>
       bridgeDirPath == null ? AppPaths.bridgeJre : p.join(bridgeDirPath, 'jre');
 

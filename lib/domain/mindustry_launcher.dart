@@ -36,10 +36,10 @@ class MindustryLauncher {
   /// 当前启动的游戏数据目录（用于定位 launchid.dat）。
   String? _dataPath;
 
-  /// 是否为启动器主动停止游戏。
+  /// 是否为启动器主动停止游戏（含应用退出时的强杀）。
   ///
-  /// 主动停止且游戏未完全启动时，需清理残留的 launchid.dat 哨兵文件，
-  /// 避免下次启动被 Mindustry 误判为「mod 加载崩溃」而全部禁用 mod
+  /// 主动停止后要清理残留的 launchid.dat 哨兵文件，避免下次启动被
+  /// Mindustry 误判为「mod 加载崩溃」而全部禁用 mod
   bool _stoppedByLauncher = false;
 
   /// 桥那条路的游戏退出监听（桌面那条路靠 [Process.exitCode]，Android 没有句柄）
@@ -290,7 +290,7 @@ class MindustryLauncher {
         _logController?.add('exit $code');
         _logController?.close();
         _jarProcess = null;
-        // 启动器主动停止且游戏未完全启动（launchid.dat 残留）时删除哨兵，
+        // 启动器主动停止后删掉残留哨兵，
         // 避免下次启动被误判为 mod 加载崩溃
         if (_stoppedByLauncher) {
           _stoppedByLauncher = false;
@@ -602,7 +602,6 @@ class MindustryLauncher {
       args.add('false');
     }
 
-    //Mindustry在桌面端测试移动端界面参数
     return args;
   }
 

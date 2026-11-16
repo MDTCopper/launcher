@@ -57,7 +57,7 @@ typedef AndroidLauncher = Future<void> Function(String versionId);
 
 /// 统一快速启动入口：**唯一**决定「这次快捷启动交给谁」的地方
 ///
-/// 分两层，都是为了能直接替换 `main` 里那段 if 分流：
+/// 分两层：
 /// - [routeFor] 是纯函数，不碰 IO，来源 + 两个在线探针就能算出路由；
 /// - [dispatch] 在桌面来源上读 [GameSessionStore] 的 pid 探针，并把请求写进
 ///   `pending/`（给 UI）或 `requests/`（给服务）。Android 来源只返回
@@ -69,7 +69,7 @@ typedef AndroidLauncher = Future<void> Function(String versionId);
 class QuickLaunchEntry {
   QuickLaunchEntry._();
 
-  /// UI 在线时写进 `pending/` 的原因（沿用改造前 `main` 的字符串，日志还能对上）
+  /// UI 在线时写进 `pending/` 的原因
   static const String reasonUiOnline = 'ui_online';
 
   /// UI 不在、服务在线时写进 `requests/` 的原因
@@ -97,12 +97,9 @@ class QuickLaunchEntry {
   /// - [LaunchRoute.serviceOnline] → 写 `requests/`（reason [reasonUiOffline]），本进程退出；
   /// - [LaunchRoute.startService] → **不写文件**，调用方自己进服务模式。
   ///
-  /// Android 来源：直接返回 [LaunchRoute.android]，探针与写入器都不会被调用
-  /// （游戏启动由 `ShortcutLaunch` 走宿主通道完成）。
-  ///
   /// Android 来源：返回 [LaunchRoute.android] 并调用 [androidLauncher] 执行真正的启动
   /// （宿主通道、等 shell、校验桥、`ShortcutSession.mark`、`GameInstance.launch` 仍在
-  /// `ShortcutLaunch` 里；入口只做路由与调用，不把 UI 依赖搬进来）。
+  /// `ShortcutLaunch` 里；入口只做路由与调用，不把 UI 依赖搬进来），探针与写入器都不调用。
   ///
   /// 探针与写入器都可注入，单测不必碰真实文件系统；不传就用 [GameSessionStore]。
   static Future<LaunchRoute> dispatch(

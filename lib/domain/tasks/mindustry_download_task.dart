@@ -105,7 +105,6 @@ class MindustryDownloadTask extends Task {
     this.loader,
     this.isolation,
     String? path,
-    // CancelToken? cancelToken//外部取消token
   }) {
     this.path = path ?? AppPaths.versions;
   }
@@ -502,7 +501,6 @@ class MindustryDownloadTask extends Task {
     return Text('分块连接中 $connectedCount / ${chunks.length}');
   }
 
-  //todo 分块处理可以弄一下链接状态，下载状态
   @override
   Widget buildDisplayWidget(BuildContext context) {
     final theme = Theme.of(context);

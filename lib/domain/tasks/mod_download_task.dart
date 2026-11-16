@@ -290,11 +290,6 @@ class JavaModDownloadTask extends Task {
   }
 }
 
-//非java模组 => 'https://github.com/<用户名>/<项目名>/archive/refs/tags/<版本号>.zip'
-//下载源码.zip，github本身会分块下载且无法获取总大小，可以写一个伪进度
-//   url =
-//       'https://github.com/${modListMeta.repo}/archive/refs/tags/${modMeta.releaseNum}.zip';
-
 class ZipModDownloadTask extends Task {
   final ModOfficialListEntry modListMeta;
   final ModRelease modMeta;

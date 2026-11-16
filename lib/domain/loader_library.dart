@@ -263,7 +263,7 @@ class LoaderLibrary {
   /// 没指定 loader 时的兜底：库里**版本最高**的那个
   ///
   /// 取最高而不是文件名第一个：按名字排第一的往往是最老的一版，
-  /// 指定的 loader 丢了时悄悄退回最老版本很坑；以后有适配表了再按游戏版本挑
+  /// 指定的 loader 丢了时悄悄退回最老版本很坑
   static String? fallbackPath() => newestOf(list())?.path;
 
   /// 从库内文件里挑版本最高的（纯函数，便于用例覆盖）
