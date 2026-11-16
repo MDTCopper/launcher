@@ -37,8 +37,7 @@ class ShareIntentHandler(context: Context) {
     @Synchronized
     fun accept(intent: Intent?): List<String> {
         if (intent == null) return emptyList()
-        // 排查用：面板里不出现 Copper 时（发送方的类型不在白名单）这条什么都不会打，
-        // 所以真机上「有没有这条日志」本身就是结论之一（tag = ShareIntent）
+        // 排查用：分享面板里不出现 Copper 时这条什么都不会打，所以真机上「有没有这条日志」本身也是结论
         Log.i(TAG, "收到分享：action=${intent.action} type=${intent.type}")
 
         val uris = sharedUris(intent)

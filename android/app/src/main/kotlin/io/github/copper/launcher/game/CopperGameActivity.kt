@@ -411,7 +411,7 @@ class CopperGameActivity : BridgeActivity() {
         }
     }
 
-    /** 让玩家能放弃一次启动太久的启动。 */
+    /** 让玩家能放弃一次等太久的启动。 */
     private fun cancelLaunch() {
         Log.i("copper-launcher", "bridge launch canceled by user")
         val cache = Bridge.options.cacheFolder

@@ -22,8 +22,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
 
-  // 快捷启动 / 无界面云服务：窗口先不显示，
-  // 由 Dart 侧在需要弹窗 / 唤起启动器时显式 show（见 flutter_window.h）
+  // 无界面进程：首帧不显示窗口，需要时由 Dart 侧显式 show（云同步代理窗口，见 flutter_window.h）
+  // 同步代理进程带 --launch-version，所以这里不必单列 --sync-proxy
   bool suppress_initial_show = false;
   for (const auto& argument : command_line_arguments) {
     if (argument == "--launch-version" ||

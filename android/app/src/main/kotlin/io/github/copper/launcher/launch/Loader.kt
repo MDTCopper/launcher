@@ -14,14 +14,13 @@ import java.io.File
  * Copper loader 的入口：在 ART 上把游戏 dex 化后运行。
  *
  * 与桥一样只是把 jar 和参数交给占位 Activity，真正的加载由组件工厂完成。
- * 两个入口都接进了 Dart 通道（[launchLoader] / [buildLoader]），虽然现在还没有调用点。
+ * 两个入口都接进了 Dart 通道（[launchLoader] / [buildLoader]），Dart 侧暂无调用点。
  */
 object Loader {
     /**
      * 通过 [MindustryActivity] 启动 loader，传入 loader jar 与参数。
      *
-     * Dart 侧现在还没有入口点它（桌面端走自己的 loader 任务），但通道里留着：
-     * loader 这条路要能被调起来，不能因为暂时没人用就从生成器视野里消失。
+     * 桌面端走自己的 loader 任务，这里保留 ART 路径给生成器扫描：通道里必须留着这两个方法。
      */
     @DartCall
     @Suppress("DEPRECATION")

@@ -67,8 +67,8 @@ class CopperComponentFactory : CoreComponentFactory() {
     /**
      * JVM 路径：参数交给桥的 `main`，活动由桥的加载器造 —— 启动器的启动画面是 [ACTIVITY] 这个子类。
      *
-     * <p>子类必须由同一个加载器定义：父类只在 bridge.jar 里，所以 dex 路径同时给 bridge.jar 和宿主 APK。
-     * 子类不在（或造不出来）就退回桥自己的 [BASE_ACTIVITY]。</p>
+     * 子类必须由同一个加载器定义：父类只在 bridge.jar 里，所以 dex 路径同时给 bridge.jar 和宿主 APK。
+     * 子类不在（或造不出来）就退回桥自己的 [BASE_ACTIVITY]。
      */
     private fun launchBridge(cl: ClassLoader, className: String, intent: Intent?): Activity {
         val bridgeJar = intent?.getStringExtra("copper_bridge_jar")

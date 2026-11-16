@@ -9,7 +9,7 @@ import io.github.copper.launcher.channel.DartCall
 /**
  * 静默启动的黑幕：在界面上盖一层纯黑，窗口本身保持不透明。
  *
- * 之前把窗口 alpha 压 0 会在启动瞬间露出桌面；盖黑幕既看不到启动器 UI，也不闪桌面。
+ * 压窗口 alpha 会在启动瞬间露出桌面；盖黑幕既看不到启动器 UI，也不闪桌面。
  * 游戏起来 / 启动失败后由 Dart 调 [hide] 撤掉。
  *
  * 做成 object 是为了让 [hide] 作为静态方法接进生成通道；静态状态持有 Activity/View，

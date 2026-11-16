@@ -7,7 +7,7 @@ import dalvik.system.DexClassLoader
  *
  * 两条游戏运行路径都靠它把外置 jar 里的类挡在宿主前面。
  *
- * 桥这条路会把它指向**两样东西**：`bridge.jar` 和宿主 APK。前者是桥的类，后者是启动器自己的
+ * 桥这条路会把它指向两样东西：`bridge.jar` 和宿主 APK。前者是桥的类，后者是启动器自己的
  * 桥活动子类 —— 子类必须由这个加载器定义，否则它的父类（`BridgeActivity`，只在 bridge.jar 里）
  * 会顺着宿主加载器找，找不到。
  *

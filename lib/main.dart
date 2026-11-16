@@ -125,7 +125,7 @@ Future<void> _runQuickLaunch(LaunchArgs cli) async {
 
 /// 安卓桌面快捷方式：桥已就绪且设置为「直接回桌面」时不建启动器 UI，
 /// 只留宿主 Activity 把游戏拉起来；游戏退出后由 [ShortcutLaunch] 在后台传完再退出。
-/// 需要回到启动器或还要装桥时仍走隐藏 UI 的旧路径。
+/// 需要回到启动器或还要装桥时仍走建 UI 的路径。
 Future<void> _runAndroidSilentShortcut(LaunchArgs cli) async {
   AppRuntime.form = AppForm.quickTrigger;
   AppRuntime.headless = true;
@@ -234,7 +234,7 @@ Future<void> _initializeCore({
       tag: 'Startup',
     );
   }
-  //数据目录是排查「东西写到哪去了」的第一现场，每次启动都记下来
+  // 数据目录是排查「东西写到哪去了」的第一现场，每次启动都记下来
   addLog(.info, '数据根目录：${AppPaths.copperLauncher}', tag: 'Startup');
   addLog(.info, '游戏默认数据目录：${AppPaths.defaultGameData}', tag: 'Startup');
   addLog(.info, '时间线：基础路径就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
@@ -269,7 +269,7 @@ Future<void> _initializeCore({
   );
 }
 
-///必要的基础初始化完成后即进入 app
+/// 基础初始化完成后进入界面初始化
 Future<void> _initializeUi(
   LaunchRequest? launchRequest, {
   required bool fromService,
@@ -356,10 +356,9 @@ Future<void> _pollPending() async {
   }
 }
 
-/// 启动即登录：有落盘的账号就把它恢复出来，再拉一次资料
+/// 启动即登录：有落盘的账号就恢复出来，再拉一次资料给顶栏与好友用
 ///
-/// 之前只在进账户 / 联机页时才拉 `/me`，于是顶栏没头像、好友页要等一会儿才有名字。
-/// 刚开机时常常还没连上网（`Failed host lookup`），所以失败会退避重试两次；
+/// 刚开机时常常还没连上网（`Failed host lookup`），失败会退避重试两次；
 /// 仍然失败就只记日志 —— 离线启动也该能用启动器
 Future<void> _warmUpAccount() async {
   final accounts = AccountManager.instance;
@@ -381,10 +380,10 @@ Future<void> _warmUpAccount() async {
   }
 }
 
-///导入一份系统分享进来的文件
+/// 导入一份系统分享进来的文件
 ///
-///导入弹窗挂在 shell 上（`showDefaultDialogPopup` 拿不到全局 Context 会直接抛），
-///而冷启动那次分享远早于界面、安卓上还可能先停在环境配置页，所以等 shell 建出来再走
+/// 导入弹窗挂在 shell 上（`showDefaultDialogPopup` 拿不到全局 Context 会直接抛），
+/// 而冷启动那次分享远早于界面、安卓上还可能先停在环境配置页，所以等 shell 建出来再走
 Future<void> _importSharedFiles(List<String> files) async {
   if (!await _waitForShell()) {
     addNotice(
@@ -400,7 +399,7 @@ Future<void> _importSharedFiles(List<String> files) async {
   );
 }
 
-///等 shell 挂上 Context；最多 30 秒，等不到返回 false
+/// 等 shell 挂上 Context；最多 30 秒，等不到返回 false
 Future<bool> _waitForShell() async {
   for (var attempt = 0; attempt < 300; attempt++) {
     if (PageKeyProvider.shellKey.currentContext != null) return true;
@@ -465,7 +464,7 @@ Future<void> _quitProcess() async {
   if (!Process.killPid(pid)) exit(0);
 }
 
-///平台视图初始化：桌面端建窗口，移动端设置系统 UI
+/// 平台视图初始化：桌面端建窗口，移动端设置系统 UI
 Future<void> _initPlatformView({required bool quiet}) async {
   if (Platform.isAndroid) {
     await _initAndroidView();
