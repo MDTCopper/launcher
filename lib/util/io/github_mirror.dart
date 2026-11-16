@@ -21,7 +21,8 @@ import 'package:path/path.dart' as p;
 ///- 爬取：从 github.akams.cn 页面 JS 里扒出来的社区节点（缓存到 remoteData）
 ///- 自定义：用户手动添加，存 config，与预设分开管理
 ///
-///策略：官方直连失败后才走镜像（对齐 Mindustry 的错误驱动回退）；选镜像时
+///策略：直连失败（链路类错误）后才走镜像；网络看起来还行的站点先**并行探一次**
+///直连与镜像，谁先答复走谁（赢的是镜像就短暂偏好镜像，但不算直连故障）；选镜像时
 ///对候选节点测速，取最快缓存
 class GithubMirror {
   static final GithubMirror _instance = GithubMirror._();
@@ -91,7 +92,7 @@ class GithubMirror {
 
   ///直连失败后多久内不再先试直连
   ///
-  ///要比一次连接超时（20 秒）长约一个量级，又不至于让网络恢复后长期走镜像；
+  ///要比一次连接超时（探针 8~15 秒）长约一个量级，又不至于让网络恢复后长期走镜像；
   ///这段窗口里镜像本身也是「上一次能通」的那条路
   static const _directFailureTtl = Duration(minutes: 5);
 
@@ -152,12 +153,14 @@ class GithubMirror {
     _directOkAt.remove(family);
   }
 
-  ///直连这一族刚刚通了：记下来，[_directFailureTtl] 内不再并行探测
+  ///直连这一族刚刚通了：记下来，[_directFailureTtl] 内不再并行探测；
+  ///顺带清掉「镜像更快」的偏好 —— 直连刚成功说明不必绕镜像
   void markDirectOk(String url) {
     final family = mirrorFamilyOf(url);
     if (family == null) return;
     _directOkAt[family] = DateTime.now();
     _directFailedAt.remove(family);
+    _mirrorPreferredAt.remove(family);
   }
 
   ///这一族要不要跳过「直连先试」：最近失败过且还在 [_directFailureTtl] 内
@@ -209,13 +212,6 @@ class GithubMirror {
     return true;
   }
 
-  ///直连通了：忘掉失败记忆，下次还是直连优先
-  void forgetDirectFailure(String url) {
-    final family = mirrorFamilyOf(url);
-    if (family == null) return;
-    _directFailedAt.remove(family);
-  }
-
   ///这次用 [node] 成功了：把它提到该族表头，下次优先
   void promoteMirror(String url, String node) {
     final family = mirrorFamilyOf(url);
@@ -255,9 +251,6 @@ class GithubMirror {
 
   ///预设节点（只读）
   List<String> get presetNodes => [for (final node in _presetNodes) node.url];
-
-  ///预设节点的完整能力记录（只读）：按族与 Range 选点时用
-  List<MirrorNode> get presetMirrorNodes => List.unmodifiable(_presetNodes);
 
   ///爬取节点（只读）
   List<String> get crawledNodes => List.unmodifiable(_crawledNodes);
@@ -414,22 +407,6 @@ class GithubMirror {
   static bool isGithubUrl(String url) {
     final host = Uri.tryParse(url)?.host;
     return host != null && _githubHosts.contains(host);
-  }
-
-  ///返回应使用的镜像前缀；不需要加速 / 未开启 / 无节点时返回 null
-  String? prefixFor(String url) {
-    if (!_enabled) return null;
-    if (!isGithubUrl(url)) return null;
-    final nodes = allNodes;
-    final best = bestMirrorFor(url) ?? (nodes.isEmpty ? null : nodes.first);
-    return best;
-  }
-
-  ///把 URL 套上镜像前缀；不需加速时原样返回
-  String resolve(String url) {
-    final prefix = prefixFor(url);
-    if (prefix == null) return url;
-    return '$prefix$url';
   }
 
   ///对单个节点测速，返回耗时毫秒；不能用作镜像返回 null
