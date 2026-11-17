@@ -305,6 +305,7 @@ class BridgeLibrary {
       abi: abi,
       arcRef: arcRef,
       arcLibNames: arcLibNames,
+      jreDirPath: JreLibrary.selectedJreRoot(),
       bridgeTag: runtimeTag,
     );
   }
@@ -372,23 +373,24 @@ class BridgeLibrary {
 
   /// 只装 Java 运行环境（设置页那一行用；门禁与一键走 [installRuntime]）
   ///
-  /// 钉了构建号就按钉的那份校验，[force] 为 true 时无条件重下
+  /// [version] 不给就用钉住的 Java 大版本；都没钉就跟随上游最新的 `jre<版本>`。
+  /// [force] 为 true 时无条件重下
   static Future<void> installJre({
     required String abi,
+    String? version,
     bool force = false,
     BridgeRuntimeOptions? runtimeOptions,
     CancelToken? cancelToken,
     void Function(String status)? onStatus,
     void Function(HttpDownloadState state)? onProgress,
   }) async {
-    final packageName = BridgePayload.jrePackageFor(abi);
-    if (packageName == null) {
+    if (BridgePayload.jrePackageFor(abi) == null) {
       throw StateError('不支持的设备 ABI：$abi（JRE 只有 arm64 / arm / x86_64 分包）');
     }
     await _installJre(
       abi: abi,
-      packageName: packageName,
-      pinnedBuild: (runtimeOptions ?? BridgeRuntimeOptions.load()).jreBuild,
+      pinnedVersion:
+          version ?? (runtimeOptions ?? BridgeRuntimeOptions.load()).jreVersion,
       force: force,
       cancelToken: cancelToken,
       onStatus: onStatus,
@@ -502,13 +504,13 @@ class BridgeLibrary {
 
   /// 本地导入 Java 运行环境：压缩包（zip / tar.xz）或已经解压好的目录
   ///
-  /// 主体在 [JreLibrary.importJre]（落到 `bridge/java/<build>/`，验过才换，失败保留旧）；
-  /// 这里留着同名入口，旧调用点不用改。[build] 不给就按导入内容里的版本标记定
+  /// 主体在 [JreLibrary.importJre]（落到 `bridge/java/<Java 大版本>/`，验过才换，失败保留旧）；
+  /// [version] 不给就按导入内容里的 `release` 文件 / 目录名认版本
   static Future<String> importJre(
     String sourcePath, {
-    String? build,
+    String? version,
     void Function(String status)? onStatus,
-  }) => JreLibrary.importJre(sourcePath, build: build, onStatus: onStatus);
+  }) => JreLibrary.importJre(sourcePath, version: version, onStatus: onStatus);
 
   /// 本地导入模组加载器适配层：校验 jar 里的 `loaderVersion` 读得出来，
   /// 落到 `loader-wrapper-<版本>.jar`（钉了适配层版本就按钉的那个名字收）
@@ -550,10 +552,8 @@ class BridgeLibrary {
     return RegExp(r'^\d+(?:\.\d+)*$').hasMatch(name) ? name : null;
   }
 
-  /// 可选的版本列表（设置页的下拉用）：两边仓库的 tag
-  ///
-  /// Java 侧现在只有 `jre25` 一个 tag（能钉的是里面的构建号），桥侧现在只有 `snapshot`
-  static Future<({List<String> jreTags, List<String> bridgeTags})>
+  /// 可选的版本列表（设置页的下拉用）：Java 大版本（来自 `jre<版本>` tag）与桥 tag
+  static Future<({List<String> jreVersions, List<String> bridgeTags})>
   fetchAvailableVersions() async {
     Future<List<String>> tagsOf(String repo) async {
       try {
@@ -569,7 +569,9 @@ class BridgeLibrary {
     }
 
     return (
-      jreTags: await tagsOf(BridgePayload.jreRepo),
+      jreVersions: BridgePayload.jreVersionsOfTags(
+        await tagsOf(BridgePayload.jreRepo),
+      ),
       bridgeTags: await tagsOf(BridgePayload.bridgeRepo),
     );
   }
@@ -609,22 +611,22 @@ class BridgeLibrary {
   static Future<BridgeRuntimeStatus> readRuntimeStatus({
     String? bridgeDirPath,
   }) async {
+    final jreVersion = JreLibrary.selectedVersion(bridgeDirPath: bridgeDirPath);
+    final jreInstalled =
+        jreVersion != null &&
+        JreLibrary.hasVersion(jreVersion, bridgeDirPath: bridgeDirPath);
     final jreRootPath = JreLibrary.selectedJreRoot(
       bridgeDirPath: bridgeDirPath,
     );
-    final jreBuild = JreLibrary.selectedBuild(bridgeDirPath: bridgeDirPath);
     final bridgeJar = selectedBridgeJar(bridgeDirPath: bridgeDirPath);
     final wrapperJar = selectedLoaderWrapper(bridgeDirPath: bridgeDirPath);
-    final markerFile = File(p.join(jreRootPath, '.installed-version'));
 
     return BridgeRuntimeStatus(
       isReady: isRuntimeReady(bridgeDirPath: bridgeDirPath),
-      jreVersion: markerFile.existsSync()
-          ? markerFile.readAsStringSync().trim()
-          : (jreBuild == null || jreBuild == JreLibrary.legacyBuild
-                ? null
-                : jreBuild),
-      jreBytes: _sizeOf(jreRootPath),
+      jreVersion: jreVersion,
+      jreInstalled: jreInstalled,
+      jreVersions: JreLibrary.localVersions(bridgeDirPath: bridgeDirPath),
+      jreBytes: jreInstalled ? _sizeOf(jreRootPath) : 0,
       bridgeTag: bridgeJar == null
           ? null
           : BridgePayload.bridgeTagOf(bridgeJar.path),
@@ -699,52 +701,46 @@ class BridgeLibrary {
     }
   }
 
-  /// JRE：两个包（ABI 无关 + 该 ABI 的分包）都要，解到 `bridge/java/<build>/`
+  /// JRE：两个包（ABI 无关 + 该 ABI 的分包）都要，解到 `bridge/java/<Java 大版本>/`
   ///
-  /// [pinnedBuild] 是设置里钉住的构建号（不给就跟随远端最新的 `version`）；
-  /// [force] 为 true 时无条件重下；解包与换目录交给 [JreLibrary.installJreFromArchive]
+  /// [pinnedVersion] 是设置里钉住的 Java 大版本（不给就跟随上游最新的 `jre<版本>`；
+  /// 上游读不到就看本地已经装好的）；[force] 为 true 时无条件重下；解包与换目录
+  /// 交给 [JreLibrary.installJreFromArchive]
   static Future<void> _installJre({
-    required String packageName,
     required String abi,
-    String? pinnedBuild,
+    String? pinnedVersion,
     bool force = false,
     CancelToken? cancelToken,
     void Function(String status)? onStatus,
     void Function(HttpDownloadState state)? onProgress,
   }) async {
-    // 远端构建号：读不到就当「不用重装」（载荷是齐的，别为一次网络抖动重下几百 MB）
-    String? remoteVersion;
-    try {
-      final urls = BridgePayload.jreAssetUrls(abi);
-      final response = await cio.get<String>(
-        urls.last,
-        responseType: ResponseType.plain,
-        cancelToken: cancelToken,
-      );
-      remoteVersion = '${response.data}'.trim();
-    } catch (_) {}
-
-    final targetBuild = pinnedBuild ?? remoteVersion;
-    if (!force && targetBuild != null && JreLibrary.hasBuild(targetBuild)) {
-      onStatus?.call('Java 运行环境已就绪');
-      return;
+    var targetVersion = pinnedVersion;
+    // 跟随最新：问上游有哪些 jre<版本> 的 release，取最大的一个。
+    // 读不到就退回本地已装的那份，别因为一次网络抖动重下几百 MB
+    targetVersion ??= await fetchLatestJreVersion(cancelToken: cancelToken);
+    targetVersion ??= JreLibrary.selectedVersion();
+    if (targetVersion == null) {
+      throw StateError('查不到可用的 Java 版本：上游没有 jre<版本> 的 release，本地也没装过');
     }
-    // 远端读不到、库里已经有一份能用的：不重下
-    if (!force && targetBuild == null && JreLibrary.isReady()) {
-      onStatus?.call('Java 运行环境已就绪');
+
+    if (!force && JreLibrary.hasVersion(targetVersion)) {
+      onStatus?.call('Java $targetVersion 已就绪');
       return;
     }
 
-    onStatus?.call('正在下载 Java 运行环境…');
+    final assets = BridgePayload.jreAssets(targetVersion, abi);
+    if (assets.isEmpty) {
+      throw StateError('不支持的设备 ABI：$abi（JRE 只有 arm64 / arm / x86_64 分包）');
+    }
+
+    onStatus?.call('正在下载 Java $targetVersion 运行环境…');
     final tempDir = Directory(p.join(AppPaths.bridge, 'tmp'))
       ..createSync(recursive: true);
     final archivePaths = <String>[];
-    for (final name in ['universal.tar.xz', 'bin-$packageName.tar.xz']) {
-      final savePath = p.join(tempDir.path, name);
+    for (final asset in assets) {
+      final savePath = p.join(tempDir.path, asset.name);
       await cio.download(
-        url:
-            'https://github.com/${BridgePayload.jreRepo}/releases/download/'
-            '${BridgePayload.jreReleaseTag}/$name',
+        url: asset.url,
         savePath: savePath,
         cancelToken: cancelToken,
         onStatus: onProgress,
@@ -753,11 +749,33 @@ class BridgeLibrary {
     }
 
     await JreLibrary.installJreFromArchive(
-      build: targetBuild ?? 'local-${DateTime.now().millisecondsSinceEpoch}',
+      version: targetVersion,
       archivePaths: archivePaths,
       onStatus: onStatus,
     );
-    addLogAndPrint(.info, 'Android 桥：Java 运行环境装好了（$abi）', tag: 'Bridge');
+    addLogAndPrint(
+      .info,
+      'Android 桥：Java $targetVersion 运行环境装好了（$abi）',
+      tag: 'Bridge',
+    );
+  }
+
+  /// 上游最新的 Java 大版本（读 release tag；读不到返回 null，不抛）
+  static Future<String?> fetchLatestJreVersion({
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final tags = await GitRefs.fetchTags(BridgePayload.jreRepo);
+      return BridgePayload.latestJreVersionOfTags(tags);
+    } catch (error) {
+      if (cancelToken?.isCancelled == true) return null;
+      addLogAndPrint(
+        .warning,
+        '查 Java 版本失败：${removeNewlines('$error')}',
+        tag: 'Bridge',
+      );
+      return null;
+    }
   }
 
   /// 按 [plan] 取这个版本需要的原生库，返回装好的文件名
@@ -1021,6 +1039,8 @@ class BridgeRuntimeStatus {
   const BridgeRuntimeStatus({
     required this.isReady,
     required this.jreVersion,
+    required this.jreInstalled,
+    required this.jreVersions,
     required this.jreBytes,
     required this.bridgeTag,
     required this.bridgeBytes,
@@ -1031,8 +1051,16 @@ class BridgeRuntimeStatus {
   /// JRE 与桥 jar 都齐了（与 [BridgeLibrary.isRuntimeReady] 同口径）
   final bool isReady;
 
-  /// JRE 的远端版本号（`.installed-version` 里记的），没装过为 null
+  /// 当前要用的 Java 大版本（`17` / `25`…）：钉住的优先，没钉就是库里最高的
   final String? jreVersion;
+
+  /// [jreVersion] 那份是否已经装在库里（钉住但还没装时为 false）
+  final bool jreInstalled;
+
+  /// 库里已经装好的 Java 大版本（高的在前），设置页的下拉用
+  final List<String> jreVersions;
+
+  /// 选中那份 JRE 占用的空间
   final int jreBytes;
 
   /// 桥 jar 的 tag（`snapshot` / `0.1.3`…），没有为 null

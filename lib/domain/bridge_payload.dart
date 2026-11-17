@@ -9,7 +9,8 @@ import 'package:path/path.dart' as p;
 /// Android 桥的**载荷**：JRE / arc 原生库 / bridge.jar 从哪来、放哪、齐没齐
 ///
 /// - **JRE 分两个包**（`universal.tar.xz` ABI 无关 + `bin-<abi>.tar.xz` ABI 相关），
-///   两个都要叠加解压到同一棵树 —— 只解一个，JVM 起不来
+///   两个都要叠加解压到同一棵树 —— 只解一个，JVM 起不来；release 按 Java 大版本
+///   打 tag（`jre17` / `jre25`），安装与选择都按大版本走（见 [JreLibrary]）
 /// - **arc 原生库必须与本体 jar 里的 arc 同一个 ref**：v8 及以前查该版本
 ///   `gradle.properties` 的 `archash`；v9 起 arc 并进本体仓库，原生库跟着本体提交走
 ///   （见 [arcNativeLibUrl]）
@@ -17,9 +18,35 @@ import 'package:path/path.dart' as p;
 class BridgePayload {
   BridgePayload._();
 
-  /// Android JRE 的仓库与 release（`jre25` = JDK 25）
+  /// Android JRE 的仓库：release 按 **Java 大版本** 打 tag（`jre17` / `jre25`）
   static const jreRepo = 'MDTCopper/android-openjdk';
-  static const jreReleaseTag = 'jre25';
+
+  /// JRE release tag 的前缀：`jre` + Java 大版本
+  static const jreTagPrefix = 'jre';
+
+  /// 某个 Java 大版本对应的 release tag
+  static String jreTagFor(String version) => '$jreTagPrefix$version';
+
+  /// `jre25` → `25`；不是 JRE tag 返回 null
+  static String? jreVersionOfTag(String tag) =>
+      RegExp('^$jreTagPrefix(\\d+)\$').firstMatch(tag.trim())?.group(1);
+
+  /// tag 列表里的 Java 大版本（去重、降序，最新在前）
+  static List<String> jreVersionsOfTags(Iterable<String> tags) {
+    final versions = <String>{};
+    for (final tag in tags) {
+      final version = jreVersionOfTag(tag);
+      if (version != null) versions.add(version);
+    }
+    return versions.toList()
+      ..sort((a, b) => int.parse(b).compareTo(int.parse(a)));
+  }
+
+  /// tag 列表里最新的 Java 大版本
+  static String? latestJreVersionOfTags(Iterable<String> tags) {
+    final versions = jreVersionsOfTags(tags);
+    return versions.isEmpty ? null : versions.first;
+  }
 
   /// 桥的仓库
   static const bridgeRepo = 'MDTCopper/android-bridge';
@@ -49,15 +76,18 @@ class BridgePayload {
     _ => null,
   };
 
-  /// JRE 的下载地址：ABI 无关包、该 ABI 的分包、版本号文件（纯数字构建号，判断要不要重下）
-  static List<String> jreAssetUrls(String abi) {
+  /// 某个 Java 大版本的两个包：ABI 无关包 + 该 ABI 的分包（叠加解压到同一棵树）
+  static List<({String name, String url})> jreAssets(
+    String version,
+    String abi,
+  ) {
     final packageName = jrePackageFor(abi);
     if (packageName == null) return const [];
-    final base = 'https://github.com/$jreRepo/releases/download/$jreReleaseTag';
+    final base =
+        'https://github.com/$jreRepo/releases/download/${jreTagFor(version)}';
     return [
-      '$base/universal.tar.xz',
-      '$base/bin-$packageName.tar.xz',
-      '$base/version',
+      (name: 'universal.tar.xz', url: '$base/universal.tar.xz'),
+      (name: 'bin-$packageName.tar.xz', url: '$base/bin-$packageName.tar.xz'),
     ];
   }
 
@@ -314,18 +344,6 @@ class BridgePayload {
 
   static final RegExp _versionTagPattern = RegExp(r'^\d+(\.\d+)*$');
 
-  /// JRE 要不要重新解压装一遍：本地没记过版本、或远端 `version` 文件变了就要
-  ///
-  /// （远端读不到时按「不用重装」处理 —— 载荷齐就能跑，别因为一次网络抖动重下几百 MB）
-  static bool shouldRefreshJre({
-    required String? localVersion,
-    required String? remoteVersion,
-  }) {
-    if (localVersion == null || localVersion.isEmpty) return true;
-    if (remoteVersion == null || remoteVersion.isEmpty) return false;
-    return localVersion != remoteVersion;
-  }
-
   /// 从 contents API 的返回里挑出原生库文件名（`lib*.so`）
   ///
   /// **不写死成「两个」**：某个 arc ref 多一个库时，列出来就能一起下
@@ -348,15 +366,19 @@ class BridgePayload {
   }
 
   /// 这份载荷的落点（都在共享库 `<数据根>/bridge/` 下，跨版本复用）
+  ///
+  /// [jreDirPath] 由调用方从 `JreLibrary.selectedJreRoot()` 取：JRE 按 Java 大版本分目录，
+  /// 这里不替它做选择
   static BridgePayloadPaths pathsFor({
     required String abi,
     required String arcRef,
     required List<String> arcLibNames,
+    required String jreDirPath,
     String? bridgeTag,
   }) {
     final jarName = bridgeJarFileName(bridgeTag ?? bridgeSnapshot);
     return BridgePayloadPaths(
-      jreDirPath: AppPaths.bridgeJre,
+      jreDirPath: jreDirPath,
       arcDirPath: AppPaths.bridgeArcDirPath(arcRef, abi),
       bridgeJar: AppPaths.bridgeJarFile(jarName),
       arcLibNames: arcLibNames,
