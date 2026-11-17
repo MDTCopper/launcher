@@ -65,6 +65,13 @@ class CopperDocumentsProvider : DocumentsProvider() {
 
     override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor {
         val ref = decodeOrThrow(documentId)
+        // 真实文档必须落盘才返回一行：MT 管理器、DocumentFile.exists() 这类客户端会先 query
+        // 一次来判断“这个名字是否已被占用”，对不存在的路径也回一行会被它们当成“文件已存在”。
+        // 虚拟根与两个虚拟文件夹始终存在（external 不可用时 file 为 null，但文件夹仍要展示）。
+        if (ref.storageId != null && ref.relative.isNotEmpty()) {
+            val file = ref.file ?: throw FileNotFoundException(documentId)
+            if (!file.exists()) throw FileNotFoundException(documentId)
+        }
         val cursor = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION)
         cursor.addDocumentRow(ref)
         return cursor
@@ -285,13 +292,17 @@ class CopperDocumentsProvider : DocumentsProvider() {
         if (encoded.isEmpty()) {
             ""
         } else {
-            String(
+            val path = String(
                 Base64.decode(
                     encoded,
                     Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
                 ),
                 Charsets.UTF_8,
             )
+            // android.util.Base64 的 URL_SAFE 解码器会静默跳过字母表外的字符（'/'、非 ASCII…），
+            // 于是「父 id + "/" + 文件名」这种拼接串也能解出一段路径。只认自己编出来的规范串：
+            // 重编码对不上就是非法 id，避免伪造 / 拼接的 id 查出并不存在的文档。
+            if (encodeRelative(path) == encoded) path else null
         }
     } catch (_: IllegalArgumentException) {
         null
