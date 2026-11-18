@@ -14,7 +14,7 @@ import 'package:copper_launcher/ui/components/cu_card.dart';
 import 'package:copper_launcher/ui/components/core/cu_list_tile.dart';
 import 'package:copper_launcher/ui/components/core/cu_menu.dart';
 import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
-import 'package:copper_launcher/ui/components/core/cu_segment.dart';
+import 'package:copper_launcher/ui/components/core/cu_tab_bar.dart';
 import 'package:copper_launcher/ui/components/scroll/list_view.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
@@ -673,20 +673,18 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     );
   }
 
-  /// 分类切换（收藏筛选挪到内容卡标题行右侧）
+  /// 分类切换：模组下载页同款横向标签（下划线）
   Widget _buildFilterBar() {
-    return SizedBox(
-      width: 420,
-      child: CuSegment(
-        options: [
-          '全部 (${_countCategory(0)})',
-          '原版 (${_countCategory(1)})',
-          'Copper (${_countCategory(2)})',
-          '测试 (${_countCategory(3)})',
-        ],
-        value: _category,
-        onChanged: (index) => setState(() => _category = index),
-      ),
+    return CuTabBar(
+      tabs: [
+        '全部 (${_countCategory(0)})',
+        '原版 (${_countCategory(1)})',
+        'Copper (${_countCategory(2)})',
+        '测试 (${_countCategory(3)})',
+      ],
+      value: _category,
+      onTap: (index) => setState(() => _category = index),
+      trailing: _buildLikeToggle(),
     );
   }
 
@@ -817,18 +815,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
       children: [
         _buildFoldInfoBar(),
         const SizedBox(height: 12),
-        Row(
-          spacing: 12,
-          children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _buildFilterBar(),
-              ),
-            ),
-            _buildLikeToggle(),
-          ],
-        ),
+        _buildFilterBar(),
         const SizedBox(height: 12),
         versions.isEmpty
             ? _buildEmptyPage()
