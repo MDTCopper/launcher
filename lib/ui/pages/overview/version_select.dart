@@ -16,7 +16,6 @@ import 'package:copper_launcher/ui/components/core/cu_menu.dart';
 import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/components/core/cu_segment.dart';
 import 'package:copper_launcher/ui/components/scroll/list_view.dart';
-import 'package:copper_launcher/ui/components/core/cu_page_enter.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/util/route/route_trail.dart';
@@ -41,10 +40,6 @@ import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 ////version_select
 const versionSelectPageRouteKey = '/version_select';
-
-/// 页面入场：220ms 淡入 + 10 像素向上浮出
-const pageEnterDuration = Duration(milliseconds: 220);
-const pageEnterOffset = 10.0;
 
 class VersionSelectPage extends StatefulWidget {
   const VersionSelectPage({super.key});
@@ -592,7 +587,6 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
               ),
             ],
           ),
-          _buildFoldSwitcher(colors, theme),
           CuMenuButton(
             items: [
               CuMenuItem(
@@ -607,55 +601,22 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
                   danger: true,
                   onSelected: () => _deleteFold(_index),
                 ),
-              CuMenuItem(
-                icon: Icons.create_new_folder_outlined,
-                label: isDesktop ? '添加新目录' : '新建分类',
-                onSelected: isDesktop ? _addNewFold : _addNewCategory,
-              ),
-              if (isDesktop) ...[
-                CuMenuItem(
-                  icon: Icons.file_upload_outlined,
-                  label: '导入本地游戏',
-                  onSelected: _importLocalGame,
-                ),
-                CuMenuItem(
-                  icon: Icons.sports_esports,
-                  label: '扫描 Steam 版',
-                  onSelected: _scanSteamVersions,
-                ),
-              ],
             ],
           ),
+          _buildFoldSwitcher(),
         ],
       ),
     );
   }
 
-  /// 更换目录：列出所有目录，当前项打勾；下方是新建 / 导入 / 扫描
-  Widget _buildFoldSwitcher(AppColors colors, ThemeData theme) {
+  /// 更换目录：信息条末端的独立按钮；菜单里列目录 + 新建 / 导入 / 扫描
+  Widget _buildFoldSwitcher() {
     return Builder(
-      builder: (context) => CuPressable(
+      builder: (context) => CuButton(
+        kind: CuButtonKind.plain,
+        icon: Icons.swap_horiz,
+        label: '切换目录',
         onTap: () => _openFoldMenu(context),
-        borderRadius: BorderRadius.circular(6),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: colors.border),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 6,
-          children: [
-            Icon(Icons.swap_horiz, size: 16, color: colors.itemSecondary),
-            Text(
-              '切换目录',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.itemSecondary,
-              ),
-            ),
-            Icon(Icons.expand_more, size: 16, color: colors.itemHint),
-          ],
-        ),
       ),
     );
   }
@@ -854,47 +815,33 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     return CopperListView(
       padding: const EdgeInsets.all(16),
       children: [
-        CuPageEnter(
-          duration: pageEnterDuration,
-          offsetY: pageEnterOffset,
-          child: _buildFoldInfoBar(),
+        _buildFoldInfoBar(),
+        const SizedBox(height: 12),
+        Row(
+          spacing: 12,
+          children: [
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildFilterBar(),
+              ),
+            ),
+            _buildLikeToggle(),
+          ],
         ),
         const SizedBox(height: 12),
-        CuPageEnter(
-          delay: const Duration(milliseconds: 40),
-          duration: pageEnterDuration,
-          offsetY: pageEnterOffset,
-          child: Row(
-            spacing: 12,
-            children: [
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: _buildFilterBar(),
+        versions.isEmpty
+            ? _buildEmptyPage()
+            : CuContentPanel(
+                flush: true,
+                title: '${const ['全部', '原版', 'Copper', '测试'][_category]}版本',
+                subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
+                child: Column(
+                  children: [
+                    for (final version in versions) _buildVersionRow(version),
+                  ],
                 ),
               ),
-              _buildLikeToggle(),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        CuPageEnter(
-          delay: const Duration(milliseconds: 80),
-          duration: pageEnterDuration,
-          offsetY: pageEnterOffset,
-          child: versions.isEmpty
-              ? _buildEmptyPage()
-              : CuContentPanel(
-                  flush: true,
-                  title: '${const ['全部', '原版', 'Copper', '测试'][_category]}版本',
-                  subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
-                  child: Column(
-                    children: [
-                      for (final version in versions) _buildVersionRow(version),
-                    ],
-                  ),
-                ),
-        ),
       ],
     );
   }

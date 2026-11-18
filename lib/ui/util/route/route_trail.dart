@@ -163,8 +163,8 @@ class CopperPageRoute extends PageRouteBuilder<dynamic> {
          settings: settings,
          pageBuilder: pageBuilder,
          transitionsBuilder: transitionsBuilder,
-         transitionDuration: const Duration(milliseconds: 350),
-         reverseTransitionDuration: const Duration(milliseconds: 350),
+         transitionDuration: const Duration(milliseconds: 200),
+         reverseTransitionDuration: const Duration(milliseconds: 160),
        );
 
   final PageTopBarController trailController;
