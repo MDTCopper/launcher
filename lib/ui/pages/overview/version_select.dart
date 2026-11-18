@@ -9,7 +9,7 @@ import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/ui/components/core/cu_button.dart';
-import 'package:copper_launcher/ui/components/core/cu_content_panel.dart';
+import 'package:copper_launcher/ui/components/core/cu_list_panel.dart';
 import 'package:copper_launcher/ui/components/cu_card.dart';
 import 'package:copper_launcher/ui/components/core/cu_list_tile.dart';
 import 'package:copper_launcher/ui/components/core/cu_menu.dart';
@@ -725,6 +725,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     final isCurrent = config.versionOptions.selectedVersion == version;
 
     return CuListTile(
+      borderRadius: BorderRadius.zero,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       leading: VersionIcon(version: version, height: 36, fallbackScale: 0.8),
       title: Text(
@@ -819,15 +820,12 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
         const SizedBox(height: 12),
         versions.isEmpty
             ? _buildEmptyPage()
-            : CuContentPanel(
-                flush: true,
+            : CuListPanel(
                 title: '${const ['全部', '原版', 'Copper', '测试'][_category]}版本',
                 subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
-                child: Column(
-                  children: [
-                    for (final version in versions) _buildVersionRow(version),
-                  ],
-                ),
+                children: [
+                  for (final version in versions) _buildVersionRow(version),
+                ],
               ),
       ],
     );

@@ -31,6 +31,8 @@ class CuPressable extends StatefulWidget {
     this.decoration,
     this.clipBehavior = Clip.none,
     this.onPressedChanged,
+    this.ripple = true,
+    this.rippleColor,
   });
 
   final Widget child;
@@ -59,6 +61,12 @@ class CuPressable extends StatefulWidget {
 
   /// 按下状态变化（给需要轻微回弹的主按钮用；不要在回调里改颜色做动画）
   final ValueChanged<bool>? onPressedChanged;
+
+  /// 点击水波；关闭后只保留变色反馈
+  final bool ripple;
+
+  /// 水波颜色；默认取主题 splash
+  final Color? rippleColor;
 
   @override
   State<CuPressable> createState() => _AppPressableState();
@@ -139,8 +147,7 @@ class _AppPressableState extends State<CuPressable>
     // - 底色始终不变，不会出现「底色忽明忽暗」
     // - 悬停层 → 按下层是相加关系，按下时只是在悬停结果上再压一档，不会互相顶掉
     // - 颜色端点每帧从 AppColors 重取，换主题仍然瞬切
-    // 默认状态色按「底色 + 叠层」算出来：悬停 / 按下一定与底色不同，
-    // 不透明的 raised 当悬停色在 plain 面上会看不出变化（用户 2026-11-10 反馈次按钮没反馈）
+    // 默认状态色按「底色 + 叠层」算出来：悬停 / 按下一定与底色不同
     final hoverColor = widget.hoverColor ?? colors.hoverOn(base);
     final pressColor = widget.pressedColor ?? colors.pressedOn(base);
 
@@ -157,48 +164,47 @@ class _AppPressableState extends State<CuPressable>
       );
     }
 
-    return MouseRegion(
-      cursor: active ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: active ? (_) => _setHovered(true) : null,
-      onExit: active ? (_) => _setHovered(false) : null,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: active ? widget.onTap : null,
-        onLongPress: active ? widget.onLongTap : null,
-        onSecondaryTap: active ? widget.onSecondaryTap : null,
-        onTapDown: active
-            ? (_) {
-                _setPressed(true);
-                widget.onPressedChanged?.call(true);
-              }
-            : null,
-        onTapUp: active
-            ? (_) {
-                _setPressed(false);
-                widget.onPressedChanged?.call(false);
-              }
-            : null,
-        onTapCancel: active
-            ? () {
-                _setPressed(false);
-                widget.onPressedChanged?.call(false);
-              }
-            : null,
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_hover, _press]),
-          builder: (context, child) {
-            return Container(
-              margin: widget.margin,
-              clipBehavior: widget.clipBehavior,
-              decoration: (widget.decoration ?? const BoxDecoration()).copyWith(
-                color: base,
-                borderRadius: widget.borderRadius,
-              ),
-              child: Stack(
+    // 水波画在底色之上、内容之下：Material 透明，只负责承载 InkWell 的墨层
+    final content = ClipRRect(
+      borderRadius: widget.borderRadius ?? BorderRadius.zero,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: active ? widget.onTap : null,
+          onLongPress: active ? widget.onLongTap : null,
+          onSecondaryTap: active ? widget.onSecondaryTap : null,
+          onTapDown: active
+              ? (_) {
+                  _setPressed(true);
+                  widget.onPressedChanged?.call(true);
+                }
+              : null,
+          onTapUp: active
+              ? (_) {
+                  _setPressed(false);
+                  widget.onPressedChanged?.call(false);
+                }
+              : null,
+          onTapCancel: active
+              ? () {
+                  _setPressed(false);
+                  widget.onPressedChanged?.call(false);
+                }
+              : null,
+          borderRadius: widget.borderRadius,
+          hoverColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          focusColor: Colors.transparent,
+          splashColor: widget.ripple
+              ? (widget.rippleColor ?? colors.splash)
+              : Colors.transparent,
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_hover, _press]),
+            builder: (context, child) {
+              return Stack(
                 fit: StackFit.passthrough,
                 children: [
-                  // 反馈层必须画在内容**下面**：悬停色是不透明面（raised）时
-                  // 画在上面会把文字/图标整块盖住
+                  // 反馈层必须画在内容**下面**
                   if (enabled)
                     Positioned.fill(child: overlay(hoverColor, _hover.value)),
                   if (enabled)
@@ -208,10 +214,25 @@ class _AppPressableState extends State<CuPressable>
                     child: widget.child,
                   ),
                 ],
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
+      ),
+    );
+
+    return MouseRegion(
+      cursor: active ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: active ? (_) => _setHovered(true) : null,
+      onExit: active ? (_) => _setHovered(false) : null,
+      child: Container(
+        margin: widget.margin,
+        clipBehavior: widget.clipBehavior,
+        decoration: (widget.decoration ?? const BoxDecoration()).copyWith(
+          color: base,
+          borderRadius: widget.borderRadius,
+        ),
+        child: content,
       ),
     );
   }
