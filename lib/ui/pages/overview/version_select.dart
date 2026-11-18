@@ -16,14 +16,12 @@ import 'package:copper_launcher/ui/components/core/cu_menu.dart';
 import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/components/core/cu_segment.dart';
 import 'package:copper_launcher/ui/components/scroll/list_view.dart';
+import 'package:copper_launcher/ui/components/animation/appear_item.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
-import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
-import 'package:copper_launcher/ui/page_framwork/page_navigation_rail.dart';
 import 'package:copper_launcher/ui/util/route/route_trail.dart';
 import 'package:copper_launcher/ui/dialog/custom_animated_dialog.dart';
 
-import 'package:copper_launcher/ui/page_framwork/sub_navigation_state.dart';
 import 'package:copper_launcher/ui/components/input/tag_input_dialog.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
@@ -38,12 +36,15 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import '../../feature/version_icon.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 
 ////version_select
 const versionSelectPageRouteKey = '/version_select';
+
+/// 页面入场：与设计层样张同一节奏（220ms / 上移 10）
+const pageEnterDuration = Duration(milliseconds: 220);
+const pageEnterOffset = Offset(0, 10);
 
 class VersionSelectPage extends StatefulWidget {
   const VersionSelectPage({super.key});
@@ -52,8 +53,7 @@ class VersionSelectPage extends StatefulWidget {
 }
 
 //选择版本页面
-class _VersionSelectPageState extends State<VersionSelectPage>
-    with SubNavigationCollapseListener {
+class _VersionSelectPageState extends State<VersionSelectPage> {
   final List<VersionFold> _versionFolds = config.versionOptions.versionFolds;
 
   static int _index = 0;
@@ -508,7 +508,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     }).length;
   }
 
-  /// 顶部信息条：当前文件夹的名称 / 路径 / 数量 / 来源
+  /// 顶部信息条：当前文件夹的名称 / 路径 / 数量 / 来源 + 更换目录与新建入口
   Widget _buildFoldInfoBar() {
     final colors = AppColors.of(context);
     final theme = Theme.of(context);
@@ -592,6 +592,7 @@ class _VersionSelectPageState extends State<VersionSelectPage>
               ),
             ],
           ),
+          _buildFoldSwitcher(colors, theme),
           CuMenuButton(
             items: [
               CuMenuItem(
@@ -627,6 +628,72 @@ class _VersionSelectPageState extends State<VersionSelectPage>
           ),
         ],
       ),
+    );
+  }
+
+  /// 更换目录：列出所有目录，当前项打勾；下方是新建 / 导入 / 扫描
+  Widget _buildFoldSwitcher(AppColors colors, ThemeData theme) {
+    return Builder(
+      builder: (context) => CuPressable(
+        onTap: () => _openFoldMenu(context),
+        borderRadius: BorderRadius.circular(6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: colors.border),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 6,
+          children: [
+            Icon(Icons.swap_horiz, size: 16, color: colors.itemSecondary),
+            Text(
+              '切换目录',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.itemSecondary,
+              ),
+            ),
+            Icon(Icons.expand_more, size: 16, color: colors.itemHint),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openFoldMenu(BuildContext context) {
+    ContextMenu.showBelow(
+      context: context,
+      entries: [
+        for (var i = 0; i < _versionFolds.length; i++)
+          ContextMenuAction(
+            label:
+                '${_versionFolds[i].tag} (${_versionFolds[i].versions.length})',
+            icon: Icons.folder_outlined,
+            checked: i == _index,
+            onSelected: () {
+              setState(() => _index = i);
+              _reportFold();
+            },
+          ),
+        const ContextMenuDivider(),
+        ContextMenuAction(
+          label: isDesktop ? '添加新目录' : '新建分类',
+          icon: Icons.create_new_folder_outlined,
+          onSelected: isDesktop ? _addNewFold : _addNewCategory,
+        ),
+        if (isDesktop) ...[
+          ContextMenuAction(
+            label: '导入本地游戏',
+            icon: Icons.file_upload_outlined,
+            onSelected: _importLocalGame,
+          ),
+          ContextMenuAction(
+            label: '扫描 Steam 版',
+            icon: Icons.sports_esports,
+            onSelected: _scanSteamVersions,
+          ),
+        ],
+      ],
     );
   }
 
@@ -787,33 +854,48 @@ class _VersionSelectPageState extends State<VersionSelectPage>
     return CopperListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildFoldInfoBar(),
-        const SizedBox(height: 12),
-        Row(
-          spacing: 12,
-          children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _buildFilterBar(),
-              ),
-            ),
-            _buildLikeToggle(),
-          ],
+        AppearItem(
+          delayMs: 0,
+          duration: pageEnterDuration,
+          offset: pageEnterOffset,
+          child: _buildFoldInfoBar(),
         ),
         const SizedBox(height: 12),
-        versions.isEmpty
-            ? _buildEmptyPage()
-            : CuContentPanel(
-                flush: true,
-                title: '${const ['全部', '原版', 'Copper', '测试'][_category]}版本',
-                subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
-                child: Column(
-                  children: [
-                    for (final version in versions) _buildVersionRow(version),
-                  ],
+        AppearItem(
+          delayMs: 40,
+          duration: pageEnterDuration,
+          offset: pageEnterOffset,
+          child: Row(
+            spacing: 12,
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _buildFilterBar(),
                 ),
               ),
+              _buildLikeToggle(),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        AppearItem(
+          delayMs: 80,
+          duration: pageEnterDuration,
+          offset: pageEnterOffset,
+          child: versions.isEmpty
+              ? _buildEmptyPage()
+              : CuContentPanel(
+                  flush: true,
+                  title: '${const ['全部', '原版', 'Copper', '测试'][_category]}版本',
+                  subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
+                  child: Column(
+                    children: [
+                      for (final version in versions) _buildVersionRow(version),
+                    ],
+                  ),
+                ),
+        ),
       ],
     );
   }
@@ -865,83 +947,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
 
   @override
   Widget build(BuildContext context) {
-    return MainPageLayout(
-      navigationRail: PageNavigationRail(
-        collapseDuration: animationDuration * 1.5,
-        collapse: collapse,
-        width: 230,
-        items: [
-          ..._versionFolds.map((fold) {
-            final index = _versionFolds.indexOf(fold);
-            final tile = NavigationTile(
-              icon: Icon(Icons.folder_outlined),
-              content: '${fold.tag} (${fold.versions.length})',
-              lable: fold.resolvedPath,
-              selected: index == _index,
-              collapse: collapse,
-              onTap: () {
-                setState(() => _index = index);
-                _reportFold();
-              },
-            );
-
-            // 侧边栏项：右键 / 长按 → 重命名 / 删除该目录
-            return ContextMenuField(
-              menuBuilder: (context) => [
-                ContextMenuAction(
-                  icon: Icons.edit_outlined,
-                  label: '重命名',
-                  onSelected: () => _renameFold(index),
-                ),
-                //默认文件夹不能删除
-                if (index != 0)
-                  ContextMenuAction(
-                    icon: Icons.delete,
-                    label: '删除',
-                    danger: true,
-                    onSelected: () => _deleteFold(index),
-                  ),
-              ],
-              child: tile,
-            );
-          }),
-        ],
-        itemsAtBottom: [
-          if (isMobile || kDebugMode)
-            NavigationTile(
-              icon: Icon(Icons.create_new_folder_outlined),
-              content: '新建分类',
-              collapse: collapse,
-              onTap: _addNewCategory,
-            ),
-          if (isDesktop) ...[
-            NavigationTile(
-              icon: Icon(Icons.create_new_folder_outlined),
-              content: '添加新目录',
-              collapse: collapse,
-              onTap: _addNewFold,
-            ),
-
-            NavigationTile(
-              icon: Icon(Symbols.deployed_code_update),
-              content: '导入本地游戏',
-              collapse: collapse,
-              onTap: _importLocalGame,
-            ),
-
-            // Steam 版：自动找 Steam 库里的 Mindustry（本体带 modifier=steam），
-            // 加进「Steam」专用分类，数据目录绑它自己的 saves/
-            NavigationTile(
-              icon: Icon(Symbols.sports_esports),
-              content: '扫描 Steam 版',
-              collapse: collapse,
-              onTap: _scanSteamVersions,
-            ),
-          ],
-        ],
-      ),
-      page: _buildVersionViewPage(),
-    );
+    // 页内导航栏并入页头：目录切换、新建 / 导入 / 扫描都在信息条里
+    return MainPageLayout(page: _buildVersionViewPage());
   }
 }
 

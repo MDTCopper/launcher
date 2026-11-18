@@ -4,22 +4,20 @@ import 'package:flutter/material.dart';
 
 class MainPageLayout extends StatelessWidget {
   final Widget page;
-  final Widget navigationRail;
 
-  const MainPageLayout({
-    super.key,
-    required this.navigationRail,
-    required this.page,
-  });
+  /// 页内导航栏；不传就是满宽内容页（页头自带切换入口）
+  final Widget? navigationRail;
+
+  const MainPageLayout({super.key, required this.page, this.navigationRail});
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final rail = navigationRail;
     Widget child = Row(
       children: [
         Expanded(child: PageSwitcher(child: page)),
-        VerticalDivider(color: colors.border),
-        navigationRail,
+        if (rail != null) ...[VerticalDivider(color: colors.border), rail],
       ],
     );
 
