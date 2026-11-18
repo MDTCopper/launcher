@@ -16,7 +16,7 @@ import 'package:copper_launcher/ui/components/core/cu_menu.dart';
 import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/components/core/cu_segment.dart';
 import 'package:copper_launcher/ui/components/scroll/list_view.dart';
-import 'package:copper_launcher/ui/components/animation/appear_item.dart';
+import 'package:copper_launcher/ui/components/core/cu_page_enter.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
 import 'package:copper_launcher/ui/page_framwork/list_view_page.dart';
 import 'package:copper_launcher/ui/util/route/route_trail.dart';
@@ -42,9 +42,9 @@ import 'package:copper_launcher/util/format/string_cleaner.dart';
 ////version_select
 const versionSelectPageRouteKey = '/version_select';
 
-/// 页面入场：与设计层样张同一节奏（220ms / 上移 10）
+/// 页面入场：220ms 淡入 + 10 像素向上浮出
 const pageEnterDuration = Duration(milliseconds: 220);
-const pageEnterOffset = Offset(0, 10);
+const pageEnterOffset = 10.0;
 
 class VersionSelectPage extends StatefulWidget {
   const VersionSelectPage({super.key});
@@ -854,17 +854,16 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     return CopperListView(
       padding: const EdgeInsets.all(16),
       children: [
-        AppearItem(
-          delayMs: 0,
+        CuPageEnter(
           duration: pageEnterDuration,
-          offset: pageEnterOffset,
+          offsetY: pageEnterOffset,
           child: _buildFoldInfoBar(),
         ),
         const SizedBox(height: 12),
-        AppearItem(
-          delayMs: 40,
+        CuPageEnter(
+          delay: const Duration(milliseconds: 40),
           duration: pageEnterDuration,
-          offset: pageEnterOffset,
+          offsetY: pageEnterOffset,
           child: Row(
             spacing: 12,
             children: [
@@ -879,10 +878,10 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
           ),
         ),
         const SizedBox(height: 12),
-        AppearItem(
-          delayMs: 80,
+        CuPageEnter(
+          delay: const Duration(milliseconds: 80),
           duration: pageEnterDuration,
-          offset: pageEnterOffset,
+          offsetY: pageEnterOffset,
           child: versions.isEmpty
               ? _buildEmptyPage()
               : CuContentPanel(
