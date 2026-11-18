@@ -30,6 +30,7 @@ import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/generated/android_call.g.dart';
 import 'package:copper_launcher/generated/android_event.g.dart';
 import 'package:copper_launcher/util/data_root_migration.dart';
+import 'package:copper_launcher/util/display_rate_probe.dart';
 import 'package:copper_launcher/util/io/copper_io.dart';
 import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/token_encryptor.dart';
@@ -39,6 +40,7 @@ import 'package:copper_launcher/util/share_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter_single_instance/flutter_single_instance.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
@@ -107,6 +109,11 @@ void main(List<String> args) async {
   final cli = LaunchArgs.parse(args);
   _checkPlatform();
 
+  // 首帧之后把刷新率诊断写进运行日志（帧率控制由 flutter_displaymode 在设置里负责）
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    DisplayRateProbe.start();
+  });
+
   // 云同步代理：服务在启动前同步超过 3 秒才会拉起它；判在快捷启动之前，
   // 因为参数里也带 --launch-version，否则会被当成普通快捷启动
   if (args.contains('--sync-proxy')) {
@@ -136,6 +143,24 @@ void main(List<String> args) async {
   AppRuntime.form = AppForm.launcherUi;
   AppRuntime.headless = false;
   await _runLauncherUi(cli);
+}
+
+/// 启动时重放设置里的屏幕帧率
+///
+/// 存的是 `DisplayMode.toString()`（和 Kazumi 一样），这里用插件自己的字符串比对找回对应的
+/// 模式；找不到（换了分辨率 / 系统模式列表变了）就按「自动」处理，不请求任何档位。
+Future<void> _applySavedDisplayMode() async {
+  try {
+    final saved = config.setting.personalizationOptions.displayModeKey;
+    final modes = await FlutterDisplayMode.supported;
+    final mode = modes.firstWhere(
+      (mode) => mode.toString() == saved,
+      orElse: () => DisplayMode.auto,
+    );
+    await FlutterDisplayMode.setPreferredMode(mode);
+  } on Object {
+    // 插件通道不可用（模拟器 / 老系统）：按自动处理，不影响启动
+  }
 }
 
 /// 形态一：桌面快捷方式 / 启动脚本的触发进程
@@ -321,6 +346,10 @@ Future<bool> _initializeCore({
   await AccountStore.migrateLegacyLocation();
   await initAppConfig();
   addLog(.info, '时间线：配置就绪 +${AppRuntime.elapsedMs}ms', tag: 'Timeline');
+  //屏幕帧率：按设置里选的显示模式请求（自动 = 不请求，交给系统）
+  if (Platform.isAndroid) {
+    unawaited(_applySavedDisplayMode());
+  }
   //config 就绪后同步网络设置（代理/token/限速/线程/镜像），此后新建请求即生效
   cio.applySettings(config.setting);
   addLog(
@@ -551,6 +580,15 @@ Future<void> _initWindows() async {
 
 Future<void> _initAndroidView() async {
   //不锁方向：启动器跟随设备方向，游戏自己的 Activity 仍是 sensorLandscape
-  //隐藏状态栏和导航栏
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  await _applySystemBars();
+}
+
+/// 全屏开关：隐藏状态栏+导航栏，或让它们常显（设置里可切）
+Future<void> _applySystemBars() async {
+  if (!Platform.isAndroid) return;
+  await SystemChrome.setEnabledSystemUIMode(
+    config.setting.personalizationOptions.fullscreen
+        ? SystemUiMode.immersiveSticky
+        : SystemUiMode.edgeToEdge,
+  );
 }

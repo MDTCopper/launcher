@@ -33,6 +33,12 @@ class AndroidCall {
     await _channel.invokeMethod<void>('finishLauncher');
   }
 
+  static Future<DisplayFrameRateInfo?> getDisplayFrameRateInfo() async {
+    if (!_isAndroid) return null;
+    final map = await _channel.invokeMethod<Map<Object?, Object?>>('getDisplayFrameRateInfo');
+    return map == null ? null : DisplayFrameRateInfo.fromMap(map);
+  }
+
   static Future<HeapLimits?> getHeapMemoryInfo() async {
     if (!_isAndroid) return null;
     final map = await _channel.invokeMethod<Map<Object?, Object?>>('getHeapMemoryInfo');
@@ -132,6 +138,54 @@ class AndroidCall {
         const <String>[];
   }
 }
+
+/// Kotlin data class DisplayFrameRateInfo 的 Dart 镜像（io.github.copper.launcher.system）
+///
+/// 定义只在 Kotlin 的 @DartData 那一处；这里不要手改。
+class DisplayFrameRateInfo {
+  const DisplayFrameRateInfo({
+    required this.current,
+    required this.modeRate,
+    required this.modeId,
+    required this.peak,
+    required this.arrSupported,
+    required this.powerSave,
+    required this.apiLevel,
+    required this.gameApp,
+  });
+
+  factory DisplayFrameRateInfo.fromMap(Map<Object?, Object?> map) => DisplayFrameRateInfo(
+    current: map['current'] as double,
+    modeRate: map['modeRate'] as double,
+    modeId: map['modeId'] as int,
+    peak: map['peak'] as double,
+    arrSupported: map['arrSupported'] as bool,
+    powerSave: map['powerSave'] as bool,
+    apiLevel: map['apiLevel'] as int,
+    gameApp: map['gameApp'] as bool,
+  );
+
+  Map<String, Object?> toMap() => <String, Object?>{
+    'current': current,
+    'modeRate': modeRate,
+    'modeId': modeId,
+    'peak': peak,
+    'arrSupported': arrSupported,
+    'powerSave': powerSave,
+    'apiLevel': apiLevel,
+    'gameApp': gameApp,
+  };
+
+  final double current;
+  final double modeRate;
+  final int modeId;
+  final double peak;
+  final bool arrSupported;
+  final bool powerSave;
+  final int apiLevel;
+  final bool gameApp;
+}
+
 
 /// Kotlin data class HeapLimits 的 Dart 镜像（io.github.copper.launcher.system）
 ///

@@ -22,15 +22,20 @@
 
     <!-- Following Mindustry's own manifest: predictive back is off app-wide, and back arrives as a
          KeyEvent.KEYCODE_BACK instead of an OnBackInvokedCallback - the bridge handles the key event
-         (BridgeActivity.onKeyDown), and Flutter keeps handling it through onBackPressed. -->
+         (BridgeActivity.onKeyDown), and Flutter keeps handling it through onBackPressed.
+
+         不声明 android:isGame / android:appCategory="game"（Mindustry 原清单是这么写的）：
+         这两个标记是**整包**生效的，厂商的性能策略会据此把整个包按游戏处理；而本包主要是启动器，
+         游戏只是它拉起的一个活动。实测 iQOO/vivo 上带着这两个标记时启动器被压到 60Hz，去掉后
+         与同机其它 Flutter 应用一致（120Hz、0 掉帧）。游戏活动自己会申请高刷（GLSurfaceView
+         连续出帧），不依赖这个标记；如果哪天发现游戏失去了厂商的游戏模式加速，可以只加回
+         android:isGame 再对比验证。诊断日志里的 `isGame 是/否` 读的就是它。 -->
     <application
         android:label="Copper Launcher"
         android:name="io.github.copper.launcher.CopperApplication"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:largeHeap="true"
-        android:isGame="true"
-        android:appCategory="game"
         android:appComponentFactory="io.github.copper.launcher.CopperComponentFactory"
         tools:replace="android:appComponentFactory"
         android:resizeableActivity="true"

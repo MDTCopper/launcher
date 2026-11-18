@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
@@ -22,8 +23,11 @@ import 'package:copper_launcher/core/app_paths.dart';
 import 'package:copper_launcher/util/io/path_selector.dart';
 import 'package:copper_launcher/util/launcher_tray.dart';
 import 'package:copper_launcher/util/share_out.dart';
+import 'package:copper_launcher/util/display_rate_probe.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:material_symbols_icons/symbols.dart';
@@ -36,11 +40,49 @@ class LauncherSettingPage extends StatefulWidget {
 }
 
 class _LauncherSettingPageState extends State<LauncherSettingPage> {
+  /// 系统支持的显示模式（第一项是「自动」）；null = 还没取到
+  List<DisplayMode>? _displayModes;
+  DisplayMode? _preferredDisplayMode;
+
   PersonalizationOptions get personalizationOptions =>
       config.setting.personalizationOptions;
 
   ThemeMode get themeMode => personalizationOptions.themeMode;
   ThemeColor get themeColor => personalizationOptions.themeColor;
+
+  @override
+  void initState() {
+    super.initState();
+    if (Platform.isAndroid) unawaited(_loadDisplayModes());
+  }
+
+  Future<void> _loadDisplayModes() async {
+    try {
+      final modes = await FlutterDisplayMode.supported;
+      final preferred = await FlutterDisplayMode.preferred;
+      if (!mounted) return;
+      setState(() {
+        _displayModes = modes;
+        _preferredDisplayMode = preferred;
+      });
+    } on Object {
+      // 插件通道不可用（模拟器 / 老系统）：列表留空，只显示「自动」
+    }
+  }
+
+  /// 切换屏幕帧率：交给 flutter_displaymode（和 Kazumi 同一条路），结果记进运行日志
+  Future<void> _applyDisplayMode(DisplayMode mode) async {
+    try {
+      await FlutterDisplayMode.setPreferredMode(mode);
+    } on Object {
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _preferredDisplayMode = mode);
+    personalizationOptions.displayModeKey = mode.toString();
+    config.save();
+    await DisplayRateProbe.reportModeChange();
+  }
 
   /// 保存并立即应用启动器行为：托盘常驻与关窗拦截会跟着变
   void _saveLauncherBehavior(void Function() update) {
@@ -503,6 +545,7 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
           ),
         ),
         _buildLogModule(),
+        if (Platform.isAndroid) _buildDisplayModule(),
         if (kDebugMode)
           ContentPanelModule(
             title: '背景',
@@ -516,6 +559,58 @@ class _LauncherSettingPageState extends State<LauncherSettingPage> {
       ],
     );
   }
+
+  /// 屏幕帧率：选项直接列系统**实际支持**的模式，控制交给 `flutter_displaymode`
+  /// （和 Kazumi 的「屏幕帧率」设置完全同一条路）；「自动」= 不请求，交给系统
+  Widget _buildDisplayModule() {
+    final modes = _displayModes;
+    final label = Theme.of(context).textTheme.labelMedium;
+    return ContentPanelModule(
+      title: '显示',
+      child: Column(
+        crossAxisAlignment: .start,
+        spacing: 8,
+        children: [
+          if (modes == null)
+            Text('读取显示模式…', style: label)
+          else
+            OptionSettingBar<DisplayMode>(
+              title: '屏幕帧率',
+              hintText: '跟随系统',
+              menuHeight: 240,
+              options: [
+                for (final mode in modes)
+                  DropdownOption(value: mode, label: _displayModeLabel(mode)),
+              ],
+              initialValue: _preferredDisplayMode,
+              onSelect: (mode) => unawaited(_applyDisplayMode(mode)),
+            ),
+          SwitchSettingBar(
+            title: '全屏（隐藏状态栏）',
+            value: personalizationOptions.fullscreen,
+            onChanged: (value) {
+              setState(() => personalizationOptions.fullscreen = value);
+              config.save();
+              unawaited(
+                SystemChrome.setEnabledSystemUIMode(
+                  value ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
+                ),
+              );
+            },
+          ),
+          Text(
+            '自动 = 不向系统请求帧率（跟随系统）；其余档位是系统支持的显示模式，'
+            '由 flutter_displaymode 直接设置',
+            style: label,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _displayModeLabel(DisplayMode mode) => mode.id == 0
+      ? '自动'
+      : '${mode.width}×${mode.height} · ${mode.refreshRate.round()}Hz';
 
   Widget _buildLogModule() {
     return ContentPanelModule(

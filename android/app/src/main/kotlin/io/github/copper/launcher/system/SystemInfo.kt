@@ -1,5 +1,6 @@
 package io.github.copper.launcher.system
 
+import android.app.Activity
 import android.app.ActivityManager
 import android.content.Context
 import android.net.ConnectivityManager
@@ -56,6 +57,16 @@ object SystemInfo {
             largeSize = manager.largeMemoryClass.toLong(),
         )
     }
+
+    /**
+     * 刷新率快照：只读，给运行日志用。
+     *
+     * 帧率**控制**走 `flutter_displaymode` 插件（Dart 侧直接调），这里不再有请求 / 投票逻辑；
+     * 这几个数只回答「现在是哪档、面板最高多少、系统在不在降档」。
+     */
+    @DartCall
+    fun getDisplayFrameRateInfo(activityContext: Activity): DisplayFrameRateInfo? =
+        DisplayState.snapshot(activityContext)
 }
 
 /** 设备内存快照；字段名就是 Dart 侧的字段名 */

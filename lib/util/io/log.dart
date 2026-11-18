@@ -173,6 +173,10 @@ void addCustomLogAndPrint(String message) {
 abstract class Log {
   static File? _file;
 
+  /// 日志文件是否已就绪：首帧早于 `Log.init()` 的场景（无界面代理）里，
+  /// 写日志的调用点要先看一眼，否则那几行会被静默丢掉
+  static bool get ready => _file != null;
+
   ///写入队列：`addLog` 这类调用几乎都不 await，而且经常背靠背连着调（游戏输出转发尤其密集），
   ///并发 append 同一个文件会互相覆盖丢行——这里把写入排成一条串行链
   static Future<void> _writeQueue = Future.value();
