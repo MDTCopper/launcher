@@ -1,11 +1,12 @@
+import 'package:copper_launcher/ui/components/core/cu_stable_text.dart';
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:flutter/material.dart';
 
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 
 /// 顶栏「路由线路」：从根到当前的整条路由栈
-///
-/// 从设计层的 `TemplateBreadcrumbBar` 落进正式代码，配色改吃 [AppColors]；
+
 /// 行为不变：点名称跳回那层、页面内分项用框标出、栈长了自动滚到当前层。
 class ShellBreadcrumb {
   const ShellBreadcrumb(
@@ -50,11 +51,7 @@ enum _TrailChange {
 }
 
 class ShellBreadcrumbBar extends StatefulWidget {
-  const ShellBreadcrumbBar({
-    super.key,
-    required this.crumbs,
-    this.fadeColor,
-  });
+  const ShellBreadcrumbBar({super.key, required this.crumbs, this.fadeColor});
 
   final List<ShellBreadcrumb> crumbs;
 
@@ -209,7 +206,7 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
             ),
           );
 
-    final row = SingleChildScrollView(
+    final row = CuSingleChildScrollView(
       controller: _controller,
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -297,14 +294,13 @@ class _BreadcrumbItem extends StatelessWidget {
             size: 14,
             color: current ? colors.interactive : colors.itemHint,
           ),
-        Text(
+        CuStableText(
           item.label,
           style: crumbStyle.copyWith(
             color: current ? colors.itemPrimary : colors.itemSecondary,
             fontWeight: current ? FontWeight.w600 : FontWeight.w500,
           ),
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
         if (item.tag != null)
           Text(
