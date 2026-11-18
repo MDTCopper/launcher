@@ -1,3 +1,4 @@
+import 'package:copper_launcher/ui/components/core/cu_stable_text.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:flutter/material.dart';
@@ -1049,11 +1050,10 @@ class _SegmentPillState extends State<_SegmentPill> {
                       : skin.textSecondary,
                 ),
               Flexible(
-                child: Text(
+                child: CuStableText(
                   widget.label,
                   textAlign: TextAlign.center,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: TemplateType.item.copyWith(
                     color: !enabled
                         ? skin.textDisabled
@@ -1073,7 +1073,9 @@ class _SegmentPillState extends State<_SegmentPill> {
 }
 
 /// 标签页（下划线式）：一级分类切换，比分段控件更轻，适合「版本列表 / 介绍 / Readme」这种并列内容
-class TemplateTabBar extends StatelessWidget {
+///
+/// 选中横线在两条标签之间滑动（180ms）；标签按最宽字重定宽，选中加粗不会撑开行宽
+class TemplateTabBar extends StatefulWidget {
   const TemplateTabBar({
     super.key,
     required this.skin,
@@ -1092,10 +1094,73 @@ class TemplateTabBar extends StatelessWidget {
   final Widget? trailing;
 
   @override
+  State<TemplateTabBar> createState() => _TemplateTabBarState();
+}
+
+class _TemplateTabBarState extends State<TemplateTabBar> {
+  /// 每个标签文字块的 key：横线按它的实际矩形定位
+  final List<GlobalKey> _labelKeys = [];
+  final GlobalKey _rowKey = GlobalKey();
+
+  /// 横线目标矩形（相对标签行）
+  Rect? _indicator;
+  bool _measureScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncKeys();
+    _scheduleMeasure();
+  }
+
+  @override
+  void didUpdateWidget(covariant TemplateTabBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.tabs != oldWidget.tabs || widget.value != oldWidget.value) {
+      _syncKeys();
+      _scheduleMeasure();
+    }
+  }
+
+  void _syncKeys() {
+    while (_labelKeys.length < widget.tabs.length) {
+      _labelKeys.add(GlobalKey());
+    }
+    if (_labelKeys.length > widget.tabs.length) {
+      _labelKeys.removeRange(widget.tabs.length, _labelKeys.length);
+    }
+  }
+
+  /// 布局完成后量一次；文字宽度稳定，只在切页或标签变化时重量
+  void _scheduleMeasure() {
+    if (_measureScheduled) return;
+    _measureScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureScheduled = false;
+      if (mounted) _measure();
+    });
+  }
+
+  void _measure() {
+    if (widget.tabs.isEmpty) return;
+    final rowBox = _rowKey.currentContext?.findRenderObject();
+    if (rowBox is! RenderBox) return;
+    final index = widget.value.clamp(0, widget.tabs.length - 1);
+    final labelBox = _labelKeys[index].currentContext?.findRenderObject();
+    if (labelBox is! RenderBox) return;
+    final rect =
+        labelBox.localToGlobal(Offset.zero, ancestor: rowBox) & labelBox.size;
+    if (_indicator == rect) return;
+    setState(() => _indicator = rect);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final skin = widget.skin;
+    _scheduleMeasure();
     return Stack(
       children: [
-        // 整条底边线：选中项自己再压一道强调色
+        // 整条底边线：选中项下方再压一道强调色
         Positioned(
           left: 0,
           right: 0,
@@ -1103,23 +1168,40 @@ class TemplateTabBar extends StatelessWidget {
           child: Container(height: 1, color: skin.border),
         ),
         Row(
+          key: _rowKey,
           children: [
-            for (var i = 0; i < tabs.length; i++)
+            for (var i = 0; i < widget.tabs.length; i++)
               _TabItem(
                 skin: skin,
-                label: tabs[i],
-                selected: i == value,
-                onTap: () => onTap(i),
+                labelKey: _labelKeys[i],
+                label: widget.tabs[i],
+                selected: i == widget.value,
+                onTap: () => widget.onTap(i),
               ),
             const Spacer(),
-            if (trailing != null)
+            if (widget.trailing != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: TemplateSpace.xs),
-                child: trailing!,
+                child: widget.trailing!,
               ),
             const SizedBox(width: TemplateSpace.md),
           ],
         ),
+        if (_indicator != null)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            left: _indicator!.left,
+            width: _indicator!.width,
+            bottom: 0,
+            height: 2,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: skin.accent,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -1128,12 +1210,14 @@ class TemplateTabBar extends StatelessWidget {
 class _TabItem extends StatefulWidget {
   const _TabItem({
     required this.skin,
+    required this.labelKey,
     required this.label,
     required this.selected,
     required this.onTap,
   });
 
   final TemplateSkin skin;
+  final GlobalKey labelKey;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -1163,16 +1247,18 @@ class _TabItemState extends State<_TabItem> {
           color: _hover && !widget.selected
               ? skin.hoverOn(skin.page)
               : Colors.transparent,
-          // IntrinsicWidth：Row 里子项宽度不定，这里先按文字宽度定死，下划线才能撑满
+          // IntrinsicWidth：按文字宽度定宽，横线才能贴着文字
           child: IntrinsicWidth(
+            key: widget.labelKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: TemplateSpace.sm,
               children: [
-                Text(
+                CuStableText(
                   widget.label,
                   textAlign: TextAlign.center,
+                  maxLines: 1,
                   style: TemplateType.item.copyWith(
                     color: widget.selected
                         ? skin.textPrimary
@@ -1182,19 +1268,8 @@ class _TabItemState extends State<_TabItem> {
                         : FontWeight.w400,
                   ),
                 ),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  height: 2,
-                  decoration: BoxDecoration(
-                    // 未选中端用「强调色零透明」而不是 Colors.transparent：
-                    // 透明黑参与 Color.lerp 时颜色通道会一起混向黑，中间帧的下划线
-                    // 比正常淡入 / 淡出更暗也更脏
-                    color: widget.selected
-                        ? skin.accent
-                        : skin.accent.withAlpha(0),
-                    borderRadius: BorderRadius.circular(1),
-                  ),
-                ),
+                // 给滑动横线留出位置；横线本体在整条标签栏上画
+                const SizedBox(height: 2),
               ],
             ),
           ),
