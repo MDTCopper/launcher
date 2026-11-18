@@ -17,6 +17,7 @@ import io.github.copper.launcher.launch.Loader
 import io.github.copper.launcher.shortcut.GameShortcut
 import io.github.copper.launcher.shortcut.GameWidget
 import io.github.copper.launcher.shortcut.LauncherIcon
+import io.github.copper.launcher.system.DisplayFrameRateInfo
 import io.github.copper.launcher.system.HeapLimits
 import io.github.copper.launcher.system.MemorySnapshot
 import io.github.copper.launcher.system.SystemInfo
@@ -54,6 +55,13 @@ object AndroidCall {
                     try {
                         LauncherWindow.finishLauncher(activity)
                         result.success(null)
+                    } catch (error: Throwable) {
+                        result.error("call_failed", error.message, null)
+                    }
+                }
+                "getDisplayFrameRateInfo" -> {
+                    try {
+                        result.success(SystemInfo.getDisplayFrameRateInfo(activity)?.toBridgeMap())
                     } catch (error: Throwable) {
                         result.error("call_failed", error.message, null)
                     }
@@ -214,6 +222,18 @@ object AndroidCall {
     fun clear(messenger: BinaryMessenger) {
         MethodChannel(messenger, CHANNEL).setMethodCallHandler(null)
     }
+
+    private fun DisplayFrameRateInfo.toBridgeMap(): Map<String, Any?> = mapOf(
+        "current" to current,
+        "modeRate" to modeRate,
+        "modeId" to modeId,
+        "peak" to peak,
+        "arrSupported" to arrSupported,
+        "powerSave" to powerSave,
+        "apiLevel" to apiLevel,
+        "gameApp" to gameApp,
+    )
+
 
     private fun HeapLimits.toBridgeMap(): Map<String, Any?> = mapOf(
         "normalSize" to normalSize,

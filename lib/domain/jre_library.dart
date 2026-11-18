@@ -6,22 +6,21 @@ import 'package:copper_launcher/domain/payload_import.dart';
 import 'package:copper_launcher/util/format/string_cleaner.dart';
 import 'package:copper_launcher/util/io/archive_extract.dart';
 import 'package:copper_launcher/util/io/log.dart';
-import 'package:copper_launcher/util/version_strings.dart' as version_strings;
 import 'package:path/path.dart' as p;
 
-/// Android 桥的 **Java 运行环境库**（`<桥载荷根>/bridge/java/<build>/`）
+/// Android 桥的 **Java 运行环境库**（`<桥载荷根>/bridge/java/<Java 大版本>/`）
 ///
-/// 每个子目录一份 JRE 根（`bin/java` + `lib/modules`），多版本并存，用哪一份由
-/// `runtime.json` 的 `jreBuild` 钉住，没钉就自动挑构建号最高的那份
+/// 每个子目录一份 JRE 根（`bin/java` + `lib/modules`），目录名就是 **Java 大版本**
+/// （`17` / `25` …），多版本并存。用哪一份由 `runtime.json` 的 `jreVersion` 钉住，
+/// 没钉就自动挑最大版本的那份。
 ///
-/// 旧装法把 JRE 平铺在 `bridge/jre`：库里一份都没有时 [selectedBuild] 返回
-/// [legacyBuild]、[selectedJreRoot] 原样返回那个旧目录，不强制搬家；联网安装与
-/// 本地导入只会往库里放新的一份，旧目录留给还没迁移的设备继续用
+/// 版本只认 Java 大版本，不再用上游 release 里 `version` 文件的构建号：
+/// - 上游按大版本打 release tag（`jre17` / `jre25`），装哪份由 tag 决定；
+/// - 目录名与钉住的值都是大版本，换构建不再产生新的“版本”；
+/// - 旧布局（`bridge/java/<构建号>` 与平铺的 `bridge/jre`）在读取库时按 JRE 根里的
+///   `release` 文件认出版本，改名归位到 `bridge/java/<大版本>/`，认不出来就原样留着。
 class JreLibrary {
   JreLibrary._();
-
-  /// 旧装法（`bridge/jre`）那份 JRE 的标识：它没有目录名可以当构建号
-  static const legacyBuild = 'legacy';
 
   /// 能当 JRE 导入的压缩包后缀：与 [extractArchive] 支持的形态一致
   static const _archiveSuffixes = [
@@ -32,108 +31,78 @@ class JreLibrary {
     '.tgz',
   ];
 
-  /// 名字太泛、不适合当构建号的目录名
-  static const _genericDirNames = {
-    'jre',
-    'jdk',
-    'java',
-    'bin',
-    'lib',
-    'runtime',
-    'tmp',
-  };
-
   /// 库目录 `bridge/java`；[bridgeDirPath] 只为用例注入，正常走 [AppPaths.bridge]
   static String javaDirPath({String? bridgeDirPath}) =>
       p.join(bridgeDirPath ?? AppPaths.bridge, 'java');
 
-  /// 旧装法的 JRE 根 `bridge/jre`（兼容用；联网安装与本地导入都不清理它）
+  /// 旧装法的 JRE 根 `bridge/jre`（兼容用；第一次读库时会尝试归位到 `java/<版本>`）
   static String legacyJreRootPath({String? bridgeDirPath}) =>
       bridgeDirPath == null ? AppPaths.bridgeJre : p.join(bridgeDirPath, 'jre');
 
-  /// 某个构建号的 JRE 根
-  static String jreRootPathOf(String build, {String? bridgeDirPath}) =>
-      p.join(javaDirPath(bridgeDirPath: bridgeDirPath), build);
+  /// 某个 Java 大版本的 JRE 根
+  static String jreRootPathOf(String version, {String? bridgeDirPath}) =>
+      p.join(javaDirPath(bridgeDirPath: bridgeDirPath), version);
 
-  /// 库里已有的构建号（只算 `bin/java` 与 `lib/modules` 都在的目录），构建号高的在前
-  static List<String> localBuilds({String? bridgeDirPath}) {
-    final javaDir = Directory(javaDirPath(bridgeDirPath: bridgeDirPath));
-    if (!javaDir.existsSync()) return const [];
-    final builds = [
-      for (final entity in javaDir.listSync())
-        if (entity is Directory && _looksLikeJre(entity.path))
-          p.basename(entity.path),
-    ]..sort((a, b) => compareBuilds(b, a));
-    return builds;
-  }
+  /// 库里已有的 Java 大版本（只算 `bin/java` 与 `lib/modules` 都在的目录），高的在前
+  static List<String> localVersions({String? bridgeDirPath}) =>
+      _installedRoots(bridgeDirPath: bridgeDirPath).keys.toList()
+        ..sort((a, b) => _compareVersions(b, a));
 
-  /// 构建号比大小：先按数字段逐个比，读不出数字的再按字符串比
-  ///
-  /// `local-<时间戳>` 这类读不出数字的排在远端构建号后面，只有它们时才靠字符串定先后
-  static int compareBuilds(String a, String b) {
-    final byNumber = version_strings.compareVersion(a, b);
-    if (byNumber != 0) return byNumber;
-    return a.compareTo(b);
-  }
-
-  /// 当前选中的构建号：钉住的在库里就用它 → 库里最新的 → 只剩旧装法那份时给
-  /// [legacyBuild]；都没有返回 null
-  static String? selectedBuild({String? bridgeDirPath}) {
-    final builds = localBuilds(bridgeDirPath: bridgeDirPath);
-    if (builds.isEmpty) {
-      return _looksLikeJre(legacyJreRootPath(bridgeDirPath: bridgeDirPath))
-          ? legacyBuild
-          : null;
-    }
-
+  /// 当前选的 Java 大版本：钉住的优先（**即使还没装**，启动时也要按它装）→ 库里最高的
+  /// → 一份都没有返回 null
+  static String? selectedVersion({String? bridgeDirPath}) {
     final pinned = BridgeRuntimeOptions.load(
       bridgeDirPath: bridgeDirPath,
-    ).jreBuild;
-    if (pinned != null && builds.contains(pinned)) return pinned;
-    return builds.first;
+    ).jreVersion;
+    if (pinned != null && pinned.isNotEmpty) return pinned;
+
+    final versions = localVersions(bridgeDirPath: bridgeDirPath);
+    return versions.isEmpty ? null : versions.first;
   }
 
-  /// 选中那份 JRE 的根路径：旧装法给 `bridge/jre`
+  /// 选中那份 JRE 的根路径
   ///
-  /// 一份都没有时也给这个旧路径，`--java` 有个确定落点，与旧口径一致
+  /// 一份都没有时给旧装法路径 `bridge/jre`，`--java` 有个确定落点
   static String selectedJreRoot({String? bridgeDirPath}) {
-    final build = selectedBuild(bridgeDirPath: bridgeDirPath);
-    if (build == null || build == legacyBuild) {
+    final version = selectedVersion(bridgeDirPath: bridgeDirPath);
+    if (version == null) {
       return legacyJreRootPath(bridgeDirPath: bridgeDirPath);
     }
-    return jreRootPathOf(build, bridgeDirPath: bridgeDirPath);
+    final roots = _installedRoots(bridgeDirPath: bridgeDirPath);
+    return roots[version] ??
+        jreRootPathOf(version, bridgeDirPath: bridgeDirPath);
   }
 
-  /// 钉住用哪一份（[build] 为 null = 跟随最新，旧装法那份写 [legacyBuild]）：
-  /// 只写 runtime.json，不动库里的文件
-  static Future<void> selectJreBuild(
-    String? build, {
+  /// 钉住用哪个 Java 大版本（null = 跟随最新）：只写 runtime.json，不动库里的文件
+  static Future<void> selectJreVersion(
+    String? version, {
     String? bridgeDirPath,
   }) async {
     final options = BridgeRuntimeOptions.load(bridgeDirPath: bridgeDirPath);
-    options.jreBuild = build;
+    options.jreVersion = version;
     await options.save(bridgeDirPath: bridgeDirPath);
   }
 
-  /// 选中的那份齐不齐：`bin/java` 与 `lib/modules` 都在
-  static bool isReady({String? bridgeDirPath}) =>
-      _looksLikeJre(selectedJreRoot(bridgeDirPath: bridgeDirPath));
+  /// 选中的那份齐不齐：钉住的版本没装也算不齐（启动时按它装）
+  static bool isReady({String? bridgeDirPath}) {
+    final version = selectedVersion(bridgeDirPath: bridgeDirPath);
+    return version != null && hasVersion(version, bridgeDirPath: bridgeDirPath);
+  }
 
-  /// 指定构建号那份齐不齐（联网安装前判断要不要重下）
-  static bool hasBuild(String build, {String? bridgeDirPath}) =>
-      _looksLikeJre(jreRootPathOf(build, bridgeDirPath: bridgeDirPath));
+  /// 指定 Java 大版本那份齐不齐（联网安装前判断要不要重下）
+  static bool hasVersion(String version, {String? bridgeDirPath}) =>
+      _installedRoots(bridgeDirPath: bridgeDirPath).containsKey(version);
 
   /// 本地导入 Java 运行环境：压缩包（zip / tar.xz）或已经解压好的目录
   ///
   /// 先收进与库同层的临时目录，验过 `bin/java` 与 `lib/modules` 才换到
-  /// `bridge/java/<build>/`；中途失败旧的那份原样留着，返回落到的 JRE 根路径
+  /// `bridge/java/<版本>/`；中途失败旧的那份原样留着，返回落到的 JRE 根路径
   ///
-  /// 构建号按 [build] → 导入内容里的 `.installed-version`（旧装法的包里有）→
-  /// 目录名（像个构建号时）→ `local-<时间戳>` 的顺序定；导入成功就钉住这一份，
-  /// 与旧装法「导入即替换唯一那份」的手感一致
+  /// [version] 不给就从导入内容里的 `release` 文件（或目录名）认版本；
+  /// 认不出来直接拒绝 —— 库里按 Java 大版本组织，没版本号的目录没法参与选择
   static Future<String> importJre(
     String sourcePath, {
-    String? build,
+    String? version,
     void Function(String status)? onStatus,
     String? bridgeDirPath,
   }) async {
@@ -155,7 +124,7 @@ class JreLibrary {
     _deleteQuietly(stagingDir);
     stagingDir.createSync(recursive: true);
 
-    late final String targetBuild;
+    late final String targetVersion;
     try {
       final String stagedJreRootPath;
       if (sourceType == FileSystemEntityType.directory) {
@@ -180,17 +149,17 @@ class JreLibrary {
         stagedJreRootPath = extractedJreRootPath;
       }
 
-      targetBuild = _buildOfImport(
-        explicitBuild: build,
+      targetVersion = _resolveImportVersion(
+        explicit: version,
         stagedJreRootPath: stagedJreRootPath,
         sourcePath: sourcePath,
         fromDirectory: sourceType == FileSystemEntityType.directory,
       );
 
       onStatus?.call('正在放入 Java 运行环境…');
-      await _replaceBuildDirectory(
+      await _replaceVersionDirectory(
         stagedJreRootPath,
-        targetBuild,
+        targetVersion,
         bridgeDirPath: bridgeDirPath,
       );
     } on PayloadImportException {
@@ -208,31 +177,32 @@ class JreLibrary {
     }
 
     final jreRootPath = jreRootPathOf(
-      targetBuild,
+      targetVersion,
       bridgeDirPath: bridgeDirPath,
     );
     await _ensureJavaExecutable(jreRootPath);
-    await selectJreBuild(targetBuild, bridgeDirPath: bridgeDirPath);
+    await selectJreVersion(targetVersion, bridgeDirPath: bridgeDirPath);
     addLogAndPrint(
       .info,
-      'Android 桥：本地导入了 Java 运行环境（$targetBuild）',
+      'Android 桥：本地导入了 Java $targetVersion 运行环境',
       tag: 'Bridge',
     );
     return jreRootPath;
   }
 
-  /// 联网安装用：把下好的两个包叠在同一棵树解开，落到 `bridge/java/<build>/`
+  /// 联网安装用：把下好的两个包叠在同一棵树解开，落到 `bridge/java/<版本>/`
   ///
-  /// [build] 由调用方定（远端 `version` 文件的值），解完写一份 `.installed-version`；
-  /// [archivePaths] 解完就删。先解到临时目录，验过才换到位，中途失败旧的同构建号那份原样留着
+  /// [version] 是 Java 大版本（release tag `jre<版本>` 决定的那个）；解完写一份
+  /// `.installed-version` 标记便于排查；[archivePaths] 解完就删。先解到临时目录，
+  /// 验过才换到位，中途失败旧的同版本那份原样留着
   static Future<String> installJreFromArchive({
-    required String build,
+    required String version,
     required List<String> archivePaths,
     void Function(String status)? onStatus,
     String? bridgeDirPath,
   }) async {
+    final targetVersion = _normalizeVersion(version);
     final rootPath = bridgeDirPath ?? AppPaths.bridge;
-    final targetBuild = _sanitizeBuildName(build);
     final stagingDir = Directory(p.join(rootPath, 'tmp', 'jre-installing'));
     _deleteQuietly(stagingDir);
     stagingDir.createSync(recursive: true);
@@ -251,9 +221,9 @@ class JreLibrary {
       }
 
       onStatus?.call('正在放入 Java 运行环境…');
-      await _replaceBuildDirectory(
+      await _replaceVersionDirectory(
         extractedJreRootPath,
-        targetBuild,
+        targetVersion,
         bridgeDirPath: bridgeDirPath,
       );
     } finally {
@@ -262,12 +232,12 @@ class JreLibrary {
     }
 
     final jreRootPath = jreRootPathOf(
-      targetBuild,
+      targetVersion,
       bridgeDirPath: bridgeDirPath,
     );
     await File(
       p.join(jreRootPath, '.installed-version'),
-    ).writeAsString(targetBuild);
+    ).writeAsString(targetVersion);
     await _ensureJavaExecutable(jreRootPath);
     for (final archivePath in archivePaths) {
       _deleteQuietly(File(archivePath));
@@ -275,52 +245,162 @@ class JreLibrary {
     return jreRootPath;
   }
 
-  /// 导入内容的构建号：显式给的 → 内容里的 `.installed-version` → 目录名 →
-  /// `local-<时间戳>`
-  static String _buildOfImport({
-    required String? explicitBuild,
+  /// 导入内容的 Java 大版本：显式给的 → `release` 文件 / 目录名，认不出来就拒绝
+  static String _resolveImportVersion({
+    required String? explicit,
     required String stagedJreRootPath,
     required String sourcePath,
     required bool fromDirectory,
   }) {
-    if (explicitBuild != null && explicitBuild.trim().isNotEmpty) {
-      return _sanitizeBuildName(explicitBuild);
+    if (explicit != null && explicit.trim().isNotEmpty) {
+      return _normalizeVersion(explicit);
     }
-
-    final markerBuild = _markerBuildOf(stagedJreRootPath);
-    if (markerBuild != null) return markerBuild;
-
-    if (fromDirectory) {
-      final dirName = p.basename(p.normalize(sourcePath));
-      if (_looksLikeBuildName(dirName)) return _sanitizeBuildName(dirName);
+    final version = _javaMajorOfJre(
+      stagedJreRootPath,
+      dirName: fromDirectory ? p.basename(p.normalize(sourcePath)) : null,
+    );
+    if (version == null) {
+      throw const PayloadImportException(
+        '认不出这份 Java 的版本：JRE 根里没有 release 文件，目录名里也没有版本号；'
+        '可以把它改成 jdk-17 / jre25 这类名字再导入',
+      );
     }
-    return 'local-${DateTime.now().millisecondsSinceEpoch}';
+    return version;
   }
 
-  /// 导入内容里记的构建号（旧装法的 JRE 根里带 `.installed-version`）
-  static String? _markerBuildOf(String jreRootPath) {
-    final marker = File(p.join(jreRootPath, '.installed-version'));
-    if (!marker.existsSync()) return null;
+  /// Java 大版本要当目录名：只收纯数字（`17` / `25`），其余按非法参数拒绝
+  static String _normalizeVersion(String raw) {
+    final cleaned = raw.trim();
+    if (!RegExp(r'^\d+$').hasMatch(cleaned) || int.parse(cleaned) < 8) {
+      throw const PayloadImportException('Java 版本要写成大版本号，例如 17、25');
+    }
+    return cleaned;
+  }
+
+  /// 一份 JRE 的 Java 大版本：`release` 里的 `JAVA_VERSION="25.0.1"` → `25`；
+  /// 没有就退回目录名（纯数字，或 `jdk-17` / `jre25` 这类形态）
+  static String? _javaMajorOfJre(String rootPath, {String? dirName}) {
+    final release = File(p.join(rootPath, 'release'));
+    if (release.existsSync()) {
+      try {
+        final match = _releaseVersionPattern.firstMatch(
+          release.readAsStringSync(),
+        );
+        if (match != null) return match.group(1);
+      } catch (_) {
+        // 读不出来就退回目录名
+      }
+    }
+    return _majorFromName(dirName ?? p.basename(rootPath));
+  }
+
+  static String? _majorFromName(String name) {
+    final trimmed = name.trim();
+    final pure = RegExp(r'^(\d+)$').firstMatch(trimmed);
+    final tagged = RegExp(
+      r'^(?:jre|jdk|java)[-_]?(\d+)(?:\D|$)',
+      caseSensitive: false,
+    ).firstMatch(trimmed);
+    final raw = pure?.group(1) ?? tagged?.group(1);
+    if (raw == null) return null;
+    final value = int.tryParse(raw);
+    // 旧装法的目录名是构建号（可能是 6 这种小数字），不当版本用
+    return value != null && value >= 8 ? '$value' : null;
+  }
+
+  /// 库里的版本 → JRE 根。读之前先把旧布局归位；同版本有多份时优先规范目录名
+  static Map<String, String> _installedRoots({String? bridgeDirPath}) {
+    _migrateLegacyLayout(bridgeDirPath: bridgeDirPath);
+    final roots = <String, String>{};
+
+    final javaDir = Directory(javaDirPath(bridgeDirPath: bridgeDirPath));
+    if (javaDir.existsSync()) {
+      for (final entity in javaDir.listSync()) {
+        if (entity is! Directory || !_looksLikeJre(entity.path)) continue;
+        final name = p.basename(entity.path);
+        final version = _javaMajorOfJre(entity.path, dirName: name);
+        if (version == null) continue;
+        if (roots[version] == null || name == version) {
+          roots[version] = entity.path;
+        }
+      }
+    }
+
+    // 迁移失败 / 还没搬的平铺那份：仍算已安装，只是根还在 bridge/jre
+    final legacyRoot = legacyJreRootPath(bridgeDirPath: bridgeDirPath);
+    if (_looksLikeJre(legacyRoot)) {
+      final version = _javaMajorOfJre(legacyRoot, dirName: null);
+      if (version != null) roots.putIfAbsent(version, () => legacyRoot);
+    }
+    return roots;
+  }
+
+  /// 把旧布局按 Java 大版本归位：`bridge/jre` 与 `java/<构建号>` → `java/<大版本>`
+  ///
+  /// 只改目录名，不动内容；同一版本已有一份规范目录时删掉旧构建号那份。
+  /// 失败只记日志 —— 读库不能因为一次改名失败就报错，旧目录仍会被 [_installedRoots] 认出来
+  static void _migrateLegacyLayout({String? bridgeDirPath}) {
+    final javaDir = Directory(javaDirPath(bridgeDirPath: bridgeDirPath));
+    if (!_migratedDirs.add(javaDir.path)) return;
     try {
-      final value = marker.readAsStringSync().trim();
-      return value.isEmpty ? null : _sanitizeBuildName(value);
+      javaDir.createSync(recursive: true);
     } catch (_) {
-      return null;
+      return;
+    }
+
+    final legacyRoot = legacyJreRootPath(bridgeDirPath: bridgeDirPath);
+    if (_looksLikeJre(legacyRoot)) {
+      final version = _javaMajorOfJre(legacyRoot, dirName: null);
+      if (version != null) {
+        final target = Directory(
+          jreRootPathOf(version, bridgeDirPath: bridgeDirPath),
+        );
+        if (!_looksLikeJre(target.path)) {
+          _moveJreDirectory(Directory(legacyRoot), target);
+        }
+      }
+    }
+
+    final entities = javaDir.listSync();
+    for (final entity in entities) {
+      if (entity is! Directory || !_looksLikeJre(entity.path)) continue;
+      final name = p.basename(entity.path);
+      final version = _javaMajorOfJre(entity.path, dirName: name);
+      if (version == null || version == name) continue;
+      final target = Directory(
+        jreRootPathOf(version, bridgeDirPath: bridgeDirPath),
+      );
+      if (_looksLikeJre(target.path)) {
+        // 同一版本已有一份规范目录，旧构建号这份是重复的
+        _deleteQuietly(entity);
+        addLogAndPrint(
+          .info,
+          'Android 桥：删掉重复的 Java 运行环境 ${entity.path}（已有 Java $version）',
+          tag: 'Bridge',
+        );
+        continue;
+      }
+      _moveJreDirectory(entity, target);
     }
   }
 
-  /// 目录名能不能直接当构建号：带数字、不是 `jre` 这类泛名、只用安全字符
-  static bool _looksLikeBuildName(String name) =>
-      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._+-]*$').hasMatch(name) &&
-      RegExp(r'\d').hasMatch(name) &&
-      !_genericDirNames.contains(name.toLowerCase());
-
-  /// 构建号要当目录名：去掉路径分隔符这类不合法字符
-  static String _sanitizeBuildName(String raw) {
-    final cleaned = raw.trim().replaceAll(RegExp(r'[^A-Za-z0-9._+-]'), '-');
-    return cleaned.isEmpty
-        ? 'local-${DateTime.now().millisecondsSinceEpoch}'
-        : cleaned;
+  static void _moveJreDirectory(Directory from, Directory to) {
+    try {
+      if (to.existsSync()) _deleteQuietly(to);
+      from.renameSync(to.path);
+      addLogAndPrint(
+        .info,
+        'Android 桥：Java 运行环境按大版本归位 '
+        '${p.basename(from.path)} → ${p.basename(to.path)}',
+        tag: 'Bridge',
+      );
+    } catch (error) {
+      addLogAndPrint(
+        .warning,
+        'Java 运行环境归位失败（${from.path}）：${removeNewlines('$error')}',
+        tag: 'Bridge',
+      );
+    }
   }
 
   /// 找 JRE 根：含 `bin/java` 与 `lib/modules` 的那一层，压缩包里常还套一层目录
@@ -362,14 +442,14 @@ class JreLibrary {
     }
   }
 
-  /// 把验过的目录换到 `bridge/java/<build>`：旧的先挪到临时目录，新的挪过去再删旧的
-  static Future<void> _replaceBuildDirectory(
+  /// 把验过的目录换到 `bridge/java/<版本>`：旧的先挪到临时目录，新的挪过去再删旧的
+  static Future<void> _replaceVersionDirectory(
     String stagedJreRootPath,
-    String build, {
+    String version, {
     String? bridgeDirPath,
   }) async {
     final targetDir = Directory(
-      jreRootPathOf(build, bridgeDirPath: bridgeDirPath),
+      jreRootPathOf(version, bridgeDirPath: bridgeDirPath),
     );
     final backupDir = Directory(
       p.join(bridgeDirPath ?? AppPaths.bridge, 'tmp', 'jre-old'),
@@ -382,7 +462,7 @@ class JreLibrary {
     try {
       await Directory(stagedJreRootPath).rename(targetDir.path);
     } catch (error) {
-      // 新的没挪过去就把旧的挪回来，别让这份构建号凭空没了
+      // 新的没挪过去就把旧的挪回来，别让这个版本凭空没了
       if (hasOldJre && backupDir.existsSync()) {
         await backupDir.rename(targetDir.path);
       }
@@ -410,6 +490,13 @@ class JreLibrary {
     );
   }
 
+  static int _compareVersions(String a, String b) {
+    final left = int.tryParse(a);
+    final right = int.tryParse(b);
+    if (left != null && right != null) return left.compareTo(right);
+    return a.compareTo(b);
+  }
+
   static void _deleteQuietly(FileSystemEntity entity) {
     try {
       if (entity.existsSync()) entity.deleteSync(recursive: true);
@@ -421,4 +508,13 @@ class JreLibrary {
       );
     }
   }
+
+  /// 已经扫过旧布局的库目录（同一进程只归位一次，避免每次读都碰文件系统）
+  static final Set<String> _migratedDirs = <String>{};
+
+  /// `release` 里的 `JAVA_VERSION="25.0.1"` → `25`
+  static final RegExp _releaseVersionPattern = RegExp(
+    r'^JAVA_VERSION="?(\d+)',
+    multiLine: true,
+  );
 }

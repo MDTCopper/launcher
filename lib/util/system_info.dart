@@ -84,6 +84,19 @@ class SysInfo {
     return _systemInfo2InIsolate(() => s.SysInfo.getAvailablePhysicalMemory());
   }
 
+  /// 刷新率快照：只读，给运行日志用
+  ///
+  /// 帧率控制走 `flutter_displaymode` 插件，这里只回答「现在是哪档、面板最高多少」。
+  /// 宿主查询失败时返回 null（非 Android 平台没有这个通道）。
+  static Future<DisplayFrameRateInfo?> getDisplayFrameRate() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      return await AndroidCall.getDisplayFrameRateInfo();
+    } on Object {
+      return null;
+    }
+  }
+
   /// Android：ActivityManager 口径的内存信息；宿主异常时返回 null，
   /// 让调用方回退 `/proc/meminfo`
   static Future<MemorySnapshot?> _androidMemoryInfo() async {

@@ -218,6 +218,8 @@ PersonalizationOptions _$PersonalizationOptionsFromJson(
       ) ??
       ShortcutExitAction.backToLauncher,
   quickLaunchCloudSync: json['quickLaunchCloudSync'] as bool? ?? true,
+  displayModeKey: json['displayModeKey'] as String? ?? '',
+  fullscreen: json['fullscreen'] as bool? ?? true,
 );
 
 Map<String, dynamic> _$PersonalizationOptionsToJson(
@@ -238,6 +240,8 @@ Map<String, dynamic> _$PersonalizationOptionsToJson(
   'shortcutExitAction':
       _$ShortcutExitActionEnumMap[instance.shortcutExitAction]!,
   'quickLaunchCloudSync': instance.quickLaunchCloudSync,
+  'displayModeKey': instance.displayModeKey,
+  'fullscreen': instance.fullscreen,
 };
 
 const _$WindowCloseActionEnumMap = {
@@ -245,9 +249,9 @@ const _$WindowCloseActionEnumMap = {
   WindowCloseAction.minimizeToTray: 'minimizeToTray',
 };
 
-const _$ShortcutExitActionEnumMap = {
-  ShortcutExitAction.backToLauncher: 'backToLauncher',
-  ShortcutExitAction.backToHome: 'backToHome',
+const _$GameRunningCloseActionEnumMap = {
+  GameRunningCloseAction.closeKeepService: 'closeKeepService',
+  GameRunningCloseAction.minimizeToTray: 'minimizeToTray',
 };
 
 const _$ThemeModeEnumMap = {
@@ -269,9 +273,9 @@ const _$LauncherPostLaunchBehaviorEnumMap = {
   LauncherPostLaunchBehavior.minimizeToTray: 'minimizeToTray',
 };
 
-const _$GameRunningCloseActionEnumMap = {
-  GameRunningCloseAction.closeKeepService: 'closeKeepService',
-  GameRunningCloseAction.minimizeToTray: 'minimizeToTray',
+const _$ShortcutExitActionEnumMap = {
+  ShortcutExitAction.backToLauncher: 'backToLauncher',
+  ShortcutExitAction.backToHome: 'backToHome',
 };
 
 DownloadOptions _$DownloadOptionsFromJson(Map<String, dynamic> json) =>

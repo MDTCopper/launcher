@@ -660,6 +660,21 @@ class PersonalizationOptions {
   @JsonKey(defaultValue: true)
   bool quickLaunchCloudSync;
 
+  ///启动器界面的显示模式（仅 Android），空串表示「自动」
+  ///
+  /// 存的是 `flutter_displaymode` 的 `DisplayMode.toString()`（形如 `#1 1260x2800 @ 120Hz`），
+  /// 和 Kazumi 的「屏幕帧率」设置同一套做法：启动时用同一段 `toString()` 在支持列表里找回，
+  /// 找不到就按自动处理。
+  @JsonKey(defaultValue: '')
+  String displayModeKey;
+
+  ///全屏（隐藏状态栏与导航栏）
+  ///
+  /// 关掉后状态栏常显：既方便看时间/通知，也能避开部分厂商把「横屏 + 全屏无系统栏」
+  /// 当成游戏来套帧率策略（实测这类策略会让启动器被压在 90fps 那条线上）。
+  @JsonKey(defaultValue: true)
+  bool fullscreen;
+
   PersonalizationOptions({
     this.windowCloseAction = WindowCloseAction.exit,
     this.gameRunningCloseAction = GameRunningCloseAction.closeKeepService,
@@ -673,6 +688,8 @@ class PersonalizationOptions {
     this.menuRelocate = true,
     this.shortcutExitAction = ShortcutExitAction.backToLauncher,
     this.quickLaunchCloudSync = true,
+    this.displayModeKey = '',
+    this.fullscreen = true,
   });
 
   factory PersonalizationOptions.fromJson(Map<String, dynamic> json) {
