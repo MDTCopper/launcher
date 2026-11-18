@@ -806,7 +806,8 @@ class _VersionSelectPageState extends State<VersionSelectPage>
             ? _buildEmptyPage()
             : CuContentPanel(
                 flush: true,
-                title: 'nininini',
+                title: '${const ['全部', '原版', 'Copper', '测试'][_category]}版本',
+                subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
                 child: Column(
                   children: [
                     for (final version in versions) _buildVersionRow(version),
