@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:copper_launcher/ui/components/core/cu_stable_text.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
+import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
@@ -69,6 +70,12 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
 
   /// 渲染中的段槽数；弹栈时先留着槽位，等这一段的淡出走完再移除
   int _restSlots = 0;
+
+  /// 缩回时临时加在内容末尾的宽度：把最大偏移撑住，偏移才不会被框架立刻夹小
+  double _trailPad = 0;
+
+  /// 缩回前的滚动偏移（>0 才需要动画）
+  double? _pendingShrinkFrom;
   Timer? _trimSlotsTimer;
 
   /// 新压进来的段先空一帧再上内容，AnimatedSwitcher 才会播入场
@@ -126,10 +133,7 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
     _holdNewSegments = entering.isNotEmpty;
 
     if (shrinking) {
-      // 先保留旧内容，等滚回最左再换成新内容
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollBackThenApply();
-      });
+      _beginShrink();
       return;
     }
 
@@ -159,27 +163,52 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
       if (!mounted) return;
       setState(() => _restSlots = restCount);
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pendingShrinkFrom != null) {
+          _finishShrink();
+          return;
+        }
         _alignToEnd();
         _sync();
       });
     });
   }
 
-  Future<void> _scrollBackThenApply() async {
-    if (!mounted) return;
-    if (_controller.hasClients) {
-      final position = _controller.position;
-      if (position.pixels > position.minScrollExtent + 0.5) {
-        await _controller.animateTo(
-          position.minScrollExtent,
+  /// 缩回：先换内容，但用 [_trailPad] 撑住最大偏移，避免偏移被立刻夹小；
+  /// 等旧段淡出（槽位收掉）后再把偏移动画到新的「最右」（可能是 0，也可能仍溢出）
+  void _beginShrink() {
+    final oldOffset = _controller.hasClients ? _controller.offset : 0.0;
+    _pendingShrinkFrom = oldOffset > 0.5 ? oldOffset : null;
+    _trailPad = _pendingShrinkFrom == null ? 0 : oldOffset;
+    _applyCrumbs(fadeOutExtraSlots: true);
+  }
+
+  /// 槽位收掉后调用：从当前偏移滑到新内容的最右，再撤掉撑宽
+  void _finishShrink() {
+    final from = _pendingShrinkFrom;
+    _pendingShrinkFrom = null;
+    if (from == null || !_controller.hasClients) {
+      if (_trailPad != 0) setState(() => _trailPad = 0);
+      return;
+    }
+    final position = _controller.position;
+    final target = (position.maxScrollExtent - _trailPad).clamp(
+      0.0,
+      double.infinity,
+    );
+    position
+        .animateTo(
+          target,
           duration: _scrollDuration,
           curve: Curves.easeOutCubic,
-        );
-        if (!mounted) return;
-      }
-    }
-    setState(() => _applyCrumbs(fadeOutExtraSlots: true));
-    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+        )
+        .whenComplete(() {
+          if (!mounted) return;
+          setState(() => _trailPad = 0);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _alignToEnd();
+            _sync();
+          });
+        });
   }
 
   /// 滚到最右（当前层）；新内容可能晚一帧才完成布局，重试几次
@@ -298,8 +327,13 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
 
     final content = Row(
       mainAxisSize: MainAxisSize.min,
-      spacing: 2,
-      children: [root, ...segments],
+      children: [
+        const SizedBox(width: AppSpacing.related),
+        root,
+        ...segments,
+        const SizedBox(width: AppSpacing.group),
+        if (_trailPad > 0) SizedBox(width: _trailPad),
+      ],
     );
 
     final row = CuSingleChildScrollView(
@@ -307,7 +341,7 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
       scrollDirection: Axis.horizontal,
       // 顶栏只有 40 高：横向滚动条会压在文字上，两侧遮罩由下面自绘
       showScrollbar: false,
-      fadeMask: false,
+
       child: content,
     );
 
@@ -342,7 +376,7 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
           width: 20,
           child: IgnorePointer(
             child: AnimatedOpacity(
-              opacity: _moreRight ? 1 : 0,
+              opacity: _moreRight && _trailPad <= 0 ? 1 : 0,
               duration: const Duration(milliseconds: 120),
               child: DecoratedBox(
                 decoration: BoxDecoration(
