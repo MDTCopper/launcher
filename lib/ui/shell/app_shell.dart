@@ -664,20 +664,20 @@ class AppShellState extends State<AppShell> {
         ),
       ),
       transitionsBuilder: (_, animation, _, child) {
-        // 与 PageSwitcher 一致：从右 3.3% 划入 + 淡入，200ms easeOutCubic
-        // 只播新页入场；下面那层旧页留在原地，不跟二级动画一起位移淡出
-        final curved = CurvedAnimation(
+        final curvedEnter = CurvedAnimation(
           parent: animation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
+          curve: const Interval(0.4, 1.0, curve: Curves.easeOutBack),
+          reverseCurve: const Interval(0.4, 1.0, curve: Curves.easeIn),
         );
+
+        // 只播新页入场：下面那层旧页留在原地，不该跟着二级动画一起位移淡出
         return FadeTransition(
-          opacity: curved,
+          opacity: curvedEnter,
           child: SlideTransition(
             position: Tween<Offset>(
-              begin: const Offset(0.033, 0.0),
+              begin: const Offset(0.0, 0.06),
               end: Offset.zero,
-            ).animate(curved),
+            ).animate(curvedEnter),
             child: child,
           ),
         );

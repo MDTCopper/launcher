@@ -54,7 +54,11 @@ class ShellBreadcrumbBar extends StatefulWidget {
 class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
   final _controller = ScrollController();
   bool _moreLeft = false;
-  bool _jumpedToEnd = false;
+  bool _moreRight = false;
+
+  /// 实际渲染的面包屑：缩回时先把旧的宽内容滚回最左，再换成新内容，
+  /// 否则内容一变窄，滚动偏移会被框架立刻夹到 0，看起来就是「跳变」
+  late List<ShellBreadcrumb> _renderCrumbs;
 
   /// 上一帧的段名：用来判断哪一段是这次新压进来的、哪一段换了内容
   List<String> _previousLabels = const [];
@@ -70,8 +74,9 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
   /// 新压进来的段先空一帧再上内容，AnimatedSwitcher 才会播入场
   bool _holdNewSegments = false;
 
-  /// 与设计层 `TemplateBreadcrumbBar` 的节奏一致
+  /// 与设计层 TemplateBreadcrumbBar 的节奏一致
   static const _segmentDuration = Duration(milliseconds: 180);
+  static const _scrollDuration = Duration(milliseconds: 200);
 
   static const _crumbStyle = TextStyle(fontSize: 14, height: 20 / 14);
   static const _tagStyle = TextStyle(
@@ -84,16 +89,25 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
   @override
   void initState() {
     super.initState();
-    _previousLabels = widget.crumbs.map((crumb) => crumb.label).toList();
-    _restSlots = widget.crumbs.length <= 1 ? 0 : widget.crumbs.length - 1;
+    _renderCrumbs = widget.crumbs;
+    _previousLabels = _labelsOf(widget.crumbs);
+    _restSlots = _renderCrumbs.length <= 1 ? 0 : _renderCrumbs.length - 1;
     _controller.addListener(_sync);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.hasClients) return;
+      // 首次进来直接贴右，不播动画
+      _controller.jumpTo(_controller.position.maxScrollExtent);
+      _sync();
+    });
   }
+
+  static List<String> _labelsOf(List<ShellBreadcrumb> crumbs) =>
+      crumbs.map((crumb) => crumb.label).toList();
 
   @override
   void didUpdateWidget(covariant ShellBreadcrumbBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final newLabels = widget.crumbs.map((crumb) => crumb.label).toList();
+    final newLabels = _labelsOf(widget.crumbs);
     if (listEquals(_previousLabels, newLabels)) return;
 
     final entering = <int>{};
@@ -105,34 +119,86 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
         changed.add(index);
       }
     }
+    final shrinking = newLabels.length < _previousLabels.length;
     _previousLabels = newLabels;
     _enteringSlots = entering;
     _changedSlots = changed;
     _holdNewSegments = entering.isNotEmpty;
-    _syncRestSlots();
 
-    // 换栈后对齐到「当前层」那一头
-    _jumpedToEnd = false;
+    if (shrinking) {
+      // 先保留旧内容，等滚回最左再换成新内容
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollBackThenApply();
+      });
+      return;
+    }
+
+    _applyCrumbs();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_holdNewSegments) setState(() => _holdNewSegments = false);
-      if (!_controller.hasClients) return;
-      _controller.jumpTo(_controller.position.maxScrollExtent);
+      _alignToEnd();
+      _sync();
     });
   }
 
-  /// 段槽数只增不减；弹栈时留一段动画的时间让旧段淡出，之后再移除
-  void _syncRestSlots() {
+  /// 换成新内容并同步槽位；fadeOutExtraSlots 时多留一会儿让旧段淡出
+  void _applyCrumbs({bool fadeOutExtraSlots = false}) {
     _trimSlotsTimer?.cancel();
-    final restCount = widget.crumbs.length <= 1 ? 0 : widget.crumbs.length - 1;
+    _renderCrumbs = widget.crumbs;
+    final restCount = _renderCrumbs.length <= 1 ? 0 : _renderCrumbs.length - 1;
     if (restCount >= _restSlots) {
+      _restSlots = restCount;
+      return;
+    }
+    if (!fadeOutExtraSlots) {
       _restSlots = restCount;
       return;
     }
     _trimSlotsTimer = Timer(_segmentDuration, () {
       if (!mounted) return;
       setState(() => _restSlots = restCount);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _alignToEnd();
+        _sync();
+      });
     });
+  }
+
+  Future<void> _scrollBackThenApply() async {
+    if (!mounted) return;
+    if (_controller.hasClients) {
+      final position = _controller.position;
+      if (position.pixels > position.minScrollExtent + 0.5) {
+        await _controller.animateTo(
+          position.minScrollExtent,
+          duration: _scrollDuration,
+          curve: Curves.easeOutCubic,
+        );
+        if (!mounted) return;
+      }
+    }
+    setState(() => _applyCrumbs(fadeOutExtraSlots: true));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+  }
+
+  /// 滚到最右（当前层）；新内容可能晚一帧才完成布局，重试几次
+  void _alignToEnd({int retry = 4}) {
+    if (!mounted || !_controller.hasClients) return;
+    final position = _controller.position;
+    if (position.maxScrollExtent > position.minScrollExtent + 0.5) {
+      _controller.animateTo(
+        position.maxScrollExtent,
+        duration: _scrollDuration,
+        curve: Curves.easeOutCubic,
+      );
+      return;
+    }
+    if (retry > 0) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _alignToEnd(retry: retry - 1),
+      );
+    }
   }
 
   @override
@@ -146,14 +212,13 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
   void _sync() {
     if (!mounted || !_controller.hasClients) return;
     final position = _controller.position;
-    // 栈太长：首次进来先滚到最右（露出当前层），之后左边若有内容就贴渐隐
-    if (!_jumpedToEnd && position.maxScrollExtent > 0.5) {
-      _jumpedToEnd = true;
-      _controller.jumpTo(position.maxScrollExtent);
-    }
     final moreLeft = position.pixels > position.minScrollExtent + 0.5;
-    if (moreLeft != _moreLeft) {
-      setState(() => _moreLeft = moreLeft);
+    final moreRight = position.pixels < position.maxScrollExtent - 0.5;
+    if (moreLeft != _moreLeft || moreRight != _moreRight) {
+      setState(() {
+        _moreLeft = moreLeft;
+        _moreRight = moreRight;
+      });
     }
   }
 
@@ -161,7 +226,7 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final fadeColor = widget.fadeColor ?? colors.cardBackground;
-    final crumbs = widget.crumbs;
+    final crumbs = _renderCrumbs;
     if (crumbs.isEmpty) return const SizedBox.shrink();
     final hasExplicitCurrent = crumbs.any((crumb) => crumb.current);
     bool isCurrent(int index) =>
@@ -231,29 +296,35 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
       );
     }
 
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 2,
+      children: [root, ...segments],
+    );
+
     final row = CuSingleChildScrollView(
       controller: _controller,
       scrollDirection: Axis.horizontal,
-      // 顶栏只有 40 高：横向滚动条会压在文字上，左端渐隐也由下面按 _moreLeft 自绘
+      // 顶栏只有 40 高：横向滚动条会压在文字上，两侧遮罩由下面自绘
       showScrollbar: false,
       fadeMask: false,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 2,
-        children: [root, ...segments],
-      ),
+      child: content,
     );
-    // 结构保持不变：换根会让滚动视图整棵重建，滚动位置会跳回开头
+
+    // 遮罩：左右两侧按「还能往那边滚」显示；缩回动画期间左侧常亮
+    // 遮罩：左右两侧按「还能往那边滚」显示
     return Stack(
       children: [
         row,
-        if (_moreLeft)
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 20,
-            child: IgnorePointer(
+        Positioned(
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 20,
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: _moreLeft ? 1 : 0,
+              duration: const Duration(milliseconds: 120),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -263,6 +334,26 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
               ),
             ),
           ),
+        ),
+        Positioned(
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: 20,
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: _moreRight ? 1 : 0,
+              duration: const Duration(milliseconds: 120),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [fadeColor.withAlpha(0), fadeColor],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
