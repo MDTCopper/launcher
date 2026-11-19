@@ -1,17 +1,19 @@
-import 'package:copper_launcher/ui/theme/app_colors.dart';
-import 'package:copper_launcher/ui/util/animation/animated_opacity_size.dart';
-import 'package:copper_launcher/util/io/os.dart';
-import 'package:flutter/material.dart';
-
+import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/game_instance.dart';
-import 'package:copper_launcher/ui/components/button/rebound_button.dart';
+import 'package:copper_launcher/ui/components/core/cu_frosted_panel.dart';
+import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
+import 'package:copper_launcher/ui/components/core/cu_skin.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
-import 'package:copper_launcher/ui/components/tile/rebound_list_tile.dart';
-import '../../../core/app_config.dart';
-import '../../feature/images.dart';
-import '../../feature/version_icon.dart';
+import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
+import 'package:copper_launcher/ui/feature/images.dart';
+import 'package:copper_launcher/ui/pages/design/template_skin.dart';
+import 'package:copper_launcher/ui/pages/overview/home_board.dart';
+import 'package:copper_launcher/ui/pages/overview/home_drifting_grid.dart';
+import 'package:copper_launcher/ui/pages/overview/home_launch_dock.dart';
+import 'package:flutter/material.dart';
 
+/// 主页：漂移网格画布 + 模数栅格看板 + 可切换样式的底部启动区
 class LaunchPage extends StatefulWidget {
   const LaunchPage({super.key});
 
@@ -20,158 +22,79 @@ class LaunchPage extends StatefulWidget {
 }
 
 class _LaunchPageState extends State<LaunchPage> {
+  static const _dockStyleSettingKey = 'home_dock_style';
+  static const _boardCardsSettingKey = 'home_board_cards';
+  static const _gridEnabledSettingKey = 'home_grid_enabled';
+
+  late HomeDockStyle _dockStyle;
+  late List<HomeBoardCardId> _enabledBoardCards;
+  late bool _gridEnabled;
+
   /// 选中版本来源：config 持有单一事实
   Mindustry? get _selectedVersion => config.versionOptions.selectedVersion;
 
-  Widget _buildVersionTile(Mindustry? selectedVersion) {
-    final colors = AppColors.of(context);
-    final theme = Theme.of(context);
+  bool get _hasAnyVersion => config.versionOptions.versionFolds.any(
+    (fold) => fold.versions.isNotEmpty,
+  );
 
-    Widget buildEmptyTile() {
-      final hasVersion =
-          config.versionOptions.versionFolds.firstOrNull?.versions.isNotEmpty ??
-          false;
-      final addtion = !hasVersion
-          ? ''
-          : isDesktop
-          ? '或右键'
-          : '或长按';
-      return ReboundListTile(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () {
-          Navigator.pushNamed(context, '/version_select');
-        },
-        title: SizedBox(
-          height: 40,
-          child: Center(
-            child: Text(
-              '未选择版本',
-              style: theme.textTheme.displayLarge?.copyWith(
-                color: colors.itemHint,
-              ),
-            ),
-          ),
-        ),
-        subtitle: SizedBox(
-          height: 16,
-          child: Center(child: Text('点击$addtion以选择游戏版本')),
-        ),
-      );
+  @override
+  void initState() {
+    super.initState();
+    _dockStyle = HomeDockStyle.fromStorageKey(
+      config.setting.getCustomSetting(
+        _dockStyleSettingKey,
+        HomeDockStyle.island.storageKey,
+      ),
+    );
+    _enabledBoardCards = _readBoardCards();
+    _gridEnabled =
+        config.setting.getCustomSetting(_gridEnabledSettingKey, true) == true;
+  }
+
+  List<HomeBoardCardId> _readBoardCards() {
+    final raw = config.setting.getCustomSetting(
+      _boardCardsSettingKey,
+      HomeBoardCardId.defaultEnabled.map((item) => item.storageKey).toList(),
+    );
+    if (raw is! List) return List.of(HomeBoardCardId.defaultEnabled);
+
+    final parsed = <HomeBoardCardId>[];
+    for (final item in raw) {
+      if (item is! String) continue;
+      final id = HomeBoardCardId.fromStorageKey(item);
+      if (id != null && !parsed.contains(id)) parsed.add(id);
     }
+    return parsed;
+  }
 
-    Widget buildTile(Mindustry selectedVersion) => ReboundListTile(
-      padding: EdgeInsets.all(8),
-      borderRadius: BorderRadius.circular(8),
-      onTap: () {
-        if (selectedVersion != _selectedVersion) return;
-        Navigator.pushNamed(context, '/version_select');
-      },
-      // 选中版本切换时：图标 / 名称 / 版本号 交叠切换（淡入 + 向上位移）
-      leading: VersionIcon(
-        key: ValueKey(selectedVersion.id),
-        version: selectedVersion,
-        height: 64,
-      ),
-      title: Text(
-        selectedVersion.tag,
-        key: ValueKey(selectedVersion.id),
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.secondary,
-          fontWeight: FontWeight.w900,
-          fontSize: 28,
-        ),
-        maxLines: 1,
-        overflow: .ellipsis,
-      ),
-      subtitle: Text(
-        selectedVersion.release,
-        key: ValueKey(selectedVersion.id),
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.w900,
-          fontSize: 14,
-        ),
-      ),
-      trailing: ReboundButton(
-        borderRadius: BorderRadius.circular(8),
-        backgroundColor: Colors.transparent,
-        padding: EdgeInsets.all(8),
-        child: Icon(
-          Icons.settings,
-          color: Theme.of(context).iconTheme.color,
-          size: 50,
-        ),
-        onTap: () {
-          if (selectedVersion != _selectedVersion) return;
-          Navigator.pushNamed(
-            context,
-            '/version_setting',
-            arguments: {'version': selectedVersion},
-          );
-        },
-      ),
-    );
-    Widget child = selectedVersion == null
-        ? buildEmptyTile()
-        : buildTile(selectedVersion);
+  void _setDockStyle(HomeDockStyle next) {
+    if (_dockStyle == next) return;
+    setState(() => _dockStyle = next);
+    config.setting.customSetting[_dockStyleSettingKey] = next.storageKey;
+    config.save();
+  }
 
-    child = AnimatedSwitcher(
-      duration: const Duration(milliseconds: 700),
-      layoutBuilder: (currentChild, previousChildren) => Stack(
-        alignment: .bottomCenter,
-        children: [...previousChildren, ?currentChild],
-      ),
-      transitionBuilder: (child, animation) {
-        final isForward = !animation.status.isForwardOrCompleted;
+  void _toggleBoardCard(HomeBoardCardId id) {
+    final next = List<HomeBoardCardId>.of(_enabledBoardCards);
+    if (next.contains(id)) {
+      next.remove(id);
+    } else {
+      // 按枚举定义顺序插入，保证栅格排列顺序稳定
+      next.add(id);
+      next.sort((a, b) => a.index.compareTo(b.index));
+    }
+    setState(() => _enabledBoardCards = next);
+    config.setting.customSetting[_boardCardsSettingKey] = next
+        .map((item) => item.storageKey)
+        .toList();
+    config.save();
+  }
 
-        final scale = isForward
-            ? AlwaysStoppedAnimation(1.0)
-            : Tween<double>(begin: 1.0, end: 0.9).animate(
-                CurvedAnimation(
-                  parent: ReverseAnimation(animation),
-                  curve: Interval(0.0, 0.7, curve: Curves.easeOutCirc),
-                ),
-              );
-        child = ScaleTransition(scale: scale, child: child);
-
-        final position = !isForward
-            ? AlwaysStoppedAnimation(Offset.zero)
-            : Tween<Offset>(
-                begin: const Offset(-1.0, 0.0),
-                end: Offset.zero,
-              ).animate(
-                CurvedAnimation(
-                  parent: animation,
-                  curve: Interval(0.3, 1.0, curve: Curves.fastOutSlowIn),
-                ),
-              );
-
-        child = SlideTransition(position: position, child: child);
-
-        final opacity = isForward
-            ? Tween<double>(begin: 0.5, end: 1.0).animate(
-                CurvedAnimation(parent: animation, curve: Interval(0.35, 0.7)),
-              )
-            : AlwaysStoppedAnimation(1.0);
-
-        child = FadeTransition(opacity: opacity, child: child);
-        return child;
-      },
-      child: KeyedSubtree(
-        key: ValueKey(selectedVersion?.id ?? 'null'),
-        child: child,
-      ),
-    );
-
-    // 右键 / 长按：快捷选择最近游玩过的其他版本（最多 5 个）
-    child = ContextMenuField(
-      positionDelegate: const _AboveMousePositionDelegate(gap: 4),
-      // 条目里放的是启动器品牌图，图标槽要留够
-      style: const ContextMenuStyle(iconSize: 32),
-      menuBuilder: (context) => _buildRecentVersionMenu(),
-      child: child,
-    );
-    return child;
+  void _toggleGrid() {
+    final next = !_gridEnabled;
+    setState(() => _gridEnabled = next);
+    config.setting.customSetting[_gridEnabledSettingKey] = next;
+    config.save();
   }
 
   /// 最近游玩过的其他版本（不含当前选中），按最近启动时间倒序，最多 5 个
@@ -188,6 +111,31 @@ class _LaunchPageState extends State<LaunchPage> {
     return versions.take(5).toList();
   }
 
+  void _selectVersion(Mindustry version) {
+    config.versionOptions.selectedVersion = version;
+    config.save();
+  }
+
+  void _openVersionSelect() {
+    Navigator.pushNamed(context, '/version_select');
+  }
+
+  void _openVersionSetting() {
+    final version = _selectedVersion;
+    if (version == null) return;
+    Navigator.pushNamed(
+      context,
+      '/version_setting',
+      arguments: {'version': version},
+    );
+  }
+
+  void _launchSelectedVersion() {
+    final version = _selectedVersion;
+    if (version == null) return;
+    GameInstance.launch(version);
+  }
+
   List<ContextMenuEntry> _buildRecentVersionMenu() {
     final recent = _recentVersions();
     return [
@@ -197,7 +145,6 @@ class _LaunchPageState extends State<LaunchPage> {
       else
         for (final version in recent)
           ContextMenuAction(
-            // 品牌图直接进图标槽（尺寸由这条菜单的 iconSize 定）
             leading: Image.asset(
               version.launcher == LauncherType.copper
                   ? Images.copper
@@ -205,74 +152,118 @@ class _LaunchPageState extends State<LaunchPage> {
               fit: BoxFit.fill,
             ),
             label: version.tag,
-            onSelected: () {
-              config.versionOptions.selectedVersion = version;
-              config.save();
-              // 不手动 setState：notifier 驱动的 ValueListenableBuilder 会重建 tile
-            },
+            onSelected: () => _selectVersion(version),
           ),
     ];
   }
 
-  Widget _buildLaunchButton() {
-    Widget? child = _selectedVersion == null
-        ? null
-        : Padding(
-            padding: EdgeInsets.only(left: 8),
-            child: SizedBox(
-              height: 80,
-              width: 225,
-              child: ReboundButton(
-                pressedScale: 0.9,
-                borderRadius: BorderRadius.circular(8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  spacing: 16,
-                  children: [
-                    Icon(
-                      Icons.play_arrow,
-                      size: 50,
-                      color: Theme.of(context).iconTheme.color,
-                    ),
-                    Text(
-                      "启动游戏",
-                      style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.secondary,
-                      ),
-                    ),
-                    SizedBox(),
-                  ],
-                ),
-                onTap: () {
-                  final version = _selectedVersion;
-                  if (version == null) return;
-                  GameInstance.launch(version);
-                },
-              ),
-            ),
-          );
+  void _showDockStyleMenu(BuildContext buttonContext) {
+    ContextMenu.showBelow(
+      context: buttonContext,
+      entries: [
+        const ContextMenuHeader('启动区布局'),
+        for (final style in HomeDockStyle.values)
+          ContextMenuAction(
+            icon: style.icon,
+            label: style.label,
+            checked: _dockStyle == style,
+            onSelected: () => _setDockStyle(style),
+          ),
+      ],
+    );
+  }
 
-    child = AnimatedOpacitySize(child: child);
-    return child;
+  void _showBoardMenu(BuildContext buttonContext) {
+    ContextMenu.showBelow(
+      context: buttonContext,
+      entries: [
+        const ContextMenuHeader('主页看板卡片'),
+        for (final card in HomeBoardCardId.values)
+          ContextMenuAction(
+            icon: card.icon,
+            label: card.label,
+            checked: _enabledBoardCards.contains(card),
+            onSelected: () => _toggleBoardCard(card),
+          ),
+      ],
+    );
+  }
+
+  void _showBackgroundMenu(BuildContext buttonContext) {
+    ContextMenu.showBelow(
+      context: buttonContext,
+      entries: [
+        const ContextMenuHeader('主页背景'),
+        ContextMenuAction(
+          icon: Icons.grid_4x4_rounded,
+          label: '动态漂移网格',
+          checked: _gridEnabled,
+          onSelected: _toggleGrid,
+        ),
+        const ContextMenuDivider(),
+        const ContextMenuAction(
+          icon: Icons.image_outlined,
+          label: '自定义图片背景（即将支持）',
+          enabled: false,
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget child = Column(
-      //主页面
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        Expanded(child: SizedBox()),
+        if (_gridEnabled) const HomeDriftingGrid(),
         Padding(
-          padding: EdgeInsets.all(8),
-          child: ValueListenableBuilder(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          child: ValueListenableBuilder<Mindustry?>(
             valueListenable: config.versionOptions.selectedVersionNotifier,
-            builder: (context, selectVersion, _) {
-              return Row(
-                //下方操作条
-                crossAxisAlignment: .center,
+            builder: (context, selectedVersion, _) {
+              return Stack(
                 children: [
-                  Expanded(child: _buildVersionTile(selectVersion)),
-                  _buildLaunchButton(),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    right: 196,
+                    bottom: 84,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: CuSingleChildScrollView(
+                        clipBehavior: Clip.none,
+                        showScrollbar: false,
+                        fadeMask: false,
+                        child: HomeBoard(
+                          enabledCards: _enabledBoardCards,
+                          selectedVersion: selectedVersion,
+                          recentVersions: _recentVersions(),
+                          onSelectVersion: _selectVersion,
+                          onOpenVersionSelect: _openVersionSelect,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: _buildCornerToolbar(cuSkinOf(context)),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: HomeLaunchDock(
+                      style: _dockStyle,
+                      selectedVersion: selectedVersion,
+                      hasAnyVersion: _hasAnyVersion,
+                      recentVersionMenuBuilder: (_) =>
+                          _buildRecentVersionMenu(),
+                      onSelectVersionTap: _openVersionSelect,
+                      onVersionSettingTap: _openVersionSetting,
+                      onLaunchTap: _launchSelectedVersion,
+                    ),
+                  ),
                 ],
               );
             },
@@ -280,42 +271,81 @@ class _LaunchPageState extends State<LaunchPage> {
         ),
       ],
     );
-
-    return child;
   }
-}
 
-/// 位置策略：菜单显示在鼠标上方（上方放不下才翻到下方）
-class _AboveMousePositionDelegate extends ContextMenuPositionDelegate {
-  const _AboveMousePositionDelegate({this.gap = 4});
-
-  final double gap;
-
-  @override
-  ContextMenuPlacement place({
-    required ContextMenuAnchor anchor,
-    required Size panelSize,
-    required Size overlaySize,
-    required EdgeInsets safeArea,
-    required bool isSubmenu,
-  }) {
-    final mouse = anchor.bounds.topLeft;
-    // 水平：菜单中点对齐鼠标 x，再由安全区收一次
-    final left = mouse.dx - panelSize.width / 2;
-    var top = mouse.dy - panelSize.height - gap;
-    if (top < safeArea.top) top = mouse.dy + gap;
-    final offset = ContextMenuPositionDelegate.clampToSafeArea(
-      offset: Offset(left, top),
-      panelSize: panelSize,
-      overlaySize: overlaySize,
-      safeArea: safeArea,
+  Widget _buildCornerToolbar(TemplateSkin skin) {
+    return CuFrostedPanel(
+      radius: 8,
+      blur: 14,
+      opacity: skin.dark ? 0.60 : 0.72,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Builder(
+            builder: (buttonContext) => _buildToolChip(
+              skin,
+              icon: Icons.dashboard_customize_outlined,
+              label: '看板',
+              onTap: () => _showBoardMenu(buttonContext),
+            ),
+          ),
+          _buildToolbarDivider(skin),
+          Builder(
+            builder: (buttonContext) => _buildToolChip(
+              skin,
+              icon: Icons.view_carousel_outlined,
+              label: '布局',
+              onTap: () => _showDockStyleMenu(buttonContext),
+            ),
+          ),
+          _buildToolbarDivider(skin),
+          Builder(
+            builder: (buttonContext) => _buildToolChip(
+              skin,
+              icon: Icons.wallpaper_outlined,
+              label: '背景',
+              onTap: () => _showBackgroundMenu(buttonContext),
+            ),
+          ),
+        ],
+      ),
     );
-    return ContextMenuPlacement(
-      offset: offset,
-      growFrom: ContextMenuPositionDelegate.growAlignment(
-        offset: offset,
-        panelSize: panelSize,
-        anchorPoint: mouse,
+  }
+
+  Widget _buildToolbarDivider(TemplateSkin skin) {
+    return Container(
+      width: 1,
+      height: 12,
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      color: skin.border.withAlpha(150),
+    );
+  }
+
+  Widget _buildToolChip(
+    TemplateSkin skin, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return CuPressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(5),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 4,
+        children: [
+          Icon(icon, size: 13, color: skin.textSecondary),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: skin.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

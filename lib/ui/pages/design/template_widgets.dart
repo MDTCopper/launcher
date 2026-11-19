@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:copper_launcher/ui/components/core/cu_stable_text.dart';
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
@@ -2447,6 +2449,75 @@ class _TemplateCollapseState extends State<TemplateCollapse> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 磨砂浮层面板：在流光或自定义背景图之上保持稳定可读性
+///
+/// 仅对自身圆角范围启用 [BackdropFilter]，避免全屏高斯模糊带来的开销
+class TemplateFrostedPanel extends StatelessWidget {
+  const TemplateFrostedPanel({
+    super.key,
+    required this.skin,
+    required this.child,
+    this.radius = TemplateRadius.card,
+    this.padding = EdgeInsets.zero,
+    this.blur = 18,
+    this.opacity,
+    this.shadow = true,
+  });
+
+  final TemplateSkin skin;
+  final Widget child;
+  final double radius;
+  final EdgeInsetsGeometry padding;
+  final double blur;
+  final double? opacity;
+  final bool shadow;
+
+  @override
+  Widget build(BuildContext context) {
+    final fillAlpha = ((opacity ?? (skin.dark ? 0.78 : 0.84)) * 255).round();
+    final borderRadius = BorderRadius.circular(radius);
+
+    Widget panel = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: skin.surface.withAlpha(fillAlpha),
+        borderRadius: borderRadius,
+        border: Border.all(
+          color: skin.dark
+              ? Colors.white.withAlpha(22)
+              : skin.border.withAlpha(210),
+          width: 1,
+        ),
+      ),
+      child: child,
+    );
+
+    if (blur > 0) {
+      panel = BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: panel,
+      );
+    }
+
+    panel = ClipRRect(borderRadius: borderRadius, child: panel);
+
+    if (!shadow) return panel;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: [
+          BoxShadow(
+            color: skin.shadow.withAlpha(skin.dark ? 105 : 32),
+            blurRadius: 18,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: panel,
     );
   }
 }
