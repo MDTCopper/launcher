@@ -855,13 +855,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
                   title: '${const ['全部', '原版', 'Copper', '测试'][_category]}版本',
                   subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
                   children: [
-                    for (var i = 0; i < versions.length; i++)
-                      AppearItem(
-                        key: ValueKey(versions[i].id),
-                        slot: 2 + (i > 2 ? 2 : i),
-                        followRouteDirection: true,
-                        child: _buildVersionRow(versions[i]),
-                      ),
+                    for (final version in versions) _buildVersionRow(version),
                   ],
                 ),
               ),

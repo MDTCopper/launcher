@@ -199,6 +199,9 @@ class PageEntranceScope extends InheritedWidget {
 }
 
 /// 内层导航栈用的页面路由：带一条顶栏回写通道与统一转场时间轴
+///
+/// 保持 `opaque: true`：转场期间双页同台完成清场与浮现，结束后立即把下层旧页 offstage，
+/// 既防止旧页内容残留压在底下，也避免下层继续消耗渲染资源；常驻流光与网格背景位于外层壳中不受影响
 class CuPageRoute extends PageRouteBuilder<dynamic> {
   CuPageRoute({
     required RouteSettings super.settings,
@@ -208,7 +211,7 @@ class CuPageRoute extends PageRouteBuilder<dynamic> {
     this.transitionKind = CuTransitionKind.pushDrill,
     super.transitionDuration = const Duration(milliseconds: 440),
     super.reverseTransitionDuration = const Duration(milliseconds: 320),
-    super.opaque = false,
+    super.opaque = true,
   });
 
   final PageTopBarController trailController;

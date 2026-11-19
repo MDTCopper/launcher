@@ -13,6 +13,7 @@ import 'package:copper_launcher/ui/pages/cloud/cloud_overview_page.dart';
 import 'package:copper_launcher/ui/pages/friends/friends_page.dart';
 import 'package:copper_launcher/ui/pages/notifications/notifications_page.dart';
 import 'package:copper_launcher/ui/pages/online/online_page.dart';
+import 'package:copper_launcher/ui/pages/overview/home_drifting_grid.dart';
 import 'package:copper_launcher/ui/shell/parts/shell_breadcrumb.dart';
 import 'package:copper_launcher/ui/shell/parts/shell_content_edge.dart';
 import 'package:copper_launcher/ui/shell/parts/shell_top_bar.dart';
@@ -526,6 +527,7 @@ class AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    HomeDriftingGrid.syncFromConfig();
     AppNavigation.handler = (route) {
       _scaffoldKey.currentState?.closeDrawer();
       _onRootNavigate(route);
@@ -597,13 +599,23 @@ class AppShellState extends State<AppShell> {
 
     final page = ColorfulBackground(
       colorful: config.setting.personalizationOptions.colorfulBackground,
-      child: Padding(
-        padding: EdgeInsets.only(
-          top: safe.top,
-          right: safe.right,
-          bottom: safe.bottom,
-        ),
-        child: _buildNavigator(),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ValueListenableBuilder<bool>(
+            valueListenable: HomeDriftingGrid.enabledNotifier,
+            builder: (_, enabled, _) =>
+                enabled ? const HomeDriftingGrid() : const SizedBox.shrink(),
+          ),
+          Padding(
+            padding: EdgeInsets.only(
+              top: safe.top,
+              right: safe.right,
+              bottom: safe.bottom,
+            ),
+            child: _buildNavigator(),
+          ),
+        ],
       ),
     );
 

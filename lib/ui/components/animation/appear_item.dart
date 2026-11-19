@@ -162,18 +162,27 @@ class _AppearItemState extends State<AppearItem>
   @override
   Widget build(BuildContext context) {
     if (_boundToRoute) {
-      // 路由首次入场完成后锁定为静止态，避免 pop 或次级状态变化时重播页内动画
-      if (_routeEnteredOnce) return widget.child;
-
-      Widget result = FadeTransition(
-        opacity: _routeProgress!,
-        child: widget.child,
-      );
+      // 路由首次入场完成后锁定为静止态，但保持过渡壳层级不变，
+      // 避免拆掉 Fade/Slide/ScaleTransition 导致子树重建闪屏
+      final opacity = _routeEnteredOnce
+          ? const AlwaysStoppedAnimation<double>(1.0)
+          : _routeProgress!;
+      Widget result = FadeTransition(opacity: opacity, child: widget.child);
       if (_routePosition != null) {
-        result = SlideTransition(position: _routePosition!, child: result);
+        result = SlideTransition(
+          position: _routeEnteredOnce
+              ? const AlwaysStoppedAnimation<Offset>(Offset.zero)
+              : _routePosition!,
+          child: result,
+        );
       }
       if (_routeScale != null) {
-        result = ScaleTransition(scale: _routeScale!, child: result);
+        result = ScaleTransition(
+          scale: _routeEnteredOnce
+              ? const AlwaysStoppedAnimation<double>(1.0)
+              : _routeScale!,
+          child: result,
+        );
       }
       return result;
     }

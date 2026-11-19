@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/components/core/cu_skin.dart';
 import 'package:flutter/material.dart';
 
-/// 主页底层「若隐若现」的漂移网格层
+/// 全局常驻的「若隐若现」漂移网格背景层
 ///
-/// 叠加在全局流光之上、看板与启动区之下；沿对角线缓慢平推并在稀疏交叉点附加微光，
-/// 重绘节奏沿用 [repaintIntervalFor] 低频节流，缩放窗口期间暂停重绘以控制开销
+/// 挂在 [AppShell] 的流光背景之上、路由栈之下，切页时网格保持连续不动；
+/// 沿对角线缓慢平推并在稀疏交叉点附加微光，重绘按窗口面积低频节流，缩放窗口期间暂停重绘
 class HomeDriftingGrid extends StatefulWidget {
   const HomeDriftingGrid({
     super.key,
@@ -15,6 +16,23 @@ class HomeDriftingGrid extends StatefulWidget {
     this.cycleDuration = const Duration(seconds: 26),
     this.staticPhase = 0.25,
   });
+
+  static const String settingKey = 'home_grid_enabled';
+
+  /// 全局开关状态：AppShell 监听它决定是否挂载漂移网格，主页「背景」菜单负责切换
+  static final ValueNotifier<bool> enabledNotifier = ValueNotifier<bool>(true);
+
+  static void syncFromConfig() {
+    enabledNotifier.value =
+        config.setting.getCustomSetting(settingKey, true) == true;
+  }
+
+  static void setEnabled(bool value) {
+    if (enabledNotifier.value == value) return;
+    enabledNotifier.value = value;
+    config.setting.customSetting[settingKey] = value;
+    config.save();
+  }
 
   /// 是否播放缓慢漂移；关闭或单帧渲染时定格在 [staticPhase]
   final bool animate;

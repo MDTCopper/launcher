@@ -25,11 +25,9 @@ class LaunchPage extends StatefulWidget {
 class _LaunchPageState extends State<LaunchPage> {
   static const _dockStyleSettingKey = 'home_dock_style';
   static const _boardCardsSettingKey = 'home_board_cards';
-  static const _gridEnabledSettingKey = 'home_grid_enabled';
 
   late HomeDockStyle _dockStyle;
   late List<HomeBoardCardId> _enabledBoardCards;
-  late bool _gridEnabled;
 
   /// 选中版本来源：config 持有单一事实
   Mindustry? get _selectedVersion => config.versionOptions.selectedVersion;
@@ -48,8 +46,7 @@ class _LaunchPageState extends State<LaunchPage> {
       ),
     );
     _enabledBoardCards = _readBoardCards();
-    _gridEnabled =
-        config.setting.getCustomSetting(_gridEnabledSettingKey, true) == true;
+    HomeDriftingGrid.syncFromConfig();
   }
 
   List<HomeBoardCardId> _readBoardCards() {
@@ -92,10 +89,7 @@ class _LaunchPageState extends State<LaunchPage> {
   }
 
   void _toggleGrid() {
-    final next = !_gridEnabled;
-    setState(() => _gridEnabled = next);
-    config.setting.customSetting[_gridEnabledSettingKey] = next;
-    config.save();
+    HomeDriftingGrid.setEnabled(!HomeDriftingGrid.enabledNotifier.value);
   }
 
   /// 最近游玩过的其他版本（不含当前选中），按最近启动时间倒序，最多 5 个
@@ -198,7 +192,7 @@ class _LaunchPageState extends State<LaunchPage> {
         ContextMenuAction(
           icon: Icons.grid_4x4_rounded,
           label: '动态漂移网格',
-          checked: _gridEnabled,
+          checked: HomeDriftingGrid.enabledNotifier.value,
           onSelected: _toggleGrid,
         ),
         const ContextMenuDivider(),
@@ -213,74 +207,67 @@ class _LaunchPageState extends State<LaunchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (_gridEnabled) const HomeDriftingGrid(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-          child: ValueListenableBuilder<Mindustry?>(
-            valueListenable: config.versionOptions.selectedVersionNotifier,
-            builder: (context, selectedVersion, _) {
-              return Stack(
-                children: [
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    right: 196,
-                    bottom: 84,
-                    child: Align(
-                      alignment: Alignment.topLeft,
-                      child: CuSingleChildScrollView(
-                        clipBehavior: Clip.none,
-                        showScrollbar: false,
-                        fadeMask: false,
-                        child: HomeBoard(
-                          enabledCards: _enabledBoardCards,
-                          selectedVersion: selectedVersion,
-                          recentVersions: _recentVersions(),
-                          onSelectVersion: _selectVersion,
-                          onOpenVersionSelect: _openVersionSelect,
-                        ),
-                      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      child: ValueListenableBuilder<Mindustry?>(
+        valueListenable: config.versionOptions.selectedVersionNotifier,
+        builder: (context, selectedVersion, _) {
+          return Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                right: 196,
+                bottom: 84,
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: CuSingleChildScrollView(
+                    clipBehavior: Clip.none,
+                    showScrollbar: false,
+                    fadeMask: false,
+                    child: HomeBoard(
+                      enabledCards: _enabledBoardCards,
+                      selectedVersion: selectedVersion,
+                      recentVersions: _recentVersions(),
+                      onSelectVersion: _selectVersion,
+                      onOpenVersionSelect: _openVersionSelect,
                     ),
                   ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: AppearItem(
-                      slot: 1,
-                      duration: const Duration(milliseconds: 200),
-                      child: _buildCornerToolbar(cuSkinOf(context)),
-                    ),
+                ),
+              ),
+              Positioned(
+                right: 0,
+                top: 0,
+                child: AppearItem(
+                  slot: 1,
+                  duration: const Duration(milliseconds: 200),
+                  child: _buildCornerToolbar(cuSkinOf(context)),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: AppearItem(
+                  slot: 0,
+                  offset: const Offset(0, 0.14),
+                  scale: 0.98,
+                  duration: const Duration(milliseconds: 220),
+                  child: HomeLaunchDock(
+                    style: _dockStyle,
+                    selectedVersion: selectedVersion,
+                    hasAnyVersion: _hasAnyVersion,
+                    recentVersionMenuBuilder: (_) => _buildRecentVersionMenu(),
+                    onSelectVersionTap: _openVersionSelect,
+                    onVersionSettingTap: _openVersionSetting,
+                    onLaunchTap: _launchSelectedVersion,
                   ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: AppearItem(
-                      slot: 0,
-                      offset: const Offset(0, 0.14),
-                      scale: 0.98,
-                      duration: const Duration(milliseconds: 220),
-                      child: HomeLaunchDock(
-                        style: _dockStyle,
-                        selectedVersion: selectedVersion,
-                        hasAnyVersion: _hasAnyVersion,
-                        recentVersionMenuBuilder: (_) =>
-                            _buildRecentVersionMenu(),
-                        onSelectVersionTap: _openVersionSelect,
-                        onVersionSettingTap: _openVersionSetting,
-                        onLaunchTap: _launchSelectedVersion,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
