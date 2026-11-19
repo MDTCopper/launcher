@@ -660,10 +660,9 @@ class AppShellState extends State<AppShell> {
 
   // ── 页面过渡 ──
 
-  /// 统一路由转场（前进 440ms / 返回 320ms）：
-  /// - 0.00~0.32：旧页快速淡出微缩退清，彻底消除透明底双页叠影，退场期间屏蔽点击
-  /// - 0.25~0.62：新页舞台轻盈浮现，并与 PageEntranceScope 的页内槽位（0.30~1.00）接力
-  /// - 返回（reverse）：顶层前 38% 干脆退清，底层旧页从 0.32→0.0 优雅浮回且不重播页内波浪
+  /// 统一路由转场（前进 440ms / 返回 380ms）：
+  /// - 前进：旧页 0.00~0.36 按层退清（退场期间屏蔽点击），新页 0.28~0.62 舞台浮现并接力页内槽位（0.32~0.96）
+  /// - 返回：顶层 1.00~0.60（前 40%）按层顺滑退清，底层旧页 0.66~0.00 优雅落回
   Route<dynamic> _buildRoute(RouteSettings setting) {
     final page = routeMap[setting.name] ?? _NotFoundPage();
     final trailController = PageTopBarController();
@@ -675,8 +674,9 @@ class AppShellState extends State<AppShell> {
       settings: setting,
       trailController: trailController,
       transitionKind: transitionKind,
-      pageBuilder: (_, animation, _) => PageEntranceScope(
+      pageBuilder: (_, animation, secondaryAnimation) => PageEntranceScope(
         animation: animation,
+        secondaryAnimation: secondaryAnimation,
         transitionKind: transitionKind,
         child: PageTopBarScope(
           controller: trailController,
@@ -690,44 +690,49 @@ class AppShellState extends State<AppShell> {
       transitionsBuilder: (_, animation, secondaryAnimation, child) {
         final isDrill = transitionKind == CuTransitionKind.pushDrill;
 
-        // 1. 当前路由入场（前进 0.25~0.62 浮现；返回时对应倒放 1.0→0.62，即返回前 38% 干脆退清）
+        // 1. 当前路由入场 & 弹出退场（前进 0.28~0.62 浮现；返回 1.00~0.60 顺滑退清）
         final enterOpacity = CurvedAnimation(
           parent: animation,
-          curve: const Interval(0.25, 0.62, curve: Curves.easeOutCubic),
-          reverseCurve: const Interval(0.62, 1.0, curve: Curves.easeInCubic),
+          curve: const Interval(0.28, 0.62, curve: Curves.easeOutCubic),
+          reverseCurve: const Interval(0.60, 0.94, curve: Curves.easeOutCubic),
         );
         final enterMotion = CurvedAnimation(
           parent: animation,
-          curve: const Interval(0.25, 0.72, curve: Curves.easeOutCubic),
-          reverseCurve: const Interval(0.62, 1.0, curve: Curves.easeInCubic),
+          curve: const Interval(0.28, 0.72, curve: Curves.easeOutCubic),
+          reverseCurve: const Interval(0.60, 1.0, curve: Curves.easeOutCubic),
         );
         final enterSlide = Tween<Offset>(
           begin: isDrill ? const Offset(0.032, 0.0) : const Offset(0.0, 0.022),
           end: Offset.zero,
         ).animate(enterMotion);
         final enterScale = Tween<double>(
-          begin: 0.992,
+          begin: 0.99,
           end: 1.0,
         ).animate(enterMotion);
 
-        // 2. 当前路由作为旧页退场（secondary 0.00~0.32 快速清场；被 pop 回露时从 0.32→0.0 浮回）
-        final exitProgress = CurvedAnimation(
+        // 2. 当前路由作为旧页被覆盖退场 & 返回回露（覆盖 0.00~0.36 退清；回露 0.66~0.00 缓落）
+        final coverOpacityProgress = CurvedAnimation(
           parent: secondaryAnimation,
-          curve: const Interval(0.0, 0.32, curve: Curves.easeInCubic),
-          reverseCurve: const Interval(0.0, 0.35, curve: Curves.easeOutCubic),
+          curve: const Interval(0.06, 0.36, curve: Curves.easeInCubic),
+          reverseCurve: const Interval(0.16, 0.64, curve: Curves.easeInCubic),
+        );
+        final coverMotionProgress = CurvedAnimation(
+          parent: secondaryAnimation,
+          curve: const Interval(0.0, 0.36, curve: Curves.easeInCubic),
+          reverseCurve: const Interval(0.0, 0.66, curve: Curves.easeInCubic),
         );
         final exitOpacity = Tween<double>(
           begin: 1.0,
           end: 0.0,
-        ).animate(exitProgress);
+        ).animate(coverOpacityProgress);
         final exitScale = Tween<double>(
           begin: 1.0,
-          end: 0.984,
-        ).animate(exitProgress);
+          end: 0.982,
+        ).animate(coverMotionProgress);
         final exitSlide = Tween<Offset>(
           begin: Offset.zero,
-          end: isDrill ? const Offset(-0.022, 0.0) : const Offset(0.0, -0.014),
-        ).animate(exitProgress);
+          end: isDrill ? const Offset(-0.026, 0.0) : const Offset(0.0, -0.016),
+        ).animate(coverMotionProgress);
 
         return AnimatedBuilder(
           animation: secondaryAnimation,

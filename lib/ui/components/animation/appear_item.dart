@@ -4,20 +4,27 @@ import 'package:copper_launcher/ui/feature/feature_curve.dart';
 import 'package:copper_launcher/ui/util/route/route_trail.dart';
 import 'package:flutter/material.dart';
 
-/// 单条目入场动画（淡入 + 位移 + 生长）
+/// 单条目入场 / 退场动画（淡入淡出 + 位移 + 缩放）
 ///
 /// 两种驱动模式：
-/// - 传入 [slot] 且当前处于 [PageEntranceScope] 路由首次入场期间：
-///   直接绑定路由 `animation` 的时间区间（零 Timer、与页面退场 100% 锁帧对齐），
-///   路由完成后自动保持静态（返回该页不会重复播放波浪）
+/// - 传入 [slot] 且当前位于 [PageEntranceScope] 内：
+///   持续绑定路由的 `animation`（入场 & 弹出退场）与 `secondaryAnimation`（被新页覆盖退场 & 返回回露），
+///   零 Timer、零树结构切换，彻底对齐整页转场时间线且不会在结束时闪屏
 /// - 其他情况（滚动浮现、对话框或脱离 [CuPageRoute]）：
 ///   回落为自持 [AnimationController]，按 [delayMs] / [duration] 独立播放
 class AppearItem extends StatefulWidget {
   final Widget child;
   final int delayMs;
   final Duration duration;
-  final Offset offset; // 起始位移（列表用；route 槽位模式下为 zero 时可随转场方向适配）
-  final double scale; // 起始缩放（网格生长式用，默认 1 即不缩放）
+
+  /// 入场起始位移（路由槽位模式下为 zero 时可随转场方向自动适配）
+  final Offset offset;
+
+  /// 被新页覆盖退场时的目标位移（为空时按转场方向或 [offset] 自动推导）
+  final Offset? exitOffset;
+
+  /// 起始缩放（网格生长式用，默认 1 即不缩放）
+  final double scale;
   final Curve curve;
   final bool animate;
 
@@ -33,6 +40,7 @@ class AppearItem extends StatefulWidget {
     this.delayMs = 0,
     this.duration = const Duration(milliseconds: 200),
     this.offset = Offset.zero,
+    this.exitOffset,
     this.scale = 1,
     this.curve = FeatureCurves.reboundIn,
     this.animate = true,
@@ -54,25 +62,27 @@ class _AppearItemState extends State<AppearItem>
 
   bool _initialized = false;
   bool _boundToRoute = false;
-  PageEntranceScope? _scope;
-  Animation<double>? _routeProgress;
-  Animation<Offset>? _routePosition;
-  Animation<double>? _routeScale;
-  bool _routeEnteredOnce = false;
+
+  // 路由主轴：前进入场 & 返回弹出退场
+  Animation<double>? _primaryOpacity;
+  Animation<Offset>? _primaryPosition;
+  Animation<double>? _primaryScale;
+
+  // 路由次轴：被覆盖退场 & 返回回露
+  Animation<double>? _secondaryOpacity;
+  Animation<Offset>? _secondaryPosition;
+  Animation<double>? _secondaryScale;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_initialized) {
-      _checkRouteCompleted();
-      return;
-    }
+    if (_initialized) return;
     _initialized = true;
 
     final scope = widget.slot != null
         ? PageEntranceScope.maybeOf(context)
         : null;
-    if (widget.animate && scope != null && !scope.animation.isCompleted) {
+    if (widget.animate && scope != null) {
       _bindToRoute(scope);
     } else {
       _initStandalone();
@@ -81,48 +91,63 @@ class _AppearItemState extends State<AppearItem>
 
   void _bindToRoute(PageEntranceScope scope) {
     _boundToRoute = true;
-    _scope = scope;
-    scope.animation.addStatusListener(_onRouteStatusChanged);
+    final slot = widget.slot!;
 
-    final interval = PageEntranceScope.intervalForSlot(
-      widget.slot!,
-      curve: Curves.easeOutCubic,
-    );
-    final curved = CurvedAnimation(
+    // 1. 主轴（animation）：forward 负责阶梯入场，reverse 负责弹出时的逆序阶梯退场
+    final primaryCurved = CurvedAnimation(
       parent: scope.animation,
-      curve: interval,
-      // 返回时顶层由路由整体快速退清，不让页内单个槽位拆散倒退
-      reverseCurve: const Interval(0.99, 1.0),
+      curve: PageEntranceScope.enterIntervalForSlot(slot),
+      reverseCurve: PageEntranceScope.popExitIntervalForSlot(slot),
     );
 
-    final beginOffset = widget.offset != Offset.zero
+    final enterOffset = widget.offset != Offset.zero
         ? widget.offset
         : widget.followRouteDirection
         ? scope.defaultSlideOffset()
         : Offset.zero;
 
-    _routeProgress = curved;
-    _routePosition = beginOffset == Offset.zero
+    _primaryOpacity = primaryCurved;
+    _primaryPosition = enterOffset == Offset.zero
         ? null
-        : Tween<Offset>(begin: beginOffset, end: Offset.zero).animate(curved);
-    _routeScale = widget.scale == 1
+        : Tween<Offset>(
+            begin: enterOffset,
+            end: Offset.zero,
+          ).animate(primaryCurved);
+    _primaryScale = widget.scale == 1
         ? null
-        : Tween<double>(begin: widget.scale, end: 1.0).animate(curved);
-  }
+        : Tween<double>(begin: widget.scale, end: 1.0).animate(primaryCurved);
 
-  void _onRouteStatusChanged(AnimationStatus status) {
-    if (status == AnimationStatus.completed && !_routeEnteredOnce) {
-      _routeEnteredOnce = true;
-      if (mounted) setState(() {});
-    }
-  }
+    // 2. 次轴（secondaryAnimation）：forward 负责被新页覆盖时按槽位退场，reverse 负责返回时柔和落回
+    final secondaryCurved = CurvedAnimation(
+      parent: scope.secondaryAnimation,
+      curve: PageEntranceScope.coverExitIntervalForSlot(slot),
+      reverseCurve: PageEntranceScope.revealIntervalForSlot(slot),
+    );
 
-  void _checkRouteCompleted() {
-    if (_boundToRoute &&
-        !_routeEnteredOnce &&
-        (_scope?.animation.isCompleted ?? false)) {
-      _routeEnteredOnce = true;
-    }
+    final coverExitOffset =
+        widget.exitOffset ??
+        (widget.offset != Offset.zero
+            ? Offset(widget.offset.dx, -widget.offset.dy * 0.7)
+            : widget.followRouteDirection
+            ? scope.defaultCoverExitOffset()
+            : Offset.zero);
+
+    _secondaryOpacity = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(secondaryCurved);
+    _secondaryPosition = coverExitOffset == Offset.zero
+        ? null
+        : Tween<Offset>(
+            begin: Offset.zero,
+            end: coverExitOffset,
+          ).animate(secondaryCurved);
+    _secondaryScale = widget.scale == 1
+        ? null
+        : Tween<double>(
+            begin: 1.0,
+            end: widget.scale.clamp(0.95, 0.995),
+          ).animate(secondaryCurved);
   }
 
   void _initStandalone() {
@@ -153,7 +178,6 @@ class _AppearItemState extends State<AppearItem>
 
   @override
   void dispose() {
-    _scope?.animation.removeStatusListener(_onRouteStatusChanged);
     _timer?.cancel();
     _controller?.dispose();
     super.dispose();
@@ -162,27 +186,24 @@ class _AppearItemState extends State<AppearItem>
   @override
   Widget build(BuildContext context) {
     if (_boundToRoute) {
-      // 路由首次入场完成后锁定为静止态，但保持过渡壳层级不变，
-      // 避免拆掉 Fade/Slide/ScaleTransition 导致子树重建闪屏
-      final opacity = _routeEnteredOnce
-          ? const AlwaysStoppedAnimation<double>(1.0)
-          : _routeProgress!;
-      Widget result = FadeTransition(opacity: opacity, child: widget.child);
-      if (_routePosition != null) {
-        result = SlideTransition(
-          position: _routeEnteredOnce
-              ? const AlwaysStoppedAnimation<Offset>(Offset.zero)
-              : _routePosition!,
-          child: result,
-        );
+      // 始终保持同一套过渡壳层级，只由路由 animation / secondaryAnimation 驱动，绝不拆树闪屏
+      Widget result = FadeTransition(
+        opacity: _primaryOpacity!,
+        child: widget.child,
+      );
+      if (_primaryPosition != null) {
+        result = SlideTransition(position: _primaryPosition!, child: result);
       }
-      if (_routeScale != null) {
-        result = ScaleTransition(
-          scale: _routeEnteredOnce
-              ? const AlwaysStoppedAnimation<double>(1.0)
-              : _routeScale!,
-          child: result,
-        );
+      if (_primaryScale != null) {
+        result = ScaleTransition(scale: _primaryScale!, child: result);
+      }
+
+      result = FadeTransition(opacity: _secondaryOpacity!, child: result);
+      if (_secondaryPosition != null) {
+        result = SlideTransition(position: _secondaryPosition!, child: result);
+      }
+      if (_secondaryScale != null) {
+        result = ScaleTransition(scale: _secondaryScale!, child: result);
       }
       return result;
     }

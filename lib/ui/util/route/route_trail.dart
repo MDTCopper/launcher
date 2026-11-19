@@ -148,24 +148,27 @@ List<BreadcrumbSegment> buildBreadcrumb(List<RouteTrailEntry> entries) {
 /// 路由转场语义：平级入口切换走纵向轻景深，子页下钻走横向克制视差
 enum CuTransitionKind { rootSwitch, pushDrill }
 
-/// 路由统一入场时间轴作用域
+/// 路由统一入场 / 退场时间轴作用域
 ///
-/// 由 [CuPageRoute] 注入页面树；页内元素（如 [AppearItem] / 看板卡 / 启动区）直接绑定
-/// 路由自己的 [animation] 推进区间，避免各处自起 Timer 与路由转场脱节
+/// 由 [CuPageRoute] 注入页面树；页内元素（如 [AppearItem] / 看板卡 / 启动区）同时绑定
+/// 路由的 [animation]（入场 & 弹出退场）与 [secondaryAnimation]（被覆盖退场 & 返回回露），
+/// 让整页与页内元素共享同一根时钟、绝不脱节也不闪烁
 class PageEntranceScope extends InheritedWidget {
   const PageEntranceScope({
     super.key,
     required this.animation,
+    required this.secondaryAnimation,
     required this.transitionKind,
     required super.child,
   });
 
   final Animation<double> animation;
+  final Animation<double> secondaryAnimation;
   final CuTransitionKind transitionKind;
 
-  /// 页内元素入场的统一参数：与旧页 0.00~0.32 清场、舞台 0.25~0.62 浮现严密接力
-  static const double slotStart = 0.30;
-  static const double slotStep = 0.06;
+  /// 页内元素入场的统一参数：与旧页 0.00~0.36 清场、舞台 0.28~0.62 浮现严密接力
+  static const double slotStart = 0.32;
+  static const double slotStep = 0.055;
   static const double slotSpan = 0.42;
   static const int maxStaggerSlots = 4;
 
@@ -173,28 +176,76 @@ class PageEntranceScope extends InheritedWidget {
     return context.dependOnInheritedWidgetOfExactType<PageEntranceScope>();
   }
 
-  /// 计算第 [slot] 阶元素在路由 0~1 时间轴上的入场区间（最多错开前 5 阶，末尾不拖沓）
-  static Interval intervalForSlot(
+  /// 前进入场（animation: 0 → 1）：第 [slot] 阶在路由时间轴上的区间（最多错开前 5 阶）
+  static Interval enterIntervalForSlot(
     int slot, {
     Curve curve = Curves.easeOutCubic,
   }) {
     final clamped = slot.clamp(0, maxStaggerSlots);
-    final begin = (slotStart + clamped * slotStep).clamp(0.0, 0.72);
+    final begin = (slotStart + clamped * slotStep).clamp(0.0, 0.58);
     final end = (begin + slotSpan).clamp(begin + 0.1, 1.0);
     return Interval(begin, end, curve: curve);
   }
 
+  /// 弹出退场（animation: 1 → 0）：前 40% 内按槽位轻阶梯顺滑退清（easeOutCubic 倒放 = 渐加速离场）
+  static Interval popExitIntervalForSlot(
+    int slot, {
+    Curve curve = Curves.easeOutCubic,
+  }) {
+    final clamped = slot.clamp(0, maxStaggerSlots);
+    final end = (1.0 - clamped * 0.03).clamp(0.72, 1.0);
+    final begin = (end - 0.28).clamp(0.56, end - 0.1);
+    return Interval(begin, end, curve: curve);
+  }
+
+  /// 被新页覆盖退场（secondaryAnimation: 0 → 1）：前 36% 内按槽位退清，给新页让出画布
+  static Interval coverExitIntervalForSlot(
+    int slot, {
+    Curve curve = Curves.easeInCubic,
+  }) {
+    final clamped = slot.clamp(0, maxStaggerSlots);
+    final begin = (clamped * 0.03).clamp(0.0, 0.12);
+    final end = (begin + 0.24).clamp(begin + 0.1, 0.36);
+    return Interval(begin, end, curve: curve);
+  }
+
+  /// 下层页返回回露（secondaryAnimation: 1 → 0）：等顶层退清后（0.66 → 0.0）按槽位柔和落回
+  static Interval revealIntervalForSlot(
+    int slot, {
+    Curve curve = Curves.easeInCubic,
+  }) {
+    final clamped = slot.clamp(0, maxStaggerSlots);
+    final end = (0.66 - clamped * 0.055).clamp(0.42, 0.66);
+    final begin = (end - 0.42).clamp(0.0, end - 0.1);
+    return Interval(begin, end, curve: curve);
+  }
+
+  /// 兼容旧名：等价于 [enterIntervalForSlot]
+  static Interval intervalForSlot(
+    int slot, {
+    Curve curve = Curves.easeOutCubic,
+  }) => enterIntervalForSlot(slot, curve: curve);
+
   /// 按当前转场语义给出页内元素的默认入场位移方向
-  Offset defaultSlideOffset({double magnitude = 0.025}) {
+  Offset defaultSlideOffset({double magnitude = 0.028}) {
     return switch (transitionKind) {
       CuTransitionKind.rootSwitch => Offset(0, magnitude),
       CuTransitionKind.pushDrill => Offset(magnitude, 0),
     };
   }
 
+  /// 按当前转场语义给出页内元素被覆盖退场时的默认位移方向（与入场方向相反，形成推进感）
+  Offset defaultCoverExitOffset({double magnitude = 0.024}) {
+    return switch (transitionKind) {
+      CuTransitionKind.rootSwitch => Offset(0, -magnitude),
+      CuTransitionKind.pushDrill => Offset(-magnitude, 0),
+    };
+  }
+
   @override
   bool updateShouldNotify(covariant PageEntranceScope oldWidget) =>
       oldWidget.animation != animation ||
+      oldWidget.secondaryAnimation != secondaryAnimation ||
       oldWidget.transitionKind != transitionKind;
 }
 
@@ -210,7 +261,7 @@ class CuPageRoute extends PageRouteBuilder<dynamic> {
     required super.transitionsBuilder,
     this.transitionKind = CuTransitionKind.pushDrill,
     super.transitionDuration = const Duration(milliseconds: 440),
-    super.reverseTransitionDuration = const Duration(milliseconds: 320),
+    super.reverseTransitionDuration = const Duration(milliseconds: 380),
     super.opaque = true,
   });
 

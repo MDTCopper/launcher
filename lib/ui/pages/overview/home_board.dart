@@ -188,6 +188,7 @@ class HomeBoard extends StatelessWidget {
                         key: ValueKey(cardId),
                         slot: slotIndexMap[cardId] ?? 1,
                         offset: const Offset(0, 0.08),
+                        exitOffset: const Offset(0, -0.09),
                         scale: 0.965,
                         duration: const Duration(milliseconds: 220),
                         child: _buildCard(context, cardId),

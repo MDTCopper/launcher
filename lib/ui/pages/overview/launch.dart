@@ -240,6 +240,8 @@ class _LaunchPageState extends State<LaunchPage> {
                 top: 0,
                 child: AppearItem(
                   slot: 1,
+                  offset: const Offset(0, -0.10),
+                  exitOffset: const Offset(0, -0.14),
                   duration: const Duration(milliseconds: 200),
                   child: _buildCornerToolbar(cuSkinOf(context)),
                 ),
@@ -250,7 +252,8 @@ class _LaunchPageState extends State<LaunchPage> {
                 bottom: 0,
                 child: AppearItem(
                   slot: 0,
-                  offset: const Offset(0, 0.14),
+                  offset: const Offset(0, 0.16),
+                  exitOffset: const Offset(0, 0.20),
                   scale: 0.98,
                   duration: const Duration(milliseconds: 220),
                   child: HomeLaunchDock(
