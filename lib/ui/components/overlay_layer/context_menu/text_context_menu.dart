@@ -20,7 +20,7 @@ Widget copperTextContextMenu(
   if (SystemContextMenu.isSupportedByField(editableTextState)) {
     return SystemContextMenu.editableText(editableTextState: editableTextState);
   }
-  return _CopperTextContextMenuBridge(state: editableTextState);
+  return _CuTextContextMenuBridge(state: editableTextState);
 }
 
 /// 触摸平台的文本菜单：横排
@@ -29,18 +29,18 @@ const _touchTextMenuStyle = ContextMenuStyle(
 );
 
 /// 只负责「框架弹出 / 收起菜单」与铜面板之间的两条连接，自己不画东西
-class _CopperTextContextMenuBridge extends StatefulWidget {
-  const _CopperTextContextMenuBridge({required this.state});
+class _CuTextContextMenuBridge extends StatefulWidget {
+  const _CuTextContextMenuBridge({required this.state});
 
   final EditableTextState state;
 
   @override
-  State<_CopperTextContextMenuBridge> createState() =>
-      _CopperTextContextMenuBridgeState();
+  State<_CuTextContextMenuBridge> createState() =>
+      _CuTextContextMenuBridgeState();
 }
 
-class _CopperTextContextMenuBridgeState
-    extends State<_CopperTextContextMenuBridge> {
+class _CuTextContextMenuBridgeState
+    extends State<_CuTextContextMenuBridge> {
   /// 这一份菜单是第几次 show，用来在自己被销毁时认回「收的是我那份」
   int? _generation;
 

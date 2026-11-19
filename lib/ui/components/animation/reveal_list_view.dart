@@ -15,7 +15,7 @@ import 'appear_item.dart';
 /// 浮现机制：条目首次构建时播放入场动画——进入页面按 index 错位，
 /// 滚动后构建的条目立即浮现；已出现的条目滚动回来不重复动画
 ///
-/// 内部滚动容器复用 [CopperListView]
+/// 内部滚动容器复用 [CuListView]
 class RevealListView extends StatefulWidget {
   // ── 内容 ──
   final List<Widget?> items;
@@ -32,7 +32,7 @@ class RevealListView extends StatefulWidget {
   final Duration appearDuration;
   final Offset offset; // 起始位移
 
-  // ── 滚动容器（透传 CopperListView）──
+  // ── 滚动容器（透传 CuListView）──
   final ScrollController? scrollController;
   final ScrollPhysics? physics;
   final EdgeInsetsGeometry? padding;
@@ -140,7 +140,7 @@ class _RevealListViewState extends State<RevealListView> {
 
     if (widget.itemBuilder != null) {
       // 惰性：滚动到才构建，配合高度预期精确总长
-      return CopperListView.builder(
+      return CuListView.builder(
         controller: _scrollController,
         physics: widget.physics,
         padding: widget.padding,
@@ -165,7 +165,7 @@ class _RevealListViewState extends State<RevealListView> {
     }
 
     // 全量：错位入场
-    return CopperSingleChildScrollView(
+    return CuSingleChildScrollView(
       controller: _scrollController,
       physics: widget.physics,
       padding: widget.padding,

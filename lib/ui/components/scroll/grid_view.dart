@@ -10,7 +10,7 @@ import 'package:flutter/rendering.dart';
 /// 可选顶部底部渐变遮罩（[ScrollFadeMask]）
 ///
 /// [physics] 仅在非桌面端生效（桌面端由 DesktopScrollViewContainer 接管滚动）
-class CopperGridView extends StatefulWidget {
+class CuGridView extends StatefulWidget {
   // ── 滚动配置（透传 GridView）──
   final Axis scrollDirection;
   final bool reverse;
@@ -47,7 +47,7 @@ class CopperGridView extends StatefulWidget {
   final double? estimatedMaxScrollExtent;
 
   /// 默认构造：gridDelegate + children
-  const CopperGridView({
+  const CuGridView({
     super.key,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
@@ -76,7 +76,7 @@ class CopperGridView extends StatefulWidget {
        itemCount = null;
 
   /// builder 构造：gridDelegate + itemBuilder + itemCount 惰性构建
-  const CopperGridView.builder({
+  const CuGridView.builder({
     super.key,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
@@ -105,10 +105,10 @@ class CopperGridView extends StatefulWidget {
   }) : children = const [];
 
   @override
-  State<StatefulWidget> createState() => _CopperGridViewState();
+  State<StatefulWidget> createState() => _CuGridViewState();
 }
 
-class _CopperGridViewState extends State<CopperGridView> {
+class _CuGridViewState extends State<CuGridView> {
   late final ScrollController _scrollController;
 
   @override

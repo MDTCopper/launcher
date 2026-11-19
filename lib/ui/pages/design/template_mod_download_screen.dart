@@ -1,5 +1,4 @@
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
 import 'package:copper_launcher/ui/pages/design/template_markdown.dart';
 import 'package:copper_launcher/ui/pages/design/template_shell.dart';
 import 'package:copper_launcher/ui/pages/design/template_skin.dart';

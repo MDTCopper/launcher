@@ -30,7 +30,6 @@ import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/format/path_format.dart';
 import 'package:copper_launcher/util/validate/windows_file_name_validator.dart';
 import 'package:file_selector/file_selector.dart' show XTypeGroup;
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import 'package:copper_launcher/ui/vars.dart';
@@ -811,7 +810,7 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     final versions = _visibleVersions();
 
     // 项目惯例：页头信息不钉在顶上，跟着内容一起滚（列表 / 信息条 / 筛选都在同一条滚动链里）
-    return CopperListView(
+    return CuListView(
       padding: const EdgeInsets.all(16),
       children: [
         _buildFoldInfoBar(),

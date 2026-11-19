@@ -31,7 +31,7 @@ class PageNavigationRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget top = CopperSingleChildScrollView(
+    Widget top = CuSingleChildScrollView(
       padding: EdgeInsets.all(8),
       child: Column(
         spacing: 4,

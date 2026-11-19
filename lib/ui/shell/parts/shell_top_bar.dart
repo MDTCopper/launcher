@@ -61,7 +61,7 @@ class ShellTopBar extends StatelessWidget {
                 unread: unread,
                 onTap: onAccountTap,
               ),
-              const SizedBox(width: AppSpacing.related),
+
               // 面包屑只占内容宽度，右侧空白留给拖窗；整段都能起手拖窗口
               Expanded(
                 child: GestureDetector(

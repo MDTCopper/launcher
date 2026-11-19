@@ -1,6 +1,5 @@
-﻿import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
+import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
 import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu.dart';
-import 'package:copper_launcher/ui/components/overlay_layer/context_menu/context_menu_entry.dart';
 import 'package:copper_launcher/ui/pages/design/template_color.dart';
 import 'package:copper_launcher/ui/pages/design/template_drawer.dart';
 import 'package:copper_launcher/ui/pages/design/template_drop.dart';

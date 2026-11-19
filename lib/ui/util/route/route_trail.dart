@@ -152,10 +152,7 @@ class CuPageRoute extends PageRouteBuilder<dynamic> {
     required this.trailController,
     required super.pageBuilder,
     required super.transitionsBuilder,
-  }) : super(
-         transitionDuration: const Duration(milliseconds: 200),
-         reverseTransitionDuration: const Duration(milliseconds: 160),
-       );
+  });
 
   final PageTopBarController trailController;
 }

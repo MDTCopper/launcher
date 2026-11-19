@@ -525,7 +525,7 @@ class ResourceImporterState extends State<ResourceImporter> {
           //列表自身不带滚动条：外套项目滚动容器（自研滚动条 + 渐隐遮罩）；
           //DragSelectList 拿到的高度无界 → 其内层滚动视图不滚动，滚轮与滚动条由外层接管
           Expanded(
-            child: CopperSingleChildScrollView(
+            child: CuSingleChildScrollView(
               child: DragSelectList(
                 itemCount: importList.length,
                 selected: _selected,

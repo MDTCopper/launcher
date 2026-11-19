@@ -1,4 +1,4 @@
-﻿import 'package:copper_launcher/ui/components/animation/loop/dot_matrix_loading.dart';
+import 'package:copper_launcher/ui/components/animation/loop/dot_matrix_loading.dart';
 import 'package:copper_launcher/ui/components/animation/loop/drill_loading.dart';
 import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
@@ -94,7 +94,7 @@ class TestState extends State<Test> {
 
   @override
   Widget build(BuildContext context) {
-    return CopperSingleChildScrollView(
+    return CuSingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

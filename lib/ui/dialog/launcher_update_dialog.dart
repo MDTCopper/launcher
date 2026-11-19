@@ -94,10 +94,8 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
     final confirmed = await showAnimatedDialog<bool>(
       context: context,
       barrierDismissible: true,
-      pageBuilder: (_, _, _) => _ConfirmUpdateDialog(
-        release: release,
-        isSetup: isSetup,
-      ),
+      pageBuilder: (_, _, _) =>
+          _ConfirmUpdateDialog(release: release, isSetup: isSetup),
     );
     if (confirmed != true || !mounted) return;
 
@@ -195,7 +193,7 @@ class _LauncherUpdateDialogState extends State<_LauncherUpdateDialog> {
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: colors.border),
             ),
-            child: CopperSingleChildScrollView(
+            child: CuSingleChildScrollView(
               fadeMask: false,
               padding: const EdgeInsets.all(8),
               child: ReadmeView(
@@ -283,10 +281,7 @@ class _ConfirmUpdateDialog extends StatelessWidget {
                           '下载完启动器会退出、自动覆盖并重新打开，用户数据不受影响',
                 style: theme.textTheme.bodyMedium,
               ),
-              Text(
-                '更新期间请不要强制关闭启动器',
-                style: theme.textTheme.labelMedium,
-              ),
+              Text('更新期间请不要强制关闭启动器', style: theme.textTheme.labelMedium),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,

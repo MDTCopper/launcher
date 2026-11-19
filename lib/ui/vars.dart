@@ -1,4 +1,4 @@
-﻿import 'package:copper_launcher/core/app_constant.dart';
+import 'package:copper_launcher/core/app_constant.dart';
 import 'package:copper_launcher/ui/pages/account/account_page.dart';
 import 'package:copper_launcher/ui/pages/cloud/version_cloud_save_page.dart';
 import 'package:copper_launcher/ui/pages/design/seed_lab_page.dart';

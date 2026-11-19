@@ -4,7 +4,6 @@ import 'package:copper_launcher/ui/pages/design/template_skin.dart';
 import 'package:copper_launcher/ui/pages/design/template_widgets.dart';
 import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:material_color_utilities/hct/hct.dart';
 
 /// 种子配色调试页（`kDebugMode` 才有，路由 `/seed_lab`）

@@ -640,7 +640,7 @@ class _ModDownloadPageState extends State<ModDownloadPage> {
                 //描述（列表里截断，这里给完整内容）
                 ConstrainedBox(
                   constraints: BoxConstraints(maxHeight: size.height * 0.3),
-                  child: CopperSingleChildScrollView(
+                  child: CuSingleChildScrollView(
                     child: Column(
                       spacing: 6,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1394,7 +1394,7 @@ class _ModDownloadPopupPageState extends State<_ModDownloadPopupPage> {
       children: [
         title,
         const SizedBox(height: 8),
-        CopperSingleChildScrollView(child: info),
+        CuSingleChildScrollView(child: info),
       ],
     );
 

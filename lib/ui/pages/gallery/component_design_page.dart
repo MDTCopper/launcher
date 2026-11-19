@@ -124,7 +124,7 @@ class _ComponentDesignPageState extends State<ComponentDesignPage> {
         color: skin.surface,
         border: Border(right: BorderSide(color: skin.border)),
       ),
-      child: CopperListView(
+      child: CuListView(
         padding: const EdgeInsets.symmetric(vertical: TemplateSpace.sm),
         children: [
           _indexItem(skin, '原组件对照（组件库）', _realIndex),

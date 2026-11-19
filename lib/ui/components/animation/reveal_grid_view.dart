@@ -10,7 +10,7 @@ import 'appear_item.dart';
 /// - [RevealGridView.builder]：惰性构建，错位入场 + 滚动浮现；
 ///   惰性精确总长依赖 gridDelegate 的 mainAxisExtent（滚动条不乱跳）
 ///
-/// 内部滚动容器复用 [CopperGridView]（桌面滚动条/触控板/渐变遮罩）
+/// 内部滚动容器复用 [CuGridView]（桌面滚动条/触控板/渐变遮罩）
 /// 需要回顶按钮时自行套 `BackToTopLayer`（传入同一个 [scrollController]）
 class RevealGridView extends StatefulWidget {
   // ── 内容 ──
@@ -27,7 +27,7 @@ class RevealGridView extends StatefulWidget {
   final Duration appearDuration;
   final double startScale; // 生长起始缩放
 
-  // ── 滚动容器（透传 CopperGridView）──
+  // ── 滚动容器（透传 CuGridView）──
   final ScrollController? scrollController;
   final ScrollPhysics? physics;
   final EdgeInsetsGeometry? padding;
@@ -129,7 +129,7 @@ class _RevealGridViewState extends State<RevealGridView> {
 
     if (widget.itemBuilder != null) {
       // 惰性：滚动到才构建，配合 gridDelegate 的 mainAxisExtent 精确总长
-      return CopperGridView.builder(
+      return CuGridView.builder(
         controller: _scrollController,
         physics: widget.physics,
         padding: widget.padding,
@@ -153,7 +153,7 @@ class _RevealGridViewState extends State<RevealGridView> {
     }
 
     // 全量：错位生长入场（无浮现）
-    return CopperGridView(
+    return CuGridView(
       controller: _scrollController,
       physics: widget.physics,
       padding: widget.padding,

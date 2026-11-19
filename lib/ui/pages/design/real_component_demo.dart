@@ -1,4 +1,4 @@
-﻿import 'package:copper_launcher/ui/components/button/action_button.dart';
+import 'package:copper_launcher/ui/components/button/action_button.dart';
 import 'package:copper_launcher/ui/components/button/capsule_action_bar.dart';
 import 'package:copper_launcher/ui/components/button/icon_text_button.dart';
 import 'package:copper_launcher/ui/components/button/segment_button.dart';

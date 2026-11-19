@@ -45,7 +45,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       animation: _notifications.items,
       builder: (context, _) {
         final items = _notifications.items.value;
-        return CopperSingleChildScrollView(
+        return CuSingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.block),
             child: ContentPanelModule(

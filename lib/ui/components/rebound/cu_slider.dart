@@ -30,10 +30,10 @@ class CuSlider extends StatefulWidget {
   });
 
   @override
-  State<StatefulWidget> createState() => _CopperSliderState();
+  State<StatefulWidget> createState() => _CuSliderState();
 }
 
-class _CopperSliderState extends State<CuSlider> with TickerProviderStateMixin {
+class _CuSliderState extends State<CuSlider> with TickerProviderStateMixin {
   static const _kTrackHeight = 6.0;
   static const _kThumbSize = 18.0;
   static const _kHitHeight = 28.0;

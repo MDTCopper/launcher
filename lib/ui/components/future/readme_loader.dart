@@ -84,7 +84,7 @@ class _ModNetReadmeLoaderState extends State<ModNetReadmeLoader> {
     return SizedBox(
       height: size.height * 0.75,
       width: size.width * 0.85,
-      child: CopperSingleChildScrollView(
+      child: CuSingleChildScrollView(
         controller: controller,
         // 上下两条渐变是这里自己画的（见 build 里那两层 Positioned），别再叠一层遮罩
         fadeMask: false,

@@ -204,8 +204,7 @@ class _OnlinePageState extends State<OnlinePage> {
     final visibility = (caps == null || caps.visibility.contains(_visibility))
         ? _visibility
         : (caps.visibility.isNotEmpty ? caps.visibility.first : 'private');
-    final joinPolicy =
-        (caps == null || caps.joinPolicies.contains(_joinPolicy))
+    final joinPolicy = (caps == null || caps.joinPolicies.contains(_joinPolicy))
         ? _joinPolicy
         : (caps.joinPolicies.isNotEmpty ? caps.joinPolicies.first : 'public');
     await _stopLanLinkIfJoined();
@@ -229,9 +228,7 @@ class _OnlinePageState extends State<OnlinePage> {
       addNotice(
         icon: Icons.error_outline,
         title: raw.isEmpty ? '还没有房间码' : '房间码格式不对',
-        content: raw.isEmpty
-            ? '先向房主要 6 位房间码'
-            : '房间码是 6~12 位十六进制；也可以直接粘贴分享文本',
+        content: raw.isEmpty ? '先向房主要 6 位房间码' : '房间码是 6~12 位十六进制；也可以直接粘贴分享文本',
       );
       return;
     }
@@ -300,10 +297,7 @@ class _OnlinePageState extends State<OnlinePage> {
   Future<void> _launchCurrentGame() async {
     final version = config.versionOptions.selectedVersion;
     if (version == null) {
-      addNotice(
-        icon: Icons.info_outline,
-        title: '先在主页选一个游戏版本',
-      );
+      addNotice(icon: Icons.info_outline, title: '先在主页选一个游戏版本');
       return;
     }
     await GameInstance.launch(version);
@@ -356,11 +350,7 @@ class _OnlinePageState extends State<OnlinePage> {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
       if (_mp.state.value.session != null) {
-        addNotice(
-          icon: Icons.error_outline,
-          title: '房间没关掉',
-          content: '稍等一下再试',
-        );
+        addNotice(icon: Icons.error_outline, title: '房间没关掉', content: '稍等一下再试');
         return;
       }
     }
@@ -422,10 +412,8 @@ class _OnlinePageState extends State<OnlinePage> {
           duration: const Duration(milliseconds: 240),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
-          layoutBuilder: (current, previous) => Stack(
-            fit: StackFit.expand,
-            children: [...previous, ?current],
-          ),
+          layoutBuilder: (current, previous) =>
+              Stack(fit: StackFit.expand, children: [...previous, ?current]),
           transitionBuilder: (child, animation) {
             final curved = CurvedAnimation(
               parent: animation,
@@ -453,7 +441,7 @@ class _OnlinePageState extends State<OnlinePage> {
   Widget _buildEntry(MultiplayerState state, bool loggedIn) {
     final theme = Theme.of(context);
     final colors = AppColors.of(context);
-    return CopperSingleChildScrollView(
+    return CuSingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.block),
         child: LayoutBuilder(
@@ -505,10 +493,8 @@ class _OnlinePageState extends State<OnlinePage> {
                         pressedScale: 0.96,
                         icon: Icons.account_circle_outlined,
                         content: '去登录',
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          accountPageRouteKey,
-                        ),
+                        onTap: () =>
+                            Navigator.pushNamed(context, accountPageRouteKey),
                       ),
                     ],
                   ),
@@ -694,7 +680,8 @@ class _OnlinePageState extends State<OnlinePage> {
             pressedScale: 0.96,
             icon: Icons.meeting_room_outlined,
             content: '回到房间',
-            onTap: () => _setView(isOwner ? _OnlineView.host : _OnlineView.guest),
+            onTap: () =>
+                _setView(isOwner ? _OnlineView.host : _OnlineView.guest),
           ),
         ],
       ),
@@ -972,10 +959,7 @@ class _OnlinePageState extends State<OnlinePage> {
             spacing: AppSpacing.related,
             children: [
               Expanded(
-                child: Text(
-                  '进房需我同意',
-                  style: theme.textTheme.labelMedium,
-                ),
+                child: Text('进房需我同意', style: theme.textTheme.labelMedium),
               ),
               ActionButton(
                 content: Text(_requireApproval ? '开' : '关'),
@@ -992,9 +976,7 @@ class _OnlinePageState extends State<OnlinePage> {
           ),
           Text(
             approvalSupported
-                ? (_requireApproval
-                      ? '符合加入条件的人也要我同意才进得来'
-                      : '符合条件的人拿到房间码就能直接进')
+                ? (_requireApproval ? '符合加入条件的人也要我同意才进得来' : '符合条件的人拿到房间码就能直接进')
                 : '服务端暂不支持「需我同意」这一项',
             style: theme.textTheme.labelSmall?.copyWith(color: colors.itemHint),
           ),
@@ -1116,9 +1098,7 @@ class _OnlinePageState extends State<OnlinePage> {
           ),
           Text(
             '房间已开启，改配置要先关闭房间',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.itemHint,
-            ),
+            style: theme.textTheme.labelSmall?.copyWith(color: colors.itemHint),
           ),
         ],
       ),
@@ -1234,7 +1214,7 @@ class _OnlinePageState extends State<OnlinePage> {
                         ],
                       );
                     }
-                    return CopperSingleChildScrollView(
+                    return CuSingleChildScrollView(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(
                           AppSpacing.block,
@@ -1309,9 +1289,7 @@ class _OnlinePageState extends State<OnlinePage> {
           Text(
             '向房主要 6 位房间码。房间码只是入口，能不能进看房主设的加入方式；'
             '加入后进游戏，在「局域网游戏」里找房间',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.itemHint,
-            ),
+            style: theme.textTheme.labelSmall?.copyWith(color: colors.itemHint),
           ),
         ],
       ),
@@ -1536,9 +1514,7 @@ class _OnlinePageState extends State<OnlinePage> {
             if (session.status == 'closing' || session.status == 'expired')
               Text(
                 session.status == 'closing' ? '房间正在关闭' : '房间已过期',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.error,
-                ),
+                style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
               ),
             Text(
               _roomPhaseLabel(state),
@@ -1569,9 +1545,7 @@ class _OnlinePageState extends State<OnlinePage> {
             if (state.proxyError != null) ...[
               Text(
                 state.proxyError!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.error,
-                ),
+                style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
               ),
               if (state.proxyRetryAt != null)
                 Text(
@@ -1593,7 +1567,8 @@ class _OnlinePageState extends State<OnlinePage> {
                           ? '$seconds 秒后可重试'
                           : '重试';
                     })(),
-                    onTap: state.startingProxy || (_retrySeconds(state) ?? 0) > 0
+                    onTap:
+                        state.startingProxy || (_retrySeconds(state) ?? 0) > 0
                         ? null
                         : _mp.retryProxy,
                   ),
@@ -1608,10 +1583,7 @@ class _OnlinePageState extends State<OnlinePage> {
                     pressedScale: 0.96,
                     icon: Icons.copy_all_outlined,
                     content: '复制诊断',
-                    onTap: () => _copy(
-                      _diagnostics(state),
-                      '诊断信息',
-                    ),
+                    onTap: () => _copy(_diagnostics(state), '诊断信息'),
                   ),
                 ],
               ),
@@ -1692,10 +1664,7 @@ class _OnlinePageState extends State<OnlinePage> {
         addNotice(icon: Icons.info_outline, title: '先登录，或检查网络');
         return;
       }
-      await MdtbbsFriendsApi.sendRequest(
-        accessToken: token,
-        targetUserId: id,
-      );
+      await MdtbbsFriendsApi.sendRequest(accessToken: token, targetUserId: id);
       if (!mounted) return;
       setState(() => _friendRequestSent.add(userId));
       addNotice(icon: Icons.check, title: '已发送好友请求');
@@ -1804,13 +1773,12 @@ class _OnlinePageState extends State<OnlinePage> {
     final isOwner = state.self?.role == 'owner';
     final String hint;
     if (!state.proxyRunning) {
-      hint = state.proxyError != null
-          ? '联机通道没起来，先点上面的「重试」'
-          : '正在准备联机通道…';
+      hint = state.proxyError != null ? '联机通道没起来，先点上面的「重试」' : '正在准备联机通道…';
     } else if (isOwner) {
       hint = '进游戏并开「主机」房间，好友就能进来';
     } else {
-      hint = '进游戏 → 加入游戏 → 在「局域网游戏」里找房间'
+      hint =
+          '进游戏 → 加入游戏 → 在「局域网游戏」里找房间'
           '（没出现就直连 ${state.localAddress ?? '127.0.0.1:6567'}）';
     }
     return Text(
@@ -1872,9 +1840,7 @@ class _OnlinePageState extends State<OnlinePage> {
   String _effectiveJoinPolicy(MdtbbsMultiplayerCapabilities? caps) {
     if (caps == null) return _joinPolicy;
     if (caps.joinPolicies.contains(_joinPolicy)) return _joinPolicy;
-    return caps.joinPolicies.isNotEmpty
-        ? caps.joinPolicies.first
-        : _joinPolicy;
+    return caps.joinPolicies.isNotEmpty ? caps.joinPolicies.first : _joinPolicy;
   }
 
   String _visibilityLabel(String value) => switch (value) {

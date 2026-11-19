@@ -23,7 +23,7 @@ class CuMenuItem {
 /// 图标菜单按钮：点开项目已有的全局右键菜单（[ContextMenu]）
 ///
 /// 行尾「⋯」、目录操作这类轻量菜单用它；菜单本体、定位、动画、外点关闭
-/// 全走项目现成的 `CopperContextMenuController`，不再另起一套。
+/// 全走项目现成的 `CuContextMenuController`，不再另起一套。
 class CuMenuButton extends StatelessWidget {
   const CuMenuButton({
     super.key,

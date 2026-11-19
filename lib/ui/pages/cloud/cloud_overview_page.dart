@@ -91,7 +91,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    return CopperSingleChildScrollView(
+    return CuSingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.block),
         child: Column(
@@ -125,9 +125,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
         children: [
           Text(
             usable
-                ? (state == null
-                      ? '还没上传；默认存档在云端唯一，不绑定实例'
-                      : '已上传到云端；默认存档不绑定实例')
+                ? (state == null ? '还没上传；默认存档在云端唯一，不绑定实例' : '已上传到云端；默认存档不绑定实例')
                 : '默认存档属于未隔离的数据目录；切到一个未隔离版本再管理',
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.itemSecondary,
@@ -191,7 +189,8 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
                 final boundTag = _boundTagOfSlot(slot);
                 final isBound = boundTag != null;
                 final isDefaultSlot =
-                    CloudSaveService.isDefaultSlotName(slot.name) || profile == 'default';
+                    CloudSaveService.isDefaultSlotName(slot.name) ||
+                    profile == 'default';
                 final currentVersion = config.versionOptions.selectedVersion;
                 final boundToCurrent =
                     currentVersion != null &&
@@ -308,9 +307,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
         if (formatHint != null)
           Text(
             formatHint,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.itemHint,
-            ),
+            style: theme.textTheme.labelSmall?.copyWith(color: colors.itemHint),
           ),
         IconTextButton(
           pressedScale: 0.96,
@@ -437,6 +434,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
           : removeNewlines('${task.error}'),
     );
   }
+
   Future<void> _bindSlot(CloudSaveSlot slot) async {
     final token = await _accounts.ensureAccessToken();
     if (token == null) return;
@@ -465,11 +463,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
         '这份云存档已绑定到本机 ${slotProfile == 'default' ? '默认存档' : slotProfile}',
     ];
     if (conflicts.isEmpty) {
-      await _completeBind(
-        version: version,
-        slot: slot,
-        replacedProfile: null,
-      );
+      await _completeBind(version: version, slot: slot, replacedProfile: null);
       return;
     }
     if (!mounted) return;
@@ -570,9 +564,7 @@ class _CloudOverviewPageState extends State<CloudOverviewPage> {
             },
           ),
           Text(
-            enabled
-                ? '所有版本统一参与：启动游戏前拉云端、退出后自动上传'
-                : '关着：所有版本都不参与云存档',
+            enabled ? '所有版本统一参与：启动游戏前拉云端、退出后自动上传' : '关着：所有版本都不参与云存档',
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.itemSecondary,
             ),

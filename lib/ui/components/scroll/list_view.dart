@@ -10,7 +10,7 @@ import 'package:flutter/rendering.dart';
 /// 可选顶部底部渐变遮罩（[ScrollFadeMask]）
 ///
 /// [physics] 仅在非桌面端生效（桌面端由 DesktopScrollViewContainer 接管滚动）
-class CopperListView extends StatefulWidget {
+class CuListView extends StatefulWidget {
   // ── 滚动配置（透传 ListView）──
   final Axis scrollDirection;
   final bool reverse;
@@ -48,7 +48,7 @@ class CopperListView extends StatefulWidget {
   final double? estimatedMaxScrollExtent;
 
   /// 默认构造：直接传 children
-  const CopperListView({
+  const CuListView({
     super.key,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
@@ -78,7 +78,7 @@ class CopperListView extends StatefulWidget {
        itemCount = null;
 
   /// builder 构造：itemBuilder + itemCount 惰性构建
-  const CopperListView.builder({
+  const CuListView.builder({
     super.key,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
@@ -108,10 +108,10 @@ class CopperListView extends StatefulWidget {
   }) : children = const [];
 
   @override
-  State<StatefulWidget> createState() => _CopperListViewState();
+  State<StatefulWidget> createState() => _CuListViewState();
 }
 
-class _CopperListViewState extends State<CopperListView> {
+class _CuListViewState extends State<CuListView> {
   late final ScrollController _scrollController;
 
   @override

@@ -531,7 +531,7 @@ class _MapDetailPanelState extends State<_MapDetailPanel> {
                 ],
               ),
               Flexible(
-                child: CopperSingleChildScrollView(
+                child: CuSingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     spacing: 8,

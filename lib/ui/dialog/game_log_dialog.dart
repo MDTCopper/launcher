@@ -62,7 +62,7 @@ class _LogFileDialog extends StatelessWidget {
             ),
             Divider(height: 1, color: colors.border),
             Expanded(
-              child: CopperSingleChildScrollView(
+              child: CuSingleChildScrollView(
                 fadeMask: false,
                 padding: const EdgeInsets.all(12),
                 child: SelectableText(

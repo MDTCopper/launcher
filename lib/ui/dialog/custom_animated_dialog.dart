@@ -184,7 +184,7 @@ Future<T?> showConfirmationPopup<T extends Object?>({
                     ),
                   ],
                 ),
-                Flexible(child: CopperSingleChildScrollView(child: child)),
+                Flexible(child: CuSingleChildScrollView(child: child)),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   spacing: 8,
