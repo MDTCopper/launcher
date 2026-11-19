@@ -1,5 +1,6 @@
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
+import 'package:copper_launcher/ui/components/animation/appear_item.dart';
 import 'package:copper_launcher/ui/components/core/cu_frosted_panel.dart';
 import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/components/core/cu_skin.dart';
@@ -165,6 +166,10 @@ class HomeBoard extends StatelessWidget {
         final rows = _packRows(enabledCards, columns);
         final unitWidth = _unitWidthFor(maxWidth, columns);
 
+        final slotIndexMap = <HomeBoardCardId, int>{
+          for (var i = 0; i < enabledCards.length; i++) enabledCards[i]: i + 1,
+        };
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -179,7 +184,14 @@ class HomeBoard extends StatelessWidget {
                     SizedBox(
                       width: _widthFor(cardId, unitWidth, columns),
                       height: _cardHeight,
-                      child: _buildCard(context, cardId),
+                      child: AppearItem(
+                        key: ValueKey(cardId),
+                        slot: slotIndexMap[cardId] ?? 1,
+                        offset: const Offset(0, 0.08),
+                        scale: 0.965,
+                        duration: const Duration(milliseconds: 220),
+                        child: _buildCard(context, cardId),
+                      ),
                     ),
                 ],
               ),

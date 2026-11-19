@@ -1,6 +1,7 @@
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/data/models.dart';
 import 'package:copper_launcher/domain/game_instance.dart';
+import 'package:copper_launcher/ui/components/animation/appear_item.dart';
 import 'package:copper_launcher/ui/components/core/cu_frosted_panel.dart';
 import 'package:copper_launcher/ui/components/core/cu_pressable.dart';
 import 'package:copper_launcher/ui/components/core/cu_skin.dart';
@@ -247,21 +248,31 @@ class _LaunchPageState extends State<LaunchPage> {
                   Positioned(
                     right: 0,
                     top: 0,
-                    child: _buildCornerToolbar(cuSkinOf(context)),
+                    child: AppearItem(
+                      slot: 1,
+                      duration: const Duration(milliseconds: 200),
+                      child: _buildCornerToolbar(cuSkinOf(context)),
+                    ),
                   ),
                   Positioned(
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    child: HomeLaunchDock(
-                      style: _dockStyle,
-                      selectedVersion: selectedVersion,
-                      hasAnyVersion: _hasAnyVersion,
-                      recentVersionMenuBuilder: (_) =>
-                          _buildRecentVersionMenu(),
-                      onSelectVersionTap: _openVersionSelect,
-                      onVersionSettingTap: _openVersionSetting,
-                      onLaunchTap: _launchSelectedVersion,
+                    child: AppearItem(
+                      slot: 0,
+                      offset: const Offset(0, 0.14),
+                      scale: 0.98,
+                      duration: const Duration(milliseconds: 220),
+                      child: HomeLaunchDock(
+                        style: _dockStyle,
+                        selectedVersion: selectedVersion,
+                        hasAnyVersion: _hasAnyVersion,
+                        recentVersionMenuBuilder: (_) =>
+                            _buildRecentVersionMenu(),
+                        onSelectVersionTap: _openVersionSelect,
+                        onVersionSettingTap: _openVersionSetting,
+                        onLaunchTap: _launchSelectedVersion,
+                      ),
                     ),
                   ),
                 ],

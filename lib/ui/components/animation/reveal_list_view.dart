@@ -125,6 +125,8 @@ class _RevealListViewState extends State<RevealListView> {
     return Padding(
       padding: EdgeInsets.only(bottom: widget.itemSpacing),
       child: AppearItem(
+        slot: animate ? index : null,
+        followRouteDirection: true,
         delayMs: animate ? _delayFor(index) : 0,
         animate: animate,
         offset: widget.offset,

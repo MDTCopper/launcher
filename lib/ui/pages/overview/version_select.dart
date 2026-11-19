@@ -8,6 +8,7 @@ import 'package:copper_launcher/domain/steam_version.dart';
 import 'package:copper_launcher/domain/version_variant.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
 import 'package:copper_launcher/core/app_paths.dart';
+import 'package:copper_launcher/ui/components/animation/appear_item.dart';
 import 'package:copper_launcher/ui/components/core/cu_button.dart';
 import 'package:copper_launcher/ui/components/core/cu_list_panel.dart';
 import 'package:copper_launcher/ui/components/cu_card.dart';
@@ -726,7 +727,20 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
     return CuListTile(
       borderRadius: BorderRadius.zero,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      leading: VersionIcon(version: version, height: 36, fallbackScale: 0.8),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: VersionIcon(
+            version: version,
+            height: 36,
+            width: 36,
+            fallbackScale: 1.0,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
       title: Text(
         version.tag,
         style: theme.textTheme.bodyMedium?.copyWith(
@@ -809,22 +823,47 @@ class _VersionSelectPageState extends State<VersionSelectPage> {
   Widget _buildVersionViewPage() {
     final versions = _visibleVersions();
 
-    // 项目惯例：页头信息不钉在顶上，跟着内容一起滚（列表 / 信息条 / 筛选都在同一条滚动链里）
+    // 项目惯例：页头信息不钉在顶上，跟着内容一起滚；各区按路由时间轴槽位接力浮现
     return CuListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildFoldInfoBar(),
+        AppearItem(
+          slot: 0,
+          followRouteDirection: true,
+          scale: 0.99,
+          child: _buildFoldInfoBar(),
+        ),
         const SizedBox(height: 12),
-        _buildFilterBar(),
+        AppearItem(
+          slot: 1,
+          followRouteDirection: true,
+          child: _buildFilterBar(),
+        ),
         const SizedBox(height: 12),
         versions.isEmpty
-            ? _buildEmptyPage()
-            : CuListPanel(
-                title: '${const ['全部', '原版', 'Copper', '测试'][_category]}版本',
-                subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
-                children: [
-                  for (final version in versions) _buildVersionRow(version),
-                ],
+            ? AppearItem(
+                slot: 2,
+                followRouteDirection: true,
+                scale: 0.98,
+                child: _buildEmptyPage(),
+              )
+            : AppearItem(
+                slot: 2,
+                followRouteDirection: true,
+                scale: 0.99,
+                child: CuListPanel(
+                  title: '${const ['全部', '原版', 'Copper', '测试'][_category]}版本',
+                  subtitle: '共 ${versions.length} 个 · 单击切换，右侧 ⋯ 做更多操作',
+                  children: [
+                    for (var i = 0; i < versions.length; i++)
+                      AppearItem(
+                        key: ValueKey(versions[i].id),
+                        slot: 2 + (i > 2 ? 2 : i),
+                        followRouteDirection: true,
+                        child: _buildVersionRow(versions[i]),
+                      ),
+                  ],
+                ),
               ),
       ],
     );

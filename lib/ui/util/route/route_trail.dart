@@ -145,14 +145,72 @@ List<BreadcrumbSegment> buildBreadcrumb(List<RouteTrailEntry> entries) {
   return segments;
 }
 
-/// 内层导航栈用的页面路由：带一条顶栏回写通道
+/// 路由转场语义：平级入口切换走纵向轻景深，子页下钻走横向克制视差
+enum CuTransitionKind { rootSwitch, pushDrill }
+
+/// 路由统一入场时间轴作用域
+///
+/// 由 [CuPageRoute] 注入页面树；页内元素（如 [AppearItem] / 看板卡 / 启动区）直接绑定
+/// 路由自己的 [animation] 推进区间，避免各处自起 Timer 与路由转场脱节
+class PageEntranceScope extends InheritedWidget {
+  const PageEntranceScope({
+    super.key,
+    required this.animation,
+    required this.transitionKind,
+    required super.child,
+  });
+
+  final Animation<double> animation;
+  final CuTransitionKind transitionKind;
+
+  /// 页内元素入场的统一参数：与旧页 0.00~0.32 清场、舞台 0.25~0.62 浮现严密接力
+  static const double slotStart = 0.30;
+  static const double slotStep = 0.06;
+  static const double slotSpan = 0.42;
+  static const int maxStaggerSlots = 4;
+
+  static PageEntranceScope? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<PageEntranceScope>();
+  }
+
+  /// 计算第 [slot] 阶元素在路由 0~1 时间轴上的入场区间（最多错开前 5 阶，末尾不拖沓）
+  static Interval intervalForSlot(
+    int slot, {
+    Curve curve = Curves.easeOutCubic,
+  }) {
+    final clamped = slot.clamp(0, maxStaggerSlots);
+    final begin = (slotStart + clamped * slotStep).clamp(0.0, 0.72);
+    final end = (begin + slotSpan).clamp(begin + 0.1, 1.0);
+    return Interval(begin, end, curve: curve);
+  }
+
+  /// 按当前转场语义给出页内元素的默认入场位移方向
+  Offset defaultSlideOffset({double magnitude = 0.025}) {
+    return switch (transitionKind) {
+      CuTransitionKind.rootSwitch => Offset(0, magnitude),
+      CuTransitionKind.pushDrill => Offset(magnitude, 0),
+    };
+  }
+
+  @override
+  bool updateShouldNotify(covariant PageEntranceScope oldWidget) =>
+      oldWidget.animation != animation ||
+      oldWidget.transitionKind != transitionKind;
+}
+
+/// 内层导航栈用的页面路由：带一条顶栏回写通道与统一转场时间轴
 class CuPageRoute extends PageRouteBuilder<dynamic> {
   CuPageRoute({
     required RouteSettings super.settings,
     required this.trailController,
     required super.pageBuilder,
     required super.transitionsBuilder,
+    this.transitionKind = CuTransitionKind.pushDrill,
+    super.transitionDuration = const Duration(milliseconds: 440),
+    super.reverseTransitionDuration = const Duration(milliseconds: 320),
+    super.opaque = false,
   });
 
   final PageTopBarController trailController;
+  final CuTransitionKind transitionKind;
 }

@@ -648,37 +648,96 @@ class AppShellState extends State<AppShell> {
 
   // ── 页面过渡 ──
 
+  /// 统一路由转场（前进 440ms / 返回 320ms）：
+  /// - 0.00~0.32：旧页快速淡出微缩退清，彻底消除透明底双页叠影，退场期间屏蔽点击
+  /// - 0.25~0.62：新页舞台轻盈浮现，并与 PageEntranceScope 的页内槽位（0.30~1.00）接力
+  /// - 返回（reverse）：顶层前 38% 干脆退清，底层旧页从 0.32→0.0 优雅浮回且不重播页内波浪
   Route<dynamic> _buildRoute(RouteSettings setting) {
     final page = routeMap[setting.name] ?? _NotFoundPage();
     final trailController = PageTopBarController();
+    final transitionKind = _rootRouteLabels.containsKey(setting.name)
+        ? CuTransitionKind.rootSwitch
+        : CuTransitionKind.pushDrill;
 
     return CuPageRoute(
       settings: setting,
       trailController: trailController,
-      pageBuilder: (_, _, _) => PageTopBarScope(
-        controller: trailController,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {},
-          child: page,
+      transitionKind: transitionKind,
+      pageBuilder: (_, animation, _) => PageEntranceScope(
+        animation: animation,
+        transitionKind: transitionKind,
+        child: PageTopBarScope(
+          controller: trailController,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: page,
+          ),
         ),
       ),
-      transitionsBuilder: (_, animation, _, child) {
-        final curvedEnter = CurvedAnimation(
-          parent: animation,
-          curve: const Interval(0.4, 1.0, curve: Curves.easeOutBack),
-          reverseCurve: const Interval(0.4, 1.0, curve: Curves.easeIn),
-        );
+      transitionsBuilder: (_, animation, secondaryAnimation, child) {
+        final isDrill = transitionKind == CuTransitionKind.pushDrill;
 
-        // 只播新页入场：下面那层旧页留在原地，不该跟着二级动画一起位移淡出
-        return FadeTransition(
-          opacity: curvedEnter,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0.0, 0.06),
-              end: Offset.zero,
-            ).animate(curvedEnter),
-            child: child,
+        // 1. 当前路由入场（前进 0.25~0.62 浮现；返回时对应倒放 1.0→0.62，即返回前 38% 干脆退清）
+        final enterOpacity = CurvedAnimation(
+          parent: animation,
+          curve: const Interval(0.25, 0.62, curve: Curves.easeOutCubic),
+          reverseCurve: const Interval(0.62, 1.0, curve: Curves.easeInCubic),
+        );
+        final enterMotion = CurvedAnimation(
+          parent: animation,
+          curve: const Interval(0.25, 0.72, curve: Curves.easeOutCubic),
+          reverseCurve: const Interval(0.62, 1.0, curve: Curves.easeInCubic),
+        );
+        final enterSlide = Tween<Offset>(
+          begin: isDrill ? const Offset(0.032, 0.0) : const Offset(0.0, 0.022),
+          end: Offset.zero,
+        ).animate(enterMotion);
+        final enterScale = Tween<double>(
+          begin: 0.992,
+          end: 1.0,
+        ).animate(enterMotion);
+
+        // 2. 当前路由作为旧页退场（secondary 0.00~0.32 快速清场；被 pop 回露时从 0.32→0.0 浮回）
+        final exitProgress = CurvedAnimation(
+          parent: secondaryAnimation,
+          curve: const Interval(0.0, 0.32, curve: Curves.easeInCubic),
+          reverseCurve: const Interval(0.0, 0.35, curve: Curves.easeOutCubic),
+        );
+        final exitOpacity = Tween<double>(
+          begin: 1.0,
+          end: 0.0,
+        ).animate(exitProgress);
+        final exitScale = Tween<double>(
+          begin: 1.0,
+          end: 0.984,
+        ).animate(exitProgress);
+        final exitSlide = Tween<Offset>(
+          begin: Offset.zero,
+          end: isDrill ? const Offset(-0.022, 0.0) : const Offset(0.0, -0.014),
+        ).animate(exitProgress);
+
+        return AnimatedBuilder(
+          animation: secondaryAnimation,
+          builder: (_, inner) => IgnorePointer(
+            ignoring: secondaryAnimation.value > 0.01,
+            child: inner,
+          ),
+          child: FadeTransition(
+            opacity: exitOpacity,
+            child: SlideTransition(
+              position: exitSlide,
+              child: ScaleTransition(
+                scale: exitScale,
+                child: FadeTransition(
+                  opacity: enterOpacity,
+                  child: SlideTransition(
+                    position: enterSlide,
+                    child: ScaleTransition(scale: enterScale, child: child),
+                  ),
+                ),
+              ),
+            ),
           ),
         );
       },
