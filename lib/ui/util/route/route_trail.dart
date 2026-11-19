@@ -146,23 +146,13 @@ List<BreadcrumbSegment> buildBreadcrumb(List<RouteTrailEntry> entries) {
 }
 
 /// 内层导航栈用的页面路由：带一条顶栏回写通道
-class CopperPageRoute extends PageRouteBuilder<dynamic> {
-  CopperPageRoute({
-    required RouteSettings settings,
+class CuPageRoute extends PageRouteBuilder<dynamic> {
+  CuPageRoute({
+    required RouteSettings super.settings,
     required this.trailController,
-    required Widget Function(BuildContext, Animation<double>, Animation<double>)
-    pageBuilder,
-    required Widget Function(
-      BuildContext,
-      Animation<double>,
-      Animation<double>,
-      Widget,
-    )
-    transitionsBuilder,
+    required super.pageBuilder,
+    required super.transitionsBuilder,
   }) : super(
-         settings: settings,
-         pageBuilder: pageBuilder,
-         transitionsBuilder: transitionsBuilder,
          transitionDuration: const Duration(milliseconds: 200),
          reverseTransitionDuration: const Duration(milliseconds: 160),
        );

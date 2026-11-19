@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/domain/account/account_manager.dart';
@@ -16,7 +16,6 @@ import 'package:copper_launcher/ui/pages/online/online_page.dart';
 import 'package:copper_launcher/ui/shell/parts/shell_breadcrumb.dart';
 import 'package:copper_launcher/ui/shell/parts/shell_content_edge.dart';
 import 'package:copper_launcher/ui/shell/parts/shell_top_bar.dart';
-import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
 import 'package:copper_launcher/ui/util/route/page_key_provider.dart';
 import 'package:copper_launcher/ui/util/route/route_trail.dart';
 import 'package:copper_launcher/ui/util/notification.dart';
@@ -26,16 +25,13 @@ import 'package:copper_launcher/util/io/log.dart';
 import 'package:copper_launcher/util/io/os.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide NavigationRail;
-import 'package:window_manager/window_manager.dart';
 import 'parts/colorful_background.dart';
 import '../theme/app_colors.dart';
 import '../theme/design_system.dart';
 import '../components/overlay_layer/drag_file_field.dart';
 import 'drawer/info_drawer.dart';
 import '../page_framwork/sub_navigation_state.dart';
-import 'parts/task_drawer_opener.dart';
 import '../dialog/resource_importer.dart';
 import '../vars.dart';
 import 'navigation_rail.dart';
@@ -242,7 +238,7 @@ class AppShellState extends State<AppShell> {
   List<BreadcrumbSegment> _buildTrailSegments() {
     final entries = <RouteTrailEntry>[];
     for (final route in routeWatcher.stack) {
-      final trail = route is CopperPageRoute
+      final trail = route is CuPageRoute
           ? route.trailController.value
           : const PageTopBarTrail();
       final args = route.settings.arguments;
@@ -308,31 +304,6 @@ class AppShellState extends State<AppShell> {
               unawaited(accounts.loadAccount());
             }
           },
-          taskOpener: const TaskDrawerOpener(),
-          windowControls: isDesktop
-              ? IconTheme(
-                  data: const IconThemeData(size: 18),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: Center(
-                          child: ReboundButton(
-                            backgroundColor: Colors.transparent,
-                            onTap: () => windowManager.minimize(),
-                            child: const Icon(Icons.remove),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const WindowCloseButton(),
-                    ],
-                  ),
-                )
-              : null,
-          onDragStart: isDesktop ? () => windowManager.startDragging() : null,
         );
       },
     );
@@ -681,7 +652,7 @@ class AppShellState extends State<AppShell> {
     final page = routeMap[setting.name] ?? _NotFoundPage();
     final trailController = PageTopBarController();
 
-    return CopperPageRoute(
+    return CuPageRoute(
       settings: setting,
       trailController: trailController,
       pageBuilder: (_, _, _) => PageTopBarScope(
@@ -692,43 +663,24 @@ class AppShellState extends State<AppShell> {
           child: page,
         ),
       ),
-      transitionsBuilder: (_, animation, secondaryAnimation, child) {
-        final curvedEnter = CurvedAnimation(
+      transitionsBuilder: (_, animation, _, child) {
+        // 与 PageSwitcher 一致：从右 3.3% 划入 + 淡入，200ms easeOutCubic
+        // 只播新页入场；下面那层旧页留在原地，不跟二级动画一起位移淡出
+        final curved = CurvedAnimation(
           parent: animation,
-          curve: const Interval(0.4, 1.0, curve: Curves.easeOutBack),
-          reverseCurve: const Interval(0.4, 1.0, curve: Curves.easeIn),
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
         );
-
-        final curvedExit = CurvedAnimation(
-          parent: secondaryAnimation,
-          curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-          reverseCurve: const Interval(0.0, 0.6, curve: Curves.easeInBack),
-        );
-        child = FadeTransition(
-          opacity: curvedEnter,
+        return FadeTransition(
+          opacity: curved,
           child: SlideTransition(
             position: Tween<Offset>(
-              begin: const Offset(0.0, 0.06),
+              begin: const Offset(0.033, 0.0),
               end: Offset.zero,
-            ).animate(curvedEnter),
+            ).animate(curved),
             child: child,
           ),
         );
-
-        child = SlideTransition(
-          position: Tween<Offset>(
-            begin: Offset.zero,
-            end: const Offset(0.0, 0.06),
-          ).animate(curvedExit),
-          child: child,
-        );
-
-        child = FadeTransition(
-          opacity: Tween<double>(begin: 1.0, end: 0.0).animate(curvedExit),
-          child: child,
-        );
-
-        return child;
       },
     );
   }
@@ -790,14 +742,14 @@ class _RouteWatcher extends RouteObserver {
   }
 
   void _listenTrail(PageRoute<dynamic> route) {
-    if (route is CopperPageRoute) {
+    if (route is CuPageRoute) {
       route.trailController.addListener(_onTrailChanged);
     }
   }
 
   void _drop(PageRoute<dynamic> route) {
     stack.remove(route);
-    if (route is CopperPageRoute) {
+    if (route is CuPageRoute) {
       route.trailController.removeListener(_onTrailChanged);
     }
   }

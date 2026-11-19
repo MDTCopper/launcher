@@ -1,4 +1,4 @@
-﻿import 'package:copper_launcher/core/app_config.dart';
+import 'package:copper_launcher/core/app_config.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
 import 'package:copper_launcher/ui/components/tile/navigation_tile.dart';
 import 'package:copper_launcher/ui/feature/images.dart';
@@ -257,7 +257,7 @@ class NavigationRailState extends State<NavigationRail> {
       children: [for (final section in sections) ...buildSection(section)],
     );
 
-    child = CopperSingleChildScrollView(
+    child = CuSingleChildScrollView(
       showScrollbar: false,
       padding: EdgeInsets.fromLTRB(8, 0, 8, 8),
       child: child,

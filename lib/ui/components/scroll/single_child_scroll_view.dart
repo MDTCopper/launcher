@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 ///
 /// [physics] 仅在非桌面端生效（桌面端由 DesktopScrollViewContainer 接管滚动，
 /// 强制 NeverScrollableScrollPhysics）
-class CopperSingleChildScrollView extends StatefulWidget {
+class CuSingleChildScrollView extends StatefulWidget {
   final Widget child;
   final Axis scrollDirection;
   final bool reverse;
@@ -35,7 +35,7 @@ class CopperSingleChildScrollView extends StatefulWidget {
   final bool fadeMask;
   final double fadeSize;
 
-  const CopperSingleChildScrollView({
+  const CuSingleChildScrollView({
     super.key,
     required this.child,
     this.scrollDirection = Axis.vertical,
@@ -59,11 +59,10 @@ class CopperSingleChildScrollView extends StatefulWidget {
   });
 
   @override
-  State<StatefulWidget> createState() => _CopperSingleChildScrollViewState();
+  State<StatefulWidget> createState() => _CuSingleChildScrollViewState();
 }
 
-class _CopperSingleChildScrollViewState
-    extends State<CopperSingleChildScrollView> {
+class _CuSingleChildScrollViewState extends State<CuSingleChildScrollView> {
   late final ScrollController _scrollController;
 
   @override

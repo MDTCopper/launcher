@@ -1,8 +1,13 @@
+import 'package:copper_launcher/ui/shell/parts/task_drawer_opener.dart';
+import 'package:copper_launcher/ui/shell/parts/window_close_button.dart';
+import 'package:copper_launcher/ui/theme/design_system.dart';
+import 'package:copper_launcher/util/io/os.dart';
 import 'package:flutter/material.dart';
 
 import 'package:copper_launcher/ui/components/avatar/user_avatar.dart';
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'shell_breadcrumb.dart';
 
@@ -18,9 +23,6 @@ class ShellTopBar extends StatelessWidget {
     required this.avatarUrl,
     required this.unread,
     required this.onAccountTap,
-    required this.taskOpener,
-    this.windowControls,
-    this.onDragStart,
   });
 
   /// 面包屑（越靠右越当前）
@@ -30,15 +32,6 @@ class ShellTopBar extends StatelessWidget {
   final String? avatarUrl;
   final int unread;
   final VoidCallback onAccountTap;
-
-  /// 右侧「任务 / 日志」抽屉入口
-  final Widget taskOpener;
-
-  /// 桌面端窗控（最小化 / 关闭），移动端传 null
-  final Widget? windowControls;
-
-  /// 拖动顶栏移动窗口（桌面端）
-  final VoidCallback? onDragStart;
 
   @override
   Widget build(BuildContext context) {
@@ -52,30 +45,30 @@ class ShellTopBar extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          if (onDragStart != null)
+          if (isDesktop)
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onPanStart: (_) => onDragStart!(),
+                onPanStart: (_) => windowManager.startDragging(),
               ),
             ),
           Row(
             children: [
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.related),
               _AccountChip(
                 name: accountName,
                 avatarUrl: avatarUrl,
                 unread: unread,
                 onTap: onAccountTap,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.related),
               // 面包屑只占内容宽度，右侧空白留给拖窗；整段都能起手拖窗口
               Expanded(
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
-                  onPanStart: onDragStart == null
-                      ? null
-                      : (_) => onDragStart!(),
+                  onPanStart: isDesktop
+                      ? (_) => windowManager.startDragging()
+                      : null,
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: ShellBreadcrumbBar(
@@ -85,10 +78,24 @@ class ShellTopBar extends StatelessWidget {
                   ),
                 ),
               ),
-              taskOpener,
-              const SizedBox(width: 4),
-              if (windowControls != null) ...[windowControls!],
-              const SizedBox(width: 4),
+              const TaskDrawerOpener(),
+              if (isDesktop) ...[
+                const SizedBox(width: AppSpacing.tight),
+                ReboundButton(
+                  backgroundColor: Colors.transparent,
+                  padding: const EdgeInsets.all(AppSpacing.inline),
+                  onTap: () => windowManager.minimize(),
+                  child: Icon(
+                    Icons.remove,
+                    color: colors.itemSecondary,
+                    size: 20,
+                  ),
+                ),
+
+                const SizedBox(width: AppSpacing.tight),
+                const WindowCloseButton(),
+              ],
+              const SizedBox(width: AppSpacing.related),
             ],
           ),
         ],

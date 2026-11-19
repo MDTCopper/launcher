@@ -1,5 +1,6 @@
 import 'package:copper_launcher/ui/components/button/rebound_button.dart';
 import 'package:copper_launcher/ui/theme/app_colors.dart';
+import 'package:copper_launcher/ui/theme/design_system.dart';
 import 'package:copper_launcher/ui/vars.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
@@ -66,12 +67,14 @@ class _WindowCloseButtonState extends State<WindowCloseButton>
             return ReboundButton(
               hoverColor: Colors.transparent,
               highlightColor: Colors.transparent,
+              padding: const EdgeInsets.all(AppSpacing.inline),
               backgroundColor: error,
               child: Icon(
                 Icons.close,
+                size: 20,
                 color: onHover && onTap
-                    ? color.interactiveHigh
-                    : color.interactive,
+                    ? color.itemPrimary
+                    : color.itemSecondary,
                 fontWeight: onHover && onTap
                     ? FontWeight.bold
                     : FontWeight.normal,

@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:copper_launcher/ui/components/core/cu_stable_text.dart';
 import 'package:copper_launcher/ui/components/scroll/single_child_scroll_view.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import 'package:copper_launcher/ui/components/rebound/rebound_container.dart';
@@ -36,20 +39,6 @@ class ShellBreadcrumb {
   final bool current;
 }
 
-/// 面包屑变化类型：决定切换动画
-enum _TrailChange {
-  none,
-
-  /// 压栈：新段从左往右小幅位移淡入
-  add,
-
-  /// 弹栈：旧段反向淡出 + 向左位移
-  remove,
-
-  /// 同层切换：纯淡入淡出
-  switchOnly,
-}
-
 class ShellBreadcrumbBar extends StatefulWidget {
   const ShellBreadcrumbBar({super.key, required this.crumbs, this.fadeColor});
 
@@ -66,7 +55,23 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
   final _controller = ScrollController();
   bool _moreLeft = false;
   bool _jumpedToEnd = false;
-  _TrailChange _change = _TrailChange.none;
+
+  /// 上一帧的段名：用来判断哪一段是这次新压进来的、哪一段换了内容
+  List<String> _previousLabels = const [];
+
+  /// 本次更新里新压进来的段 / 内容变了的段（按下标）
+  Set<int> _enteringSlots = const {};
+  Set<int> _changedSlots = const {};
+
+  /// 渲染中的段槽数；弹栈时先留着槽位，等这一段的淡出走完再移除
+  int _restSlots = 0;
+  Timer? _trimSlotsTimer;
+
+  /// 新压进来的段先空一帧再上内容，AnimatedSwitcher 才会播入场
+  bool _holdNewSegments = false;
+
+  /// 与设计层 `TemplateBreadcrumbBar` 的节奏一致
+  static const _segmentDuration = Duration(milliseconds: 180);
 
   static const _crumbStyle = TextStyle(fontSize: 14, height: 20 / 14);
   static const _tagStyle = TextStyle(
@@ -79,6 +84,8 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
   @override
   void initState() {
     super.initState();
+    _previousLabels = widget.crumbs.map((crumb) => crumb.label).toList();
+    _restSlots = widget.crumbs.length <= 1 ? 0 : widget.crumbs.length - 1;
     _controller.addListener(_sync);
     WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
   }
@@ -86,40 +93,51 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
   @override
   void didUpdateWidget(covariant ShellBreadcrumbBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final oldLabels = oldWidget.crumbs.map((crumb) => crumb.label).toList();
     final newLabels = widget.crumbs.map((crumb) => crumb.label).toList();
-    if (oldLabels.length == newLabels.length &&
-        oldLabels.join('>') == newLabels.join('>')) {
-      return;
+    if (listEquals(_previousLabels, newLabels)) return;
+
+    final entering = <int>{};
+    final changed = <int>{};
+    for (var index = 1; index < newLabels.length; index++) {
+      if (index >= _previousLabels.length) {
+        entering.add(index);
+      } else if (_previousLabels[index] != newLabels[index]) {
+        changed.add(index);
+      }
     }
-    _change = _detectChange(oldLabels, newLabels);
+    _previousLabels = newLabels;
+    _enteringSlots = entering;
+    _changedSlots = changed;
+    _holdNewSegments = entering.isNotEmpty;
+    _syncRestSlots();
+
     // 换栈后对齐到「当前层」那一头
     _jumpedToEnd = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_controller.hasClients) return;
+      if (!mounted) return;
+      if (_holdNewSegments) setState(() => _holdNewSegments = false);
+      if (!_controller.hasClients) return;
       _controller.jumpTo(_controller.position.maxScrollExtent);
     });
   }
 
-  static _TrailChange _detectChange(
-    List<String> oldLabels,
-    List<String> newLabels,
-  ) {
-    if (newLabels.length > oldLabels.length) {
-      final appended =
-          newLabels.take(oldLabels.length).join('>') == oldLabels.join('>');
-      return appended ? _TrailChange.add : _TrailChange.switchOnly;
+  /// 段槽数只增不减；弹栈时留一段动画的时间让旧段淡出，之后再移除
+  void _syncRestSlots() {
+    _trimSlotsTimer?.cancel();
+    final restCount = widget.crumbs.length <= 1 ? 0 : widget.crumbs.length - 1;
+    if (restCount >= _restSlots) {
+      _restSlots = restCount;
+      return;
     }
-    if (newLabels.length < oldLabels.length) {
-      final truncated =
-          oldLabels.take(newLabels.length).join('>') == newLabels.join('>');
-      return truncated ? _TrailChange.remove : _TrailChange.switchOnly;
-    }
-    return _TrailChange.switchOnly;
+    _trimSlotsTimer = Timer(_segmentDuration, () {
+      if (!mounted) return;
+      setState(() => _restSlots = restCount);
+    });
   }
 
   @override
   void dispose() {
+    _trimSlotsTimer?.cancel();
     _controller.removeListener(_sync);
     _controller.dispose();
     super.dispose();
@@ -160,81 +178,91 @@ class _ShellBreadcrumbBarState extends State<ShellBreadcrumbBar> {
       tagStyle: _tagStyle,
     );
 
-    final rest = crumbs.length <= 1
-        ? const SizedBox.shrink()
-        : AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) {
-              // 同层切换只淡入淡出；压栈 / 弹栈加一点横向位移
-              if (_change == _TrailChange.switchOnly) {
-                return FadeTransition(opacity: animation, child: child);
-              }
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween(
-                    begin: const Offset(-0.04, 0),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              );
-            },
-            layoutBuilder: (currentChild, previousChildren) => Stack(
-              alignment: Alignment.centerLeft,
-              children: [...previousChildren, ?currentChild],
-            ),
-            child: Row(
-              key: ValueKey(
-                crumbs.skip(1).map((crumb) => crumb.label).join('>'),
+    // 除根段外每段各占一个槽：只有新压进来 / 内容变了的那一段自己播动画
+    final segments = <Widget>[];
+    for (var index = 1; index <= _restSlots; index++) {
+      final hasCrumb = index < crumbs.length;
+      final entering = _enteringSlots.contains(index);
+      final fadeOnly = _changedSlots.contains(index);
+      final showContent = hasCrumb && !(entering && _holdNewSegments);
+      segments.add(
+        AnimatedSwitcher(
+          key: ValueKey(index),
+          duration: _segmentDuration,
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            // 同层切换只淡入淡出；压栈 / 弹栈加一点横向位移
+            if (fadeOnly) {
+              return FadeTransition(opacity: animation, child: child);
+            }
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween(
+                  begin: const Offset(-0.04, 0),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
               ),
-              mainAxisSize: MainAxisSize.min,
-              spacing: 2,
-              children: [
-                for (var index = 1; index < crumbs.length; index++) ...[
-                  separator(),
-                  _BreadcrumbItem(
-                    item: crumbs[index],
-                    current: isCurrent(index),
-                    crumbStyle: _crumbStyle,
-                    tagStyle: _tagStyle,
-                  ),
-                ],
-              ],
-            ),
-          );
+            );
+          },
+          layoutBuilder: (currentChild, previousChildren) => Stack(
+            alignment: Alignment.centerLeft,
+            children: [...previousChildren, ?currentChild],
+          ),
+          child: showContent
+              ? Row(
+                  key: ValueKey(crumbs[index].label),
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 2,
+                  children: [
+                    separator(),
+                    _BreadcrumbItem(
+                      item: crumbs[index],
+                      current: isCurrent(index),
+                      crumbStyle: _crumbStyle,
+                      tagStyle: _tagStyle,
+                    ),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
+      );
+    }
 
     final row = CuSingleChildScrollView(
       controller: _controller,
       scrollDirection: Axis.horizontal,
+      // 顶栏只有 40 高：横向滚动条会压在文字上，左端渐隐也由下面按 _moreLeft 自绘
+      showScrollbar: false,
+      fadeMask: false,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: 2,
-        children: [root, rest],
+        children: [root, ...segments],
       ),
     );
-    if (!_moreLeft) return row;
-    // 左边还有内容：贴一条 20px 渐隐，暗示可以往回滚
+    // 结构保持不变：换根会让滚动视图整棵重建，滚动位置会跳回开头
     return Stack(
       children: [
         row,
-        Positioned(
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 20,
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [fadeColor, fadeColor.withAlpha(0)],
+        if (_moreLeft)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 20,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [fadeColor, fadeColor.withAlpha(0)],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -314,7 +342,12 @@ class _BreadcrumbItem extends StatelessWidget {
       ],
     );
 
-    if (current || item.onTap == null) return content;
+    // 可点段的内边距在不可点（当前页）时也要占位：压栈后加粗段变普通段，
+    // 只给可点态加内边距会让整行文字向右跳一段
+    const itemPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 2);
+    if (current || item.onTap == null) {
+      return Padding(padding: itemPadding, child: content);
+    }
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: ReboundContainer(
@@ -324,7 +357,7 @@ class _BreadcrumbItem extends StatelessWidget {
         backgroundColor: Colors.transparent,
         hoverColor: colors.highBackgroundOnCard,
         highlightColor: colors.splash,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: itemPadding,
         child: content,
       ),
     );
